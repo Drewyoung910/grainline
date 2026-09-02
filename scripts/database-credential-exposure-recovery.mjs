@@ -16,6 +16,7 @@ import {
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import dotenv from "dotenv";
 import pg from "pg";
 import {
   REVIEWED_DATABASE_NAME,
@@ -35,7 +36,6 @@ import {
   loadSeparationLocalDatabaseEnvironment,
   readGithubMigrationState,
   updateGithubMigrationCredential,
-  updateSeparationLocalDirectUrl,
 } from "./runtime-db-credential-separation-operator.mjs";
 import {
   buildNeonRuntimePoolerUrl,
@@ -88,6 +88,7 @@ export const RECOVERY_RELEASE_MANIFEST_PATH =
   "docs/database-credential-recovery-20260902-release.json";
 
 const LOCAL_RUNTIME_PATH = "/Users/drewyoung/grainline/.env.local";
+const LOCAL_OWNER_PATH = "/Users/drewyoung/grainline/.env.migration-owner.local";
 const LEGACY_ENV_PATH = "/Users/drewyoung/grainline/.env";
 const GH_PATH = "/opt/homebrew/bin/gh";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
@@ -109,6 +110,36 @@ const RECOVERY_STAGES = Object.freeze([
   "complete",
 ]);
 const TERMINAL_NEON_STATUSES = new Set(["finished", "skipped"]);
+const ATOMIC_WRITE_STALE_AFTER_MS = 30_000;
+const REVIEWED_OWNER_ROLE_STATE = Object.freeze({
+  rolsuper: false,
+  rolcreatedb: true,
+  rolcreaterole: true,
+  rolinherit: true,
+  rolcanlogin: true,
+  rolreplication: true,
+  rolbypassrls: true,
+  memberships: Object.freeze([
+    Object.freeze({
+      role: "grainline_app_runtime",
+      adminOption: true,
+      inheritOption: false,
+      setOption: false,
+    }),
+    Object.freeze({
+      role: "grainline_direct_upload_cleanup_v2",
+      adminOption: true,
+      inheritOption: false,
+      setOption: false,
+    }),
+    Object.freeze({
+      role: "neon_superuser",
+      adminOption: false,
+      inheritOption: true,
+      setOption: true,
+    }),
+  ]),
+});
 
 function required(env, key) {
   const value = env?.[key];
@@ -131,6 +162,39 @@ function exactPrivateFile(filePath, label) {
     || (typeof process.getuid === "function" && stat.uid !== process.getuid())
   ) throw new Error(`${label} must be a mode-0600 regular file owned by the operator`);
   return stat;
+}
+
+export function recoverAtomicPrivateWrite(
+  filePath,
+  now = Date.now(),
+) {
+  const temporaryPath = `${filePath}.tmp`;
+  if (!existsSync(temporaryPath)) return Object.freeze({ recovered: false });
+  const stat = exactPrivateFile(temporaryPath, "private recovery temporary file");
+  if (
+    !Number.isFinite(now)
+    || !Number.isFinite(stat.mtimeMs)
+    || now - stat.mtimeMs < ATOMIC_WRITE_STALE_AFTER_MS
+  ) {
+    throw new Error("private recovery temporary file may still belong to an active writer");
+  }
+  renameSync(temporaryPath, filePath);
+  chmodSync(filePath, 0o600);
+  exactPrivateFile(filePath, "recovered private file");
+  return Object.freeze({ recovered: true });
+}
+
+function recoverCredentialRecoveryPrivateWrites(now = Date.now()) {
+  return Object.freeze([
+    RECOVERY_STATE_PATH,
+    RECOVERY_EVIDENCE_PATH,
+    LOCAL_RUNTIME_PATH,
+    LOCAL_OWNER_PATH,
+    LEGACY_ENV_PATH,
+  ].map((filePath) => Object.freeze({
+    filePath,
+    ...recoverAtomicPrivateWrite(filePath, now),
+  })));
 }
 
 function writeAtomicPrivate(filePath, source, { replace = false } = {}) {
@@ -614,16 +678,32 @@ async function waitForCandidateDeployment(deploymentId, stateCreatedAt) {
   throw new Error("replacement deployment did not become ready in time");
 }
 
-function exactRuntimeUrlFromLocal() {
-  exactPrivateFile(LOCAL_RUNTIME_PATH, "local runtime environment");
-  const url = parseAssignment(readFileSync(LOCAL_RUNTIME_PATH, "utf8"), "DATABASE_URL");
+export function inspectLocalRuntimeCredentialSource(source) {
+  const databaseAssignments = source.split(/\r?\n/)
+    .filter((line) => line.startsWith("DATABASE_URL="));
+  if (databaseAssignments.length !== 1) {
+    throw new Error("local DATABASE_URL assignment count drifted");
+  }
+  const parsed = dotenv.parse(source);
+  const privileged = privilegedDatabaseEnvironmentKeys(parsed);
+  const aliases = unreviewedPostgresUrlEnvironmentKeys(parsed);
+  if (privileged.length > 0 || aliases.length > 0) {
+    throw new Error("local runtime environment contains a privileged or aliased database credential");
+  }
   assertVercelRuntimeDatabaseIsolation({
     VERCEL: "1",
     VERCEL_ENV: "production",
-    DATABASE_URL: url,
+    DATABASE_URL: parsed.DATABASE_URL,
     RUNTIME_DB_ROLE: REVIEWED_RUNTIME_ROLE,
   });
-  return url;
+  return Object.freeze({ databaseUrl: parsed.DATABASE_URL });
+}
+
+function exactRuntimeUrlFromLocal() {
+  exactPrivateFile(LOCAL_RUNTIME_PATH, "local runtime environment");
+  return inspectLocalRuntimeCredentialSource(
+    readFileSync(LOCAL_RUNTIME_PATH, "utf8"),
+  ).databaseUrl;
 }
 
 function exactOwnerUrlFromLocal() {
@@ -787,6 +867,20 @@ export function classifyCredentialProbe(error) {
   throw new Error("credential probe failed without definitive password rejection");
 }
 
+export function exactOwnerRoleIdentity(identity) {
+  return identity?.current_user_name === REVIEWED_OWNER_ROLE
+    && identity.session_user_name === REVIEWED_OWNER_ROLE
+    && identity.rolsuper === REVIEWED_OWNER_ROLE_STATE.rolsuper
+    && identity.rolcreatedb === REVIEWED_OWNER_ROLE_STATE.rolcreatedb
+    && identity.rolcreaterole === REVIEWED_OWNER_ROLE_STATE.rolcreaterole
+    && identity.rolinherit === REVIEWED_OWNER_ROLE_STATE.rolinherit
+    && identity.rolcanlogin === REVIEWED_OWNER_ROLE_STATE.rolcanlogin
+    && identity.rolreplication === REVIEWED_OWNER_ROLE_STATE.rolreplication
+    && identity.rolbypassrls === REVIEWED_OWNER_ROLE_STATE.rolbypassrls
+    && JSON.stringify(identity.membership_options)
+      === JSON.stringify(REVIEWED_OWNER_ROLE_STATE.memberships);
+}
+
 async function proveDatabaseIdentity(connectionString, role, { expectForce = false } = {}) {
   const client = new Client({
     connectionString,
@@ -808,7 +902,22 @@ async function proveDatabaseIdentity(connectionString, role, { expectForce = fal
              role.rolcanlogin,
              role.rolcreatedb,
              role.rolcreaterole,
-             role.rolreplication
+             role.rolreplication,
+             (SELECT COALESCE(
+                       pg_catalog.jsonb_agg(
+                         pg_catalog.jsonb_build_object(
+                           'role', parent.rolname,
+                           'adminOption', membership.admin_option,
+                           'inheritOption', membership.inherit_option,
+                           'setOption', membership.set_option
+                         ) ORDER BY parent.rolname
+                       ),
+                       '[]'::pg_catalog.jsonb
+                     )
+                FROM pg_catalog.pg_auth_members AS membership
+                JOIN pg_catalog.pg_roles AS parent
+                  ON parent.oid = membership.roleid
+               WHERE membership.member = role.oid) AS membership_options
         FROM pg_catalog.pg_roles AS role
        WHERE role.rolname = CURRENT_USER
     `)).rows[0];
@@ -832,8 +941,7 @@ async function proveDatabaseIdentity(connectionString, role, { expectForce = fal
         assert.deepEqual(table, { relrowsecurity: true, relforcerowsecurity: true });
       }
     } else {
-      assert.equal(identity.rolsuper, false);
-      assert.equal(identity.rolbypassrls, true);
+      assert.equal(exactOwnerRoleIdentity(identity), true);
     }
     return Object.freeze({ databaseName: identity.database_name, role });
   } finally {
@@ -889,12 +997,18 @@ function readCanonicalAliasTargets() {
     }));
 }
 
-export function normalizeCanonicalAliasTargets(targets, deploymentId) {
+export function normalizeCanonicalAliasTargets(
+  targets,
+  deploymentId,
+  predecessorId = PRIOR_DEPLOYMENT_ID,
+) {
   const canonicalAliases = [
     "thegrainline.com", "www.thegrainline.com", "grainline.vercel.app",
   ];
   if (
     !/^dpl_[A-Za-z0-9]+$/.test(deploymentId)
+    || !/^dpl_[A-Za-z0-9]+$/.test(predecessorId)
+    || deploymentId === predecessorId
     || !Array.isArray(targets)
     || targets.length !== canonicalAliases.length
     || targets.some((target, index) => (
@@ -906,6 +1020,9 @@ export function normalizeCanonicalAliasTargets(targets, deploymentId) {
     ))
   ) throw new Error("canonical production alias inventory drifted");
   const ids = targets.map((target) => target.deployment.id);
+  if (ids.some((id) => id !== deploymentId && id !== predecessorId)) {
+    throw new Error("canonical production aliases moved to an unreviewed deployment");
+  }
   const replacementCount = ids.filter((id) => id === deploymentId).length;
   if (replacementCount !== 0 && replacementCount !== canonicalAliases.length) {
     throw new Error("replacement deployment has a partial canonical alias state");
@@ -916,37 +1033,16 @@ export function normalizeCanonicalAliasTargets(targets, deploymentId) {
   });
 }
 
-function promoteReplacementDeployment(deployment, stateCreatedAt) {
-  const before = readDeployment(deployment.id);
-  const beforeTargets = normalizeCanonicalAliasTargets(
-    readCanonicalAliasTargets(),
-    deployment.id,
-  );
-  if (beforeTargets.stage === "promoted") {
-    return normalizeCandidateDeployment(before, stateCreatedAt);
-  }
-  try {
-    runProvider(process.execPath, [
-      REVIEWED_VERCEL_CLI_PATH,
-      "promote", deployment.id,
-      "--yes", "--scope", REVIEWED_VERCEL_SCOPE, "--no-color",
-    ], { cwd: DEPLOY_SOURCE_DIRECTORY, timeout: 5 * 60_000 });
-  } catch {
-    const reconciled = normalizeCanonicalAliasTargets(
-      readCanonicalAliasTargets(),
-      deployment.id,
-    );
-    if (reconciled.stage !== "promoted") {
-      throw new Error("promotion failed before convergence");
-    }
-  }
+function verifyReplacementDeploymentPromoted(deployment, stateCreatedAt) {
   const promoted = readDeployment(deployment.id);
-  const afterTargets = normalizeCanonicalAliasTargets(
+  const targets = normalizeCanonicalAliasTargets(
     readCanonicalAliasTargets(),
     deployment.id,
   );
-  if (afterTargets.stage !== "promoted") {
-    throw new Error("replacement deployment did not receive all canonical aliases");
+  if (targets.stage !== "promoted") {
+    throw new Error(
+      "replacement deployment awaits a separately reviewed canonical promotion",
+    );
   }
   return normalizeCandidateDeployment(promoted, stateCreatedAt);
 }
@@ -977,7 +1073,15 @@ async function readLiveRoutes() {
 function replaceLocalRuntimeUrl(runtimeUrl) {
   exactPrivateFile(LOCAL_RUNTIME_PATH, "local runtime environment");
   const source = readFileSync(LOCAL_RUNTIME_PATH, "utf8");
-  const lines = source.split(/\r?\n/);
+  const parsed = dotenv.parse(source);
+  const disallowed = new Set([
+    ...privilegedDatabaseEnvironmentKeys(parsed),
+    ...unreviewedPostgresUrlEnvironmentKeys(parsed),
+  ]);
+  const lines = source.split(/\r?\n/).filter((line) => {
+    const key = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=/)?.[1];
+    return key === undefined || !disallowed.has(key);
+  });
   const matches = lines.map((line, index) => ({ line, index }))
     .filter(({ line }) => line.startsWith("DATABASE_URL="));
   if (matches.length !== 1) throw new Error("local DATABASE_URL assignment count drifted");
@@ -985,16 +1089,44 @@ function replaceLocalRuntimeUrl(runtimeUrl) {
   writeAtomicPrivate(LOCAL_RUNTIME_PATH, lines.join(source.includes("\r\n") ? "\r\n" : "\n"), {
     replace: true,
   });
+  const persisted = inspectLocalRuntimeCredentialSource(
+    readFileSync(LOCAL_RUNTIME_PATH, "utf8"),
+  );
+  if (persisted.databaseUrl !== runtimeUrl) {
+    throw new Error("local runtime credential did not converge");
+  }
+}
+
+function replaceLocalOwnerUrl(ownerUrl) {
+  const reviewed = buildNeonOwnerDirectUrl(
+    ownerUrl,
+    decodeURIComponent(new URL(ownerUrl).password),
+  );
+  writeAtomicPrivate(
+    LOCAL_OWNER_PATH,
+    `DIRECT_URL="${reviewed}"\n`,
+    { replace: true },
+  );
+  const persisted = loadSeparationLocalDatabaseEnvironment({}).DIRECT_URL;
+  if (persisted !== reviewed) {
+    throw new Error("local owner credential did not converge");
+  }
 }
 
 function removeLegacyDatabaseAssignments() {
   if (!existsSync(LEGACY_ENV_PATH)) return Object.freeze({ changed: false, removed: [] });
   exactPrivateFile(LEGACY_ENV_PATH, "legacy environment");
   const source = readFileSync(LEGACY_ENV_PATH, "utf8");
+  const parsed = dotenv.parse(source);
+  const removableKeys = new Set([
+    "DATABASE_URL",
+    ...privilegedDatabaseEnvironmentKeys(parsed),
+    ...unreviewedPostgresUrlEnvironmentKeys(parsed),
+  ]);
   const removed = [];
   const lines = source.split(/\r?\n/).filter((line) => {
-    const key = line.slice(0, line.indexOf("="));
-    if (["DATABASE_URL", "DIRECT_URL"].includes(key)) {
+    const key = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=/)?.[1];
+    if (key !== undefined && removableKeys.has(key)) {
       removed.push(key);
       return false;
     }
@@ -1005,6 +1137,12 @@ function removeLegacyDatabaseAssignments() {
       replace: true,
     });
   }
+  const remaining = dotenv.parse(readFileSync(LEGACY_ENV_PATH, "utf8"));
+  if (
+    privilegedDatabaseEnvironmentKeys(remaining).length > 0
+    || unreviewedPostgresUrlEnvironmentKeys(remaining).length > 0
+    || typeof remaining.DATABASE_URL === "string"
+  ) throw new Error("legacy local database credentials did not converge");
   return Object.freeze({ changed: removed.length > 0, removed: removed.sort() });
 }
 
@@ -1175,6 +1313,7 @@ async function reconcileReset(state, role, dependencies) {
 }
 
 export async function runCredentialRecovery(config, overrides = {}) {
+  recoverCredentialRecoveryPrivateWrites();
   const dependencies = {
     readGitState,
     readGithubRun,
@@ -1189,7 +1328,7 @@ export async function runCredentialRecovery(config, overrides = {}) {
     listReplacementDeploymentIds,
     waitForCandidateDeployment,
     createReplacementDeployment,
-    promoteReplacementDeployment,
+    verifyReplacementDeploymentPromoted,
     verifyNeonTarget: verifyReviewedNeonTarget,
     readOwnerMetadata: readReviewedNeonOwnerRoleMetadata,
     readRuntimeMetadata: readReviewedNeonRuntimeRoleMetadata,
@@ -1203,7 +1342,7 @@ export async function runCredentialRecovery(config, overrides = {}) {
     expectCredentialRejected,
     readCanonicalAliasTargets,
     readLiveRoutes,
-    updateLocalOwnerUrl: updateSeparationLocalDirectUrl,
+    updateLocalOwnerUrl: replaceLocalOwnerUrl,
     replaceLocalRuntimeUrl,
     removeLegacyDatabaseAssignments,
     runGrantAudit: async (ownerUrl) => {
@@ -1401,7 +1540,7 @@ export async function runCredentialRecovery(config, overrides = {}) {
     });
   }
   if (state.stage === "runtime-deployment-ready") {
-    dependencies.promoteReplacementDeployment(
+    dependencies.verifyReplacementDeploymentPromoted(
       state.replacementDeployment,
       state.createdAt,
     );
@@ -1421,6 +1560,12 @@ export async function runCredentialRecovery(config, overrides = {}) {
   if (state.stage === "runtime-verified") {
     dependencies.replaceLocalRuntimeUrl(state.nextRuntimeUrl);
     dependencies.removeLegacyDatabaseAssignments();
+    if (exactRuntimeUrlFromLocal() !== state.nextRuntimeUrl) {
+      throw new Error("local runtime credential boundary did not converge");
+    }
+    if (exactOwnerUrlFromLocal() !== state.nextOwnerUrl) {
+      throw new Error("local owner credential boundary did not converge");
+    }
     state = writeRecoveryState(state, "local-converged");
   }
   if (state.stage === "local-converged") {

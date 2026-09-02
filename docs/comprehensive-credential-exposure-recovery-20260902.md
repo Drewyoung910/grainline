@@ -93,8 +93,11 @@ an exposed key.
 3. Rotate the ordinary runtime password through the same pinned Neon target.
    Update only Vercel Production `DATABASE_URL`, stage the exact currently
    deployed source
-   `b22fa138d84bad792ba206ee00dacb48d475d4a4`, promote only a READY candidate,
-   update local `.env.local`, prove the old pooled password rejects with
+   `b22fa138d84bad792ba206ee00dacb48d475d4a4`, and stop with the READY candidate
+   unpromoted. Canonical promotion is a separate just-in-time operation after
+   re-verifying that every alias still resolves to the exact predecessor; the
+   recovery operator itself cannot overwrite a concurrent deployment. After
+   promotion, resume the journal, update local `.env.local`, and prove the old pooled password rejects with
    SQLSTATE `28P01`, and prove the replacement is LOGIN/NOINHERIT/
    NOBYPASSRLS `grainline_app_runtime`.
 4. Run an engine-enforced repeatable-read read-only global grant/RLS audit and
@@ -127,8 +130,15 @@ accepted August recovery and now:
 - binds the live deployment and its canonical aliases independently;
 - rotates owner before runtime;
 - records secret material only in an ignored mode-`0600` private journal;
+- recovers a stale, fully-fsynced atomic temporary write after fencing recent
+  files that may still belong to an active writer;
 - never retries an ambiguous Neon reset blindly;
 - deploys only the exact current application source;
+- refuses automatic canonical promotion and rejects aliases that moved to any
+  deployment other than the pinned predecessor or replacement;
+- proves the complete reviewed owner attributes and membership-option graph;
+- removes privileged or aliased PostgreSQL credentials from the runtime-local
+  file before declaring local convergence;
 - accepts only SQLSTATE `28P01` as old-password rejection;
 - performs a read-only global grant/RLS audit;
 - emits sanitized evidence and no secret values; and
@@ -138,4 +148,3 @@ The implementation must pass focused tests and an independent post-patch
 security review, then be committed as an implementation checkpoint. A separate
 one-file release commit must pin the implementation SHA-256 and successful
 exact-head pull-request CI before execution.
-

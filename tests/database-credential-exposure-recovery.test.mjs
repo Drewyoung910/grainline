@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import {
   BASELINE_MAIN_CI_RUN_ID,
@@ -12,7 +13,9 @@ import {
   assertRecoveryReleaseGitState,
   assertRecoveryVercelStage,
   classifyCredentialProbe,
+  exactOwnerRoleIdentity,
   freshRecoveryState,
+  inspectLocalRuntimeCredentialSource,
   normalizeCandidateDeployment,
   normalizeCanonicalAliasTargets,
   normalizeGithubRun,
@@ -22,6 +25,7 @@ import {
   normalizeReplacementDeploymentInventory,
   parseRecoveryConfig,
   recoveryDeploymentMarker,
+  recoverAtomicPrivateWrite,
   validateRecoveryEvidence,
   validateRecoveryState,
 } from "../scripts/database-credential-exposure-recovery.mjs";
@@ -195,7 +199,7 @@ test("deployment boundaries pin the current production and exact-source replacem
   }, createdAt));
 });
 
-test("canonical alias proof rejects partial promotion", () => {
+test("canonical alias proof accepts only the exact predecessor or replacement", () => {
   const deploymentId = "dpl_Replacement123";
   const hosts = ["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app"];
   const targets = (ids) => hosts.map((hostname, index) => ({
@@ -212,8 +216,88 @@ test("canonical alias proof rejects partial promotion", () => {
     targets(Array(3).fill(deploymentId)), deploymentId,
   ).stage, "promoted");
   assert.throws(() => normalizeCanonicalAliasTargets(
-    targets([deploymentId, "dpl_Previous123", "dpl_Previous123"]), deploymentId,
+    targets([deploymentId, PRIOR_DEPLOYMENT_ID, PRIOR_DEPLOYMENT_ID]), deploymentId,
   ), /partial/);
+  assert.throws(() => normalizeCanonicalAliasTargets(
+    targets(Array(3).fill("dpl_Unreviewed123")), deploymentId,
+  ), /unreviewed/);
+});
+
+test("owner proof requires the complete reviewed attributes and membership options", () => {
+  const identity = {
+    current_user_name: "neondb_owner",
+    session_user_name: "neondb_owner",
+    rolsuper: false,
+    rolcreatedb: true,
+    rolcreaterole: true,
+    rolinherit: true,
+    rolcanlogin: true,
+    rolreplication: true,
+    rolbypassrls: true,
+    membership_options: [
+      {
+        role: "grainline_app_runtime",
+        adminOption: true,
+        inheritOption: false,
+        setOption: false,
+      },
+      {
+        role: "grainline_direct_upload_cleanup_v2",
+        adminOption: true,
+        inheritOption: false,
+        setOption: false,
+      },
+      {
+        role: "neon_superuser",
+        adminOption: false,
+        inheritOption: true,
+        setOption: true,
+      },
+    ],
+  };
+  assert.equal(exactOwnerRoleIdentity(identity), true);
+  for (const key of [
+    "rolcreatedb", "rolcreaterole", "rolinherit", "rolreplication", "rolbypassrls",
+  ]) {
+    assert.equal(exactOwnerRoleIdentity({ ...identity, [key]: !identity[key] }), false);
+  }
+  assert.equal(exactOwnerRoleIdentity({
+    ...identity,
+    membership_options: identity.membership_options.slice(1),
+  }), false);
+});
+
+test("local runtime source rejects privileged and aliased PostgreSQL credentials", () => {
+  assert.equal(inspectLocalRuntimeCredentialSource(
+    `DATABASE_URL="${RUNTIME_URL}"\nOTHER=value\n`,
+  ).databaseUrl, RUNTIME_URL);
+  assert.throws(() => inspectLocalRuntimeCredentialSource(
+    `DATABASE_URL="${RUNTIME_URL}"\nDIRECT_URL="${OWNER_URL}"\n`,
+  ), /privileged or aliased/);
+  assert.throws(() => inspectLocalRuntimeCredentialSource(
+    `DATABASE_URL="${RUNTIME_URL}"\nSHADOW_DATABASE="${OWNER_URL}"\n`,
+  ), /privileged or aliased/);
+});
+
+test("stale atomic temporary writes resume while active writers remain fenced", () => {
+  const directory = fs.mkdtempSync("/tmp/grainline-credential-recovery-test-");
+  const destination = path.join(directory, "state.json");
+  const temporary = `${destination}.tmp`;
+  try {
+    fs.writeFileSync(temporary, "staged", { mode: 0o600 });
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(temporary, old, old);
+    assert.equal(recoverAtomicPrivateWrite(destination).recovered, true);
+    assert.equal(fs.readFileSync(destination, "utf8"), "staged");
+
+    fs.writeFileSync(temporary, "active", { mode: 0o600 });
+    assert.throws(
+      () => recoverAtomicPrivateWrite(destination),
+      /active writer/,
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("Vercel inventory accepts runtime-only scope and rejects privilege drift", () => {
@@ -386,7 +470,8 @@ test("operator is owner-first, read-only-audited, silent, and has no migration s
   assert.doesNotMatch(source, /console\.(?:log|error)/);
   assert.doesNotMatch(source, /prisma\s+migrate|production-migrations/);
   assert.match(source, /--skip-domain/);
-  assert.match(source, /"promote"/);
+  assert.doesNotMatch(source, /"promote"/);
+  assert.match(source, /separately reviewed canonical promotion/);
   assert.ok(
     source.indexOf('writeRecoveryState(state, "owner-reset-started")')
       < source.indexOf('writeRecoveryState(state, "runtime-reset-started")'),
