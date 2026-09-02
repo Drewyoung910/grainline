@@ -418,6 +418,7 @@ export default function BuyNowCheckoutModal({
                 quoteBodyExtra={{
                   mode: "single",
                   listingId,
+                  quantity,
                 }}
               />
 

@@ -144,6 +144,8 @@ describe("shipping rate tokens", () => {
     const sellerCheckout = readFileSync("src/app/api/cart/checkout-seller/route.ts", "utf8");
     const singleCheckout = readFileSync("src/app/api/cart/checkout/single/route.ts", "utf8");
     const quoteRoute = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    const selector = readFileSync("src/components/ShippingRateSelector.tsx", "utf8");
+    const buyNowModal = readFileSync("src/components/BuyNowCheckoutModal.tsx", "utf8");
     const tokenSource = readFileSync("src/lib/shipping-token.ts", "utf8");
 
     assert.match(tokenSource, /export function shippingRateSubjectHash/);
@@ -151,6 +153,11 @@ describe("shipping rate tokens", () => {
     assert.match(quoteRoute, /subjectHash = shippingRateSubjectHash\(\{/);
     assert.match(quoteRoute, /subjectHash,/);
     assert.match(quoteRoute, /token,\s*expiresAt,\s*subjectHash,/s);
+    assert.match(selector, /quoteBodyExtra\?: Record<string, string \| number>/);
+    assert.match(
+      buyNowModal,
+      /quoteBodyExtra=\{\{\s*mode: "single",\s*listingId,\s*quantity,\s*\}\}/s,
+    );
 
     for (const source of [sellerCheckout, singleCheckout]) {
       assert.match(source, /subjectHash: z\.string\(\)\.min\(1\)\.max\(64\)/);

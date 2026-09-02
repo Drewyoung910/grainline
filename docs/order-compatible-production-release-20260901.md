@@ -87,6 +87,13 @@ Those are separate authenticated smoke and launch/provider checks. They do not
 justify delaying this compatible database release, but the label purchase and
 retry paths must be exercised before predecessor drain and Order Phase A.
 
+The 2026-09-02 authenticated-route audit also found that Buy Now omitted the
+selected quantity from the quote request even though checkout verifies the
+signed package subject against that quantity. The isolated application fix and
+regression test are recorded in
+`docs/verified-cross-domain-pre-rls-findings-20260901.md`. Deploy that correction
+before using the authenticated shipping smoke as release evidence.
+
 ## Remaining sequence
 
 1. ~~Merge this workflow-only package after full CI.~~ Completed in merge
