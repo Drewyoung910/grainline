@@ -46,6 +46,28 @@ export const ADDRESS = Object.freeze({
   postalCode: "78701",
   phone: null,
 });
+export const ORDER_FIXTURE_SHIP_FROM = Object.freeze({
+  name: "Grainline Route Canary",
+  line1: "1100 Congress Ave",
+  city: "Austin",
+  state: "TX",
+  postalCode: "78701",
+  country: "US",
+});
+export const ORDER_FIXTURE_SHIP_TO = Object.freeze({
+  name: "Grainline Route Canary",
+  line1: "500 E 4th St",
+  city: "Austin",
+  state: "TX",
+  postalCode: "78701",
+  country: "US",
+});
+export const LEGACY_CLEANUP_RECOVERY = Object.freeze({
+  operatorCommit: "777cbe258e84a8fb59a67f5b739ddbeb63f2d706",
+  operatorCiRunId: 33606320753,
+  startedAt: "2026-09-02T08:16:17.014Z",
+  timeZone: "America/Chicago",
+});
 const MAX_JSON_BYTES = 256 * 1024;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 export const REVIEWED_PROJECT = Object.freeze({
@@ -65,6 +87,55 @@ export const STATE_PATH = path.join(
   EVIDENCE_DIRECTORY,
   "order-authenticated-route-smoke-state.json",
 );
+
+function canonicalTimestampSql(column) {
+  return `CASE WHEN ${column} IS NULL THEN NULL ELSE pg_catalog.to_char(
+    ${column}, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+  ) END`;
+}
+
+export function legacyLocalTimestampToCanonical(value, timeZone = LEGACY_CLEANUP_RECOVERY.timeZone) {
+  if (value === null) return null;
+  if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
+    throw new Error("legacy cleanup timestamp is invalid");
+  }
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    fractionalSecondDigits: 3,
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "2-digit",
+    second: "2-digit",
+    timeZone,
+    year: "numeric",
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(new Date(value))
+    .filter(({ type }) => type !== "literal")
+    .map(({ type, value: part }) => [type, part]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.${parts.fractionalSecond}Z`;
+}
+
+export function assertDistinctOrderFixtureAddresses(
+  from = ORDER_FIXTURE_SHIP_FROM,
+  to = ORDER_FIXTURE_SHIP_TO,
+) {
+  const values = (address) => [
+    address?.line1,
+    address?.city,
+    address?.state,
+    address?.postalCode,
+    address?.country,
+  ].map((value) => String(value ?? "").trim().toLowerCase());
+  const fromValues = values(from);
+  const toValues = values(to);
+  const fromKey = fromValues.join("|");
+  const toKey = toValues.join("|");
+  if (fromValues.some((value) => !value) || toValues.some((value) => !value) || fromKey === toKey) {
+    throw new Error("authenticated Order label fixture addresses must be distinct");
+  }
+  return Object.freeze({ distinct: true });
+}
 
 // Corrected seller-shipping policy application release. This is deliberately
 // distinct from the later operator commit/CI binding: the smoke must execute
@@ -552,9 +623,12 @@ async function selectCanary(clerk, owner) {
       !== "notification-rls-route-and-production-canary"
   ) throw new Error("operational canary identity drifted");
   const result = await owner.query(`
-    SELECT account.id, account."clerkId", account.role::text, account."termsAcceptedAt",
-           account."termsVersion", account."ageAttestedAt",
-           account."notificationPreferences", account."emailPreferenceOptInAt",
+    SELECT account.id, account."clerkId", account.role::text,
+           ${canonicalTimestampSql('account."termsAcceptedAt"')} AS "termsAcceptedAt",
+           account."termsVersion",
+           ${canonicalTimestampSql('account."ageAttestedAt"')} AS "ageAttestedAt",
+           account."notificationPreferences",
+           ${canonicalTimestampSql('account."emailPreferenceOptInAt"')} AS "emailPreferenceOptInAt",
            (seller.id IS NOT NULL) AS has_seller
       FROM public."User" AS account
       LEFT JOIN public."SellerProfile" AS seller ON seller."userId" = account.id
@@ -658,12 +732,38 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING) {
   const cleanupValid = state?.stage !== "cleaned"
     ? state?.cleanup === undefined
     : cleanupPassed(state?.cleanup);
+  const legacyRecovery = config?.cleanupOnly === true
+    && state?.version === 1
+    && state?.operatorCommit === LEGACY_CLEANUP_RECOVERY.operatorCommit
+    && state?.operatorCiRunId === LEGACY_CLEANUP_RECOVERY.operatorCiRunId
+    && state?.startedAt === LEGACY_CLEANUP_RECOVERY.startedAt
+    && state?.status === "failed"
+    && state?.stage === "cleanup"
+    && state?.failureStage === "cleanup"
+    && state?.routePhasesPassed === false
+    && state?.checkout?.signedExpiryObserved === true
+    && state?.provider?.shippoTransactionId === null;
+  const recoveredFromValid = state?.recoveredFromOperator === undefined
+    || (state?.version === 2
+      && state.recoveredFromOperator?.operatorCommit === LEGACY_CLEANUP_RECOVERY.operatorCommit
+      && state.recoveredFromOperator?.operatorCiRunId === LEGACY_CLEANUP_RECOVERY.operatorCiRunId
+      && state.recoveredFromOperator?.startedAt === LEGACY_CLEANUP_RECOVERY.startedAt
+      && validTimestamp(state.recoveredFromOperator?.legacyTermsAcceptedAt)
+      && validTimestamp(state.recoveredFromOperator?.legacyAgeAttestedAt)
+      && validTimestamp(state.recoveredFromOperator?.legacyEmailPreferenceOptInAt)
+      && legacyLocalTimestampToCanonical(state.recoveredFromOperator.legacyTermsAcceptedAt)
+        === state.canary?.originalTermsAcceptedAt
+      && legacyLocalTimestampToCanonical(state.recoveredFromOperator.legacyAgeAttestedAt)
+        === state.canary?.originalAgeAttestedAt
+      && legacyLocalTimestampToCanonical(state.recoveredFromOperator.legacyEmailPreferenceOptInAt)
+        === state.canary?.originalEmailPreferenceOptInAt);
   if (
     !state
     || typeof state !== "object"
-    || state.version !== 1
-    || state.operatorCommit !== config?.operatorCommit
-    || state.operatorCiRunId !== config?.operatorCiRunId
+    || !(state.version === 2 || legacyRecovery)
+    || (!legacyRecovery && state.operatorCommit !== config?.operatorCommit)
+    || (!legacyRecovery && state.operatorCiRunId !== config?.operatorCiRunId)
+    || !recoveredFromValid
     || state.deployedCommit !== exact.commit
     || state.deployedCiRunId !== exact.ciRunId
     || state.deploymentId !== exact.deploymentId
@@ -721,6 +821,31 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING) {
   // successfully re-proven phase. Freezing the validated copy would make every
   // resumed run fail on its first state update.
   const validated = { ...state };
+  if (legacyRecovery) {
+    validated.version = 2;
+    validated.operatorCommit = config.operatorCommit;
+    validated.operatorCiRunId = config.operatorCiRunId;
+    validated.recoveredFromOperator = {
+      operatorCommit: LEGACY_CLEANUP_RECOVERY.operatorCommit,
+      operatorCiRunId: LEGACY_CLEANUP_RECOVERY.operatorCiRunId,
+      startedAt: LEGACY_CLEANUP_RECOVERY.startedAt,
+      legacyTermsAcceptedAt: state.canary.originalTermsAcceptedAt,
+      legacyAgeAttestedAt: state.canary.originalAgeAttestedAt,
+      legacyEmailPreferenceOptInAt: state.canary.originalEmailPreferenceOptInAt,
+    };
+    validated.canary = {
+      ...state.canary,
+      originalTermsAcceptedAt: legacyLocalTimestampToCanonical(
+        state.canary.originalTermsAcceptedAt,
+      ),
+      originalAgeAttestedAt: legacyLocalTimestampToCanonical(
+        state.canary.originalAgeAttestedAt,
+      ),
+      originalEmailPreferenceOptInAt: legacyLocalTimestampToCanonical(
+        state.canary.originalEmailPreferenceOptInAt,
+      ),
+    };
+  }
   // stageIndex was used only as a validation aid in the scaffold. Never carry
   // it into the mutable journal, where it would become stale after advancing
   // the stage and incorrectly block the following restart.
@@ -731,7 +856,7 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING) {
 function createInitialState(config, canary, checkoutSeller) {
   const marker = randomBytes(16).toString("hex");
   return {
-    version: 1,
+    version: 2,
     status: "running",
     stage: "prepared",
     operatorCommit: config.operatorCommit,
@@ -775,11 +900,11 @@ export async function seedBuyerFixture(owner, redis, state) {
   try {
     const adjusted = await owner.query(`
       UPDATE public."User"
-         SET "termsAcceptedAt" = pg_catalog.clock_timestamp(),
+         SET "termsAcceptedAt" = ($3::timestamptz AT TIME ZONE 'UTC'),
              "termsVersion" = $2,
-             "ageAttestedAt" = pg_catalog.clock_timestamp()
+             "ageAttestedAt" = ($3::timestamptz AT TIME ZONE 'UTC')
        WHERE id = $1 AND role::text = 'USER' AND NOT banned AND "deletedAt" IS NULL
-    `, [state.canary.userId, TERMS_VERSION]);
+    `, [state.canary.userId, TERMS_VERSION, state.startedAt]);
     if (adjusted.rowCount !== 1) throw new Error("canary compliance fixture adjustment failed");
     const inserted = await owner.query(`
       INSERT INTO public."Listing" (
@@ -906,6 +1031,12 @@ export function assertSeededOrderFixtureSnapshot(snapshot, state) {
     chargesEnabled: false,
     stripeAccountId: null,
     useCalculatedShipping: false,
+    shipFromName: ORDER_FIXTURE_SHIP_FROM.name,
+    shipFromLine1: ORDER_FIXTURE_SHIP_FROM.line1,
+    shipFromCity: ORDER_FIXTURE_SHIP_FROM.city,
+    shipFromState: ORDER_FIXTURE_SHIP_FROM.state,
+    shipFromPostal: ORDER_FIXTURE_SHIP_FROM.postalCode,
+    shipFromCountry: ORDER_FIXTURE_SHIP_FROM.country,
   });
   assert.deepEqual(sellers.get(ids.receiptSellerProfileId), {
     id: ids.receiptSellerProfileId,
@@ -918,6 +1049,12 @@ export function assertSeededOrderFixtureSnapshot(snapshot, state) {
     chargesEnabled: false,
     stripeAccountId: null,
     useCalculatedShipping: false,
+    shipFromName: ORDER_FIXTURE_SHIP_FROM.name,
+    shipFromLine1: ORDER_FIXTURE_SHIP_FROM.line1,
+    shipFromCity: ORDER_FIXTURE_SHIP_FROM.city,
+    shipFromState: ORDER_FIXTURE_SHIP_FROM.state,
+    shipFromPostal: ORDER_FIXTURE_SHIP_FROM.postalCode,
+    shipFromCountry: ORDER_FIXTURE_SHIP_FROM.country,
   });
 
   const listings = uniqueRowsById(snapshot?.listings, 3, "Listing");
@@ -959,11 +1096,11 @@ export function assertSeededOrderFixtureSnapshot(snapshot, state) {
     shippingAmountCents: 0,
     taxAmountCents: 0,
     buyerName: "Grainline Route Canary",
-    shipToLine1: "123 Main St",
-    shipToCity: "Austin",
-    shipToState: "TX",
-    shipToPostalCode: "78701",
-    shipToCountry: "US",
+    shipToLine1: ORDER_FIXTURE_SHIP_TO.line1,
+    shipToCity: ORDER_FIXTURE_SHIP_TO.city,
+    shipToState: ORDER_FIXTURE_SHIP_TO.state,
+    shipToPostalCode: ORDER_FIXTURE_SHIP_TO.postalCode,
+    shipToCountry: ORDER_FIXTURE_SHIP_TO.country,
     fulfillmentMethod: "SHIPPING",
   });
   const label = orders.get(ids.labelOrderId);
@@ -1067,7 +1204,9 @@ async function captureSeededOrderFixtureSnapshot(owner, state) {
   const sellers = await owner.query(`
       SELECT id, "userId", "displayName", "displayNameNormalized", "vacationMode",
              "acceptingNewOrders", "onboardingComplete", "chargesEnabled",
-             "stripeAccountId", "useCalculatedShipping"
+             "stripeAccountId", "useCalculatedShipping", "shipFromName",
+             "shipFromLine1", "shipFromCity", "shipFromState", "shipFromPostal",
+             "shipFromCountry"
         FROM public."SellerProfile" WHERE id = ANY($1::text[]) ORDER BY id
     `, [[ids.canarySellerProfileId, ids.receiptSellerProfileId]]);
   const listings = await owner.query(`
@@ -1108,6 +1247,7 @@ async function captureSeededOrderFixtureSnapshot(owner, state) {
 
 export async function seedOrderFixtures(owner, state) {
   const ids = state.fixtureIds;
+  assertDistinctOrderFixtureAddresses();
   const syntheticBuyerEmail = `order-route-${state.marker}@example.invalid`;
   const receiptSellerEmail = `order-route-seller-${state.marker}@example.invalid`;
   await owner.query("BEGIN");
@@ -1146,11 +1286,11 @@ export async function seedOrderFixtures(owner, state) {
         "acceptingNewOrders", "onboardingComplete", "createdAt", "updatedAt"
       ) VALUES
         ($1, $2, 'Grainline Route Canary Shop', 'grainline route canary shop',
-         'Grainline Route Canary', '123 Main St', 'Austin', 'TX', '78701', 'US',
+         $5, $6, $7, $8, $9, $10,
          500, 10, 10, 10, true, false, false,
          pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()),
         ($3, $4, 'Disposable Receipt Shop', 'disposable receipt shop',
-         'Disposable Receipt Shop', '123 Main St', 'Austin', 'TX', '78701', 'US',
+         $5, $6, $7, $8, $9, $10,
          500, 10, 10, 10, true, false, false,
          pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())
       ON CONFLICT (id) DO NOTHING
@@ -1159,6 +1299,12 @@ export async function seedOrderFixtures(owner, state) {
       state.canary.userId,
       ids.receiptSellerProfileId,
       ids.receiptSellerUserId,
+      ORDER_FIXTURE_SHIP_FROM.name,
+      ORDER_FIXTURE_SHIP_FROM.line1,
+      ORDER_FIXTURE_SHIP_FROM.city,
+      ORDER_FIXTURE_SHIP_FROM.state,
+      ORDER_FIXTURE_SHIP_FROM.postalCode,
+      ORDER_FIXTURE_SHIP_FROM.country,
     ]);
     const listingIds = [ids.labelListingId, ids.fulfillmentListingId, ids.receiptListingId];
     const sellerIds = [
@@ -1192,11 +1338,23 @@ export async function seedOrderFixtures(owner, state) {
           "shipToLine1", "shipToCity", "shipToState", "shipToPostalCode", "shipToCountry",
           "fulfillmentMethod", "fulfillmentStatus", "shippedAt", "createdAt"
         ) VALUES ($1, $2, $3, pg_catalog.clock_timestamp(), 'usd', 500, 500, 0, 0,
-          'Grainline Route Canary', '123 Main St', 'Austin', 'TX', '78701', 'US',
+          $6, $7, $8, $9, $10, $11,
           'SHIPPING', $4::public."FulfillmentStatus", $5,
           pg_catalog.clock_timestamp())
         ON CONFLICT (id) DO NOTHING
-      `, [orderId, buyerId, sellerProfileId, fulfillmentStatus, shippedAt]);
+      `, [
+        orderId,
+        buyerId,
+        sellerProfileId,
+        fulfillmentStatus,
+        shippedAt,
+        ORDER_FIXTURE_SHIP_TO.name,
+        ORDER_FIXTURE_SHIP_TO.line1,
+        ORDER_FIXTURE_SHIP_TO.city,
+        ORDER_FIXTURE_SHIP_TO.state,
+        ORDER_FIXTURE_SHIP_TO.postalCode,
+        ORDER_FIXTURE_SHIP_TO.country,
+      ]);
     }
     const itemRows = [
       [ids.labelOrderItemId, ids.labelOrderId, ids.labelListingId, ids.canarySellerProfileId],
@@ -1793,6 +1951,101 @@ async function canaryToken(clerk, state) {
   return authentication.jwt;
 }
 
+export async function restoreCanarySnapshot(owner, state) {
+  const current = await owner.query(`
+    SELECT role::text,
+           ${canonicalTimestampSql('"termsAcceptedAt"')} AS "termsAcceptedAt",
+           "termsVersion",
+           ${canonicalTimestampSql('"ageAttestedAt"')} AS "ageAttestedAt",
+           "notificationPreferences",
+           ${canonicalTimestampSql('"emailPreferenceOptInAt"')} AS "emailPreferenceOptInAt"
+      FROM public."User"
+     WHERE id = $1 AND "clerkId" = $2 AND NOT banned AND "deletedAt" IS NULL
+     FOR UPDATE
+  `, [state.canary.userId, state.canary.clerkUserId]);
+  if (current.rowCount !== 1) throw new Error("cleanup canary recovery source row drifted");
+  const exactSnapshot = (candidate, expected) => candidate.role === expected.role
+    && candidate.termsAcceptedAt === expected.termsAcceptedAt
+    && candidate.termsVersion === expected.termsVersion
+    && candidate.ageAttestedAt === expected.ageAttestedAt
+    && JSON.stringify(candidate.notificationPreferences)
+      === JSON.stringify(expected.notificationPreferences)
+    && candidate.emailPreferenceOptInAt === expected.emailPreferenceOptInAt;
+  const original = {
+    role: state.canary.originalRole,
+    termsAcceptedAt: state.canary.originalTermsAcceptedAt,
+    termsVersion: state.canary.originalTermsVersion,
+    ageAttestedAt: state.canary.originalAgeAttestedAt,
+    notificationPreferences: state.canary.originalNotificationPreferences,
+    emailPreferenceOptInAt: state.canary.originalEmailPreferenceOptInAt,
+  };
+  const temporary = state.recoveredFromOperator
+    ? {
+        ...original,
+        termsAcceptedAt: state.recoveredFromOperator.legacyTermsAcceptedAt,
+        ageAttestedAt: state.recoveredFromOperator.legacyAgeAttestedAt,
+        emailPreferenceOptInAt: state.recoveredFromOperator.legacyEmailPreferenceOptInAt,
+      }
+    : {
+        ...original,
+        termsAcceptedAt: state.startedAt,
+        termsVersion: TERMS_VERSION,
+        ageAttestedAt: state.startedAt,
+      };
+  if (!exactSnapshot(current.rows[0], original) && !exactSnapshot(current.rows[0], temporary)) {
+    throw new Error("cleanup canary recovery source fields drifted");
+  }
+  const restored = await owner.query(`
+    UPDATE public."User"
+       SET role = $2::public."Role",
+           "termsAcceptedAt" = CASE WHEN $3::text IS NULL THEN NULL
+             ELSE ($3::timestamptz AT TIME ZONE 'UTC') END,
+           "termsVersion" = $4,
+           "ageAttestedAt" = CASE WHEN $5::text IS NULL THEN NULL
+             ELSE ($5::timestamptz AT TIME ZONE 'UTC') END,
+           "notificationPreferences" = $6::jsonb,
+           "emailPreferenceOptInAt" = CASE WHEN $7::text IS NULL THEN NULL
+             ELSE ($7::timestamptz AT TIME ZONE 'UTC') END
+     WHERE id = $1 AND "clerkId" = $8 AND NOT banned AND "deletedAt" IS NULL
+     RETURNING id
+  `, [
+    state.canary.userId,
+    state.canary.originalRole,
+    state.canary.originalTermsAcceptedAt,
+    state.canary.originalTermsVersion,
+    state.canary.originalAgeAttestedAt,
+    JSON.stringify(state.canary.originalNotificationPreferences),
+    state.canary.originalEmailPreferenceOptInAt,
+    state.canary.clerkUserId,
+  ]);
+  if (restored.rowCount !== 1) throw new Error("cleanup could not restore the exact canary");
+  const canary = await owner.query(`
+    SELECT role::text,
+           ${canonicalTimestampSql('"termsAcceptedAt"')} AS "termsAcceptedAt",
+           "termsVersion",
+           ${canonicalTimestampSql('"ageAttestedAt"')} AS "ageAttestedAt",
+           "notificationPreferences",
+           ${canonicalTimestampSql('"emailPreferenceOptInAt"')} AS "emailPreferenceOptInAt"
+      FROM public."User" WHERE id = $1 AND "clerkId" = $2
+  `, [state.canary.userId, state.canary.clerkUserId]);
+  if (canary.rowCount !== 1) throw new Error("cleanup canary restoration row count drifted");
+  const snapshot = canary.rows[0];
+  const driftedFields = [
+    ["role", snapshot.role === state.canary.originalRole],
+    ["termsAcceptedAt", snapshot.termsAcceptedAt === state.canary.originalTermsAcceptedAt],
+    ["termsVersion", snapshot.termsVersion === state.canary.originalTermsVersion],
+    ["ageAttestedAt", snapshot.ageAttestedAt === state.canary.originalAgeAttestedAt],
+    ["notificationPreferences", JSON.stringify(snapshot.notificationPreferences)
+      === JSON.stringify(state.canary.originalNotificationPreferences)],
+    ["emailPreferenceOptInAt",
+      snapshot.emailPreferenceOptInAt === state.canary.originalEmailPreferenceOptInAt],
+  ].filter(([, matches]) => !matches).map(([field]) => field);
+  if (driftedFields.length > 0) {
+    throw new Error(`cleanup canary restoration proof drifted: ${driftedFields.join(",")}`);
+  }
+  return Object.freeze({ restored: true });
+}
+
 async function cleanupFixtures({ clerk, owner, redis, runtime, state, stripe }) {
   const ids = state.fixtureIds;
   const cleanup = {
@@ -1911,26 +2164,7 @@ async function cleanupFixtures({ clerk, owner, redis, runtime, state, stripe }) 
     await owner.query(`DELETE FROM public."EmailSuppression" WHERE id = $1`,
       [ids.syntheticBuyerSuppressionId]);
     await owner.query(`DELETE FROM public."User" WHERE id = ANY($1::text[])`, [userIds]);
-    const restored = await owner.query(`
-      UPDATE public."User"
-         SET role = $2::public."Role",
-             "termsAcceptedAt" = $3,
-             "termsVersion" = $4,
-             "ageAttestedAt" = $5,
-             "notificationPreferences" = $6::jsonb,
-             "emailPreferenceOptInAt" = $7
-       WHERE id = $1 AND "clerkId" = $8 AND NOT banned AND "deletedAt" IS NULL
-    `, [
-      state.canary.userId,
-      state.canary.originalRole,
-      state.canary.originalTermsAcceptedAt,
-      state.canary.originalTermsVersion,
-      state.canary.originalAgeAttestedAt,
-      JSON.stringify(state.canary.originalNotificationPreferences),
-      state.canary.originalEmailPreferenceOptInAt,
-      state.canary.clerkUserId,
-    ]);
-    if (restored.rowCount !== 1) throw new Error("cleanup could not restore the exact canary");
+    await restoreCanarySnapshot(owner, state);
     await owner.query("COMMIT");
   } catch (error) {
     await owner.query("ROLLBACK").catch(() => {});
@@ -1995,24 +2229,6 @@ async function cleanupFixtures({ clerk, owner, redis, runtime, state, stripe }) 
     throw new Error("cleanup signed Stripe webhook lease posture drifted");
   }
   cleanup.processedWebhookLeaseCount = expectedWebhookLeaseCount;
-  const canary = await owner.query(`
-    SELECT role::text, "termsAcceptedAt", "termsVersion", "ageAttestedAt",
-           "notificationPreferences", "emailPreferenceOptInAt"
-      FROM public."User" WHERE id = $1 AND "clerkId" = $2
-  `, [state.canary.userId, state.canary.clerkUserId]);
-  if (
-    canary.rowCount !== 1
-    || canary.rows[0].role !== state.canary.originalRole
-    || new Date(canary.rows[0].termsAcceptedAt ?? 0).toISOString()
-      !== new Date(state.canary.originalTermsAcceptedAt ?? 0).toISOString()
-    || canary.rows[0].termsVersion !== state.canary.originalTermsVersion
-    || new Date(canary.rows[0].ageAttestedAt ?? 0).toISOString()
-      !== new Date(state.canary.originalAgeAttestedAt ?? 0).toISOString()
-    || JSON.stringify(canary.rows[0].notificationPreferences)
-      !== JSON.stringify(state.canary.originalNotificationPreferences)
-    || new Date(canary.rows[0].emailPreferenceOptInAt ?? 0).toISOString()
-      !== new Date(state.canary.originalEmailPreferenceOptInAt ?? 0).toISOString()
-  ) throw new Error("cleanup canary restoration proof drifted");
   cleanup.canaryRestored = true;
   await assertCheckoutSellerUnchanged(owner, stripe, state);
   cleanup.checkoutSellerUnchanged = true;
