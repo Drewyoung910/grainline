@@ -489,3 +489,35 @@ deployment/source/alias binding, canonical health, sanitized mode-`0600`
 evidence and removal of the private restart journal. The operator contains no
 migration, RLS, database, Stripe, broad deployment-removal or raw-secret output
 surface.
+
+The compatibility half is now live and accepted:
+
+- application source: exact main
+  `a4c74bbaeded1e347ec582289a226eae24763faf`;
+- exact-main CI: `33683844324`, with every database/RLS proof, TypeScript,
+  lint, 3,988 tests, security audit and production build passing;
+- compatibility deployment: `dpl_Ec5mLGwhv3jXWEa88z2BeUs5N3j7`;
+- preserved predecessor: `dpl_GfJdUoqm6gCMGi8CMEExWVEN5xRC`;
+- all four canonical aliases resolve to the READY compatibility deployment and
+  canonical `/api/health` returns 200; and
+- the effective Production current-secret digest remains the reviewed original
+  digest while the previous-secret variable remains absent. No secret changed
+  during this compatibility release.
+
+The next separate boundary is
+`scripts/shipping-rate-secret-credential-exposure-recovery.mjs`, documented in
+`docs/shipping-rate-secret-credential-recovery.md`. The operator pins the exact
+source/CI/deployment above and exact Vercel current-row identifiers. It creates
+only one temporary Production previous row, updates the three current Vercel
+rows plus GitHub/local current consumers, produces dual and final deployments
+from the same source, waits the full 35-minute token drain, deletes only that
+temporary row, proves replacement acceptance and original rejection through
+the real verifier, and writes sanitized mode-`0600` evidence. It must pass CI
+from its eventual exact main merge before execution.
+
+Manual authority review found and closed the final crash window before this
+operator was committed: a process stop between writing accepted evidence and
+deleting the secret-bearing journal can no longer strand that journal behind
+an evidence-only fast path. Completed reruns require exact evidence, journal,
+operator and CI binding and re-attest provider, deployment, local and GitHub
+state before removing only the matching journal.

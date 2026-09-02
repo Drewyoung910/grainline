@@ -436,6 +436,24 @@ Zero-downtime rotation preference:
 - Document the rotation date, old-secret revocation time, owner, and smoke-test
   evidence in the launch/security evidence record.
 
+Current `SHIPPING_RATE_SECRET` exposure recovery:
+
+- The dual-verifier application is live from exact main
+  `a4c74bbaeded1e347ec582289a226eae24763faf`, CI `33683844324`, and deployment
+  `dpl_Ec5mLGwhv3jXWEa88z2BeUs5N3j7`. Do not substitute a newer source merely
+  because it is on `main`.
+- Run only the reviewed restart-safe operator documented in
+  `docs/shipping-rate-secret-credential-recovery.md`. It is intentionally
+  pinned to three exact Vercel current rows and creates one temporary
+  Production-only previous row. Development, Preview, GitHub and local never
+  retain the exposed previous value.
+- The operator must run from its exact clean main commit after same-commit CI
+  succeeds. If it stops, preserve its mode-`0600` private journal and resume
+  from the same binding; do not manually finish or repeat provider mutations.
+- Do not interrupt the 35-minute token drain, remove the previous row early,
+  delete predecessor deployments, run a migration, or resume Order RLS during
+  this recovery.
+
 High-risk secrets:
 
 - `DATABASE_URL`: runtime Neon pooled URL. Must use the `-pooler` host.

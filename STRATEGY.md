@@ -17,6 +17,16 @@ rotate current/previous, drain for at least 35 minutes, remove previous and
 prove old rejection. Do not rotate the key before the compatible verifier is
 live, and do not run database migrations or RLS changes during this recovery.
 
+The compatibility gate is now complete at exact main
+`a4c74bbaeded1e347ec582289a226eae24763faf`, CI `33683844324`, and READY
+production deployment `dpl_Ec5mLGwhv3jXWEa88z2BeUs5N3j7`; all four canonical
+aliases and health are verified while the old key remains current and no
+previous key exists. The immediate next boundary is the exact-source,
+restart-safe rotation operator, not another shipping feature or RLS mutation.
+After its dual deployment, 35-minute drain, final deployment and old-key
+rejection proof, continue directly through the remaining exposed credential
+families and one fresh authenticated Order smoke before resuming Order RLS.
+
 The same bounded correction preserves the existing availability product while
 making it less brittle: pickup-only provider-failure responses carry an
 explicit warning and the client refreshes signed rates before expiry. Retain
