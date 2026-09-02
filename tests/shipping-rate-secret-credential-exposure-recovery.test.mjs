@@ -26,6 +26,7 @@ const {
   normalizeMarkedDeploymentInventory,
   normalizeProjectProtection,
   normalizeRecoveryDeployment,
+  normalizeVercelApiOutput,
   parseArguments,
   proveLocalVerifier,
   validateAcceptedEvidence,
@@ -205,6 +206,15 @@ test("hashes only exact decrypted environment value responses", () => {
   assert.throws(() => normalizeEnvironmentValue({ ...payload, value: "short" }, expected));
   assert.throws(() => normalizeEnvironmentValue({ ...payload, id: "Wrong" }, expected));
   assert.throws(() => normalizeEnvironmentValue({ ...payload, target: ["preview"] }, expected));
+});
+
+test("accepts silent success only for the three reviewed Vercel mutation methods", () => {
+  for (const method of ["POST", "PATCH", "DELETE"]) {
+    assert.deepEqual(normalizeVercelApiOutput("", method), {});
+  }
+  assert.deepEqual(normalizeVercelApiOutput('{"ok":true}', "GET"), { ok: true });
+  assert.throws(() => normalizeVercelApiOutput("", "GET"));
+  assert.throws(() => normalizeVercelApiOutput("not-json", "POST"));
 });
 
 test("classifies only the reviewed old/replacement provider pair", () => {

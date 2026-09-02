@@ -222,6 +222,17 @@ function setLocalCurrent(value) {
   }
 }
 
+export function normalizeVercelApiOutput(output, method) {
+  if (output === "" && ["POST", "PATCH", "DELETE"].includes(method)) {
+    return Object.freeze({});
+  }
+  try {
+    return JSON.parse(output);
+  } catch {
+    throw new Error("Vercel API returned invalid JSON");
+  }
+}
+
 function vercelApi(route, { method, body } = {}) {
   const args = [VERCEL_CLI, "api", route, "--raw", "--scope", PROJECT.scope, "--no-color"];
   if (method) args.push("--method", method);
@@ -238,12 +249,7 @@ function vercelApi(route, { method, body } = {}) {
   const output = run(process.execPath, args, {
     input: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (output === "" && ["DELETE", "PATCH"].includes(method)) return Object.freeze({});
-  try {
-    return JSON.parse(output);
-  } catch {
-    throw new Error("Vercel API returned invalid JSON");
-  }
+  return normalizeVercelApiOutput(output, method);
 }
 
 function exactEnvironmentMetadata(row, expected) {

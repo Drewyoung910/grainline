@@ -87,6 +87,9 @@ partial or differently bound journal is preserved and rejected.
 
 The operator prints only stage/countdown information and the final evidence
 path/deployment ID. It never prints a raw secret or raw dependency error.
+Vercel body mutations intentionally use silent responses; empty output is
+accepted only for the reviewed POST, PATCH and DELETE methods, and every such
+mutation is independently verified by an exact provider read afterward.
 
 ## Private and sanitized artifacts
 
