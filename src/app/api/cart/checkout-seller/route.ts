@@ -55,6 +55,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
+import { normalizeUsState } from "@/lib/usStates";
 
 const CheckoutSellerSchema = z.object({
   sellerId: z.string().min(1),
@@ -64,7 +65,10 @@ const CheckoutSellerSchema = z.object({
     line1: z.string().min(1).max(200),
     line2: z.string().max(200).optional().nullable(),
     city: z.string().min(1).max(100),
-    state: z.string().length(2),
+    state: z.string().length(2).refine(
+      (value) => normalizeUsState(value) !== "",
+      "Select a valid US state.",
+    ),
     postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
     phone: z.string().max(20).optional().nullable(),
   }),
@@ -352,7 +356,10 @@ export async function POST(req: Request) {
         estDays: body.selectedRate.estDays,
         contextId,
         buyerId: me.id,
+        buyerCity: shippingAddress.city,
+        buyerState: shippingAddress.state,
         buyerPostal: shippingAddress.postalCode,
+        buyerCountry: "US",
         subjectHash,
       },
       body.selectedRate.token,

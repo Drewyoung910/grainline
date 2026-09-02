@@ -457,3 +457,35 @@ Accepted CRON evidence:
 - status `passed`, `acceptanceEligible=true`, and `issueCount=0`; and
 - replacement accepted, original rejected, and no raw credential value in the
   sanitized evidence.
+
+## Shipping-rate HMAC family
+
+`SHIPPING_RATE_SECRET` is the next application-generated credential family.
+The pre-rotation application audit found a real destination-binding gap in the
+postal-only predecessor token and two narrow quote UX defects. Recovery must
+therefore ship the compatible application correction before changing provider
+or consumer state:
+
+- new `shipping-rate-v2` signatures bind normalized city, valid US state, US
+  ZIP and country in addition to the exact predecessor rate, buyer, context and
+  package/price subject;
+- verification accepts exact predecessor v1 tokens only while they remain
+  unexpired and accepts one distinct `SHIPPING_RATE_SECRET_PREVIOUS` only during
+  the reviewed rotation window;
+- signing always uses current `SHIPPING_RATE_SECRET`;
+- quote and checkout reject non-US, invalid-state or invalid-ZIP destination
+  shapes consistently;
+- pickup-only Shippo failure retains an explicit warning; and
+- the client refreshes visible rates one minute before expiry.
+
+The production rotation must deploy that verifier first under the current key,
+then converge all three exact Vercel current rows plus the GitHub/local current
+consumers to the replacement. Only Vercel Production receives the temporary
+previous=original verifier; Development, Preview, GitHub and local do not retain
+the exposed value. Deploy the same reviewed source and wait at least 35 minutes
+before removing Production previous. Final acceptance requires the current key
+to sign and verify, the original key to reject, no previous-key residue, exact
+deployment/source/alias binding, canonical health, sanitized mode-`0600`
+evidence and removal of the private restart journal. The operator contains no
+migration, RLS, database, Stripe, broad deployment-removal or raw-secret output
+surface.

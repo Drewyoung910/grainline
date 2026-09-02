@@ -1,6 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 
-const SECRET = process.env.SHIPPING_RATE_SECRET;
 export const SHIPPING_RATE_TOKEN_TTL_SECONDS = 30 * 60;
 export const SHIPPING_RATE_FUTURE_SKEW_SECONDS = 5 * 60;
 
@@ -9,14 +8,26 @@ export const SHIPPING_RATE_FUTURE_SKEW_SECONDS = 5 * 60;
 // unsigned verification — missing secret in prod means
 // all checkouts fail with a clear error rather than a
 // silent security hole.
-function getSecret(): string {
-  if (!SECRET) {
+function getCurrentSecret(): string {
+  const secret = process.env.SHIPPING_RATE_SECRET;
+  if (!secret) {
     throw new Error(
       "SHIPPING_RATE_SECRET env var is not set. " +
         "Add it to .env and Vercel environment variables.",
     );
   }
-  return SECRET;
+  return secret;
+}
+
+function getVerificationSecrets(): string[] {
+  const current = getCurrentSecret();
+  const previous = process.env.SHIPPING_RATE_SECRET_PREVIOUS?.trim();
+  return previous && previous !== current ? [current, previous] : [current];
+}
+
+function normalizedDestinationField(value: string, casing: "lower" | "upper") {
+  const normalized = value.normalize("NFKC").trim().replace(/\s+/g, " ");
+  return casing === "upper" ? normalized.toUpperCase() : normalized.toLowerCase();
 }
 
 // Canonical HMAC input string.
@@ -24,7 +35,7 @@ function getSecret(): string {
 // joined string so third-party display names containing ":" cannot create
 // alternate field boundaries that hash to the same canonical text.
 // contextId: sellerId for cart, listingId for buy-now.
-function canonicalInput(
+function legacyCanonicalInput(
   objectId: string,
   amountCents: number,
   currency: string,
@@ -52,6 +63,29 @@ function canonicalInput(
   ]);
 }
 
+function canonicalInput(
+  fields: SignedRateFields,
+  expiresAt: number,
+): string {
+  return JSON.stringify([
+    "shipping-rate-v2",
+    fields.objectId,
+    fields.amountCents,
+    fields.currency.toLowerCase(),
+    fields.displayName,
+    fields.carrier,
+    fields.estDays,
+    fields.contextId,
+    fields.buyerId,
+    normalizedDestinationField(fields.buyerCity, "lower"),
+    normalizedDestinationField(fields.buyerState, "upper"),
+    normalizedDestinationField(fields.buyerPostal, "upper"),
+    normalizedDestinationField(fields.buyerCountry, "upper"),
+    fields.subjectHash ?? "",
+    expiresAt,
+  ]);
+}
+
 export type SignedRateFields = {
   objectId: string;
   amountCents: number;
@@ -61,7 +95,10 @@ export type SignedRateFields = {
   estDays: number | null;
   contextId: string;
   buyerId: string;
+  buyerCity: string;
+  buyerState: string;
   buyerPostal: string;
+  buyerCountry: string;
   subjectHash?: string | null;
 };
 
@@ -77,20 +114,8 @@ export function signRate(
   ttlSeconds = SHIPPING_RATE_TOKEN_TTL_SECONDS,
 ): { token: string; expiresAt: number } {
   const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
-  const input = canonicalInput(
-    fields.objectId,
-    fields.amountCents,
-    fields.currency,
-    fields.displayName,
-    fields.carrier,
-    fields.estDays,
-    fields.contextId,
-    fields.buyerId,
-    fields.buyerPostal,
-    fields.subjectHash,
-    expiresAt,
-  );
-  const token = createHmac("sha256", getSecret()).update(input).digest("hex");
+  const input = canonicalInput(fields, expiresAt);
+  const token = createHmac("sha256", getCurrentSecret()).update(input).digest("hex");
   return { token, expiresAt };
 }
 
@@ -131,7 +156,7 @@ export function verifyRate(
     };
   }
 
-  const expected = canonicalInput(
+  const legacyExpected = legacyCanonicalInput(
     fields.objectId,
     fields.amountCents,
     fields.currency,
@@ -144,35 +169,27 @@ export function verifyRate(
     fields.subjectHash,
     expiresAt,
   );
-  const expectedHmac = createHmac("sha256", getSecret())
-    .update(expected)
-    .digest("hex");
-
-  let expectedBuf: Buffer;
-  let actualBuf: Buffer;
-  try {
-    expectedBuf = Buffer.from(expectedHmac, "hex");
-    actualBuf = Buffer.from(token, "hex");
-  } catch {
+  if (!/^[0-9a-f]{64}$/i.test(token)) {
     return {
       ok: false,
       error: "Invalid shipping rate.",
       status: 400,
     };
   }
-
-  // Length check required before timingSafeEqual.
-  if (expectedBuf.length !== actualBuf.length) {
-    return {
-      ok: false,
-      error: "Invalid shipping rate.",
-      status: 400,
-    };
+  const actualBuf = Buffer.from(token, "hex");
+  const canonicalInputs = [canonicalInput(fields, expiresAt), legacyExpected];
+  let matched = false;
+  for (const secret of getVerificationSecrets()) {
+    for (const input of canonicalInputs) {
+      const expectedBuf = createHmac("sha256", secret).update(input).digest();
+      // Every candidate is a fixed-length SHA-256 digest. Evaluate all
+      // current/previous and v2/legacy candidates so the accepted key/version
+      // is not exposed by an early comparison exit.
+      matched = timingSafeEqual(expectedBuf, actualBuf) || matched;
+    }
   }
 
-  // timingSafeEqual prevents timing attacks —
-  // do NOT use string === comparison on HMACs.
-  if (!timingSafeEqual(expectedBuf, actualBuf)) {
+  if (!matched) {
     return {
       ok: false,
       error: "Invalid shipping rate.",

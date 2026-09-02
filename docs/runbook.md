@@ -427,7 +427,10 @@ Zero-downtime rotation preference:
 
 - Verification-only secrets should support a short dual-verify window whenever
   practical (`*_PREVIOUS` accepted for verification, current secret used for new
-  signatures). `CRON_SECRET_PREVIOUS` already follows this pattern.
+  signatures). `CRON_SECRET_PREVIOUS` follows this pattern. Shipping-rate
+  rotation uses `SHIPPING_RATE_SECRET_PREVIOUS`, a compatibility deployment,
+  and a minimum 35-minute drain (30-minute token TTL plus 5-minute skew) before
+  previous is removed and the final deployment proves old-token rejection.
 - Secrets that cannot safely support dual verification must use the provider
   dashboard cutover flow plus a production deploy before revocation.
 - Document the rotation date, old-secret revocation time, owner, and smoke-test

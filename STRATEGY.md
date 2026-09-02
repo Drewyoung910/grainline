@@ -4,6 +4,27 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Shipping-rate credential containment before Order RLS resumes (2026-09-02)
+
+The comprehensive credential incident pauses new Order RLS mutations until
+every exposed credential family is replaced and a fresh authenticated Order
+smoke passes. `SHIPPING_RATE_SECRET` is the current family after database,
+Resend and CRON recovery. Its pre-rotation audit found one real integrity gap:
+the predecessor signed only postal code, not the complete city/state/postal/
+country quote destination. Ship `shipping-rate-v2` destination binding and
+dual verification first, deploy compatibility under the current key, then
+rotate current/previous, drain for at least 35 minutes, remove previous and
+prove old rejection. Do not rotate the key before the compatible verifier is
+live, and do not run database migrations or RLS changes during this recovery.
+
+The same bounded correction preserves the existing availability product while
+making it less brittle: pickup-only provider-failure responses carry an
+explicit warning and the client refreshes signed rates before expiry. Retain
+the already-documented platform-fallback economic risk and one-parcel packing
+heuristic as visible product limitations; a packing engine or category-aware
+outage pricing remains later product work, not an excuse to blur this security
+release.
+
 ### Cross-domain correctness gate before core Order Phase A (2026-09-01)
 
 The buyer shipping quote and the already-live Case money path were re-audited

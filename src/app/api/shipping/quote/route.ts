@@ -4,7 +4,11 @@ import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { shippoRequest } from "@/lib/shippo";
-import { shippingRateSubjectHash, signRate } from "@/lib/shipping-token";
+import {
+  shippingRateSubjectHash,
+  signRate,
+  type SignedRateFields,
+} from "@/lib/shipping-token";
 import {
   filterShippoRatesForCheckout,
   normalizeShippoRatesForCheckout,
@@ -31,6 +35,12 @@ import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerCartForShippingQuote, ownerCartForShippingQuoteById } from "@/lib/cartOwnerAccess";
 import { buildShippoCheckoutQuoteShipment } from "@/lib/shippingQuoteProvider";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
+import { normalizeUsState } from "@/lib/usStates";
+
+type SignedRateDestination = Pick<
+  SignedRateFields,
+  "buyerCity" | "buyerState" | "buyerPostal" | "buyerCountry"
+>;
 
 const ShippingQuoteSchema = z.object({
   mode: z.enum(["cart", "single"]).optional(),
@@ -39,13 +49,19 @@ const ShippingQuoteSchema = z.object({
   listingId: z.string().min(1).optional().nullable(),
   quantity: z.number().int().min(1).max(99).optional().nullable(),
   selectedVariantOptionIds: z.array(z.string().min(1)).max(30).optional().default([]),
-  // toPostal is required — it's signed into the HMAC and must match
-  // what the buyer's checkout address submits. A default here would
-  // cause every signature to mismatch on verification.
-  toPostal: z.string().min(1).max(20),
-  toState: z.string().length(2),
-  toCity: z.string().min(1).max(100),
-  toCountry: z.string().length(2),
+  // The complete normalized destination is signed into the HMAC and must
+  // match what checkout submits. Defaults here would weaken the quote/checkout
+  // binding or cause every signature to mismatch during verification.
+  toPostal: z.string().trim().regex(/^\d{5}(-\d{4})?$/),
+  toState: z.string().trim().length(2).refine(
+    (value) => normalizeUsState(value) !== "",
+    "Select a valid US state.",
+  ),
+  toCity: z.string().trim().min(1).max(100),
+  toCountry: z.string().trim().length(2).refine(
+    (value) => value.toUpperCase() === "US",
+    "Only US shipping addresses are supported.",
+  ),
 });
 
 export const runtime = "nodejs";
@@ -57,16 +73,15 @@ function fallbackRate({
   currency,
   contextId,
   buyerId,
-  buyerPostal,
   subjectHash,
+  ...destination
 }: {
   amountCents: number;
   currency: string;
   contextId: string;
   buyerId: string;
-  buyerPostal: string;
   subjectHash: string;
-}) {
+} & SignedRateDestination) {
   const label = "Standard shipping";
   const { token, expiresAt } = signRate({
     objectId: "fallback",
@@ -77,7 +92,7 @@ function fallbackRate({
     estDays: null,
     contextId,
     buyerId,
-    buyerPostal,
+    ...destination,
     subjectHash,
   });
 
@@ -100,15 +115,14 @@ function pickupRate({
   currency,
   contextId,
   buyerId,
-  buyerPostal,
   subjectHash,
+  ...destination
 }: {
   currency: string;
   contextId: string;
   buyerId: string;
-  buyerPostal: string;
   subjectHash: string;
-}) {
+} & SignedRateDestination) {
   const label = "Local Pickup (Free)";
   const { token, expiresAt } = signRate({
     objectId: "pickup",
@@ -119,7 +133,7 @@ function pickupRate({
     estDays: null,
     contextId,
     buyerId,
-    buyerPostal,
+    ...destination,
     subjectHash,
   });
 
@@ -143,16 +157,15 @@ function sellerConfiguredRate({
   currency,
   contextId,
   buyerId,
-  buyerPostal,
   subjectHash,
+  ...destination
 }: {
   rate: SellerConfiguredShippingRate;
   currency: string;
   contextId: string;
   buyerId: string;
-  buyerPostal: string;
   subjectHash: string;
-}) {
+} & SignedRateDestination) {
   const { token, expiresAt } = signRate({
     objectId: rate.objectId,
     amountCents: rate.amountCents,
@@ -162,7 +175,7 @@ function sellerConfiguredRate({
     estDays: null,
     contextId,
     buyerId,
-    buyerPostal,
+    ...destination,
     subjectHash,
   });
 
@@ -181,17 +194,16 @@ function pickupOnlyResponse({
   currency,
   contextId,
   buyerId,
-  buyerPostal,
   subjectHash,
+  ...destination
 }: {
   currency: string;
   contextId: string;
   buyerId: string;
-  buyerPostal: string;
   subjectHash: string;
-}) {
+} & SignedRateDestination) {
   return privateJson({
-    rates: [pickupRate({ currency, contextId, buyerId, buyerPostal, subjectHash })],
+    rates: [pickupRate({ currency, contextId, buyerId, subjectHash, ...destination })],
     pickupOnly: true,
     warning: "This maker only has local pickup available for this address. Choose it only if you can pick up the order in person; no shipping label will be created.",
   });
@@ -276,17 +288,23 @@ export async function POST(req: Request) {
         }
       | null = null;
 
-    // toPostal is required by the Zod schema — the HMAC signing
-    // below uses this exact value, and it must match what the
-    // checkout route receives in body.shippingAddress.postalCode.
+    // Zod establishes the US destination shape before sanitization. The HMAC
+    // below binds the normalized city/state/postal/country and checkout derives
+    // the same fields from body.shippingAddress.
     const sanitizedToCity = sanitizeAddressField(body.toCity, 100);
     const sanitizedToState = sanitizeAddressField(body.toState, 2);
     const sanitizedToCountry = sanitizeAddressField(body.toCountry, 2);
     const shipTo = {
       postal: sanitizeAddressField(body.toPostal, 20),
-      state: sanitizedToState.toUpperCase(),
+      state: normalizeUsState(sanitizedToState),
       city: sanitizedToCity,
       country: sanitizedToCountry.toUpperCase(),
+    };
+    const signedDestination: SignedRateDestination = {
+      buyerCity: shipTo.city,
+      buyerState: shipTo.state,
+      buyerPostal: shipTo.postal,
+      buyerCountry: shipTo.country,
     };
 
     if (mode === "cart") {
@@ -606,13 +624,13 @@ export async function POST(req: Request) {
             currency,
             contextId,
             buyerId: me.id,
-            buyerPostal: shipTo.postal,
             subjectHash,
+            ...signedDestination,
           })]
         : [];
       if (sellerAllowsPickup) {
         configuredRates.push(
-          pickupRate({ currency, contextId, buyerId: me.id, buyerPostal: shipTo.postal, subjectHash }),
+          pickupRate({ currency, contextId, buyerId: me.id, subjectHash, ...signedDestination }),
         );
       }
       return configuredRates;
@@ -697,6 +715,15 @@ export async function POST(req: Request) {
       });
       const configuredRates = configuredAndPickupRates();
       if (configuredRates.length > 0) {
+        if (sellerShippingPolicy.configuredRate === null && sellerAllowsPickup) {
+          return pickupOnlyResponse({
+            currency,
+            contextId,
+            buyerId: me.id,
+            subjectHash,
+            ...signedDestination,
+          });
+        }
         return privateJson({ rates: configuredRates });
       }
       let fallbackShippingCents: number | null | undefined;
@@ -718,8 +745,8 @@ export async function POST(req: Request) {
           currency,
           contextId,
           buyerId: me.id,
-          buyerPostal: shipTo.postal,
           subjectHash,
+          ...signedDestination,
         }),
       ];
       return privateJson({ rates: fallbackRates });
@@ -735,7 +762,7 @@ export async function POST(req: Request) {
     });
     if (filtered.blockedByCarrierPreference) {
       if (sellerAllowsPickup) {
-        return pickupOnlyResponse({ currency, contextId, buyerId: me.id, buyerPostal: shipTo.postal, subjectHash });
+        return pickupOnlyResponse({ currency, contextId, buyerId: me.id, subjectHash, ...signedDestination });
       }
       return privateJson({
         rates: [],
@@ -756,8 +783,8 @@ export async function POST(req: Request) {
           estDays,
           contextId,
           buyerId: me.id,
-          buyerPostal: shipTo.postal,
           subjectHash,
+          ...signedDestination,
         });
 
         return {
@@ -798,8 +825,8 @@ export async function POST(req: Request) {
             currency,
             contextId,
             buyerId: me.id,
-            buyerPostal: shipTo.postal,
             subjectHash,
+            ...signedDestination,
           }),
         );
       }
@@ -810,7 +837,7 @@ export async function POST(req: Request) {
     // Local pickup option — injected as a synthetic rate if seller allows it.
     // configuredAndPickupRates() already appends it on the seller-fallback path.
     if (sellerAllowsPickup && !out.some((rate) => rate.objectId === PICKUP_RATE_OBJECT_ID)) {
-      out.unshift(pickupRate({ currency, contextId, buyerId: me.id, buyerPostal: shipTo.postal, subjectHash }));
+      out.unshift(pickupRate({ currency, contextId, buyerId: me.id, subjectHash, ...signedDestination }));
     }
 
     return privateJson({
