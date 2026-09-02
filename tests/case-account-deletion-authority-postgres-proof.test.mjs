@@ -55,6 +55,7 @@ describe("Case account-deletion PostgreSQL proof", () => {
       "direct-runtime-boundary",
       "transaction-rollback",
       "user-lock-serialization",
+      "seller-order-lock-serialization",
       "derived-redaction-commit",
       "length-bounded-redaction",
       "idempotent-retry",
@@ -76,6 +77,10 @@ describe("Case account-deletion PostgreSQL proof", () => {
     assert.match(source, /INSERT INTO public\."OrderItem"/);
     assert.match(source, /activeOpeningMessage/);
     assert.match(source, /fixture residue/);
-    assert.match(source, /assert\.equal\(checks\.length, 16\)/);
+    assert.match(source, /CASE_CORRECTNESS_EXPECTED === "1"/);
+    assert.match(
+      source,
+      /assert\.equal\(checks\.length, correctnessExpected \? 17 : 16\)/,
+    );
   });
 });

@@ -44,6 +44,13 @@ describe("Case-aware Order PostgreSQL proof", () => {
     assert.match(source, /empty_order_invariant_rejected/);
     assert.match(source, /function-only-forced-rls-case-read/);
     assert.match(source, /fixed-retention-targets-and-rollback/);
+    assert.match(source, /open-dispute-retains-buyer-evidence/);
+    assert.match(source, /paymentOpenDisputeBlocked/);
+    assert.match(source, /CASE_CORRECTNESS_EXPECTED === "1"/);
+    assert.match(
+      source,
+      /if \(correctnessExpected\) \{[\s\S]*?SET CONSTRAINTS ALL IMMEDIATE[\s\S]*?DISABLE TRIGGER grainline_order_payment_open_dispute_guard[\s\S]*?ENABLE TRIGGER grainline_order_payment_open_dispute_guard[\s\S]*?SET CONSTRAINTS ALL DEFERRED/,
+    );
     assert.match(source, /retention-skip-locked-race/);
     assert.match(source, /order-lock-serializes-case-open/);
     assert.match(source, /opening-message/);
@@ -71,8 +78,14 @@ describe("Case-aware Order PostgreSQL proof", () => {
     async () => {
       const result = await runCaseOrderActiveProof({
         CASE_ORDER_ACTIVE_PROOF_DATABASE_URL: databaseUrl,
+        ...(process.env.CASE_CORRECTNESS_EXPECTED === "1"
+          ? { CASE_CORRECTNESS_EXPECTED: "1" }
+          : {}),
       });
-      assert.equal(result.checks.length, 13);
+      assert.equal(
+        result.checks.length,
+        process.env.CASE_CORRECTNESS_EXPECTED === "1" ? 14 : 13,
+      );
     },
   );
 });

@@ -27,6 +27,10 @@ import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
 } from "./stage-order-payment-event-force-migration.mjs";
 import {
+  CASE_CORRECTNESS_MIGRATION,
+  verifyOptionalCaseCorrectnessSuccessor,
+} from "./build-case-correctness-migration.mjs";
+import {
   ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
   ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
@@ -128,33 +132,39 @@ export function verifyOrderPaymentEventActivationRelease(
     throw new Error("OrderPaymentEvent activation-aware provisioning drifted");
   }
 
+  const caseCorrectnessSuccessor =
+    verifyOptionalCaseCorrectnessSuccessor(rootDirectory);
+  const omittedReviewedMigrationNames = [
+    ...(allowReviewedForceSuccessor ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION] : []),
+    ...(allowReviewedOrderParticipantListSuccessor
+      ? [
+          ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+          ORDER_STAFF_READ_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
+          ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
+          ORDER_PUBLIC_AGGREGATE_AUTHORITY_MIGRATION,
+          ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION,
+          ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
+          ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
+          ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
+          ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
+          ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
+          ORDER_LABEL_AUTHORITY_MIGRATION,
+          ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+        ]
+      : []),
+  ];
+  if (caseCorrectnessSuccessor) {
+    omittedReviewedMigrationNames.push(CASE_CORRECTNESS_MIGRATION);
+  }
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: [
-      ...(allowReviewedForceSuccessor ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION] : []),
-      ...(allowReviewedOrderParticipantListSuccessor
-        ? [
-            ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
-            ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
-            ORDER_STAFF_READ_AUTHORITY_MIGRATION,
-            ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
-            ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
-            ORDER_PUBLIC_AGGREGATE_AUTHORITY_MIGRATION,
-            ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION,
-            ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
-            ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION,
-            ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION,
-            ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
-            ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
-            ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
-            ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
-            ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
-            ORDER_LABEL_AUTHORITY_MIGRATION,
-            ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
-          ]
-        : []),
-    ],
+    omittedReviewedMigrationNames,
   });
   return Object.freeze({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
@@ -173,6 +183,7 @@ export function verifyOrderPaymentEventActivationRelease(
     zeroDirectAccess: zeroDirect.directAccessMatches === 0,
     rowDataChanged: false,
     productionChanged: false,
+    reviewedCaseCorrectnessSuccessor: caseCorrectnessSuccessor,
     guard,
   });
 }

@@ -47,6 +47,9 @@ import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
 } from "../scripts/stage-order-payment-event-force-migration.mjs";
 import {
+  CASE_CORRECTNESS_MIGRATION,
+} from "../scripts/build-case-correctness-migration.mjs";
+import {
   ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
   ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
@@ -185,6 +188,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(CASE_CORRECTNESS_MIGRATION);
     remove(ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION);
     remove(ORDER_LABEL_AUTHORITY_MIGRATION);
     remove(ORDER_FULFILLMENT_AUTHORITY_MIGRATION);

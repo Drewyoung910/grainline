@@ -149,21 +149,26 @@ async function seedCase(
     status = "CLOSED",
   },
 ) {
+  const sellerProfileId = sellerId === ids.target
+    ? ids.targetSellerProfile
+    : ids.counterpartySellerProfile;
   await client.query(
-    'INSERT INTO public."Order" (id, "buyerId") VALUES ($1, $2)',
-    [orderId, buyerId],
+    `INSERT INTO public."Order" (id, "buyerId", "sellerProfileId")
+     VALUES ($1, $2, $3)`,
+    [orderId, buyerId, sellerProfileId],
   );
   await client.query(`
     INSERT INTO public."OrderItem" (
-      id, "orderId", "listingId", quantity, "priceCents"
+      id, "orderId", "listingId", "sellerProfileId", quantity, "priceCents"
     )
-    VALUES ($1, $2, $3, 1, 1000)
+    VALUES ($1, $2, $3, $4, 1, 1000)
   `, [
     `${orderId}-item`,
     orderId,
     sellerId === ids.target
       ? ids.targetListing
       : ids.counterpartyListing,
+    sellerProfileId,
   ]);
   await client.query(`
     INSERT INTO public."Case" (
@@ -597,6 +602,7 @@ export async function runCaseAccountDeletionAuthorityProof(
   env = process.env,
 ) {
   const { databaseUrl } = parseCaseAccountDeletionProofConfig(env);
+  const correctnessExpected = env.CASE_CORRECTNESS_EXPECTED === "1";
   const owner = createClient(databaseUrl, `${PREFIX}-owner`);
   const runtime = createClient(databaseUrl, `${PREFIX}-runtime`);
   const contender = createClient(databaseUrl, `${PREFIX}-contender`);
@@ -684,16 +690,27 @@ export async function runCaseAccountDeletionAuthorityProof(
        )
        ORDER BY relname
     `);
-    assert.equal(
-      originalRls.rows.every(
-        (row) => !row.relrowsecurity && !row.relforcerowsecurity,
-      ),
-      true,
-      "Case account-deletion proof requires compatible pre-RLS posture",
-    );
-    proofRlsEnabled = true;
-    await enableProofRls(owner);
-    checks.push("forced-zero-policy-posture");
+    if (correctnessExpected) {
+      assert.equal(
+        originalRls.rows.every(
+          (row) => row.relrowsecurity && row.relforcerowsecurity,
+        ),
+        true,
+        "Case correctness proof requires the accepted FORCE posture",
+      );
+      checks.push("accepted-current-force-posture");
+    } else {
+      assert.equal(
+        originalRls.rows.every(
+          (row) => !row.relrowsecurity && !row.relforcerowsecurity,
+        ),
+        true,
+        "Case account-deletion proof requires compatible pre-RLS posture",
+      );
+      proofRlsEnabled = true;
+      await enableProofRls(owner);
+      checks.push("forced-zero-policy-posture");
+    }
 
     assert.equal(await blockerCount(runtime), 1);
     await expectSqlState(() => redact(runtime), "55000");
@@ -748,22 +765,35 @@ export async function runCaseAccountDeletionAuthorityProof(
     await runtime.query("ROLLBACK");
     checks.push("isolation-fail-closed");
 
-    const directCases = await runtimeQuery(
-      runtime,
-      'SELECT pg_catalog.count(*)::integer AS count FROM public."Case"',
-    );
-    const directMessages = await runtimeQuery(
-      runtime,
-      'SELECT pg_catalog.count(*)::integer AS count FROM public."CaseMessage"',
-    );
-    const directUpdate = await runtimeQuery(
-      runtime,
-      'UPDATE public."CaseMessage" SET body = $1 WHERE id = $2',
-      ["forged", ids.targetBuyerMessage],
-    );
-    assert.equal(directCases.rows[0]?.count, 0);
-    assert.equal(directMessages.rows[0]?.count, 0);
-    assert.equal(directUpdate.rowCount, 0);
+    if (correctnessExpected) {
+      for (const [sql, params = []] of [
+        ['SELECT pg_catalog.count(*)::integer AS count FROM public."Case"'],
+        ['SELECT pg_catalog.count(*)::integer AS count FROM public."CaseMessage"'],
+        [
+          'UPDATE public."CaseMessage" SET body = $1 WHERE id = $2',
+          ["forged", ids.targetBuyerMessage],
+        ],
+      ]) {
+        await expectSqlState(() => runtimeQuery(runtime, sql, params), "42501");
+      }
+    } else {
+      const directCases = await runtimeQuery(
+        runtime,
+        'SELECT pg_catalog.count(*)::integer AS count FROM public."Case"',
+      );
+      const directMessages = await runtimeQuery(
+        runtime,
+        'SELECT pg_catalog.count(*)::integer AS count FROM public."CaseMessage"',
+      );
+      const directUpdate = await runtimeQuery(
+        runtime,
+        'UPDATE public."CaseMessage" SET body = $1 WHERE id = $2',
+        ["forged", ids.targetBuyerMessage],
+      );
+      assert.equal(directCases.rows[0]?.count, 0);
+      assert.equal(directMessages.rows[0]?.count, 0);
+      assert.equal(directUpdate.rowCount, 0);
+    }
     checks.push("direct-runtime-boundary");
 
     await runtime.query("BEGIN");
@@ -800,6 +830,19 @@ export async function runCaseAccountDeletionAuthorityProof(
       "55P03",
     );
     await contender.query("ROLLBACK");
+    if (correctnessExpected) {
+      await contender.query("BEGIN");
+      await contender.query("SET LOCAL lock_timeout = '200ms'");
+      await expectSqlState(
+        () => contender.query(
+          'SELECT id FROM public."Order" WHERE id = $1 FOR UPDATE',
+          [ids.sellerOrder],
+        ),
+        "55P03",
+      );
+      await contender.query("ROLLBACK");
+      checks.push("seller-order-lock-serialization");
+    }
     await runtime.query("ROLLBACK");
     assertOriginalProtectedRows(await fetchProtectedRows(owner));
     checks.push("user-lock-serialization");
@@ -861,7 +904,7 @@ export async function runCaseAccountDeletionAuthorityProof(
     );
   }
   checks.push("cleanup-zero-residue");
-  assert.equal(checks.length, 16);
+  assert.equal(checks.length, correctnessExpected ? 17 : 16);
   return Object.freeze({ checks: Object.freeze([...checks]) });
 }
 
