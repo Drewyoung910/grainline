@@ -117,6 +117,14 @@ PUBLIC table authority through `aclexplode(...).grantee = 0`, and a class-wide
 test rejects the invalid role-name form. No database, deployment or provider
 state changed in the failed run.
 
+Pull-request CI run `33581754025` then failed only in the newly added pooled
+runtime behavioral postflight with PostgreSQL `structure of query does not
+match function result type`. All predecessor authority tests and catalog/source
+checks passed. The proof remains fail-closed and now runs its six absent-actor
+calls separately so the corrected run identifies the exact projection instead
+of reporting one compound-query error. Production was not touched by this CI
+failure.
+
 ## Pooled-runtime postflight contract
 
 `scripts/order-compatible-runtime-postflight.mjs` closes the identity gap left

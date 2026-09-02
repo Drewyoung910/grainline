@@ -453,47 +453,70 @@ export async function verifyOrderCompatibleFunctionCatalog(
 
 export async function proveOrderCompatibleActorIsolation(client) {
   const marker = `order-compatible-runtime-postflight-absent-${Date.now()}`;
-  const result = await client.query(`
-    WITH sample_order AS (
-      SELECT orders.id
-        FROM public."Order" AS orders
-       ORDER BY orders.id
-       LIMIT 1
-    )
-    SELECT
-      public.grainline_order_buyer_count($1) = 0 AS buyer_count_empty,
-      public.grainline_order_seller_count($1) = 0 AS seller_count_empty,
-      NOT EXISTS (
-        SELECT 1
-          FROM public.grainline_order_buyer_page($1, 1, NULL, NULL)
-      ) AS buyer_page_empty,
-      NOT EXISTS (
-        SELECT 1
-          FROM public.grainline_order_seller_page($1, 1, NULL, NULL)
-      ) AS seller_page_empty,
-      NOT EXISTS (
-        SELECT 1
-          FROM sample_order
-          CROSS JOIN LATERAL public.grainline_order_buyer_detail_v3(
-            $1, sample_order.id
-          )
-      ) AS buyer_detail_denied,
-      NOT EXISTS (
-        SELECT 1
-          FROM sample_order
-          CROSS JOIN LATERAL public.grainline_order_seller_detail_v4(
-            $1, sample_order.id
-          )
-      ) AS seller_detail_denied
-  `, [marker]);
-  assert.deepEqual(result.rows, [{
-    buyer_count_empty: true,
-    seller_count_empty: true,
-    buyer_page_empty: true,
-    seller_page_empty: true,
-    buyer_detail_denied: true,
-    seller_detail_denied: true,
-  }]);
+  const checks = [
+    [
+      "buyer_count",
+      "SELECT public.grainline_order_buyer_count($1) = 0 AS passed",
+    ],
+    [
+      "seller_count",
+      "SELECT public.grainline_order_seller_count($1) = 0 AS passed",
+    ],
+    [
+      "buyer_page",
+      `SELECT NOT EXISTS (
+         SELECT 1
+           FROM public.grainline_order_buyer_page($1, 1, NULL, NULL)
+       ) AS passed`,
+    ],
+    [
+      "seller_page",
+      `SELECT NOT EXISTS (
+         SELECT 1
+           FROM public.grainline_order_seller_page($1, 1, NULL, NULL)
+       ) AS passed`,
+    ],
+    [
+      "buyer_detail_v3",
+      `WITH sample_order AS (
+         SELECT orders.id FROM public."Order" AS orders
+          ORDER BY orders.id LIMIT 1
+       )
+       SELECT NOT EXISTS (
+         SELECT 1 FROM sample_order
+         CROSS JOIN LATERAL public.grainline_order_buyer_detail_v3(
+           $1, sample_order.id
+         )
+       ) AS passed`,
+    ],
+    [
+      "seller_detail_v4",
+      `WITH sample_order AS (
+         SELECT orders.id FROM public."Order" AS orders
+          ORDER BY orders.id LIMIT 1
+       )
+       SELECT NOT EXISTS (
+         SELECT 1 FROM sample_order
+         CROSS JOIN LATERAL public.grainline_order_seller_detail_v4(
+           $1, sample_order.id
+         )
+       ) AS passed`,
+    ],
+  ];
+  for (const [name, sql] of checks) {
+    let result;
+    try {
+      result = await client.query(sql, [marker]);
+    } catch (error) {
+      throw new Error(
+        `Order compatible actor-isolation check ${name} failed: ${
+          error instanceof Error ? error.message : "unknown PostgreSQL error"
+        }`,
+        { cause: error },
+      );
+    }
+    assert.deepEqual(result.rows, [{ passed: true }], name);
+  }
 }
 
 export async function proveOrderCompatiblePrivateExecuteDenied(client) {
