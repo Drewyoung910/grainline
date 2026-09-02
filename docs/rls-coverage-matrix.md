@@ -147,9 +147,14 @@ completed alternative.
 > and the separate Case correction is accepted from exact main
 > `e0c17bc31d8da57b2418004ec451cdeb2b776854`, CI `33588063084`, and guarded
 > run `33588992199`. It retained the three Case-family tables at ENABLE plus
-> FORCE with zero direct runtime CRUD. Next: compatible app deployment and
-> authenticated smokes, predecessor drain, zero-direct-access proof, then
-> separate Order Phase A and FORCE releases.
+> FORCE with zero direct runtime CRUD. The compatible application is live from
+> exact main `bbf7afc1c105dc2a3ea9dadaeeb779ee971a5197`, CI `33590139765`,
+> as READY deployment `dpl_3GTnqQGHGjGPSkCnEMq65yFAU91u`; all four canonical
+> aliases, health and exact source provenance passed, and READY predecessor
+> `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` remains retained. Next: authenticated
+> smokes and predecessor drain; conversion of the remaining 16 direct-`Order`
+> source files; final compatible deployment, smoke, drain and zero-direct-access
+> proof; then separate Order Phase A and FORCE releases.
 > See `docs/order-core-pre-rls-audit.md` and
 > `docs/order-compatible-production-release-20260901.md`.
 

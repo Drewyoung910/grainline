@@ -3,7 +3,10 @@
 Status: the complete 18-row compatibility prefix is applied and accepted in
 production. Order RLS remains off with predecessor runtime CRUD retained. The
 separate Case correction was subsequently applied and accepted without changing
-the Case family table posture.
+the Case family table posture. The compatible application is live from exact
+main `bbf7afc1c105dc2a3ea9dadaeeb779ee971a5197`, bound to successful
+exact-main CI `33590139765`, as READY production deployment
+`dpl_3GTnqQGHGjGPSkCnEMq65yFAU91u`.
 
 ## Why this is one Order stack and one separate Case correction
 
@@ -112,18 +115,58 @@ retry paths must be exercised before predecessor drain and Order Phase A.
    The after-scope retained all 18 Order predecessor rows and proved all three
    Case-family tables ENABLE plus FORCE, zero direct runtime CRUD and the exact
    Case-correction ledger row.
-5. Deploy the exact compatible application and verify aliases/health/source.
+5. ~~Deploy the exact compatible application and verify
+   aliases/health/source.~~ Exact main
+   `bbf7afc1c105dc2a3ea9dadaeeb779ee971a5197`, bound to successful CI
+   `33590139765`, is live as READY deployment
+   `dpl_3GTnqQGHGjGPSkCnEMq65yFAU91u`. All four canonical aliases, authenticated
+   deployment health and exact source metadata were verified. READY predecessor
+   `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` remains retained and undrained.
 6. Exercise authenticated buyer quote, seller label/re-quote, fulfillment,
    refund, Case replay and presentation smokes without live-mode purchases.
-7. Drain all superseded compatible deployments.
-8. Re-prove zero ordinary-runtime direct `Order` access.
-9. Prepare and activate policyless Order Phase A, then a separate FORCE release.
-10. Continue with `OrderItem`, then `OrderShippingRateQuote`, as separate RLS
+7. Drain the retained predecessor so obsolete overlap-only function grants can
+   be retired.
+8. Convert the remaining 16 direct-`Order` source files across checkout,
+   refund, staff and maintenance families; complete staff-role and final
+   invariant preparation; then deploy and smoke the zero-direct application.
+9. Drain every deployment that can still depend on direct `Order` table CRUD
+   and prove zero ordinary-runtime direct `Order` access.
+10. Prepare and activate policyless Order Phase A, then a separate FORCE
+    release.
+11. Continue with `OrderItem`, then `OrderShippingRateQuote`, as separate RLS
     groups.
 
-This release does not enable or FORCE Order RLS, revoke predecessor Order CRUD,
-mutate Order row data, run a provider operation, deploy application code, or
-change credentials/provider configuration.
+The database release did not enable or FORCE Order RLS, revoke predecessor
+Order CRUD, mutate Order row data, run a provider operation or change
+credentials/provider configuration. The subsequent application deployment
+changed application source only; it did not run migrations or change database,
+credential or provider-variable state.
+
+## Compatible application production deployment
+
+The deployment was created from a clean isolated checkout detached at exact
+main `bbf7afc1c105dc2a3ea9dadaeeb779ee971a5197` after exact-main CI
+`33590139765` passed. It was created as a Production-target deployment without
+canonical public aliases, attested READY, checked through authenticated Vercel
+health access, and then explicitly promoted. Deployment
+`dpl_3GTnqQGHGjGPSkCnEMq65yFAU91u` now serves:
+
+- `thegrainline.com`;
+- `www.thegrainline.com`;
+- `grainline.vercel.app`; and
+- `grainline-drew-youngs-projects.vercel.app`.
+
+Canonical `/api/health` returned `{ "ok": true }`, and Vercel deployment
+metadata retained the exact release commit and CI run. The previous READY
+deployment `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` remains available as the bounded
+rollback predecessor. It was not drained.
+
+Operational note: `vercel deploy --prod --skip-domain` still attached the
+project-level `grainline-drew-youngs-projects.vercel.app` alias to the new
+deployment. The other three canonical aliases remained on the predecessor
+until the explicit promotion. Future staged Production releases must inspect
+the actual alias set after deployment; `--skip-domain` is not proof of a
+completely alias-free deployment.
 
 ## Accepted Case-correction boundary
 

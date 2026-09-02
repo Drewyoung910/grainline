@@ -99,8 +99,14 @@ The separate Case correctness successor was then applied from exact main
 `e0c17bc31d8da57b2418004ec451cdeb2b776854`, CI `33588063084`, in guarded
 run `33588992199`; it retained all three Case-family tables at ENABLE plus
 FORCE with zero direct runtime CRUD. Order RLS, FORCE, policies and predecessor
-CRUD remain unchanged. Deployment, authenticated smokes, predecessor drain and
-zero-direct-access proof must precede Order Phase A.
+CRUD remain unchanged. The compatible application is now live from exact main
+`bbf7afc1c105dc2a3ea9dadaeeb779ee971a5197`, CI `33590139765`, as READY
+deployment `dpl_3GTnqQGHGjGPSkCnEMq65yFAU91u`; all four canonical aliases,
+health and exact source provenance passed, while READY predecessor
+`dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` remains retained. Authenticated smokes,
+predecessor drain, conversion of the remaining 16 direct-`Order` source files,
+final compatible deployment/drain and zero-direct-access proof must precede
+Order Phase A.
 
 The first Order/payment/shipping database boundary is the service-owned
 `StripeWebhookEvent` ledger. Policyless ENABLE plus FORCE, zero
