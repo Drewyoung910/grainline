@@ -253,14 +253,20 @@ function vercelApi(route, { method, body } = {}) {
 }
 
 function exactEnvironmentMetadata(row, expected) {
+  const hasNoCustomEnvironmentBinding = (
+    row?.customEnvironmentIds === null
+    || (
+      Array.isArray(row?.customEnvironmentIds)
+      && row.customEnvironmentIds.length === 0
+    )
+  );
   return (
     row?.id === expected.id
     && row.key === expected.key
     && row.type === expected.type
     && row.gitBranch == null
     && row.configurationId == null
-    && Array.isArray(row.customEnvironmentIds)
-    && row.customEnvironmentIds.length === 0
+    && hasNoCustomEnvironmentBinding
     && JSON.stringify(row.target) === JSON.stringify(expected.target)
   );
 }
