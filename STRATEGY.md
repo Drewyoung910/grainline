@@ -2575,9 +2575,18 @@ on Prisma `timestamp without time zone` canary fields. Do not retry that
 operator unchanged or weaken either assertion. Recover only the exact pinned
 legacy journal through the reviewed cleanup-only v2 migration, keep seller
 origin and Order destination structurally distinct, and canonicalize retained
-database timestamps at the SQL boundary. A fresh full authenticated smoke and
-complete cleanup remain prerequisites to predecessor drain and Order direct-
-authority retirement; neither partial phase is Order RLS evidence.
+database timestamps at the SQL boundary. Exact main
+`9219201ec976f08597bf4a0ae75eae7a2dd5c9e5` / CI `33612678508` completed that
+one allowed recovery: the canary was restored, exact mutable database/Redis
+fixtures and sessions were removed, the private restart journal was deleted,
+and sanitized evidence SHA-256
+`accb96c3c59c9cd1e9d0df8f12e6ef3161cf46f684ac5a4d422f07a97ead7239`
+records zero persistent mutable residue. One processed webhook lease and the
+immutable unpaid Stripe test Session remain expected evidence. This accepted
+cleanup is still not route acceptance. A fresh full authenticated smoke remains
+the prerequisite to predecessor drain and Order direct-authority retirement;
+neither the partial first attempt nor its successful cleanup is Order RLS
+evidence.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
