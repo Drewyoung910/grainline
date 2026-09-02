@@ -1,6 +1,6 @@
 # Order authenticated route smoke plan
 
-Status: **corrected application deployed and source-attested; initial authenticated smoke failed closed on an invalid same-address Shippo fixture; exact cleanup recovery and corrected-fixture release in review**
+Status: **corrected application deployed and source-attested; initial authenticated smoke failed closed on an invalid same-address Shippo fixture; exact failed-attempt cleanup accepted; fresh corrected-fixture smoke pending**
 Reviewed: 2026-09-02
 
 ## Corrected application release accepted
@@ -58,6 +58,20 @@ operator, CI and start time; cleanup-only execution may migrate it once to v2,
 rebinding only to the new exact-main recovery operator while retaining the
 original attempt identity. Unit and disposable PostgreSQL tests reject every
 other v1 state and prove exact timestamp-without-time-zone round trips.
+
+PR #395 merged the recovery as exact main
+`9219201ec976f08597bf4a0ae75eae7a2dd5c9e5`; all 384 substantive CI steps
+passed in run `33612678508`. Cleanup-only recovery then accepted only the pinned
+legacy journal, restored the operational canary, revoked its Clerk sessions,
+deleted the exact marker-bound database and Redis fixtures, and removed the
+private restart journal. It retained one expected processed Stripe webhook
+lease, one immutable unpaid Stripe test Checkout Session and zero Shippo test
+transactions. The sanitized mode-0600 failure-cleanup evidence has SHA-256
+`accb96c3c59c9cd1e9d0df8f12e6ef3161cf46f684ac5a4d422f07a97ead7239`.
+Its `status=failed` is intentional: cleanup acceptance is not route-smoke
+acceptance. It records zero persistent mutable fixture residue and no provider
+configuration change. Never delete, replace or reinterpret this artifact as a
+successful smoke result.
 
 ## Purpose
 

@@ -42,6 +42,18 @@ describe("Order authenticated route smoke plan", () => {
     assert.match(plan, /no connection strings, tokens,[\s\S]*personal data or row payloads/);
   });
 
+  it("records failed-attempt cleanup without promoting it to smoke acceptance", () => {
+    assert.match(plan, /9219201ec976f08597bf4a0ae75eae7a2dd5c9e5/);
+    assert.match(plan, /33612678508/);
+    assert.match(
+      plan,
+      /accb96c3c59c9cd1e9d0df8f12e6ef3161cf46f684ac5a4d422f07a97ead7239/,
+    );
+    assert.match(plan, /zero persistent mutable fixture residue/);
+    assert.match(plan, /cleanup acceptance is not route-smoke[\s\S]*acceptance/i);
+    assert.match(plan, /fresh corrected-fixture smoke pending/i);
+  });
+
   it("preserves the separate Order activation sequence", () => {
     assert.match(plan, /convert the remaining pinned direct-Order/);
     assert.match(plan, /prove zero direct runtime access/);
