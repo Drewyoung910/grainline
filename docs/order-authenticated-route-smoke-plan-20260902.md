@@ -1,6 +1,6 @@
 # Order authenticated route smoke plan
 
-Status: **corrected application deployed and source-attested; restart-safe route operator locally validated; exact-main CI/review and production execution pending**
+Status: **corrected application deployed and source-attested; initial authenticated smoke failed closed on an invalid same-address Shippo fixture; exact cleanup recovery and corrected-fixture release in review**
 Reviewed: 2026-09-02
 
 ## Corrected application release accepted
@@ -25,6 +25,39 @@ The operator now keeps two independent exact identities: the application
 release above, and the eventual operator `main` commit/CI run. Conflating those
 would make it impossible for the finished operator to run from its own reviewed
 main commit, so tests fail closed if either identity drifts.
+
+## Initial production attempt and exact recovery
+
+Exact operator/main `777cbe258e84a8fb59a67f5b739ddbeb63f2d706` and CI
+`33606320753` completed the quantity-two buyer quote/checkout, exact rollback,
+stock restoration and signed `checkout.session.expired` proof. It then failed
+closed before label purchase because the synthetic seller origin and Order
+destination were both `123 Main St, Austin, TX 78701`. Shippo test mode
+correctly returned `400` with its identical-address rejection. The same result
+was reproduced once through the authenticated label route. This is a smoke
+fixture defect, not evidence of a product-route defect; no Shippo transaction
+or stored rate was created.
+
+Cleanup deleted the marker-bound synthetic rows, reservations and Redis keys,
+expired the unpaid Stripe test Session, revoked the canary session and retained
+only the expected processed webhook lease. Its final canary proof exposed a
+second operator defect: node-postgres had parsed Prisma `timestamp without time
+zone` fields in the local Chicago zone, while cleanup wrote their ISO strings
+back directly. Both terms timestamps were shifted forward exactly five hours,
+so cleanup remained fail-closed and wrote no success evidence. A guarded
+two-column correction proved the exact shifted state and restored it, but the
+old operator deterministically reintroduced the shift on retry. Repeating the
+old cleanup is therefore prohibited.
+
+The correction uses distinct, complete Shippo fixture addresses and asserts
+their normalized inequality before any insert. It canonicalizes every retained
+canary timestamp at the SQL boundary, restores it with explicit UTC conversion,
+and verifies the raw database clock value rather than relying on process-local
+timestamp parsing. The one accepted v1 journal is pinned to its exact original
+operator, CI and start time; cleanup-only execution may migrate it once to v2,
+rebinding only to the new exact-main recovery operator while retaining the
+original attempt identity. Unit and disposable PostgreSQL tests reject every
+other v1 state and prove exact timestamp-without-time-zone round trips.
 
 ## Purpose
 
@@ -205,10 +238,11 @@ pre-existing row is rejected rather than silently adopted.
 
 ## Local validation and exact invocation
 
-The reviewed implementation passed 27 focused operator, plan, historical
-access-inventory and disposable PostgreSQL checks; the repository-wide suite
-passed all 3,933 tests with nine intentional skips. TypeScript and ESLint also
-passed. The isolated worktree's symlinked dependency directory is outside
+The original implementation passed 27 focused checks. The recovery correction
+now passes 22 directly focused operator, plan, historical access-inventory and
+disposable PostgreSQL checks; the repository-wide suite passes 3,927 tests
+with nine intentional skips. TypeScript and ESLint also pass. The isolated
+worktree's symlinked dependency directory is outside
 Turbopack's filesystem root, so the ordinary local build cannot represent the
 normal checkout. A bounded webpack fallback compiled the application and
 finished TypeScript before page-data collection correctly failed because this
@@ -232,6 +266,15 @@ binding to perform bounded cleanup. Never delete or edit the journal by hand,
 substitute a different operator commit, or treat a failed/partial run as route
 acceptance. The operator itself revalidates release, provider, database,
 canary, fixture and restart identity before continuing.
+
+The sole exception is the exact v1 journal from operator
+`777cbe258e84a8fb59a67f5b739ddbeb63f2d706` / CI `33606320753` / start
+`2026-09-02T08:16:17.014Z`, whose old code cannot complete cleanup because it
+deterministically reintroduces the timestamp shift. Run that journal only from
+the exact green recovery commit and CI using the recovery commit's fresh
+evidence path. The v2 validator pins and retains the original attempt binding,
+converts only its legacy timestamp encoding, and rejects every other cross-
+commit journal.
 
 ## Release sequence after acceptance
 

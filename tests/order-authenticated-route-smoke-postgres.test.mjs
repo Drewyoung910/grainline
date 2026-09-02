@@ -3,7 +3,11 @@ import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
 import {
+  ORDER_FIXTURE_SHIP_FROM,
+  ORDER_FIXTURE_SHIP_TO,
+  TERMS_VERSION,
   buildFixtureIds,
+  restoreCanarySnapshot,
   seedBuyerFixture,
   seedOrderFixtures,
 } from "../scripts/order-authenticated-route-smoke.mjs";
@@ -147,9 +151,9 @@ function nodePostgresAdapter(database) {
       const result = await database.query(...args);
       return {
         ...result,
-        rowCount: Number.isInteger(result.affectedRows)
-          ? result.affectedRows
-          : result.rows.length,
+        rowCount: result.rows.length > 0
+          ? result.rows.length
+          : Number(result.affectedRows ?? 0),
       };
     },
   };
@@ -198,10 +202,106 @@ test("raw authenticated Order fixture SQL is valid, exact and restart-safe", asy
         FROM public."Listing" WHERE id = $1
     `, [fixtureIds.checkoutListingId]);
     assert.deepEqual(listing.rows, [{ status: "ACTIVE", stock: 5, buyer: "canary-user" }]);
+    const labelAddresses = await database.query(`
+      SELECT seller."shipFromLine1" AS from_line1, seller."shipFromCity" AS from_city,
+             seller."shipFromState" AS from_state, seller."shipFromPostal" AS from_postal,
+             purchase."shipToLine1" AS to_line1, purchase."shipToCity" AS to_city,
+             purchase."shipToState" AS to_state, purchase."shipToPostalCode" AS to_postal
+        FROM public."Order" AS purchase
+        JOIN public."SellerProfile" AS seller ON seller.id = purchase."sellerProfileId"
+       WHERE purchase.id = $1
+    `, [fixtureIds.labelOrderId]);
+    assert.deepEqual(labelAddresses.rows, [{
+      from_line1: ORDER_FIXTURE_SHIP_FROM.line1,
+      from_city: ORDER_FIXTURE_SHIP_FROM.city,
+      from_state: ORDER_FIXTURE_SHIP_FROM.state,
+      from_postal: ORDER_FIXTURE_SHIP_FROM.postalCode,
+      to_line1: ORDER_FIXTURE_SHIP_TO.line1,
+      to_city: ORDER_FIXTURE_SHIP_TO.city,
+      to_state: ORDER_FIXTURE_SHIP_TO.state,
+      to_postal: ORDER_FIXTURE_SHIP_TO.postalCode,
+    }]);
 
     await database.query(`UPDATE public."Listing" SET title = 'foreign-row' WHERE id = $1`,
       [fixtureIds.labelListingId]);
     await assert.rejects(() => seedOrderFixtures(owner, state));
+  } finally {
+    await database.close();
+  }
+});
+
+test("canonical canary timestamps round-trip through timestamp without time zone", async () => {
+  const database = await createDatabase();
+  const owner = nodePostgresAdapter(database);
+  try {
+    await database.exec(`
+      INSERT INTO public."User" (
+        id, "clerkId", email, name, role, "termsAcceptedAt", "termsVersion",
+        "ageAttestedAt", "notificationPreferences", "emailPreferenceOptInAt"
+      ) VALUES (
+        'canary-user', 'clerk-canary', 'canary@example.test', 'Canary', 'USER',
+        TIMESTAMP '2026-09-02 08:16:17.014', '${TERMS_VERSION}',
+        TIMESTAMP '2026-09-02 08:16:17.014', '{}'::jsonb, NULL
+      )
+    `);
+    const state = {
+      startedAt: "2026-09-02T08:16:17.014Z",
+      canary: {
+        userId: "canary-user",
+        clerkUserId: "clerk-canary",
+        originalRole: "USER",
+        originalTermsAcceptedAt: "2026-07-22T11:55:07.384Z",
+        originalTermsVersion: "2026-06-14",
+        originalAgeAttestedAt: "2026-07-22T11:55:07.384Z",
+        originalNotificationPreferences: {},
+        originalEmailPreferenceOptInAt: null,
+      },
+    };
+    assert.deepEqual(await restoreCanarySnapshot(owner, state), { restored: true });
+    const restored = await database.query(`
+      SELECT role::text,
+             pg_catalog.to_char("termsAcceptedAt", 'YYYY-MM-DD HH24:MI:SS.MS') AS terms,
+             "termsVersion" AS version,
+             pg_catalog.to_char("ageAttestedAt", 'YYYY-MM-DD HH24:MI:SS.MS') AS age,
+             "notificationPreferences" AS preferences,
+             "emailPreferenceOptInAt" IS NULL AS opt_in_null
+        FROM public."User" WHERE id = 'canary-user'
+    `);
+    assert.deepEqual(restored.rows, [{
+      role: "USER",
+      terms: "2026-07-22 11:55:07.384",
+      version: "2026-06-14",
+      age: "2026-07-22 11:55:07.384",
+      preferences: {},
+      opt_in_null: true,
+    }]);
+    await database.query(`
+      UPDATE public."User"
+         SET "notificationPreferences" = '{"foreign":true}'::jsonb
+       WHERE id = 'canary-user'
+    `);
+    await assert.rejects(
+      () => restoreCanarySnapshot(owner, state),
+      /cleanup canary recovery source fields drifted/,
+    );
+    await database.query(`
+      UPDATE public."User"
+         SET "termsAcceptedAt" = TIMESTAMP '2026-07-22 16:55:07.384',
+             "termsVersion" = '2026-06-14',
+             "ageAttestedAt" = TIMESTAMP '2026-07-22 16:55:07.384',
+             "notificationPreferences" = '{}'::jsonb,
+             "emailPreferenceOptInAt" = NULL
+       WHERE id = 'canary-user'
+    `);
+    const legacyRecoveryState = {
+      ...state,
+      recoveredFromOperator: {
+        legacyTermsAcceptedAt: "2026-07-22T16:55:07.384Z",
+        legacyAgeAttestedAt: "2026-07-22T16:55:07.384Z",
+        legacyEmailPreferenceOptInAt: null,
+      },
+    };
+    assert.deepEqual(await restoreCanarySnapshot(owner, legacyRecoveryState), { restored: true });
   } finally {
     await database.close();
   }

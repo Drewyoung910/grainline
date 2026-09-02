@@ -6,12 +6,16 @@ import {
   CLERK_FRONTEND_API,
   CONFIRMATION,
   EVIDENCE_DIRECTORY,
+  LEGACY_CLEANUP_RECOVERY,
+  ORDER_FIXTURE_SHIP_FROM,
+  ORDER_FIXTURE_SHIP_TO,
   PRODUCTION_ORIGIN,
   REQUIRED_ALIASES,
   REVIEWED_PROJECT,
   RELEASE_BINDING,
   assertBuyerQuote,
   assertCheckoutRouteResult,
+  assertDistinctOrderFixtureAddresses,
   assertFulfillmentRedirect,
   assertGitState,
   assertLabelPurchase,
@@ -22,6 +26,7 @@ import {
   assertSeededOrderFixtureSnapshot,
   assertStableConflict,
   buildFixtureIds,
+  legacyLocalTimestampToCanonical,
   parseDatabaseUrls,
   parseGitHubCiRun,
   parseVercelAliasInspection,
@@ -47,6 +52,57 @@ const operatorConfig = Object.freeze({
 const evidencePath = `${EVIDENCE_DIRECTORY}/order-authenticated-route-smoke-${operator.commit}.json`;
 const runtimeUrl = "postgresql://grainline_app_runtime:runtime@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech/neondb?sslmode=verify-full&channel_binding=require";
 const ownerUrl = "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech/neondb?sslmode=verify-full&channel_binding=require";
+
+function restartStateFixture({
+  operatorBinding = operator,
+  stage = "seller-label",
+  startedAt = "2026-01-01T12:00:00.000Z",
+  status = "running",
+  version = 2,
+} = {}) {
+  const marker = "f".repeat(32);
+  const fixtureIds = buildFixtureIds(marker);
+  return {
+    version,
+    status,
+    operatorCommit: operatorBinding.commit,
+    operatorCiRunId: operatorBinding.ciRunId,
+    deployedCommit: binding.commit,
+    deployedCiRunId: binding.ciRunId,
+    deploymentId: binding.deploymentId,
+    marker,
+    stage,
+    fixtureIds,
+    routePhasesPassed: false,
+    startedAt,
+    canary: {
+      userId: "canary-user",
+      clerkUserId: "user_canary",
+      originalTermsAcceptedAt: null,
+      originalTermsVersion: null,
+      originalAgeAttestedAt: null,
+      originalNotificationPreferences: {},
+      originalEmailPreferenceOptInAt: null,
+      originalRole: "USER",
+      sessionIds: ["sess_canary"],
+    },
+    checkoutSeller: {
+      sellerProfileId: "seller-profile",
+      userId: "seller-user",
+      stripeAccountId: "acct_testSeller",
+    },
+    checkout: {
+      reservationIds: ["reservation-id"],
+      redisKeys: [
+        "account-state:vercel-production:clerk:user_canary",
+        `checkout:single:canary-user:listing:${fixtureIds.checkoutListingId}`,
+      ],
+      stripeSessionId: "cs_test_exact",
+      signedExpiryObserved: true,
+    },
+    provider: { shippoTransactionId: null },
+  };
+}
 
 test("operator pins the exact corrected application release separately from itself", () => {
   assert.deepEqual(assertReleaseBinding(), RELEASE_BINDING);
@@ -144,48 +200,8 @@ test("database and provider identities refuse owner-runtime or live-mode drift",
 });
 
 test("restart state is marker-bound, exact-release-bound and monotonic", () => {
-  const marker = "f".repeat(32);
-  const fixtureIds = buildFixtureIds(marker);
-  const state = validateRestartState({
-    version: 1,
-    status: "running",
-    operatorCommit: operator.commit,
-    operatorCiRunId: operator.ciRunId,
-    deployedCommit: binding.commit,
-    deployedCiRunId: binding.ciRunId,
-    deploymentId: binding.deploymentId,
-    marker,
-    stage: "seller-label",
-    fixtureIds,
-    routePhasesPassed: false,
-    startedAt: "2026-01-01T12:00:00.000Z",
-    canary: {
-      userId: "canary-user",
-      clerkUserId: "user_canary",
-      originalTermsAcceptedAt: null,
-      originalTermsVersion: null,
-      originalAgeAttestedAt: null,
-      originalNotificationPreferences: {},
-      originalEmailPreferenceOptInAt: null,
-      originalRole: "USER",
-      sessionIds: ["sess_canary"],
-    },
-    checkoutSeller: {
-      sellerProfileId: "seller-profile",
-      userId: "seller-user",
-      stripeAccountId: "acct_testSeller",
-    },
-    checkout: {
-      reservationIds: ["reservation-id"],
-      redisKeys: [
-        "account-state:vercel-production:clerk:user_canary",
-        `checkout:single:canary-user:listing:${fixtureIds.checkoutListingId}`,
-      ],
-      stripeSessionId: "cs_test_exact",
-      signedExpiryObserved: true,
-    },
-    provider: { shippoTransactionId: null },
-  }, operatorConfig, binding);
+  const state = validateRestartState(restartStateFixture(), operatorConfig, binding);
+  const fixtureIds = state.fixtureIds;
   assert.equal(state.stageIndex, undefined);
   state.stage = "cleanup";
   assert.equal(state.stage, "cleanup");
@@ -201,6 +217,64 @@ test("restart state is marker-bound, exact-release-bound and monotonic", () => {
     ...state,
     checkout: { ...state.checkout, redisKeys: ["foreign:key"] },
   }, operatorConfig, binding));
+});
+
+test("the exact failed v1 journal migrates once into canonical v2 cleanup state", () => {
+  const recoveryOperator = Object.freeze({ commit: "d".repeat(40), ciRunId: 98765 });
+  const legacy = restartStateFixture({
+    operatorBinding: {
+      commit: LEGACY_CLEANUP_RECOVERY.operatorCommit,
+      ciRunId: LEGACY_CLEANUP_RECOVERY.operatorCiRunId,
+    },
+    stage: "cleanup",
+    startedAt: LEGACY_CLEANUP_RECOVERY.startedAt,
+    status: "failed",
+    version: 1,
+  });
+  legacy.failureStage = "cleanup";
+  legacy.canary.originalTermsAcceptedAt = "2026-07-22T16:55:07.384Z";
+  legacy.canary.originalAgeAttestedAt = "2026-07-22T16:55:07.384Z";
+  const recoveryConfig = {
+    cleanupOnly: true,
+    operatorCommit: recoveryOperator.commit,
+    operatorCiRunId: recoveryOperator.ciRunId,
+  };
+  const migrated = validateRestartState(legacy, recoveryConfig, binding);
+  assert.equal(migrated.version, 2);
+  assert.equal(migrated.operatorCommit, recoveryOperator.commit);
+  assert.equal(migrated.operatorCiRunId, recoveryOperator.ciRunId);
+  assert.deepEqual(migrated.recoveredFromOperator, {
+    operatorCommit: LEGACY_CLEANUP_RECOVERY.operatorCommit,
+    operatorCiRunId: LEGACY_CLEANUP_RECOVERY.operatorCiRunId,
+    startedAt: LEGACY_CLEANUP_RECOVERY.startedAt,
+    legacyTermsAcceptedAt: "2026-07-22T16:55:07.384Z",
+    legacyAgeAttestedAt: "2026-07-22T16:55:07.384Z",
+    legacyEmailPreferenceOptInAt: null,
+  });
+  assert.equal(migrated.canary.originalTermsAcceptedAt, "2026-07-22T11:55:07.384Z");
+  assert.equal(migrated.canary.originalAgeAttestedAt, "2026-07-22T11:55:07.384Z");
+  assert.equal(legacyLocalTimestampToCanonical(null), null);
+  assert.throws(() => validateRestartState({
+    ...legacy,
+    startedAt: "2026-09-02T08:16:18.014Z",
+  }, recoveryConfig, binding));
+  assert.throws(() => validateRestartState(legacy, {
+    ...recoveryConfig,
+    cleanupOnly: false,
+  }, binding));
+});
+
+test("Shippo label fixture origin and destination are complete and distinct", () => {
+  assert.deepEqual(assertDistinctOrderFixtureAddresses(), { distinct: true });
+  assert.notEqual(ORDER_FIXTURE_SHIP_FROM.line1, ORDER_FIXTURE_SHIP_TO.line1);
+  assert.throws(() => assertDistinctOrderFixtureAddresses(
+    ORDER_FIXTURE_SHIP_FROM,
+    { ...ORDER_FIXTURE_SHIP_FROM },
+  ));
+  assert.throws(() => assertDistinctOrderFixtureAddresses(
+    { ...ORDER_FIXTURE_SHIP_FROM, postalCode: "" },
+    ORDER_FIXTURE_SHIP_TO,
+  ));
 });
 
 test("restart seeding adopts only exact marker-bound Order fixture rows", () => {
@@ -222,11 +296,11 @@ test("restart seeding adopts only exact marker-bound Order fixture rows", () => 
     shippingAmountCents: 0,
     taxAmountCents: 0,
     buyerName: "Grainline Route Canary",
-    shipToLine1: "123 Main St",
-    shipToCity: "Austin",
-    shipToState: "TX",
-    shipToPostalCode: "78701",
-    shipToCountry: "US",
+    shipToLine1: ORDER_FIXTURE_SHIP_TO.line1,
+    shipToCity: ORDER_FIXTURE_SHIP_TO.city,
+    shipToState: ORDER_FIXTURE_SHIP_TO.state,
+    shipToPostalCode: ORDER_FIXTURE_SHIP_TO.postalCode,
+    shipToCountry: ORDER_FIXTURE_SHIP_TO.country,
     fulfillmentMethod: "SHIPPING",
     fulfillmentStatus,
     shipped,
@@ -290,6 +364,12 @@ test("restart seeding adopts only exact marker-bound Order fixture rows", () => 
         chargesEnabled: false,
         stripeAccountId: null,
         useCalculatedShipping: false,
+        shipFromName: ORDER_FIXTURE_SHIP_FROM.name,
+        shipFromLine1: ORDER_FIXTURE_SHIP_FROM.line1,
+        shipFromCity: ORDER_FIXTURE_SHIP_FROM.city,
+        shipFromState: ORDER_FIXTURE_SHIP_FROM.state,
+        shipFromPostal: ORDER_FIXTURE_SHIP_FROM.postalCode,
+        shipFromCountry: ORDER_FIXTURE_SHIP_FROM.country,
       },
       {
         id: fixtureIds.receiptSellerProfileId,
@@ -302,6 +382,12 @@ test("restart seeding adopts only exact marker-bound Order fixture rows", () => 
         chargesEnabled: false,
         stripeAccountId: null,
         useCalculatedShipping: false,
+        shipFromName: ORDER_FIXTURE_SHIP_FROM.name,
+        shipFromLine1: ORDER_FIXTURE_SHIP_FROM.line1,
+        shipFromCity: ORDER_FIXTURE_SHIP_FROM.city,
+        shipFromState: ORDER_FIXTURE_SHIP_FROM.state,
+        shipFromPostal: ORDER_FIXTURE_SHIP_FROM.postalCode,
+        shipFromCountry: ORDER_FIXTURE_SHIP_FROM.country,
       },
     ],
     listings: [

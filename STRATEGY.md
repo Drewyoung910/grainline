@@ -2567,6 +2567,18 @@ absence is not a terminal or account-bound fact. A transaction-ID hint cannot
 bypass exhaustive same-rate uniqueness proof. This is still part of finishing
 Order, not a reason to skip ahead to another RLS family.
 
+The first authenticated Order route smoke on 2026-09-02 is not acceptance
+evidence. It proved the quantity-two quote/checkout and signed expiry path, then
+failed closed because its synthetic label seller and destination used the same
+address. Cleanup separately caught a five-hour node-postgres round-trip shift
+on Prisma `timestamp without time zone` canary fields. Do not retry that
+operator unchanged or weaken either assertion. Recover only the exact pinned
+legacy journal through the reviewed cleanup-only v2 migration, keep seller
+origin and Order destination structurally distinct, and canonicalize retained
+database timestamps at the SQL boundary. A fresh full authenticated smoke and
+complete cleanup remain prerequisites to predecessor drain and Order direct-
+authority retirement; neither partial phase is Order RLS evidence.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single
