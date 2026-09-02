@@ -195,11 +195,25 @@ function setLocalValues(current, previous) {
 function vercelApi(route, { method, body } = {}) {
   const args = [VERCEL_CLI, "api", route, "--raw", "--scope", PROJECT.scope, "--no-color"];
   if (method) args.push("--method", method);
+  if (method === "DELETE") {
+    if (
+      route !== "/v1/env"
+      || !Array.isArray(body?.ids)
+      || body.ids.length !== 1
+      || !/^env_[A-Za-z0-9]+$/.test(body.ids[0])
+    ) throw new Error("Vercel destructive request is outside the exact shared-environment fence");
+    args.push("--dangerously-skip-permissions");
+  }
   if (body !== undefined) args.push("--input", "-", "--silent");
-  return run(process.execPath, args, {
+  const output = run(process.execPath, args, {
     input: body === undefined ? undefined : JSON.stringify(body),
-    json: true,
   });
+  if (output === "" && method === "DELETE") return Object.freeze({});
+  try {
+    return JSON.parse(output);
+  } catch {
+    throw new Error("Vercel API returned invalid JSON");
+  }
 }
 
 export function normalizeSharedEnvironmentInventory(
@@ -248,7 +262,7 @@ function sharedInventory(previousId = null, options = {}) {
   return normalizeSharedEnvironmentInventory(vercelApi("/v1/env"), previousId, options);
 }
 
-export function normalizeProjectEnvironmentInventory(payload, previousId = null) {
+export function normalizeProjectEnvironmentInventory(payload) {
   if (!Array.isArray(payload?.envs)) throw new Error("Vercel project environment inventory is incomplete");
   const currentRows = payload.envs.filter((row) => row?.key === CURRENT_ENVIRONMENT.key);
   const previousRows = payload.envs.filter((row) => row?.key === PREVIOUS_KEY);
@@ -266,22 +280,15 @@ export function normalizeProjectEnvironmentInventory(payload, previousId = null)
     currentRows.length !== 1
     || !exact(currentRows[0], CURRENT_PROJECT_ENVIRONMENT_ID, CURRENT_ENVIRONMENT.key)
   ) throw new Error("Vercel project current cron environment metadata drifted");
-  if (previousId === null) {
-    if (previousRows.length !== 0) throw new Error("unexpected project previous cron environment exists");
-  } else if (previousRows.length !== 1 || !exact(previousRows[0], previousId, PREVIOUS_KEY)) {
-    throw new Error("Vercel project previous cron environment metadata drifted");
+  if (previousRows.length !== 0) {
+    throw new Error("unexpected project-local previous cron environment shadow exists");
   }
-  return Object.freeze({ currentId: currentRows[0].id, previousId });
+  return Object.freeze({ currentId: currentRows[0].id, previousId: null });
 }
 
-function projectEnvironmentInventory(previousId = null, { allowAnyPrevious = false } = {}) {
+function projectEnvironmentInventory() {
   const payload = vercelApi(`/v10/projects/${PROJECT.id}/env?decrypt=false`);
-  if (!allowAnyPrevious) return normalizeProjectEnvironmentInventory(payload, previousId);
-  const rows = payload.envs?.filter((row) => row?.key === PREVIOUS_KEY) ?? [];
-  if (rows.length > 1 || (rows.length === 1 && !/^[-A-Za-z0-9]+$/.test(rows[0].id))) {
-    throw new Error("Vercel project previous cron environment inventory is ambiguous");
-  }
-  return normalizeProjectEnvironmentInventory(payload, rows[0]?.id ?? null);
+  return normalizeProjectEnvironmentInventory(payload);
 }
 
 function createPreviousSecret(value, expectedCurrentHash, expectedPreviousHash) {
@@ -303,25 +310,19 @@ function createPreviousSecret(value, expectedCurrentHash, expectedPreviousHash) 
     inventory = sharedInventory(null, { allowAnyPrevious: true });
   }
   if (!inventory.previousId) throw new Error("Vercel previous cron environment creation was ambiguous");
-  const projectInventory = projectEnvironmentInventory(null, { allowAnyPrevious: true });
-  if (!projectInventory.previousId) {
-    throw new Error("Vercel linked previous cron environment creation was incomplete");
-  }
+  projectEnvironmentInventory();
   const resolved = resolvedVercelHashes();
   if (resolved.current !== expectedCurrentHash || resolved.previous !== expectedPreviousHash) {
     throw new Error("Vercel previous cron environment value is ambiguous");
   }
   sharedInventory(inventory.previousId);
-  projectEnvironmentInventory(projectInventory.previousId);
-  return Object.freeze({
-    sharedId: inventory.previousId,
-    projectId: projectInventory.previousId,
-  });
+  projectEnvironmentInventory();
+  return Object.freeze({ sharedId: inventory.previousId });
 }
 
-function updateDualSecrets(currentValue, previousValue, previousId, previousProjectId) {
+function updateDualSecrets(currentValue, previousValue, previousId) {
   sharedInventory(previousId);
-  projectEnvironmentInventory(previousProjectId);
+  projectEnvironmentInventory();
   vercelApi("/v1/env", {
     method: "PATCH",
     body: {
@@ -344,20 +345,20 @@ function updateDualSecrets(currentValue, previousValue, previousId, previousProj
     },
   });
   sharedInventory(previousId);
-  projectEnvironmentInventory(previousProjectId);
+  projectEnvironmentInventory();
 }
 
-function deletePreviousSecret(previousId, previousProjectId) {
+function deletePreviousSecret(previousId) {
   const inventory = sharedInventory(null, { allowAnyPrevious: true });
   if (inventory.previousId !== null && inventory.previousId !== previousId) {
     throw new Error("Vercel previous cron environment identity drifted");
   }
   if (inventory.previousId !== null) {
-    projectEnvironmentInventory(previousProjectId);
+    projectEnvironmentInventory();
     vercelApi("/v1/env", { method: "DELETE", body: { ids: [previousId] } });
   }
   sharedInventory(null);
-  projectEnvironmentInventory(null);
+  projectEnvironmentInventory();
 }
 
 export function normalizeResolvedCronHashes(output) {
@@ -605,8 +606,6 @@ export function validateState(value, config) {
     || Number.isNaN(Date.parse(value.createdAt))
     || ![null, undefined].includes(value.previousEnvironmentId)
       && !/^env_[A-Za-z0-9]+$/.test(value.previousEnvironmentId)
-    || ![null, undefined].includes(value.previousProjectEnvironmentId)
-      && !/^[-A-Za-z0-9]+$/.test(value.previousProjectEnvironmentId)
     || ![null, undefined].includes(value.bridgeDeploymentId)
       && !DEPLOYMENT.test(value.bridgeDeploymentId)
     || ![null, undefined].includes(value.bridgeDeploymentUrl)
@@ -624,7 +623,7 @@ export function validateState(value, config) {
     || value.dualDeploymentId && value.dualDeploymentId === value.finalDeploymentId
   ) throw new Error("private cron recovery state drifted");
   if (STAGES.indexOf(value.stage) >= STAGES.indexOf("bridge-previous-created")
-    && (!value.previousEnvironmentId || !value.previousProjectEnvironmentId)) {
+    && !value.previousEnvironmentId) {
     throw new Error("private cron recovery previous environment is missing");
   }
   if (STAGES.indexOf(value.stage) >= STAGES.indexOf("bridge-ready")
@@ -672,7 +671,6 @@ function createState(config, oldSecret) {
     oldSecretSha256: sha256(oldSecret),
     newSecretSha256: sha256(newSecret),
     previousEnvironmentId: null,
-    previousProjectEnvironmentId: null,
     bridgeDeploymentId: null,
     bridgeDeploymentUrl: null,
     dualDeploymentId: null,
@@ -807,7 +805,7 @@ export async function runRecovery(config) {
     }
     githubSecretMetadata();
     sharedInventory(null);
-    projectEnvironmentInventory(null);
+    projectEnvironmentInventory();
     const resolved = resolvedVercelHashes();
     if (resolved.current !== sha256(oldSecret) || resolved.previous !== "absent") {
       throw new Error("resolved Vercel cron preflight did not match local state");
@@ -825,7 +823,6 @@ export async function runRecovery(config) {
     );
     state = writeState(state, "bridge-previous-created", {
       previousEnvironmentId: previous.sharedId,
-      previousProjectEnvironmentId: previous.projectId,
     });
   }
   if (state.stage === "bridge-previous-created") {
@@ -847,7 +844,6 @@ export async function runRecovery(config) {
       state.newSecret,
       state.oldSecret,
       state.previousEnvironmentId,
-      state.previousProjectEnvironmentId,
     );
     updateGithubSecret(state.newSecret);
     setLocalValues(state.newSecret, state.oldSecret);
@@ -880,7 +876,7 @@ export async function runRecovery(config) {
         dualDeploymentId: state.dualDeploymentId,
       });
     }
-    deletePreviousSecret(state.previousEnvironmentId, state.previousProjectEnvironmentId);
+    deletePreviousSecret(state.previousEnvironmentId);
     setLocalValues(state.newSecret, null);
     const resolved = resolvedVercelHashes();
     if (resolved.current !== state.newSecretSha256 || resolved.previous !== "absent") {
@@ -908,7 +904,7 @@ export async function runRecovery(config) {
   if (state.stage === "final-promoted") {
     projectProtection();
     sharedInventory(null);
-    projectEnvironmentInventory(null);
+    projectEnvironmentInventory();
     normalizeAliasTargets(aliasTargets(), state.finalDeploymentId);
     const resolved = resolvedVercelHashes();
     if (resolved.current !== state.newSecretSha256 || resolved.previous !== "absent") {

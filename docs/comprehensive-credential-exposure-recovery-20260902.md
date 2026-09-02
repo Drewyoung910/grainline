@@ -366,3 +366,25 @@ follow-up; they do not weaken or reorder the exposed-credential recovery.
 Replacement CI run `33665768385` then failed only because the fail-closed
 dependency-hygiene contract still pinned the reviewed predecessor `3.1.5`;
 the contract is intentionally advanced to the exact patched `3.1.7` release.
+
+The first production CRON recovery attempt from exact main
+`901a3e430107cf15fa0ef2957adb0c988bf41938` / CI `33668569663` stopped at the
+initial `preflight` stage. It created one exact temporary team-shared
+`CRON_SECRET_PREVIOUS`, but Vercel correctly exposed that linked shared value to
+Production without materializing a second project-local environment row. The
+operator incorrectly required such a duplicate row and failed closed before any
+deployment, alias promotion, GitHub/local consumer update, or current-secret
+change. The exact temporary shared variable was then deleted, effective
+Production hashes were reverified as current=unchanged and previous=absent, and
+the unused mode-`0600` private journal was removed.
+
+The corrected invariant distinguishes the two provider views: the shared
+inventory must contain the exact temporary previous variable, while the project
+inventory must contain only the pinned current link and reject every
+project-local `CRON_SECRET_PREVIOUS` shadow. Effective Production SHA-256
+markers—not a duplicate project row—prove that the shared previous value is
+actually linked and resolved. Creation, dual-secret convergence, and deletion
+all recheck both the shared record and the absence of a project-local shadow.
+The exact temporary-record deletion also supplies Vercel CLI's required
+noninteractive DELETE confirmation flag only for that fenced request; without
+it, the CLI refuses the request before changing provider state.
