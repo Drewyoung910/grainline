@@ -1,6 +1,7 @@
 # Case and Order correctness corrections — 2026-09-01
 
-Status: isolated implementation; not merged, migrated or deployed.
+Status: implementation merged to `main` at `bb87e17c21988cea8009be60273542a8d0b353a5`;
+production migration and compatible deployment remain pending.
 
 ## Why this precedes the next Order RLS activation
 

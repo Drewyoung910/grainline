@@ -1,0 +1,142 @@
+name: Case Correctness Production Compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full CI run for the exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-case-correctness
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply Case correctness migration only
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify exact successful main CI
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_CONFIRMATION: ${{ inputs.confirmation }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        with:
+          script: |
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('REVIEWED_MAIN_CI_RUN_ID is not one positive run id');
+            }
+            const mainCiRunId = Number(value);
+            const releaseCommit = process.env.REVIEWED_RELEASE_COMMIT;
+            if (
+              !Number.isSafeInteger(mainCiRunId)
+              || releaseCommit !== context.sha
+              || !/^[0-9a-f]{40}$/.test(releaseCommit ?? '')
+              || process.env.REVIEWED_CONFIRMATION
+                !== 'apply-reviewed-case-correctness'
+            ) {
+              throw new Error('Case correctness production bindings drifted');
+            }
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: mainCiRunId,
+            });
+            if (
+              run.id !== mainCiRunId
+              || run.name !== 'CI'
+              || run.event !== 'push'
+              || run.head_branch !== 'main'
+              || run.head_sha !== releaseCommit
+              || run.status !== 'completed'
+              || run.conclusion !== 'success'
+            ) {
+              throw new Error(`Reviewed CI run ${mainCiRunId} drifted`);
+            }
+      - name: Verify exact source, owner connection, and role posture
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Refuse an unreviewed migration successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260901160000_correct_case_order_invariants"
+      - name: Verify exact Case correction bytes and authority contract
+        run: node --test tests/case-correctness-migration.test.mjs
+      - name: Inspect exact restart scope read-only
+        id: scope
+        env:
+          CASE_CORRECTNESS_PRODUCTION_SCOPE_STAGE: restart
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          scope_json="$(npm run --silent audit:case-correctness-production-scope)"
+          printf '%s\n' "$scope_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            if (
+              !["order-compatible", "case-corrected"].includes(value.state)
+              || value.orderMigrationCount !== 17
+              || value.caseTableCount !== 3
+              || value.caseRlsForced !== true
+              || value.directRuntimeCrud !== false
+            ) {
+              throw new Error("invalid Case correctness restart state");
+            }
+            process.stdout.write(`state=${value.state}\n`);
+          ' "$scope_json" >> "$GITHUB_OUTPUT"
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Apply Case correctness migration
+        if: steps.scope.outputs.state == 'order-compatible'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify production migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Audit retained runtime grants and global RLS catalog
+        run: npm run audit:db-grants -- --require-direct-url
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Prove exact post-application scope read-only
+        run: npm run audit:case-correctness-production-scope
+        env:
+          CASE_CORRECTNESS_PRODUCTION_SCOPE_STAGE: after
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

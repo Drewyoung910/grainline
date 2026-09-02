@@ -1371,6 +1371,10 @@ jobs:
           tests/order-label-ambiguous-reconciliation-operator.test.mjs
           tests/order-payment-event-aggregate-authority-app.test.mjs
           tests/order-payment-event-transition-authority-app.test.mjs
+      - name: Prove Order compatible production-scope query in disposable PostgreSQL
+        run: node --test tests/order-compatible-production-scope-postgres.test.mjs
+        env:
+          ORDER_COMPATIBLE_PRODUCTION_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Restore additive Case and Order correctness release
         run: >-
           mv
@@ -1397,6 +1401,10 @@ jobs:
         env:
           CASE_ACCOUNT_DELETION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           CASE_CORRECTNESS_EXPECTED: "1"
+      - name: Prove Case correctness production-scope query in disposable PostgreSQL
+        run: node --test tests/case-correctness-production-scope-postgres.test.mjs
+        env:
+          CASE_CORRECTNESS_PRODUCTION_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

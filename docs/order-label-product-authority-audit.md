@@ -1,9 +1,10 @@
 # Order shipping-label product and authority audit
 
-Status: **implementation required before Order RLS activation**  
+Status: **implementation merged; production compatibility release pending**
 Audit date: 2026-09-01  
 Scope: seller label purchase/re-quote, Shippo transaction recovery, Stripe
 label-cost deduction, seller download, buyer notification and retry worker  
+Merged release: `d88aaade055aece3e1393082958f97c7546ff775`
 Production state: **unchanged**
 
 ## Decision

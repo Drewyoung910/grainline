@@ -1,11 +1,9 @@
 # Verified cross-domain findings before core Order RLS
 
-Status: **current-source review; production unchanged**  
+Status: **corrective implementation merged; production release pending**
 Reviewed: 2026-09-01  
-Source base: shipping candidate branch
-`agent/order-label-product-authority-audit-20260901`; Case correction candidate
-`6d5690511057a1dceccfd28892c28ddc6c0d2b7a` remains separate in draft PR
-[#383](https://github.com/Drewyoung910/grainline/pull/383)
+Merged source: `bb87e17c21988cea8009be60273542a8d0b353a5`, containing the
+shipping/label, charged-total/refund-state and Case correction releases.
 
 ## Decision
 
@@ -78,13 +76,13 @@ SHA-256
 
 | # | Verdict | Current classification | Required action |
 | --- | --- | --- | --- |
-| 1 | **Live P1 false; dormant defense confirmed** | The accepted Case-message invariant rejects null `authorKind` and the live column is `NOT NULL`. An impossible restored/drifted row could still reach the defensive fallback. | Draft PR #383 projects that impossible legacy nonparticipant/null-kind row as `STAFF` and proves the behavior without editing applied history. |
-| 2 | **Confirmed; corrected in isolated candidate** | Six Case money-path clocks cast `clock_timestamp()` directly to timestamp and therefore depend on the session `TimeZone`. This can fail Case clock constraints outside UTC. | Draft PR #383 redefines the six functions with `AT TIME ZONE 'UTC'` and includes non-UTC proof. Merge and migrate separately after its authority gate. |
-| 3 | **Confirmed, high priority; corrected in isolated candidate** | `grainline_case_staff_resolution_prepare` returns a replayable provider-pending claim before rechecking current refund/dispute/label/payment eligibility. Unlike a completed replay, this result can authorize a new Stripe refund. | Draft PR #383 performs state-specific revalidation under the locked Order and fails conflicting provider-pending replays to reconciliation. |
-| 4 | **Confirmed, defense in depth; corrected in isolated candidate** | staff finalization applies the stored stock plan without a final fulfillment-state recheck. Existing pending refund locks block normal fulfillment, reducing exploitability. | Draft PR #383 rechecks the locked fulfillment state before applying a nonempty stock-restoration plan. |
+| 1 | **Live P1 false; dormant defense confirmed** | The accepted Case-message invariant rejects null `authorKind` and the live column is `NOT NULL`. An impossible restored/drifted row could still reach the defensive fallback. | The merged Case correction projects that impossible legacy nonparticipant/null-kind row as `STAFF` and proves the behavior without editing applied history. Production migration remains pending. |
+| 2 | **Confirmed; corrected in merged source** | Six Case money-path clocks cast `clock_timestamp()` directly to timestamp and therefore depend on the session `TimeZone`. This can fail Case clock constraints outside UTC. | The merged Case correction redefines the six functions with `AT TIME ZONE 'UTC'` and includes non-UTC proof. Production migration remains separate and pending. |
+| 3 | **Confirmed, high priority; corrected in merged source** | `grainline_case_staff_resolution_prepare` returns a replayable provider-pending claim before rechecking current refund/dispute/label/payment eligibility. Unlike a completed replay, this result can authorize a new Stripe refund. | The merged Case correction performs state-specific revalidation under the locked Order and fails conflicting provider-pending replays to reconciliation. Production migration remains pending. |
+| 4 | **Confirmed, defense in depth; corrected in merged source** | staff finalization applies the stored stock plan without a final fulfillment-state recheck. Existing pending refund locks block normal fulfillment, reducing exploitability. | The merged Case correction rechecks the locked fulfillment state before applying a nonempty stock-restoration plan. Production migration remains pending. |
 | 5 | **Signature confirmed; not an actor-bypass defect** | the bounded cron function has no actor parameter, but it is a service-principal operation: targets, due times, transitions and audit identities are database-derived, while `CRON_SECRET` authenticates the HTTP scheduler. A caller cannot select a Case or accelerate a not-due row. | Record this as explicit runtime-service authority. A dedicated database cron role is future hardening, not a Case or Order activation blocker. |
-| 6 | **Race confirmed; robust correction prepared** | Account deletion did not lock seller-side historical Orders before its final Case check. Locking User from Case-open would create an unnecessary User/Order lock inversion, and rejecting post-deletion buyer recourse would be the wrong product tradeoff. | Draft PR #383 locks every Order involving the target buyer or durable `Order.sellerProfileId` in canonical order, then performs a fresh Case check. It never re-derives historical ownership through mutable Listings. |
-| 7 | **Narrower defect confirmed; alleged wait-snapshot race overstated** | `FOR UPDATE SKIP LOCKED` already serializes the canonical Case/dispute writers. The actual retention defect was that the prune authority did not check the trigger-maintained `paymentOpenDisputeBlocked` projection. | Draft PR #383 adds that durable predicate while preserving the existing lock discipline and retained evidence. |
+| 6 | **Race confirmed; correction merged** | Account deletion did not lock seller-side historical Orders before its final Case check. Locking User from Case-open would create an unnecessary User/Order lock inversion, and rejecting post-deletion buyer recourse would be the wrong product tradeoff. | The merged Case correction locks every Order involving the target buyer or durable `Order.sellerProfileId` in canonical order, then performs a fresh Case check. It never re-derives historical ownership through mutable Listings. Production migration remains pending. |
+| 7 | **Narrower defect confirmed; alleged wait-snapshot race overstated** | `FOR UPDATE SKIP LOCKED` already serializes the canonical Case/dispute writers. The actual retention defect was that the prune authority did not check the trigger-maintained `paymentOpenDisputeBlocked` projection. | The merged Case correction adds that durable predicate while preserving the existing lock discipline and retained evidence. Production migration remains pending. |
 | 8 | **Signatures confirmed; impact overstated** | two seller aggregate functions accept only a seller ID. Their current callers are fixed metrics/cron service paths and return counts, not Case rows. They are not self-service participant reads. | Pin all callsites and preserve purpose-specific result shapes. A dedicated service role or actor binding is hardening, not a current data-exposure blocker absent a caller-controlled route. |
 | 9 | **UI defect confirmed; proposed enum rejected** | a fully refunded unfulfilled Order can still render preparing/pending copy. `CANCELLED` is not a correct fulfillment state: a delivered Order can later be refunded and must remain `DELIVERED`. | Derive and render payment/refund status separately, suppress impossible fulfillment actions/copy after a full refund, and keep logistics history intact. |
 | 10 | **Confirmed durability gap** | `Order` does not persist Stripe's exact charged total. Current item-subtotal derivation already avoids the historical gift-wrap double count, so that old defect is not still present, but refund arithmetic lacks a durable charged-total witness. | Add nullable `chargedTotalCents`, write it from the signed Checkout Session, inspect/backfill legacy rows and make exact provider totals authoritative when present. |
@@ -97,22 +95,20 @@ SHA-256
 | 15 | **Confirmed guardrail gap** | no recursive static guard bans broad `SellerProfile` selection even though the model mixes public profile fields with exact ship-from/provider/private fields. Current public helpers use projections, so no active leak was found. | Add a recursive source guard and explicit allowlisted projections before SellerProfile RLS or launch. |
 | 16 | **Not a defect** | the generic schema-drift follow-up test does not enumerate the Case family, but dedicated Case catalog, migration, PostgreSQL and release tests do. Centralization is not itself a security property. | No change unless the generic test is explicitly redefined as exhaustive. |
 | 17 | **Confirmed process gap, closed** | these allegations previously lacked a durable current-source classification. | This record plus the Case correction record and linked backlog rows are the source of truth; future fixes must update their status and evidence. |
-| 18 | **Confirmed narrow documentation drift; corrected in isolated candidate** | the historical SavedSearch section still says production builds run `prisma migrate deploy`; current runtime builds do not. The current manual-migration rule elsewhere is correct. | Draft PR #383 adds an explicit current-state override without rewriting the sealed historical rollout account or weakening the guarded Production Migrations workflow. |
+| 18 | **Confirmed narrow documentation drift; corrected in merged source** | the historical SavedSearch section still says production builds run `prisma migrate deploy`; current runtime builds do not. The current manual-migration rule elsewhere is correct. | The merged correction adds an explicit current-state override without rewriting the sealed historical rollout account or weakening the guarded Production Migrations workflow. |
 | 19 | **False** | the matrix contains exactly fourteen live table rows. A raw grep counted status labels in the legend and narrative as if they were table rows. The parsed matrix test pins the exact fourteen models. | Preserve the parsed row assertion; do not change accurate prose to twenty-one. |
 
-## Sequencing boundary
+## Production sequencing boundary
 
+The prerequisite implementations are merged but not yet active in production.
 Before core `Order` Phase A:
 
-1. finish the buyer quote correction with focused/full proof and the exact
-   non-charging Shippo test-mode quote smoke;
-2. complete the separate additive Case correction in draft PR #383, including
-   its real PostgreSQL 16 authority and lock proofs;
-3. design and ship the compatible `chargedTotalCents` witness plus fully-
-   refunded UI state;
-4. complete the existing label/fulfillment compatibility release, inspection,
-   application smoke and predecessor drain; and
-5. resume `Order` policyless Phase A, then FORCE, followed separately by
+1. apply the byte-pinned 17-migration Order compatibility prefix;
+2. apply the separate additive Case correction;
+3. deploy the compatible application and run the authenticated shipping,
+   label, fulfillment, refund and Case smokes;
+4. drain predecessor deployments; and
+5. activate `Order` policyless Phase A, then FORCE, followed separately by
    `OrderItem` and `OrderShippingRateQuote`.
 
 Findings 5, 6, 8, 11, 13a, 13b, 14 and 15 remain durably tracked but must not

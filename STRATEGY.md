@@ -35,6 +35,16 @@ projection guard, dedicated cron/service principals, human-readable order
 numbers and checkout-group product semantics remain tracked launch/design work;
 they must not turn the Order sequence into perpetual preparation.
 
+The compatible production release is split by authority boundary, not by every
+individual migration. The first guarded workflow applies only the exact
+17-migration Order projection/fulfillment/label/charged-total prefix and accepts
+only a byte-pinned restart prefix. It isolates the later Case correction. A
+second guarded workflow requires that complete Order prefix, then applies only
+the additive Case correction while retaining the accepted policyless FORCE
+posture. After both are accepted, deploy the compatible application, run the
+authenticated shipping/label/refund/Case smokes and pooled-runtime postflights,
+drain predecessor deployments, and proceed directly to Order Phase A.
+
 ### Core Order audit and activation sequence (2026-08-31)
 
 The fresh current-source audit is pinned in
