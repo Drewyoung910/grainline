@@ -57,6 +57,9 @@ import {
 import {
   ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
 } from "./order-charged-total-compatibility-catalog.mjs";
+import {
+  ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
+} from "./order-participant-list-projection-correction-catalog.mjs";
 
 export function verifyOrderPaymentEventActivationRelease(
   rootDirectory = process.cwd(),
@@ -155,6 +158,7 @@ export function verifyOrderPaymentEventActivationRelease(
           ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
           ORDER_LABEL_AUTHORITY_MIGRATION,
           ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+          ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
         ]
       : []),
   ];

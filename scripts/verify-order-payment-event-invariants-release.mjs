@@ -43,8 +43,8 @@ import {
   appendReviewedOrderParticipantListAuthoritySuccessor,
 } from "./order-participant-list-authority-catalog.mjs";
 import {
-  ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
-} from "./order-charged-total-compatibility-catalog.mjs";
+  ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
+} from "./order-participant-list-projection-correction-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_INVARIANTS_PHASE =
   "order-payment-event-invariants-reviewed";
@@ -137,8 +137,8 @@ export function verifyOrderPaymentEventInvariantsRelease(
   if (caseCorrectnessSuccessor) {
     assert.equal(
       reviewedSuccessors.at(-1),
-      ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
-      "Case correctness requires the charged-total compatibility successor",
+      ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
+      "Case correctness requires the participant-list projection correction",
     );
     reviewedSuccessors.push(CASE_CORRECTNESS_MIGRATION);
   }

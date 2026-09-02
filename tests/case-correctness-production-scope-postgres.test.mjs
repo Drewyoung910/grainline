@@ -20,7 +20,7 @@ test(
       migrationRole: "ci",
     });
     assert.equal(result.state, "case-corrected");
-    assert.equal(result.orderMigrationCount, 17);
+    assert.equal(result.orderMigrationCount, 18);
     assert.equal(result.directRuntimeCrud, false);
   },
 );

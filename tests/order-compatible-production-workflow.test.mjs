@@ -38,8 +38,8 @@ test("workflow isolates Case and deploys only the exact Order prefix", () => {
   assert.ok(isolate > 0 && isolate < inspect && inspect < deploy && deploy < restore);
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.match(workflow, /migrationPrefixLength < 0/u);
-  assert.match(workflow, /migrationPrefixLength > 17/u);
-  assert.match(workflow, /steps\.scope\.outputs\.prefix != '17'/u);
+  assert.match(workflow, /migrationPrefixLength > 18/u);
+  assert.match(workflow, /steps\.scope\.outputs\.prefix != '18'/u);
   assert.match(workflow, /ORDER_COMPATIBLE_PRODUCTION_SCOPE_STAGE: restart/u);
   assert.match(workflow, /ORDER_COMPATIBLE_PRODUCTION_SCOPE_STAGE: after/u);
   assert.match(workflow, /npm run audit:db-grants -- --require-direct-url/u);

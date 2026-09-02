@@ -55,6 +55,9 @@ import {
 import {
   ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
 } from "./order-charged-total-compatibility-catalog.mjs";
+import {
+  ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
+} from "./order-participant-list-projection-correction-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_FORCE_PHASE =
   "order-payment-event-force-reviewed";
@@ -130,6 +133,7 @@ export function verifyOrderPaymentEventForceRelease(
         ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
         ORDER_LABEL_AUTHORITY_MIGRATION,
         ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+        ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
       ]
     : [];
   if (caseCorrectnessSuccessor) {

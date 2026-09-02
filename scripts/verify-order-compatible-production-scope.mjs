@@ -12,6 +12,7 @@ import {
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
 import {
+  ORDER_COMPATIBLE_PRODUCTION_CHARGED_TOTAL_PREFIX_LENGTH,
   ORDER_COMPATIBLE_PRODUCTION_FIRST_MIGRATION,
   ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS,
 } from "./order-compatible-production-catalog.mjs";
@@ -140,7 +141,7 @@ export function assertOrderCompatibleProductionScope(
   );
   assertOrderPredecessorPosture(snapshot?.orderTable, migrationRole);
   const chargedTotalExpected =
-    prefixLength === ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.length;
+    prefixLength >= ORDER_COMPATIBLE_PRODUCTION_CHARGED_TOTAL_PREFIX_LENGTH;
   const chargedColumns = snapshot?.chargedTotalColumns;
   if (
     !Array.isArray(chargedColumns)
