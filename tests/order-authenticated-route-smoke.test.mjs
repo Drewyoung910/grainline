@@ -190,6 +190,12 @@ test("restart state is marker-bound, exact-release-bound and monotonic", () => {
   state.stage = "cleanup";
   assert.equal(state.stage, "cleanup");
   assert.throws(() => validateRestartState({ ...state, stage: "unknown" }, operatorConfig, binding));
+  assert.throws(() => validateRestartState({ ...state, startedAt: null }, operatorConfig, binding));
+  assert.throws(() => validateRestartState({
+    ...state,
+    routePhasesPassed: true,
+    stage: "seller-label",
+  }, operatorConfig, binding));
   assert.throws(() => validateRestartState({ ...state, fixtureIds: { ...fixtureIds, listingId: "drift" } }, operatorConfig, binding));
   assert.throws(() => validateRestartState({
     ...state,

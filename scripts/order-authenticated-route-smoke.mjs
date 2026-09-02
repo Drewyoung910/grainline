@@ -645,6 +645,8 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING) {
   const exact = assertReleaseBinding(binding);
   const validTimestamp = (value) => value === null
     || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
+  const validRequiredTimestamp = (value) => typeof value === "string"
+    && !Number.isNaN(Date.parse(value));
   const validId = (value, maximum = 255) => typeof value === "string"
     && value.length > 0
     && value.length <= maximum
@@ -671,10 +673,13 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING) {
     || JSON.stringify(state.fixtureIds) !== JSON.stringify(buildFixtureIds(state.marker))
     || !new Set(["running", "failed", "cleaned", "cleaned-after-failure"]).has(state.status)
     || typeof state.routePhasesPassed !== "boolean"
+    || (state.routePhasesPassed && !new Set(["cleanup", "cleaned"]).has(state.stage))
+    || (state.stage === "cleaned"
+      && ((state.status === "cleaned") !== state.routePhasesPassed))
     || (state.stage === "cleaned"
       ? !new Set(["cleaned", "cleaned-after-failure"]).has(state.status)
       : new Set(["cleaned", "cleaned-after-failure"]).has(state.status))
-    || !validTimestamp(state.startedAt)
+    || !validRequiredTimestamp(state.startedAt)
     || Date.parse(state.startedAt) > Date.now() + 5 * 60_000
     || !validId(state.canary?.userId, 191)
     || !/^user_[A-Za-z0-9]+$/.test(state.canary?.clerkUserId ?? "")
