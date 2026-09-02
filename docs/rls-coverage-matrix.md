@@ -144,9 +144,12 @@ completed alternative.
 > mode-`0600` evidence SHA-256
 > `1125e28f4a94140ef82c39e74f6b28279d8eb8c16fb4e24337b5c4a98d8e1d89`.
 > `Order` and `OrderItem` RLS remain off, predecessor Order CRUD is retained,
-> and the separate Case correction is unapplied. Next: Case correction,
-> compatible app deployment and authenticated smokes, predecessor drain,
-> zero-direct-access proof, then separate Order Phase A and FORCE releases.
+> and the separate Case correction is accepted from exact main
+> `e0c17bc31d8da57b2418004ec451cdeb2b776854`, CI `33588063084`, and guarded
+> run `33588992199`. It retained the three Case-family tables at ENABLE plus
+> FORCE with zero direct runtime CRUD. Next: compatible app deployment and
+> authenticated smokes, predecessor drain, zero-direct-access proof, then
+> separate Order Phase A and FORCE releases.
 > See `docs/order-core-pre-rls-audit.md` and
 > `docs/order-compatible-production-release-20260901.md`.
 

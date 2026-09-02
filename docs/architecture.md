@@ -95,8 +95,11 @@ verified all 40 runtime and eight private function sources/ACLs, absent-actor
 isolation and private staff-projection denial without mutation; evidence
 SHA-256 is
 `1125e28f4a94140ef82c39e74f6b28279d8eb8c16fb4e24337b5c4a98d8e1d89`.
-Order RLS, FORCE, policies and the separate Case correctness successor remain
-unchanged. Deployment, authenticated smokes, predecessor drain and
+The separate Case correctness successor was then applied from exact main
+`e0c17bc31d8da57b2418004ec451cdeb2b776854`, CI `33588063084`, in guarded
+run `33588992199`; it retained all three Case-family tables at ENABLE plus
+FORCE with zero direct runtime CRUD. Order RLS, FORCE, policies and predecessor
+CRUD remain unchanged. Deployment, authenticated smokes, predecessor drain and
 zero-direct-access proof must precede Order Phase A.
 
 The first Order/payment/shipping database boundary is the service-owned
