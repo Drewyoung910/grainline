@@ -523,12 +523,21 @@ operator and CI binding and re-attest provider, deployment, local and GitHub
 state before removing only the matching journal.
 
 The first execution from exact main
-`636b1b5afd6fb323376954e8db615168463467b9` and CI `33689091625` stopped before
-journal creation or mutation because Vercel serialized the exact Production
-row's absent custom-environment binding as `null` rather than `[]`. Read-only
-re-attestation confirmed every pinned row, target, digest, alias, deployment,
-CI and GitHub boundary remained at the accepted pre-rotation state. The narrow
-reader correction treats only literal `null` and an empty array as the two
-provider representations of no custom binding; missing, malformed or nonempty
-bindings still fail closed. The rotation remains pending a corrected exact-main
-CI gate.
+`636b1b5afd6fb323376954e8db615168463467b9` / CI `33689091625` and the corrected
+retry from exact main `1afe205c7fccbc0fcd5cf29f7eb03a8ad739f00e` / CI
+`33694247625` both stopped before journal creation or mutation. The first
+sanitized diagnostic used nullish coalescing and displayed an omitted
+`customEnvironmentIds` as `null`, so the first correction did not match the
+actual raw provider response. A direct field-presence rehearsal after the
+second stop proved Vercel omits that field on exact Production-only rows in
+both inventory and exact-value responses while returning `[]` for Preview and
+Development.
+
+The corrected reader accepts omission only when the pinned expected target is
+exactly Production; it also accepts literal `null` or `[]` as empty. Omission
+for Preview/Development, explicit `undefined`, malformed and nonempty bindings
+remain rejected, as do any ID, key, type, target, branch, configuration,
+decrypted-status, length or digest drift. Read-only re-attestation confirmed
+every provider, local, GitHub, alias, deployment and CI boundary remained at
+the accepted pre-rotation state after both stops. Rotation remains pending a
+new exact-main CI gate.
