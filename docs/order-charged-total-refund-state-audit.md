@@ -1,8 +1,8 @@
 # Order charged-total and refund-state audit
 
 Date: 2026-09-01  
-Branch: `agent/order-charged-total-refund-ui-20260901`  
-Production state: unchanged
+Merged release: `9d893010359f06741fa76b3c63efc5028cde151c`
+Production state: compatible migration and application deployment pending
 
 ## Decision
 
