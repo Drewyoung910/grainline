@@ -7,8 +7,10 @@ import {
   normalizeAliasTargets,
   normalizeCreatedKey,
   normalizeDeployment,
+  normalizeJournalRebind,
   normalizeProviderInventory,
   normalizeResolvedSecretSha256,
+  normalizeVercelVariableInventory,
   sanitizedEvidence,
   validateState,
 } from "../scripts/resend-credential-exposure-recovery.mjs";
@@ -101,6 +103,50 @@ test("extracts one marked Resend hash from Vercel CLI progress output", () => {
   assert.throws(() => normalizeResolvedSecretSha256(`${output}\nGRAINLINE_RESEND_SECRET_SHA256:${digest}`));
 });
 
+test("pins the exact legacy all-target Vercel Resend variable", () => {
+  const variable = {
+    id: "WkZNrlD569APACUw",
+    key: "RESEND_API_KEY",
+    type: "encrypted",
+    target: ["development", "preview", "production"],
+    gitBranch: null,
+  };
+  assert.deepEqual(normalizeVercelVariableInventory({ envs: [variable] }), {
+    id: variable.id,
+    key: variable.key,
+    type: variable.type,
+    target: variable.target,
+  });
+  assert.throws(() => normalizeVercelVariableInventory({ envs: [{ ...variable, id: "wrong" }] }));
+  assert.throws(() => normalizeVercelVariableInventory({ envs: [{ ...variable, type: "sensitive" }] }));
+  assert.throws(() => normalizeVercelVariableInventory({ envs: [{ ...variable, target: ["production"] }] }));
+  assert.throws(() => normalizeVercelVariableInventory({ envs: [variable, { ...variable, id: "duplicate" }] }));
+});
+
+test("rebinds only the exact journaled provider-created release boundary", () => {
+  const stopped = {
+    stage: "github-updated",
+    operatorCommit: "4b703f9fd0cc7e8a94c745866b401a1ed781dd3f",
+    operatorCiRunId: 33644395842,
+    oldKeyId: OLD_ID,
+    newKeyId: "new-key-id",
+  };
+  const config = {
+    operatorCommit: COMMIT,
+    operatorCiRunId: 456,
+    rebindFromOperatorCommit: stopped.operatorCommit,
+    rebindFromOperatorCiRunId: stopped.operatorCiRunId,
+  };
+  const inventory = { old: { id: OLD_ID }, replacement: { id: "new-key-id" } };
+  assert.deepEqual(normalizeJournalRebind(stopped, config, inventory), {
+    operatorCommit: COMMIT,
+    operatorCiRunId: 456,
+  });
+  assert.throws(() => normalizeJournalRebind({ ...stopped, stage: "provider-created" }, config, inventory));
+  assert.throws(() => normalizeJournalRebind(stopped, { ...config, rebindFromOperatorCiRunId: 1 }, inventory));
+  assert.throws(() => normalizeJournalRebind(stopped, config, { ...inventory, replacement: { id: "wrong" } }));
+});
+
 test("private state binds token digests and later deployment fields", async () => {
   const crypto = await import("node:crypto");
   const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
@@ -166,6 +212,8 @@ test("operator has no migration or secret-printing command", () => {
   const source = readFileSync(new URL("../scripts/resend-credential-exposure-recovery.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /prisma\s+migrate|migrate\s+deploy|Production Migrations/);
   assert.doesNotMatch(source, /console\.(?:log|error)\([^\n]*(?:oldToken|newToken|RESEND_API_KEY)/);
-  assert.match(source, /--sensitive/);
+  assert.match(source, /\/v9\/projects\/\$\{PROJECT\.id\}\/env\/\$\{VERCEL_VARIABLE\.id\}/);
+  assert.match(source, /"--input", "-", "--silent"/);
+  assert.doesNotMatch(source, /"--value"/);
   assert.match(source, /oldCredentialRejected: true/);
 });

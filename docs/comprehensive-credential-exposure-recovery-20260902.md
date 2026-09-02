@@ -232,3 +232,19 @@ uses one unique, fixed-prefix digest line; it accepts the reviewed CLI progress
 output while rejecting a missing, duplicate, or malformed digest marker. A fresh
 sanitized provider inventory after the stops proved that only the original key
 still existed, so no ambiguous replacement was retried.
+
+The next corrected attempt created exactly one replacement key, updated the
+GitHub repository secret, and stopped with its private journal at
+`github-updated`; Vercel and local still resolved to the old credential and no
+deployment was created. Vercel CLI 58.11.0 rejected the documented all-target
+stdin form unless a target was supplied. The existing project variable is one
+exact `encrypted` entry spanning Development, Preview, and Production; it cannot
+be converted wholesale to `sensitive` because Vercel supports that posture only
+for Preview and Production. Recovery therefore preserves that exact legacy
+shape and updates the pinned variable by REST identifier with its request body
+on stdin. Splitting Development from a sensitive Preview/Production entry is a
+separate post-incident hardening task. The replacement operator may rebind only
+the exact mode-`0600` `github-updated` journal from commit
+`4b703f9fd0cc7e8a94c745866b401a1ed781dd3f` / CI `33644395842`, after proving
+the journal's exact old and replacement keys still comprise the complete
+provider inventory.

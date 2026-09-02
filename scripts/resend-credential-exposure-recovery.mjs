@@ -37,6 +37,17 @@ const OLD_KEY = Object.freeze({
   name: "grainline-production",
 });
 const NEW_KEY_NAME = "grainline-production-recovery-20260902";
+const VERCEL_VARIABLE = Object.freeze({
+  id: "WkZNrlD569APACUw",
+  key: "RESEND_API_KEY",
+  type: "encrypted",
+  target: Object.freeze(["development", "preview", "production"]),
+});
+const REBINDABLE_STOPPED_OPERATOR = Object.freeze({
+  commit: "4b703f9fd0cc7e8a94c745866b401a1ed781dd3f",
+  ciRunId: 33644395842,
+  stage: "github-updated",
+});
 const CANONICAL_ALIASES = Object.freeze([
   "thegrainline.com",
   "www.thegrainline.com",
@@ -151,6 +162,22 @@ async function listProviderKeys(secret) {
   return normalizeProviderInventory(await new Resend(secret).apiKeys.list({ limit: 100 }));
 }
 
+export function normalizeJournalRebind(state, config, inventory) {
+  if (
+    config?.rebindFromOperatorCommit !== REBINDABLE_STOPPED_OPERATOR.commit
+    || config?.rebindFromOperatorCiRunId !== REBINDABLE_STOPPED_OPERATOR.ciRunId
+    || state?.operatorCommit !== REBINDABLE_STOPPED_OPERATOR.commit
+    || state?.operatorCiRunId !== REBINDABLE_STOPPED_OPERATOR.ciRunId
+    || state?.stage !== REBINDABLE_STOPPED_OPERATOR.stage
+    || inventory?.old?.id !== state.oldKeyId
+    || inventory?.replacement?.id !== state.newKeyId
+  ) throw new Error("private Resend journal cannot be rebound");
+  return Object.freeze({
+    operatorCommit: config.operatorCommit,
+    operatorCiRunId: config.operatorCiRunId,
+  });
+}
+
 export function normalizeCreatedKey(payload) {
   if (
     payload?.error
@@ -185,6 +212,7 @@ export function validateState(value) {
     || value.operatorCiRunId <= 0
     || value.sourceCommit !== SOURCE_COMMIT
     || value.predecessorDeploymentId !== PREDECESSOR_DEPLOYMENT
+    || value.oldKeyId !== OLD_KEY.id
     || typeof value.createdAt !== "string"
     || !Number.isFinite(Date.parse(value.createdAt))
     || typeof value.updatedAt !== "string"
@@ -263,12 +291,52 @@ function updateGithubSecret(value) {
   run("gh", ["secret", "set", "RESEND_API_KEY", "--repo", REPOSITORY], { input: `${value}\n` });
 }
 
+export function normalizeVercelVariableInventory(payload) {
+  if (!Array.isArray(payload?.envs)) throw new Error("Vercel environment inventory is incomplete");
+  const matching = payload.envs.filter((entry) => entry?.key === VERCEL_VARIABLE.key);
+  const entry = matching[0];
+  if (
+    matching.length !== 1
+    || entry.id !== VERCEL_VARIABLE.id
+    || entry.type !== VERCEL_VARIABLE.type
+    || entry.gitBranch != null
+    || !Array.isArray(entry.target)
+    || entry.target.length !== VERCEL_VARIABLE.target.length
+    || entry.target.some((target, index) => target !== VERCEL_VARIABLE.target[index])
+  ) throw new Error("Vercel Resend variable metadata drifted");
+  return Object.freeze({
+    id: entry.id,
+    key: entry.key,
+    type: entry.type,
+    target: Object.freeze([...entry.target]),
+  });
+}
+
+function vercelVariableMetadata() {
+  return normalizeVercelVariableInventory(run(process.execPath, [
+    VERCEL_CLI,
+    "api", `/v10/projects/${PROJECT.id}/env?decrypt=false`,
+    "--raw", "--scope", PROJECT.scope, "--no-color",
+  ], { cwd: ROOT, json: true }));
+}
+
 function updateVercelSecret(value) {
+  vercelVariableMetadata();
   run(process.execPath, [
     VERCEL_CLI,
-    "env", "update", "RESEND_API_KEY",
-    "--sensitive", "--yes", "--scope", PROJECT.scope, "--no-color",
-  ], { cwd: ROOT, input: `${value}\n` });
+    "api", `/v9/projects/${PROJECT.id}/env/${VERCEL_VARIABLE.id}`,
+    "--method", "PATCH", "--input", "-", "--silent",
+    "--scope", PROJECT.scope, "--no-color",
+  ], {
+    cwd: ROOT,
+    input: JSON.stringify({
+      key: VERCEL_VARIABLE.key,
+      value,
+      type: VERCEL_VARIABLE.type,
+      target: VERCEL_VARIABLE.target,
+    }),
+  });
+  vercelVariableMetadata();
 }
 
 export function normalizeResolvedSecretSha256(output) {
@@ -444,7 +512,8 @@ export async function runRecovery(config) {
   if (existsSync(JOURNAL)) {
     state = readState();
     if (state.operatorCommit !== config.operatorCommit || state.operatorCiRunId !== config.operatorCiRunId) {
-      throw new Error("private Resend journal belongs to another release");
+      const inventory = await listProviderKeys(state.newToken);
+      state = writeState(state, state.stage, normalizeJournalRebind(state, config, inventory));
     }
   } else {
     const local = dotenv.parse(readFileSync(LOCAL_ENV, "utf8"));
@@ -527,9 +596,11 @@ function parseArguments(argv) {
   for (let index = 0; index < argv.length; index += 2) values.set(argv[index], argv[index + 1]);
   const operatorCommit = values.get("--operator-commit");
   const operatorCiRunId = Number(values.get("--operator-ci-run-id"));
+  const rebindFromOperatorCommit = values.get("--rebind-from-operator-commit");
+  const rebindFromOperatorCiRunId = Number(values.get("--rebind-from-operator-ci-run-id"));
   const confirmation = values.get("--confirm");
   if (confirmation !== "rotate-exposed-resend-20260902") throw new Error("Resend recovery confirmation mismatch");
-  return { operatorCommit, operatorCiRunId };
+  return { operatorCommit, operatorCiRunId, rebindFromOperatorCommit, rebindFromOperatorCiRunId };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
