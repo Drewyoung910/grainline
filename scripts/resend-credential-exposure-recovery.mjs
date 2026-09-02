@@ -48,6 +48,11 @@ const REBINDABLE_STOPPED_OPERATOR = Object.freeze({
   ciRunId: 33644395842,
   stage: "github-updated",
 });
+const REBINDABLE_PROMOTED_OPERATOR = Object.freeze({
+  commit: "b8cfb03e76f0f2d6a06d3ed91dde8e782122b09b",
+  ciRunId: 33647162942,
+  stage: "promoted",
+});
 const CANONICAL_ALIASES = Object.freeze([
   "thegrainline.com",
   "www.thegrainline.com",
@@ -162,16 +167,46 @@ async function listProviderKeys(secret) {
   return normalizeProviderInventory(await new Resend(secret).apiKeys.list({ limit: 100 }));
 }
 
+export function normalizePostPromotionProviderInventory(payload) {
+  if (payload?.error || !Array.isArray(payload?.data?.data) || payload.data.has_more !== false) {
+    throw new Error("Resend post-promotion API-key inventory is incomplete");
+  }
+  const rows = payload.data.data;
+  const old = rows.filter((entry) => entry?.id === OLD_KEY.id && entry.name === OLD_KEY.name);
+  const replacement = rows.filter((entry) => entry?.name === NEW_KEY_NAME);
+  if (old.length > 1 || replacement.length !== 1 || rows.length !== old.length + replacement.length) {
+    throw new Error("Resend post-promotion API-key inventory drifted");
+  }
+  return Object.freeze({
+    old: old[0] ? Object.freeze({ ...old[0] }) : null,
+    replacement: Object.freeze({ ...replacement[0] }),
+  });
+}
+
+async function listPostPromotionProviderKeys(secret) {
+  return normalizePostPromotionProviderInventory(await new Resend(secret).apiKeys.list({ limit: 100 }));
+}
+
 export function normalizeJournalRebind(state, config, inventory) {
-  if (
-    config?.rebindFromOperatorCommit !== REBINDABLE_STOPPED_OPERATOR.commit
-    || config?.rebindFromOperatorCiRunId !== REBINDABLE_STOPPED_OPERATOR.ciRunId
-    || state?.operatorCommit !== REBINDABLE_STOPPED_OPERATOR.commit
-    || state?.operatorCiRunId !== REBINDABLE_STOPPED_OPERATOR.ciRunId
-    || state?.stage !== REBINDABLE_STOPPED_OPERATOR.stage
-    || inventory?.old?.id !== state.oldKeyId
-    || inventory?.replacement?.id !== state.newKeyId
-  ) throw new Error("private Resend journal cannot be rebound");
+  const initialStop = (
+    config?.rebindFromOperatorCommit === REBINDABLE_STOPPED_OPERATOR.commit
+    && config?.rebindFromOperatorCiRunId === REBINDABLE_STOPPED_OPERATOR.ciRunId
+    && state?.operatorCommit === REBINDABLE_STOPPED_OPERATOR.commit
+    && state?.operatorCiRunId === REBINDABLE_STOPPED_OPERATOR.ciRunId
+    && state?.stage === REBINDABLE_STOPPED_OPERATOR.stage
+    && inventory?.old?.id === state.oldKeyId
+    && inventory?.replacement?.id === state.newKeyId
+  );
+  const promotedStop = (
+    config?.rebindFromOperatorCommit === REBINDABLE_PROMOTED_OPERATOR.commit
+    && config?.rebindFromOperatorCiRunId === REBINDABLE_PROMOTED_OPERATOR.ciRunId
+    && state?.operatorCommit === REBINDABLE_PROMOTED_OPERATOR.commit
+    && state?.operatorCiRunId === REBINDABLE_PROMOTED_OPERATOR.ciRunId
+    && state?.stage === REBINDABLE_PROMOTED_OPERATOR.stage
+    && inventory?.old === null
+    && inventory?.replacement?.id === state.newKeyId
+  );
+  if (!initialStop && !promotedStop) throw new Error("private Resend journal cannot be rebound");
   return Object.freeze({
     operatorCommit: config.operatorCommit,
     operatorCiRunId: config.operatorCiRunId,
@@ -520,7 +555,16 @@ export async function runRecovery(config) {
   if (existsSync(JOURNAL)) {
     state = readState();
     if (state.operatorCommit !== config.operatorCommit || state.operatorCiRunId !== config.operatorCiRunId) {
-      const inventory = await listProviderKeys(state.newToken);
+      const promotedRebind = (
+        state.operatorCommit === REBINDABLE_PROMOTED_OPERATOR.commit
+        && state.operatorCiRunId === REBINDABLE_PROMOTED_OPERATOR.ciRunId
+        && state.stage === REBINDABLE_PROMOTED_OPERATOR.stage
+        && config.rebindFromOperatorCommit === REBINDABLE_PROMOTED_OPERATOR.commit
+        && config.rebindFromOperatorCiRunId === REBINDABLE_PROMOTED_OPERATOR.ciRunId
+      );
+      const inventory = promotedRebind
+        ? await listPostPromotionProviderKeys(state.newToken)
+        : await listProviderKeys(state.newToken);
       state = writeState(state, state.stage, normalizeJournalRebind(state, config, inventory));
     }
   } else {
@@ -576,9 +620,9 @@ export async function runRecovery(config) {
     state = writeState(state, "promoted");
   }
   if (state.stage === "promoted") {
-    const inventory = await listProviderKeys(state.newToken);
+    const inventory = await listPostPromotionProviderKeys(state.newToken);
     assert.equal(inventory.replacement?.id, state.newKeyId);
-    await deleteProviderKey(state.newToken, state.oldKeyId);
+    if (inventory.old !== null) await deleteProviderKey(state.newToken, state.oldKeyId);
     await expectOldRejected(state.oldToken);
     state = writeState(state, "provider-revoked");
   }

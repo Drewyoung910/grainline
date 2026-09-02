@@ -258,3 +258,10 @@ while the original returns that exact invalid-key response. The restart-safe
 correction accepts that one observed 400 tuple in addition to 401/403 and rejects
 every other 400 response, so it can complete evidence without creating another
 key, deployment, promotion, or revocation.
+
+The same correction also recognizes only the exact promoted stop from operator
+`b8cfb03e76f0f2d6a06d3ed91dde8e782122b09b` / CI `33647162942` when the
+complete provider inventory is the one expected replacement key and the old key
+is absent. This is required because the old-key deletion succeeded before the
+original rejection assertion stopped. It cannot rebind a pre-promotion stage,
+an inventory that still contains the old key, or any unknown or duplicate key.
