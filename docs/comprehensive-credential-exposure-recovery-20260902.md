@@ -210,8 +210,9 @@ The operator must:
 - reject incomplete or unexpected provider-key inventories;
 - create one marker-named replacement key and fsync it only to a private
   mode-`0600` journal;
-- update the GitHub repository secret, the Vercel variable as Sensitive, and the
-  ignored local file without printing the replacement;
+- update the GitHub repository secret, the exact pinned legacy Vercel
+  `encrypted` all-target variable, and the ignored local file without printing
+  the replacement;
 - stage and verify an exact-source production deployment before promotion;
 - prove the replacement can authenticate before revoking the exact old key;
 - accept only an authentication rejection from the superseded key;
@@ -265,3 +266,103 @@ complete provider inventory is the one expected replacement key and the old key
 is absent. This is required because the old-key deletion succeeded before the
 original rejection assertion stopped. It cannot rebind a pre-promotion stage,
 an inventory that still contains the old key, or any unknown or duplicate key.
+
+## Completed Resend family
+
+The Resend credential family completed on 2026-09-02 from operator commit
+`7e493e1f0cb0c434506ce2b468cc9b4f72920fcf` and exact-head CI
+`33651462243`. PR #403 merged the final restart-safe provider-response and
+promoted-state handling. The provider inventory contains exactly one key:
+replacement key `9a09feea-7706-4867-98c5-abb943212d2e`, named
+`grainline-production-recovery-20260902`. The original exact key is absent and
+its credential returns the provider's exact invalid-key response.
+
+GitHub repository, Vercel, and ignored local consumers converged on the
+replacement credential. All canonical aliases point to READY deployment
+`dpl_7DA9fNtQZV27smqAvSEJ6RrjtnC9`, built from unchanged application source
+`b22fa138d84bad792ba206ee00dacb48d475d4a4`. The canonical homepage and health
+route returned HTTP 200. No migration ran, no email was sent, and the private
+restart journal was removed only after evidence finalized.
+
+Accepted Resend evidence:
+
+- path: `resend-credential-recovery-20260902.json`;
+- SHA-256:
+  `12106d0a0ae751a4de6d2f70e3a25513a0413b8dff983121eda4b1a5e6ed682e`;
+- mode `0600`;
+- status `passed`, `acceptanceEligible=true`, and `issueCount=0`;
+- replacement authenticated and original credential rejected; and
+- no secret-shaped credential value in the sanitized evidence.
+
+## Cron bearer family
+
+`CRON_SECRET` is the next application-generated credential family. Every cron
+route and the middleware use the shared timing-safe `verifyCronRequest()`
+boundary. That boundary already accepts `CRON_SECRET_PREVIOUS`, so recovery can
+preserve scheduled and in-flight requests while changing the current bearer.
+
+The production inventory changes the deployment-drain requirement. Vercel
+project `prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp` has deployment protection set to
+`all_except_custom_domains`. Historical generated deployment URLs therefore
+require Vercel SSO and are not publicly callable with the exposed cron bearer
+alone. They are not deleted as part of this credential family. The operator
+must fail if that protection posture changes, and a historical artifact may
+never be promoted as rollback: rollback requires rebuilding its Git source with
+the current credentials.
+
+The restart-safe operator is
+`scripts/cron-secret-credential-exposure-recovery.mjs`. It must:
+
+- bind a clean exact operator commit, successful exact-head CI, the clean
+  unchanged source `b22fa138d84bad792ba206ee00dacb48d475d4a4`, current READY
+  deployment `dpl_7DA9fNtQZV27smqAvSEJ6RrjtnC9`, and all three canonical
+  aliases;
+- pin the exact team-shared `encrypted` all-target `CRON_SECRET` record
+  `env_Z5Adun6D9lSNFwiy53ucs4GK` and require that no previous-secret record
+  already exists;
+- create one temporary shared `CRON_SECRET_PREVIOUS` containing the replacement
+  bearer while current remains old, then deploy and promote a bridge artifact
+  that accepts old plus new;
+- atomically converge the shared pair to current=new and previous=old, update
+  the GitHub repository secret and ignored local file, and compare only SHA-256
+  markers;
+- deploy and promote the unchanged source again with new plus old, proving on the
+  nonexistent `/api/cron/__credential-recovery-probe__` path that current and
+  previous bearers pass middleware to a 404 while a wrong bearer receives 401;
+- retain the dual deployment for 330 seconds, longer than the reviewed maximum
+  request duration, without blocking a process in a long sleep;
+- delete the temporary previous shared variable, remove the local previous
+  value, deploy and promote the unchanged source a third time, and prove current gives
+  404 while both old and wrong bearers give 401 on canonical Production;
+- restore the dual deployment automatically if the final authentication proof
+  fails after promotion;
+- verify homepage and health HTTP 200, reverify deployment protection and
+  alias/source identity, then emit mode-`0600` sanitized evidence and remove the
+  private journal; and
+- contain no migration, RLS, database, broad deployment-removal, raw-secret
+  output, or unrelated provider mutation surface.
+
+The 404/401 probe is deliberately side-effect-free: middleware authenticates
+the `/api/cron/*` namespace before routing, while the named probe route does not
+exist. It proves the bearer boundary without starting a cron run or touching a
+business table. A fresh full authenticated Order smoke remains deferred until
+all exposed credential families have been replaced.
+
+The bridge is intentional. Vercel documents that it sends the configured
+`CRON_SECRET` as the bearer for Production cron invocations and that environment
+changes require redeployment. A bridge artifact containing both values keeps
+scheduled calls valid whether the invocation service observes the deployed or
+newly configured current value during the cutover.
+
+PR CI run `33657802150` passed the complete migration, authority, PostgreSQL,
+type, lint, and test gates but then failed the blocking dependency audit because
+the newly published `fast-uri` high-severity advisory covered the locked
+`3.1.5` release. The correction is deliberately lockfile-only: resolve the
+existing compatible transitive range to `fast-uri@3.1.7`, with no direct
+dependency, broad update, `npm audit fix`, or force upgrade. The exact local
+dependency gate then reported no high or critical vulnerability. The remaining
+moderate-only Tiptap and `qs` advisories are a separate dependency-security
+follow-up; they do not weaken or reorder the exposed-credential recovery.
+Replacement CI run `33665768385` then failed only because the fail-closed
+dependency-hygiene contract still pinned the reviewed predecessor `3.1.5`;
+the contract is intentionally advanced to the exact patched `3.1.7` release.
