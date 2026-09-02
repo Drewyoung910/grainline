@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -85,6 +85,19 @@ that Case database RLS is incomplete. Order/payment/shipping is the active
 sensitive-data program. User, public/private catalog data, carts, and other
 service/audit ledgers remain separately reviewed later groups; do not bundle
 their policies or grants.
+
+The core `Order` table is in accepted compatibility preparation, not active
+RLS. Exact main `fb27a5efe9551ceec724b92e2d3c39cd9c50bd87`, CI
+`33585371689`, and guarded run `33586737852` applied the complete 18-migration
+fixed-operation prefix while retaining predecessor direct runtime CRUD for
+old/new application coexistence. The distinct actual pooled-runtime proof
+verified all 40 runtime and eight private function sources/ACLs, absent-actor
+isolation and private staff-projection denial without mutation; evidence
+SHA-256 is
+`1125e28f4a94140ef82c39e74f6b28279d8eb8c16fb4e24337b5c4a98d8e1d89`.
+Order RLS, FORCE, policies and the separate Case correctness successor remain
+unchanged. Deployment, authenticated smokes, predecessor drain and
+zero-direct-access proof must precede Order Phase A.
 
 The first Order/payment/shipping database boundary is the service-owned
 `StripeWebhookEvent` ledger. Policyless ENABLE plus FORCE, zero

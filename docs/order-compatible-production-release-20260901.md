@@ -1,19 +1,19 @@
 # Order compatibility production release — 2026-09-01
 
-Status: the original 17-row compatibility prefix is applied in production;
-Order RLS remains off. A narrowly scoped 18th correction is isolated and not
-yet merged or applied. The separate Case correction remains unapplied.
+Status: the complete 18-row compatibility prefix is applied and accepted in
+production. Order RLS remains off with predecessor runtime CRUD retained. The
+separate Case correction remains unapplied.
 
 ## Why this is one Order stack and one separate Case correction
 
 The compatible Order program now has 18 ordered, additive migrations from
 `20260831233000_prepare_order_participant_list_authority` through
 `20260901155000_correct_order_participant_list_projection`. CI replays them in
-order and proves each fixed-operation family. Splitting those 18 migrations into 18
-manual production releases would add operational failure surfaces without
-creating a stronger authority boundary. Applying them as an exact byte-pinned
-prefix is proportional because they all preserve `Order` RLS-off posture and
-predecessor runtime CRUD for old/new deployment coexistence.
+order and proves each fixed-operation family. Splitting those 18 migrations
+into 18 manual production releases would add operational failure surfaces
+without creating a stronger authority boundary. Applying them as an exact
+byte-pinned prefix is proportional because they all preserve `Order` RLS-off
+posture and predecessor runtime CRUD for old/new deployment coexistence.
 
 `20260901160000_correct_case_order_invariants` remains separate. It replaces
 authority on the already-live policyless FORCE Case family and therefore must
@@ -92,10 +92,15 @@ retry paths must be exercised before predecessor drain and Order Phase A.
    run `33580353283` applied the exact 17-row prefix, converged runtime grants,
    passed migration status, the global grant/RLS audit and the final owner-side
    read-only scope proof. `Order` remains RLS off with predecessor CRUD.
-3. Run the distinct pooled-runtime read-only Order postflight. This is a hard
-   evidence boundary, not a repeat of the owner-side catalog check. Its first
-   real PostgreSQL run exposed a participant-list projection mismatch; apply
-   the exact 18th correction and rerun this proof before proceeding.
+3. ~~Run the distinct pooled-runtime read-only Order postflight.~~ The first
+   attempt exposed a participant-list projection mismatch. PR #387 merged the
+   exact correction as main `fb27a5efe9551ceec724b92e2d3c39cd9c50bd87`;
+   exact-main CI `33585371689` passed. Guarded run `33586737852` advanced only
+   the reviewed Order prefix from 17 to 18 rows, reconverged existing runtime
+   grants, and passed migration status, the global grant/RLS audit and final
+   owner-side scope. The distinct actual pooled-runtime proof then passed all
+   six checks without mutation. Retain sanitized mode-`0600` evidence SHA-256
+   `1125e28f4a94140ef82c39e74f6b28279d8eb8c16fb4e24337b5c4a98d8e1d89`.
 4. Run the separate Case correction workflow from exact green `main` only
    after the 18-row Order prefix and pooled-runtime proof are complete.
 5. Deploy the exact compatible application and verify aliases/health/source.
@@ -141,7 +146,13 @@ only the two list functions with exact `::text` casts and reconverges their
 existing function ACLs. A real-varchar disposable PostgreSQL proof first
 reproduces the predecessor failure and then proves both corrected functions and
 ACLs. The migration does not alter table data, RLS, policies or table grants.
-It is not yet applied to production.
+PR #387 merged the exact correction as main
+`fb27a5efe9551ceec724b92e2d3c39cd9c50bd87` after pull-request CI
+`33584602487` and exact-main CI `33585371689` passed. Guarded production run
+`33586737852` classified the exact 17-row restart state, applied only this
+correction, reconverged the existing function grants, and passed migration
+status, the global grant/RLS audit and the exact after-scope proof. The Case
+successor remained isolated and unapplied; Order RLS remained off.
 
 ## Pooled-runtime postflight contract
 
@@ -167,3 +178,13 @@ bindings to a fresh mode-0600 evidence file. It does not export production row
 identifiers or mutate production. CI reruns the same proof against the real
 ordinary runtime login after applying the exact compatible stack in disposable
 PostgreSQL.
+
+The accepted production proof ran from the clean exact-main commit
+`fb27a5efe9551ceec724b92e2d3c39cd9c50bd87`, bound to CI `33585371689` and
+migration run `33586737852`. It verified the actual pooled
+`grainline_app_runtime` identity, compatible Order predecessor posture, exact
+40-runtime/8-private function source and ACL catalog, absent-actor list/detail
+isolation and direct denial of the dormant staff projection inside an
+engine-attested repeatable-read/read-only transaction. It recorded
+`productionChangedByPostflight=false`. Retain sanitized evidence SHA-256
+`1125e28f4a94140ef82c39e74f6b28279d8eb8c16fb4e24337b5c4a98d8e1d89`.
