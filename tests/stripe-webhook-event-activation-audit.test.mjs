@@ -119,6 +119,7 @@ test("all remaining script-level direct access is explicitly classified", () => 
     "scripts/build-blocked-checkout-transfer-binding-migration.mjs",
     "scripts/buyer-deletion-stripe-replay-postgres-proof.mjs",
     "scripts/checkout-stock-reservation-production-smoke.mjs",
+    "scripts/order-authenticated-route-smoke.mjs",
     "scripts/order-payment-event-blocked-checkout-production-proof.mjs",
     "scripts/order-payment-event-case-refund-production-proof.mjs",
     "scripts/order-payment-event-seller-refund-production-proof.mjs",

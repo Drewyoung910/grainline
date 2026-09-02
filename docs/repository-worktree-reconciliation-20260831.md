@@ -115,3 +115,16 @@ All completion requirements were reverified:
    worktree;
 6. the volume had 16 GiB available after cleanup;
 7. no production, provider, credential or database state changed.
+
+## 2026-09-02 continuation note
+
+During isolated Order smoke scaffolding, one plan-only cherry-pick was
+accidentally issued from the normal repository root. The root was clean and no
+uncommitted material was involved. Commit `67d5ad4e...` was preserved on the
+local safety branch `agent/root-plan-safety-20260902`; local `main` was then
+restored without deleting any commit to exact `origin/main` at
+`ef571b397338e60c03bffa14d4c66e52cc94a982`, and the intended plan commit was
+applied in the isolated operator worktree instead. The safety branch is
+redundant with accepted plan content and is a later local-reconciliation item,
+not application or rollout work. Git registered 11 real worktrees at this
+checkpoint. No production, provider, credential or database state changed.
