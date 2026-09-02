@@ -989,12 +989,51 @@ function createReplacementDeployment(stateCreatedAt) {
   );
 }
 
+const CANONICAL_PRODUCTION_ALIASES = Object.freeze([
+  "thegrainline.com",
+  "www.thegrainline.com",
+  "grainline.vercel.app",
+]);
+
 function readCanonicalAliasTargets() {
-  return ["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app"]
+  return CANONICAL_PRODUCTION_ALIASES
     .map((hostname) => Object.freeze({
       hostname,
       deployment: readDeployment(hostname),
     }));
+}
+
+function normalizeCanonicalTargetIds(targets) {
+  if (
+    !Array.isArray(targets)
+    || targets.length !== CANONICAL_PRODUCTION_ALIASES.length
+    || targets.some((target, index) => (
+      target?.hostname !== CANONICAL_PRODUCTION_ALIASES[index]
+      || target.deployment?.projectId !== REVIEWED_VERCEL_PROJECT.projectId
+      || target.deployment.readyState !== "READY"
+      || target.deployment.target !== "production"
+      || typeof target.deployment.id !== "string"
+      || !/^dpl_[A-Za-z0-9]+$/.test(target.deployment.id)
+    ))
+  ) throw new Error("canonical production alias inventory drifted");
+  return Object.freeze(targets.map((target) => target.deployment.id));
+}
+
+export function normalizeCanonicalPredecessorTargets(
+  targets,
+  predecessorId = PRIOR_DEPLOYMENT_ID,
+) {
+  if (!/^dpl_[A-Za-z0-9]+$/.test(predecessorId)) {
+    throw new Error("canonical production alias inventory drifted");
+  }
+  const ids = normalizeCanonicalTargetIds(targets);
+  if (ids.some((id) => id !== predecessorId)) {
+    throw new Error("canonical production aliases moved from the reviewed predecessor");
+  }
+  return Object.freeze({
+    stage: "predecessor",
+    deploymentIds: ids,
+  });
 }
 
 export function normalizeCanonicalAliasTargets(
@@ -1002,33 +1041,26 @@ export function normalizeCanonicalAliasTargets(
   deploymentId,
   predecessorId = PRIOR_DEPLOYMENT_ID,
 ) {
-  const canonicalAliases = [
-    "thegrainline.com", "www.thegrainline.com", "grainline.vercel.app",
-  ];
   if (
     !/^dpl_[A-Za-z0-9]+$/.test(deploymentId)
     || !/^dpl_[A-Za-z0-9]+$/.test(predecessorId)
     || deploymentId === predecessorId
-    || !Array.isArray(targets)
-    || targets.length !== canonicalAliases.length
-    || targets.some((target, index) => (
-      target?.hostname !== canonicalAliases[index]
-      || target.deployment?.projectId !== REVIEWED_VERCEL_PROJECT.projectId
-      || target.deployment.readyState !== "READY"
-      || target.deployment.target !== "production"
-      || typeof target.deployment.id !== "string"
-    ))
   ) throw new Error("canonical production alias inventory drifted");
-  const ids = targets.map((target) => target.deployment.id);
+  const ids = normalizeCanonicalTargetIds(targets);
   if (ids.some((id) => id !== deploymentId && id !== predecessorId)) {
     throw new Error("canonical production aliases moved to an unreviewed deployment");
   }
   const replacementCount = ids.filter((id) => id === deploymentId).length;
-  if (replacementCount !== 0 && replacementCount !== canonicalAliases.length) {
+  if (
+    replacementCount !== 0
+    && replacementCount !== CANONICAL_PRODUCTION_ALIASES.length
+  ) {
     throw new Error("replacement deployment has a partial canonical alias state");
   }
   return Object.freeze({
-    stage: replacementCount === canonicalAliases.length ? "promoted" : "unpromoted",
+    stage: replacementCount === CANONICAL_PRODUCTION_ALIASES.length
+      ? "promoted"
+      : "unpromoted",
     deploymentIds: Object.freeze([...ids]),
   });
 }
@@ -1426,10 +1458,9 @@ export async function runCredentialRecovery(config, overrides = {}) {
     assertRecoveryVercelStage("preflight", vercel.stage);
     normalizePriorDeployment(dependencies.readDeployment(PRIOR_DEPLOYMENT_ID));
     if (
-      normalizeCanonicalAliasTargets(
+      normalizeCanonicalPredecessorTargets(
         dependencies.readCanonicalAliasTargets(),
-        PRIOR_DEPLOYMENT_ID,
-      ).stage !== "promoted"
+      ).stage !== "predecessor"
     ) throw new Error("current production aliases drifted from the recovery boundary");
     const runtimeUrl = exactRuntimeUrlFromLocal();
     const ownerUrl = exactOwnerUrlFromLocal();

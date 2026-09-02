@@ -120,6 +120,22 @@ an exposed key.
 10. Resume Order RLS only after the incident evidence is closed and the full
     authenticated Order smoke passes.
 
+## Pre-execution corrections
+
+The first production attempts on 2026-09-02 stopped before creating a restart
+journal or changing a credential. Two reviewed CLI packages had drifted or been
+evicted from their isolated `npx` cache entries; the exact pinned Vercel and Neon
+versions were restored and their package metadata, tarball URLs and integrity
+values reverified.
+
+The next preflight exposed an operator defect rather than provider drift. All
+three canonical aliases still resolved to the exact reviewed predecessor, but
+the fresh-run path passed that predecessor into the replacement-versus-
+predecessor validator, whose contract correctly requires two distinct IDs. The
+recovery now uses a separate predecessor-only validator for the fresh boundary;
+the replacement validator remains strict about distinct deployments, partial
+promotion and unreviewed alias targets. Regression tests cover both states.
+
 ## Restart-safe database operator
 
 The current database operator is
@@ -127,7 +143,8 @@ The current database operator is
 accepted August recovery and now:
 
 - requires current Vercel runtime-only database scope;
-- binds the live deployment and its canonical aliases independently;
+- binds the live deployment and its canonical aliases independently, using a
+  predecessor-only fresh-run proof before any replacement exists;
 - rotates owner before runtime;
 - records secret material only in an ignored mode-`0600` private journal;
 - recovers a stale, fully-fsynced atomic temporary write after fencing recent
