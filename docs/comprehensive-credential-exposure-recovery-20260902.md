@@ -210,8 +210,9 @@ The operator must:
 - reject incomplete or unexpected provider-key inventories;
 - create one marker-named replacement key and fsync it only to a private
   mode-`0600` journal;
-- update the GitHub repository secret, the Vercel variable as Sensitive, and the
-  ignored local file without printing the replacement;
+- update the GitHub repository secret, the exact pinned legacy Vercel
+  `encrypted` all-target variable, and the ignored local file without printing
+  the replacement;
 - stage and verify an exact-source production deployment before promotion;
 - prove the replacement can authenticate before revoking the exact old key;
 - accept only an authentication rejection from the superseded key;
@@ -265,3 +266,30 @@ complete provider inventory is the one expected replacement key and the old key
 is absent. This is required because the old-key deletion succeeded before the
 original rejection assertion stopped. It cannot rebind a pre-promotion stage,
 an inventory that still contains the old key, or any unknown or duplicate key.
+
+## Completed Resend family
+
+The Resend credential family completed on 2026-09-02 from operator commit
+`7e493e1f0cb0c434506ce2b468cc9b4f72920fcf` and exact-head CI
+`33651462243`. PR #403 merged the final restart-safe provider-response and
+promoted-state handling. The provider inventory contains exactly one key:
+replacement key `9a09feea-7706-4867-98c5-abb943212d2e`, named
+`grainline-production-recovery-20260902`. The original exact key is absent and
+its credential returns the provider's exact invalid-key response.
+
+GitHub repository, Vercel, and ignored local consumers converged on the
+replacement credential. All canonical aliases point to READY deployment
+`dpl_7DA9fNtQZV27smqAvSEJ6RrjtnC9`, built from unchanged application source
+`b22fa138d84bad792ba206ee00dacb48d475d4a4`. The canonical homepage and health
+route returned HTTP 200. No migration ran, no email was sent, and the private
+restart journal was removed only after evidence finalized.
+
+Accepted Resend evidence:
+
+- path: `resend-credential-recovery-20260902.json`;
+- SHA-256:
+  `12106d0a0ae751a4de6d2f70e3a25513a0413b8dff983121eda4b1a5e6ed682e`;
+- mode `0600`;
+- status `passed`, `acceptanceEligible=true`, and `issueCount=0`;
+- replacement authenticated and original credential rejected; and
+- no secret-shaped credential value in the sanitized evidence.
