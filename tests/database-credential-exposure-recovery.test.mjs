@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import pg from "pg";
 import {
   BASELINE_MAIN_CI_RUN_ID,
   BASELINE_MAIN_COMMIT,
@@ -35,6 +36,8 @@ import {
   REVIEWED_NEON_CLI_PATH,
   validateNeonRuntimeResetResponse,
 } from "../scripts/neon-owner-password-control.mjs";
+
+const { Client } = pg;
 
 const RUNTIME_PASSWORD =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-";
@@ -286,6 +289,15 @@ test("owner proof requires the complete reviewed attributes and membership optio
     ],
   };
   assert.equal(exactOwnerRoleIdentity(identity), true);
+  assert.equal(exactOwnerRoleIdentity({
+    ...identity,
+    membership_options: identity.membership_options.map((membership) => ({
+      role: membership.role,
+      setOption: membership.setOption,
+      adminOption: membership.adminOption,
+      inheritOption: membership.inheritOption,
+    })),
+  }), true);
   for (const key of [
     "rolcreatedb", "rolcreaterole", "rolinherit", "rolreplication", "rolbypassrls",
   ]) {
@@ -295,6 +307,52 @@ test("owner proof requires the complete reviewed attributes and membership optio
     ...identity,
     membership_options: identity.membership_options.slice(1),
   }), false);
+  assert.equal(exactOwnerRoleIdentity({
+    ...identity,
+    membership_options: identity.membership_options.map((membership, index) => (
+      index === 0 ? { ...membership, unexpected: false } : membership
+    )),
+  }), false);
+});
+
+test("owner proof accepts the actual PostgreSQL jsonb membership key order", {
+  skip: process.env.GITHUB_ACTIONS === "true" && process.env.DATABASE_URL
+    ? false
+    : "requires the GitHub Actions PostgreSQL service",
+}, async () => {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const membershipOptions = (await client.query(`
+      SELECT pg_catalog.jsonb_agg(
+               pg_catalog.jsonb_build_object(
+                 'role', source.role,
+                 'adminOption', source.admin_option,
+                 'inheritOption', source.inherit_option,
+                 'setOption', source.set_option
+               ) ORDER BY source.role
+             ) AS membership_options
+        FROM (VALUES
+          ('grainline_app_runtime', true, false, false),
+          ('grainline_direct_upload_cleanup_v2', true, false, false),
+          ('neon_superuser', false, true, true)
+        ) AS source(role, admin_option, inherit_option, set_option)
+    `)).rows[0].membership_options;
+    assert.equal(exactOwnerRoleIdentity({
+      current_user_name: "neondb_owner",
+      session_user_name: "neondb_owner",
+      rolsuper: false,
+      rolcreatedb: true,
+      rolcreaterole: true,
+      rolinherit: true,
+      rolcanlogin: true,
+      rolreplication: true,
+      rolbypassrls: true,
+      membership_options: membershipOptions,
+    }), true);
+  } finally {
+    await client.end();
+  }
 });
 
 test("local runtime source rejects privileged and aliased PostgreSQL credentials", () => {
