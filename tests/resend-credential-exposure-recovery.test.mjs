@@ -8,6 +8,7 @@ import {
   normalizeCreatedKey,
   normalizeDeployment,
   normalizeProviderInventory,
+  normalizeResolvedSecretSha256,
   sanitizedEvidence,
   validateState,
 } from "../scripts/resend-credential-exposure-recovery.mjs";
@@ -83,6 +84,21 @@ test("validates the one-time replacement credential response", () => {
     token: NEW_TOKEN,
   });
   assert.throws(() => normalizeCreatedKey({ data: { id: "replacement", token: "wrong" } }));
+});
+
+test("extracts one marked Resend hash from Vercel CLI progress output", () => {
+  const digest = "a".repeat(64);
+  const output = [
+    "Vercel CLI 58.11.0 (Node.js 22.19.0)",
+    "Retrieving project…",
+    "Downloading `production` environment variables",
+    "Loaded env from /private/path/.env.local",
+    `GRAINLINE_RESEND_SECRET_SHA256:${digest}`,
+  ].join("\n");
+  assert.equal(normalizeResolvedSecretSha256(output), digest);
+  assert.throws(() => normalizeResolvedSecretSha256(output.replace(digest, "not-a-hash")));
+  assert.throws(() => normalizeResolvedSecretSha256("Vercel CLI 58.11.0"));
+  assert.throws(() => normalizeResolvedSecretSha256(`${output}\nGRAINLINE_RESEND_SECRET_SHA256:${digest}`));
 });
 
 test("private state binds token digests and later deployment fields", async () => {
