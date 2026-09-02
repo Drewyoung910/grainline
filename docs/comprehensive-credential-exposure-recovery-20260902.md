@@ -353,3 +353,13 @@ The bridge is intentional. Vercel documents that it sends the configured
 changes require redeployment. A bridge artifact containing both values keeps
 scheduled calls valid whether the invocation service observes the deployed or
 newly configured current value during the cutover.
+
+PR CI run `33657802150` passed the complete migration, authority, PostgreSQL,
+type, lint, and test gates but then failed the blocking dependency audit because
+the newly published `fast-uri` high-severity advisory covered the locked
+`3.1.5` release. The correction is deliberately lockfile-only: resolve the
+existing compatible transitive range to `fast-uri@3.1.7`, with no direct
+dependency, broad update, `npm audit fix`, or force upgrade. The exact local
+dependency gate then reported no high or critical vulnerability. The remaining
+moderate-only Tiptap and `qs` advisories are a separate dependency-security
+follow-up; they do not weaken or reorder the exposed-credential recovery.
