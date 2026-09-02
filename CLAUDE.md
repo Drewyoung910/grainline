@@ -4588,6 +4588,16 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Deleted**: `src/app/api/whoami/route.ts`. Do not re-add dev identity/session endpoints in production route space.
 
 ### Production environment variables
+- **Secret-output prohibition**: never use `rg`, `grep`, `cat`, `sed`, shell
+  expansion, raw provider JSON, or another ordinary-output path on `.env*`,
+  private restart journals, credential stores, or secret-bearing API responses.
+  Parse sensitive files/responses in-process and emit only allowlisted key names,
+  provider/resource identity, target/scope, timestamps, bounded status categories
+  and sanitized booleans. Never emit assignment lines, values, ciphertext fields,
+  connection strings, hashes that are not an explicitly reviewed integrity
+  contract, or raw error objects that may contain request authorization. If a
+  value reaches agent/tool output, treat it as exposed and stop dependent
+  read-only proofs until the corresponding credential is rotated.
 - `STRIPE_CONNECT_WEBHOOK_SECRET` is a required production application secret for the classic connected-account payout route. It must remain distinct from `STRIPE_WEBHOOK_SECRET` and `STRIPE_V2_WEBHOOK_SECRET`; the route fails closed when it is absent.
 - Critical production env reads should either use `requiredProductionEnv()`/domain-specific startup validation or an explicit handler guard that fails closed in production when build-time env injection requires runtime lookup. Do not replace these with non-null assertions that defer failure to an unbounded provider/client error.
 - **Required application environment**: `NEXT_PUBLIC_APP_URL`, `DATABASE_URL`, `RUNTIME_DB_ROLE`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_V2_WEBHOOK_SECRET`, `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_R2_BUCKET_NAME`, `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME`, `CLOUDFLARE_R2_PUBLIC_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `OPENAI_API_KEY`, `SHIPPO_API_KEY`, `SHIPPING_RATE_SECRET`, `ADMIN_PIN` or preferred `ADMIN_PIN_SHA256_BY_CLERK_ID`, `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`, `CRON_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET`, `UNSUBSCRIBE_SECRET` or legacy alias `EMAIL_UNSUBSCRIBE_SECRET`, `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, and `SENTRY_AUTH_TOKEN`. `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` is reserved for Case evidence and must not have a public or custom domain. After the staged credential-separation release activates, Vercel must not contain `DIRECT_URL`, `MIGRATION_DB_ROLE`, grant-audit URLs, or any owner/admin database URL. `DIRECT_URL` and `MIGRATION_DB_ROLE` are required only inside the protected owner-only migration job, with the secret stored as GitHub Production environment secret `PRODUCTION_MIGRATION_DIRECT_URL`.

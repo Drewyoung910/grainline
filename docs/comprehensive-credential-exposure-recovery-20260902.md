@@ -1,0 +1,141 @@
+# Comprehensive credential exposure recovery — 2026-09-02
+
+Status: active containment and reviewed recovery preparation. No credential value,
+raw provider response, connection string, PIN, signing secret, token, or private
+restart journal belongs in this document, a commit, a pull request, a CI artifact,
+or ordinary terminal output.
+
+## Incident
+
+A diagnostic intended to inventory local environment keys printed assignment lines
+from ignored mode-`0600` files into private agent tool output. The values did not
+enter tracked files, Git history, pull requests, GitHub Actions, Vercel logs, or
+accepted rollout evidence. Because the transcript cannot be rewritten, every
+authentication secret that was non-empty in those lines is treated as compromised.
+
+The exposed secret families were:
+
+- production Neon `neondb_owner` and pooled `grainline_app_runtime` passwords;
+- Clerk server and webhook secrets;
+- the Cloudflare R2 application access-key pair;
+- Stripe test API and primary webhook secrets;
+- Shippo test API token;
+- Upstash Redis token;
+- OpenAI, Resend, and Sentry API/auth tokens;
+- `CRON_SECRET`, `SHIPPING_RATE_SECRET`, `ADMIN_PIN`, and
+  `ADMIN_PIN_COOKIE_SECRET`; and
+- an ephemeral Vercel OIDC token, which is allowed to expire and must not be
+  promoted into a long-lived credential.
+
+Public identifiers and non-secret configuration that appeared in the same output
+are not rotated solely because they were displayed. Empty local values are not
+classified as exposed production secrets without separate equality evidence.
+
+## Immediate containment
+
+No migrations, grants, RLS policies, Stripe live-mode objects, or provider
+configuration changed during diagnosis.
+
+The failed authenticated Order smoke had retained a restart journal and exact
+Stripe test, Shippo test, Clerk, Redis, and database fixtures. Rotating those
+credentials first could have stranded cleanup. Cleanup-only recovery therefore
+ran before credential rotation from exact main
+`d450b76e822472672c05f850e19828b8830f6783` and CI `33615489208`.
+
+Accepted cleanup-only evidence:
+
+- path:
+  `order-authenticated-route-smoke-d450b76e822472672c05f850e19828b8830f6783.json`;
+- SHA-256:
+  `17be192e5d9ea0cb2afb807cb8b87f20c676541c72a4ac0cd78d6d4daf171bd7`;
+- mode `0600`;
+- honest proof status `failed` because cleanup is not route acceptance;
+- zero persistent mutable fixture residue;
+- canary restored, Clerk sessions revoked, database fixtures deleted, and exact
+  Redis keys deleted;
+- one intentional immutable processed webhook lease retained; and
+- private restart journal removed only after cleanup evidence finalized.
+
+A fresh full authenticated Order smoke is still required after credential
+recovery. This incident does not convert the failed route proof into acceptance.
+
+## Confirmed credential stores
+
+Vercel project-owned Production contains the runtime-only `DATABASE_URL`. The
+owner credential remains absent from Vercel and belongs only in:
+
+- Neon role `neondb_owner`;
+- protected GitHub `Production` secret
+  `PRODUCTION_MIGRATION_DIRECT_URL`;
+- protected non-secret digest variable
+  `PRODUCTION_MIGRATION_DIRECT_URL_SHA256`; and
+- ignored local `.env.migration-owner.local`.
+
+Current team-shared Vercel variables linked to Grainline include the Clerk server
+and webhook credentials, cron secret, Shippo token, Stripe API and primary webhook
+credentials, plus their matching public application identifiers. Replacement
+values for those families must update the shared source rather than create shadow
+project variables.
+
+GitHub repository secrets also duplicate the application/provider credentials
+used by CI and proofs. Protected DirectUpload cleanup credentials are a separate
+store and are outside this incident unless provider key identity proves reuse of
+an exposed key.
+
+## Recovery order and invariants
+
+1. Preserve the cleanup evidence and freeze fresh Order smoke attempts.
+2. Rotate the privileged owner password first through the pinned Neon target.
+   Persist a private restart journal before reset; update only the protected
+   GitHub migration secret/digest and dedicated local owner file; prove the old
+   URL rejects with SQLSTATE `28P01` and the replacement has the exact owner
+   posture.
+3. Rotate the ordinary runtime password through the same pinned Neon target.
+   Update only Vercel Production `DATABASE_URL`, stage the exact currently
+   deployed source
+   `b22fa138d84bad792ba206ee00dacb48d475d4a4`, promote only a READY candidate,
+   update local `.env.local`, prove the old pooled password rejects with
+   SQLSTATE `28P01`, and prove the replacement is LOGIN/NOINHERIT/
+   NOBYPASSRLS `grainline_app_runtime`.
+4. Run an engine-enforced repeatable-read read-only global grant/RLS audit and
+   verify the canonical homepage and health route.
+5. Inventory and drain every older callable deployment that embeds a superseded
+   runtime credential. Rollback after rotation means rebuilding compatible old
+   source with current credentials, not promoting an artifact with revoked
+   credentials.
+6. Rotate one third-party provider family at a time. Create replacement, update
+   every local/Vercel/GitHub consumer, deploy and prove the same account/resource
+   and mode, revoke the old credential, then prove old rejection.
+7. Rotate webhook signing secrets as endpoint cutovers, not as ordinary API-key
+   swaps. Drain/replay provider deliveries or add explicitly reviewed dual-secret
+   verification before retiring an old signing secret.
+8. Rotate application HMAC/PIN secrets with their compatibility windows:
+   admin cookies up to four hours, upload tokens five minutes, shipping quotes
+   thirty minutes plus skew, and unsubscribe links up to ninety days.
+9. Run replacement-credential health, Clerk, Stripe/Shippo test, R2,
+   Redis, email/webhook, OpenAI, cron, admin, and full authenticated Order proofs.
+10. Resume Order RLS only after the incident evidence is closed and the full
+    authenticated Order smoke passes.
+
+## Restart-safe database operator
+
+The current database operator is
+`scripts/database-credential-exposure-recovery.mjs`. It is adapted from the
+accepted August recovery and now:
+
+- requires current Vercel runtime-only database scope;
+- binds the live deployment and its canonical aliases independently;
+- rotates owner before runtime;
+- records secret material only in an ignored mode-`0600` private journal;
+- never retries an ambiguous Neon reset blindly;
+- deploys only the exact current application source;
+- accepts only SQLSTATE `28P01` as old-password rejection;
+- performs a read-only global grant/RLS audit;
+- emits sanitized evidence and no secret values; and
+- contains no migration command.
+
+The implementation must pass focused tests and an independent post-patch
+security review, then be committed as an implementation checkpoint. A separate
+one-file release commit must pin the implementation SHA-256 and successful
+exact-head pull-request CI before execution.
+

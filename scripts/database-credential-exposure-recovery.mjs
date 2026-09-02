@@ -57,60 +57,35 @@ import {
 } from "./guard-runtime-db-env.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 import {
-  STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_CONFIRMATION,
-  parseStripeWebhookEventForcePostflightConfig,
-  runStripeWebhookEventForcePostflight,
-} from "./stripe-webhook-event-force-production-postflight.mjs";
+  auditLiveDatabase,
+  deriveGrantInventory,
+} from "./audit-runtime-db-grants.mjs";
 
 const { Client } = pg;
 
 export const RECOVERY_CONFIRMATION =
-  "rotate-only-runtime-and-owner-then-prove-stripe-force";
-export const FORCE_RELEASE_COMMIT =
-  "ea19fa0ace85dd61868667022c45afb3cf3218fa";
-export const FORCE_MAIN_CI_RUN_ID = 31716577153;
-export const FORCE_MIGRATION_RUN_ID = 31717354633;
+  "rotate-exposed-owner-and-runtime-20260902";
+export const BASELINE_MAIN_COMMIT =
+  "d450b76e822472672c05f850e19828b8830f6783";
+export const BASELINE_MAIN_CI_RUN_ID = 33615489208;
 export const DEPLOYED_SOURCE_COMMIT =
-  "69c14c0618ea7ab9c74756422273d17d66db7efa";
-export const PRIOR_DEPLOYMENT_ID = "dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP";
+  "b22fa138d84bad792ba206ee00dacb48d475d4a4";
+export const PRIOR_DEPLOYMENT_ID = "dpl_6vA4bWrP4KhADtGAXKsisXdmvJBX";
 export const PRIOR_DEPLOYMENT_URL =
-  "grainline-luhwmzddm-drew-youngs-projects.vercel.app";
+  "grainline-83me0l5nx-drew-youngs-projects.vercel.app";
 export const REVIEWED_VERCEL_SCOPE = "drew-youngs-projects";
 export const REVIEWED_DEVELOPMENT_DATABASE_VALUE_SHA256 =
   "1f6c0de4b72ecdb902aa4dfb1cbad42a68e393f79137711c9e3d152992f2ce36";
 export const REVIEWED_SHARED_DATABASE_ENVIRONMENT_ID_SHA256 =
   "d06c1fe428226e9aef1a961911291d7b87d594d829c85a0576e393d484344f6c";
-export const REVIEWED_RESTART_PREDECESSOR = Object.freeze({
-  operatorCommit: "fb1a52c7e47641373625272de61dd5f96366a6be",
-  operatorCiRunId: 31729096651,
-  stage: "runtime-deployment-ready",
-  createdAt: "2026-08-13T18:12:07.809Z",
-  updatedAt: "2026-08-13T18:14:44.981Z",
-  runtimeRoleUpdatedAtBefore: "2026-07-19T15:47:23.000Z",
-  runtimeRoleUpdatedAtAfter: "2026-08-13T18:12:23.000Z",
-  replacementDeploymentId: "dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6",
-  replacementDeploymentUrl: "grainline-os3mvmmdd-drew-youngs-projects.vercel.app",
-  priorRuntimeUrlSha256:
-    "e2a229e9acad4c76976e8a4c0ccd6bde4fe0f9e8fc68faa525a33ff0b2f0cdaa",
-  nextRuntimeUrlSha256:
-    "1f801d9d46fdb6c756250c3748a0b50a72bcabafbac9f6cbbcf2fa5b2bedf8a9",
-  priorOwnerUrlSha256:
-    "92db542ed3afed64a3cbcfd61d2656fa54a380938667fedb5e5e1812a1f521dd",
-  runtimeOperationsSha256:
-    "88c49f4d15ddb11805c83755d0ce8280349fe0caac90d0610da2256b428b74f0",
-});
 export const RECOVERY_STATE_PATH =
-  "/Users/drewyoung/grainline/.env.database-credential-recovery-20260813.json";
+  "/Users/drewyoung/grainline/.env.database-credential-recovery-20260902.json";
 export const RECOVERY_EVIDENCE_PATH =
-  "/Users/drewyoung/grainline-rollout-evidence/database-credential-recovery-20260813.json";
-export const FORCE_POSTFLIGHT_EVIDENCE_PATH =
-  "/Users/drewyoung/grainline-rollout-evidence/stripe-webhook-event-force-production-postflight-ea19fa0ace85dd61868667022c45afb3cf3218fa.json";
+  "/Users/drewyoung/grainline-rollout-evidence/database-credential-recovery-20260902.json";
 export const DEPLOY_SOURCE_DIRECTORY =
-  "/private/tmp/grainline-database-credential-production-source-20260813";
-export const FORCE_POSTFLIGHT_DIRECTORY =
-  "/private/tmp/grainline-stripe-force-postflight-ea19fa0a-recovery";
+  "/private/tmp/grainline-order-shipping-production-deploy-20260902";
 export const RECOVERY_RELEASE_MANIFEST_PATH =
-  "docs/database-credential-recovery-release.json";
+  "docs/database-credential-recovery-20260902-release.json";
 
 const LOCAL_RUNTIME_PATH = "/Users/drewyoung/grainline/.env.local";
 const LEGACY_ENV_PATH = "/Users/drewyoung/grainline/.env";
@@ -118,20 +93,17 @@ const GH_PATH = "/opt/homebrew/bin/gh";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const RECOVERY_STAGES = Object.freeze([
   "preflight",
-  "vercel-development-removal-started",
-  "vercel-development-removed",
-  "vercel-shared-unlink-started",
   "vercel-database-scope-clean",
+  "owner-reset-started",
+  "owner-reset-finished",
+  "owner-consumers-updated",
+  "owner-verified",
   "runtime-reset-started",
   "runtime-reset-finished",
   "runtime-provider-updated",
   "runtime-deployment-ready",
   "runtime-deployment-promoted",
   "runtime-verified",
-  "owner-reset-started",
-  "owner-reset-finished",
-  "owner-consumers-updated",
-  "owner-verified",
   "local-converged",
   "postflight-passed",
   "complete",
@@ -237,9 +209,8 @@ export function readRecoveryReleaseManifest(cwd = process.cwd()) {
     || !COMMIT_PATTERN.test(manifest.implementationCommit)
     || !/^[0-9a-f]{64}$/.test(manifest.operatorSourceSha256)
     || manifest.deployedSourceCommit !== DEPLOYED_SOURCE_COMMIT
-    || manifest.forceReleaseCommit !== FORCE_RELEASE_COMMIT
-    || manifest.forceMainCiRunId !== FORCE_MAIN_CI_RUN_ID
-    || manifest.forceMigrationRunId !== FORCE_MIGRATION_RUN_ID
+    || manifest.baselineMainCommit !== BASELINE_MAIN_COMMIT
+    || manifest.baselineMainCiRunId !== BASELINE_MAIN_CI_RUN_ID
   ) throw new Error("database credential recovery release manifest drifted");
   return Object.freeze({ ...manifest });
 }
@@ -491,12 +462,7 @@ function proveNonProductionDatabaseUrlAbsent() {
 
 export function assertRecoveryVercelStage(recoveryStage, vercelStage) {
   const allowed = new Map([
-    ["preflight", ["reviewed-owner-scope"]],
-    ["vercel-development-removal-started", [
-      "reviewed-owner-scope", "development-removed",
-    ]],
-    ["vercel-development-removed", ["development-removed"]],
-    ["vercel-shared-unlink-started", ["development-removed", "runtime-only"]],
+    ["preflight", ["runtime-only"]],
   ]);
   const accepted = allowed.get(recoveryStage) ?? ["runtime-only"];
   if (!accepted.includes(vercelStage)) {
@@ -530,7 +496,6 @@ function readGithubRun(id, name, headSha, event) {
 }
 
 export function normalizePriorDeployment(deployment) {
-  const aliases = Array.isArray(deployment?.alias) ? deployment.alias : [];
   if (
     deployment?.id !== PRIOR_DEPLOYMENT_ID
     || deployment.projectId !== REVIEWED_VERCEL_PROJECT.projectId
@@ -540,8 +505,6 @@ export function normalizePriorDeployment(deployment) {
     || deployment.url !== PRIOR_DEPLOYMENT_URL
     || deployment.meta?.gitCommitSha !== DEPLOYED_SOURCE_COMMIT
     || deployment.meta.gitCommitRef !== "HEAD"
-    || !["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app"]
-      .every((alias) => aliases.includes(alias))
   ) throw new Error("current production deployment drifted from the recovery boundary");
   return Object.freeze({
     id: deployment.id,
@@ -676,7 +639,7 @@ export function freshRecoveryState(runtimeUrl, ownerUrl, config = {
     operatorCommit: config.operatorCommit,
     operatorCiRunId: config.operatorCiRunId,
     deployedSourceCommit: DEPLOYED_SOURCE_COMMIT,
-    forceReleaseCommit: FORCE_RELEASE_COMMIT,
+    baselineMainCommit: BASELINE_MAIN_COMMIT,
     stage: "preflight",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -699,7 +662,7 @@ export function validateRecoveryState(value) {
     || !Number.isSafeInteger(value.operatorCiRunId)
     || value.operatorCiRunId <= 0
     || value.deployedSourceCommit !== DEPLOYED_SOURCE_COMMIT
-    || value.forceReleaseCommit !== FORCE_RELEASE_COMMIT
+    || value.baselineMainCommit !== BASELINE_MAIN_COMMIT
     || !Number.isFinite(Date.parse(value.createdAt))
     || !Number.isFinite(Date.parse(value.updatedAt))
     || typeof value.priorRuntimeUrl !== "string"
@@ -782,47 +745,16 @@ export function validateRecoveryState(value) {
 export function normalizeRecoveryStateReleaseHandoff(
   state,
   config,
-  predecessor = REVIEWED_RESTART_PREDECESSOR,
 ) {
   if (
     state.operatorCommit !== config.operatorCommit
     || state.operatorCiRunId !== config.operatorCiRunId
-  ) {
-    if (
-      state.operatorCommit !== predecessor.operatorCommit
-      || state.operatorCiRunId !== predecessor.operatorCiRunId
-      || state.stage !== predecessor.stage
-      || state.createdAt !== predecessor.createdAt
-      || state.updatedAt !== predecessor.updatedAt
-      || state.runtimeRoleUpdatedAtBefore !== predecessor.runtimeRoleUpdatedAtBefore
-      || state.runtimeRoleUpdatedAtAfter !== predecessor.runtimeRoleUpdatedAtAfter
-      || state.replacementDeployment?.id !== predecessor.replacementDeploymentId
-      || state.replacementDeployment.url !== predecessor.replacementDeploymentUrl
-      || sha256(state.priorRuntimeUrl) !== predecessor.priorRuntimeUrlSha256
-      || sha256(state.nextRuntimeUrl) !== predecessor.nextRuntimeUrlSha256
-      || sha256(state.priorOwnerUrl) !== predecessor.priorOwnerUrlSha256
-      || state.nextOwnerUrl !== null
-      || state.ownerOperations.length !== 0
-      || sha256(JSON.stringify(state.runtimeOperations))
-        !== predecessor.runtimeOperationsSha256
-    ) throw new Error("private credential recovery state belongs to another release");
-    return Object.freeze({ ...state,
-      operatorCommit: config.operatorCommit,
-      operatorCiRunId: config.operatorCiRunId,
-    });
-  }
+  ) throw new Error("private credential recovery state belongs to another release");
   return state;
 }
 
 export function assertRecoveryStateRelease(state, config) {
-  const accepted = normalizeRecoveryStateReleaseHandoff(state, config);
-  if (accepted !== state) {
-    return writeRecoveryState(state, state.stage, {
-      operatorCommit: accepted.operatorCommit,
-      operatorCiRunId: accepted.operatorCiRunId,
-    });
-  }
-  return state;
+  return normalizeRecoveryStateReleaseHandoff(state, config);
 }
 
 function readRecoveryState() {
@@ -1085,11 +1017,11 @@ function sanitizedEvidence(config, state, liveRoutes) {
     issueCount: 0,
     completedAt: new Date().toISOString(),
     operator: { commit: config.operatorCommit, ciRunId: config.operatorCiRunId },
-    stripeForce: {
-      releaseCommit: FORCE_RELEASE_COMMIT,
-      mainCiRunId: FORCE_MAIN_CI_RUN_ID,
-      migrationRunId: FORCE_MIGRATION_RUN_ID,
-      postflightEvidence: path.basename(FORCE_POSTFLIGHT_EVIDENCE_PATH),
+    grantAudit: {
+      baselineMainCommit: BASELINE_MAIN_COMMIT,
+      baselineMainCiRunId: BASELINE_MAIN_CI_RUN_ID,
+      readOnly: true,
+      issueCount: 0,
     },
     deployment: {
       priorId: PRIOR_DEPLOYMENT_ID,
@@ -1114,19 +1046,15 @@ function sanitizedEvidence(config, state, liveRoutes) {
       },
     },
     productionChangedByRecovery: [
-      "vercel_development_database_url_removed",
-      "vercel_shared_database_url_unlinked",
+      "neon_owner_password",
+      "github_production_migration_secret_and_digest",
       "neon_runtime_password",
       "vercel_production_database_url",
       "vercel_exact_source_redeployment",
-      "neon_owner_password",
-      "github_production_migration_secret_and_digest",
     ],
     migrationsApplied: [],
     vercel: {
-      developmentDatabaseUrlRemoved: true,
-      sharedDatabaseUrlUnlinked: true,
-      sharedDatabaseEnvironmentRetained: true,
+      runtimeOnlyBeforeRecovery: true,
       developmentDatabaseUrlAbsent: true,
       previewDatabaseUrlAbsent: true,
     },
@@ -1143,31 +1071,6 @@ function readExactPrivateJson(filePath, label) {
     throw new Error(`${label} is not valid JSON`);
   }
   return value;
-}
-
-export function validateForcePostflightEvidence(value, runtimeUrl) {
-  if (
-    value?.schemaVersion !== 1
-    || value.operation !== "stripe-webhook-event-force-production-postflight"
-    || value.source?.clean !== true
-    || value.source.commit !== FORCE_RELEASE_COMMIT
-    || value.target?.databaseName !== REVIEWED_DATABASE_NAME
-    || value.target.databaseUrlSha256 !== sha256(runtimeUrl)
-    || value.target.endpointId !== REVIEWED_ENDPOINT_ID
-    || value.target.region !== REVIEWED_DATABASE_REGION
-    || value.target.role !== REVIEWED_RUNTIME_ROLE
-    || value.runs?.mainCiRunId !== FORCE_MAIN_CI_RUN_ID
-    || value.runs.migrationRunId !== FORCE_MIGRATION_RUN_ID
-    || value.proof?.postflightReadOnly !== true
-    || value.proof.rlsEnabled !== true
-    || value.proof.rlsForced !== true
-    || value.proof.publicAuthority !== false
-    || value.proof.runtimeTableOrColumnAuthority !== false
-    || value.productionChangedByPostflight !== false
-    || value.status !== "passed"
-    || !Number.isFinite(Date.parse(value.completedAt))
-  ) throw new Error("existing StripeWebhookEvent FORCE postflight evidence is invalid");
-  return Object.freeze({ ...value });
 }
 
 function normalizedCanonicalRoutes(value) {
@@ -1197,11 +1100,10 @@ export function validateRecoveryEvidence(value, config, state) {
     || !Number.isFinite(Date.parse(value.completedAt))
     || value.operator?.commit !== config.operatorCommit
     || value.operator.ciRunId !== config.operatorCiRunId
-    || value.stripeForce?.releaseCommit !== FORCE_RELEASE_COMMIT
-    || value.stripeForce.mainCiRunId !== FORCE_MAIN_CI_RUN_ID
-    || value.stripeForce.migrationRunId !== FORCE_MIGRATION_RUN_ID
-    || value.stripeForce.postflightEvidence
-      !== path.basename(FORCE_POSTFLIGHT_EVIDENCE_PATH)
+    || value.grantAudit?.baselineMainCommit !== BASELINE_MAIN_COMMIT
+    || value.grantAudit.baselineMainCiRunId !== BASELINE_MAIN_CI_RUN_ID
+    || value.grantAudit.readOnly !== true
+    || value.grantAudit.issueCount !== 0
     || value.deployment.priorId !== PRIOR_DEPLOYMENT_ID
     || value.deployment.replacementId !== state.replacementDeployment.id
     || value.deployment.sourceCommit !== DEPLOYED_SOURCE_COMMIT
@@ -1216,18 +1118,14 @@ export function validateRecoveryEvidence(value, config, state) {
     || value.credentials.owner.priorRejected !== true
     || value.credentials.owner.replacementVerified !== true
     || JSON.stringify(value.productionChangedByRecovery) !== JSON.stringify([
-      "vercel_development_database_url_removed",
-      "vercel_shared_database_url_unlinked",
+      "neon_owner_password",
+      "github_production_migration_secret_and_digest",
       "neon_runtime_password",
       "vercel_production_database_url",
       "vercel_exact_source_redeployment",
-      "neon_owner_password",
-      "github_production_migration_secret_and_digest",
     ])
     || JSON.stringify(value.migrationsApplied) !== "[]"
-    || value.vercel?.developmentDatabaseUrlRemoved !== true
-    || value.vercel.sharedDatabaseUrlUnlinked !== true
-    || value.vercel.sharedDatabaseEnvironmentRetained !== true
+    || value.vercel?.runtimeOnlyBeforeRecovery !== true
     || value.vercel.developmentDatabaseUrlAbsent !== true
     || value.vercel.previewDatabaseUrlAbsent !== true
     || value.providerScopeOutsideRecoveryChanged !== false
@@ -1303,31 +1201,41 @@ export async function runCredentialRecovery(config, overrides = {}) {
     waitForNeonOperations: waitForReviewedNeonOperations,
     proveDatabaseIdentity,
     expectCredentialRejected,
+    readCanonicalAliasTargets,
     readLiveRoutes,
     updateLocalOwnerUrl: updateSeparationLocalDirectUrl,
     replaceLocalRuntimeUrl,
     removeLegacyDatabaseAssignments,
-    runForcePostflight: async (runtimeUrl) => {
-      const originalCwd = process.cwd();
-      process.chdir(FORCE_POSTFLIGHT_DIRECTORY);
+    runGrantAudit: async (ownerUrl) => {
+      const client = new Client({
+        connectionString: ownerUrl,
+        application_name: "grainline-database-credential-recovery-grant-audit",
+        connectionTimeoutMillis: 10_000,
+        statement_timeout: 60_000,
+        query_timeout: 65_000,
+        ...postgresChannelBindingClientOptions(new URL(ownerUrl)),
+      });
+      await client.connect();
       try {
-        return await runStripeWebhookEventForcePostflight(
-          parseStripeWebhookEventForcePostflightConfig({
-        DATABASE_URL: runtimeUrl,
-        STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_CONFIRM:
-          STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_CONFIRMATION,
-        STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH:
-          FORCE_POSTFLIGHT_EVIDENCE_PATH,
-        STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID:
-          String(FORCE_MAIN_CI_RUN_ID),
-        STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID:
-          String(FORCE_MIGRATION_RUN_ID),
-        STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT:
-          FORCE_RELEASE_COMMIT,
-          }),
-        );
+        await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+        const issues = await auditLiveDatabase({
+          client,
+          runtimeRole: REVIEWED_RUNTIME_ROLE,
+          migrationRole: REVIEWED_OWNER_ROLE,
+          inventory: deriveGrantInventory(),
+        });
+        await client.query("ROLLBACK");
+        if (issues.length > 0) {
+          throw new Error("runtime grant audit found production drift");
+        }
+        return Object.freeze({ issueCount: 0, readOnly: true });
       } finally {
-        process.chdir(originalCwd);
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          // Preserve the original audit error.
+        }
+        await client.end();
       }
     },
     ...overrides,
@@ -1348,10 +1256,6 @@ export async function runCredentialRecovery(config, overrides = {}) {
     dependencies.readGitState(DEPLOY_SOURCE_DIRECTORY),
     DEPLOYED_SOURCE_COMMIT,
   );
-  assertExactGitState(
-    dependencies.readGitState(FORCE_POSTFLIGHT_DIRECTORY),
-    FORCE_RELEASE_COMMIT,
-  );
   dependencies.readGithubRun(
     config.operatorCiRunId,
     "CI",
@@ -1359,16 +1263,10 @@ export async function runCredentialRecovery(config, overrides = {}) {
     "pull_request",
   );
   dependencies.readGithubRun(
-    FORCE_MAIN_CI_RUN_ID,
+    BASELINE_MAIN_CI_RUN_ID,
     "CI",
-    FORCE_RELEASE_COMMIT,
+    BASELINE_MAIN_COMMIT,
     "push",
-  );
-  dependencies.readGithubRun(
-    FORCE_MIGRATION_RUN_ID,
-    "Production Migrations",
-    FORCE_RELEASE_COMMIT,
-    "workflow_dispatch",
   );
   assertReviewedVercelCli();
   assertReviewedVercelProject("/Users/drewyoung/grainline");
@@ -1388,6 +1286,12 @@ export async function runCredentialRecovery(config, overrides = {}) {
   } else {
     assertRecoveryVercelStage("preflight", vercel.stage);
     normalizePriorDeployment(dependencies.readDeployment(PRIOR_DEPLOYMENT_ID));
+    if (
+      normalizeCanonicalAliasTargets(
+        dependencies.readCanonicalAliasTargets(),
+        PRIOR_DEPLOYMENT_ID,
+      ).stage !== "promoted"
+    ) throw new Error("current production aliases drifted from the recovery boundary");
     const runtimeUrl = exactRuntimeUrlFromLocal();
     const ownerUrl = exactOwnerUrlFromLocal();
     const runtimeMetadata = dependencies.readRuntimeMetadata();
@@ -1403,34 +1307,9 @@ export async function runCredentialRecovery(config, overrides = {}) {
   }
 
   assertRecoveryVercelStage(state.stage, vercel.stage);
-  if (
-    state.stage === "preflight"
-    || state.stage === "vercel-development-removal-started"
-  ) {
-    if (state.stage === "preflight") {
-      state = writeRecoveryState(state, "vercel-development-removal-started");
-    }
-    const before = dependencies.readVercelState();
-    if (before.stage === "reviewed-owner-scope") {
-      dependencies.removeVercelDevelopmentDatabaseUrl(before);
-    }
-    const after = dependencies.readVercelState();
-    if (after.stage !== "development-removed") {
-      throw new Error("Vercel Development DATABASE_URL removal did not converge");
-    }
-    state = writeRecoveryState(state, "vercel-development-removed");
-  }
-  if (state.stage === "vercel-development-removed") {
-    state = writeRecoveryState(state, "vercel-shared-unlink-started");
-  }
-  if (state.stage === "vercel-shared-unlink-started") {
-    const before = dependencies.readVercelState();
-    if (before.stage === "development-removed") {
-      dependencies.unlinkVercelSharedDatabaseUrl(before);
-    }
-    const after = dependencies.readVercelState();
-    if (after.stage !== "runtime-only") {
-      throw new Error("Vercel shared DATABASE_URL unlink did not converge");
+  if (state.stage === "preflight") {
+    if (dependencies.readVercelState().stage !== "runtime-only") {
+      throw new Error("Vercel database credential scope is not runtime-only");
     }
     dependencies.proveNonProductionDatabaseUrlAbsent();
     state = writeRecoveryState(state, "vercel-database-scope-clean");
@@ -1438,9 +1317,52 @@ export async function runCredentialRecovery(config, overrides = {}) {
 
   if (
     state.stage === "vercel-database-scope-clean"
-    || state.stage === "runtime-reset-started"
+    || state.stage === "owner-reset-started"
   ) {
     if (state.stage === "vercel-database-scope-clean") {
+      state = writeRecoveryState(state, "owner-reset-started");
+      const reset = dependencies.resetOwnerPassword();
+      state = { ...state,
+        nextOwnerUrl: buildNeonOwnerDirectUrl(state.priorOwnerUrl, reset.password),
+        ownerOperations: reset.operations,
+      };
+      writeAtomicPrivate(RECOVERY_STATE_PATH, `${JSON.stringify(state, null, 2)}\n`, { replace: true });
+    }
+    const reconciliation = await reconcileReset(state, REVIEWED_OWNER_ROLE, dependencies);
+    if (reconciliation.outcome !== "reset-finished") {
+      throw new Error("owner reset did not start; refusing to replay automatically");
+    }
+    const ownerMetadata = dependencies.readOwnerMetadata();
+    if (
+      typeof state.ownerRoleUpdatedAtBefore !== "string"
+      || Date.parse(ownerMetadata.updatedAt) <= Date.parse(state.ownerRoleUpdatedAtBefore)
+    ) throw new Error("owner role timestamp did not advance after reset");
+    state = writeRecoveryState(reconciliation.state, "owner-reset-finished", {
+      ownerRoleUpdatedAtAfter: ownerMetadata.updatedAt,
+    });
+  }
+  if (state.stage === "owner-reset-finished") {
+    const digest = sha256(state.nextOwnerUrl);
+    dependencies.updateGithubCredential(state.nextOwnerUrl, digest);
+    dependencies.updateLocalOwnerUrl(state.nextOwnerUrl);
+    state = writeRecoveryState(state, "owner-consumers-updated");
+  }
+  if (state.stage === "owner-consumers-updated") {
+    await dependencies.proveDatabaseIdentity(state.nextOwnerUrl, REVIEWED_OWNER_ROLE);
+    await dependencies.expectCredentialRejected(state.priorOwnerUrl);
+    const githubAfter = dependencies.readGithubState();
+    if (
+      githubAfter.migrationSecret?.name !== MIGRATION_SECRET_NAME
+      || githubAfter.digestVariable?.value !== sha256(state.nextOwnerUrl)
+    ) throw new Error("GitHub owner credential consumers did not converge");
+    state = writeRecoveryState(state, "owner-verified");
+  }
+
+  if (
+    state.stage === "owner-verified"
+    || state.stage === "runtime-reset-started"
+  ) {
+    if (state.stage === "owner-verified") {
       state = writeRecoveryState(state, "runtime-reset-started");
       const reset = dependencies.resetRuntimePassword();
       state = { ...state,
@@ -1496,68 +1418,15 @@ export async function runCredentialRecovery(config, overrides = {}) {
     liveRoutes = await dependencies.readLiveRoutes();
     state = writeRecoveryState(state, "runtime-verified");
   }
-  if (state.stage === "runtime-verified" || state.stage === "owner-reset-started") {
-    if (state.stage === "runtime-verified") {
-      state = writeRecoveryState(state, "owner-reset-started");
-      const reset = dependencies.resetOwnerPassword();
-      state = { ...state,
-        nextOwnerUrl: buildNeonOwnerDirectUrl(state.priorOwnerUrl, reset.password),
-        ownerOperations: reset.operations,
-      };
-      writeAtomicPrivate(RECOVERY_STATE_PATH, `${JSON.stringify(state, null, 2)}\n`, { replace: true });
-    }
-    const reconciliation = await reconcileReset(state, REVIEWED_OWNER_ROLE, dependencies);
-    if (reconciliation.outcome !== "reset-finished") {
-      throw new Error("owner reset did not start; refusing to replay automatically");
-    }
-    const ownerMetadata = dependencies.readOwnerMetadata();
-    if (
-      typeof state.ownerRoleUpdatedAtBefore !== "string"
-      || Date.parse(ownerMetadata.updatedAt) <= Date.parse(state.ownerRoleUpdatedAtBefore)
-    ) throw new Error("owner role timestamp did not advance after reset");
-    state = writeRecoveryState(reconciliation.state, "owner-reset-finished", {
-      ownerRoleUpdatedAtAfter: ownerMetadata.updatedAt,
-    });
-  }
-  if (state.stage === "owner-reset-finished") {
-    const digest = sha256(state.nextOwnerUrl);
-    dependencies.updateGithubCredential(state.nextOwnerUrl, digest);
-    dependencies.updateLocalOwnerUrl(state.nextOwnerUrl);
-    state = writeRecoveryState(state, "owner-consumers-updated");
-  }
-  if (state.stage === "owner-consumers-updated") {
-    await dependencies.proveDatabaseIdentity(state.nextOwnerUrl, REVIEWED_OWNER_ROLE);
-    await dependencies.expectCredentialRejected(state.priorOwnerUrl);
-    const githubAfter = dependencies.readGithubState();
-    if (
-      githubAfter.migrationSecret?.name !== MIGRATION_SECRET_NAME
-      || githubAfter.digestVariable?.value !== sha256(state.nextOwnerUrl)
-    ) throw new Error("GitHub owner credential consumers did not converge");
-    state = writeRecoveryState(state, "owner-verified");
-  }
-  if (state.stage === "owner-verified") {
+  if (state.stage === "runtime-verified") {
     dependencies.replaceLocalRuntimeUrl(state.nextRuntimeUrl);
     dependencies.removeLegacyDatabaseAssignments();
     state = writeRecoveryState(state, "local-converged");
   }
   if (state.stage === "local-converged") {
-    if (existsSync(FORCE_POSTFLIGHT_EVIDENCE_PATH)) {
-      validateForcePostflightEvidence(
-        readExactPrivateJson(
-          FORCE_POSTFLIGHT_EVIDENCE_PATH,
-          "StripeWebhookEvent FORCE postflight evidence",
-        ),
-        state.nextRuntimeUrl,
-      );
-    } else {
-      await dependencies.runForcePostflight(state.nextRuntimeUrl);
-      validateForcePostflightEvidence(
-        readExactPrivateJson(
-          FORCE_POSTFLIGHT_EVIDENCE_PATH,
-          "StripeWebhookEvent FORCE postflight evidence",
-        ),
-        state.nextRuntimeUrl,
-      );
+    const grantAudit = await dependencies.runGrantAudit(state.nextOwnerUrl);
+    if (grantAudit?.readOnly !== true || grantAudit.issueCount !== 0) {
+      throw new Error("replacement database grant audit did not pass");
     }
     state = writeRecoveryState(state, "postflight-passed");
   }
@@ -1581,13 +1450,6 @@ export async function runCredentialRecovery(config, overrides = {}) {
     state = writeRecoveryState(state, "complete");
   }
   if (state.stage !== "complete") throw new Error("credential recovery stopped before completion");
-  validateForcePostflightEvidence(
-    readExactPrivateJson(
-      FORCE_POSTFLIGHT_EVIDENCE_PATH,
-      "StripeWebhookEvent FORCE postflight evidence",
-    ),
-    state.nextRuntimeUrl,
-  );
   validateRecoveryEvidence(
     readExactPrivateJson(
       RECOVERY_EVIDENCE_PATH,
@@ -1603,7 +1465,7 @@ export async function runCredentialRecovery(config, overrides = {}) {
     runtimeOldCredentialRejected: true,
     ownerOldCredentialRejected: true,
     replacementDeploymentId: state.replacementDeployment.id,
-    forcePostflightPassed: true,
+    grantAuditPassed: true,
   });
 }
 
