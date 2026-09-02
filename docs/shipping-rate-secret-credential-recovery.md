@@ -93,15 +93,26 @@ mutation is independently verified by an exact provider read afterward.
 
 The first exact-main execution from `636b1b5afd6fb323376954e8db615168463467b9`
 and CI `33689091625` failed closed before creating a restart journal or changing
-provider, deployment, GitHub or local state. Vercel returned the exact pinned
-Production current row with `customEnvironmentIds: null`, while Preview and
-Development used `[]`; both representations mean that no custom environment is
-bound. The corrected reader permits only literal `null` or an empty array for
-that field. A missing field, non-array non-null value, or nonempty array remains
-rejected, and every row ID, key, type, target, branch/configuration boundary and
-secret digest remains exact. Read-only re-attestation also confirmed the
-compatibility deployment, all aliases, project protection, both CI bindings,
-GitHub inventory and all three original current-secret digests were unchanged.
+provider, deployment, GitHub or local state. An initial sanitized diagnostic
+used nullish coalescing and displayed an omitted `customEnvironmentIds` field as
+`null`; the first correction therefore accepted literal `null` but did not
+address the actual provider response. The corrected retry from
+`1afe205c7fccbc0fcd5cf29f7eb03a8ad739f00e` and CI `33694247625` also stopped
+before journal creation or mutation. A direct field-presence rehearsal then
+proved Vercel omits `customEnvironmentIds` for the exact Production-only row in
+both inventory and exact-value responses, while Preview and Development expose
+explicit empty arrays.
+
+The final reader permits an omitted custom-environment field only when the
+pinned expected target is exactly Production. Literal `null` or an empty array
+also represent no custom binding. Omission on Preview or Development, an
+explicitly present `undefined`, a malformed value, or a nonempty array remains
+rejected. Every response must still prove the exact row ID, key, encrypted type,
+target and absent branch/configuration binding; exact-value responses must also
+prove decrypted status, minimum length and the reviewed digest. Read-only
+re-attestation confirmed the compatibility deployment, all aliases, project
+protection, both CI bindings, GitHub inventory and all three original current-
+secret digests remained unchanged after both stops.
 
 ## Private and sanitized artifacts
 

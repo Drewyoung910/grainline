@@ -185,6 +185,16 @@ test("accepts only the exact three current rows and one exact Production previou
     currentIds: CURRENT_ENVIRONMENTS.map((row) => row.id),
     previousId: null,
   });
+  const providerOmittedInventory = inventory();
+  providerOmittedInventory.envs = providerOmittedInventory.envs.map((row) => {
+    if (row.id !== CURRENT_ENVIRONMENTS[2].id) return row;
+    const { customEnvironmentIds: _omitted, ...withoutCustomEnvironmentIds } = row;
+    return withoutCustomEnvironmentIds;
+  });
+  assert.deepEqual(normalizeEnvironmentInventory(providerOmittedInventory), {
+    currentIds: CURRENT_ENVIRONMENTS.map((row) => row.id),
+    previousId: null,
+  });
   assert.deepEqual(normalizeEnvironmentInventory(inventory([previousRow()]), PREVIOUS_ID), {
     currentIds: CURRENT_ENVIRONMENTS.map((row) => row.id),
     previousId: PREVIOUS_ID,
@@ -226,6 +236,13 @@ test("accepts only the exact three current rows and one exact Production previou
         : row
     )),
   }));
+  assert.throws(() => normalizeEnvironmentInventory({
+    envs: inventory().envs.map((row) => {
+      if (row.id !== CURRENT_ENVIRONMENTS[0].id) return row;
+      const { customEnvironmentIds: _omitted, ...withoutCustomEnvironmentIds } = row;
+      return withoutCustomEnvironmentIds;
+    }),
+  }));
 });
 
 test("hashes only exact decrypted environment value responses", () => {
@@ -236,6 +253,8 @@ test("hashes only exact decrypted environment value responses", () => {
     value: OLD,
   });
   assert.equal(normalizeEnvironmentValue(payload, expected), OLD);
+  const { customEnvironmentIds: _omitted, ...providerOmittedPayload } = payload;
+  assert.equal(normalizeEnvironmentValue(providerOmittedPayload, expected), OLD);
   assert.throws(() => normalizeEnvironmentValue({ ...payload, decrypted: false }, expected));
   assert.throws(() => normalizeEnvironmentValue({ ...payload, value: "short" }, expected));
   assert.throws(() => normalizeEnvironmentValue({ ...payload, id: "Wrong" }, expected));

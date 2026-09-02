@@ -253,8 +253,20 @@ function vercelApi(route, { method, body } = {}) {
 }
 
 function exactEnvironmentMetadata(row, expected) {
+  const customEnvironmentIdsOmitted = (
+    row !== null
+    && typeof row === "object"
+    && !Array.isArray(row)
+    && !Object.hasOwn(row, "customEnvironmentIds")
+  );
+  const expectedProductionOnly = (
+    Array.isArray(expected?.target)
+    && expected.target.length === 1
+    && expected.target[0] === "production"
+  );
   const hasNoCustomEnvironmentBinding = (
-    row?.customEnvironmentIds === null
+    (customEnvironmentIdsOmitted && expectedProductionOnly)
+    || row?.customEnvironmentIds === null
     || (
       Array.isArray(row?.customEnvironmentIds)
       && row.customEnvironmentIds.length === 0
