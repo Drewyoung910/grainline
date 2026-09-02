@@ -175,7 +175,23 @@ test("accepts only the exact three current rows and one exact Production previou
     currentIds: CURRENT_ENVIRONMENTS.map((row) => row.id),
     previousId: null,
   });
+  const providerNullInventory = inventory();
+  providerNullInventory.envs = providerNullInventory.envs.map((row) => (
+    row.id === CURRENT_ENVIRONMENTS[2].id
+      ? { ...row, customEnvironmentIds: null }
+      : row
+  ));
+  assert.deepEqual(normalizeEnvironmentInventory(providerNullInventory), {
+    currentIds: CURRENT_ENVIRONMENTS.map((row) => row.id),
+    previousId: null,
+  });
   assert.deepEqual(normalizeEnvironmentInventory(inventory([previousRow()]), PREVIOUS_ID), {
+    currentIds: CURRENT_ENVIRONMENTS.map((row) => row.id),
+    previousId: PREVIOUS_ID,
+  });
+  assert.deepEqual(normalizeEnvironmentInventory(inventory([
+    previousRow({ customEnvironmentIds: null }),
+  ]), PREVIOUS_ID), {
     currentIds: CURRENT_ENVIRONMENTS.map((row) => row.id),
     previousId: PREVIOUS_ID,
   });
@@ -196,16 +212,42 @@ test("accepts only the exact three current rows and one exact Production previou
     previousRow({ id: "SecondPrevious" }),
   ]), null, { allowAnyPrevious: true }));
   assert.throws(() => normalizeEnvironmentInventory(inventory([previousRow()])));
+  assert.throws(() => normalizeEnvironmentInventory({
+    envs: inventory().envs.map((row) => (
+      row.id === CURRENT_ENVIRONMENTS[2].id
+        ? { ...row, customEnvironmentIds: undefined }
+        : row
+    )),
+  }));
+  assert.throws(() => normalizeEnvironmentInventory({
+    envs: inventory().envs.map((row) => (
+      row.id === CURRENT_ENVIRONMENTS[2].id
+        ? { ...row, customEnvironmentIds: ["custom-environment"] }
+        : row
+    )),
+  }));
 });
 
 test("hashes only exact decrypted environment value responses", () => {
   const expected = CURRENT_ENVIRONMENTS[2];
-  const payload = environmentRow(expected, { decrypted: true, value: OLD });
+  const payload = environmentRow(expected, {
+    customEnvironmentIds: null,
+    decrypted: true,
+    value: OLD,
+  });
   assert.equal(normalizeEnvironmentValue(payload, expected), OLD);
   assert.throws(() => normalizeEnvironmentValue({ ...payload, decrypted: false }, expected));
   assert.throws(() => normalizeEnvironmentValue({ ...payload, value: "short" }, expected));
   assert.throws(() => normalizeEnvironmentValue({ ...payload, id: "Wrong" }, expected));
   assert.throws(() => normalizeEnvironmentValue({ ...payload, target: ["preview"] }, expected));
+  assert.throws(() => normalizeEnvironmentValue({
+    ...payload,
+    customEnvironmentIds: undefined,
+  }, expected));
+  assert.throws(() => normalizeEnvironmentValue({
+    ...payload,
+    customEnvironmentIds: ["custom-environment"],
+  }, expected));
 });
 
 test("accepts silent success only for the three reviewed Vercel mutation methods", () => {

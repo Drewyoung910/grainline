@@ -91,6 +91,18 @@ Vercel body mutations intentionally use silent responses; empty output is
 accepted only for the reviewed POST, PATCH and DELETE methods, and every such
 mutation is independently verified by an exact provider read afterward.
 
+The first exact-main execution from `636b1b5afd6fb323376954e8db615168463467b9`
+and CI `33689091625` failed closed before creating a restart journal or changing
+provider, deployment, GitHub or local state. Vercel returned the exact pinned
+Production current row with `customEnvironmentIds: null`, while Preview and
+Development used `[]`; both representations mean that no custom environment is
+bound. The corrected reader permits only literal `null` or an empty array for
+that field. A missing field, non-array non-null value, or nonempty array remains
+rejected, and every row ID, key, type, target, branch/configuration boundary and
+secret digest remains exact. Read-only re-attestation also confirmed the
+compatibility deployment, all aliases, project protection, both CI bindings,
+GitHub inventory and all three original current-secret digests were unchanged.
+
 ## Private and sanitized artifacts
 
 Private restart journal (contains secrets; mode `0600`; never copy into Git):

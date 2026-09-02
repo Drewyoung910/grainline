@@ -521,3 +521,14 @@ deleting the secret-bearing journal can no longer strand that journal behind
 an evidence-only fast path. Completed reruns require exact evidence, journal,
 operator and CI binding and re-attest provider, deployment, local and GitHub
 state before removing only the matching journal.
+
+The first execution from exact main
+`636b1b5afd6fb323376954e8db615168463467b9` and CI `33689091625` stopped before
+journal creation or mutation because Vercel serialized the exact Production
+row's absent custom-environment binding as `null` rather than `[]`. Read-only
+re-attestation confirmed every pinned row, target, digest, alias, deployment,
+CI and GitHub boundary remained at the accepted pre-rotation state. The narrow
+reader correction treats only literal `null` and an empty array as the two
+provider representations of no custom binding; missing, malformed or nonempty
+bindings still fail closed. The rotation remains pending a corrected exact-main
+CI gate.

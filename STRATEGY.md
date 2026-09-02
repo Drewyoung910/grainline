@@ -27,6 +27,14 @@ After its dual deployment, 35-minute drain, final deployment and old-key
 rejection proof, continue directly through the remaining exposed credential
 families and one fresh authenticated Order smoke before resuming Order RLS.
 
+The first exact-main operator execution (`636b1b5a`, CI `33689091625`) failed
+closed before journal creation or mutation on a Vercel response-shape mismatch:
+the exact Production row represented no custom-environment binding as `null`,
+while the parser required `[]`. The narrow correction accepts only those two
+semantically empty representations and retains every identity, target, digest,
+alias and deployment fence. Re-run only after the corrected exact-main CI
+passes; do not bypass the provider reader or rotate manually.
+
 The same bounded correction preserves the existing availability product while
 making it less brittle: pickup-only provider-failure responses carry an
 explicit warning and the client refreshes signed rates before expiry. Retain
