@@ -47,7 +47,6 @@ function state(overrides = {}) {
     oldSecretSha256: hash(OLD),
     newSecretSha256: hash(REPLACEMENT),
     previousEnvironmentId: PREVIOUS.id,
-    previousProjectEnvironmentId: "PreviousProject123",
     bridgeDeploymentId: "dpl_Bridge123",
     bridgeDeploymentUrl: "grainline-bridge.vercel.app",
     dualDeploymentId: "dpl_Dual123",
@@ -105,7 +104,7 @@ test("pins the current shared cron variable and exact temporary previous variabl
   }, null, { allowAnyPrevious: true }));
 });
 
-test("pins the linked project records so a project shadow cannot bypass shared rotation", () => {
+test("pins the linked current record and rejects every project-local previous shadow", () => {
   const projectCurrent = {
     id: "LRWsHUt7PHsP3rRg",
     key: "CRON_SECRET",
@@ -124,12 +123,9 @@ test("pins the linked project records so a project shadow cannot bypass shared r
     currentId: projectCurrent.id,
     previousId: null,
   });
-  assert.deepEqual(normalizeProjectEnvironmentInventory({
+  assert.throws(() => normalizeProjectEnvironmentInventory({
     envs: [projectCurrent, projectPrevious],
-  }, projectPrevious.id), {
-    currentId: projectCurrent.id,
-    previousId: projectPrevious.id,
-  });
+  }));
   assert.throws(() => normalizeProjectEnvironmentInventory({
     envs: [{ ...projectCurrent, id: "project-shadow" }],
   }));
@@ -312,6 +308,12 @@ test("operator has no migration, RLS, raw-secret output, or broad deployment del
   assert.match(source, /__credential-recovery-probe__/);
   assert.match(source, /grainlineCronCredentialRecoveryPhase=\$\{phase\}/);
   assert.match(source, /rollbackRequiresRebuildWithCurrentCredentials: true/);
+  assert.doesNotMatch(source, /previousProjectEnvironmentId|projectEnvironmentInventory\([^)]/);
+  assert.match(source, /route !== "\/v1\/env"[\s\S]*body\.ids\.length !== 1[\s\S]*--dangerously-skip-permissions/);
+  assert.match(source, /output === "" && method === "DELETE"/);
+  assert.match(source, /function createPreviousSecret[\s\S]*sharedInventory\(inventory\.previousId\);\n\s*projectEnvironmentInventory\(\);/);
+  assert.match(source, /function updateDualSecrets[\s\S]*sharedInventory\(previousId\);\n\s*projectEnvironmentInventory\(\);/);
+  assert.match(source, /function deletePreviousSecret[\s\S]*sharedInventory\(null\);\n\s*projectEnvironmentInventory\(\);/);
   assert.ok(recovery.indexOf("createPreviousSecret(") < recovery.indexOf('deployReplacement(state, "bridge"'));
   assert.ok(recovery.indexOf('writeState(state, "bridge-promoted"') < recovery.indexOf("updateDualSecrets("));
   assert.ok(recovery.indexOf("updateDualSecrets(") < recovery.indexOf('deployReplacement(state, "dual"'));
