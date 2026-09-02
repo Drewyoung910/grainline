@@ -2,7 +2,8 @@
 
 Status: the complete 18-row compatibility prefix is applied and accepted in
 production. Order RLS remains off with predecessor runtime CRUD retained. The
-separate Case correction remains unapplied.
+separate Case correction was subsequently applied and accepted without changing
+the Case family table posture.
 
 ## Why this is one Order stack and one separate Case correction
 
@@ -15,9 +16,9 @@ without creating a stronger authority boundary. Applying them as an exact
 byte-pinned prefix is proportional because they all preserve `Order` RLS-off
 posture and predecessor runtime CRUD for old/new deployment coexistence.
 
-`20260901160000_correct_case_order_invariants` remains separate. It replaces
-authority on the already-live policyless FORCE Case family and therefore must
-not be swept into the Order operation merely because it is lexically adjacent.
+`20260901160000_correct_case_order_invariants` was kept separate. It replaces
+authority on the already-live policyless FORCE Case family and therefore was
+not swept into the Order operation merely because it is lexically adjacent.
 
 ## Guarded Order workflow
 
@@ -101,8 +102,16 @@ retry paths must be exercised before predecessor drain and Order Phase A.
    owner-side scope. The distinct actual pooled-runtime proof then passed all
    six checks without mutation. Retain sanitized mode-`0600` evidence SHA-256
    `1125e28f4a94140ef82c39e74f6b28279d8eb8c16fb4e24337b5c4a98d8e1d89`.
-4. Run the separate Case correction workflow from exact green `main` only
-   after the 18-row Order prefix and pooled-runtime proof are complete.
+4. ~~Run the separate Case correction workflow from exact green `main` only
+   after the 18-row Order prefix and pooled-runtime proof are complete.~~ Exact
+   main `e0c17bc31d8da57b2418004ec451cdeb2b776854` and CI `33588063084`
+   passed. Guarded run `33588992199` classified the exact `order-compatible`
+   restart state, applied only
+   `20260901160000_correct_case_order_invariants`, and finished
+   `case-corrected`. Migration status and the global grant/RLS audit passed.
+   The after-scope retained all 18 Order predecessor rows and proved all three
+   Case-family tables ENABLE plus FORCE, zero direct runtime CRUD and the exact
+   Case-correction ledger row.
 5. Deploy the exact compatible application and verify aliases/health/source.
 6. Exercise authenticated buyer quote, seller label/re-quote, fulfillment,
    refund, Case replay and presentation smokes without live-mode purchases.
@@ -115,6 +124,20 @@ retry paths must be exercised before predecessor drain and Order Phase A.
 This release does not enable or FORCE Order RLS, revoke predecessor Order CRUD,
 mutate Order row data, run a provider operation, deploy application code, or
 change credentials/provider configuration.
+
+## Accepted Case-correction boundary
+
+The Case correction was deliberately executed after, not as part of, the Order
+compatibility release. Exact workflow run `33588992199` applied only
+`20260901160000_correct_case_order_invariants` from exact main
+`e0c17bc31d8da57b2418004ec451cdeb2b776854`, bound to successful push CI
+`33588063084`. The restart proof observed 18 exact Order rows and an absent Case
+correction. The final read-only proof reported `state=case-corrected`,
+`caseCorrectnessApplied=true`, three Case-family tables, ENABLE plus FORCE, and
+`directRuntimeCrud=false`. The global audit passed for 65 tables, 22 enums, 240
+`grainline_*` functions, one extension, four RLS policy tables and zero sequence
+references. No application deployment, Order RLS change, provider operation or
+credential change occurred.
 
 ## Validation history
 
