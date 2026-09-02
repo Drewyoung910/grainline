@@ -419,6 +419,7 @@ export default function BuyNowCheckoutModal({
                   mode: "single",
                   listingId,
                   quantity,
+                  selectedVariantOptionIds,
                 }}
               />
 

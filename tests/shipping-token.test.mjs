@@ -153,11 +153,18 @@ describe("shipping rate tokens", () => {
     assert.match(quoteRoute, /subjectHash = shippingRateSubjectHash\(\{/);
     assert.match(quoteRoute, /subjectHash,/);
     assert.match(quoteRoute, /token,\s*expiresAt,\s*subjectHash,/s);
-    assert.match(selector, /quoteBodyExtra\?: Record<string, string \| number>/);
+    assert.match(selector, /quoteBodyExtra\?: Record<string, string \| number \| string\[\]>/);
     assert.match(
       buyNowModal,
-      /quoteBodyExtra=\{\{\s*mode: "single",\s*listingId,\s*quantity,\s*\}\}/s,
+      /quoteBodyExtra=\{\{\s*mode: "single",\s*listingId,\s*quantity,\s*selectedVariantOptionIds,\s*\}\}/s,
     );
+
+    for (const source of [quoteRoute, sellerCheckout, singleCheckout]) {
+      assert.match(source, /unitPriceCents/);
+      assert.match(source, /priceVersion/);
+      assert.match(source, /variantKey/);
+    }
+    assert.match(quoteRoute, /selectedVariantOptionIds: z\.array/);
 
     for (const source of [sellerCheckout, singleCheckout]) {
       assert.match(source, /subjectHash: z\.string\(\)\.min\(1\)\.max\(64\)/);

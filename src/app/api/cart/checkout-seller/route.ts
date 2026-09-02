@@ -332,6 +332,8 @@ export async function POST(req: Request) {
           listingId: it.listingId,
           quantity: it.quantity,
           variantKey: it.variantKey ?? "",
+          unitPriceCents: it.unitPriceCents,
+          priceVersion: it.listing.priceVersion,
           weight: it.listing.packagedWeightGrams ?? sellerDefaults.defaultPkgWeightGrams ?? 0,
           length: it.listing.packagedLengthCm ?? sellerDefaults.defaultPkgLengthCm ?? 0,
           width: it.listing.packagedWidthCm ?? sellerDefaults.defaultPkgWidthCm ?? 0,

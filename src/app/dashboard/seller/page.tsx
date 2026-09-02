@@ -394,9 +394,14 @@ export default async function SellerSettingsPage({
               className={checkboxClass}
             />
             <label htmlFor="useCalculatedShipping" className="text-sm">
-              Use calculated shipping (Shippo)
+              Use live calculated shipping instead of the flat rate
             </label>
           </div>
+          <p className="text-xs text-neutral-500">
+            If no flat rate is set, Grainline keeps live calculated shipping as the safe default.
+            The free-shipping threshold applies only when a flat rate is configured. A saved flat
+            rate is also used if the carrier quote provider is temporarily unavailable.
+          </p>
 
           {/* Preferred Carriers */}
           <div className="space-y-2">
