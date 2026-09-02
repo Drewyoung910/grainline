@@ -867,6 +867,23 @@ export function classifyCredentialProbe(error) {
   throw new Error("credential probe failed without definitive password rejection");
 }
 
+const OWNER_MEMBERSHIP_OPTION_KEYS = Object.freeze([
+  "role",
+  "adminOption",
+  "inheritOption",
+  "setOption",
+]);
+
+function exactOwnerMembershipOption(actual, expected) {
+  return actual !== null
+    && typeof actual === "object"
+    && !Array.isArray(actual)
+    && Object.keys(actual).length === OWNER_MEMBERSHIP_OPTION_KEYS.length
+    && OWNER_MEMBERSHIP_OPTION_KEYS.every((key) => (
+      Object.hasOwn(actual, key) && actual[key] === expected[key]
+    ));
+}
+
 export function exactOwnerRoleIdentity(identity) {
   return identity?.current_user_name === REVIEWED_OWNER_ROLE
     && identity.session_user_name === REVIEWED_OWNER_ROLE
@@ -877,8 +894,15 @@ export function exactOwnerRoleIdentity(identity) {
     && identity.rolcanlogin === REVIEWED_OWNER_ROLE_STATE.rolcanlogin
     && identity.rolreplication === REVIEWED_OWNER_ROLE_STATE.rolreplication
     && identity.rolbypassrls === REVIEWED_OWNER_ROLE_STATE.rolbypassrls
-    && JSON.stringify(identity.membership_options)
-      === JSON.stringify(REVIEWED_OWNER_ROLE_STATE.memberships);
+    && Array.isArray(identity.membership_options)
+    && identity.membership_options.length
+      === REVIEWED_OWNER_ROLE_STATE.memberships.length
+    && identity.membership_options.every((membership, index) => (
+      exactOwnerMembershipOption(
+        membership,
+        REVIEWED_OWNER_ROLE_STATE.memberships[index],
+      )
+    ));
 }
 
 async function proveDatabaseIdentity(connectionString, role, { expectForce = false } = {}) {

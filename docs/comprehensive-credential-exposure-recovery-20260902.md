@@ -136,6 +136,14 @@ recovery now uses a separate predecessor-only validator for the fresh boundary;
 the replacement validator remains strict about distinct deployments, partial
 promotion and unreviewed alias targets. Regression tests cover both states.
 
+A subsequent preflight also stopped before journal creation because the owner
+membership proof compared serialized `jsonb` objects. PostgreSQL returned the
+same four fields and values in a different object-key order, making a logically
+exact role graph compare unequal. The proof now checks the exact field set and
+each field value without depending on object-key order; extra, missing or
+changed membership attributes still fail closed. CI exercises the actual
+node-postgres `jsonb` representation.
+
 ## Restart-safe database operator
 
 The current database operator is
@@ -154,6 +162,8 @@ accepted August recovery and now:
 - refuses automatic canonical promotion and rejects aliases that moved to any
   deployment other than the pinned predecessor or replacement;
 - proves the complete reviewed owner attributes and membership-option graph;
+- compares every owner membership field exactly without depending on PostgreSQL
+  `jsonb` object-key order;
 - removes privileged or aliased PostgreSQL credentials from the runtime-local
   file before declaring local convergence;
 - accepts only SQLSTATE `28P01` as old-password rejection;
