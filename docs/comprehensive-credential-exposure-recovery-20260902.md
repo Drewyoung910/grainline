@@ -429,3 +429,31 @@ The bridge promotion, shared updates and private restart journal all survived
 the local interruption. The journal must remain in place until sanitized final
 evidence is written; it is the only recoverable source for the original and
 replacement bearer values.
+
+The corrected restart-safe recovery completed from exact main
+`0002c823f2ade59962fd595ab4362c49ec9753f9` / CI `33677171729`. It resumed
+only the sealed `bridge-promoted` journal, removed exact project shadow
+`LRWsHUt7PHsP3rRg`, and promoted dual deployment
+`dpl_Eco3YiDjSFFwLKiS534ZVYRTszMY` after effective Production converged to
+current=replacement and previous=original. After the full 330-second drain, it
+deleted only the temporary shared previous record and promoted final unchanged-
+source deployment `dpl_GfJdUoqm6gCMGi8CMEExWVEN5xRC`.
+
+Final acceptance proved the replacement bearer reaches the side-effect-free
+probe boundary, both the original and a wrong bearer are rejected, homepage and
+health remain HTTP 200, the canonical aliases and source binding are exact, the
+GitHub repository secret and ignored local current value are converged, and no
+local previous value or project-local CRON row remains. The private journal was
+removed only after mode-`0600` sanitized evidence finalized. No migration, RLS,
+database, Stripe, or provider state outside Vercel and the GitHub/local CRON
+consumers changed.
+
+Accepted CRON evidence:
+
+- path: `cron-secret-credential-recovery-20260902.json`;
+- SHA-256:
+  `c1a076b3fb550e138b8bbc7af9a1db2d3a289cd777b2578878b90aa1069c480e`;
+- mode `0600`;
+- status `passed`, `acceptanceEligible=true`, and `issueCount=0`; and
+- replacement accepted, original rejected, and no raw credential value in the
+  sanitized evidence.
