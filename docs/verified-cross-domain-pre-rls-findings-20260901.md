@@ -72,6 +72,29 @@ mode-0600 artifact is retained outside the repository as
 SHA-256
 `96e55d3d601ab8df7442d42fa2fc8dec4218300c239ba10540a7bdada39c1959`.
 
+### 2026-09-02 Buy Now quantity-binding follow-up
+
+The pre-RLS authenticated-route audit found one additional application defect
+that the provider-only quote smoke could not exercise. `BuyNowCheckoutModal`
+did not forward the selected `quantity` into `ShippingRateSelector`. The quote
+route therefore signed every single-listing package as quantity one, while the
+single-checkout route correctly recomputed and verified the subject hash from
+the actual checkout quantity. An in-stock Buy Now quantity above one could
+receive a visible rate and then fail closed at checkout because the signed
+package subject did not match; its provider quote also used the wrong package
+weight.
+
+The isolated correction forwards the actual bounded quantity, widens only the
+internal quote-body helper type to admit that number and pins the UI-to-route
+quantity bridge in the existing shipping-token regression suite. This is an
+application correctness prerequisite for the authenticated shipping smoke and
+compatible deployment; it does not change database, RLS, grants or provider
+state. The route still models multiple units as one parcel with summed weight
+and maximum item dimensions. That is the existing documented packing
+heuristic, not proof that every physical multi-unit arrangement fits one box;
+seller label purchase performs a fresh full-address quote from the retained
+Order snapshot before any label transaction.
+
 ## Reviewer-claim verdicts
 
 | # | Verdict | Current classification | Required action |

@@ -552,3 +552,10 @@ fresh `OrderItem` audit/activation work, followed by
 - the verified buyer quote defects and cross-domain Case money-path blockers
   in `docs/verified-cross-domain-pre-rls-findings-20260901.md` are closed; and
 - Phase A and FORCE remain distinct production releases.
+
+2026-09-02 quote-audit continuation: the provider-only quote proof did not
+exercise the Buy Now UI bridge. That bridge omitted the selected quantity, so
+the quote route signed quantity one while the single-checkout route verified
+the actual quantity. The isolated correction forwards the quantity and pins
+the bridge in regression coverage. It must be deployed before authenticated
+shipping evidence is accepted; it changes no database or RLS state.
