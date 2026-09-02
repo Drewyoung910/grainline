@@ -6,6 +6,7 @@ const plan = readFileSync(
   "docs/order-authenticated-route-smoke-plan-20260902.md",
   "utf8",
 );
+const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
 describe("Order authenticated route smoke plan", () => {
   it("binds the smoke to the corrected exact application release", () => {
@@ -29,13 +30,15 @@ describe("Order authenticated route smoke plan", () => {
     assert.match(plan, /Seller notes and manual fulfillment/);
     assert.match(plan, /Buyer receipt/);
     assert.match(plan, /temporary hidden,[\s\S]*SellerProfile/);
-    assert.match(plan, /remove the temporary canary SellerProfile/);
+    assert.match(plan, /retain that hidden temporary profile until final[\s\S]*cleanup/);
+    assert.match(plan, /unrelated seller identity conveys[\s\S]*no authority/);
   });
 
   it("fails closed and makes cleanup part of acceptance", () => {
     assert.match(plan, /Cleanup is part of success/);
     assert.match(plan, /On failure, retain the[\s\S]*restart journal and stop/);
-    assert.match(plan, /prove zero marker-bound residue across database, Redis and Clerk/);
+    assert.match(plan, /prove zero mutable marker-bound fixture residue across database, Redis and[\s\S]*Clerk/);
+    assert.match(plan, /immutable processed Stripe[\s\S]*webhook lease/);
     assert.match(plan, /no connection strings, tokens,[\s\S]*personal data or row payloads/);
   });
 
@@ -47,5 +50,16 @@ describe("Order authenticated route smoke plan", () => {
       plan,
       /OrderItem[\s\S]*OrderShippingRateQuote[\s\S]*separate later activation\s+groups/,
     );
+  });
+
+  it("keeps one stable exact-main operator and cleanup entrypoint", () => {
+    assert.equal(
+      packageJson.scripts["ops:order-authenticated-route-smoke"],
+      "node scripts/order-authenticated-route-smoke.mjs",
+    );
+    assert.match(plan, /ORDER_AUTH_ROUTE_SMOKE_OPERATOR_COMMIT=<exact-main-commit>/);
+    assert.match(plan, /ORDER_AUTH_ROUTE_SMOKE_OPERATOR_CI_RUN_ID=<exact-green-main-ci-run-id>/);
+    assert.match(plan, /ORDER_AUTH_ROUTE_SMOKE_CLEANUP_ONLY=1/);
+    assert.match(plan, /Never delete or edit the journal by hand/);
   });
 });

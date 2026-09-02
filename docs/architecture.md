@@ -105,7 +105,12 @@ quantity and seller-shipping policy is now live from exact main
 deployment `dpl_6vA4bWrP4KhADtGAXKsisXdmvJBX`; all four canonical aliases,
 health and exact source provenance passed, while READY predecessor
 `dpl_3GTnqQGHGjGPSkCnEMq65yFAU91u` remains retained. The bounded authenticated
-buyer/seller Order smoke, predecessor drain, conversion of the remaining 16
+buyer/seller Order smoke is implemented as a restart-safe, marker-bound
+operator with disposable PostgreSQL and complete-suite validation; exact-main
+CI/review and production execution remain pending. Follow
+`docs/order-authenticated-route-smoke-plan-20260902.md` and invoke only through
+`npm run ops:order-authenticated-route-smoke`. Its acceptance, predecessor
+drain, conversion of the remaining 16
 direct-`Order` source files, final compatible deployment/drain and zero-direct-
 access proof must precede Order Phase A.
 

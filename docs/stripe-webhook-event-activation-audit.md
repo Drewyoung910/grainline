@@ -270,6 +270,16 @@ defect. Each remaining path is classified:
   claim for its disposable session IDs. It never deletes those immutable
   audit/idempotency rows, grants no runtime table access, retains no IDs in its
   sanitized evidence, and is not an ordinary application path.
+- `scripts/order-authenticated-route-smoke.mjs` is the protected, restart-safe
+  authenticated Order route smoke. Its direct `StripeWebhookEvent` reads use
+  only the protected owner connection to bind the exact processed
+  `checkout.session.expired` lease created by its marker-bound, unpaid Stripe
+  test Checkout Session. The pooled runtime connection only attests its
+  restricted identity and receives no table authority. The operator retains
+  that immutable idempotency lease, deletes its exact mutable application,
+  Redis and Clerk fixtures during bounded cleanup, exports only sanitized
+  counts and hashes, is not an ordinary application path, and must run before
+  the Order zero-direct-access conversion removes predecessor authority.
 - `scripts/order-payment-event-signed-production-proof.mjs` is the protected,
   restart-safe `OrderPaymentEvent` signed-family acceptance proof. Its direct
   `StripeWebhookEvent` reads use only the protected owner connection in
