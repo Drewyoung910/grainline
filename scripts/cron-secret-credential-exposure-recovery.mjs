@@ -40,8 +40,18 @@ const CURRENT_ENVIRONMENT = Object.freeze({
   type: "encrypted",
   target: Object.freeze(["development", "preview", "production"]),
 });
-const CURRENT_PROJECT_ENVIRONMENT_ID = "LRWsHUt7PHsP3rRg";
+const CURRENT_PROJECT_SHADOW_ID = "LRWsHUt7PHsP3rRg";
 const PREVIOUS_KEY = "CRON_SECRET_PREVIOUS";
+const CURRENT_PROJECT_SHADOW_ROUTE = `/v9/projects/${PROJECT.id}/env/${CURRENT_PROJECT_SHADOW_ID}`;
+const RECOVERABLE_BRIDGE_STATE = Object.freeze({
+  operatorCommit: "1590f641105eb241b1f6f88f4b5202ef590cb771",
+  operatorCiRunId: 33672732081,
+  previousEnvironmentId: "env_TLFbbAsJFwAOo5uFLoyVCCVS",
+  bridgeDeploymentId: "dpl_CkSvMUPv3w7bWC7g4iZaiMMJ34Dy",
+  bridgeDeploymentUrl: "grainline-q32rcdq9o-drew-youngs-projects.vercel.app",
+  oldSecretSha256: "cf6b30a860d0881ac61f1cd3e9a0871879d29d23cba5e56bcf1ab91f06bec979",
+  newSecretSha256: "8f97197405ea1c772864ce28a1acb34169e22606f9e35e468914e980e95d844e",
+});
 const CANONICAL_ALIASES = Object.freeze([
   "thegrainline.com",
   "www.thegrainline.com",
@@ -196,19 +206,27 @@ function vercelApi(route, { method, body } = {}) {
   const args = [VERCEL_CLI, "api", route, "--raw", "--scope", PROJECT.scope, "--no-color"];
   if (method) args.push("--method", method);
   if (method === "DELETE") {
-    if (
+    const exactSharedDelete = (
       route !== "/v1/env"
-      || !Array.isArray(body?.ids)
-      || body.ids.length !== 1
-      || !/^env_[A-Za-z0-9]+$/.test(body.ids[0])
-    ) throw new Error("Vercel destructive request is outside the exact shared-environment fence");
+      ? false
+      : Array.isArray(body?.ids)
+        && body.ids.length === 1
+        && /^env_[A-Za-z0-9]+$/.test(body.ids[0])
+    );
+    const exactProjectShadowDelete = route === CURRENT_PROJECT_SHADOW_ROUTE && body === undefined;
+    if (!exactSharedDelete && !exactProjectShadowDelete) {
+      throw new Error("Vercel destructive request is outside the exact environment-variable fence");
+    }
     args.push("--dangerously-skip-permissions");
   }
   if (body !== undefined) args.push("--input", "-", "--silent");
   const output = run(process.execPath, args, {
     input: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (output === "" && method === "DELETE") return Object.freeze({});
+  if (output === "" && (
+    method === "DELETE"
+    || (method === "PATCH" && route === "/v1/env")
+  )) return Object.freeze({});
   try {
     return JSON.parse(output);
   } catch {
@@ -262,8 +280,11 @@ function sharedInventory(previousId = null, options = {}) {
   return normalizeSharedEnvironmentInventory(vercelApi("/v1/env"), previousId, options);
 }
 
-export function normalizeProjectEnvironmentInventory(payload) {
+export function normalizeProjectEnvironmentInventory(payload, expected = "shadow") {
   if (!Array.isArray(payload?.envs)) throw new Error("Vercel project environment inventory is incomplete");
+  if (!["shadow", "none", "either"].includes(expected)) {
+    throw new Error("Vercel project environment expectation is invalid");
+  }
   const currentRows = payload.envs.filter((row) => row?.key === CURRENT_ENVIRONMENT.key);
   const previousRows = payload.envs.filter((row) => row?.key === PREVIOUS_KEY);
   const exact = (row, id, key) => (
@@ -276,22 +297,121 @@ export function normalizeProjectEnvironmentInventory(payload) {
     && row.customEnvironmentIds.length === 0
     && JSON.stringify(row.target) === JSON.stringify(CURRENT_ENVIRONMENT.target)
   );
+  const exactShadow = currentRows.length === 1
+    && exact(currentRows[0], CURRENT_PROJECT_SHADOW_ID, CURRENT_ENVIRONMENT.key);
   if (
-    currentRows.length !== 1
-    || !exact(currentRows[0], CURRENT_PROJECT_ENVIRONMENT_ID, CURRENT_ENVIRONMENT.key)
-  ) throw new Error("Vercel project current cron environment metadata drifted");
+    (expected === "shadow" && !exactShadow)
+    || (expected === "none" && currentRows.length !== 0)
+    || (expected === "either" && currentRows.length !== 0 && !exactShadow)
+  ) throw new Error("Vercel project current cron shadow metadata drifted");
   if (previousRows.length !== 0) {
     throw new Error("unexpected project-local previous cron environment shadow exists");
   }
-  return Object.freeze({ currentId: currentRows[0].id, previousId: null });
+  return Object.freeze({ currentId: currentRows[0]?.id ?? null, previousId: null });
 }
 
-function projectEnvironmentInventory() {
+function projectEnvironmentInventory(expected = "shadow") {
   const payload = vercelApi(`/v10/projects/${PROJECT.id}/env?decrypt=false`);
-  return normalizeProjectEnvironmentInventory(payload);
+  return normalizeProjectEnvironmentInventory(payload, expected);
 }
 
-function createPreviousSecret(value, expectedCurrentHash, expectedPreviousHash) {
+export function normalizeSharedSecretHash(payload, expectedId, expectedKey) {
+  if (
+    payload?.id !== expectedId
+    || payload.key !== expectedKey
+    || payload.ownerId !== PROJECT.teamId
+    || payload.type !== CURRENT_ENVIRONMENT.type
+    || payload.deletedAt !== null
+    || payload.decrypted !== true
+    || payload.projectId?.length !== 1
+    || payload.projectId[0] !== PROJECT.id
+    || JSON.stringify(payload.target) !== JSON.stringify(CURRENT_ENVIRONMENT.target)
+    || typeof payload.value !== "string"
+    || payload.value.length < 32
+  ) throw new Error("Vercel shared cron value response drifted");
+  return sha256(payload.value);
+}
+
+function storedSharedHashes(previousId) {
+  return Object.freeze({
+    current: normalizeSharedSecretHash(
+      vercelApi(`/v1/env/${CURRENT_ENVIRONMENT.id}`),
+      CURRENT_ENVIRONMENT.id,
+      CURRENT_ENVIRONMENT.key,
+    ),
+    previous: normalizeSharedSecretHash(
+      vercelApi(`/v1/env/${previousId}`),
+      previousId,
+      PREVIOUS_KEY,
+    ),
+  });
+}
+
+export function classifyDualCredentialState(snapshot, hashes) {
+  const oldHash = hashes?.old;
+  const newHash = hashes?.replacement;
+  const shared = snapshot?.shared;
+  const effective = snapshot?.effective;
+  const projectShadowId = snapshot?.projectShadowId ?? null;
+  if (
+    !SHA256.test(oldHash ?? "")
+    || !SHA256.test(newHash ?? "")
+    || oldHash === newHash
+    || ![oldHash, newHash].includes(shared?.current)
+    || ![oldHash, newHash].includes(shared?.previous)
+    || ![oldHash, newHash].includes(effective?.current)
+    || ![oldHash, newHash].includes(effective?.previous)
+    || ![null, CURRENT_PROJECT_SHADOW_ID].includes(projectShadowId)
+  ) throw new Error("cron dual-secret state is outside the reviewed values");
+
+  if (projectShadowId === CURRENT_PROJECT_SHADOW_ID) {
+    if (effective.current !== oldHash) {
+      throw new Error("project cron shadow does not resolve the reviewed old value");
+    }
+    if (shared.current === oldHash && shared.previous === newHash) return "pre-convergence";
+    if (shared.current === newHash && shared.previous === oldHash) return "shared-converged-shadowed";
+    return "shared-convergence-partial";
+  }
+  if (shared.current !== newHash || shared.previous !== oldHash) {
+    throw new Error("project cron shadow was removed before shared convergence");
+  }
+  if (effective.current === newHash && effective.previous === oldHash) return "dual-converged";
+  return "shadow-removed-propagating";
+}
+
+function dualCredentialSnapshot(previousId) {
+  sharedInventory(previousId);
+  const project = projectEnvironmentInventory("either");
+  return Object.freeze({
+    shared: storedSharedHashes(previousId),
+    effective: resolvedVercelHashes(),
+    projectShadowId: project.currentId,
+  });
+}
+
+function pause(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForResolvedHashes({
+  expectedCurrent,
+  expectedPrevious,
+  allowedCurrent,
+  allowedPrevious,
+  failure,
+}) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const resolved = resolvedVercelHashes();
+    if (resolved.current === expectedCurrent && resolved.previous === expectedPrevious) return resolved;
+    if (!allowedCurrent.includes(resolved.current) || !allowedPrevious.includes(resolved.previous)) {
+      throw new Error(`${failure} changed outside the reviewed values`);
+    }
+    await pause(1_500);
+  }
+  throw new Error(`${failure} did not converge`);
+}
+
+async function createPreviousSecret(value, expectedCurrentHash, expectedPreviousHash) {
   let inventory = sharedInventory(null, { allowAnyPrevious: true });
   if (inventory.previousId === null) {
     vercelApi("/v1/env", {
@@ -310,55 +430,90 @@ function createPreviousSecret(value, expectedCurrentHash, expectedPreviousHash) 
     inventory = sharedInventory(null, { allowAnyPrevious: true });
   }
   if (!inventory.previousId) throw new Error("Vercel previous cron environment creation was ambiguous");
-  projectEnvironmentInventory();
-  const resolved = resolvedVercelHashes();
-  if (resolved.current !== expectedCurrentHash || resolved.previous !== expectedPreviousHash) {
-    throw new Error("Vercel previous cron environment value is ambiguous");
-  }
+  projectEnvironmentInventory("shadow");
+  await waitForResolvedHashes({
+    expectedCurrent: expectedCurrentHash,
+    expectedPrevious: expectedPreviousHash,
+    allowedCurrent: [expectedCurrentHash],
+    allowedPrevious: ["absent", expectedPreviousHash],
+    failure: "Vercel previous cron environment value",
+  });
   sharedInventory(inventory.previousId);
-  projectEnvironmentInventory();
+  projectEnvironmentInventory("shadow");
   return Object.freeze({ sharedId: inventory.previousId });
 }
 
-function updateDualSecrets(currentValue, previousValue, previousId) {
-  sharedInventory(previousId);
-  projectEnvironmentInventory();
-  vercelApi("/v1/env", {
-    method: "PATCH",
-    body: {
-      updates: {
-        [CURRENT_ENVIRONMENT.id]: {
-          value: currentValue,
-          type: CURRENT_ENVIRONMENT.type,
-          target: CURRENT_ENVIRONMENT.target,
-          projectId: [PROJECT.id],
-          comment: "Current Grainline cron bearer",
-        },
-        [previousId]: {
-          value: previousValue,
-          type: CURRENT_ENVIRONMENT.type,
-          target: CURRENT_ENVIRONMENT.target,
-          projectId: [PROJECT.id],
-          comment: "Temporary dual-verify secret for 2026-09-02 exposure recovery",
+async function updateDualSecrets(currentValue, previousValue, previousId, hashes) {
+  let snapshot = dualCredentialSnapshot(previousId);
+  let classification = classifyDualCredentialState(snapshot, hashes);
+  if (["pre-convergence", "shared-convergence-partial"].includes(classification)) {
+    vercelApi("/v1/env", {
+      method: "PATCH",
+      body: {
+        updates: {
+          [CURRENT_ENVIRONMENT.id]: {
+            key: CURRENT_ENVIRONMENT.key,
+            value: currentValue,
+            comment: "Current Grainline cron bearer",
+          },
+          [previousId]: {
+            key: PREVIOUS_KEY,
+            value: previousValue,
+            comment: "Temporary dual-verify secret for 2026-09-02 exposure recovery",
+          },
         },
       },
-    },
-  });
-  sharedInventory(previousId);
-  projectEnvironmentInventory();
+    });
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      snapshot = dualCredentialSnapshot(previousId);
+      classification = classifyDualCredentialState(snapshot, hashes);
+      if (classification === "shared-converged-shadowed") break;
+      if (!["pre-convergence", "shared-convergence-partial"].includes(classification)) {
+        throw new Error("cron shared convergence changed outside the reviewed sequence");
+      }
+      await pause(1_500);
+    }
+    if (classification !== "shared-converged-shadowed") {
+      throw new Error("Vercel shared cron values did not converge before the shadow fence");
+    }
+  }
+
+  if (classification === "shared-converged-shadowed") {
+    vercelApi(CURRENT_PROJECT_SHADOW_ROUTE, { method: "DELETE" });
+  } else if (!["shadow-removed-propagating", "dual-converged"].includes(classification)) {
+    throw new Error("cron dual convergence did not reach the project-shadow boundary");
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    snapshot = dualCredentialSnapshot(previousId);
+    classification = classifyDualCredentialState(snapshot, hashes);
+    if (classification === "dual-converged") return snapshot;
+    if (classification !== "shadow-removed-propagating") {
+      throw new Error("cron effective convergence changed outside the reviewed sequence");
+    }
+    await pause(1_500);
+  }
+  throw new Error("Vercel effective cron values did not converge after shadow removal");
 }
 
-function deletePreviousSecret(previousId) {
+async function deletePreviousSecret(previousId, expectedCurrentHash, expectedPreviousHash) {
   const inventory = sharedInventory(null, { allowAnyPrevious: true });
   if (inventory.previousId !== null && inventory.previousId !== previousId) {
     throw new Error("Vercel previous cron environment identity drifted");
   }
   if (inventory.previousId !== null) {
-    projectEnvironmentInventory();
+    projectEnvironmentInventory("none");
     vercelApi("/v1/env", { method: "DELETE", body: { ids: [previousId] } });
   }
   sharedInventory(null);
-  projectEnvironmentInventory();
+  projectEnvironmentInventory("none");
+  await waitForResolvedHashes({
+    expectedCurrent: expectedCurrentHash,
+    expectedPrevious: "absent",
+    allowedCurrent: [expectedCurrentHash],
+    allowedPrevious: [expectedPreviousHash, "absent"],
+    failure: "Vercel final cron environment",
+  });
 }
 
 export function normalizeResolvedCronHashes(output) {
@@ -588,6 +743,8 @@ async function liveRoutes() {
 }
 
 export function validateState(value, config) {
+  const hasPreviousOperatorCommit = value?.previousOperatorCommit !== undefined;
+  const hasPreviousOperatorCiRunId = value?.previousOperatorCiRunId !== undefined;
   if (
     value?.schemaVersion !== 1
     || value.operation !== "cron-secret-credential-exposure-recovery"
@@ -621,6 +778,13 @@ export function validateState(value, config) {
     || value.bridgeDeploymentId && value.bridgeDeploymentId === value.dualDeploymentId
     || value.bridgeDeploymentId && value.bridgeDeploymentId === value.finalDeploymentId
     || value.dualDeploymentId && value.dualDeploymentId === value.finalDeploymentId
+    || hasPreviousOperatorCommit !== hasPreviousOperatorCiRunId
+    || hasPreviousOperatorCommit && (
+      !COMMIT.test(value.previousOperatorCommit)
+      || !Number.isSafeInteger(value.previousOperatorCiRunId)
+      || value.previousOperatorCommit === value.operatorCommit
+      || value.previousOperatorCiRunId === value.operatorCiRunId
+    )
   ) throw new Error("private cron recovery state drifted");
   if (STAGES.indexOf(value.stage) >= STAGES.indexOf("bridge-previous-created")
     && !value.previousEnvironmentId) {
@@ -645,9 +809,50 @@ export function validateState(value, config) {
   return Object.freeze(value);
 }
 
+export function rebindRecoverableBridgeState(
+  value,
+  config,
+  recoverable = RECOVERABLE_BRIDGE_STATE,
+) {
+  if (!COMMIT.test(config?.operatorCommit ?? "") || !Number.isSafeInteger(config?.operatorCiRunId)) {
+    throw new Error("private cron bridge rebind target is invalid");
+  }
+  const prior = validateState(value, {
+    operatorCommit: recoverable.operatorCommit,
+    operatorCiRunId: recoverable.operatorCiRunId,
+  });
+  if (
+    prior.stage !== "bridge-promoted"
+    || prior.previousEnvironmentId !== recoverable.previousEnvironmentId
+    || prior.bridgeDeploymentId !== recoverable.bridgeDeploymentId
+    || prior.bridgeDeploymentUrl !== recoverable.bridgeDeploymentUrl
+    || prior.oldSecretSha256 !== recoverable.oldSecretSha256
+    || prior.newSecretSha256 !== recoverable.newSecretSha256
+    || prior.previousOperatorCommit !== undefined
+    || prior.previousOperatorCiRunId !== undefined
+    || config.operatorCommit === prior.operatorCommit
+    || config.operatorCiRunId === prior.operatorCiRunId
+  ) throw new Error("private cron bridge state is not eligible for exact recovery rebind");
+  return validateState({
+    ...prior,
+    operatorCommit: config.operatorCommit,
+    operatorCiRunId: config.operatorCiRunId,
+    previousOperatorCommit: prior.operatorCommit,
+    previousOperatorCiRunId: prior.operatorCiRunId,
+    updatedAt: new Date().toISOString(),
+  }, config);
+}
+
 function readState(config) {
   assertPrivateFile(JOURNAL, "cron recovery journal");
-  return validateState(JSON.parse(readFileSync(JOURNAL, "utf8")), config);
+  const value = JSON.parse(readFileSync(JOURNAL, "utf8"));
+  if (
+    value?.operatorCommit === config.operatorCommit
+    && value.operatorCiRunId === config.operatorCiRunId
+  ) return validateState(value, config);
+  const rebound = rebindRecoverableBridgeState(value, config);
+  writePrivate(JOURNAL, `${JSON.stringify(rebound, null, 2)}\n`, { replace: true });
+  return rebound;
 }
 
 function writeState(state, stage, patch = {}) {
@@ -805,7 +1010,7 @@ export async function runRecovery(config) {
     }
     githubSecretMetadata();
     sharedInventory(null);
-    projectEnvironmentInventory();
+    projectEnvironmentInventory("shadow");
     const resolved = resolvedVercelHashes();
     if (resolved.current !== sha256(oldSecret) || resolved.previous !== "absent") {
       throw new Error("resolved Vercel cron preflight did not match local state");
@@ -816,7 +1021,7 @@ export async function runRecovery(config) {
   }
 
   if (state.stage === "preflight") {
-    const previous = createPreviousSecret(
+    const previous = await createPreviousSecret(
       state.newSecret,
       state.oldSecretSha256,
       state.newSecretSha256,
@@ -840,10 +1045,11 @@ export async function runRecovery(config) {
   if (state.stage === "bridge-promoted") {
     normalizeAliasTargets(aliasTargets(), state.bridgeDeploymentId);
     await probeCanonical(state.oldSecret, state.newSecret, "dual");
-    updateDualSecrets(
+    await updateDualSecrets(
       state.newSecret,
       state.oldSecret,
       state.previousEnvironmentId,
+      { old: state.oldSecretSha256, replacement: state.newSecretSha256 },
     );
     updateGithubSecret(state.newSecret);
     setLocalValues(state.newSecret, state.oldSecret);
@@ -876,7 +1082,11 @@ export async function runRecovery(config) {
         dualDeploymentId: state.dualDeploymentId,
       });
     }
-    deletePreviousSecret(state.previousEnvironmentId);
+    await deletePreviousSecret(
+      state.previousEnvironmentId,
+      state.newSecretSha256,
+      state.oldSecretSha256,
+    );
     setLocalValues(state.newSecret, null);
     const resolved = resolvedVercelHashes();
     if (resolved.current !== state.newSecretSha256 || resolved.previous !== "absent") {
@@ -904,7 +1114,7 @@ export async function runRecovery(config) {
   if (state.stage === "final-promoted") {
     projectProtection();
     sharedInventory(null);
-    projectEnvironmentInventory();
+    projectEnvironmentInventory("none");
     normalizeAliasTargets(aliasTargets(), state.finalDeploymentId);
     const resolved = resolvedVercelHashes();
     if (resolved.current !== state.newSecretSha256 || resolved.previous !== "absent") {

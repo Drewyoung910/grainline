@@ -388,3 +388,44 @@ all recheck both the shared record and the absence of a project-local shadow.
 The exact temporary-record deletion also supplies Vercel CLI's required
 noninteractive DELETE confirmation flag only for that fenced request; without
 it, the CLI refuses the request before changing provider state.
+
+The second production CRON recovery attempt from exact main
+`1590f641105eb241b1f6f88f4b5202ef590cb771` / CI `33672732081` created and
+promoted bridge deployment `dpl_CkSvMUPv3w7bWC7g4iZaiMMJ34Dy`. The bridge is
+built from unchanged application source and accepts both the original and
+replacement bearers. The shared-variable batch update then reached its intended
+stored state (current=replacement and previous=original), but the operator
+stopped at `bridge-promoted` because Vercel returned an empty successful PATCH
+response that the response parser rejected. No GitHub or ignored-local consumer
+was updated and no later deployment was created.
+
+Post-failure inspection found a second, independent provider layer that the
+first inventory contract had misclassified. Project environment row
+`LRWsHUt7PHsP3rRg` is a project-local `CRON_SECRET` shadow, not the linked
+representation of shared record `env_Z5Adun6D9lSNFwiy53ucs4GK`. The shared
+current and previous records have the reviewed replacement/original digests,
+while the project shadow keeps effective Production at original/original. This
+is safe during recovery because the canonical bridge accepts both values, but
+the shadow must be removed before a replacement-only artifact can be built.
+
+The corrected recovery contract therefore:
+
+- reads and hashes each exact decrypted shared record without printing its
+  value, and separately reads effective Production digests;
+- accepts only original/replacement permutations while the bridge is canonical,
+  rejecting every third value, unknown row or partial alias state;
+- treats an empty successful shared PATCH response as valid only for the exact
+  `/v1/env` update and proves the stored result afterward;
+- deletes only exact project shadow `LRWsHUt7PHsP3rRg` through the exact
+  project/environment route after stored shared convergence, then polls until
+  effective Production resolves replacement/original;
+- expects zero project-local CRON rows after the shadow is removed while still
+  requiring both shared records to remain linked to Grainline; and
+- rebinds the preserved mode-`0600` restart journal only from the exact
+  `bridge-promoted` commit, CI, deployment, shared-record, and credential-digest
+  checkpoint above to a new clean exact-head operator and successful CI run.
+
+The bridge promotion, shared updates and private restart journal all survived
+the local interruption. The journal must remain in place until sanitized final
+evidence is written; it is the only recoverable source for the original and
+replacement bearer values.

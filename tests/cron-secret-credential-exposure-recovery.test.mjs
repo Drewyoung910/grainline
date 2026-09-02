@@ -5,6 +5,7 @@ import test from "node:test";
 
 import {
   assertExactGitState,
+  classifyDualCredentialState,
   normalizeAliasPosition,
   normalizeAliasTargets,
   normalizeDeployment,
@@ -13,7 +14,9 @@ import {
   normalizeProjectProtection,
   normalizeProjectEnvironmentInventory,
   normalizeResolvedCronHashes,
+  normalizeSharedSecretHash,
   normalizeSharedEnvironmentInventory,
+  rebindRecoverableBridgeState,
   sanitizedEvidence,
   validateAcceptedEvidence,
   validateState,
@@ -104,7 +107,7 @@ test("pins the current shared cron variable and exact temporary previous variabl
   }, null, { allowAnyPrevious: true }));
 });
 
-test("pins the linked current record and rejects every project-local previous shadow", () => {
+test("classifies and fences the exact project-local current shadow", () => {
   const projectCurrent = {
     id: "LRWsHUt7PHsP3rRg",
     key: "CRON_SECRET",
@@ -123,12 +126,81 @@ test("pins the linked current record and rejects every project-local previous sh
     currentId: projectCurrent.id,
     previousId: null,
   });
+  assert.deepEqual(normalizeProjectEnvironmentInventory({ envs: [] }, "none"), {
+    currentId: null,
+    previousId: null,
+  });
+  assert.deepEqual(normalizeProjectEnvironmentInventory({ envs: [] }, "either"), {
+    currentId: null,
+    previousId: null,
+  });
+  assert.deepEqual(normalizeProjectEnvironmentInventory({ envs: [projectCurrent] }, "either"), {
+    currentId: projectCurrent.id,
+    previousId: null,
+  });
+  assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [projectCurrent] }, "none"));
+  assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [] }, "shadow"));
+  assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [] }, "wrong"));
   assert.throws(() => normalizeProjectEnvironmentInventory({
     envs: [projectCurrent, projectPrevious],
   }));
   assert.throws(() => normalizeProjectEnvironmentInventory({
     envs: [{ ...projectCurrent, id: "project-shadow" }],
   }));
+});
+
+test("hashes only an exact decrypted shared-secret response", () => {
+  const response = {
+    ...CURRENT,
+    value: OLD,
+    deletedAt: null,
+    decrypted: true,
+  };
+  assert.equal(normalizeSharedSecretHash(response, CURRENT.id, CURRENT.key), hash(OLD));
+  assert.throws(() => normalizeSharedSecretHash({ ...response, key: PREVIOUS.key }, CURRENT.id, CURRENT.key));
+  assert.throws(() => normalizeSharedSecretHash({ ...response, decrypted: false }, CURRENT.id, CURRENT.key));
+  assert.throws(() => normalizeSharedSecretHash({ ...response, projectId: [] }, CURRENT.id, CURRENT.key));
+  assert.throws(() => normalizeSharedSecretHash({ ...response, value: "short" }, CURRENT.id, CURRENT.key));
+});
+
+test("accepts only reviewed bridge-to-dual credential convergence states", () => {
+  const old = hash(OLD);
+  const replacement = hash(REPLACEMENT);
+  const hashes = { old, replacement };
+  const snapshot = (overrides = {}) => ({
+    shared: { current: old, previous: replacement },
+    effective: { current: old, previous: replacement },
+    projectShadowId: "LRWsHUt7PHsP3rRg",
+    ...overrides,
+  });
+  assert.equal(classifyDualCredentialState(snapshot(), hashes), "pre-convergence");
+  assert.equal(classifyDualCredentialState(snapshot({
+    shared: { current: replacement, previous: replacement },
+  }), hashes), "shared-convergence-partial");
+  assert.equal(classifyDualCredentialState(snapshot({
+    shared: { current: replacement, previous: old },
+    effective: { current: old, previous: old },
+  }), hashes), "shared-converged-shadowed");
+  assert.equal(classifyDualCredentialState(snapshot({
+    shared: { current: replacement, previous: old },
+    effective: { current: old, previous: old },
+    projectShadowId: null,
+  }), hashes), "shadow-removed-propagating");
+  assert.equal(classifyDualCredentialState(snapshot({
+    shared: { current: replacement, previous: old },
+    effective: { current: replacement, previous: old },
+    projectShadowId: null,
+  }), hashes), "dual-converged");
+  assert.throws(() => classifyDualCredentialState(snapshot({
+    effective: { current: replacement, previous: replacement },
+  }), hashes));
+  assert.throws(() => classifyDualCredentialState(snapshot({
+    shared: { current: old, previous: replacement },
+    projectShadowId: null,
+  }), hashes));
+  assert.throws(() => classifyDualCredentialState(snapshot({
+    effective: { current: "f".repeat(64), previous: old },
+  }), hashes));
 });
 
 test("extracts exactly one current and previous digest without accepting malformed CLI output", () => {
@@ -258,6 +330,39 @@ test("private restart state binds secret digests, deployment phases and drain ti
   assert.equal(validateState(final, { operatorCommit: COMMIT, operatorCiRunId: 123 }).stage, "final-ready");
 });
 
+test("rebinds only the exact preserved bridge checkpoint to a new reviewed operator", () => {
+  const prior = state({
+    stage: "bridge-promoted",
+    dualDeploymentId: null,
+    dualDeploymentUrl: null,
+    dualPromotedAt: null,
+  });
+  const nextConfig = { operatorCommit: "b".repeat(40), operatorCiRunId: 456 };
+  const recoverable = {
+    operatorCommit: COMMIT,
+    operatorCiRunId: 123,
+    previousEnvironmentId: prior.previousEnvironmentId,
+    bridgeDeploymentId: prior.bridgeDeploymentId,
+    bridgeDeploymentUrl: prior.bridgeDeploymentUrl,
+    oldSecretSha256: prior.oldSecretSha256,
+    newSecretSha256: prior.newSecretSha256,
+  };
+  const rebound = rebindRecoverableBridgeState(prior, nextConfig, recoverable);
+  assert.equal(rebound.operatorCommit, nextConfig.operatorCommit);
+  assert.equal(rebound.operatorCiRunId, nextConfig.operatorCiRunId);
+  assert.equal(rebound.previousOperatorCommit, COMMIT);
+  assert.equal(rebound.previousOperatorCiRunId, 123);
+  assert.equal(validateState(rebound, nextConfig).stage, "bridge-promoted");
+  assert.throws(() => rebindRecoverableBridgeState({
+    ...prior,
+    bridgeDeploymentId: "dpl_Drifted",
+  }, nextConfig, recoverable));
+  assert.throws(() => rebindRecoverableBridgeState({
+    ...prior,
+    stage: "bridge-ready",
+  }, nextConfig, recoverable));
+});
+
 test("sanitized evidence excludes credential values and records the protected-artifact boundary", () => {
   const final = state({
     stage: "final-promoted",
@@ -308,12 +413,14 @@ test("operator has no migration, RLS, raw-secret output, or broad deployment del
   assert.match(source, /__credential-recovery-probe__/);
   assert.match(source, /grainlineCronCredentialRecoveryPhase=\$\{phase\}/);
   assert.match(source, /rollbackRequiresRebuildWithCurrentCredentials: true/);
-  assert.doesNotMatch(source, /previousProjectEnvironmentId|projectEnvironmentInventory\([^)]/);
-  assert.match(source, /route !== "\/v1\/env"[\s\S]*body\.ids\.length !== 1[\s\S]*--dangerously-skip-permissions/);
-  assert.match(source, /output === "" && method === "DELETE"/);
-  assert.match(source, /function createPreviousSecret[\s\S]*sharedInventory\(inventory\.previousId\);\n\s*projectEnvironmentInventory\(\);/);
-  assert.match(source, /function updateDualSecrets[\s\S]*sharedInventory\(previousId\);\n\s*projectEnvironmentInventory\(\);/);
-  assert.match(source, /function deletePreviousSecret[\s\S]*sharedInventory\(null\);\n\s*projectEnvironmentInventory\(\);/);
+  assert.doesNotMatch(source, /previousProjectEnvironmentId/);
+  assert.match(source, /exactSharedDelete[\s\S]*exactProjectShadowDelete[\s\S]*--dangerously-skip-permissions/);
+  assert.match(source, /CURRENT_PROJECT_SHADOW_ROUTE = `\/v9\/projects\/\$\{PROJECT\.id\}\/env\/\$\{CURRENT_PROJECT_SHADOW_ID\}`/);
+  assert.match(source, /output === "" && \([\s\S]*method === "DELETE"[\s\S]*method === "PATCH" && route === "\/v1\/env"/);
+  assert.match(source, /async function createPreviousSecret[\s\S]*sharedInventory\(inventory\.previousId\);\n\s*projectEnvironmentInventory\("shadow"\);/);
+  assert.match(source, /async function updateDualSecrets[\s\S]*key: CURRENT_ENVIRONMENT\.key[\s\S]*key: PREVIOUS_KEY[\s\S]*vercelApi\(CURRENT_PROJECT_SHADOW_ROUTE, \{ method: "DELETE" \}\)/);
+  assert.doesNotMatch(source.slice(source.indexOf("async function updateDualSecrets"), source.indexOf("function deletePreviousSecret")), /projectId:/);
+  assert.match(source, /async function deletePreviousSecret[\s\S]*sharedInventory\(null\);\n\s*projectEnvironmentInventory\("none"\);/);
   assert.ok(recovery.indexOf("createPreviousSecret(") < recovery.indexOf('deployReplacement(state, "bridge"'));
   assert.ok(recovery.indexOf('writeState(state, "bridge-promoted"') < recovery.indexOf("updateDualSecrets("));
   assert.ok(recovery.indexOf("updateDualSecrets(") < recovery.indexOf('deployReplacement(state, "dual"'));
