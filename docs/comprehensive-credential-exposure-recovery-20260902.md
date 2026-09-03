@@ -541,3 +541,23 @@ decrypted-status, length or digest drift. Read-only re-attestation confirmed
 every provider, local, GitHub, alias, deployment and CI boundary remained at
 the accepted pre-rotation state after both stops. Rotation remains pending a
 new exact-main CI gate.
+
+Exact main `986eb8ae6e3c0a7412cba761e50b138c00681ae8` / CI `33696802964`
+then passed preflight and replaced all current consumers, retaining the original
+only in one temporary Production previous row. Exact READY dual deployment
+`dpl_C9K42kdtuY2W74xPWZsZowkYwP94` was created, but Vercel promotion moved only
+the project default alias while the other three canonical aliases remained on
+the exact compatibility deployment. The operator failed closed before the
+drain and preserved its mode-`0600` journal at `dual-ready`; both sides of the
+partial alias set run the compatible verifier.
+
+Recovery must not mint another secret or deployment. The correction permits a
+one-time rebind only from the exact recorded operator/CI, stage, timestamp,
+previous row, digests, dual marker/deployment and ordered partial alias vector.
+It then converges only aliases still on the reviewed compatibility deployment
+to the reviewed dual deployment and rejects every third target. The drain clock
+begins only after all four canonical aliases are dual; final promotion uses the
+same restart-safe pair-only convergence before original-secret rejection can be
+accepted. Later-stage restarts re-attest the exact provider digest pair, local
+replacement-only state and GitHub secret inventory rather than trusting the
+journal alone.

@@ -11,6 +11,7 @@ const {
   CURRENT_ENVIRONMENTS,
   MAX_REQUEST_DRAIN_MS,
   OLD_SECRET_SHA256,
+  PARTIAL_PROMOTION_RECOVERY_BINDING,
   PREDECESSOR_DEPLOYMENT,
   PREVIOUS_KEY,
   PROJECT,
@@ -18,6 +19,7 @@ const {
   SOURCE_COMMIT,
   assertExactGitState,
   classifyStoredHashes,
+  normalizeAliasConvergence,
   normalizeAliasPosition,
   normalizeAliasTargets,
   normalizeCompatibilityDeployment,
@@ -31,6 +33,8 @@ const {
   proveLocalVerifier,
   validateAcceptedEvidence,
   validateCompletedRestart,
+  validatePartialPromotionRecovery,
+  validateRestartConsumerSnapshot,
   validateState,
 } = recovery;
 
@@ -395,6 +399,134 @@ test("requires atomic movement of all four canonical aliases", () => {
   assert.throws(() => normalizeAliasTargets(aliasTargets("dpl_Unknown"), from));
 });
 
+test("converges only exact aliases within the reviewed deployment pair", () => {
+  const from = COMPATIBILITY_DEPLOYMENT;
+  const to = PARTIAL_PROMOTION_RECOVERY_BINDING.dualDeploymentId;
+  assert.deepEqual(normalizeAliasConvergence(aliasTargets(from), from, to), {
+    position: "from",
+    pendingAliases: [...CANONICAL_ALIASES],
+  });
+  const partial = aliasTargets(from);
+  partial[3] = { ...partial[3], deployment: deployment(to) };
+  assert.deepEqual(normalizeAliasConvergence(partial, from, to), {
+    position: "partial",
+    pendingAliases: CANONICAL_ALIASES.slice(0, 3),
+  });
+  assert.deepEqual(normalizeAliasConvergence(aliasTargets(to), from, to), {
+    position: "to",
+    pendingAliases: [],
+  });
+  const unknown = aliasTargets(from);
+  unknown[0] = { ...unknown[0], deployment: deployment("dpl_Unknown") };
+  assert.throws(() => normalizeAliasConvergence(unknown, from, to));
+  assert.throws(() => normalizeAliasConvergence(partial, from, from));
+});
+
+test("rebinds only the exact observed partial shipping promotion", () => {
+  const binding = PARTIAL_PROMOTION_RECOVERY_BINDING;
+  const state = {
+    operatorCommit: binding.operatorCommit,
+    operatorCiRunId: binding.operatorCiRunId,
+    stage: binding.stage,
+    sourceCommit: SOURCE_COMMIT,
+    sourceCiRunId: SOURCE_CI_RUN_ID,
+    predecessorDeploymentId: PREDECESSOR_DEPLOYMENT,
+    compatibilityDeploymentId: COMPATIBILITY_DEPLOYMENT,
+    createdAt: binding.createdAt,
+    previousEnvironmentId: binding.previousEnvironmentId,
+    dualDeploymentId: binding.dualDeploymentId,
+    dualDeploymentUrl: binding.dualDeploymentUrl,
+    dualPromotedAt: null,
+    finalDeploymentId: null,
+    finalDeploymentUrl: null,
+    oldSecretSha256: binding.oldSecretSha256,
+    replacementSecretSha256: binding.replacementSecretSha256,
+  };
+  const config = { operatorCommit: "c".repeat(40), operatorCiRunId: 456 };
+  const marker = createHash("sha256")
+    .update(`shipping-rate-secret-recovery:${state.createdAt}:dual`)
+    .digest("hex")
+    .slice(0, 32);
+  const dual = deployment(state.dualDeploymentId, {
+    url: state.dualDeploymentUrl,
+    marker,
+    phase: "dual",
+  });
+  const targets = binding.aliasDeploymentIds.map((id, index) => ({
+    alias: CANONICAL_ALIASES[index],
+    deployment: deployment(id),
+  }));
+  const providerSnapshot = {
+    current: Object.fromEntries(CURRENT_ENVIRONMENTS.map((row) => [
+      row.id,
+      state.replacementSecretSha256,
+    ])),
+    previous: state.oldSecretSha256,
+  };
+  const localSnapshot = {
+    currentSha256: state.replacementSecretSha256,
+    previousPresent: false,
+  };
+  assert.equal(validatePartialPromotionRecovery(
+    state,
+    config,
+    dual,
+    targets,
+    providerSnapshot,
+    localSnapshot,
+  ), true);
+  assert.equal(validateRestartConsumerSnapshot(
+    state,
+    providerSnapshot,
+    true,
+    localSnapshot,
+  ), true);
+  assert.throws(() => validatePartialPromotionRecovery(
+    { ...state, previousEnvironmentId: "WrongPrevious" },
+    config,
+    dual,
+    targets,
+    providerSnapshot,
+    localSnapshot,
+  ));
+  assert.throws(() => validatePartialPromotionRecovery(
+    state,
+    config,
+    dual,
+    aliasTargets(state.dualDeploymentId),
+    providerSnapshot,
+    localSnapshot,
+  ));
+  assert.throws(() => validatePartialPromotionRecovery(
+    state,
+    config,
+    dual,
+    targets,
+    { ...providerSnapshot, previous: "absent" },
+    localSnapshot,
+  ));
+  assert.throws(() => validatePartialPromotionRecovery(
+    state,
+    config,
+    dual,
+    targets,
+    providerSnapshot,
+    { ...localSnapshot, previousPresent: true },
+  ));
+  assert.throws(() => validateRestartConsumerSnapshot(
+    state,
+    { ...providerSnapshot, previous: "absent" },
+    true,
+    localSnapshot,
+  ));
+  assert.throws(() => validateRestartConsumerSnapshot(
+    state,
+    providerSnapshot,
+    true,
+    { ...localSnapshot, currentSha256: "0".repeat(64) },
+  ));
+});
+
 test("proves dual acceptance and final old-secret rejection through the real verifier", () => {
   assert.deepEqual(proveLocalVerifier(OLD, REPLACEMENT, "dual"), {
     replacementAccepted: true,
@@ -486,6 +618,10 @@ test("keeps the live operator narrow, secret-free on stdout, and non-destructive
   assert.match(source, /await waitForDrain\(state\.dualPromotedAt\)/);
   assert.match(source, /proveLocalVerifier\(state\.oldSecret, state\.replacementSecret, "final"\)/);
   assert.match(source, /if \(state !== null\) rmSync\(JOURNAL\)/);
+  assert.match(source, /"alias", "set", url, alias/);
+  assert.match(source, /rebindPartialPromotionState\(state, config\)/);
+  assert.match(source, /assertRestartProviderConsumerState\(state, true\)/);
+  assert.match(source, /assertRestartProviderConsumerState\(state, false\)/);
   assert.match(source, /Shipping-rate credential recovery failed closed\./);
   assert.doesNotMatch(source, /error\.message/);
   assert.doesNotMatch(source, /console\.(?:log|error)\(/);
