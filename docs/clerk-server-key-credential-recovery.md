@@ -9,6 +9,13 @@ local credential has changed. This plan covers only the exposed
 endpoint-cutover family, and the public publishable key is not rotated solely because it
 appeared beside exposed secrets.
 
+The Extra-High pre-execution review found one partial-failure cleanup gap: a
+ticket exchange could fail after a 60-second sign-in token was created but
+before the outer witness received a session identifier. No provider operation
+had run. The operator now revokes that unconsumed token inside the creation
+failure path, keeps the outer active-session sweep around the entire creation
+attempt, and has behavioral regression coverage for the failed-handshake case.
+
 ## Why this is a separate family
 
 The server API key authorizes Clerk Backend API operations. Grainline uses it

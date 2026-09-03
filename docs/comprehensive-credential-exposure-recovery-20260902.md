@@ -652,6 +652,12 @@ skips. This is preparation evidence only: the provider and every consumer are
 still on the predecessor key until the exact operator branch passes CI and the
 separate runtime and operations replacements are created.
 
+Pre-execution review caught and corrected a bounded canary cleanup gap before
+any Clerk or consumer mutation: failed ticket exchange now explicitly revokes
+the unconsumed sign-in token, and the enclosing active-session sweep covers the
+whole session-creation attempt. The correction has behavioral regression
+coverage rather than relying only on the token's 60-second expiry.
+
 Audit and rotate `CLERK_SECRET_KEY` before the webhook secret. The current
 production-capable server key is shared across Vercel runtime, GitHub automation
 and local operations and targets Development, Preview and Production. Clerk
