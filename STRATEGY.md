@@ -2678,6 +2678,16 @@ replacement proofs, rerun the full authenticated Order smoke; only then resume
 Order RLS activation. See
 `docs/comprehensive-credential-exposure-recovery-20260902.md`.
 
+The next Shippo test-token family now has an isolated restart-safe operator
+candidate. It separates the unavoidable dashboard token-create/delete actions
+from automated consumer convergence, deploys only the CI-green seller
+`estimated_days` correction source, hashes the complete carrier-account
+identity, proves buyer and seller quotes without purchasing a label, and drains
+only the eight exact deployments in the accepted database-credential epoch.
+Do not broaden that fence into a historical deployment purge. Merge and pass
+exact-main CI before the first read-only preflight; provider mutation remains a
+later dashboard boundary. See `docs/shippo-api-credential-recovery.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

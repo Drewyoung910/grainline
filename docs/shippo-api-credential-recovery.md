@@ -1,8 +1,8 @@
 # Shippo test API credential recovery
 
-Status: planned next credential family after the shipping-rate HMAC recovery
-finishes. This plan does not authorize a provider mutation, deployment or RLS
-change by itself.
+Status: the shipping-rate HMAC prerequisite is accepted and an isolated,
+unexecuted recovery operator candidate is implemented. This document does not
+authorize a provider mutation, deployment or RLS change by itself.
 
 ## Scope
 
@@ -32,6 +32,44 @@ without entering chat, terminal output, Git, CI logs or a sanitized artifact.
 
 The public Shippo account identity and non-secret shipping configuration are
 not rotated solely because the token was exposed.
+
+## Implemented operator candidate
+
+`scripts/shippo-api-credential-exposure-recovery.mjs` implements the reviewed
+sequence without pretending Shippo exposes token-management APIs:
+
+- the first exact-main run is read-only against Shippo, Vercel and GitHub and
+  writes a durable private journal before asking for dashboard token creation;
+- the replacement is read once from the macOS clipboard, validated as
+  test-mode, compared to the pinned predecessor digest, authenticated against
+  the same hashed complete carrier-account inventory, fsynced into the private
+  journal and immediately removed from the clipboard;
+- Vercel shared row `env_374M3muVPW3jIKBS8X4Q7kqI` is updated in place, with
+  no project-local shadow or invented previous variable; GitHub and the ignored
+  local consumer then converge without putting the token in argv or output;
+- exact CI-green application source
+  `82f58889b12095d21449494a036a327cc9feb9b1` / CI `33702373864` is the only
+  source eligible to deploy. It includes the separately merged
+  `estimated_days` seller re-quote correction;
+- the current database-credential epoch contains exactly eight predecessor
+  deployments, beginning with database-replacement deployment
+  `dpl_AmW64aR14Yk47HK54kwiMSiKwkJD` and ending with current shipping-secret
+  final deployment `dpl_4La1GXphy21feYp4AdYgT7Q2Zs7f`. The operator rejects
+  any ninth unreviewed predecessor, promotes one marker-bound candidate, waits
+  35 minutes and removes those eight oldest-first with crash reconciliation;
+- much older READY deployments are outside that bounded deletion set because
+  they predate the accepted database password rotation and carry already-
+  rejected database credentials. This is not a general deployment purge; and
+- the operator stops again for dashboard deletion of the exact exposed token,
+  then accepts only its 401/403 authentication rejection plus continued
+  replacement identity and non-charging buyer/seller quote proof.
+
+The operator never calls Shippo's Transaction endpoint and cannot purchase a
+label. Its two test Shipments are the minimum provider witness for checkout and
+seller re-quote semantics. Unit coverage exercises wrong mode, incomplete or
+duplicate carrier inventories, consumer shadows, unknown deployment rows,
+partial alias convergence, process stops around deployment creation/deletion,
+out-of-order deletion, non-exact money and evidence redaction.
 
 ## Restart-safe sequence
 
