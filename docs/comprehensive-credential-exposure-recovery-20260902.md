@@ -675,6 +675,12 @@ The secret-bearing journal remains bound to original operator
 corrected code requires a second exact clean commit plus successful push CI and
 records both bindings in accepted evidence. That correction path cannot create
 a new journal.
+After the exact 330-second drain and predecessor deployment removal, the first
+shared-row deletion attempt stopped at the CLI confirmation boundary. Vercel
+CLI 59.11.2 requires `--dangerously-skip-permissions` for non-interactive
+DELETE. The row was verified still present. The isolated correction permits
+that flag only for the exact `DELETE /v1/env` request containing the one pinned
+shared Clerk environment id; it cannot authorize any other provider deletion.
 
 Audit and rotate `CLERK_SECRET_KEY` before the webhook secret. The current
 production-capable server key is shared across Vercel runtime, GitHub automation
