@@ -1,8 +1,8 @@
 # Clerk server API key credential recovery
 
 Status: audited, planned and implemented on an isolated branch on 2026-09-03;
-the focused recovery suite passed 15/15 and the complete repository suite
-passed 4,028 tests with zero failures and 10 intentional skips. The operator
+the focused recovery suite passed 17/17 and the complete repository suite
+passed 4,030 tests with zero failures and 10 intentional skips. The operator
 has not run, so no Clerk key, Vercel variable, deployment, GitHub secret or
 local credential has changed. This plan covers only the exposed
 `CLERK_SECRET_KEY`. The Clerk webhook signing secret is a separate
@@ -97,7 +97,8 @@ the actual operations Grainline relies on:
 - the operations key must resolve exactly one retained non-customer operational
   canary, list its active sessions, create one short-lived sign-in token, obtain
   one bounded session for the runtime witness, revoke the session and revoke any
-  unused sign-in token;
+  unused sign-in token, including when the ticket exchange fails before the
+  outer runtime witness has received a session identifier;
 - direct provider probes must prove both replacements reach the exact production
   instance above;
 - no proof may delete, ban, unban or modify an ordinary user; and

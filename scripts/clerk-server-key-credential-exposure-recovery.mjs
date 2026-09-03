@@ -803,69 +803,98 @@ async function revokeActiveCanarySessions(clerk, userId) {
   return active.data.length;
 }
 
-async function createCanarySession(clerk, userId) {
-  const signInToken = await clerk.signInTokens.createSignInToken({
-    expiresInSeconds: 60,
-    userId,
-  });
+export function normalizeRevokedSignInToken(value, expectedId) {
   if (
-    !SIGN_IN_TOKEN_ID.test(signInToken?.id ?? "")
-    || signInToken.userId !== userId
-    || typeof signInToken.token !== "string"
-    || signInToken.token.length < 32
-    || signInToken.token.length > 4_096
-  ) throw new Error("Clerk did not create the bounded sign-in token");
+    !SIGN_IN_TOKEN_ID.test(expectedId ?? "")
+    || value?.id !== expectedId
+    || value.status !== "revoked"
+  ) throw new Error("operational canary sign-in token revocation failed");
+  return true;
+}
 
-  const jar = new Map();
-  const clientResponse = await fetch(`https://${CLERK_FRONTEND_API}/v1/client`, {
-    body: "",
-    headers: { "content-type": "application/x-www-form-urlencoded", origin: PRODUCTION_ORIGIN },
-    method: "POST",
-    redirect: "manual",
-    signal: AbortSignal.timeout(30_000),
-  });
-  absorbClerkResponseCookies(clientResponse, jar);
-  const clientPayload = JSON.parse(await boundedText(clientResponse, 128 * 1024));
-  if (clientResponse.status !== 200 || (clientPayload.response ?? clientPayload).object !== "client") {
-    throw new Error("Clerk client handshake failed");
+export async function createCanarySession(clerk, userId) {
+  let signInToken = null;
+  let signInTokenConsumed = false;
+  try {
+    signInToken = await clerk.signInTokens.createSignInToken({
+      expiresInSeconds: 60,
+      userId,
+    });
+    if (
+      !SIGN_IN_TOKEN_ID.test(signInToken?.id ?? "")
+      || signInToken.userId !== userId
+      || typeof signInToken.token !== "string"
+      || signInToken.token.length < 32
+      || signInToken.token.length > 4_096
+    ) throw new Error("Clerk did not create the bounded sign-in token");
+
+    const jar = new Map();
+    const clientResponse = await fetch(`https://${CLERK_FRONTEND_API}/v1/client`, {
+      body: "",
+      headers: { "content-type": "application/x-www-form-urlencoded", origin: PRODUCTION_ORIGIN },
+      method: "POST",
+      redirect: "manual",
+      signal: AbortSignal.timeout(30_000),
+    });
+    absorbClerkResponseCookies(clientResponse, jar);
+    const clientPayload = JSON.parse(await boundedText(clientResponse, 128 * 1024));
+    if (clientResponse.status !== 200 || (clientPayload.response ?? clientPayload).object !== "client") {
+      throw new Error("Clerk client handshake failed");
+    }
+    const exchange = await fetch(`https://${CLERK_FRONTEND_API}/v1/client/sign_ins`, {
+      body: new URLSearchParams({ strategy: "ticket", ticket: signInToken.token }),
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        cookie: clerkCookieHeader(jar),
+        origin: PRODUCTION_ORIGIN,
+      },
+      method: "POST",
+      redirect: "manual",
+      signal: AbortSignal.timeout(30_000),
+    });
+    absorbClerkResponseCookies(exchange, jar);
+    const payload = JSON.parse(await boundedText(exchange, 128 * 1024));
+    const attempt = payload.response ?? payload;
+    if (
+      exchange.status !== 200
+      || attempt.object !== "sign_in_attempt"
+      || attempt.status !== "complete"
+      || !SESSION_ID.test(attempt.created_session_id ?? "")
+    ) throw new Error("Clerk sign-in token exchange failed");
+    signInTokenConsumed = true;
+    const token = await clerk.sessions.getToken(attempt.created_session_id, undefined, 300);
+    if (typeof token?.jwt !== "string" || token.jwt.split(".").length !== 3) {
+      throw new Error("Clerk session token shape drifted");
+    }
+    return Object.freeze({
+      jwt: token.jwt,
+      sessionId: attempt.created_session_id,
+      signInTokenId: signInToken.id,
+    });
+  } catch (error) {
+    if (signInToken && !signInTokenConsumed && SIGN_IN_TOKEN_ID.test(signInToken.id ?? "")) {
+      try {
+        normalizeRevokedSignInToken(
+          await clerk.signInTokens.revokeSignInToken(signInToken.id),
+          signInToken.id,
+        );
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "Clerk sign-in token creation failed and cleanup did not complete",
+        );
+      }
+    }
+    throw error;
   }
-  const exchange = await fetch(`https://${CLERK_FRONTEND_API}/v1/client/sign_ins`, {
-    body: new URLSearchParams({ strategy: "ticket", ticket: signInToken.token }),
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      cookie: clerkCookieHeader(jar),
-      origin: PRODUCTION_ORIGIN,
-    },
-    method: "POST",
-    redirect: "manual",
-    signal: AbortSignal.timeout(30_000),
-  });
-  absorbClerkResponseCookies(exchange, jar);
-  const payload = JSON.parse(await boundedText(exchange, 128 * 1024));
-  const attempt = payload.response ?? payload;
-  if (
-    exchange.status !== 200
-    || attempt.object !== "sign_in_attempt"
-    || attempt.status !== "complete"
-    || !SESSION_ID.test(attempt.created_session_id ?? "")
-  ) throw new Error("Clerk sign-in token exchange failed");
-  const token = await clerk.sessions.getToken(attempt.created_session_id, undefined, 300);
-  if (typeof token?.jwt !== "string" || token.jwt.split(".").length !== 3) {
-    throw new Error("Clerk session token shape drifted");
-  }
-  return Object.freeze({
-    jwt: token.jwt,
-    sessionId: attempt.created_session_id,
-    signInTokenId: signInToken.id,
-  });
 }
 
 async function runtimeWitness(operationsKey) {
   const clerk = createClerkClient({ secretKey: operationsKey });
   const canary = await selectCanary(clerk);
   await revokeActiveCanarySessions(clerk, canary.id);
-  const session = await createCanarySession(clerk, canary.id);
   try {
+    const session = await createCanarySession(clerk, canary.id);
     const account = await fetch(`${PRODUCTION_ORIGIN}/account`, {
       headers: {
         Authorization: `Bearer ${session.jwt}`,

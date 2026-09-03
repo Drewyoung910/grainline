@@ -646,8 +646,8 @@ Those remain explicit product follow-ups rather than hidden RLS prerequisites.
 ## Next family: Clerk server API key
 
 The restart-safe server-key operator and its fail-closed tests are now
-implemented on an isolated branch. Focused verification passed 15/15 and the
-full repository suite passed 4,028 tests with zero failures and 10 intentional
+implemented on an isolated branch. Focused verification passed 17/17 and the
+full repository suite passed 4,030 tests with zero failures and 10 intentional
 skips. This is preparation evidence only: the provider and every consumer are
 still on the predecessor key until the exact operator branch passes CI and the
 separate runtime and operations replacements are created.

@@ -16,6 +16,7 @@ import {
   SOURCE_COMMIT,
   assertExactGitState,
   classifyDeploymentInventory,
+  createCanarySession,
   normalizeAliasPosition,
   normalizeCandidateDeployment,
   normalizeClerkInstance,
@@ -23,6 +24,7 @@ import {
   normalizeDeploymentInventory,
   normalizeProjectEnvironmentInventory,
   normalizeRejectedKeyStatus,
+  normalizeRevokedSignInToken,
   normalizeSharedEnvironmentInventory,
   normalizeSharedSecretHash,
   sanitizedEvidence,
@@ -115,6 +117,44 @@ test("accepts only production Clerk keys and the exact production instance", () 
   assert.equal(normalizeRejectedKeyStatus(401), true);
   assert.equal(normalizeRejectedKeyStatus(403), true);
   assert.throws(() => normalizeRejectedKeyStatus(429));
+});
+
+test("accepts only exact revocation of the bounded sign-in token", () => {
+  const id = "sit_CanaryToken123";
+  assert.equal(normalizeRevokedSignInToken({ id, status: "revoked" }, id), true);
+  assert.throws(() => normalizeRevokedSignInToken({ id, status: "pending" }, id));
+  assert.throws(() => normalizeRevokedSignInToken({ id: "sit_OtherToken123", status: "revoked" }, id));
+  assert.throws(() => normalizeRevokedSignInToken({ id, status: "revoked" }, "not-a-token"));
+});
+
+test("revokes an unconsumed sign-in token when the ticket handshake fails", async () => {
+  const id = "sit_CanaryToken123";
+  let revokedId = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    headers: { getSetCookie: () => ["__client=test-client"] },
+    status: 500,
+    text: async () => JSON.stringify({ response: { object: "error" } }),
+  });
+  try {
+    await assert.rejects(() => createCanarySession({
+      signInTokens: {
+        createSignInToken: async () => ({
+          id,
+          status: "pending",
+          token: "t".repeat(64),
+          userId: "user_canary",
+        }),
+        revokeSignInToken: async (value) => {
+          revokedId = value;
+          return { id: value, status: "revoked" };
+        },
+      },
+    }, "user_canary"), /Clerk client handshake failed/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(revokedId, id);
 });
 
 test("pins the shared predecessor and only accepts one Production-sensitive project row", () => {
@@ -268,6 +308,7 @@ test("operator statically protects clipboard, key split, canary cleanup, and pro
   assert.match(source, /target: \["production"\]/);
   assert.match(source, /await runtimeWitness\(state\.operationsKey\)/);
   assert.match(source, /revokeActiveCanarySessions/);
+  assert.match(source, /signInTokens\.revokeSignInToken/);
   assert.match(source, /expiresInSeconds: 60/);
   assert.match(source, /provider-predecessor-key-deletion-required/);
   assert.match(source, /deleteSharedEnvironment\(\)/);
