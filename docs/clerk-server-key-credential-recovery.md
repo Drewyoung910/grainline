@@ -152,8 +152,10 @@ through this drain.
    re-attest its READY source/environment metadata, converge only aliases still
    on the exact predecessor, and verify homepage and health.
 8. Use the operations key to create one bounded canary session, call canonical
-   `/account`, require HTTP 200 and then revoke the session. Snapshot the canary
-   and require no unexpected durable application change.
+   `/account`, require HTTP 200 and then revoke the session. The route may run
+   its normal idempotent `ensureUser()` profile synchronization for this
+   dedicated canary; it must not create marketplace fixtures or mutate an
+   ordinary user, and the final active-session inventory must be empty.
 9. Wait 330 seconds from full alias convergence and remove only deployment
    `dpl_6Qndfy4oiiGCkWdcZXYRDzsraqFz`. Reverify the candidate and aliases.
 10. Delete exact compromised shared row `env_VXNad7lOhIh6x3YXnULLncRW` and

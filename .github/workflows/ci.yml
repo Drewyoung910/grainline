@@ -88,6 +88,8 @@ jobs:
           --experimental-strip-types --test
           tests/shippo-api-credential-recovery-plan.test.mjs
           tests/shippo-api-credential-exposure-recovery.test.mjs
+          tests/clerk-server-key-credential-recovery-plan.test.mjs
+          tests/clerk-server-key-credential-exposure-recovery.test.mjs
       - name: Verify additive Case and Order correctness candidate
         run: >-
           node --test

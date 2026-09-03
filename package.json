@@ -15,6 +15,7 @@
     "ops:recover-exposed-cron-secret": "node scripts/cron-secret-credential-exposure-recovery.mjs",
     "ops:recover-exposed-shipping-rate-secret": "node scripts/shipping-rate-secret-credential-exposure-recovery.mjs",
     "ops:recover-exposed-shippo-api-key": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/shippo-api-credential-exposure-recovery.mjs",
+    "ops:recover-exposed-clerk-server-key": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/clerk-server-key-credential-exposure-recovery.mjs",
     "ops:notification-legacy-inspect": "node scripts/notification-legacy-inspect.mjs",
     "ops:conversation-message-legacy-inspect": "node scripts/conversation-message-legacy-inspect.mjs",
     "ops:case-legacy-inspect": "node scripts/case-case-message-legacy-inspect.mjs",
