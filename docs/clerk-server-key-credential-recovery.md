@@ -1,10 +1,13 @@
 # Clerk server API key credential recovery
 
-Status: audited and planned on 2026-09-03; no Clerk key, Vercel variable,
-deployment, GitHub secret or local credential has changed. This plan covers only
-the exposed `CLERK_SECRET_KEY`. The Clerk webhook signing secret is a separate
-endpoint-cutover family, and the public publishable key is not rotated solely
-because it appeared beside exposed secrets.
+Status: audited, planned and implemented on an isolated branch on 2026-09-03;
+the focused recovery suite passed 15/15 and the complete repository suite
+passed 4,028 tests with zero failures and 10 intentional skips. The operator
+has not run, so no Clerk key, Vercel variable, deployment, GitHub secret or
+local credential has changed. This plan covers only the exposed
+`CLERK_SECRET_KEY`. The Clerk webhook signing secret is a separate
+endpoint-cutover family, and the public publishable key is not rotated solely because it
+appeared beside exposed secrets.
 
 ## Why this is a separate family
 
