@@ -590,3 +590,14 @@ and the ignored local runtime file are the other current consumers. Provider
 creation and deletion remain dashboard actions, while consumer convergence,
 deployment/alias binding, non-charging quote proof and rejection checks belong
 in one restart-safe operator. See `docs/shippo-api-credential-recovery.md`.
+
+The isolated operator candidate is now implemented as
+`scripts/shippo-api-credential-exposure-recovery.mjs`. It pins application
+source `82f58889b12095d21449494a036a327cc9feb9b1` / CI `33702373864`, the exact
+shared Vercel row, predecessor-token digest, accepted shipping-secret evidence
+SHA-256, four aliases and the eight-deployment current database-credential
+epoch. It has no Shippo provider-create/delete capability: those remain two
+explicit dashboard handoffs. Clipboard capture is one-time, mode-`0600` and
+fsynced; output and accepted evidence are token-free. The operator's deployment
+deletion fence deliberately excludes older READY deployments whose database
+passwords were already rejected by the accepted database recovery.

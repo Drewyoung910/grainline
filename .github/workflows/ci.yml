@@ -82,6 +82,12 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Shippo test-token credential recovery
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test
+          tests/shippo-api-credential-recovery-plan.test.mjs
+          tests/shippo-api-credential-exposure-recovery.test.mjs
       - name: Verify additive Case and Order correctness candidate
         run: >-
           node --test
