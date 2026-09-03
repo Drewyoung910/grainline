@@ -643,14 +643,16 @@ validation, multi-item packing still uses one reviewed parcel heuristic, and
 the outage fallback may be economically imprecise for unusually large orders.
 Those remain explicit product follow-ups rather than hidden RLS prerequisites.
 
-## Next family: Clerk server API key
+## Clerk server API key: accepted
 
-The restart-safe server-key operator and its fail-closed tests are now
-implemented on an isolated branch. Focused verification passed 18/18 and the
-full repository suite passed 4,031 tests with zero failures and 10 intentional
-skips. This is preparation evidence only: the provider and every consumer are
-still on the predecessor key until the exact operator branch passes CI and the
-separate runtime and operations replacements are created.
+The restart-safe server-key recovery completed and was accepted on 2026-09-03.
+Corrected operator merge `4ace2b5fc86d128d904d4eeab075988d5351f0fd` / CI
+`33787579223` retained the immutable original journal binding
+`43d0f5f4fe85ddabd2f7a67a250de30baaa9f544` / CI `33721186278`.
+Secret-free mode-`0600` evidence
+`clerk-server-key-credential-recovery-20260903.json`, SHA-256
+`9cdc77b2323d789d03760bb3f4ece78e3776c95320ee52f4ea7b45b5545f65ab`,
+records `status=passed`, `acceptanceEligible=true`, and `issueCount=0`.
 
 Pre-execution review caught and corrected a bounded canary cleanup gap before
 any Clerk or consumer mutation: failed ticket exchange now explicitly revokes
@@ -682,14 +684,15 @@ DELETE. The row was verified still present. The isolated correction permits
 that flag only for the exact `DELETE /v1/env` request containing the one pinned
 shared Clerk environment id; it cannot authorize any other provider deletion.
 
-Audit and rotate `CLERK_SECRET_KEY` before the webhook secret. The current
-production-capable server key is shared across Vercel runtime, GitHub automation
-and local operations and targets Development, Preview and Production. Clerk
-supports multiple named active keys, so recovery will split one replacement
-runtime key from one replacement operations key, narrow the runtime value to a
-Production-only Vercel secret, deploy and prove a real `currentUser()` route,
-drain the exact predecessor, remove the compromised shared row, then delete and
-prove rejection of the exposed provider key.
+The recovery split the former shared credential into distinct runtime and
+operations keys. The runtime key is now held only by one project-local,
+sensitive, Production-only Vercel row. The operations key is held by the
+protected GitHub repository secret and ignored local mode-`0600` file. The
+compromised shared row and exact predecessor deployment are gone; the exposed
+Clerk key is rejected; both replacements authenticate to the pinned Production
+instance; the replacement deployment owns all four canonical aliases and is
+healthy; two real `currentUser()` runtime witnesses passed; and no temporary
+sessions or private recovery journal remain. No migration or RLS change ran.
 
 Keep `CLERK_WEBHOOK_SECRET` out of this operation. Its later rotation requires a
 parallel endpoint and signed-delivery/replay proof. The public Clerk publishable
