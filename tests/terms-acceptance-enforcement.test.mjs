@@ -77,13 +77,37 @@ describe("terms acceptance enforcement", () => {
   it("leaves a retained user audit trail when durable terms are accepted", () => {
     const route = source("src/app/api/account/accept-terms/route.ts");
 
-    assert.match(route, /import \{ logUserAuditAction \} from "@\/lib\/audit"/);
-    assert.match(route, /await logUserAuditAction\(\{/);
+    assert.match(route, /import \{ logUserAuditActionOrThrow \} from "@\/lib\/audit"/);
+    assert.match(route, /const user = await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(route, /await tx\.user\.update\(\{/);
+    assert.match(route, /await logUserAuditActionOrThrow\(\{/);
+    assert.match(route, /client: tx/);
     assert.match(route, /action: "TERMS_ACCEPTED"/);
     assert.match(route, /targetType: "USER"/);
-    assert.match(route, /termsVersion: user\.termsVersion/);
-    assert.match(route, /termsAcceptedAt: user\.termsAcceptedAt\?\.toISOString\(\) \?\? acceptedAt\.toISOString\(\)/);
-    assert.match(route, /ageAttestedAt: user\.ageAttestedAt\?\.toISOString\(\) \?\? null/);
+    assert.match(route, /termsVersion: updated\.termsVersion/);
+    assert.match(route, /termsAcceptedAt: updated\.termsAcceptedAt\?\.toISOString\(\) \?\? acceptedAt\.toISOString\(\)/);
+    assert.match(route, /ageAttestedAt: updated\.ageAttestedAt\?\.toISOString\(\) \?\? null/);
     assert.match(route, /route: "\/api\/account\/accept-terms"/);
+  });
+
+  it("keeps client-writable Clerk metadata out of durable legal acceptance state", () => {
+    const webhook = source("src/app/api/clerk/webhook/route.ts");
+    const ensureUser = source("src/lib/ensureUser.ts");
+    const acceptance = source("src/app/api/account/accept-terms/route.ts");
+
+    assert.doesNotMatch(webhook, /unsafe_metadata|legal_accepted_at/);
+    assert.doesNotMatch(webhook, /clerk_webhook_terms_account_state_cache_invalidate/);
+    assert.doesNotMatch(ensureUser, /unsafeMetadata|dateFromMetadata/);
+    assert.doesNotMatch(
+      ensureUser,
+      /termsAcceptedAt\?:|termsVersion\?:|ageAttestedAt\?:/,
+      "generic identity synchronization must not accept legal-state write authority",
+    );
+    assert.match(acceptance, /const acceptedAt = new Date\(\)/);
+    assert.match(acceptance, /action: "TERMS_ACCEPTED"/);
+    assert.ok(
+      acceptance.indexOf("await tx.user.update") < acceptance.indexOf("await logUserAuditActionOrThrow"),
+      "the trusted audit row must be written after the legal state in the same transaction",
+    );
   });
 });

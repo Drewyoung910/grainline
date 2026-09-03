@@ -1,7 +1,7 @@
 // src/lib/ensureUser.ts
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { sanitizeUserName } from "@/lib/sanitize";
 import {
   AccountAccessError,
   isAccountAccessError,
@@ -32,9 +32,6 @@ export async function ensureUserByClerkId(
     email?: string;
     name?: string | null;
     imageUrl?: string | null;
-    termsAcceptedAt?: Date | null;
-    termsVersion?: string | null;
-    ageAttestedAt?: Date | null;
   },
 ) {
   const existing = await prisma.user.findUnique({ where: { clerkId } });
@@ -56,9 +53,6 @@ export async function ensureUserByClerkId(
       email?: string;
       name?: string | null;
       imageUrl?: string | null;
-      termsAcceptedAt?: Date;
-      termsVersion?: string | null;
-      ageAttestedAt?: Date;
     } = {};
 
     // Only update fields if caller explicitly provided them
@@ -72,16 +66,6 @@ export async function ensureUserByClerkId(
     if (opts && "imageUrl" in opts) {
       updateData.imageUrl = opts.imageUrl ?? null;
     }
-    if (opts?.termsAcceptedAt) {
-      updateData.termsAcceptedAt = opts.termsAcceptedAt;
-    }
-    if (opts && "termsVersion" in opts) {
-      updateData.termsVersion = opts.termsVersion ?? null;
-    }
-    if (opts?.ageAttestedAt) {
-      updateData.ageAttestedAt = opts.ageAttestedAt;
-    }
-
     // If nothing to update, just return existing
     if (Object.keys(updateData).length === 0) return existing;
 
@@ -129,9 +113,6 @@ export async function ensureUserByClerkId(
     email,
     name,
     imageUrl,
-    ...(opts?.termsAcceptedAt ? { termsAcceptedAt: opts.termsAcceptedAt } : {}),
-    ...(opts?.termsVersion ? { termsVersion: opts.termsVersion } : {}),
-    ...(opts?.ageAttestedAt ? { ageAttestedAt: opts.ageAttestedAt } : {}),
   };
 
   try {
@@ -173,19 +154,6 @@ export async function ensureUserByClerkId(
   }
 }
 
-function dateFromMetadata(value: unknown): Date | null {
-  if (typeof value === "string") {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-  if (typeof value === "number") {
-    const millis = value < 10_000_000_000 ? value * 1000 : value;
-    const date = new Date(millis);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-  return null;
-}
-
 /**
  * Convenience wrapper that reads the signed-in user via Clerk and ensures a DB user.
  * Returns `null` if no user is signed in.
@@ -205,25 +173,14 @@ export async function ensureUser() {
 
   const imageUrl = u.imageUrl ?? null;
 
-  const unsafeMetadata = (u.unsafeMetadata ?? {}) as Record<string, unknown>;
-  const termsAcceptedAt = dateFromMetadata(unsafeMetadata.termsAcceptedAt);
-  const ageAttestedAt = dateFromMetadata(unsafeMetadata.ageAttestedAt);
-  const termsVersion =
-    typeof unsafeMetadata.termsVersion === "string"
-      ? truncateText(unsafeMetadata.termsVersion, 50)
-      : undefined;
-
   const userFields: Parameters<typeof ensureUserByClerkId>[1] = {
     name,
     imageUrl,
     ...(primaryEmail ? { email: primaryEmail } : {}),
-    ...(termsAcceptedAt ? { termsAcceptedAt } : {}),
-    ...(ageAttestedAt ? { ageAttestedAt } : {}),
-    ...(termsVersion ? { termsVersion } : {}),
   };
 
-  // Here we DO pass real fields so your DB stays accurate, but we do not clear
-  // durable legal acceptance fields when Clerk metadata is absent.
+  // Profile synchronization deliberately excludes legal acceptance state.
+  // Only /api/account/accept-terms may write those durable audit fields.
   const result = await ensureUserByClerkId(u.id, userFields);
   if (result && (result as { banned?: boolean }).banned) {
     throw new AccountAccessError(

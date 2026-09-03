@@ -22,7 +22,6 @@ import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
 import { emailSuppressionAddressKeys } from "@/lib/emailSuppression";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
-import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -35,21 +34,6 @@ interface ClerkUserEvent {
   email_addresses: ClerkWebhookEmailAddress[];
   primary_email_address_id?: string | null;
   image_url: string | null;
-  unsafe_metadata?: Record<string, unknown>;
-  legal_accepted_at?: number | string | null;
-}
-
-function dateFromMetadata(value: unknown): Date | null {
-  if (typeof value === "string") {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-  if (typeof value === "number") {
-    const millis = value < 10_000_000_000 ? value * 1000 : value;
-    const date = new Date(millis);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-  return null;
 }
 
 const CLERK_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
@@ -133,11 +117,6 @@ async function markClerkWebhookFailed(svixId: string, err: unknown) {
 export async function POST(req: Request) {
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    Sentry.captureMessage("Clerk webhook secret is not configured", {
-      level: "fatal",
-      tags: { source: "clerk_webhook_config" },
-    });
-    await recordWebhookFailureSpike({ webhook: "clerk", kind: "config", status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
     return NextResponse.json(
       { error: "Missing CLERK_WEBHOOK_SECRET" },
       { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
@@ -150,16 +129,6 @@ export async function POST(req: Request) {
   const svixSignature = headerPayload.get("svix-signature");
 
   if (!svixId || !svixTimestamp || !svixSignature) {
-    Sentry.captureMessage("Clerk webhook signature headers missing", {
-      level: "warning",
-      tags: { source: "clerk_webhook_signature" },
-      extra: {
-        hasSvixId: Boolean(svixId),
-        hasSvixTimestamp: Boolean(svixTimestamp),
-        hasSvixSignature: Boolean(svixSignature),
-      },
-    });
-    await recordWebhookFailureSpike({ webhook: "clerk", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Missing svix headers" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
@@ -168,19 +137,13 @@ export async function POST(req: Request) {
     body = await readBoundedText(req, CLERK_WEBHOOK_BODY_MAX_BYTES);
   } catch (err) {
     if (isRequestBodyTooLargeError(err)) {
-      Sentry.captureMessage("Clerk webhook payload is too large", {
-        level: "warning",
-        tags: { source: "clerk_webhook_payload" },
-        extra: { maxBytes: err.maxBytes, svixId },
-      });
-      await recordWebhookFailureSpike({
-        webhook: "clerk",
-        kind: "payload",
-        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
-      });
       return NextResponse.json({ error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
-    throw err;
+    // Body-stream failures (including a caller disconnecting mid-request) are
+    // still pre-authentication input failures. Do not throw them into the
+    // route-level Sentry wrapper and let unauthenticated traffic consume
+    // shared telemetry capacity.
+    return NextResponse.json({ error: "Invalid body" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   const wh = new Webhook(webhookSecret);
@@ -191,12 +154,7 @@ export async function POST(req: Request) {
       "svix-timestamp": svixTimestamp,
       "svix-signature": svixSignature,
     }) as { type: string; data: ClerkUserEvent };
-  } catch (err) {
-    Sentry.captureException(err, {
-      tags: { source: "clerk_webhook_verify" },
-      extra: { svixId, svixTimestamp },
-    });
-    await recordWebhookFailureSpike({ webhook: "clerk", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+  } catch {
     return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
@@ -272,8 +230,6 @@ export async function POST(req: Request) {
       email_addresses,
       primary_email_address_id,
       image_url,
-      unsafe_metadata,
-      legal_accepted_at,
     } = event.data;
 
     const name = sanitizeUserName([first_name, last_name].filter(Boolean).join(" ")) || null;
@@ -343,24 +299,6 @@ export async function POST(req: Request) {
       name,
       imageUrl: image_url ?? null,
     });
-
-    const termsAcceptedAt =
-      dateFromMetadata(unsafe_metadata?.termsAcceptedAt) ?? dateFromMetadata(legal_accepted_at);
-    const ageAttestedAt = dateFromMetadata(unsafe_metadata?.ageAttestedAt);
-    const termsVersion =
-      typeof unsafe_metadata?.termsVersion === "string" ? truncateText(unsafe_metadata.termsVersion, 50) : undefined;
-
-    if (termsAcceptedAt || ageAttestedAt || termsVersion) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          ...(termsAcceptedAt ? { termsAcceptedAt } : {}),
-          ...(ageAttestedAt ? { ageAttestedAt } : {}),
-          ...(termsVersion ? { termsVersion } : {}),
-        },
-      });
-      await invalidateAccountStateCache(id, "clerk_webhook_terms_account_state_cache_invalidate");
-    }
 
     if (
       shouldReserveClerkWelcomeEmail({

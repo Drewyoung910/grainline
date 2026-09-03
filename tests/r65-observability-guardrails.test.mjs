@@ -113,7 +113,7 @@ describe("R65 observability guardrails", () => {
     assert.doesNotMatch(processCatch, /\bpayload\b|\bemail\b|\brecipientHashes\b/);
   });
 
-  it("feeds Clerk webhook edge and handler failures into failure-spike accounting", () => {
+  it("keeps Clerk pre-authentication rejection local while retaining verified failure telemetry", () => {
     const text = source("src/app/api/clerk/webhook/route.ts");
 
     assert.match(text, /import \{ recordWebhookFailureSpike \} from "@\/lib\/webhookFailureSpike"/);
@@ -122,35 +122,21 @@ describe("R65 observability guardrails", () => {
     assert.match(text, /lastError: truncateText\(sanitizeEmailOutboxError\(err\), 2000\)/);
     assert.doesNotMatch(text, /lastError: truncateText\(errorMessage\(err\), 2000\)/);
 
-    const configBlock = text.slice(text.indexOf("if (!webhookSecret)"), text.indexOf("const headerPayload = await headers"));
-    assert.match(configBlock, /Sentry\.captureMessage\("Clerk webhook secret is not configured"/);
-    assert.match(configBlock, /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "config", status: HTTP_STATUS\.INTERNAL_SERVER_ERROR \}\)/);
+    const preAuthBlock = text.slice(text.indexOf("if (!webhookSecret)"), text.indexOf("let reservation:"));
+    assert.match(preAuthBlock, /error: "Missing CLERK_WEBHOOK_SECRET"/);
+    assert.match(preAuthBlock, /error: "Missing svix headers"/);
+    assert.match(preAuthBlock, /error: "Payload too large"/);
+    assert.match(preAuthBlock, /error: "Invalid body"/);
+    assert.match(preAuthBlock, /error: "Invalid signature"/);
+    assert.doesNotMatch(preAuthBlock, /Sentry\.capture/);
+    assert.doesNotMatch(preAuthBlock, /recordWebhookFailureSpike/);
+    assert.doesNotMatch(preAuthBlock, /throw err/);
 
-    const missingSignatureBlock = text.slice(
-      text.indexOf("if (!svixId || !svixTimestamp || !svixSignature)"),
-      text.indexOf("let body = \"\""),
-    );
-    assert.match(missingSignatureBlock, /Sentry\.captureMessage\("Clerk webhook signature headers missing"/);
-    assert.match(missingSignatureBlock, /hasSvixId: Boolean\(svixId\)/);
-    assert.match(missingSignatureBlock, /hasSvixTimestamp: Boolean\(svixTimestamp\)/);
-    assert.match(missingSignatureBlock, /hasSvixSignature: Boolean\(svixSignature\)/);
-    assert.match(
-      missingSignatureBlock,
-      /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/,
-    );
-
-    const payloadBlock = text.slice(
-      text.indexOf("Clerk webhook payload is too large"),
-      text.indexOf("return NextResponse.json({ error: \"Payload too large\" }"),
-    );
-    assert.match(payloadBlock, /status: HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
-
-    const verifyCatch = text.slice(
-      text.indexOf("Sentry.captureException(err, {"),
-      text.indexOf("return NextResponse.json({ error: \"Invalid signature\" }"),
-    );
-    assert.match(verifyCatch, /source: "clerk_webhook_verify"/);
-    assert.match(verifyCatch, /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    const reservationStart = text.indexOf("reservation = await reserveClerkWebhookEvent");
+    const reservationCatch = text.slice(reservationStart, text.indexOf('if (reservation === "processed")', reservationStart));
+    assert.match(reservationCatch, /source: "clerk_webhook_reservation"/);
+    assert.match(reservationCatch, /recordWebhookFailureSpike/);
+    assert.match(reservationCatch, /kind: "reservation"/);
 
     const finalCatchStart = text.indexOf("await markClerkWebhookFailed(svixId, error)");
     const processCatch = text.slice(
