@@ -89,7 +89,9 @@ export const MAX_REQUEST_DRAIN_MS = 330_000;
 const COMMIT = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const DEPLOYMENT = /^dpl_[A-Za-z0-9]+$/;
-const ENVIRONMENT_ID = /^env_[A-Za-z0-9]+$/;
+// Vercel project-local environment rows use a bare 16-character identifier.
+// Shared environment rows use the separately pinned `env_...` identity above.
+const ENVIRONMENT_ID = /^[A-Za-z0-9]{16}$/;
 const SECRET_KEY = /^sk_live_[A-Za-z0-9_-]{20,256}$/;
 const SESSION_ID = /^sess_[A-Za-z0-9]+$/;
 const SIGN_IN_TOKEN_ID = /^sit_[A-Za-z0-9]+$/;
@@ -353,7 +355,9 @@ export function normalizeProjectEnvironmentInventory(payload, expectedId = null)
     || (row.gitBranch ?? null) !== null
     || row.comment !== RUNTIME_ENVIRONMENT_COMMENT
     || (row.decrypted ?? false) !== false
-    || Object.hasOwn(row, "value")
+    // The current decrypt-disabled list response includes an exact empty
+    // redaction. Reject omitted, plaintext, masked, or otherwise changed data.
+    || row.value !== ""
   ) throw new Error("project-local Clerk runtime environment drifted");
   return Object.freeze({ state: "runtime-only", id: row.id });
 }

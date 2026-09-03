@@ -199,6 +199,14 @@ through this drain.
 - Project-local sensitive values are intentionally non-readable. Acceptance
   requires their exact metadata plus a successful post-old-key authenticated
   runtime `currentUser()` witness; do not invent a secret readback bypass.
+- The first 2026-09-03 consumer-convergence attempt created exactly one reviewed
+  Production-only sensitive row, `ObHdF2xpBZGpxKg3`, then stopped before
+  journal advancement because the verifier still expected the shared-row
+  `env_...` identifier shape and an omitted `value` property. A decrypt-disabled
+  read proved Vercel's current project-local shape is a bare 16-character ID
+  plus exact empty-string redaction. The corrected verifier accepts only that
+  shape and still rejects plaintext, masked, omitted or otherwise changed
+  values; restart must reuse this row and must not create a second one.
 - If final runtime proof fails after old-key deletion, preserve the candidate,
   operations key and private journal for bounded recovery; never promote the
   removed predecessor or mint an untracked third replacement.

@@ -83,7 +83,7 @@ function completeState() {
     providerInstanceId: EXPECTED_INSTANCE.id,
     githubUpdatedAtBefore: now,
     githubUpdatedAt: now,
-    projectEnvironmentId: "env_Runtime123",
+    projectEnvironmentId: "AbCdEfGhIjKlMnOp",
     candidateDeploymentId: "dpl_Candidate123",
     candidateDeploymentUrl: "grainline-candidate.vercel.app",
     promotedAt: new Date(Date.now() - MAX_REQUEST_DRAIN_MS - 2_000).toISOString(),
@@ -177,12 +177,13 @@ test("pins the shared predecessor and only accepts one Production-sensitive proj
 
   assert.deepEqual(normalizeProjectEnvironmentInventory({ envs: [] }), { state: "absent" });
   const row = {
-    id: "env_Runtime123",
+    id: "ObHdF2xpBZGpxKg3",
     key: "CLERK_SECRET_KEY",
     type: "sensitive",
     target: ["production"],
     gitBranch: null,
     comment: "Grainline production runtime Clerk key",
+    value: "",
   };
   assert.deepEqual(
     normalizeProjectEnvironmentInventory({ envs: [row] }, row.id),
@@ -190,7 +191,13 @@ test("pins the shared predecessor and only accepts one Production-sensitive proj
   );
   assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [{ ...row, type: "encrypted" }] }, row.id));
   assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [{ ...row, target: ["preview"] }] }, row.id));
-  assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [row, { ...row, id: "env_Dupe123" }] }, row.id));
+  assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [{ ...row, id: "env_Runtime123" }] }, "env_Runtime123"));
+  assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [{ ...row, value: undefined }] }, row.id));
+  assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [{ ...row, value: "[redacted]" }] }, row.id));
+  assert.throws(() => normalizeProjectEnvironmentInventory({ envs: [{ ...row, value: RUNTIME_KEY }] }, row.id));
+  assert.throws(() => normalizeProjectEnvironmentInventory({
+    envs: [row, { ...row, id: "DupeRuntime12345" }],
+  }, row.id));
 });
 
 test("hashes the decrypted shared value without returning it", () => {
