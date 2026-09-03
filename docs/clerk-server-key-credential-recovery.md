@@ -1,13 +1,16 @@
 # Clerk server API key credential recovery
 
-Status: audited, planned and implemented on an isolated branch on 2026-09-03;
-the focused recovery suite passed 18/18 and the complete repository suite
-passed 4,031 tests with zero failures and 10 intentional skips. The operator
-has not run, so no Clerk key, Vercel variable, deployment, GitHub secret or
-local credential has changed. This plan covers only the exposed
-`CLERK_SECRET_KEY`. The Clerk webhook signing secret is a separate
-endpoint-cutover family, and the public publishable key is not rotated solely because it
-appeared beside exposed secrets.
+Status: completed and accepted in Production on 2026-09-03. The corrected
+operator ran from exact merge `4ace2b5fc86d128d904d4eeab075988d5351f0fd`
+after successful CI run `33787579223`, while retaining the original immutable
+journal binding to `43d0f5f4fe85ddabd2f7a67a250de30baaa9f544` / CI
+`33721186278`. The accepted secret-free evidence is
+`clerk-server-key-credential-recovery-20260903.json`, SHA-256
+`9cdc77b2323d789d03760bb3f4ece78e3776c95320ee52f4ea7b45b5545f65ab`,
+mode `0600`. This recovery covers only the exposed `CLERK_SECRET_KEY`. The
+Clerk webhook signing secret is a separate endpoint-cutover family, and the
+public publishable key is not rotated solely because it appeared beside
+exposed secrets.
 
 The Extra-High pre-execution review found one partial-failure cleanup gap: a
 ticket exchange could fail after a 60-second sign-in token was created but
@@ -226,6 +229,28 @@ through this drain.
 - Accepted evidence contains hashes, IDs, counts, status, timestamps and proof
   outcomes only. It contains no key, session cookie, ticket, email, Clerk user
   identifier or raw provider response.
+
+## Accepted production result
+
+The recovery completed without a database migration, RLS change, Clerk webhook
+change or ordinary-user mutation:
+
+- the exposed predecessor Clerk key now fails Backend API authentication;
+- both distinct replacements authenticate to the pinned Production instance;
+- `grainline-production-runtime-20260903` is held only by the one project-local,
+  sensitive, Production-only Vercel `CLERK_SECRET_KEY` row;
+- `grainline-production-operations-20260903` is held by the protected GitHub
+  repository secret and the ignored local mode-`0600` operations file;
+- the compromised shared Vercel row is deleted, and neither Preview nor
+  Development has a production Clerk server key;
+- replacement deployment `dpl_X6b4qkf9c7Y8xkPctFWgY1zJD41V`, built from
+  `82f58889b12095d21449494a036a327cc9feb9b1`, owns all four canonical aliases,
+  returns health `200`, and the exact predecessor was removed after a
+  2,658-second drain;
+- two authenticated runtime `currentUser()` witnesses returned `200`, every
+  temporary session was revoked, and no secret was retained in accepted
+  evidence; and
+- the private restart journal was deleted only after final acceptance.
 
 ## Residual boundary
 

@@ -17,7 +17,7 @@ describe("Clerk server API key recovery plan", () => {
     assert.match(normalizedPlan, /covers only the exposed `CLERK_SECRET_KEY`/);
     assert.match(normalizedPlan, /webhook signing secret is a separate endpoint-cutover family/);
     assert.match(normalizedPlan, /public publishable key is not rotated/);
-    assert.match(normalizedIncident, /## Next family: Clerk server API key/);
+    assert.match(normalizedIncident, /## Clerk server API key: accepted/);
   });
 
   it("pins the exact provider and current consumer topology", () => {
@@ -57,5 +57,14 @@ describe("Clerk server API key recovery plan", () => {
     assert.match(normalizedPlan, /does not close the Clerk webhook signing-secret exposure/);
     assert.match(normalizedPlan, /fresh authenticated Order smoke, or Order RLS/);
     assert.match(normalizedStrategy, /docs\/clerk-server-key-credential-recovery\.md/);
+  });
+
+  it("records the accepted production recovery without overstating its scope", () => {
+    assert.match(normalizedPlan, /Status: completed and accepted in Production on 2026-09-03/);
+    assert.match(plan, /9cdc77b2323d789d03760bb3f4ece78e3776c95320ee52f4ea7b45b5545f65ab/);
+    assert.match(normalizedPlan, /exposed predecessor Clerk key now fails Backend API authentication/);
+    assert.match(normalizedPlan, /two authenticated runtime `currentUser\(\)` witnesses returned `200`/);
+    assert.match(normalizedPlan, /private restart journal was deleted only after final acceptance/);
+    assert.match(normalizedIncident, /No migration or RLS change ran/);
   });
 });
