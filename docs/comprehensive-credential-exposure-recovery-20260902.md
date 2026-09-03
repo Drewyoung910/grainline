@@ -698,3 +698,35 @@ Keep `CLERK_WEBHOOK_SECRET` out of this operation. Its later rotation requires a
 parallel endpoint and signed-delivery/replay proof. The public Clerk publishable
 key is not secret and remains unchanged. See
 `docs/clerk-server-key-credential-recovery.md`.
+
+## Clerk webhook signing secret: audited, application hardening pending
+
+The webhook secret is now the active credential family. Read-only inventory
+found one encrypted team-shared Vercel row linked only to Grainline but exposed
+to Development, Preview and Production, plus GitHub CI and ignored local
+copies. The target is one project-local, sensitive, Production-only Vercel
+consumer; ordinary CI, Preview, Development and routine local operations do
+not retain the production signing secret.
+
+Scoped Codex Security scan `84a86800-beb0-4737-8a44-4565483645e3` found two
+medium application-boundary defects before provider rotation: legal acceptance
+could be sourced from client-writable Clerk unsafe metadata, and unsigned
+requests could amplify work through shared Sentry/Redis failure-spike
+telemetry. The isolated correction removes those paths, makes the dedicated
+legal update plus audit row atomic, and removes the real secret from ordinary
+CI. No production or provider state changed.
+
+Before acceptance, run the documented aggregate-only historical legal-state
+provenance inspection and clear any current acceptance lacking a trusted route
+audit so affected users reaccept normally. Then deploy the reviewed hardening,
+create one parallel endpoint with the exact URL/subscriptions, install its
+secret only in Production, prove genuine provider-signed delivery and exact
+replay, delete the predecessor endpoint after a bounded drain, and remove the
+shared/GitHub/local copies. See
+`docs/clerk-webhook-secret-credential-recovery.md`.
+
+Adjacent review found the same pre-verification Sentry/Redis amplification
+pattern in Resend and the three Stripe webhook routes. It is not bundled into
+the Clerk correction because those active payment/email protocols need their
+own compatibility review, but it is an explicit prerequisite of their later
+signing-secret rotations and must not be dropped as historical noise.

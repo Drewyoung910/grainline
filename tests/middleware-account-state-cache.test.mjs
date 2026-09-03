@@ -45,9 +45,10 @@ describe("middleware account-state cache", () => {
       source("src/app/api/account/accept-terms/route.ts"),
       /invalidateAccountStateCache\(userId, "accept_terms_account_state_cache_invalidate"\)/,
     );
-    assert.match(
+    assert.doesNotMatch(
       source("src/app/api/clerk/webhook/route.ts"),
-      /invalidateAccountStateCache\(id, "clerk_webhook_terms_account_state_cache_invalidate"\)/,
+      /invalidateAccountStateCache|termsAcceptedAt|termsVersion|ageAttestedAt/,
+      "Clerk profile synchronization must not write or invalidate legal acceptance state",
     );
     assert.match(
       source("src/lib/ban.ts"),

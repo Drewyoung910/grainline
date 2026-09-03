@@ -542,6 +542,53 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** account export failures/missing audit rows, newsletter signup failures, unsubscribe processing failures, and Resend webhook mark-failed errors now emit Sentry evidence with local IDs, webhook IDs, methods, or hashed emails only. Newsletter signup now uses the shared `getIP()`/`rateLimitResponse()` helpers. Regression coverage lives in `tests/account-privacy-observability.test.mjs`.
 
+## 2026-09-03 Clerk webhook signing-secret pre-rotation audit
+
+Scope:
+
+- `src/app/api/clerk/webhook/route.ts`
+- `src/lib/ensureUser.ts`
+- `src/app/api/account/accept-terms/route.ts`
+- `.github/workflows/ci.yml`
+- provider/consumer inventory for `CLERK_WEBHOOK_SECRET`
+
+Validated findings:
+
+- **Medium — client-writable legal state:** the Clerk webhook and generic
+  authenticated `ensureUser()` path copied `unsafeMetadata` into durable
+  `termsAcceptedAt`, `termsVersion`, and `ageAttestedAt`. Clerk documents that
+  unsafe metadata is writable by the frontend, so a provider-authentic event
+  did not make those values authoritative.
+- **Medium — unsigned telemetry amplification:** missing headers, oversized
+  bodies and invalid signatures invoked Sentry and the shared Redis
+  failure-window recorder before provider authentication. A public caller
+  could multiply external work and compete with application rate-limit quota.
+
+Prepared remediation:
+
+- Generic Clerk identity synchronization now excludes legal state; only the
+  authenticated, rate-limited accept-terms route may write it.
+- The legal-state update and `TERMS_ACCEPTED` audit insert share one database
+  transaction and fail together.
+- Unsigned webhook failures retain bounded local HTTP errors but do not invoke
+  shared Sentry/Redis telemetry. Independent bypass review also found that an
+  aborted request-body stream could still throw into the automatic Sentry
+  wrapper; it now returns a local `400` and is regression-guarded. Verified
+  reservation and handler failures keep their bounded telemetry.
+- Ordinary CI no longer receives the production webhook signing secret.
+- Historical current-version acceptance requires an aggregate-only provenance
+  inspection and fail-safe reacceptance cleanup before the finding is closed.
+- The same pre-verification telemetry pattern exists in the Resend and three
+  Stripe webhook routes. It remains open for a separate class-wide audit tied
+  to those signing-secret rotations; the Clerk patch does not silently change
+  payment/email provider behavior.
+
+Security scan: `84a86800-beb0-4737-8a44-4565483645e3`, source
+`9f1f0600045c672111801da984c8eb9ab993982d`. No provider endpoint, consumer,
+deployment, database or RLS state changed during this audit. Full rotation and
+proof sequencing is retained in
+`docs/clerk-webhook-secret-credential-recovery.md`.
+
 ## 2026-05-13 seller operational route spot check
 
 Scope:

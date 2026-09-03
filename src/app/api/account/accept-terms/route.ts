@@ -7,7 +7,7 @@ import { safeRateLimit, termsAcceptanceRatelimit, rateLimitResponse } from "@/li
 import { CURRENT_TERMS_VERSION, currentTermsAcceptanceUpdate } from "@/lib/termsAcceptance";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
-import { logUserAuditAction } from "@/lib/audit";
+import { logUserAuditActionOrThrow } from "@/lib/audit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
@@ -54,28 +54,32 @@ export async function POST(req: Request) {
   if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const acceptedAt = new Date();
-  const user = await prisma.user.update({
-    where: { id: me.id },
-    data: currentTermsAcceptanceUpdate(me, acceptedAt),
-    select: {
-      termsAcceptedAt: true,
-      termsVersion: true,
-      ageAttestedAt: true,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id: me.id },
+      data: currentTermsAcceptanceUpdate(me, acceptedAt),
+      select: {
+        termsAcceptedAt: true,
+        termsVersion: true,
+        ageAttestedAt: true,
+      },
+    });
+    await logUserAuditActionOrThrow({
+      client: tx,
+      actorId: me.id,
+      action: "TERMS_ACCEPTED",
+      targetType: "USER",
+      targetId: me.id,
+      metadata: {
+        termsVersion: updated.termsVersion,
+        termsAcceptedAt: updated.termsAcceptedAt?.toISOString() ?? acceptedAt.toISOString(),
+        ageAttestedAt: updated.ageAttestedAt?.toISOString() ?? null,
+        route: "/api/account/accept-terms",
+      },
+    });
+    return updated;
   });
   await invalidateAccountStateCache(userId, "accept_terms_account_state_cache_invalidate");
-  await logUserAuditAction({
-    actorId: me.id,
-    action: "TERMS_ACCEPTED",
-    targetType: "USER",
-    targetId: me.id,
-    metadata: {
-      termsVersion: user.termsVersion,
-      termsAcceptedAt: user.termsAcceptedAt?.toISOString() ?? acceptedAt.toISOString(),
-      ageAttestedAt: user.ageAttestedAt?.toISOString() ?? null,
-      route: "/api/account/accept-terms",
-    },
-  });
 
   return privateJson({
     ok: true,

@@ -2693,6 +2693,27 @@ comprehensive credential recovery one audited family at a time before the
 fresh authenticated Order smoke and Order RLS resume. See
 `docs/shippo-api-credential-recovery.md`.
 
+The Clerk server API key family subsequently completed and is accepted from
+exact corrected operator merge `4ace2b5fc86d128d904d4eeab075988d5351f0fd`
+/ CI `33787579223`. The exposed key rejects, distinct runtime and operations
+keys are isolated to their intended consumers, deployment
+`dpl_X6b4qkf9c7Y8xkPctFWgY1zJD41V` owns all aliases, and accepted evidence
+SHA-256 is
+`9cdc77b2323d789d03760bb3f4ece78e3776c95320ee52f4ea7b45b5545f65ab`.
+
+The next family is the separate Clerk webhook signing secret. Scoped security
+review found that client-writable Clerk unsafe metadata could seed durable
+legal-acceptance fields and that unsigned failures amplified work into shared
+Sentry/Redis telemetry. The isolated application correction removes both
+paths, makes the dedicated acceptance update and audit row atomic, and removes
+the unused production webhook secret from ordinary CI. Historical acceptance
+provenance must be inspected aggregate-only and untrusted rows re-gated before
+the application fix is accepted. Provider rotation then uses one parallel
+endpoint, a Production-only Vercel secret, genuine signed delivery/replay
+proof, bounded overlap, and exact predecessor deletion. No provider,
+deployment, migration or RLS change has occurred yet. See
+`docs/clerk-webhook-secret-credential-recovery.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single
