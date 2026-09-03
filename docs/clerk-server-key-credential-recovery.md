@@ -207,6 +207,13 @@ through this drain.
   plus exact empty-string redaction. The corrected verifier accepts only that
   shape and still rejects plaintext, masked, omitted or otherwise changed
   values; restart must reuse this row and must not create a second one.
+- The private journal remains immutably bound to original operator
+  `43d0f5f4fe85ddabd2f7a67a250de30baaa9f544` / CI `33721186278`.
+  Corrected code may resume it only when separately supplied an exact clean
+  corrected operator commit and successful push CI. Both original and corrected
+  bindings are reverified on every invocation and retained in sanitized final
+  evidence. A corrected binding cannot start a new recovery or substitute for
+  either original journal identifier.
 - If final runtime proof fails after old-key deletion, preserve the candidate,
   operations key and private journal for bounded recovery; never promote the
   removed predecessor or mint an untracked third replacement.

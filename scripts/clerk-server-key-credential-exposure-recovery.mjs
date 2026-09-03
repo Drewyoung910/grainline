@@ -200,6 +200,43 @@ export function assertExactGitState(state, expected) {
   return true;
 }
 
+export function normalizeOperatorBinding(config, { hasPriorState = false } = {}) {
+  const originalCommit = config?.operatorCommit;
+  const originalCiRunId = config?.operatorCiRunId;
+  const correctedCommit = config?.correctedOperatorCommit;
+  const correctedCiRunId = config?.correctedOperatorCiRunId;
+  const hasCorrectedCommit = correctedCommit !== undefined;
+  const hasCorrectedCi = correctedCiRunId !== undefined;
+  if (
+    !COMMIT.test(originalCommit ?? "")
+    || !Number.isSafeInteger(originalCiRunId)
+    || hasCorrectedCommit !== hasCorrectedCi
+  ) throw new Error("Clerk recovery operator binding is incomplete");
+  if (!hasCorrectedCommit) {
+    return Object.freeze({
+      commit: originalCommit,
+      ciRunId: originalCiRunId,
+      originalCommit,
+      originalCiRunId,
+      corrected: false,
+    });
+  }
+  if (
+    !hasPriorState
+    || !COMMIT.test(correctedCommit)
+    || !Number.isSafeInteger(correctedCiRunId)
+    || correctedCommit === originalCommit
+    || correctedCiRunId === originalCiRunId
+  ) throw new Error("Clerk recovery corrected operator binding is invalid");
+  return Object.freeze({
+    commit: correctedCommit,
+    ciRunId: correctedCiRunId,
+    originalCommit,
+    originalCiRunId,
+    corrected: true,
+  });
+}
+
 function githubRun(id, commit) {
   const payload = run("gh", ["api", `repos/${REPOSITORY}/actions/runs/${id}`], { json: true });
   if (
@@ -1083,6 +1120,7 @@ export function sanitizedEvidence(config, state, witness, drainSeconds) {
     || state.sharedEnvironmentDeleted !== true
     || drainSeconds < MAX_REQUEST_DRAIN_MS / 1000
   ) throw new Error("Clerk accepted evidence inputs drifted");
+  const operator = normalizeOperatorBinding(config, { hasPriorState: true });
   return Object.freeze({
     schemaVersion: 1,
     operation: "clerk-server-key-credential-exposure-recovery",
@@ -1090,7 +1128,12 @@ export function sanitizedEvidence(config, state, witness, drainSeconds) {
     acceptanceEligible: true,
     issueCount: 0,
     generatedAt: new Date().toISOString(),
-    operator: Object.freeze({ commit: config.operatorCommit, ciRunId: config.operatorCiRunId }),
+    operator: Object.freeze({
+      commit: operator.commit,
+      ciRunId: operator.ciRunId,
+      originalCommit: operator.originalCommit,
+      originalCiRunId: operator.originalCiRunId,
+    }),
     application: Object.freeze({ sourceCommit: SOURCE_COMMIT, sourceCiRunId: SOURCE_CI_RUN_ID }),
     provider: Object.freeze({
       instanceId: EXPECTED_INSTANCE.id,
@@ -1136,13 +1179,14 @@ export function sanitizedEvidence(config, state, witness, drainSeconds) {
 
 export function validateAcceptedEvidence(value, config) {
   const serialized = JSON.stringify(value);
+  const operator = normalizeOperatorBinding(config, { hasPriorState: true });
   if (
     !exactKeys(value, [
       "schemaVersion", "operation", "status", "acceptanceEligible", "issueCount", "generatedAt",
       "operator", "application", "provider", "consumers", "deployment", "runtimeProof",
       "migrationsRun", "rlsChanged", "clerkWebhookChanged", "ordinaryUsersChanged", "secretsRetained",
     ])
-    || !exactKeys(value.operator, ["commit", "ciRunId"])
+    || !exactKeys(value.operator, ["commit", "ciRunId", "originalCommit", "originalCiRunId"])
     || !exactKeys(value.application, ["sourceCommit", "sourceCiRunId"])
     || !exactKeys(value.provider, [
       "instanceId", "environmentType", "runtimeKeyName", "operationsKeyName",
@@ -1167,8 +1211,10 @@ export function validateAcceptedEvidence(value, config) {
     || value.acceptanceEligible !== true
     || value.issueCount !== 0
     || !Number.isFinite(Date.parse(value.generatedAt))
-    || value.operator?.commit !== config.operatorCommit
-    || value.operator.ciRunId !== config.operatorCiRunId
+    || value.operator?.commit !== operator.commit
+    || value.operator.ciRunId !== operator.ciRunId
+    || value.operator.originalCommit !== operator.originalCommit
+    || value.operator.originalCiRunId !== operator.originalCiRunId
     || value.application?.sourceCommit !== SOURCE_COMMIT
     || value.application.sourceCiRunId !== SOURCE_CI_RUN_ID
     || value.provider?.instanceId !== EXPECTED_INSTANCE.id
@@ -1223,6 +1269,8 @@ function parseArguments(args) {
     const arg = args[index];
     if (arg === "--operator-commit") value.operatorCommit = args[++index];
     else if (arg === "--operator-ci-run") value.operatorCiRunId = Number(args[++index]);
+    else if (arg === "--corrected-operator-commit") value.correctedOperatorCommit = args[++index];
+    else if (arg === "--corrected-operator-ci-run") value.correctedOperatorCiRunId = Number(args[++index]);
     else if (arg === "--capture-runtime-from-clipboard") value.captureRuntimeFromClipboard = true;
     else if (arg === "--capture-operations-from-clipboard") value.captureOperationsFromClipboard = true;
     else if (arg === "--confirm-predecessor-deleted") value.confirmPredecessorDeleted = true;
@@ -1241,12 +1289,16 @@ function parseArguments(args) {
 }
 
 export async function runRecovery(config) {
+  const operator = normalizeOperatorBinding(config, {
+    hasPriorState: existsSync(JOURNAL) || existsSync(EVIDENCE),
+  });
   if (run(process.execPath, [VERCEL_CLI, "--version"]) !== "59.11.2") {
     throw new Error("reviewed Vercel CLI version drifted");
   }
-  assertExactGitState(gitState(OPERATOR_ROOT), config.operatorCommit);
+  assertExactGitState(gitState(OPERATOR_ROOT), operator.commit);
   assertExactGitState(gitState(DEPLOY_SOURCE), SOURCE_COMMIT);
-  githubRun(config.operatorCiRunId, config.operatorCommit);
+  githubRun(operator.ciRunId, operator.commit);
+  if (operator.corrected) githubRun(operator.originalCiRunId, operator.originalCommit);
   githubRun(SOURCE_CI_RUN_ID, SOURCE_COMMIT);
   readShippoEvidence();
 
