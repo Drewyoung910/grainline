@@ -75,6 +75,23 @@ export const CANONICAL_ALIASES = Object.freeze([
   "grainline-drew-youngs-projects.vercel.app",
 ]);
 export const MAX_REQUEST_DRAIN_MS = 35 * 60 * 1_000;
+export const PARTIAL_PROMOTION_RECOVERY_BINDING = Object.freeze({
+  operatorCommit: "986eb8ae6e3c0a7412cba761e50b138c00681ae8",
+  operatorCiRunId: 33696802964,
+  stage: "dual-ready",
+  createdAt: "2026-09-02T23:59:47.143Z",
+  previousEnvironmentId: "aDVTvotdWtfT44Kr",
+  dualDeploymentId: "dpl_C9K42kdtuY2W74xPWZsZowkYwP94",
+  dualDeploymentUrl: "grainline-cmj2i8j7p-drew-youngs-projects.vercel.app",
+  oldSecretSha256: OLD_SECRET_SHA256,
+  replacementSecretSha256: "17a708421f165261be72bdcc7a6d35d24618d3ff1ec5c841e327d3028ba1674a",
+  aliasDeploymentIds: Object.freeze([
+    COMPATIBILITY_DEPLOYMENT,
+    COMPATIBILITY_DEPLOYMENT,
+    COMPATIBILITY_DEPLOYMENT,
+    "dpl_C9K42kdtuY2W74xPWZsZowkYwP94",
+  ]),
+});
 
 const COMMIT = /^[0-9a-f]{40}$/;
 const DEPLOYMENT = /^dpl_[A-Za-z0-9]+$/;
@@ -613,30 +630,185 @@ export function normalizeAliasTargets(targets, expectedId) {
   return true;
 }
 
-export function normalizeAliasPosition(targets, fromId, toId) {
-  const ids = new Set(targets.map((entry) => entry?.deployment?.id));
-  if (ids.size !== 1) throw new Error("canonical shipping aliases are partially promoted");
-  const observed = [...ids][0];
-  if (observed === fromId) {
-    normalizeAliasTargets(targets, fromId);
-    return "from";
+export function normalizeAliasConvergence(targets, fromId, toId) {
+  if (
+    !DEPLOYMENT.test(fromId ?? "")
+    || !DEPLOYMENT.test(toId ?? "")
+    || fromId === toId
+    || !Array.isArray(targets)
+    || targets.length !== CANONICAL_ALIASES.length
+  ) throw new Error("canonical shipping alias convergence input is invalid");
+  const pendingAliases = [];
+  for (let index = 0; index < CANONICAL_ALIASES.length; index += 1) {
+    const entry = targets[index];
+    if (
+      entry?.alias !== CANONICAL_ALIASES[index]
+      || ![fromId, toId].includes(entry.deployment?.id)
+      || entry.deployment.projectId !== PROJECT.id
+      || entry.deployment.readyState !== "READY"
+      || entry.deployment.target !== "production"
+    ) throw new Error("canonical shipping alias moved outside the reviewed pair");
+    if (entry.deployment.id === fromId) pendingAliases.push(entry.alias);
   }
-  if (observed === toId) {
-    normalizeAliasTargets(targets, toId);
-    return "to";
-  }
-  throw new Error("canonical shipping aliases moved to an unreviewed deployment");
+  const position = pendingAliases.length === 0
+    ? "to"
+    : pendingAliases.length === CANONICAL_ALIASES.length
+      ? "from"
+      : "partial";
+  return Object.freeze({ position, pendingAliases: Object.freeze(pendingAliases) });
 }
 
-function promote(url, fromId, toId) {
-  const position = normalizeAliasPosition(aliasTargets(), fromId, toId);
-  if (position === "to") return;
-  run(process.execPath, [
-    VERCEL_CLI,
-    "promote", url,
-    "--scope", PROJECT.scope, "--yes", "--no-color",
-  ], { timeout: 5 * 60_000 });
+export function normalizeAliasPosition(targets, fromId, toId) {
+  const convergence = normalizeAliasConvergence(targets, fromId, toId);
+  if (convergence.position === "partial") {
+    throw new Error("canonical shipping aliases are partially promoted");
+  }
+  normalizeAliasTargets(targets, convergence.position === "from" ? fromId : toId);
+  return convergence.position;
+}
+
+function convergeAliases(url, fromId, toId) {
+  let convergence = normalizeAliasConvergence(aliasTargets(), fromId, toId);
+  if (convergence.position === "to") return;
+  if (convergence.position === "from") {
+    run(process.execPath, [
+      VERCEL_CLI,
+      "promote", url,
+      "--scope", PROJECT.scope, "--yes", "--no-color",
+    ], { timeout: 5 * 60_000 });
+    convergence = normalizeAliasConvergence(aliasTargets(), fromId, toId);
+  }
+  while (convergence.pendingAliases.length > 0) {
+    const [alias] = convergence.pendingAliases;
+    run(process.execPath, [
+      VERCEL_CLI,
+      "alias", "set", url, alias,
+      "--scope", PROJECT.scope, "--no-color",
+    ], { timeout: 2 * 60_000 });
+    const next = normalizeAliasConvergence(aliasTargets(), fromId, toId);
+    if (next.pendingAliases.includes(alias)) {
+      throw new Error("canonical shipping alias convergence made no progress");
+    }
+    convergence = next;
+  }
   normalizeAliasTargets(aliasTargets(), toId);
+}
+
+export function validatePartialPromotionRecovery(
+  state,
+  config,
+  dualDeployment,
+  targets,
+  providerSnapshot,
+  localSnapshot,
+) {
+  const expected = PARTIAL_PROMOTION_RECOVERY_BINDING;
+  if (
+    state?.operatorCommit !== expected.operatorCommit
+    || state.operatorCiRunId !== expected.operatorCiRunId
+    || state.stage !== expected.stage
+    || state.sourceCommit !== SOURCE_COMMIT
+    || state.sourceCiRunId !== SOURCE_CI_RUN_ID
+    || state.predecessorDeploymentId !== PREDECESSOR_DEPLOYMENT
+    || state.compatibilityDeploymentId !== COMPATIBILITY_DEPLOYMENT
+    || state.createdAt !== expected.createdAt
+    || state.previousEnvironmentId !== expected.previousEnvironmentId
+    || state.dualDeploymentId !== expected.dualDeploymentId
+    || state.dualDeploymentUrl !== expected.dualDeploymentUrl
+    || state.dualPromotedAt !== null
+    || state.finalDeploymentId !== null
+    || state.finalDeploymentUrl !== null
+    || state.oldSecretSha256 !== expected.oldSecretSha256
+    || state.replacementSecretSha256 !== expected.replacementSecretSha256
+    || !COMMIT.test(config?.operatorCommit ?? "")
+    || config.operatorCommit === expected.operatorCommit
+    || !Number.isSafeInteger(config.operatorCiRunId)
+    || config.operatorCiRunId <= 0
+  ) throw new Error("shipping-rate partial-promotion recovery binding drifted");
+  normalizeRecoveryDeployment(
+    dualDeployment,
+    deploymentMarker(state.createdAt, "dual"),
+    "dual",
+    COMPATIBILITY_DEPLOYMENT,
+  );
+  const convergence = normalizeAliasConvergence(
+    targets,
+    COMPATIBILITY_DEPLOYMENT,
+    state.dualDeploymentId,
+  );
+  if (
+    convergence.position !== "partial"
+    || JSON.stringify(targets.map((entry) => entry.deployment.id))
+      !== JSON.stringify(expected.aliasDeploymentIds)
+    || classifyStoredHashes(providerSnapshot, {
+      old: state.oldSecretSha256,
+      replacement: state.replacementSecretSha256,
+    }, true) !== "replacement"
+    || localSnapshot?.currentSha256 !== state.replacementSecretSha256
+    || localSnapshot.previousPresent !== false
+  ) throw new Error("shipping-rate partial-promotion recovery state drifted");
+  return true;
+}
+
+function rebindPartialPromotionState(state, config) {
+  environmentInventory(state.previousEnvironmentId);
+  const providerSnapshot = storedHashes(state.previousEnvironmentId);
+  const local = readLocal();
+  validatePartialPromotionRecovery(
+    state,
+    config,
+    readDeployment(state.dualDeploymentId),
+    aliasTargets(),
+    providerSnapshot,
+    {
+      currentSha256: typeof local.SHIPPING_RATE_SECRET === "string"
+        ? sha256(local.SHIPPING_RATE_SECRET)
+        : null,
+      previousPresent: local.SHIPPING_RATE_SECRET_PREVIOUS !== undefined,
+    },
+  );
+  return writeState(state, "dual-ready", {
+    operatorCommit: config.operatorCommit,
+    operatorCiRunId: config.operatorCiRunId,
+  });
+}
+
+export function validateRestartConsumerSnapshot(
+  state,
+  providerSnapshot,
+  previousRequired,
+  localSnapshot,
+) {
+  if (classifyStoredHashes(providerSnapshot, {
+    old: state.oldSecretSha256,
+    replacement: state.replacementSecretSha256,
+  }, previousRequired) !== "replacement") {
+    throw new Error("shipping-rate restart provider state drifted");
+  }
+  if (
+    localSnapshot?.currentSha256 !== state.replacementSecretSha256
+    || localSnapshot.previousPresent !== false
+  ) throw new Error("shipping-rate restart local state drifted");
+  return true;
+}
+
+function assertRestartProviderConsumerState(state, previousRequired) {
+  const previousId = previousRequired ? state.previousEnvironmentId : null;
+  environmentInventory(previousId);
+  const local = readLocal();
+  validateRestartConsumerSnapshot(
+    state,
+    storedHashes(previousId),
+    previousRequired,
+    {
+      currentSha256: typeof local.SHIPPING_RATE_SECRET === "string"
+        ? sha256(local.SHIPPING_RATE_SECRET)
+        : null,
+      previousPresent: local.SHIPPING_RATE_SECRET_PREVIOUS !== undefined,
+    },
+  );
+  githubSecretMetadata();
+  return true;
 }
 
 async function canonicalHealth() {
@@ -1018,7 +1190,7 @@ async function main() {
     if (
       state.operatorCommit !== config.operatorCommit
       || state.operatorCiRunId !== config.operatorCiRunId
-    ) throw new Error("private shipping-rate recovery journal binding drifted");
+    ) state = rebindPartialPromotionState(state, config);
   } else {
     normalizeAliasTargets(aliasTargets(), COMPATIBILITY_DEPLOYMENT);
     environmentInventory(null);
@@ -1040,6 +1212,13 @@ async function main() {
     old: state.oldSecretSha256,
     replacement: state.replacementSecretSha256,
   });
+
+  if (["dual-ready", "dual-promoted", "drain-complete"].includes(state.stage)) {
+    assertRestartProviderConsumerState(state, true);
+  }
+  if (["previous-removed", "final-ready", "final-promoted"].includes(state.stage)) {
+    assertRestartProviderConsumerState(state, false);
+  }
 
   if (state.stage === "preflight") {
     const previous = await createPreviousSecret(state.oldSecret, hashes.old);
@@ -1083,7 +1262,7 @@ async function main() {
       COMPATIBILITY_DEPLOYMENT,
     );
     proveLocalVerifier(state.oldSecret, state.replacementSecret, "dual");
-    promote(state.dualDeploymentUrl, COMPATIBILITY_DEPLOYMENT, state.dualDeploymentId);
+    convergeAliases(state.dualDeploymentUrl, COMPATIBILITY_DEPLOYMENT, state.dualDeploymentId);
     await canonicalHealth();
     state = writeState(state, "dual-promoted", { dualPromotedAt: new Date().toISOString() });
   }
@@ -1116,7 +1295,7 @@ async function main() {
       "final",
       state.dualDeploymentId,
     );
-    promote(state.finalDeploymentUrl, state.dualDeploymentId, state.finalDeploymentId);
+    convergeAliases(state.finalDeploymentUrl, state.dualDeploymentId, state.finalDeploymentId);
     await canonicalHealth();
     state = writeState(state, "final-promoted");
   }

@@ -114,6 +114,32 @@ re-attestation confirmed the compatibility deployment, all aliases, project
 protection, both CI bindings, GitHub inventory and all three original current-
 secret digests remained unchanged after both stops.
 
+The next exact-main run from `986eb8ae6e3c0a7412cba761e50b138c00681ae8`
+and CI `33696802964` passed preflight and converged the replacement current
+secret across the exact three Vercel rows, GitHub and local, with the original
+stored only in the one temporary Production previous row. It created exact
+READY dual deployment `dpl_C9K42kdtuY2W74xPWZsZowkYwP94`, but Vercel's
+`promote` moved only `grainline-drew-youngs-projects.vercel.app`; the other
+three canonical aliases remained on compatibility deployment
+`dpl_Ec5mLGwhv3jXWEa88z2BeUs5N3j7`. The operator rejected that partial alias
+state before starting the drain and preserved its mode-`0600` journal at
+`dual-ready`. Both exact deployments run the compatible verifier, so the
+partial provider transition did not break token verification.
+
+The recovery path is pinned to that exact journal, previous-row ID, old and
+replacement digests, dual deployment and ordered alias vector. A corrected
+exact-main/CI run may rebind that one journal only after re-verifying the
+replacement/previous provider pair, local replacement, exact dual deployment
+marker and the exact partial aliases. Alias convergence accepts only the
+reviewed from/to deployment pair, assigns each remaining canonical alias
+idempotently, and refuses an unknown target. The 35-minute drain starts only
+after all four aliases resolve to the dual deployment. The same restart-safe
+convergence is used for the final deployment so old-secret rejection cannot be
+accepted while any canonical alias remains on the dual artifact. Every restart
+at or after `dual-ready` also re-attests the exact provider current/previous
+digest posture, local replacement-only posture and GitHub secret inventory
+before it can move an alias, wait a drain or advance a stage.
+
 ## Private and sanitized artifacts
 
 Private restart journal (contains secrets; mode `0600`; never copy into Git):

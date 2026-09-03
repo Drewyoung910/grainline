@@ -38,6 +38,15 @@ rejecting explicit `undefined`, malformed or nonempty bindings. Retain every
 identity, target, digest, alias and deployment fence, require another exact-main
 CI gate, and do not rotate manually.
 
+Exact main `986eb8ae` / CI `33696802964` passed that preflight, converged the
+replacement current consumers and created exact READY dual deployment
+`dpl_C9K42kdtuY2W74xPWZsZowkYwP94`. Vercel promotion moved only the project
+default alias; three canonical aliases remained on the compatibility deployment,
+so the operator stopped at journal stage `dual-ready` before starting the drain.
+Both artifacts are compatible. Resume through an exact one-time journal rebind
+and pair-only idempotent alias convergence; do not create another secret or
+deployment, and do not start the drain until all four aliases are dual.
+
 The same bounded correction preserves the existing availability product while
 making it less brittle: pickup-only provider-failure responses carry an
 explicit warning and the client refreshes signed rates before expiry. Retain
