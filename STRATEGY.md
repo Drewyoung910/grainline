@@ -4,18 +4,14 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Shipping-rate credential containment before Order RLS resumes (2026-09-02)
+### Comprehensive credential containment before Order RLS resumes (2026-09-02)
 
 The comprehensive credential incident pauses new Order RLS mutations until
 every exposed credential family is replaced and a fresh authenticated Order
-smoke passes. `SHIPPING_RATE_SECRET` followed database, Resend and CRON
-recovery. Its pre-rotation audit found one real integrity gap:
-the predecessor signed only postal code, not the complete city/state/postal/
-country quote destination. Ship `shipping-rate-v2` destination binding and
-dual verification first, deploy compatibility under the current key, then
-rotate current/previous, drain for at least 35 minutes, remove previous and
-prove old rejection. Do not rotate the key before the compatible verifier is
-live, and do not run database migrations or RLS changes during this recovery.
+smoke passes. Database, Resend, CRON, `SHIPPING_RATE_SECRET`, and Shippo test
+API recovery are accepted. Do not run database migrations or broaden RLS while
+the remaining Clerk, Cloudflare R2, Stripe test/webhook, Upstash, OpenAI,
+Sentry, and application-secret families remain under incident recovery.
 
 That family is now accepted at exact operator main `568b29db`, CI
 `33699848311`, dual deployment `dpl_C9K42kdtuY2W74xPWZsZowkYwP94` and final
@@ -25,24 +21,28 @@ are absent, the replacement verifies and the exposed original rejects.
 Accepted evidence SHA-256 is
 `c9c79ae60656de78365276f1ddd83796958391a26493817fae61376367284161`.
 
-The compatibility gate is now complete at exact main
-`a4c74bbaeded1e347ec582289a226eae24763faf`, CI `33683844324`, and READY
-production deployment `dpl_Ec5mLGwhv3jXWEa88z2BeUs5N3j7`; all four canonical
-aliases and health are verified while the old key remains current and no
-previous key exists. The immediate next boundary is the exact-source,
-restart-safe rotation operator, not another shipping feature or RLS mutation.
-After its dual deployment, 35-minute drain, final deployment and old-key
-rejection proof, continue directly through the remaining exposed credential
-families and one fresh authenticated Order smoke before resuming Order RLS.
+The Shippo family completed at exact main
+`a12a13ce4667f7274b7b8f00c70def5ceaefcde1` / CI `33707066095` and READY
+deployment `dpl_6Qndfy4oiiGCkWdcZXYRDzsraqFz`. Its exposed token rejects, its
+replacement reaches the same normalized 11-carrier test account, and buyer and
+seller non-charging quote proofs passed with the corrected `estimated_days`
+projection. Accepted evidence SHA-256 is
+`ebcd62085d611bc09e6b4d4ee8e3f4dc38c9c1cf31cb6ba51e1dd68bff6e3f66`.
 
-The next family after shipping-rate acceptance is the exposed Shippo test API
-token. Shippo permits a two-token test-mode overlap, so create one named
-replacement, prove the same account, converge the exact shared Vercel row plus
-GitHub/local consumers, deploy and run the non-charging quote proof, then delete
-only the predecessor and prove its rejection. Do not touch Shippo live mode or
-fold the separate seller re-quote `estimated_days` product correction into the
-credential operator. The durable boundary lives in
-`docs/shippo-api-credential-recovery.md`.
+Audit the Clerk server API key next because the final authenticated Order smoke
+depends on it. Keep the Clerk webhook signing secret as a separate endpoint
+cutover: parallel endpoint delivery, replay behavior and failure telemetry are
+different from overlapping server API keys. The public Clerk publishable key
+is not secret and is not rotated solely because it appeared beside exposed
+credentials. After the server-key audit, prepare one restart-safe family
+operator with exact consumer, deployment, provider-identity and old-key
+rejection proofs. See `docs/shippo-api-credential-recovery.md` for the completed
+predecessor family and
+`docs/comprehensive-credential-exposure-recovery-20260902.md` for the umbrella
+incident boundary.
+
+Historical shipping-rate recovery detail follows and remains useful for
+restart-safe operator design.
 
 Exact main `636b1b5a` / CI `33689091625` and the first correction at exact main
 `1afe205c` / CI `33694247625` both failed closed before journal creation or
@@ -2678,15 +2678,19 @@ replacement proofs, rerun the full authenticated Order smoke; only then resume
 Order RLS activation. See
 `docs/comprehensive-credential-exposure-recovery-20260902.md`.
 
-The next Shippo test-token family now has an isolated restart-safe operator
-candidate. It separates the unavoidable dashboard token-create/delete actions
-from automated consumer convergence, deploys only the CI-green seller
-`estimated_days` correction source, hashes the complete carrier-account
-identity, proves buyer and seller quotes without purchasing a label, and drains
-only the eight exact deployments in the accepted database-credential epoch.
-Do not broaden that fence into a historical deployment purge. Merge and pass
-exact-main CI before the first read-only preflight; provider mutation remains a
-later dashboard boundary. See `docs/shippo-api-credential-recovery.md`.
+The Shippo test-token family completed on 2026-09-03 from exact main
+`a12a13ce4667f7274b7b8f00c70def5ceaefcde1` / CI `33707066095`. The exposed
+token rejects, the replacement reaches the same normalized 11-carrier test
+account, and buyer/seller non-charging quote proofs passed against corrected
+application source `82f58889b12095d21449494a036a327cc9feb9b1`. All aliases
+point to READY deployment `dpl_6Qndfy4oiiGCkWdcZXYRDzsraqFz` after the full
+drain and bounded removal of the eight sealed predecessors. Retain accepted
+evidence SHA-256
+`ebcd62085d611bc09e6b4d4ee8e3f4dc38c9c1cf31cb6ba51e1dd68bff6e3f66`.
+No label, Shippo Transaction, migration or RLS change occurred. Continue the
+comprehensive credential recovery one audited family at a time before the
+fresh authenticated Order smoke and Order RLS resume. See
+`docs/shippo-api-credential-recovery.md`.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
