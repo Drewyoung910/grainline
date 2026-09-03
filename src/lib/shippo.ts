@@ -45,7 +45,7 @@ type ShippoRate = {
   servicelevel?: { name?: string | null } | null;
   amount?: string | number | null;
   currency?: string | null;
-  est_days?: number | null;
+  estimated_days?: number | null;
 };
 
 export type NormalizedShippoRate = {
@@ -78,7 +78,7 @@ export function normalizeShippoShipmentRates(rates: ShippoRate[]): NormalizedShi
       servicelevel_name: rate.servicelevel?.name ?? null,
       amount,
       currency,
-      est_days: Number.isFinite(rate.est_days) ? rate.est_days ?? null : null,
+      est_days: Number.isFinite(rate.estimated_days) ? rate.estimated_days ?? null : null,
     }];
   });
 }
