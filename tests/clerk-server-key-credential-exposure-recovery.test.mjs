@@ -26,6 +26,7 @@ import {
   normalizeProjectEnvironmentInventory,
   normalizeRejectedKeyStatus,
   normalizeRevokedSignInToken,
+  normalizeSharedEnvironmentDeleteRequest,
   normalizeSharedEnvironmentInventory,
   normalizeSharedSecretHash,
   sanitizedEvidence,
@@ -233,6 +234,32 @@ test("pins the shared predecessor and only accepts one Production-sensitive proj
   }, row.id));
 });
 
+test("permits non-interactive Vercel deletion only for the one pinned shared row", () => {
+  const request = {
+    method: "DELETE",
+    body: { ids: [SHARED_ENVIRONMENT.id] },
+    confirmSharedEnvironmentDelete: true,
+  };
+  assert.equal(normalizeSharedEnvironmentDeleteRequest("/v1/env", request), true);
+  assert.throws(() => normalizeSharedEnvironmentDeleteRequest("/v1/env", {
+    ...request,
+    body: { ids: ["env_other"] },
+  }));
+  assert.throws(() => normalizeSharedEnvironmentDeleteRequest("/v1/env", {
+    ...request,
+    body: { ids: [SHARED_ENVIRONMENT.id, "env_other"] },
+  }));
+  assert.throws(() => normalizeSharedEnvironmentDeleteRequest("/v1/env", {
+    ...request,
+    confirmSharedEnvironmentDelete: false,
+  }));
+  assert.throws(() => normalizeSharedEnvironmentDeleteRequest("/v1/env/other", request));
+  assert.throws(() => normalizeSharedEnvironmentDeleteRequest("/v1/env", {
+    ...request,
+    method: "PATCH",
+  }));
+});
+
 test("hashes the decrypted shared value without returning it", () => {
   const hash = normalizeSharedSecretHash(sharedRow({ decrypted: true, value: OLD_KEY }));
   assert.equal(hash, createHash("sha256").update(OLD_KEY).digest("hex"));
@@ -410,6 +437,8 @@ test("operator statically protects clipboard, key split, canary cleanup, and pro
   assert.match(source, /"provider-operations-captured"/);
   assert.match(source, /--corrected-operator-commit/);
   assert.match(source, /--corrected-operator-ci-run/);
+  assert.match(source, /--dangerously-skip-permissions/);
+  assert.match(source, /confirmSharedEnvironmentDelete: true/);
   assert.match(source, /if \(durablyCaptured\) clearClipboard\(\)/);
   assert.match(source, /type: "sensitive"/);
   assert.match(source, /target: \["production"\]/);

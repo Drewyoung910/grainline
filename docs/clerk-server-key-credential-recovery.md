@@ -214,6 +214,12 @@ through this drain.
   bindings are reverified on every invocation and retained in sanitized final
   evidence. A corrected binding cannot start a new recovery or substitute for
   either original journal identifier.
+- The first post-drain shared-row deletion attempt stopped fail-closed at
+  `predecessor-removed`: Vercel CLI 59.11.2 requires
+  `--dangerously-skip-permissions` for non-interactive DELETE requests. The
+  exposed shared row remained present. The correction admits that CLI flag only
+  for `DELETE /v1/env` whose body contains exactly the single pinned shared-row
+  id; every other route, method, id set or missing confirmation is rejected.
 - If final runtime proof fails after old-key deletion, preserve the candidate,
   operations key and private journal for bounded recovery; never promote the
   removed predecessor or mint an untracked third replacement.

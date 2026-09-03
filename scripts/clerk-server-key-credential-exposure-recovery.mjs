@@ -303,10 +303,36 @@ async function expectOldRejected(key) {
   throw new Error("superseded Clerk key still authenticates");
 }
 
-function vercelApi(route, { method, body } = {}) {
+export function normalizeSharedEnvironmentDeleteRequest(
+  route,
+  { method, body, confirmSharedEnvironmentDelete = false } = {},
+) {
+  if (
+    route !== "/v1/env"
+    || method !== "DELETE"
+    || confirmSharedEnvironmentDelete !== true
+    || body === null
+    || typeof body !== "object"
+    || JSON.stringify(Object.keys(body).sort()) !== JSON.stringify(["ids"])
+    || !Array.isArray(body.ids)
+    || body.ids.length !== 1
+    || body.ids[0] !== SHARED_ENVIRONMENT.id
+  ) throw new Error("Vercel shared Clerk deletion request is not exact");
+  return true;
+}
+
+function vercelApi(route, { method, body, confirmSharedEnvironmentDelete = false } = {}) {
   const args = [VERCEL_CLI, "api", route, "--raw", "--scope", PROJECT.scope, "--no-color"];
   if (method) args.push("--method", method);
   if (body !== undefined) args.push("--input", "-", "--silent");
+  if (method === "DELETE" || confirmSharedEnvironmentDelete) {
+    normalizeSharedEnvironmentDeleteRequest(route, {
+      method,
+      body,
+      confirmSharedEnvironmentDelete,
+    });
+    args.push("--dangerously-skip-permissions");
+  }
   const output = run(process.execPath, args, {
     input: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -449,7 +475,11 @@ function deleteSharedEnvironment() {
     return;
   }
   normalizeSharedEnvironmentInventory(before);
-  vercelApi("/v1/env", { method: "DELETE", body: { ids: [SHARED_ENVIRONMENT.id] } });
+  vercelApi("/v1/env", {
+    method: "DELETE",
+    body: { ids: [SHARED_ENVIRONMENT.id] },
+    confirmSharedEnvironmentDelete: true,
+  });
   normalizeSharedEnvironmentInventory(vercelApi("/v1/env"), { deleted: true });
 }
 
