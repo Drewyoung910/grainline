@@ -561,3 +561,18 @@ same restart-safe pair-only convergence before original-secret rejection can be
 accepted. Later-stage restarts re-attest the exact provider digest pair, local
 replacement-only state and GitHub secret inventory rather than trusting the
 journal alone.
+
+## Next family: Shippo test API token
+
+After the shipping-rate HMAC family reaches complete acceptance, rotate the
+exposed Shippo test token next. This directly re-proves the shipping quote
+surface before Order RLS resumes and uses Shippo's supported two-test-token
+overlap rather than an outage-prone one-for-one swap.
+
+The exact shared Vercel row is
+`env_374M3muVPW3jIKBS8X4Q7kqI`, encrypted and linked to Grainline for
+Development, Preview and Production; no project-local shadow exists. GitHub
+and the ignored local runtime file are the other current consumers. Provider
+creation and deletion remain dashboard actions, while consumer convergence,
+deployment/alias binding, non-charging quote proof and rejection checks belong
+in one restart-safe operator. See `docs/shippo-api-credential-recovery.md`.

@@ -27,6 +27,15 @@ After its dual deployment, 35-minute drain, final deployment and old-key
 rejection proof, continue directly through the remaining exposed credential
 families and one fresh authenticated Order smoke before resuming Order RLS.
 
+The next family after shipping-rate acceptance is the exposed Shippo test API
+token. Shippo permits a two-token test-mode overlap, so create one named
+replacement, prove the same account, converge the exact shared Vercel row plus
+GitHub/local consumers, deploy and run the non-charging quote proof, then delete
+only the predecessor and prove its rejection. Do not touch Shippo live mode or
+fold the separate seller re-quote `estimated_days` product correction into the
+credential operator. The durable boundary lives in
+`docs/shippo-api-credential-recovery.md`.
+
 Exact main `636b1b5a` / CI `33689091625` and the first correction at exact main
 `1afe205c` / CI `33694247625` both failed closed before journal creation or
 mutation. The initial sanitized diagnostic accidentally rendered a missing
