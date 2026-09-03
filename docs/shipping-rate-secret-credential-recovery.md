@@ -1,6 +1,6 @@
 # Shipping-rate secret credential recovery
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
 
 This is the canonical operator record for replacing the exposed
 `SHIPPING_RATE_SECRET` without invalidating an in-progress checkout or allowing
@@ -26,6 +26,27 @@ shipping variables, or deployment deletion.
 The current secret is still the exposed original at this boundary. The
 temporary previous variable is absent. This is intentional: the application
 must understand both keys before the key changes.
+
+## Accepted production rotation
+
+- Operator main: `568b29dbea96f1874dda0145db49b52c87ca964d`
+- Exact-main CI: `33699848311`
+- Dual deployment: `dpl_C9K42kdtuY2W74xPWZsZowkYwP94`
+- Final replacement-only deployment: `dpl_4La1GXphy21feYp4AdYgT7Q2Zs7f`
+- Drain: 2,100 seconds, beginning only after all four canonical aliases
+  resolved to the dual deployment
+- Evidence:
+  `shipping-rate-secret-credential-recovery-20260902.json`, mode `0600`,
+  SHA-256
+  `c9c79ae60656de78365276f1ddd83796958391a26493817fae61376367284161`
+
+The temporary Production previous row is absent. All three current Vercel
+rows, GitHub and the ignored local consumer contain only the replacement. All
+four canonical aliases resolve to the exact final deployment, health returns
+200, the real verifier accepts the replacement and rejects the exposed
+original, and the private restart journal is absent. The operator's completed
+read-only path reverified those same provider, deployment, alias, GitHub, local
+and health invariants after evidence creation.
 
 ## Exact consumer inventory
 
@@ -159,7 +180,7 @@ weaken the normal exact binding.
 
 ## Acceptance and residual scope
 
-This credential family is accepted only when:
+This credential family was accepted only after confirming:
 
 - all three current Vercel rows contain the replacement and no previous row
   remains;

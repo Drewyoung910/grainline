@@ -561,3 +561,32 @@ same restart-safe pair-only convergence before original-secret rejection can be
 accepted. Later-stage restarts re-attest the exact provider digest pair, local
 replacement-only state and GitHub secret inventory rather than trusting the
 journal alone.
+
+Exact main `568b29dbea96f1874dda0145db49b52c87ca964d` / CI
+`33699848311` completed that bounded recovery. Pair-only convergence moved all
+four aliases to the existing dual deployment, the full 2,100-second drain
+elapsed, only the temporary previous row was removed, and exact final
+replacement-only deployment `dpl_4La1GXphy21feYp4AdYgT7Q2Zs7f` was created and
+promoted. The completed operator path independently reverified provider,
+GitHub, local, deployment, alias and health state. The replacement verifies,
+the exposed original rejects, health is 200, and the private journal is absent.
+
+Accepted mode-`0600` evidence is
+`shipping-rate-secret-credential-recovery-20260902.json`, SHA-256
+`c9c79ae60656de78365276f1ddd83796958391a26493817fae61376367284161`.
+This closes the shipping-rate HMAC family, not the overall incident.
+
+## Next family: Shippo test API token
+
+The shipping-rate HMAC family is accepted; rotate the exposed Shippo test
+token next. This directly re-proves the shipping quote
+surface before Order RLS resumes and uses Shippo's supported two-test-token
+overlap rather than an outage-prone one-for-one swap.
+
+The exact shared Vercel row is
+`env_374M3muVPW3jIKBS8X4Q7kqI`, encrypted and linked to Grainline for
+Development, Preview and Production; no project-local shadow exists. GitHub
+and the ignored local runtime file are the other current consumers. Provider
+creation and deletion remain dashboard actions, while consumer convergence,
+deployment/alias binding, non-charging quote proof and rejection checks belong
+in one restart-safe operator. See `docs/shippo-api-credential-recovery.md`.
