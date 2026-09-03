@@ -589,6 +589,26 @@ deployment, database or RLS state changed during this audit. Full rotation and
 proof sequencing is retained in
 `docs/clerk-webhook-secret-credential-recovery.md`.
 
+The separate provenance-inspection scaffold is prepared on an isolated branch.
+It pins manual exact-main execution, the protected direct owner credential and
+digest, the reviewed production Neon identity, a clean checkout, one fresh
+mode-`0600` evidence path, and the current terms version. Its production query
+runs only after PostgreSQL attests repeatable-read/read-only state and exports
+nine aggregate counts with no identifiers, timestamps, metadata, or rows. The
+same SQL classification is exercised against trusted and forged temporary
+fixtures under an actual read-only PostgreSQL transaction in CI. No production
+inspection or cleanup has run.
+
+Diff security review found and corrected a rollout-order defect before this
+scaffold left draft: the first runbook ordered cleanup before deployment of the
+safe writer. A still-callable predecessor could have re-seeded cleared legal
+state from unsafe metadata, and the later deployment would not remove that
+persisted state. The binding contract now requires safe application deployment,
+complete callable-predecessor drain, and only then inspection plus any cleanup
+and a zero-untrusted post-inspection. A retained operational canary is not
+silently exempt; if it lacks route-backed provenance it must be re-gated and
+accept through the normal audited route.
+
 ## 2026-05-13 seller operational route spot check
 
 Scope:

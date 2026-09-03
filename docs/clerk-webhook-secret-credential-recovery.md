@@ -127,6 +127,20 @@ fields cleared in one narrowly reviewed migration and reaccept normally. A
 legitimate user whose earlier audit write failed may be asked to reaccept; that
 is safer than preserving unprovable consent.
 
+The isolated inspection scaffold uses one engine-attested `REPEATABLE READ READ
+ONLY` transaction and returns only a nine-count partition: total, active,
+deleted, active current acceptance, trusted/untrusted current acceptance,
+partial-or-stale active state, active state with no legal fields, and deleted
+current acceptance. A trusted current acceptance requires a non-undone
+`TERMS_ACCEPTED` row for the same local user and target, with `actorKind=user`,
+the exact `/api/account/accept-terms` route, and current terms version. The
+normalizer rejects missing, nonnumeric, unsafe-integer, or arithmetically
+inconsistent counts. CI proves the exact classification against valid and
+forged audit fixtures in disposable PostgreSQL before the protected workflow
+can be considered runnable. Cleanup authority is limited to active users whose
+current acceptance lacks trusted provenance; deleted-user legal retention is a
+separate policy question and is not silently mutated by this recovery.
+
 ## Provider proof and replay semantics
 
 Create one parallel production Clerk webhook endpoint with the exact canonical
@@ -154,31 +168,40 @@ logical deduplication.
 
 1. Require the accepted Clerk server-key evidence, exact current deployment,
    aliases, health, and absence of its private journal.
-2. Run the aggregate-only legal-acceptance provenance inspection. Prepare and
-   apply a separate narrow cleanup only if the aggregate shows untrusted rows.
-3. Merge and deploy the application hardening: no unsafe-metadata legal writes,
+2. Merge and deploy the application hardening: no unsafe-metadata legal writes,
    atomic legal audit, no unauthenticated shared telemetry, and no CI webhook
    secret consumer.
-4. Inventory the exact predecessor endpoint and subscriptions through the
+3. Drain every callable predecessor application deployment that still contains
+   the unsafe-metadata legal-write paths. Reverify the current deployment,
+   aliases and health. Merely moving aliases is insufficient because a
+   predecessor deployment URL remains callable until removed.
+4. Run the aggregate-only legal-acceptance provenance inspection only after the
+   unsafe application predecessors are gone. Prepare and apply a separate
+   narrow cleanup if the aggregate shows untrusted active rows, then rerun the
+   same inspection and require zero untrusted active rows. The retained
+   operational canary is not exempt: if it lacks route-backed provenance, clear
+   it and restore acceptance only through the normal authenticated
+   `/api/account/accept-terms` route so the audit is created atomically.
+5. Inventory the exact predecessor endpoint and subscriptions through the
    Clerk/Svix portal without printing or storing its portal URL fragment.
-5. Create one distinctly named parallel endpoint with the same canonical URL
+6. Create one distinctly named parallel endpoint with the same canonical URL
    and event subscriptions. An ambiguous creation is restart state.
-6. Capture the replacement secret once, fsync it to a mode-`0600` journal,
+7. Capture the replacement secret once, fsync it to a mode-`0600` journal,
    clear only that clipboard value, and require a digest distinct from the
    predecessor.
-7. Create one project-local Production-only sensitive Vercel row. Keep the old
+8. Create one project-local Production-only sensitive Vercel row. Keep the old
    shared row temporarily so the new project-local row overrides it only in
    Production. Do not create `_PREVIOUS`.
-8. Deploy only the exact reviewed CI-green source, move every canonical alias,
+9. Deploy only the exact reviewed CI-green source, move every canonical alias,
    and verify READY status, source provenance and health.
-9. Send the genuine provider-signed safe delivery through the new endpoint,
+10. Send the genuine provider-signed safe delivery through the new endpoint,
    then retry the exact delivery and prove the lifecycle/replay boundary.
-10. Keep overlap bounded. After the reviewed in-flight drain, disable and delete
+11. Keep overlap bounded. After the reviewed in-flight drain, disable and delete
     only the exact predecessor endpoint. Reverify new-endpoint delivery.
-11. Delete exact shared Vercel row `env_COJQFcpzr4XLmfRZl1sPYGux`, delete the
+12. Delete exact shared Vercel row `env_COJQFcpzr4XLmfRZl1sPYGux`, delete the
     now-unused GitHub secret, remove the local production value, and prove the
     project-local Production row is the sole production consumer.
-12. Reverify deployment, aliases, health, provider endpoint inventory, evidence
+13. Reverify deployment, aliases, health, provider endpoint inventory, evidence
     redaction and journal removal. Only then accept the family.
 
 ## Fail-closed requirements

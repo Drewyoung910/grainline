@@ -2707,8 +2707,14 @@ legal-acceptance fields and that unsigned failures amplified work into shared
 Sentry/Redis telemetry. The isolated application correction removes both
 paths, makes the dedicated acceptance update and audit row atomic, and removes
 the unused production webhook secret from ordinary CI. Historical acceptance
-provenance must be inspected aggregate-only and untrusted rows re-gated before
-the application fix is accepted. Provider rotation then uses one parallel
+provenance must be inspected aggregate-only and untrusted active rows re-gated
+before the application fix is accepted. Deploy the safe writer first and drain
+every callable application predecessor before the inspection or cleanup; an
+old deployment could otherwise re-seed a cleared row. The isolated inspector
+now pins the exact main source/owner target and classifies only a nine-count
+partition inside an engine-attested read-only transaction; its disposable
+PostgreSQL proof must pass before any protected production inspection. Provider
+rotation then uses one parallel
 endpoint, a Production-only Vercel secret, genuine signed delivery/replay
 proof, bounded overlap, and exact predecessor deletion. No provider,
 deployment, migration or RLS change has occurred yet. See
