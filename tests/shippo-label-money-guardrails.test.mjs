@@ -38,7 +38,8 @@ describe("Shippo label money guardrails", () => {
 
     assert.deepEqual(
       normalizeShippoShipmentRates([
-        { object_id: "rate_valid", provider: "UPS", servicelevel: { name: "Ground" }, amount: "8.50", currency: "USD", est_days: 3 },
+        { object_id: "rate_valid", provider: "UPS", servicelevel: { name: "Ground" }, amount: "8.50", currency: "USD", estimated_days: 3 },
+        { object_id: "rate_legacy_field", provider: "UPS", servicelevel: { name: "Legacy field" }, amount: "9.00", currency: "USD", est_days: 4 },
         { object_id: "rate_zero", provider: "USPS", servicelevel: { name: "Promo" }, amount: "0", currency: "usd" },
         { object_id: "", provider: "UPS", servicelevel: { name: "Missing id" }, amount: "7.00", currency: "USD" },
         { object_id: "rate_nan", provider: "UPS", servicelevel: { name: "NaN" }, amount: "NaN", currency: "USD" },
@@ -54,6 +55,14 @@ describe("Shippo label money guardrails", () => {
           amount: 850,
           currency: "usd",
           est_days: 3,
+        },
+        {
+          objectId: "rate_legacy_field",
+          provider: "UPS",
+          servicelevel_name: "Legacy field",
+          amount: 900,
+          currency: "usd",
+          est_days: null,
         },
         {
           objectId: "rate_zero",

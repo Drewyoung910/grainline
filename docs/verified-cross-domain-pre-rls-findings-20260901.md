@@ -95,6 +95,20 @@ heuristic, not proof that every physical multi-unit arrangement fits one box;
 seller label purchase performs a fresh full-address quote from the retained
 Order snapshot before any label transaction.
 
+### 2026-09-02 seller label re-quote estimate follow-up
+
+The provider contract and buyer quote path correctly use Shippo's
+`estimated_days` rate field, but the separate seller label re-quote normalizer
+still read the non-provider `est_days` spelling. Rate identities, prices and
+label purchase remained functional, but the re-quote picker could lose its
+transit-day estimate. The isolated correction now reads `estimated_days` at the
+provider boundary and retains the existing internal `est_days` normalized
+shape consumed by the label route. Regression coverage also proves that the
+old misspelling no longer appears to work accidentally.
+
+This correction remains separate from the active shipping-rate HMAC credential
+recovery and must not be deployed through that recovery operator.
+
 ### 2026-09-02 seller shipping-policy follow-up
 
 The same pre-RLS audit found a separate product-contract regression. Shop
