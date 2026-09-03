@@ -1,6 +1,7 @@
 # Comprehensive credential exposure recovery — 2026-09-02
 
-Status: active recovery. The database owner/runtime family is complete; provider
+Status: active recovery. The database owner/runtime, Resend, cron bearer,
+shipping-rate HMAC, and Shippo test API families are complete; other provider
 and application families remain open. No credential value,
 raw provider response, connection string, PIN, signing secret, token, or private
 restart journal belongs in this document, a commit, a pull request, a CI artifact,
@@ -576,7 +577,7 @@ Accepted mode-`0600` evidence is
 `c9c79ae60656de78365276f1ddd83796958391a26493817fae61376367284161`.
 This closes the shipping-rate HMAC family, not the overall incident.
 
-## Next family: Shippo test API token
+## Completed Shippo test API family
 
 The shipping-rate HMAC family is accepted; rotate the exposed Shippo test
 token next. This directly re-proves the shipping quote
@@ -601,3 +602,76 @@ explicit dashboard handoffs. Clipboard capture is one-time, mode-`0600` and
 fsynced; output and accepted evidence are token-free. The operator's deployment
 deletion fence deliberately excludes older READY deployments whose database
 passwords were already rejected by the accepted database recovery.
+
+The Shippo test API credential family completed on 2026-09-03 from exact main
+`a12a13ce4667f7274b7b8f00c70def5ceaefcde1` and CI `33707066095`.
+The replacement reaches the same normalized 11-carrier test-account identity,
+while the exposed predecessor token now returns an authentication rejection.
+The exact Vercel shared row, GitHub repository secret and ignored local
+consumer converged on the replacement without a project-local shadow.
+
+All four canonical aliases point to READY deployment
+`dpl_6Qndfy4oiiGCkWdcZXYRDzsraqFz`, built from application source
+`82f58889b12095d21449494a036a327cc9feb9b1` / CI `33702373864`. That source
+contains the independently reviewed seller re-quote correction from Shippo's
+nonexistent `est_days` field to `estimated_days`. Canonical health returned
+HTTP 200. Buyer and seller proofs each returned three usable USD rates; every
+seller rate carried the expected transit-day witness. The operator did not
+call Shippo Transactions, purchase a label, run a migration or change RLS.
+
+After a 3,972-second overlap drain, the operator removed only the eight sealed
+deployments in the superseded database-credential epoch. The human provider
+boundary then deleted only the exposed Shippo test token. Final acceptance
+re-proved predecessor rejection, replacement identity, quote behavior,
+deployment provenance, aliases and health before removing the private journal.
+
+Accepted Shippo evidence:
+
+- path: `shippo-api-credential-recovery-20260903.json`;
+- SHA-256:
+  `ebcd62085d611bc09e6b4d4ee8e3f4dc38c9c1cf31cb6ba51e1dd68bff6e3f66`;
+- mode `0600`;
+- status `passed`, `acceptanceEligible=true`, and `issueCount=0`;
+- `labelPurchased=false`, `transactionCreated=false`, and
+  `migrationsRun=false`; and
+- no raw token, address, provider object identifier or other secret in the
+  sanitized artifact.
+
+The credential fix does not erase the documented shipping product limits:
+buyer quotes still use city/state/postal/country rather than street-level
+validation, multi-item packing still uses one reviewed parcel heuristic, and
+the outage fallback may be economically imprecise for unusually large orders.
+Those remain explicit product follow-ups rather than hidden RLS prerequisites.
+
+## Next family: Clerk server API key
+
+The restart-safe server-key operator and its fail-closed tests are now
+implemented on an isolated branch. Focused verification passed 18/18 and the
+full repository suite passed 4,031 tests with zero failures and 10 intentional
+skips. This is preparation evidence only: the provider and every consumer are
+still on the predecessor key until the exact operator branch passes CI and the
+separate runtime and operations replacements are created.
+
+Pre-execution review caught and corrected a bounded canary cleanup gap before
+any Clerk or consumer mutation: failed ticket exchange now explicitly revokes
+the unconsumed sign-in token, and the enclosing active-session sweep covers the
+whole session-creation attempt. The correction has behavioral regression
+coverage rather than relying only on the token's 60-second expiry.
+The review also added explicit captured-but-unverified stages for both
+replacement keys. Their secrets are now fsynced to the private journal before
+clipboard clearing or provider validation, so a workstation crash cannot turn
+a newly created named key into an unrecoverable orphan.
+
+Audit and rotate `CLERK_SECRET_KEY` before the webhook secret. The current
+production-capable server key is shared across Vercel runtime, GitHub automation
+and local operations and targets Development, Preview and Production. Clerk
+supports multiple named active keys, so recovery will split one replacement
+runtime key from one replacement operations key, narrow the runtime value to a
+Production-only Vercel secret, deploy and prove a real `currentUser()` route,
+drain the exact predecessor, remove the compromised shared row, then delete and
+prove rejection of the exposed provider key.
+
+Keep `CLERK_WEBHOOK_SECRET` out of this operation. Its later rotation requires a
+parallel endpoint and signed-delivery/replay proof. The public Clerk publishable
+key is not secret and remains unchanged. See
+`docs/clerk-server-key-credential-recovery.md`.

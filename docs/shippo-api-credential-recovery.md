@@ -1,8 +1,10 @@
 # Shippo test API credential recovery
 
-Status: the shipping-rate HMAC prerequisite is accepted and an isolated,
-unexecuted recovery operator candidate is implemented. This document does not
-authorize a provider mutation, deployment or RLS change by itself.
+Status: completed and accepted on 2026-09-03. The exposed Shippo test token is
+deleted and rejects authentication; the replacement is proven across every
+consumer, the corrected production application and both non-charging quote
+paths. This document does not authorize another provider mutation, deployment
+or RLS change by itself.
 
 ## Scope
 
@@ -130,3 +132,26 @@ postal/country estimates rather than exact street validation, multi-item
 packing uses the documented one-parcel heuristic, and the platform outage
 fallback can be economically imprecise for unusually large orders. None is a
 reason to weaken token rotation or misstate provider proof.
+
+## Accepted completion
+
+- Operator/main:
+  `a12a13ce4667f7274b7b8f00c70def5ceaefcde1`.
+- Exact-main CI: `33707066095`.
+- Corrected application source:
+  `82f58889b12095d21449494a036a327cc9feb9b1` / CI `33702373864`.
+- Replacement deployment: `dpl_6Qndfy4oiiGCkWdcZXYRDzsraqFz`.
+- Accepted evidence:
+  `shippo-api-credential-recovery-20260903.json`, SHA-256
+  `ebcd62085d611bc09e6b4d4ee8e3f4dc38c9c1cf31cb6ba51e1dd68bff6e3f66`,
+  mode `0600`.
+- Provider proof: the exposed predecessor rejects, the replacement reaches the
+  same normalized 11-carrier account identity, buyer and seller paths each
+  returned three usable rates, and all three seller rates supplied
+  `estimated_days`.
+- Negative proof: no Shippo Transaction, label purchase, migration, RLS change
+  or unrelated provider mutation occurred.
+- Deployment proof: all four canonical aliases and health are correct after a
+  3,972-second drain and bounded removal of the eight sealed predecessors.
+- Secret lifecycle: the clipboard was cleared after private capture and the
+  secret-bearing restart journal is absent after sanitized evidence finalized.

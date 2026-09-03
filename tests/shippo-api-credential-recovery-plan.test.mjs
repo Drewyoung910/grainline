@@ -49,9 +49,19 @@ describe("Shippo API credential recovery plan", () => {
   });
 
   it("is durably routed from the incident and strategy records", () => {
-    assert.match(normalizedIncident, /## Next family: Shippo test API token/);
+    assert.match(normalizedIncident, /## Completed Shippo test API family/);
     assert.match(normalizedIncident, /docs\/shippo-api-credential-recovery\.md/);
-    assert.match(normalizedStrategy, /next family after shipping-rate acceptance is the exposed Shippo test API token/);
+    assert.match(normalizedIncident, /ebcd62085d611bc09e6b4d4ee8e3f4dc38c9c1cf31cb6ba51e1dd68bff6e3f66/);
+    assert.match(normalizedStrategy, /Shippo test-token family completed on 2026-09-03/);
     assert.match(normalizedStrategy, /docs\/shippo-api-credential-recovery\.md/);
+  });
+
+  it("records accepted provider, deployment, and negative proof", () => {
+    assert.match(normalizedPlan, /Status: completed and accepted on 2026-09-03/);
+    assert.match(normalizedPlan, /a12a13ce4667f7274b7b8f00c70def5ceaefcde1/);
+    assert.match(normalizedPlan, /dpl_6Qndfy4oiiGCkWdcZXYRDzsraqFz/);
+    assert.match(normalizedPlan, /same normalized 11-carrier account identity/);
+    assert.match(normalizedPlan, /no Shippo Transaction, label purchase, migration, RLS change/);
+    assert.match(normalizedPlan, /secret-bearing restart journal is absent/);
   });
 });
