@@ -642,3 +642,19 @@ buyer quotes still use city/state/postal/country rather than street-level
 validation, multi-item packing still uses one reviewed parcel heuristic, and
 the outage fallback may be economically imprecise for unusually large orders.
 Those remain explicit product follow-ups rather than hidden RLS prerequisites.
+
+## Next family: Clerk server API key
+
+Audit and rotate `CLERK_SECRET_KEY` before the webhook secret. The current
+production-capable server key is shared across Vercel runtime, GitHub automation
+and local operations and targets Development, Preview and Production. Clerk
+supports multiple named active keys, so recovery will split one replacement
+runtime key from one replacement operations key, narrow the runtime value to a
+Production-only Vercel secret, deploy and prove a real `currentUser()` route,
+drain the exact predecessor, remove the compromised shared row, then delete and
+prove rejection of the exposed provider key.
+
+Keep `CLERK_WEBHOOK_SECRET` out of this operation. Its later rotation requires a
+parallel endpoint and signed-delivery/replay proof. The public Clerk publishable
+key is not secret and remains unchanged. See
+`docs/clerk-server-key-credential-recovery.md`.

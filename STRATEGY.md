@@ -39,7 +39,8 @@ operator with exact consumer, deployment, provider-identity and old-key
 rejection proofs. See `docs/shippo-api-credential-recovery.md` for the completed
 predecessor family and
 `docs/comprehensive-credential-exposure-recovery-20260902.md` for the umbrella
-incident boundary.
+incident boundary. The audited server-key topology and restart-safe target live
+in `docs/clerk-server-key-credential-recovery.md`.
 
 Historical shipping-rate recovery detail follows and remains useful for
 restart-safe operator design.
