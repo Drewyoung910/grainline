@@ -8,14 +8,22 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 The comprehensive credential incident pauses new Order RLS mutations until
 every exposed credential family is replaced and a fresh authenticated Order
-smoke passes. `SHIPPING_RATE_SECRET` is the current family after database,
-Resend and CRON recovery. Its pre-rotation audit found one real integrity gap:
+smoke passes. `SHIPPING_RATE_SECRET` followed database, Resend and CRON
+recovery. Its pre-rotation audit found one real integrity gap:
 the predecessor signed only postal code, not the complete city/state/postal/
 country quote destination. Ship `shipping-rate-v2` destination binding and
 dual verification first, deploy compatibility under the current key, then
 rotate current/previous, drain for at least 35 minutes, remove previous and
 prove old rejection. Do not rotate the key before the compatible verifier is
 live, and do not run database migrations or RLS changes during this recovery.
+
+That family is now accepted at exact operator main `568b29db`, CI
+`33699848311`, dual deployment `dpl_C9K42kdtuY2W74xPWZsZowkYwP94` and final
+replacement-only deployment `dpl_4La1GXphy21feYp4AdYgT7Q2Zs7f`. All aliases
+are final, the 35-minute drain elapsed, the previous row and private journal
+are absent, the replacement verifies and the exposed original rejects.
+Accepted evidence SHA-256 is
+`c9c79ae60656de78365276f1ddd83796958391a26493817fae61376367284161`.
 
 The compatibility gate is now complete at exact main
 `a4c74bbaeded1e347ec582289a226eae24763faf`, CI `33683844324`, and READY
