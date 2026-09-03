@@ -662,6 +662,15 @@ replacement keys. Their secrets are now fsynced to the private journal before
 clipboard clearing or provider validation, so a workstation crash cannot turn
 a newly created named key into an unrecoverable orphan.
 
+Both named Clerk replacements were captured and validated on 2026-09-03. The
+first Vercel convergence attempt created the single intended Production-only
+runtime row and then failed closed before journal advancement because current
+project-local environment metadata uses a bare 16-character ID and an empty
+`value` redaction, rather than the older shared-row `env_...`/omitted-value
+shape. The isolated correction pins that exact non-secret provider shape,
+rejects every non-empty or absent value representation, and reuses the existing
+row on restart; it does not authorize another provider key or environment row.
+
 Audit and rotate `CLERK_SECRET_KEY` before the webhook secret. The current
 production-capable server key is shared across Vercel runtime, GitHub automation
 and local operations and targets Development, Preview and Production. Clerk
