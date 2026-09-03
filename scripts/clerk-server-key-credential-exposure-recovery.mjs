@@ -95,7 +95,9 @@ const SESSION_ID = /^sess_[A-Za-z0-9]+$/;
 const SIGN_IN_TOKEN_ID = /^sit_[A-Za-z0-9]+$/;
 const STAGES = Object.freeze([
   "provider-runtime-create-required",
+  "provider-runtime-captured",
   "provider-operations-create-required",
+  "provider-operations-captured",
   "operations-captured",
   "vercel-runtime-created",
   "github-operations-updated",
@@ -713,19 +715,38 @@ function readClipboardKey() {
     encoding: "utf8",
     maxBuffer: 8 * 1024,
   });
-  try {
-    if (result.error || result.status !== 0) throw new Error("clipboard read failed");
-    return normalizeClerkSecretKey(result.stdout, "clipboard Clerk key");
-  } finally {
-    const cleared = spawnSync("/usr/bin/pbcopy", [], {
-      env: safeEnvironment(),
-      input: "",
-      encoding: "utf8",
-    });
-    if (cleared.error || cleared.status !== 0) {
-      throw new Error("clipboard could not be cleared after Clerk key capture");
-    }
+  if (result.error || result.status !== 0) throw new Error("clipboard read failed");
+  return normalizeClerkSecretKey(result.stdout, "clipboard Clerk key");
+}
+
+function clearClipboard() {
+  const cleared = spawnSync("/usr/bin/pbcopy", [], {
+    env: safeEnvironment(),
+    input: "",
+    encoding: "utf8",
+  });
+  if (cleared.error || cleared.status !== 0) {
+    throw new Error("clipboard could not be cleared after Clerk key capture");
   }
+}
+
+function clearCapturedClipboard(expectedSha256) {
+  const result = spawnSync("/usr/bin/pbpaste", [], {
+    env: safeEnvironment(),
+    encoding: "utf8",
+    maxBuffer: 8 * 1024,
+  });
+  if (result.error || result.status !== 0) throw new Error("clipboard recovery read failed");
+  let key;
+  try {
+    key = normalizeClerkSecretKey(result.stdout, "retained clipboard Clerk key");
+  } catch {
+    // Preserve unrelated clipboard contents on restart.
+    return false;
+  }
+  if (sha256(key) !== expectedSha256) return false;
+  clearClipboard();
+  return true;
 }
 
 async function waitForDrain(promotedAt) {
@@ -951,8 +972,8 @@ export function validateState(value, expectedOldKeySha256 = OLD_KEY_SHA256) {
     || typeof value.sharedEnvironmentDeleted !== "boolean"
   ) throw new Error("private Clerk recovery journal drifted");
 
-  const runtimeRequired = STAGES.indexOf(value.stage) >= STAGES.indexOf("provider-operations-create-required");
-  const operationsRequired = STAGES.indexOf(value.stage) >= STAGES.indexOf("operations-captured");
+  const runtimeRequired = STAGES.indexOf(value.stage) >= STAGES.indexOf("provider-runtime-captured");
+  const operationsRequired = STAGES.indexOf(value.stage) >= STAGES.indexOf("provider-operations-captured");
   if (
     (runtimeRequired && (
       sha256(normalizeClerkSecretKey(value.runtimeKey, "journal runtime Clerk key")) !== value.runtimeKeySha256
@@ -1298,11 +1319,22 @@ export async function runRecovery(config) {
         captureCommandFlag: "--capture-runtime-from-clipboard",
       });
     }
-    const runtimeKey = readClipboardKey();
-    const runtimeKeySha256 = sha256(runtimeKey);
-    if (runtimeKeySha256 === state.oldKeySha256) throw new Error("clipboard contains predecessor Clerk key");
-    await clerkIdentity(runtimeKey);
-    state = writeState(state, "provider-operations-create-required", { runtimeKey, runtimeKeySha256 });
+    let durablyCaptured = false;
+    try {
+      const runtimeKey = readClipboardKey();
+      const runtimeKeySha256 = sha256(runtimeKey);
+      if (runtimeKeySha256 === state.oldKeySha256) throw new Error("clipboard contains predecessor Clerk key");
+      state = writeState(state, "provider-runtime-captured", { runtimeKey, runtimeKeySha256 });
+      durablyCaptured = true;
+    } finally {
+      if (durablyCaptured) clearClipboard();
+    }
+  }
+
+  if (state.stage === "provider-runtime-captured") {
+    clearCapturedClipboard(state.runtimeKeySha256);
+    await clerkIdentity(state.runtimeKey);
+    state = writeState(state, "provider-operations-create-required");
   }
 
   if (state.stage === "provider-operations-create-required") {
@@ -1313,13 +1345,28 @@ export async function runRecovery(config) {
         captureCommandFlag: "--capture-operations-from-clipboard",
       });
     }
-    const operationsKey = readClipboardKey();
-    const operationsKeySha256 = sha256(operationsKey);
-    if ([state.oldKeySha256, state.runtimeKeySha256].includes(operationsKeySha256)) {
-      throw new Error("clipboard Clerk key is not a distinct operations key");
+    let durablyCaptured = false;
+    try {
+      const operationsKey = readClipboardKey();
+      const operationsKeySha256 = sha256(operationsKey);
+      if ([state.oldKeySha256, state.runtimeKeySha256].includes(operationsKeySha256)) {
+        throw new Error("clipboard Clerk key is not a distinct operations key");
+      }
+      state = writeState(state, "provider-operations-captured", { operationsKey, operationsKeySha256 });
+      durablyCaptured = true;
+    } finally {
+      if (durablyCaptured) clearClipboard();
     }
-    await Promise.all([clerkIdentity(state.oldKey), clerkIdentity(state.runtimeKey), clerkIdentity(operationsKey)]);
-    state = writeState(state, "operations-captured", { operationsKey, operationsKeySha256 });
+  }
+
+  if (state.stage === "provider-operations-captured") {
+    clearCapturedClipboard(state.operationsKeySha256);
+    await Promise.all([
+      clerkIdentity(state.oldKey),
+      clerkIdentity(state.runtimeKey),
+      clerkIdentity(state.operationsKey),
+    ]);
+    state = writeState(state, "operations-captured");
   }
 
   if (state.stage === "operations-captured") {

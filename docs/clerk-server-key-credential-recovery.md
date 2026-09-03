@@ -1,8 +1,8 @@
 # Clerk server API key credential recovery
 
 Status: audited, planned and implemented on an isolated branch on 2026-09-03;
-the focused recovery suite passed 17/17 and the complete repository suite
-passed 4,030 tests with zero failures and 10 intentional skips. The operator
+the focused recovery suite passed 18/18 and the complete repository suite
+passed 4,031 tests with zero failures and 10 intentional skips. The operator
 has not run, so no Clerk key, Vercel variable, deployment, GitHub secret or
 local credential has changed. This plan covers only the exposed
 `CLERK_SECRET_KEY`. The Clerk webhook signing secret is a separate
@@ -15,6 +15,12 @@ before the outer witness received a session identifier. No provider operation
 had run. The operator now revokes that unconsumed token inside the creation
 failure path, keeps the outer active-session sweep around the entire creation
 attempt, and has behavioral regression coverage for the failed-handshake case.
+The same review also closed the clipboard-to-journal crash window that mattered
+on this crash-prone workstation: each replacement now enters an explicit
+captured-but-unverified stage in the fsynced mode-`0600` journal before the
+clipboard is cleared or a network identity check begins. A restart preserves
+the only copy of the new secret and resumes validation without creating a
+competing provider key.
 
 ## Why this is a separate family
 
@@ -147,11 +153,12 @@ through this drain.
 2. Write a new mode-`0600`, fsynced private journal containing the exposed key
    only after its digest and exact production instance are proven.
 3. Stop for creation of the named runtime key. Capture it once from the macOS
-   clipboard, validate `sk_live_` shape, prove exact production-instance
-   identity, fsync it privately and clear the clipboard.
+   clipboard, validate `sk_live_` shape, fsync the captured-but-unverified
+   stage, clear only that captured clipboard value, then prove exact
+   production-instance identity before advancing.
 4. Stop separately for creation of the named operations key. Require a distinct
-   digest from both other keys, prove the same instance, capture privately and
-   clear the clipboard.
+   digest from both other keys, fsync its captured-but-unverified stage, clear
+   only that captured clipboard value, then prove the same instance.
 5. Create exactly one project-local Production-only sensitive Vercel row for
    the runtime key. Reject any pre-existing project-local `CLERK_SECRET_KEY`
    row, unknown target, branch binding or shadow. The old shared row remains

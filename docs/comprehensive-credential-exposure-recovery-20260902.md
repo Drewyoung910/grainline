@@ -646,8 +646,8 @@ Those remain explicit product follow-ups rather than hidden RLS prerequisites.
 ## Next family: Clerk server API key
 
 The restart-safe server-key operator and its fail-closed tests are now
-implemented on an isolated branch. Focused verification passed 17/17 and the
-full repository suite passed 4,030 tests with zero failures and 10 intentional
+implemented on an isolated branch. Focused verification passed 18/18 and the
+full repository suite passed 4,031 tests with zero failures and 10 intentional
 skips. This is preparation evidence only: the provider and every consumer are
 still on the predecessor key until the exact operator branch passes CI and the
 separate runtime and operations replacements are created.
@@ -657,6 +657,10 @@ any Clerk or consumer mutation: failed ticket exchange now explicitly revokes
 the unconsumed sign-in token, and the enclosing active-session sweep covers the
 whole session-creation attempt. The correction has behavioral regression
 coverage rather than relying only on the token's 60-second expiry.
+The review also added explicit captured-but-unverified stages for both
+replacement keys. Their secrets are now fsynced to the private journal before
+clipboard clearing or provider validation, so a workstation crash cannot turn
+a newly created named key into an unrecoverable orphan.
 
 Audit and rotate `CLERK_SECRET_KEY` before the webhook secret. The current
 production-capable server key is shared across Vercel runtime, GitHub automation

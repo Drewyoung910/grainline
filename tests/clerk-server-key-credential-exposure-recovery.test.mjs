@@ -271,6 +271,48 @@ test("private state requires three distinct valid keys and exact restart fields"
   assert.throws(() => validateState({ ...state, sharedEnvironmentDeleted: "yes" }, state.oldKeySha256));
 });
 
+test("private state preserves each replacement before provider validation", () => {
+  const complete = completeState();
+  const capturedRuntime = {
+    ...complete,
+    stage: "provider-runtime-captured",
+    operationsKey: null,
+    operationsKeySha256: null,
+    githubUpdatedAt: null,
+    projectEnvironmentId: null,
+    candidateDeploymentId: null,
+    candidateDeploymentUrl: null,
+    promotedAt: null,
+    runtimeProofCount: 0,
+    predecessorRemoved: false,
+    sharedEnvironmentDeleted: false,
+  };
+  assert.equal(
+    validateState(capturedRuntime, capturedRuntime.oldKeySha256).stage,
+    "provider-runtime-captured",
+  );
+  const capturedOperations = {
+    ...capturedRuntime,
+    stage: "provider-operations-captured",
+    operationsKey: complete.operationsKey,
+    operationsKeySha256: complete.operationsKeySha256,
+  };
+  assert.equal(
+    validateState(capturedOperations, capturedOperations.oldKeySha256).stage,
+    "provider-operations-captured",
+  );
+  assert.throws(() => validateState({
+    ...capturedRuntime,
+    runtimeKey: null,
+    runtimeKeySha256: null,
+  }, capturedRuntime.oldKeySha256));
+  assert.throws(() => validateState({
+    ...capturedOperations,
+    operationsKey: null,
+    operationsKeySha256: null,
+  }, capturedOperations.oldKeySha256));
+});
+
 test("sanitized evidence proves split consumers, two runtime witnesses, and no raw identities", () => {
   const state = completeState();
   const config = { operatorCommit: state.operatorCommit, operatorCiRunId: state.operatorCiRunId };
@@ -304,6 +346,9 @@ test("operator statically protects clipboard, key split, canary cleanup, and pro
   const source = readFileSync("scripts/clerk-server-key-credential-exposure-recovery.mjs", "utf8");
   assert.match(source, /spawnSync\("\/usr\/bin\/pbpaste"/);
   assert.match(source, /spawnSync\("\/usr\/bin\/pbcopy"/);
+  assert.match(source, /"provider-runtime-captured"/);
+  assert.match(source, /"provider-operations-captured"/);
+  assert.match(source, /if \(durablyCaptured\) clearClipboard\(\)/);
   assert.match(source, /type: "sensitive"/);
   assert.match(source, /target: \["production"\]/);
   assert.match(source, /await runtimeWitness\(state\.operationsKey\)/);
