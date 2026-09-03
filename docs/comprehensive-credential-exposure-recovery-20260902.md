@@ -670,6 +670,11 @@ project-local environment metadata uses a bare 16-character ID and an empty
 shape. The isolated correction pins that exact non-secret provider shape,
 rejects every non-empty or absent value representation, and reuses the existing
 row on restart; it does not authorize another provider key or environment row.
+The secret-bearing journal remains bound to original operator
+`43d0f5f4fe85ddabd2f7a67a250de30baaa9f544` / CI `33721186278`; resumption with
+corrected code requires a second exact clean commit plus successful push CI and
+records both bindings in accepted evidence. That correction path cannot create
+a new journal.
 
 Audit and rotate `CLERK_SECRET_KEY` before the webhook secret. The current
 production-capable server key is shared across Vercel runtime, GitHub automation

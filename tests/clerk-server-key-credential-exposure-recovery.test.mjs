@@ -22,6 +22,7 @@ import {
   normalizeClerkInstance,
   normalizeClerkSecretKey,
   normalizeDeploymentInventory,
+  normalizeOperatorBinding,
   normalizeProjectEnvironmentInventory,
   normalizeRejectedKeyStatus,
   normalizeRevokedSignInToken,
@@ -117,6 +118,38 @@ test("accepts only production Clerk keys and the exact production instance", () 
   assert.equal(normalizeRejectedKeyStatus(401), true);
   assert.equal(normalizeRejectedKeyStatus(403), true);
   assert.throws(() => normalizeRejectedKeyStatus(429));
+});
+
+test("binds a corrected operator only to an existing original recovery journal", () => {
+  const original = { operatorCommit: "a".repeat(40), operatorCiRunId: 101 };
+  assert.deepEqual(normalizeOperatorBinding(original), {
+    commit: original.operatorCommit,
+    ciRunId: original.operatorCiRunId,
+    originalCommit: original.operatorCommit,
+    originalCiRunId: original.operatorCiRunId,
+    corrected: false,
+  });
+  const corrected = {
+    ...original,
+    correctedOperatorCommit: "b".repeat(40),
+    correctedOperatorCiRunId: 202,
+  };
+  assert.deepEqual(normalizeOperatorBinding(corrected, { hasPriorState: true }), {
+    commit: corrected.correctedOperatorCommit,
+    ciRunId: corrected.correctedOperatorCiRunId,
+    originalCommit: original.operatorCommit,
+    originalCiRunId: original.operatorCiRunId,
+    corrected: true,
+  });
+  assert.throws(() => normalizeOperatorBinding(corrected));
+  assert.throws(() => normalizeOperatorBinding({ ...original, correctedOperatorCommit: "b".repeat(40) }, {
+    hasPriorState: true,
+  }));
+  assert.throws(() => normalizeOperatorBinding({
+    ...original,
+    correctedOperatorCommit: original.operatorCommit,
+    correctedOperatorCiRunId: 202,
+  }, { hasPriorState: true }));
 });
 
 test("accepts only exact revocation of the bounded sign-in token", () => {
@@ -331,11 +364,31 @@ test("sanitized evidence proves split consumers, two runtime witnesses, and no r
   assert.equal(value.consumers.runtimeSensitive, true);
   assert.equal(value.consumers.previewCredentialPresent, false);
   assert.equal(value.runtimeProof.count, 2);
+  assert.equal(value.operator.originalCommit, state.operatorCommit);
+  assert.equal(value.operator.originalCiRunId, state.operatorCiRunId);
   const accepted = {
     ...value,
     provider: { ...value.provider, predecessorKeySha256: OLD_KEY_SHA256 },
   };
   assert.equal(validateAcceptedEvidence(accepted, config).status, "passed");
+  const correctedConfig = {
+    ...config,
+    correctedOperatorCommit: "e".repeat(40),
+    correctedOperatorCiRunId: 10,
+  };
+  const corrected = sanitizedEvidence(correctedConfig, state, {
+    accountStatus: 200,
+  }, 331);
+  const correctedAccepted = {
+    ...corrected,
+    provider: { ...corrected.provider, predecessorKeySha256: OLD_KEY_SHA256 },
+  };
+  assert.equal(corrected.operator.commit, correctedConfig.correctedOperatorCommit);
+  assert.equal(corrected.operator.ciRunId, correctedConfig.correctedOperatorCiRunId);
+  assert.equal(corrected.operator.originalCommit, config.operatorCommit);
+  assert.equal(corrected.operator.originalCiRunId, config.operatorCiRunId);
+  assert.equal(validateAcceptedEvidence(correctedAccepted, correctedConfig).status, "passed");
+  assert.throws(() => validateAcceptedEvidence(correctedAccepted, config));
   assert.throws(() => validateAcceptedEvidence({
     ...accepted,
     consumers: { ...accepted.consumers, previewCredentialPresent: true },
@@ -355,6 +408,8 @@ test("operator statically protects clipboard, key split, canary cleanup, and pro
   assert.match(source, /spawnSync\("\/usr\/bin\/pbcopy"/);
   assert.match(source, /"provider-runtime-captured"/);
   assert.match(source, /"provider-operations-captured"/);
+  assert.match(source, /--corrected-operator-commit/);
+  assert.match(source, /--corrected-operator-ci-run/);
   assert.match(source, /if \(durablyCaptured\) clearClipboard\(\)/);
   assert.match(source, /type: "sensitive"/);
   assert.match(source, /target: \["production"\]/);
