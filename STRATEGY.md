@@ -2738,6 +2738,25 @@ proof, bounded overlap, and exact predecessor deletion. No provider,
 credential, migration, deployment or RLS state changed during cleanup. See
 `docs/clerk-webhook-secret-credential-recovery.md`.
 
+The 2026-09-04 read-only Clerk endpoint inventory found a missing
+`user.deleted` subscription. Preserve the existing `user.created` and
+`user.updated` subscriptions and include `user.deleted` in the replacement;
+the application already handles all three. Finish the cutover operator and
+restart proofs before creating the replacement endpoint. Prior missed-deletion
+effects remain an aggregate-only reconciliation question; enabling the new
+subscription cannot be treated as historical cleanup. Other exposed credential
+families remain open after Clerk, as listed in the incident record. The next
+RLS sequence remains `Order`, then `OrderItem`, then `OrderShippingRateQuote`,
+with the remaining Order conversions and a fresh authenticated smoke before
+activation.
+
+The webhook cutover must also seal and drain every callable deployment that
+retains the exposed signing secret and a working database credential. Provider
+endpoint deletion does not revoke the secret inside an old deployment. Remove
+only the sealed predecessors after replacement delivery/replay and the reviewed
+drain; preserve the new deployment and verify all canonical aliases. This
+requirement applies to future signing-secret rotations as well.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single
