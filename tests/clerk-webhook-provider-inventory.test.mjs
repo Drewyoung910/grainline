@@ -8,7 +8,7 @@ import {
   CLERK_WEBHOOK_PREDECESSOR_SECRET_SHA256,
   CLERK_WEBHOOK_URL,
   buildClerkWebhookInventoryEvidence,
-  createClerkWebhookInventoryEvidenceBuilder,
+  classifyClerkWebhookProviderInventory,
   normalizeClerkWebhookEndpoint,
   normalizeClerkWebhookPredecessorSecret,
   normalizeClerkWebhookProviderInventory,
@@ -67,6 +67,9 @@ test("rejects ambiguous targets, endpoint drift, and malformed portal transcript
   assert.throws(() => normalizeClerkWebhookEndpoint(endpoint({
     createdAt: "2026-02-30T03:04:05.000Z",
   })));
+  assert.equal(normalizeClerkWebhookEndpoint(endpoint({
+    createdAt: "2026-01-02T03:04:05.123Z",
+  })).createdAt, "2026-01-02T03:04:05.123Z");
   assert.throws(() => normalizeClerkWebhookEndpoint(endpoint({
     events: ["user.created", "user.created"],
   })));
@@ -79,25 +82,19 @@ test("rejects ambiguous targets, endpoint drift, and malformed portal transcript
 });
 
 test("classifies subscription and disabled-state drift without authorizing mutation", () => {
-  const testDigest = createHash("sha256").update(PREDECESSOR_SECRET).digest("hex");
-  const testBuilder = createClerkWebhookInventoryEvidenceBuilder(testDigest);
-  const accepted = testBuilder(inventory(), PREDECESSOR_SECRET);
+  const accepted = classifyClerkWebhookProviderInventory(inventory());
   assert.equal(accepted.status, "passed");
-  assert.equal(accepted.mutationAuthorized, false);
   assert.equal(accepted.exactHandledSubscriptionSet, true);
-  assert.equal(accepted.predecessorSecretSha256, testDigest);
-  assert.doesNotMatch(JSON.stringify(accepted), /whsec_|app\.svix\.com/);
 
-  const drift = testBuilder(inventory({ endpoint: endpoint({
+  const drift = classifyClerkWebhookProviderInventory(inventory({ endpoint: endpoint({
     status: "disabled",
     events: ["user.created"],
-  }) }), PREDECESSOR_SECRET);
+  }) }));
   assert.equal(drift.status, "review-required");
   assert.deepEqual(drift.blockers, [
     "predecessor-endpoint-not-enabled",
     "subscription-set-requires-review",
   ]);
-  assert.throws(() => createClerkWebhookInventoryEvidenceBuilder("bad"));
   assert.throws(() => buildClerkWebhookInventoryEvidence(inventory(), PREDECESSOR_SECRET));
   assert.throws(() => normalizeClerkWebhookPredecessorSecret(PREDECESSOR_SECRET));
 });

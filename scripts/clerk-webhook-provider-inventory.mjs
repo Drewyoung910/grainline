@@ -34,12 +34,15 @@ function sha256(value) {
 function normalizeTimestamp(value, label) {
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
   const canonical = Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+  const canonicalInput = typeof value === "string" && value.includes(".")
+    ? value
+    : value?.replace?.(/Z$/, ".000Z");
   if (
     typeof value !== "string"
     || value !== value.trim()
     || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)
     || canonical === null
-    || (value.endsWith(".000Z") ? value : value.replace(/Z$/, ".000Z")) !== canonical
+    || canonicalInput !== canonical
   ) throw new Error(`${label} is not an exact UTC timestamp`);
   return canonical;
 }
@@ -169,45 +172,50 @@ export function normalizeClerkWebhookPredecessorSecret(
   return Object.freeze({ sha256: digest });
 }
 
-export function createClerkWebhookInventoryEvidenceBuilder(expectedSha256) {
-  if (!SHA256.test(expectedSha256 ?? "")) {
-    throw new Error("Clerk webhook inventory builder digest is invalid");
-  }
-  return function buildInventoryEvidence(inventory, predecessorSecret) {
-    const normalized = normalizeClerkWebhookProviderInventory(inventory);
-    const predecessor = normalizeClerkWebhookPredecessorSecret(
-      predecessorSecret,
-      expectedSha256,
-    );
-    const eventsMatch = JSON.stringify(normalized.endpoint.events)
-      === JSON.stringify(CLERK_WEBHOOK_EVENTS);
-    const blockers = [];
-    if (normalized.endpoint.status !== "enabled") blockers.push("predecessor-endpoint-not-enabled");
-    if (!eventsMatch) blockers.push("subscription-set-requires-review");
-    const evidence = Object.freeze({
-      schemaVersion: 1,
-      operation: "clerk-webhook-provider-inventory",
-      status: blockers.length === 0 ? "passed" : "review-required",
-      mutationAuthorized: false,
-      capturedAt: normalized.capturedAt,
-      instanceId: normalized.instanceId,
-      environmentType: normalized.environmentType,
-      totalEndpointCount: normalized.totalEndpointCount,
-      canonicalUrlMatchCount: normalized.canonicalUrlMatchCount,
-      predecessorEndpoint: normalized.endpoint,
-      predecessorSecretSha256: predecessor.sha256,
-      exactHandledSubscriptionSet: eventsMatch,
-      blockers: Object.freeze(blockers),
-    });
-    const serialized = JSON.stringify(evidence);
-    if (
-      /whsec_|svix_url|https:\/\/app\.svix\.com/i.test(serialized)
-      || !SHA256.test(evidence.predecessorSecretSha256)
-    ) throw new Error("sanitized Clerk webhook inventory evidence retained private data");
-    return evidence;
-  };
+export function classifyClerkWebhookProviderInventory(inventory) {
+  const normalized = normalizeClerkWebhookProviderInventory(inventory);
+  const eventsMatch = JSON.stringify(normalized.endpoint.events)
+    === JSON.stringify(CLERK_WEBHOOK_EVENTS);
+  const blockers = [];
+  if (normalized.endpoint.status !== "enabled") blockers.push("predecessor-endpoint-not-enabled");
+  if (!eventsMatch) blockers.push("subscription-set-requires-review");
+  return Object.freeze({
+    normalized,
+    status: blockers.length === 0 ? "passed" : "review-required",
+    exactHandledSubscriptionSet: eventsMatch,
+    blockers: Object.freeze(blockers),
+  });
 }
 
-export const buildClerkWebhookInventoryEvidence = createClerkWebhookInventoryEvidenceBuilder(
-  CLERK_WEBHOOK_PREDECESSOR_SECRET_SHA256,
-);
+export function buildClerkWebhookInventoryEvidence(inventory, predecessorSecret) {
+  const classification = classifyClerkWebhookProviderInventory(inventory);
+  const { normalized } = classification;
+  const predecessor = normalizeClerkWebhookPredecessorSecret(predecessorSecret);
+  const evidence = Object.freeze({
+    schemaVersion: 1,
+    operation: "clerk-webhook-provider-inventory",
+    status: classification.status,
+    mutationAuthorized: false,
+    capturedAt: normalized.capturedAt,
+    instanceId: normalized.instanceId,
+    environmentType: normalized.environmentType,
+    totalEndpointCount: normalized.totalEndpointCount,
+    canonicalUrlMatchCount: normalized.canonicalUrlMatchCount,
+    predecessorEndpoint: Object.freeze({
+      id: normalized.endpoint.id,
+      url: normalized.endpoint.url,
+      status: normalized.endpoint.status,
+      events: normalized.endpoint.events,
+      createdAt: normalized.endpoint.createdAt,
+    }),
+    predecessorSecretSha256: predecessor.sha256,
+    exactHandledSubscriptionSet: classification.exactHandledSubscriptionSet,
+    blockers: classification.blockers,
+  });
+  const serialized = JSON.stringify(evidence);
+  if (
+    /whsec_|svix_url|https:\/\/app\.svix\.com/i.test(serialized)
+    || !SHA256.test(evidence.predecessorSecretSha256)
+  ) throw new Error("sanitized Clerk webhook inventory evidence retained private data");
+  return evidence;
+}
