@@ -277,4 +277,24 @@ describe("Clerk legal acceptance provenance inspection", () => {
     );
     assert.match(normalized, /operational canary is not exempt/);
   });
+
+  it("records the accepted safe-writer release without overstating provenance or rotation", () => {
+    const strategy = fs.readFileSync("STRATEGY.md", "utf8");
+    const audit = fs.readFileSync("docs/security-audit-log.md", "utf8");
+    const combined = `${recovery}\n${strategy}\n${audit}`;
+
+    assert.match(combined, /d7859d5d1aaab5fbfbd77e973bf196a063493a62/);
+    assert.match(combined, /dpl_HHLuG4Snq6vqitPjxUdabLqXfFSF/);
+    assert.match(combined, /dpl_X6b4qkf9c7Y8xkPctFWgY1zJD41V/);
+    assert.match(
+      combined,
+      /2f561ea9034d5ac70b587248e76b22aff74077c57cd590725d2e0a6ab9c433ca/,
+    );
+    assert.match(recovery, /aggregate provenance inspection.*remain pending/s);
+    assert.match(
+      recovery.replace(/\s+/g, " "),
+      /does not accept historical legal provenance or rotate/,
+    );
+    assert.match(audit, /The audit was not weakened or bypassed/);
+  });
 });

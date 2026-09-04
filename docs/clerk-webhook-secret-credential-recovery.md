@@ -1,10 +1,35 @@
 # Clerk webhook signing-secret credential recovery
 
-Status: audited and prepared on an isolated branch on 2026-09-03. No Clerk
-webhook endpoint, Vercel variable, GitHub secret, deployment, database row,
-migration, or RLS state has changed under this document. The Clerk server API
-key family is already accepted separately; this document covers only the
-production `CLERK_WEBHOOK_SECRET` and the application boundary it authenticates.
+Status: the application hardening is live from exact main
+`d7859d5d1aaab5fbfbd77e973bf196a063493a62`, and every callable
+current-credential predecessor containing the unsafe legal writer has been
+drained. The aggregate provenance inspection, any resulting cleanup, and the
+provider signing-secret rotation remain pending. This accepted application
+boundary changed one Production deployment and removed one exact predecessor;
+it changed no Clerk webhook endpoint, Vercel variable, GitHub secret, database
+row, migration, RLS state, or legal-acceptance row. The Clerk server API key
+family is already accepted separately; this document covers only the production
+`CLERK_WEBHOOK_SECRET` and the application boundary it authenticates.
+
+## Accepted safe-writer release and drain
+
+Exact main `d7859d5d1aaab5fbfbd77e973bf196a063493a62` passed CI run
+`33815736682` and became READY Production deployment
+`dpl_HHLuG4Snq6vqitPjxUdabLqXfFSF`. All four canonical aliases resolved to that
+deployment, `/api/health` returned `200`, and an unsigned Clerk webhook request
+returned the bounded `400` missing-header response. After the alias-derived
+330-second request drain, exact unsafe predecessor
+`dpl_X6b4qkf9c7Y8xkPctFWgY1zJD41V` at source
+`82f58889b12095d21449494a036a327cc9feb9b1` was permanently removed.
+
+The current database-credential epoch contained exactly those two deployments
+before removal and exactly the hardened deployment afterward, with no next page;
+the removed deployment subsequently returned `404`. Retain sanitized mode-0600
+evidence
+`clerk-webhook-hardening-production-release-20260903.json`, SHA-256
+`2f561ea9034d5ac70b587248e76b22aff74077c57cd590725d2e0a6ab9c433ca`.
+This closes only restart-safe steps 2 and 3 below. It does not accept historical
+legal provenance or rotate the webhook signing-secret family.
 
 ## Why this is a separate family
 
