@@ -122,6 +122,18 @@ enabled state, event subscriptions, creation state, and predecessor-secret
 digest without persisting the portal fragment or raw secret. An unavailable or
 ambiguous portal is a stop condition, not permission to create another endpoint.
 
+The isolated read-only inventory contract lives in
+`scripts/clerk-webhook-provider-inventory.mjs`. It accepts only the exact
+Production Clerk instance, canonical `https://thegrainline.com/api/clerk/webhook`
+route, one matching endpoint, bounded total endpoint count, exact UTC creation
+and capture timestamps, a valid enabled/disabled state, unique event names and
+the independently pinned predecessor-secret digest. It emits only sanitized
+inventory evidence with `mutationAuthorized=false`. A disabled predecessor or
+any subscription set other than `user.created`, `user.updated` and
+`user.deleted` is retained as `review-required`, never silently normalized or
+used as permission to mutate the provider. The contract does not generate a
+Svix portal URL, create an endpoint, reveal a signing secret or call Vercel.
+
 ## Target topology
 
 The replacement secret belongs in exactly one project-local, sensitive,
