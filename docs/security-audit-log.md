@@ -642,6 +642,14 @@ The audit was not weakened or bypassed; PR #423 remains draft until the registry
 can produce a real CI report. The moderate advisory set remains the separately
 documented dependency-security follow-up.
 
+After the accepted safe-writer drain was recorded, exact PR head
+`557610368396981cba01c47e97c23350c5a26d6f` repeated every repository-controlled
+gate through the full suite in CI run `33845490826`. Its audit then waited seven
+minutes and failed with the same external Quick-endpoint `503` before producing
+any vulnerability report; the production build was consequently not run. This
+third transport-only result does not change the dependency disposition or
+authorize an audit bypass.
+
 ## 2026-05-13 seller operational route spot check
 
 Scope:
