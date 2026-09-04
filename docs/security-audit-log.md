@@ -5073,3 +5073,24 @@ Open work:
   promotion cannot silently select the current behavior.
   No application, migration, production database, RLS, grant, deployment,
   provider or credential state changed.
+
+## 2026-09-04 Clerk legal-provenance production inspection
+
+- Protected workflow `33886609425` ran from exact main
+  `1e4e0c786a9fe4259cbd3d6e79bec39aabc9de2d` only after the safe Clerk
+  writer was live and its unsafe callable predecessor was removed.
+- PostgreSQL attested the reviewed direct production owner, restricted runtime
+  role posture, `REPEATABLE READ`, `READ ONLY`, and rollback. The retained
+  artifact contains only the nine-count partition, no rows or identifiers, and
+  has SHA-256
+  `6b9819119b1c20e3f386546e623c98f894181a294c3f8dc9932e37c747bb50ca`.
+- Counts were `9` total, `9` active, `0` deleted, `5` active current accepted,
+  `4` trusted current, `1` untrusted current, `3` partial/stale, `1` with no
+  legal state, and `0` deleted current accepted. Production was unchanged.
+- The one untrusted active current acceptance is a hard stop before Clerk
+  webhook endpoint/secret rotation. Do not infer an identity and do not mint an
+  audit row. The isolated remediation requires the exact aggregate state,
+  locks exactly one predicate-matched row in a serializable transaction, clears
+  only the three legal fields, waits beyond the middleware cache TTL, and
+  requires a zero-untrusted engine-read-only final check. A separate fresh
+  aggregate inspection remains required after cleanup.

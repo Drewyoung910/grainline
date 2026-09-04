@@ -1,0 +1,65 @@
+name: Clerk Legal Acceptance Provenance Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character reviewed main commit
+        required: true
+        type: string
+      inspection_run_id:
+        description: Exact accepted aggregate inspection run id
+        required: true
+        type: string
+      inspection_evidence_sha256:
+        description: SHA-256 of the accepted aggregate inspection evidence
+        required: true
+        type: string
+      confirmation:
+        description: Type clear-one-untrusted-clerk-legal-acceptance
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Clear exactly one untrusted current legal acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    env:
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      MIGRATION_DB_ROLE: neondb_owner
+      CLERK_LEGAL_PROVENANCE_CLEANUP_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      CLERK_LEGAL_PROVENANCE_INSPECTION_RUN_ID: ${{ inputs.inspection_run_id }}
+      CLERK_LEGAL_PROVENANCE_INSPECTION_EVIDENCE_SHA256: ${{ inputs.inspection_evidence_sha256 }}
+      CLERK_LEGAL_PROVENANCE_CLEANUP_CONFIRM: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Clear the exact untrusted acceptance and drain middleware cache TTL
+        run: npm run ops:clerk-legal-provenance-cleanup
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          CLERK_LEGAL_PROVENANCE_CLEANUP_EVIDENCE_PATH: ${{ runner.temp }}/clerk-legal-provenance-cleanup-${{ inputs.release_commit }}.json
+      - name: Upload sanitized aggregate cleanup evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: clerk-legal-provenance-cleanup-${{ github.sha }}
+          path: ${{ runner.temp }}/clerk-legal-provenance-cleanup-${{ github.sha }}.json
+          if-no-files-found: error
+          retention-days: 30

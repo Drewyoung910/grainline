@@ -548,6 +548,10 @@ jobs:
         run: npm run audit:clerk-legal-provenance-inspection-postgres
         env:
           CLERK_LEGAL_PROVENANCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Clerk legal acceptance provenance cleanup in ephemeral PostgreSQL
+        run: npm run audit:clerk-legal-provenance-cleanup-postgres
+        env:
+          CLERK_LEGAL_PROVENANCE_CLEANUP_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order seller key in rollback-only PostgreSQL
         run: npm run audit:rls-order-seller-key-compatibility
         env:
