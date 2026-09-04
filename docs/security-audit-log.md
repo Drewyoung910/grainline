@@ -1,6 +1,6 @@
 # Grainline Security Audit Log
 
-Last updated: 2026-08-31
+Last updated: 2026-09-04
 
 This is the working log for security hardening passes. Only verified findings should be promoted to `audit_open_findings.md`.
 
@@ -5046,3 +5046,30 @@ Open work:
   rows and recorded `productionChangedByPostflight=false`. Retain sanitized
   mode-`0600` evidence SHA-256
   `d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1`.
+
+## 2026-09-04 Notification full-proof fixture drift
+
+- Exact-main Notification FORCE proof run `33848511430` failed at the
+  `order_fulfillment` valid-source case after the buyer-controlled receipt
+  authority had made durable `Order.sellerProfileId` and complete transition
+  evidence authoritative. The promoted database function behaved fail closed;
+  the older full-matrix fixture still created a legacy-shaped Order and omitted
+  `previousStatus`.
+- The correction changes proof data only. It supplies the durable seller,
+  fulfillment method/status/timestamps, and complete previous/new transition
+  evidence for shipping, readiness, delivery and pickup. It also corrects the
+  stale pickup direction from seller-to-buyer to buyer-to-seller and adds the
+  delivery variant, matching the separately proven receipt authority. A static
+  regression test prevents the full proof from silently returning to the legacy
+  shape. The dispute source uses a separate synthetic Order so its database-
+  maintained open-dispute projection cannot invalidate unrelated fulfillment
+  evidence before that evidence is tested.
+- The full CI chain also intentionally executes this proof at the historical
+  blocked-checkout compatibility prefix, before migration
+  `20260901120000_prepare_order_receipt_notification_authority`. The proof now
+  reads the applied migration ledger: that prefix retains its seller-to-buyer
+  pickup assertion and excludes the then-unsupported delivery action, while the
+  current tree requires buyer-to-seller pickup and delivery. Unknown or partial
+  promotion cannot silently select the current behavior.
+  No application, migration, production database, RLS, grant, deployment,
+  provider or credential state changed.

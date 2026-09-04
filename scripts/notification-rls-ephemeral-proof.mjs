@@ -18,6 +18,8 @@ const fixture = Object.freeze({
   messageId: "notification-proof-message",
   orderId: "notification-proof-order",
   orderItemId: "notification-proof-order-item",
+  orderDisputeOrderId: "notification-proof-dispute-order",
+  orderDisputeOrderItemId: "notification-proof-dispute-order-item",
   caseId: "notification-proof-case",
   caseMessageId: "notification-proof-case-message",
   caseSellerMessageId: "notification-proof-case-message-seller",
@@ -215,8 +217,14 @@ async function cleanFixturesInTransaction(owner) {
     fixture.orderDisputeAuditId,
   ]]);
   await owner.query('DELETE FROM public."Case" WHERE id = $1', [fixture.caseId]);
-  await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.orderItemId]);
-  await owner.query('DELETE FROM public."Order" WHERE id = $1', [fixture.orderId]);
+  await owner.query('DELETE FROM public."OrderItem" WHERE id = ANY($1::text[])', [[
+    fixture.orderItemId,
+    fixture.orderDisputeOrderItemId,
+  ]]);
+  await owner.query('DELETE FROM public."Order" WHERE id = ANY($1::text[])', [[
+    fixture.orderId,
+    fixture.orderDisputeOrderId,
+  ]]);
   await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.bannedOrderItemId]);
   await owner.query('DELETE FROM public."Order" WHERE id = $1', [fixture.bannedOrderId]);
   await owner.query('DELETE FROM public."CommissionInterest" WHERE id = ANY($1::text[])', [[
@@ -425,15 +433,34 @@ async function seedFixturesInTransaction(owner) {
   );
   await owner.query(
     `INSERT INTO public."Order" (
-       id, "buyerId", "paidAt", "stripeSessionId"
-     ) VALUES ($1, $2, pg_catalog.clock_timestamp(), 'cs_notification_proof')`,
-    [fixture.orderId, fixture.actorUserId],
+       id, "buyerId", "sellerProfileId", "paidAt", "stripeSessionId",
+       "fulfillmentMethod", "fulfillmentStatus", "shippedAt"
+     ) VALUES (
+       $1, $2, $3, pg_catalog.clock_timestamp(), 'cs_notification_proof',
+       'SHIPPING', 'SHIPPED', pg_catalog.clock_timestamp()
+     )`,
+    [fixture.orderId, fixture.actorUserId, fixture.sellerProfileId],
   );
   await owner.query(
     `INSERT INTO public."OrderItem" (
        id, "orderId", "listingId", quantity, "priceCents"
      ) VALUES ($1, $2, $3, 1, 12500)`,
     [fixture.orderItemId, fixture.orderId, fixture.listingId],
+  );
+  await owner.query(
+    `INSERT INTO public."Order" (
+       id, "buyerId", "sellerProfileId", "paidAt", "stripeSessionId"
+     ) VALUES (
+       $1, $2, $3, pg_catalog.clock_timestamp(),
+       'cs_notification_proof_dispute'
+     )`,
+    [fixture.orderDisputeOrderId, fixture.actorUserId, fixture.sellerProfileId],
+  );
+  await owner.query(
+    `INSERT INTO public."OrderItem" (
+       id, "orderId", "listingId", quantity, "priceCents"
+     ) VALUES ($1, $2, $3, 1, 12500)`,
+    [fixture.orderDisputeOrderItemId, fixture.orderDisputeOrderId, fixture.listingId],
   );
   await owner.query(
     `INSERT INTO public."CheckoutStockReservation" (
@@ -531,11 +558,13 @@ async function seedFixturesInTransaction(owner) {
        ($2, 'user', $5, 'ORDER_FULFILLMENT_TRANSITION', 'ORDER', $4,
         pg_catalog.jsonb_build_object(
           'action', 'shipped',
+          'fulfillmentMethod', 'SHIPPING',
+          'previousStatus', 'PENDING',
           'newStatus', 'SHIPPED',
           'trackingCarrier', 'Proof Carrier'
         )),
        ($3, 'webhook', $6,
-        'STRIPE_DISPUTE_RECORDED', 'ORDER', $4,
+        'STRIPE_DISPUTE_RECORDED', 'ORDER', $7,
         pg_catalog.jsonb_build_object('disputeSideEffectsApplied', true))`,
     [
       fixture.orderCheckoutAuditId,
@@ -544,6 +573,7 @@ async function seedFixturesInTransaction(owner) {
       fixture.orderId,
       fixture.sellerUserId,
       fixture.orderDisputeStripeEventId,
+      fixture.orderDisputeOrderId,
     ],
   );
   await owner.query(
@@ -563,7 +593,7 @@ async function seedFixturesInTransaction(owner) {
      )`,
     [
       fixture.orderPaymentEventId,
-      fixture.orderId,
+      fixture.orderDisputeOrderId,
       fixture.orderDisputeStripeEventId,
       fixture.orderDisputeStripeObjectId,
       fixture.orderDisputeStripeChargeId,
@@ -1045,18 +1075,92 @@ async function configureCommissionRequestStatus(owner, status) {
   );
 }
 
-async function configureFulfillmentAudit(owner, action, newStatus, trackingCarrier = null) {
+async function configureFulfillmentAudit(
+  owner,
+  action,
+  newStatus,
+  trackingCarrier = null,
+  buyerReceiptAuthorityPromoted = true,
+) {
+  const transition = {
+    shipped: {
+      actorUserId: fixture.sellerUserId,
+      fulfillmentMethod: "SHIPPING",
+      previousStatus: "PENDING",
+    },
+    ready_for_pickup: {
+      actorUserId: fixture.sellerUserId,
+      fulfillmentMethod: "PICKUP",
+      previousStatus: "PENDING",
+    },
+    delivered: {
+      actorUserId: fixture.actorUserId,
+      fulfillmentMethod: "SHIPPING",
+      previousStatus: "SHIPPED",
+    },
+    picked_up: {
+      actorUserId: buyerReceiptAuthorityPromoted
+        ? fixture.actorUserId
+        : fixture.sellerUserId,
+      fulfillmentMethod: "PICKUP",
+      previousStatus: "READY_FOR_PICKUP",
+    },
+  }[action];
+  assert.ok(transition, `Unsupported fulfillment proof action: ${action}`);
+
+  await owner.query(
+    `UPDATE public."Order"
+        SET "sellerProfileId" = $2,
+            "fulfillmentMethod" = $3::public."FulfillmentMethod",
+            "fulfillmentStatus" = $4::public."FulfillmentStatus",
+            "pickupReadyAt" = CASE
+              WHEN $5::text IN ('ready_for_pickup', 'picked_up')
+                THEN pg_catalog.clock_timestamp()
+              ELSE NULL
+            END,
+            "pickedUpAt" = CASE
+              WHEN $5::text = 'picked_up' THEN pg_catalog.clock_timestamp()
+              ELSE NULL
+            END,
+            "shippedAt" = CASE
+              WHEN $5::text IN ('shipped', 'delivered') THEN pg_catalog.clock_timestamp()
+              ELSE NULL
+            END,
+            "deliveredAt" = CASE
+              WHEN $5::text = 'delivered' THEN pg_catalog.clock_timestamp()
+              ELSE NULL
+            END
+      WHERE id = $1`,
+    [
+      fixture.orderId,
+      fixture.sellerProfileId,
+      transition.fulfillmentMethod,
+      newStatus,
+      action,
+    ],
+  );
   await owner.query(
     `UPDATE public."SystemAuditLog"
-        SET metadata = pg_catalog.jsonb_strip_nulls(
+        SET "actorId" = $2,
+            metadata = pg_catalog.jsonb_strip_nulls(
           pg_catalog.jsonb_build_object(
-            'action', $2::text,
-            'newStatus', $3::text,
-            'trackingCarrier', $4::text
+            'action', $3::text,
+            'fulfillmentMethod', $4::text,
+            'previousStatus', $5::text,
+            'newStatus', $6::text,
+            'trackingCarrier', $7::text
           )
         )
       WHERE id = $1`,
-    [fixture.orderFulfillmentAuditId, action, newStatus, trackingCarrier],
+    [
+      fixture.orderFulfillmentAuditId,
+      transition.actorUserId,
+      action,
+      transition.fulfillmentMethod,
+      transition.previousStatus,
+      newStatus,
+      trackingCarrier,
+    ],
   );
 }
 
@@ -1456,7 +1560,7 @@ const creationFamilyCases = Object.freeze([
     sourceType: "order_payment",
     sourceId: fixture.orderDisputeStripeEventId,
     relatedUserId: fixture.actorUserId,
-    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+    expectedLink: `/dashboard/sales/${fixture.orderDisputeOrderId}`,
   },
   // Meaningful action and recipient-direction variants within the source
   // types above. Mutated durable fixtures are reset before each invocation;
@@ -1660,14 +1764,33 @@ const creationFamilyCases = Object.freeze([
   {
     label: "order_fulfillment_picked_up",
     functionName: "grainline_notification_create_order_event",
-    userId: fixture.actorUserId,
+    userId: fixture.sellerUserId,
     type: "ORDER_DELIVERED",
     sourceType: "order_fulfillment",
     sourceId: fixture.orderFulfillmentAuditId,
-    relatedUserId: fixture.sellerUserId,
-    expectedLink: `/dashboard/orders/${fixture.orderId}`,
-    expectedTitle: "Order picked up!",
-    setup: (owner) => configureFulfillmentAudit(owner, "picked_up", "PICKED_UP"),
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+    expectedTitle: "Buyer confirmed pickup",
+    setup: (owner, context) => configureFulfillmentAudit(
+      owner,
+      "picked_up",
+      "PICKED_UP",
+      null,
+      context.buyerReceiptAuthorityPromoted,
+    ),
+  },
+  {
+    label: "order_fulfillment_delivered",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.sellerUserId,
+    type: "ORDER_DELIVERED",
+    sourceType: "order_fulfillment",
+    sourceId: fixture.orderFulfillmentAuditId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+    expectedTitle: "Buyer confirmed delivery",
+    resetSourceNotification: true,
+    setup: (owner) => configureFulfillmentAudit(owner, "delivered", "DELIVERED"),
   },
   {
     label: "order_fulfillment_ready_for_pickup",
@@ -1954,13 +2077,40 @@ async function invokeCreationFamily(
 }
 
 async function proveCreationFamilyMatrix(owner) {
+  const receiptAuthority = await owner.query(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM public._prisma_migrations
+        WHERE migration_name = '20260901120000_prepare_order_receipt_notification_authority'
+          AND finished_at IS NOT NULL
+          AND rolled_back_at IS NULL
+          AND applied_steps_count > 0
+     ) AS promoted`,
+  );
+  const buyerReceiptAuthorityPromoted = receiptAuthority.rows[0]?.promoted === true;
+  const activeCreationFamilyCases = creationFamilyCases
+    .filter((family) => (
+      buyerReceiptAuthorityPromoted || family.label !== "order_fulfillment_delivered"
+    ))
+    .map((family) => {
+      if (buyerReceiptAuthorityPromoted || family.label !== "order_fulfillment_picked_up") {
+        return family;
+      }
+      return {
+        ...family,
+        userId: fixture.actorUserId,
+        relatedUserId: fixture.sellerUserId,
+        expectedLink: `/dashboard/orders/${fixture.orderId}`,
+        expectedTitle: "Order picked up!",
+      };
+    });
   const runtime = newClient("notification-proof-family-matrix");
   await runtime.connect();
   try {
     await setRuntimeRole(runtime);
-    for (const family of creationFamilyCases) {
+    for (const family of activeCreationFamilyCases) {
       if (family.setup) {
-        await family.setup(owner);
+        await family.setup(owner, { buyerReceiptAuthorityPromoted });
       }
       if (family.resetSourceNotification) {
         await owner.query(
