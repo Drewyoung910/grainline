@@ -116,17 +116,38 @@ consumer set without proving provider delivery. The prepared application patch
 removes that injection. After exact-main CI succeeds, delete the GitHub
 repository secret rather than retaining an unused copy.
 
-The active provider endpoint inventory is not yet accepted. Before any mutation,
-the Clerk dashboard/Svix portal must record the exact current endpoint id, URL,
-enabled state, event subscriptions, creation state, and predecessor-secret
-digest without persisting the portal fragment or raw secret. An unavailable or
-ambiguous portal is a stop condition, not permission to create another endpoint.
+The read-only active provider inventory is complete and remains
+`review-required`. Production contains exactly one endpoint, id
+`ep_3BYqcYhmWuf9JB9JL2nl81plJsq`, at the canonical URL. It is enabled, has no
+description, and the dashboard displays its creation time as `March 28, 2026
+at 12:40 AM` in the operator's `America/Chicago` time zone. Because the UI
+exposes only minute precision, normalized evidence retains the exact UTC
+interval `[2026-03-28T05:40:00.000Z, 2026-03-28T05:41:00.000Z)` rather than
+inventing seconds. The masked endpoint secret was not revealed. Independent
+hash-only comparison of the ignored mode-`0600` local value confirmed the
+pinned predecessor digest above. Retain sanitized mode-`0600` evidence
+`clerk-webhook-provider-inventory-20260904.json`, captured at
+`2026-09-04T20:07:55.836Z`, SHA-256
+`ccacd59f72cce28f81987840d9698c8a0a858a03ae387342e14439026d45c091`.
+It records `mutationAuthorized=false` and changed no provider or production
+state.
+
+The endpoint subscribes to exactly `user.created` and `user.updated`; it omits
+`user.deleted`. This is a real lifecycle gap, not merely inventory noise: the
+application has a retry-safe, tested `user.deleted` branch that anonymizes the
+local account, but Clerk cannot invoke it without the provider subscription.
+The replacement endpoint must therefore use the explicitly reviewed handled
+set `user.created`, `user.deleted`, and `user.updated`. This is a narrow repair
+of the provider configuration, not an instruction to silently clone the
+deficient predecessor. The provider remains unchanged until the parallel
+endpoint creation boundary is separately confirmed.
 
 The isolated read-only inventory contract lives in
 `scripts/clerk-webhook-provider-inventory.mjs`. It accepts only the exact
 Production Clerk instance, canonical `https://thegrainline.com/api/clerk/webhook`
-route, one matching endpoint, bounded total endpoint count, exact UTC creation
-and capture timestamps, a valid enabled/disabled state, unique event names and
+route, one matching endpoint, bounded total endpoint count, exact UTC capture
+timestamp, a source-preserving minute-precision Chicago creation interval, a
+valid enabled/disabled state, unique event names and
 the independently pinned predecessor-secret digest. It emits only sanitized
 inventory evidence with `mutationAuthorized=false`. A disabled predecessor or
 any subscription set other than `user.created`, `user.updated` and
@@ -269,7 +290,9 @@ logical deduplication.
 5. Inventory the exact predecessor endpoint and subscriptions through the
    Clerk/Svix portal without printing or storing its portal URL fragment.
 6. Create one distinctly named parallel endpoint with the same canonical URL
-   and event subscriptions. An ambiguous creation is restart state.
+   and the reviewed handled set `user.created`, `user.deleted`, and
+   `user.updated`; do not copy the predecessor's missing deletion subscription.
+   An ambiguous creation is restart state.
 7. Capture the replacement secret once, fsync it to a mode-`0600` journal,
    clear only that clipboard value, and require a digest distinct from the
    predecessor.

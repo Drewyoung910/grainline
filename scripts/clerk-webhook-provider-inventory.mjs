@@ -12,6 +12,7 @@ export const CLERK_WEBHOOK_EVENTS = Object.freeze([
   "user.deleted",
   "user.updated",
 ]);
+export const CLERK_WEBHOOK_PROVIDER_TIME_ZONE = "America/Chicago";
 export const CLERK_WEBHOOK_PREDECESSOR_SECRET_SHA256 =
   "3240b004c89c5b3853d08e4a4d004368f29e093253f71e95047e508ad0561ced";
 
@@ -19,6 +20,7 @@ const ENDPOINT_ID = /^ep_[A-Za-z0-9_-]{8,128}$/;
 const EVENT_NAME = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const WEBHOOK_SECRET = /^whsec_[A-Za-z0-9_+/=-]{20,256}$/;
+const MINUTE_MS = 60_000;
 
 function exactKeys(value, expected) {
   return value !== null
@@ -45,6 +47,57 @@ function normalizeTimestamp(value, label) {
     || canonicalInput !== canonical
   ) throw new Error(`${label} is not an exact UTC timestamp`);
   return canonical;
+}
+
+function normalizeCreatedAtObservation(value) {
+  if (!exactKeys(value, [
+    "displayed",
+    "timeZone",
+    "precision",
+    "utcStartInclusive",
+    "utcEndExclusive",
+  ])) throw new Error("Clerk webhook endpoint creation observation shape drifted");
+  if (
+    typeof value.displayed !== "string"
+    || value.displayed !== value.displayed.trim()
+    || value.displayed.length < 1
+    || value.displayed.length > 100
+    || /[\u0000-\u001f\u007f]/.test(value.displayed)
+    || value.timeZone !== CLERK_WEBHOOK_PROVIDER_TIME_ZONE
+    || value.precision !== "minute"
+  ) throw new Error("Clerk webhook endpoint creation observation source drifted");
+  const utcStartInclusive = normalizeTimestamp(
+    value.utcStartInclusive,
+    "Clerk webhook endpoint creation interval start",
+  );
+  const utcEndExclusive = normalizeTimestamp(
+    value.utcEndExclusive,
+    "Clerk webhook endpoint creation interval end",
+  );
+  const startMs = Date.parse(utcStartInclusive);
+  const endMs = Date.parse(utcEndExclusive);
+  if (startMs % MINUTE_MS !== 0 || endMs - startMs !== MINUTE_MS) {
+    throw new Error("Clerk webhook endpoint creation interval is not one exact minute");
+  }
+  const expectedDisplay = new Intl.DateTimeFormat("en-US", {
+    timeZone: value.timeZone,
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(startMs));
+  if (expectedDisplay !== value.displayed) {
+    throw new Error("Clerk webhook endpoint creation display does not match its UTC interval");
+  }
+  return Object.freeze({
+    displayed: value.displayed,
+    timeZone: value.timeZone,
+    precision: value.precision,
+    utcStartInclusive,
+    utcEndExclusive,
+  });
 }
 
 function normalizeEvents(value) {
@@ -77,7 +130,14 @@ function normalizeDescription(value) {
 }
 
 export function normalizeClerkWebhookEndpoint(value) {
-  if (!exactKeys(value, ["id", "url", "status", "events", "createdAt", "description"])) {
+  if (!exactKeys(value, [
+    "id",
+    "url",
+    "status",
+    "events",
+    "createdAtObservation",
+    "description",
+  ])) {
     throw new Error("Clerk webhook endpoint inventory shape drifted");
   }
   if (!ENDPOINT_ID.test(value.id ?? "")) {
@@ -105,7 +165,7 @@ export function normalizeClerkWebhookEndpoint(value) {
     url: value.url,
     status: value.status,
     events: normalizeEvents(value.events),
-    createdAt: normalizeTimestamp(value.createdAt, "Clerk webhook endpoint createdAt"),
+    createdAtObservation: normalizeCreatedAtObservation(value.createdAtObservation),
     description: normalizeDescription(value.description),
   });
 }
@@ -122,7 +182,7 @@ export function normalizeClerkWebhookProviderInventory(value) {
     "endpoint",
   ])) throw new Error("Clerk webhook provider inventory shape drifted");
   if (
-    value.schemaVersion !== 1
+    value.schemaVersion !== 2
     || value.source !== "clerk-svix-dashboard"
     || value.instanceId !== CLERK_PRODUCTION_INSTANCE.id
     || value.environmentType !== CLERK_PRODUCTION_INSTANCE.environmentType
@@ -140,11 +200,14 @@ export function normalizeClerkWebhookProviderInventory(value) {
   if (endpoint.url !== CLERK_WEBHOOK_URL) {
     throw new Error("Clerk webhook provider inventory does not identify the canonical route");
   }
-  if (Date.parse(endpoint.createdAt) > Date.parse(capturedAt)) {
+  if (
+    Date.parse(endpoint.createdAtObservation.utcEndExclusive)
+      > Date.parse(capturedAt)
+  ) {
     throw new Error("Clerk webhook endpoint cannot postdate its provider inventory");
   }
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     source: value.source,
     capturedAt,
     instanceId: value.instanceId,
@@ -192,7 +255,7 @@ export function buildClerkWebhookInventoryEvidence(inventory, predecessorSecret)
   const { normalized } = classification;
   const predecessor = normalizeClerkWebhookPredecessorSecret(predecessorSecret);
   const evidence = Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     operation: "clerk-webhook-provider-inventory",
     status: classification.status,
     mutationAuthorized: false,
@@ -206,7 +269,7 @@ export function buildClerkWebhookInventoryEvidence(inventory, predecessorSecret)
       url: normalized.endpoint.url,
       status: normalized.endpoint.status,
       events: normalized.endpoint.events,
-      createdAt: normalized.endpoint.createdAt,
+      createdAtObservation: normalized.endpoint.createdAtObservation,
     }),
     predecessorSecretSha256: predecessor.sha256,
     exactHandledSubscriptionSet: classification.exactHandledSubscriptionSet,
