@@ -589,6 +589,67 @@ deployment, database or RLS state changed during this audit. Full rotation and
 proof sequencing is retained in
 `docs/clerk-webhook-secret-credential-recovery.md`.
 
+The separate provenance-inspection scaffold is prepared on an isolated branch.
+It pins manual exact-main execution, the protected direct owner credential and
+digest, the reviewed production Neon identity, a clean checkout, one fresh
+mode-`0600` evidence path, and the current terms version. Its production query
+runs only after PostgreSQL attests repeatable-read/read-only state and exports
+nine aggregate counts with no identifiers, timestamps, metadata, or rows. The
+same SQL classification is exercised against trusted and forged temporary
+fixtures under an actual read-only PostgreSQL transaction in CI. No production
+inspection or cleanup has run.
+
+Diff security review found and corrected a rollout-order defect before this
+scaffold left draft: the first runbook ordered cleanup before deployment of the
+safe writer. A still-callable predecessor could have re-seeded cleared legal
+state from unsafe metadata, and the later deployment would not remove that
+persisted state. The binding contract now requires safe application deployment,
+complete callable-predecessor drain, and only then inspection plus any cleanup
+and a zero-untrusted post-inspection. A retained operational canary is not
+silently exempt; if it lacks route-backed provenance it must be re-gated and
+accept through the normal audited route.
+
+### Safe-writer production release and predecessor drain accepted
+
+- Exact hardening source `d7859d5d1aaab5fbfbd77e973bf196a063493a62`
+  passed main CI `33815736682` and became READY Production deployment
+  `dpl_HHLuG4Snq6vqitPjxUdabLqXfFSF`.
+- All four canonical aliases resolved to that deployment, canonical health
+  returned `200`, and the unsigned Clerk route returned its bounded `400`
+  missing-header response.
+- The current database-credential epoch contained exactly the hardened
+  deployment plus unsafe predecessor `dpl_X6b4qkf9c7Y8xkPctFWgY1zJD41V` before
+  drain. After at least 341 seconds, the exact predecessor was permanently
+  removed; the epoch contained exactly the hardened deployment afterward and
+  the removed ID returned `404`.
+- Retain mode-0600 evidence
+  `clerk-webhook-hardening-production-release-20260903.json`, SHA-256
+  `2f561ea9034d5ac70b587248e76b22aff74077c57cd590725d2e0a6ab9c433ca`.
+- This boundary changed one application deployment and removed one exact
+  predecessor. It ran no inspection or cleanup and changed no legal rows,
+  database schema, RLS posture, credentials, Vercel variables, Clerk provider
+  configuration, or webhook endpoint.
+
+The aggregate provenance inspector remains unmerged in draft PR #423. Exact PR
+CI run `33816790358` failed twice only at the blocking npm advisory transport:
+attempt 1 fell back from Bulk to the retiring Quick endpoint, and attempt 2
+allowed the production-only report to finish before the full report received a
+Quick `503`. All preceding CI steps, including the disposable PostgreSQL proof,
+TypeScript, lint, and full test suite, passed. Local reports from the same
+lockfile when the official Bulk endpoint responded found zero high or critical
+advisories (28 production moderates; 29 including development dependencies).
+The audit was not weakened or bypassed; PR #423 remains draft until the registry
+can produce a real CI report. The moderate advisory set remains the separately
+documented dependency-security follow-up.
+
+After the accepted safe-writer drain was recorded, exact PR head
+`557610368396981cba01c47e97c23350c5a26d6f` repeated every repository-controlled
+gate through the full suite in CI run `33845490826`. Its audit then waited seven
+minutes and failed with the same external Quick-endpoint `503` before producing
+any vulnerability report; the production build was consequently not run. This
+third transport-only result does not change the dependency disposition or
+authorize an audit bypass.
+
 ## 2026-05-13 seller operational route spot check
 
 Scope:

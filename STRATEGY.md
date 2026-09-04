@@ -2704,14 +2704,28 @@ SHA-256 is
 The next family is the separate Clerk webhook signing secret. Scoped security
 review found that client-writable Clerk unsafe metadata could seed durable
 legal-acceptance fields and that unsigned failures amplified work into shared
-Sentry/Redis telemetry. The isolated application correction removes both
+Sentry/Redis telemetry. The application correction removes both
 paths, makes the dedicated acceptance update and audit row atomic, and removes
-the unused production webhook secret from ordinary CI. Historical acceptance
-provenance must be inspected aggregate-only and untrusted rows re-gated before
-the application fix is accepted. Provider rotation then uses one parallel
+the unused production webhook secret from ordinary CI. Exact main
+`d7859d5d1aaab5fbfbd77e973bf196a063493a62` / CI `33815736682` is live as
+READY deployment `dpl_HHLuG4Snq6vqitPjxUdabLqXfFSF`; all four aliases and
+health passed. After the full 330-second drain, the only current-credential
+unsafe predecessor `dpl_X6b4qkf9c7Y8xkPctFWgY1zJD41V` was permanently
+removed, and the exact deployment epoch converged from two rows to the hardened
+deployment alone. Retain accepted mode-0600 evidence SHA-256
+`2f561ea9034d5ac70b587248e76b22aff74077c57cd590725d2e0a6ab9c433ca`.
+Historical acceptance
+provenance must be inspected aggregate-only and untrusted active rows re-gated
+before the legal-state finding is closed. The required safe-writer deployment
+and callable-predecessor drain are now accepted. The isolated inspector
+now pins the exact main source/owner target and classifies only a nine-count
+partition inside an engine-attested read-only transaction; its disposable
+PostgreSQL proof must pass before any protected production inspection. Provider
+rotation then uses one parallel
 endpoint, a Production-only Vercel secret, genuine signed delivery/replay
 proof, bounded overlap, and exact predecessor deletion. No provider,
-deployment, migration or RLS change has occurred yet. See
+credential, database, migration or RLS change occurred in the accepted
+application drain. See
 `docs/clerk-webhook-secret-credential-recovery.md`.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
