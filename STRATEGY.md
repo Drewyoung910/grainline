@@ -2714,14 +2714,19 @@ unsafe predecessor `dpl_X6b4qkf9c7Y8xkPctFWgY1zJD41V` was permanently
 removed, and the exact deployment epoch converged from two rows to the hardened
 deployment alone. Retain accepted mode-0600 evidence SHA-256
 `2f561ea9034d5ac70b587248e76b22aff74077c57cd590725d2e0a6ab9c433ca`.
-Historical acceptance
-provenance must be inspected aggregate-only and untrusted active rows re-gated
-before the legal-state finding is closed. The required safe-writer deployment
-and callable-predecessor drain are now accepted. The isolated inspector
-now pins the exact main source/owner target and classifies only a nine-count
-partition inside an engine-attested read-only transaction; its disposable
-PostgreSQL proof must pass before any protected production inspection. Provider
-rotation then uses one parallel
+Historical acceptance provenance was inspected aggregate-only from exact main
+`1e4e0c786a9fe4259cbd3d6e79bec39aabc9de2d` in protected run
+`33886609425`. It found nine active users, five current acceptances, four with
+trusted route provenance and exactly one without it; the sanitized aggregate
+artifact SHA-256 is
+`6b9819119b1c20e3f386546e623c98f894181a294c3f8dc9932e37c747bb50ca`.
+The required safe-writer deployment and callable-predecessor drain are
+accepted, but the legal-state finding and provider rotation remain paused.
+The next boundary is a separately reviewed, serializable, exactly-one-row
+cleanup that clears only the three untrusted legal fields, waits beyond the
+60-second account-state cache TTL, and proves zero untrusted acceptances without
+inventing an audit row. A fresh independent aggregate inspection must then
+confirm zero before rotation. Provider rotation then uses one parallel
 endpoint, a Production-only Vercel secret, genuine signed delivery/replay
 proof, bounded overlap, and exact predecessor deletion. No provider,
 credential, database, migration or RLS change occurred in the accepted

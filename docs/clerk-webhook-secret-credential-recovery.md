@@ -3,7 +3,8 @@
 Status: the application hardening is live from exact main
 `d7859d5d1aaab5fbfbd77e973bf196a063493a62`, and every callable
 current-credential predecessor containing the unsafe legal writer has been
-drained. The aggregate provenance inspection, any resulting cleanup, and the
+drained. The aggregate provenance inspection found exactly one active current
+acceptance without trusted route provenance. Its separate cleanup and the
 provider signing-secret rotation remain pending. This accepted application
 boundary changed one Production deployment and removed one exact predecessor;
 it changed no Clerk webhook endpoint, Vercel variable, GitHub secret, database
@@ -30,6 +31,40 @@ evidence
 `2f561ea9034d5ac70b587248e76b22aff74077c57cd590725d2e0a6ab9c433ca`.
 This closes only restart-safe steps 2 and 3 below. It does not accept historical
 legal provenance or rotate the webhook signing-secret family.
+
+## Accepted aggregate provenance inspection
+
+Exact main `1e4e0c786a9fe4259cbd3d6e79bec39aabc9de2d` ran protected
+workflow `33886609425` after the unsafe-writer drain. The owner connection was
+the reviewed direct production target, and PostgreSQL attested `REPEATABLE
+READ`, `READ ONLY`, and rollback. The artifact contains aggregate counts only:
+
+- total/active/deleted users: `9 / 9 / 0`;
+- active current accepted: `5`;
+- active trusted/untrusted current accepted: `4 / 1`;
+- active partial-or-stale/no-legal state: `3 / 1`; and
+- deleted current accepted: `0`.
+
+Retain sanitized artifact
+`clerk-legal-provenance-inspection-1e4e0c786a9fe4259cbd3d6e79bec39aabc9de2d.json`,
+SHA-256
+`6b9819119b1c20e3f386546e623c98f894181a294c3f8dc9932e37c747bb50ca`.
+It contains no row, identifier, email, timestamp, metadata or credential and
+changed no production state.
+
+The `activeUntrustedCurrentAccepted = 1` result is a hard stop before
+provider rotation. Do not infer which account it is or fabricate an acceptance
+audit. The reviewed remediation is to row-lock the exact predicate, require
+the complete `9/9/0` partition above, clear only `termsAcceptedAt`,
+`termsVersion`, and `ageAttestedAt`, and require the user to reaccept through
+the normal authenticated route. The isolated cleanup operator uses one
+`SERIALIZABLE` transaction, requires exactly one target, fails closed on any
+pre-mutation drift while an untrusted target remains, commits no synthetic
+audit, waits beyond the 60-second production
+account-state cache TTL, and finishes with a new engine-read-only aggregate
+check requiring zero untrusted current acceptances. Provider rotation remains
+paused until that separately reviewed cleanup and a subsequent independent
+aggregate inspection both pass.
 
 ## Why this is a separate family
 
@@ -148,7 +183,7 @@ and without a matching non-undone `TERMS_ACCEPTED` `AdminAuditLog` row whose
 `targetType`, `targetId`, `actorKind`, route, and terms version match. Export no
 user ids, emails, timestamps, or metadata. Before the patched application is
 called complete, users lacking trusted provenance must have the three legal
-fields cleared in one narrowly reviewed migration and reaccept normally. A
+fields cleared by one narrowly reviewed owner-only cleanup and reaccept normally. A
 legitimate user whose earlier audit write failed may be asked to reaccept; that
 is safer than preserving unprovable consent.
 
@@ -202,7 +237,7 @@ logical deduplication.
    predecessor deployment URL remains callable until removed.
 4. Run the aggregate-only legal-acceptance provenance inspection only after the
    unsafe application predecessors are gone. Prepare and apply a separate
-   narrow cleanup if the aggregate shows untrusted active rows, then rerun the
+   narrow owner-only cleanup if the aggregate shows untrusted active rows, then rerun the
    same inspection and require zero untrusted active rows. The retained
    operational canary is not exempt: if it lacks route-backed provenance, clear
    it and restore acceptance only through the normal authenticated
