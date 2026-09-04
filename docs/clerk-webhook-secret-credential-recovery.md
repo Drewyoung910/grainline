@@ -142,6 +142,14 @@ of the provider configuration, not an instruction to silently clone the
 deficient predecessor. The provider remains unchanged until the parallel
 endpoint creation boundary is separately confirmed.
 
+This subscription repair is prospective. It does not prove that earlier Clerk
+deletions reached local anonymization. Before declaring lifecycle synchronization
+complete, classify any active local account whose Clerk identity no longer
+exists through a separately reviewed aggregate-only reconciliation. Do not
+bulk-replay old deletion events or mutate accounts based only on a missing
+subscription. This is an unresolved historical-data question, not evidence
+that any specific account is affected.
+
 The isolated read-only inventory contract lives in
 `scripts/clerk-webhook-provider-inventory.mjs`. It accepts only the exact
 Production Clerk instance, canonical `https://thegrainline.com/api/clerk/webhook`
@@ -270,6 +278,14 @@ database key provides delivery-id replay safety, not proven cross-endpoint
 logical deduplication.
 
 ## Restart-safe cutover
+
+Implementation checkpoint: the provider inventory helper and its tests are
+complete; an executable webhook cutover operator is not yet implemented.
+Prepare and test the private journal, consumer/deployment convergence, signed
+delivery verification and restart paths before creating another endpoint or
+revealing its secret. The accepted server-key recovery supplies reusable
+patterns, but its different key, consumer and provider protocol cannot be
+executed as a webhook-secret rotation.
 
 1. Require the accepted Clerk server-key evidence, exact current deployment,
    aliases, health, and absence of its private journal.

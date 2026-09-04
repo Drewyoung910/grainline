@@ -1,8 +1,10 @@
 # Comprehensive credential exposure recovery — 2026-09-02
 
 Status: active recovery. The database owner/runtime, Resend, cron bearer,
-shipping-rate HMAC, and Shippo test API families are complete; other provider
-and application families remain open. No credential value,
+shipping-rate HMAC, Shippo test API, and Clerk server API families are complete.
+Clerk webhook application hardening and legal-provenance cleanup are accepted;
+the webhook signing-secret cutover remains pending. Other provider and
+application families remain open. No credential value,
 raw provider response, connection string, PIN, signing secret, token, or private
 restart journal belongs in this document, a commit, a pull request, a CI artifact,
 or ordinary terminal output.
@@ -699,7 +701,7 @@ parallel endpoint and signed-delivery/replay proof. The public Clerk publishable
 key is not secret and remains unchanged. See
 `docs/clerk-server-key-credential-recovery.md`.
 
-## Clerk webhook signing secret: audited, application hardening pending
+## Clerk webhook signing secret: hardening accepted, provider cutover pending
 
 The webhook secret is now the active credential family. Read-only inventory
 found one encrypted team-shared Vercel row linked only to Grainline but exposed
@@ -716,14 +718,33 @@ telemetry. The isolated correction removes those paths, makes the dedicated
 legal update plus audit row atomic, and removes the real secret from ordinary
 CI. No production or provider state changed.
 
-Before acceptance, run the documented aggregate-only historical legal-state
-provenance inspection and clear any current acceptance lacking a trusted route
-audit so affected users reaccept normally. Then deploy the reviewed hardening,
-create one parallel endpoint with the exact URL/subscriptions, install its
-secret only in Production, prove genuine provider-signed delivery and exact
-replay, delete the predecessor endpoint after a bounded drain, and remove the
-shared/GitHub/local copies. See
+The application hardening is accepted at main
+`d7859d5d1aaab5fbfbd77e973bf196a063493a62`, and its unsafe predecessor was
+drained. Protected cleanup run `33895038513` cleared the three legal-state
+fields on exactly one eligible row. Independent read-only inspection
+`33895463860` subsequently confirmed zero active current acceptances without
+trusted provenance. These completed gates must not be repeated merely because
+the signing-secret cutover remains open; their exact evidence is retained in
 `docs/clerk-webhook-secret-credential-recovery.md`.
+
+Read-only provider inventory on 2026-09-04 found one enabled canonical
+endpoint subscribed to `user.created` and `user.updated`, with `user.deleted`
+missing. Inventory evidence SHA-256 is
+`ccacd59f72cce28f81987840d9698c8a0a858a03ae387342e14439026d45c091`.
+The replacement must use all three handled event types. First finish the
+restart-safe cutover tooling and its tests; then create the parallel endpoint,
+install its secret only in Production, verify genuine provider-signed delivery
+and exact replay, retire the predecessor after the bounded drain, and remove
+the shared/GitHub/local copies. No endpoint or consumer changed during inventory.
+
+Clerk webhook completion alone does not close this incident. The R2 application
+key pair, Stripe test API and primary webhook credentials, Upstash Redis token,
+OpenAI and Sentry credentials, and Admin PIN/cookie-signing families still need
+their recorded consumer inventory, replacement and retirement evidence. Any
+other provider-signing secret discovered to share an exposed value must be
+classified separately. After all affected families are accepted, rerun the
+full authenticated Order smoke and resume the remaining Order authority
+conversions before its separate ENABLE and FORCE releases.
 
 Adjacent review found the same pre-verification Sentry/Redis amplification
 pattern in Resend and the three Stripe webhook routes. It is not bundled into
