@@ -25,6 +25,7 @@ describe("Notification order, payment, and fulfillment authority", () => {
   const fulfillmentWriteAuthority = source(
     "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
   );
+  const fullNotificationProof = source("scripts/notification-rls-ephemeral-proof.mjs");
 
   it("binds both seller-authored fulfillment notifications to transition audits", () => {
     assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
@@ -38,6 +39,34 @@ describe("Notification order, payment, and fulfillment authority", () => {
     );
     assert.match(fulfillmentFinalization, /relatedUserId: input\.actorUserId/);
     assert.match(fulfillmentFinalization, /enqueueEmailOutboxOnce\(\{/);
+  });
+
+  it("keeps the full Notification proof fixture aligned with durable fulfillment authority", () => {
+    assert.match(
+      fullNotificationProof,
+      /id, "buyerId", "sellerProfileId", "paidAt", "stripeSessionId",[\s\S]{0,220}'SHIPPING', 'SHIPPED'/,
+    );
+    assert.match(fullNotificationProof, /'previousStatus', 'PENDING'/);
+    assert.match(fullNotificationProof, /"sellerProfileId" = \$2/);
+    assert.match(fullNotificationProof, /actorUserId: fixture\.actorUserId/);
+    assert.match(fullNotificationProof, /previousStatus: "READY_FOR_PICKUP"/);
+    assert.match(fullNotificationProof, /"pickedUpAt" = CASE/);
+    assert.match(fullNotificationProof, /label: "order_fulfillment_delivered"/);
+    assert.match(fullNotificationProof, /expectedTitle: "Buyer confirmed pickup"/);
+    assert.match(
+      fullNotificationProof,
+      /20260901120000_prepare_order_receipt_notification_authority/,
+    );
+    assert.match(fullNotificationProof, /expectedTitle: "Order picked up!"/);
+    assert.match(
+      fullNotificationProof,
+      /family\.label !== "order_fulfillment_delivered"/,
+    );
+    assert.match(fullNotificationProof, /orderDisputeOrderId: "notification-proof-dispute-order"/);
+    assert.match(
+      fullNotificationProof,
+      /fixture\.orderPaymentEventId,[\s\S]{0,100}fixture\.orderDisputeOrderId/,
+    );
   });
 
   it("co-commits buyer receipt evidence and a seller notification", () => {
