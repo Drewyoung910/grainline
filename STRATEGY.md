@@ -2750,6 +2750,13 @@ RLS sequence remains `Order`, then `OrderItem`, then `OrderShippingRateQuote`,
 with the remaining Order conversions and a fresh authenticated smoke before
 activation.
 
+The webhook cutover must also seal and drain every callable deployment that
+retains the exposed signing secret and a working database credential. Provider
+endpoint deletion does not revoke the secret inside an old deployment. Remove
+only the sealed predecessors after replacement delivery/replay and the reviewed
+drain; preserve the new deployment and verify all canonical aliases. This
+requirement applies to future signing-secret rotations as well.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

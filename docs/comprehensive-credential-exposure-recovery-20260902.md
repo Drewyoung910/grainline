@@ -734,8 +734,10 @@ missing. Inventory evidence SHA-256 is
 The replacement must use all three handled event types. First finish the
 restart-safe cutover tooling and its tests; then create the parallel endpoint,
 install its secret only in Production, verify genuine provider-signed delivery
-and exact replay, retire the predecessor after the bounded drain, and remove
-the shared/GitHub/local copies. No endpoint or consumer changed during inventory.
+and exact replay, retire the sealed predecessor deployments and provider endpoint
+after the bounded drain, and remove the shared/GitHub/local copies. Old
+deployments retain their own signing secrets, so deleting only the provider
+endpoint cannot close the exposure. No endpoint or consumer changed during inventory.
 
 Clerk webhook completion alone does not close this incident. The R2 application
 key pair, Stripe test API and primary webhook credentials, Upstash Redis token,

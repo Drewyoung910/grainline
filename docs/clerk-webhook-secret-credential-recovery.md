@@ -277,6 +277,32 @@ event carries the same `svix-id` across two parallel endpoint deliveries; the
 database key provides delivery-id replay safety, not proven cross-endpoint
 logical deduplication.
 
+## Retire deployments that retain the exposed signing secret
+
+Endpoint deletion alone does not revoke a signing secret inside an existing
+application deployment. The public Clerk route verifies its own
+`process.env.CLERK_WEBHOOK_SECRET`; it does not consult the provider endpoint
+inventory. Vercel environment changes apply only to new deployments, as
+documented in [Vercel environment variables](https://vercel.com/docs/environment-variables).
+A callable predecessor with the exposed secret and working database credential
+can therefore still accept a forged request after the provider endpoint is
+deleted. This is a cutover-plan gap; rotation has not been executed.
+
+Before creating the replacement, capture the complete deployment inventory
+for the current database-credential epoch and seal every exact predecessor ID,
+source, target and URL. Reject incomplete pagination or an unexpected
+deployment. The previously accepted single hardened deployment is the expected
+baseline, not permission to skip this fresh inventory.
+
+After the new endpoint's genuine signed delivery and replay pass and all four
+canonical aliases resolve to the replacement, wait the reviewed in-flight
+drain of at least 330 seconds. Revalidate the alias and deployment inventory,
+remove only the sealed predecessor deployments, and verify each is gone while
+the replacement remains READY and healthy. Then retire the old provider
+endpoint and shared consumers. Record deployment retirement and endpoint
+retirement independently; neither substitutes for the other. Rollback after
+retirement must rebuild reviewed compatible source with the replacement secret.
+
 ## Restart-safe cutover
 
 Implementation checkpoint: the provider inventory helper and its tests are
@@ -288,7 +314,8 @@ patterns, but its different key, consumer and provider protocol cannot be
 executed as a webhook-secret rotation.
 
 1. Require the accepted Clerk server-key evidence, exact current deployment,
-   aliases, health, and absence of its private journal.
+   aliases, health, absence of its private journal, and complete sealed
+   deployment inventory for the current database-credential epoch.
 2. Merge and deploy the application hardening: no unsafe-metadata legal writes,
    atomic legal audit, no unauthenticated shared telemetry, and no CI webhook
    secret consumer.
@@ -319,8 +346,10 @@ executed as a webhook-secret rotation.
    and verify READY status, source provenance and health.
 10. Send the genuine provider-signed safe delivery through the new endpoint,
    then retry the exact delivery and prove the lifecycle/replay boundary.
-11. Keep overlap bounded. After the reviewed in-flight drain, disable and delete
-    only the exact predecessor endpoint. Reverify new-endpoint delivery.
+11. Keep overlap bounded. After the reviewed in-flight drain and successful
+    replacement delivery/replay, remove only the sealed predecessor application
+    deployments, prove their removal and replacement health, then disable and
+    delete only the exact predecessor endpoint. Reverify new-endpoint delivery.
 12. Delete exact shared Vercel row `env_COJQFcpzr4XLmfRZl1sPYGux`, delete the
     now-unused GitHub secret, remove the local production value, and prove the
     project-local Production row is the sole production consumer.
@@ -340,6 +369,9 @@ executed as a webhook-secret rotation.
 - Unexpected endpoint counts, URLs, subscriptions, Vercel shadows, consumer
   copies, delivery ids, audit-provenance counts, or deployment inventory stop
   the operation.
+- Final acceptance requires zero callable deployments retaining the exposed
+  signing secret and a still-valid production database credential. Deleting
+  the Clerk endpoint or changing canonical aliases alone is insufficient.
 - This credential recovery runs no RLS migration and does not resume Order RLS.
   After all exposed credential families are accepted, the full authenticated
   Order smoke runs before Order RLS work resumes.
