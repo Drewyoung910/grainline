@@ -4,11 +4,12 @@ Status: the application hardening is live from exact main
 `d7859d5d1aaab5fbfbd77e973bf196a063493a62`, and every callable
 current-credential predecessor containing the unsafe legal writer has been
 drained. The aggregate provenance inspection found exactly one active current
-acceptance without trusted route provenance. Its separate cleanup and the
-provider signing-secret rotation remain pending. This accepted application
-boundary changed one Production deployment and removed one exact predecessor;
-it changed no Clerk webhook endpoint, Vercel variable, GitHub secret, database
-row, migration, RLS state, or legal-acceptance row. The Clerk server API key
+acceptance without trusted route provenance; the reviewed cleanup cleared only
+that row's three legal-state fields, and a fresh independent inspection now
+confirms zero untrusted current acceptances. Provider signing-secret rotation
+remains pending. The accepted cleanup changed one production User row and no
+Clerk endpoint, Vercel variable, GitHub secret, migration, grant, deployment, or
+RLS state. The Clerk server API key
 family is already accepted separately; this document covers only the production
 `CLERK_WEBHOOK_SECRET` and the application boundary it authenticates.
 
@@ -52,19 +53,30 @@ SHA-256
 It contains no row, identifier, email, timestamp, metadata or credential and
 changed no production state.
 
-The `activeUntrustedCurrentAccepted = 1` result is a hard stop before
-provider rotation. Do not infer which account it is or fabricate an acceptance
-audit. The reviewed remediation is to row-lock the exact predicate, require
-the complete `9/9/0` partition above, clear only `termsAcceptedAt`,
-`termsVersion`, and `ageAttestedAt`, and require the user to reaccept through
-the normal authenticated route. The isolated cleanup operator uses one
-`SERIALIZABLE` transaction, requires exactly one target, fails closed on any
-pre-mutation drift while an untrusted target remains, commits no synthetic
-audit, waits beyond the 60-second production
-account-state cache TTL, and finishes with a new engine-read-only aggregate
-check requiring zero untrusted current acceptances. Provider rotation remains
-paused until that separately reviewed cleanup and a subsequent independent
-aggregate inspection both pass.
+The `activeUntrustedCurrentAccepted = 1` result stopped provider rotation.
+Exact main `7567f710aa03ab5d20db9dce26697ac8046baa38` passed CI
+`33893888226`. Protected cleanup run `33895038513` revalidated the exact
+inspection partition, selected and locked exactly one predicate-matched row in
+one `SERIALIZABLE` transaction, and cleared only `termsAcceptedAt`,
+`termsVersion`, and `ageAttestedAt`. It created no acceptance audit, exposed no
+identity, and waited 65 seconds beyond the 60-second account-state cache TTL.
+Its transaction and final counts were `4` current, `4` trusted, `0` untrusted,
+`3` partial/stale, and `2` no-legal-state. Retain sanitized aggregate-only
+cleanup artifact
+`clerk-legal-provenance-cleanup-7567f710aa03ab5d20db9dce26697ac8046baa38.json`,
+SHA-256
+`a60756c5958097f7ef91078f48f6129146400f95b3a1955de0dea89e02deabdb`.
+
+Fresh independent protected inspection `33895463860` then ran outside the
+cleanup transaction. PostgreSQL again attested `REPEATABLE READ`, `READ ONLY`,
+and rollback; it independently returned the same `4 / 4 / 0 / 3 / 2` active
+partition. Retain sanitized aggregate artifact
+`clerk-legal-provenance-inspection-7567f710aa03ab5d20db9dce26697ac8046baa38.json`,
+SHA-256
+`1a8b704870d942229afaa4d515921adc18702a6aae0b26e8904603bec3ac91bc`.
+The affected user will be prompted to reaccept through the normal authenticated
+route. The legal-provenance gate is closed; provider rotation remains a
+separate production boundary.
 
 ## Why this is a separate family
 

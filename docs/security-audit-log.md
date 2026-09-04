@@ -5094,3 +5094,29 @@ Open work:
   only the three legal fields, waits beyond the middleware cache TTL, and
   requires a zero-untrusted engine-read-only final check. A separate fresh
   aggregate inspection remains required after cleanup.
+
+## 2026-09-04 Clerk legal-provenance cleanup and independent postflight
+
+- PR #425 merged reviewed cleanup head
+  `dc53c302b0c8a36216052fdbe46248a8c6b3e23d` as exact main
+  `7567f710aa03ab5d20db9dce26697ac8046baa38`. PR CI `33892661086`,
+  exact-main CI `33893888226`, Notification FORCE proof `33893888229`, and
+  Conversation/Message FORCE proof `33893888180` passed. The Vercel Preview
+  failure was inspected and caused solely by the intentionally absent Preview
+  `DATABASE_URL` after compilation and TypeScript succeeded.
+- Protected cleanup run `33895038513` matched the accepted inspection's exact
+  `9 / 9 / 0` user partition and found exactly one locked target. Its
+  serializable transaction cleared only `termsAcceptedAt`, `termsVersion`, and
+  `ageAttestedAt`, changed one row, created no audit, and committed. After a
+  65-second account-state cache drain, the engine-read-only final check returned
+  `4` current, `4` trusted, `0` untrusted, `3` partial/stale, and `2` with no
+  legal state. Retain aggregate-only cleanup evidence SHA-256
+  `a60756c5958097f7ef91078f48f6129146400f95b3a1955de0dea89e02deabdb`.
+- Independent protected inspection `33895463860` then reproduced the same
+  `4 / 4 / 0 / 3 / 2` active partition in a separate `REPEATABLE READ`, `READ
+  ONLY`, rolled-back transaction. Retain its aggregate-only evidence SHA-256
+  `1a8b704870d942229afaa4d515921adc18702a6aae0b26e8904603bec3ac91bc`.
+- No user identity was inferred or exported. The affected account must reaccept
+  through the normal authenticated route. No provider, credential, migration,
+  grant, deployment, or RLS state changed. The legal-state gate is closed;
+  Clerk webhook signing-secret rotation remains a separate boundary.
