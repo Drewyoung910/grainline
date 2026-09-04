@@ -235,7 +235,7 @@ describe("Clerk legal acceptance provenance cleanup", () => {
     );
   });
 
-  it("uses a serialized protected workflow and records the production hold", () => {
+  it("uses a serialized protected workflow and records the accepted cleanup", () => {
     assert.match(workflow, /^\s*workflow_dispatch:/m);
     assert.match(workflow, /^\s+environment: Production$/m);
     assert.match(workflow, /group: production-database-migrations/);
@@ -252,10 +252,12 @@ describe("Clerk legal acceptance provenance cleanup", () => {
       "node scripts/clerk-legal-provenance-cleanup.mjs",
     );
     assert.match(recovery, /33886609425/);
+    assert.match(recovery, /33895038513/);
+    assert.match(recovery, /33895463860/);
     assert.match(recovery, /activeUntrustedCurrentAccepted.*1/);
     assert.match(
       recovery.replace(/\s+/g, " "),
-      /provider rotation remains paused/i,
+      /provider rotation remains a separate production boundary/i,
     );
   });
 });

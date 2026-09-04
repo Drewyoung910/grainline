@@ -2720,17 +2720,22 @@ Historical acceptance provenance was inspected aggregate-only from exact main
 trusted route provenance and exactly one without it; the sanitized aggregate
 artifact SHA-256 is
 `6b9819119b1c20e3f386546e623c98f894181a294c3f8dc9932e37c747bb50ca`.
-The required safe-writer deployment and callable-predecessor drain are
-accepted, but the legal-state finding and provider rotation remain paused.
-The next boundary is a separately reviewed, serializable, exactly-one-row
-cleanup that clears only the three untrusted legal fields, waits beyond the
-60-second account-state cache TTL, and proves zero untrusted acceptances without
-inventing an audit row. A fresh independent aggregate inspection must then
-confirm zero before rotation. Provider rotation then uses one parallel
+The required safe-writer deployment, callable-predecessor drain, and legal-state
+cleanup are accepted. Exact main `7567f710aa03ab5d20db9dce26697ac8046baa38`
+passed CI `33893888226`; protected cleanup run `33895038513` cleared only
+`termsAcceptedAt`, `termsVersion`, and `ageAttestedAt` on exactly one locked
+predicate-matched row, committed no audit row, and waited 65 seconds beyond the
+60-second account-state cache TTL. Retain aggregate-only cleanup evidence
+SHA-256 `a60756c5958097f7ef91078f48f6129146400f95b3a1955de0dea89e02deabdb`.
+Independent protected read-only inspection `33895463860` then confirmed four
+current acceptances, all four trusted, and zero untrusted; retain its artifact
+SHA-256 `1a8b704870d942229afaa4d515921adc18702a6aae0b26e8904603bec3ac91bc`.
+The affected account must reaccept through the normal authenticated route; its
+identity was never exported or inferred. The legal-state gate is closed and the
+next separate boundary is provider rotation using one parallel
 endpoint, a Production-only Vercel secret, genuine signed delivery/replay
 proof, bounded overlap, and exact predecessor deletion. No provider,
-credential, database, migration or RLS change occurred in the accepted
-application drain. See
+credential, migration, deployment or RLS state changed during cleanup. See
 `docs/clerk-webhook-secret-credential-recovery.md`.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
