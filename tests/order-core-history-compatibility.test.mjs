@@ -152,16 +152,18 @@ describe("core Order historical compatibility", () => {
 
   it("writes the expanded snapshot in both paid webhook families", () => {
     const webhook = read("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = read("docs/rls-drafts/order-paid-checkout-authority.sql");
     for (const field of [
       "listingType",
       "processingTimeMinDays",
       "processingTimeMaxDays",
       "shipsWithinDays",
     ]) {
-      assert.equal(webhook.match(new RegExp(`${field}:`, "g"))?.length >= 2, true, field);
+      assert.match(paidCheckoutAuthority, new RegExp(`'${field}'`), field);
     }
-    assert.match(webhook, /sellerProfileId: cartSellerProfileId/);
-    assert.match(webhook, /sellerProfileId: singleSellerProfileId/);
+    assert.match(webhook, /createOrderFromPaidCheckout\(/);
+    assert.match(paidCheckoutAuthority, /source_seller_id, source_now, p_paid_at, p_session_id/);
+    assert.match(paidCheckoutAuthority, /source_order_id, source_listing_id,[\s\S]*source_seller_id/);
     assert.match(webhook, /const seller = order\.sellerProfile/);
     assert.match(webhook, /sellerProfileId: seller\.id,[\s\S]*paidAt: \{ not: null \}/);
     assert.match(webhook, /sellerRefundId: null,[\s\S]*paymentRefundBlocked: false/);

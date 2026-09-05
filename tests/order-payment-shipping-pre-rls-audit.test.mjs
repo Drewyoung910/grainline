@@ -38,9 +38,7 @@ const expected = {
   Order: [
     "src/app/api/stripe/webhook/route.ts",
   ],
-  OrderItem: [
-    "src/app/api/stripe/webhook/route.ts",
-  ],
+  OrderItem: [],
   OrderShippingRateQuote: [],
   OrderPaymentEvent: [
     "src/lib/orderRefundFinalization.ts",

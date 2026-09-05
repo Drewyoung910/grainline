@@ -77,6 +77,7 @@ describe("Order label fixed-authority release", () => {
   it("co-commits shipped side effects and retains new checkout package facts", () => {
     const finalization = source("src/lib/orderLabelFinalization.ts");
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = source("docs/rls-drafts/order-paid-checkout-authority.sql");
     const snapshotHelper = source("src/lib/orderItemSnapshot.ts");
     const cartCheckout = source("src/app/api/cart/checkout-seller/route.ts");
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
@@ -106,9 +107,10 @@ describe("Order label fixed-authority release", () => {
     }
     assert.match(cartCheckout, /checkoutShippingPackageMetadata/);
     assert.match(singleCheckout, /checkoutShippingPackageMetadata/);
-    assert.ok(
-      (webhook.match(/readCheckoutShippingPackageMetadata/g) ?? []).length >= 3,
-    );
+    assert.doesNotMatch(webhook, /readCheckoutShippingPackageMetadata/);
+    assert.match(paidCheckoutAuthority, /source_item#>>'\{listing,packagedWeightGrams\}'/);
+    assert.match(paidCheckoutAuthority, /source_snapshot#>>'\{seller,defaultPkgWeightGrams\}'/);
+    assert.match(paidCheckoutAuthority, /'shippingPackageComplete', source_package_complete/);
     assert.doesNotMatch(
       webhook,
       /shippingWeightGrams:\s*\n?\s*listing(?:Data)?\?*\.packagedWeightGrams/,

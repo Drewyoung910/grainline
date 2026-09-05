@@ -631,7 +631,7 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     const existingRetryBranch = route.slice(
       route.indexOf("if (existingBlockedCheckoutRetry)"),
-      route.indexOf("// CART CHECKOUT"),
+      route.indexOf("const cartId: string"),
     );
     assert.match(existingRetryBranch, /await releaseCheckoutLock\(checkoutLockKey, sessionId\)/);
     assert.match(existingRetryBranch, /await refundBlockedCheckout\(\{/);
@@ -644,22 +644,15 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(blockedRefundHelper, /input\.lineItems/);
     assert.match(blockedRefundHelper, /finalizeBlockedCheckoutOrderRefund\(/);
     assert.match(existingRetryBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
-    assert.match(route, /reviewNote: cartInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(cartInvalidState\.reason\)/);
-    assert.match(route, /reviewNote: singleInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(singleInvalidState\.reason\)/);
     assert.match(route, /const reviewPrefix = blockedCheckoutReviewPrefix\(input\.reason\)/);
 
-    const cartInvalidBranch = route.slice(
-      route.indexOf("if (createdCartOrder.invalidReason)"),
-      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdCartOrder.id"),
+    const invalidBranch = route.slice(
+      route.indexOf("if (createdOrder.invalidReason)"),
+      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdOrder.orderId"),
     );
-    const singleInvalidBranch = route.slice(
-      route.indexOf("if (createdSingleOrder.invalidReason)"),
-      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdSingleOrder.id"),
-    );
-    assert.match(cartInvalidBranch, /await refundBlockedCheckout\(\{/);
-    assert.match(cartInvalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
-    assert.match(singleInvalidBranch, /await refundBlockedCheckout\(\{/);
-    assert.match(singleInvalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
+    assert.match(invalidBranch, /await refundBlockedCheckout\(\{/);
+    assert.match(invalidBranch, /reason: createdOrder\.invalidReason/);
+    assert.match(invalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
   });
 
   it("uses a source-bound generation claim before automatic blocked-checkout refunds", () => {
@@ -820,18 +813,15 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("fails paid checkout webhooks instead of creating partial or unrouted orders", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = source("docs/rls-drafts/order-paid-checkout-authority.sql");
 
-    const partialResolutionStart = route.indexOf("stripe_webhook_cart_partial_line_item_resolution");
-    const orderCreateStart = route.indexOf("const order = await tx.order.create", partialResolutionStart);
-    assert.ok(partialResolutionStart > 0, "cart checkout must guard partial paid line resolution");
-    assert.ok(orderCreateStart > partialResolutionStart, "partial paid line guard must run before order creation");
-    assert.match(
-      route,
-      /if \(checkoutItems\.length !== paidItems\.length\) \{[\s\S]*throw new Error\("Paid cart checkout could not resolve all listing records"\);[\s\S]*\}/,
-    );
+    assert.match(route, /if \(paidItems\.length === 0\) \{[\s\S]*throw new Error\("Paid checkout had no source-bound listing line items"\)/);
+    assert.match(paidCheckoutAuthority, /jsonb_array_length\(source_items\) <>[\s\S]*jsonb_array_length\(p_provider->'paidItems'\)/);
+    assert.match(paidCheckoutAuthority, /Paid checkout provider item keys are invalid/);
+    assert.match(paidCheckoutAuthority, /Paid checkout provider item is invalid/);
 
     const metadataStart = route.indexOf("Stripe checkout completion missing routing metadata");
-    const metadataBranch = route.slice(metadataStart, route.indexOf("}, async () => {", metadataStart));
+    const metadataBranch = route.slice(metadataStart, route.indexOf("if (!paymentIntentId", metadataStart));
     assert.match(metadataBranch, /level: "error"/);
     assert.match(metadataBranch, /throw new Error\("Stripe checkout completion missing routing metadata"\)/);
     assert.doesNotMatch(metadataBranch, /return NextResponse\.json\(\{ ok: true \}\)/);

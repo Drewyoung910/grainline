@@ -6,9 +6,11 @@ intentionally not deployable before its database-first compatible release.
 This record does not authorize a deployment, grant change, provider mutation,
 or Order/OrderItem RLS activation.
 
-Audited application checkpoints: `3aeb05af`, `45c23c3e`, and `9d52ab86`
-(2026-09-05). The paid-order database candidate described below remains local
-and is not a production migration.
+Audited application checkpoints: `3aeb05af`, `45c23c3e`, `9d52ab86`, and
+`448d0cb8` (2026-09-05). The paid-order database and webhook application
+candidates described below remain local; the SQL is not a production
+migration and the combined candidate is intentionally undeployable until its
+database-first compatibility release exists.
 
 ## Decision
 
@@ -115,10 +117,17 @@ Deployment compatibility order:
 2. deploy checkout routes that use the successors and require one reservation
    for both listing types;
 3. prove new in-stock, made-to-order and cart sessions bind snapshots;
-4. drain predecessor deployments; and
-5. let the paid-order function require the reservation snapshot for sessions
-   created by the new application epoch while retaining an explicit bounded
-   legacy branch for older sessions.
+4. drain predecessor deployments, then aggregate-inspect and either expire or
+   wait through the maximum lifetime of every still-payable predecessor
+   Checkout Session that lacks a snapshot; and
+5. only after that zero-legacy-payable proof, let the paid-order function
+   require the reservation snapshot. A bounded legacy branch is required if
+   any older session must remain payable.
+
+Draining deployments alone is insufficient: a Checkout Session created by an
+old instance can remain payable after that instance is gone. Packaging must
+therefore prove session-epoch convergence explicitly rather than infer it from
+Vercel deployment state.
 
 The snapshot contains catalog facts, provider routing and seller identity, not
 the buyer's shipping address or email. Buyer-entered delivery fields remain in
@@ -233,13 +242,21 @@ TypeScript wrapper converts the signed Stripe instant to UTC at the SQL
 boundary, serializes one exact JSON projection, and rejects malformed database
 cardinality or result combinations.
 
-This is not yet the application conversion. The webhook still contains its
-predecessor direct writers until the database candidate and snapshot schema are
-packaged database-first. Removing those writers before that dependency exists
-would make the app undeployable; leaving them indefinitely would block Order
-and OrderItem RLS. The next isolated step is to replace both checkout branches
-with this one operation while preserving blocked-refund and post-payment retry
-semantics, then update the pinned direct-access inventory.
+The isolated application conversion is now complete: both the cart and
+single-listing branches build the same bounded provider projection and call
+this one operation. The prior duplicated direct Order/OrderItem writer—976
+lines across the two branches—has been removed. Blocked-checkout refunds,
+exact retry behavior, cache invalidation and post-payment side effects remain
+outside the creation transaction and consume only the operation's closed
+result. The route has no direct OrderItem access; its remaining direct Order
+access belongs to the still-separate exact-idempotency, blocked-refund and
+post-payment projection work below.
+
+This application candidate must not be deployed before the database candidate
+and snapshot schema are packaged and accepted database-first. The conversion
+therefore reduces the semantic/direct OrderItem inventory without claiming a
+production dependency or Order activation. Focused app contracts pass 88/88;
+the full repository suite is the remaining local checkpoint gate.
 
 The checkout address is intentionally the address signed into Grainline's rate
 token and copied into Checkout metadata. Stripe Checkout currently does not

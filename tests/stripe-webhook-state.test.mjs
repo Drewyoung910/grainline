@@ -58,7 +58,7 @@ describe("Stripe webhook state helpers", () => {
 
     assert.match(source, /if \(eventCreatedSeconds == null \|\| isStaleStripeEvent\(eventCreatedSeconds\)\)/);
     assert.match(source, /const signedPaymentTime = new Date\(eventCreatedSeconds \* 1000\)/);
-    assert.equal((source.match(/paidAt: signedPaymentTime/g) ?? []).length, 2);
+    assert.equal((source.match(/paidAt: signedPaymentTime/g) ?? []).length, 1);
     assert.doesNotMatch(source, /paidAt: new Date\(\)/);
   });
 

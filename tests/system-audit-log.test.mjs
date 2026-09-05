@@ -76,13 +76,15 @@ describe("system audit logging", () => {
     const deauthorizationAuthority = source(
       "docs/rls-drafts/order-seller-deauthorization-authority.sql",
     );
+    const paidCheckoutAuthority = source(
+      "docs/rls-drafts/order-paid-checkout-authority.sql",
+    );
     const mirror = source("src/lib/stripeWebhookMirror.ts");
     const v2Webhook = source("src/app/api/stripe/webhook/v2/route.ts");
 
-    assert.match(webhook, /import \{ logSystemActionOrThrow \} from "@\/lib\/systemAudit"/);
-    assert.match(webhook, /action: "STRIPE_CHECKOUT_ORDER_CREATED"/);
-    assert.match(webhook, /checkoutMode: "cart"/);
-    assert.match(webhook, /checkoutMode: "single"/);
+    assert.doesNotMatch(webhook, /logSystemActionOrThrow/);
+    assert.match(paidCheckoutAuthority, /'webhook', p_event_id, 'STRIPE_CHECKOUT_ORDER_CREATED'/);
+    assert.match(paidCheckoutAuthority, /'checkoutMode', source_mode/);
     assert.match(signedAuthority, /'STRIPE_REFUND_RECORDED'/);
     assert.match(signedAuthority, /'STRIPE_DISPUTE_RECORDED'/);
     assert.match(webhook, /applyStripeSellerDeauthorization/);
@@ -108,13 +110,12 @@ describe("system audit logging", () => {
     assert.match(v2Webhook, /actorType: "webhook"/);
     assert.match(v2Webhook, /actorId: stripeEventId/);
 
-    const checkoutIndex = webhook.indexOf('action: "STRIPE_CHECKOUT_ORDER_CREATED"');
+    const checkoutIndex = paidCheckoutAuthority.indexOf("'STRIPE_CHECKOUT_ORDER_CREATED'");
     assert.notEqual(checkoutIndex, -1);
-    const checkoutBlock = webhook.slice(Math.max(0, checkoutIndex - 250), checkoutIndex + 600);
-    assert.match(checkoutBlock, /client: tx/);
-    assert.match(checkoutBlock, /targetType: "ORDER"/);
-    assert.match(checkoutBlock, /targetId:/);
-    assert.match(checkoutBlock, /metadata: \{/);
+    const checkoutBlock = paidCheckoutAuthority.slice(Math.max(0, checkoutIndex - 350), checkoutIndex + 900);
+    assert.match(checkoutBlock, /INSERT INTO public\."SystemAuditLog"/);
+    assert.match(checkoutBlock, /'ORDER', source_order_id/);
+    assert.match(checkoutBlock, /pg_catalog\.jsonb_build_object/);
 
     for (const action of ["STRIPE_REFUND_RECORDED", "STRIPE_DISPUTE_RECORDED"]) {
       const index = signedAuthority.indexOf(`'${action}'`);

@@ -583,6 +583,21 @@ operation, reducing direct `OrderItem` access to the webhook alone. These are
 application-only candidate corrections; they are not deployed and do not
 authorize Order activation.
 
+2026-09-05 paid-checkout application conversion checkpoint: the cart and
+single-listing direct writers now converge on the one fixed
+`grainline_stripe_checkout_order_create(...)` candidate. The route supplies a
+bounded Stripe-authenticated projection; PostgreSQL binds it to the active
+event generation and complete retained reservation snapshot, revalidates the
+buyer/seller/listings under locks, derives every protected Order/OrderItem
+field, creates history, marks sold-out listings, completes the reservation and
+removes only retained paid CartItems atomically. The duplicated 976-line
+writer is gone, direct runtime `OrderItem` access is now zero, and the one
+remaining direct `Order` source file is still the webhook because its exact
+idempotency, blocked-refund and post-payment reads are separate named
+operations. The combined app/SQL work remains a local, intentionally
+undeployable candidate until its database-first compatible migration is
+packaged and proved; it does not authorize Order or OrderItem activation.
+
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
 future cleanup. Runtime can no longer falsely release an ambiguous claim as a

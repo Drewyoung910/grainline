@@ -149,8 +149,9 @@ Participants never execute these writers and never read raw provider rows.
     isolated candidate now has real PostgreSQL single/cart, forged-input,
     replay, direct-denial and atomic-rollback proof. It also preserves the
     complete checkout-time descriptive snapshot and the existing distinct
-    single/cart processing-time floors. It is not yet a migration or a deployed
-    application dependency.
+    single/cart processing-time floors. The isolated webhook candidate now
+    uses it for both paid checkout families and has no direct OrderItem access,
+    but the SQL is not yet a migration or deployed application dependency.
 14. `grainline_order_seller_fulfillment_transition(...)` derives seller authority,
     locks the paid Order and permits only `PENDING -> SHIPPED` or
     `PENDING -> READY_FOR_PICKUP` with bounded tracking fields.

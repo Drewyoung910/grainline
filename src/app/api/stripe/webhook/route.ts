@@ -21,7 +21,6 @@ import { enqueueEmailOutboxOnce, type QueuedEmail } from "@/lib/emailOutbox";
 import { emailOutboxFailureState } from "@/lib/emailOutboxState";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
-import { checkoutCompletionNeedsReview } from "@/lib/checkoutCompletionState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -32,13 +31,8 @@ import {
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
-import { parseSelectedVariantsMetadata } from "@/lib/stripeWebhookMetadata";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
-import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import {
-  lockCheckoutSessionMutation,
-  markCheckoutStockReservationCompleted,
   restoreUnorderedCheckoutStockOnce,
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
@@ -54,29 +48,25 @@ import { releaseBlockedCheckoutLegacyRefundLock } from "@/lib/orderLegacyRefundL
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
+import { createOrderFromPaidCheckout } from "@/lib/orderPaidCheckoutAuthority";
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
   revalidatePublicSellerVisibilityCaches,
 } from "@/lib/searchCache";
-import { requireSingleOrderSellerProfileId } from "@/lib/orderSellerKey";
 import {
   blockedCheckoutDisputeState,
   checkoutItemsSubtotalCents,
-  checkoutInvalidReasonState,
-  checkoutPriceDriftState,
   isLikelyThinStripeEventObject,
   isStaleStripeEvent,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
   parseBoundedPositiveInt,
   parseOptionalNonNegativeInt,
-  parsePositiveInt,
   requireCheckoutChargedTotalCents,
   retrievedStripeEventMatchesSignedEnvelope,
   SHIPPING_ESTIMATED_DAYS_MAX,
 } from "@/lib/stripeWebhookState";
-import { Prisma, type FulfillmentStatus } from "@prisma/client";
 import { claimBlockedCheckoutOrderRefund } from "@/lib/orderRefundClaimAuthority";
 import {
   orderRefundProviderEvidence,
@@ -93,9 +83,7 @@ import {
   applySignedRefundWebhook,
 } from "@/lib/orderPaymentSignedWebhook";
 import {
-  readCheckoutShippingPackageMetadata,
   readHistoricalOrderItemSnapshot,
-  type CheckoutShippingPackageSnapshot,
 } from "@/lib/orderItemSnapshot";
 
 
@@ -104,100 +92,6 @@ export const maxDuration = 60;
 
 const STRIPE_WEBHOOK_BODY_MAX_BYTES = 1024 * 1024;
 const STRIPE_WEBHOOK_RETRY_AFTER_SECONDS = 30;
-
-function snapshotText(value: string | null | undefined, maxLength: number) {
-  return truncateText(sanitizeText(value ?? ""), maxLength);
-}
-
-function snapshotSellerName(value: string | null | undefined) {
-  return sanitizeUserName(value ?? "", 100);
-}
-
-type CheckoutBuyerPiiOrderData = {
-  buyerEmail: string | null;
-  buyerName: string | null;
-  shipToLine1: string | null;
-  shipToLine2: string | null;
-  shipToCity: string | null;
-  shipToState: string | null;
-  shipToPostalCode: string | null;
-  shipToCountry: string | null;
-  quotedToName: string | null;
-  quotedToPhone: string | null;
-  quotedToCity: string | null;
-  quotedToState: string | null;
-  quotedToPostalCode: string | null;
-  quotedToCountry: string | null;
-  shippoShipmentId: string | null;
-  shippoRateObjectId: string | null;
-  giftNote: string | null;
-  buyerDataPurgedAt: Date | null;
-};
-
-function checkoutBuyerPiiOrderData(input: {
-  buyerInvalidReason: string | null;
-  buyerEmail?: string | null;
-  buyerName?: string | null;
-  shipToLine1?: string | null;
-  shipToLine2?: string | null;
-  shipToCity?: string | null;
-  shipToState?: string | null;
-  shipToPostalCode?: string | null;
-  shipToCountry?: string | null;
-  quotedToName?: string | null;
-  quotedToPhone?: string | null;
-  quotedToCity?: string | null;
-  quotedToState?: string | null;
-  quotedToPostalCode?: string | null;
-  quotedToCountry?: string | null;
-  shippoShipmentId?: string | null;
-  shippoRateObjectId?: string | null;
-  giftNote?: string | null;
-}): CheckoutBuyerPiiOrderData {
-  if (input.buyerInvalidReason) {
-    return {
-      buyerEmail: null,
-      buyerName: null,
-      shipToLine1: null,
-      shipToLine2: null,
-      shipToCity: null,
-      shipToState: null,
-      shipToPostalCode: null,
-      shipToCountry: null,
-      quotedToName: null,
-      quotedToPhone: null,
-      quotedToCity: null,
-      quotedToState: null,
-      quotedToPostalCode: null,
-      quotedToCountry: null,
-      shippoShipmentId: null,
-      shippoRateObjectId: null,
-      giftNote: null,
-      buyerDataPurgedAt: new Date(),
-    };
-  }
-
-  return {
-    buyerEmail: input.buyerEmail ?? null,
-    buyerName: input.buyerName ?? null,
-    shipToLine1: input.shipToLine1 ?? null,
-    shipToLine2: input.shipToLine2 ?? null,
-    shipToCity: input.shipToCity ?? null,
-    shipToState: input.shipToState ?? null,
-    shipToPostalCode: input.shipToPostalCode ?? null,
-    shipToCountry: input.shipToCountry ?? null,
-    quotedToName: input.quotedToName ?? null,
-    quotedToPhone: input.quotedToPhone ?? null,
-    quotedToCity: input.quotedToCity ?? null,
-    quotedToState: input.quotedToState ?? null,
-    quotedToPostalCode: input.quotedToPostalCode ?? null,
-    quotedToCountry: input.quotedToCountry ?? null,
-    shippoShipmentId: input.shippoShipmentId ?? null,
-    shippoRateObjectId: input.shippoRateObjectId ?? null,
-    giftNote: input.giftNote ?? null,
-    buyerDataPurgedAt: null,
-  };
-}
 
 type CheckoutSessionShippingDetails = {
   shipping_details?: {
@@ -840,18 +734,6 @@ export async function POST(req: Request) {
     }
   }
 
-  async function lockUserRowsForUpdate(tx: Prisma.TransactionClient, userIds: Array<string | null | undefined>) {
-    for (const userId of [...new Set(userIds.filter((id): id is string => Boolean(id)))]) {
-      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
-    }
-  }
-
-  async function lockSellerProfileRowsForUpdate(tx: Prisma.TransactionClient, sellerProfileIds: Array<string | null | undefined>) {
-    for (const sellerProfileId of [...new Set(sellerProfileIds.filter((id): id is string => Boolean(id)))]) {
-      await tx.$queryRaw`SELECT id FROM "SellerProfile" WHERE id = ${sellerProfileId} FOR UPDATE`;
-    }
-  }
-
   type CheckoutLineItem = CheckoutStockRestoreLineItem;
 
   try {
@@ -1010,43 +892,11 @@ export async function POST(req: Request) {
       const rawEstDays = shippingRateObj?.metadata?.estDays;
       const estDays: number = parseBoundedPositiveInt(rawEstDays, 7, SHIPPING_ESTIMATED_DAYS_MAX);
 
-      const reviewNeeded = checkoutCompletionNeedsReview({
-        quotedPostalCode: quotedShipToPostalCode,
-        actualPostalCode: shipToPostalCode,
-        quotedState: quotedShipToState,
-        actualState: shipToState,
-        quotedCity: quotedShipToCity,
-        actualCity: shipToCity,
-        quotedCountry: quotedShipToCountry,
-        actualCountry: shipToCountry,
-        quotedShippingAmountCents,
-        actualShippingAmountCents: shippingAmountCents,
-      });
-
       // Service info (best-effort)
       const shippingCarrier: string | null =
         (shippingRateObj?.carrier || shippingRateObj?.provider || null) ?? null;
       const shippingService: string | null =
         (shippingRateObj?.service || shippingRateObj?.service_level?.name || null) ?? null;
-      const shippingEta: Date | null = null; // Stripe Checkout doesn't give a concrete date
-
-      const looksLikePickup =
-        (shippingTitle?.toLowerCase().includes("pickup") ?? false) ||
-        (!shipToLine1 && !shipToCity && !shipToPostalCode);
-      const fulfillmentMethod = looksLikePickup ? "PICKUP" : "SHIPPING";
-      const fulfillmentStatus: FulfillmentStatus = "PENDING";
-
-      // Delivery date helper
-      function calcDeliveryDates(maxProcessingDays: number, transitDays: number) {
-        const MS_PER_DAY = 24 * 60 * 60 * 1000;
-        const base = new Date();
-        const processingDeadline = new Date(base.getTime() + maxProcessingDays * MS_PER_DAY);
-        const estimatedDeliveryDate = new Date(
-          processingDeadline.getTime() + (transitDays + 3) * MS_PER_DAY
-        );
-        return { processingDeadline, estimatedDeliveryDate };
-      }
-
       async function refundBlockedCheckout(input: {
         orderId: string;
         reason: string;
@@ -1307,848 +1157,134 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // CART CHECKOUT
       const cartId: string | undefined = sessionMeta.cartId;
       const sellerIdFromMeta: string | undefined = sessionMeta.sellerId;
-
-      if (cartId && buyerId) {
-        // Build maps from Stripe's immutable line_items. This is the
-        // authoritative source of what was actually charged.
-        //
-        // Prefer cartItemId, then listingId+variantKey. listingId-only is a
-        // legacy fallback because multiple variants of one listing can share a
-        // listingId.
-        // The live cart may have been modified between session creation and webhook.
-        const stripeLineItems: CheckoutLineItem[] = checkoutLineItems;
-        type PaidItem = {
-          listingId: string;
-          cartItemId?: string;
-          variantKey?: string;
-          quantity: number;
-          priceCents: number;
-          shippingPackage: CheckoutShippingPackageSnapshot;
-        };
-        const paidItems: PaidItem[] = [];
-        for (const li of stripeLineItems) {
-          const prod = typeof li.price?.product === "object" ? li.price?.product : null;
-          const lid = prod?.metadata?.listingId;
-          if (lid && li.quantity) {
-            const paid: PaidItem = {
-              listingId: lid,
-              cartItemId: prod?.metadata?.cartItemId,
-              variantKey: prod?.metadata?.variantKey,
-              quantity: li.quantity,
-              priceCents: li.price?.unit_amount ?? 0,
-              shippingPackage: readCheckoutShippingPackageMetadata(prod?.metadata),
-            };
-            paidItems.push(paid);
-          }
-        }
-
-        const cart = await prisma.cart.findUnique({
-          where: { id: cartId },
-          include: {
-            items: {
-              include: {
-                listing: {
-                  include: {
-                    photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
-                    seller: {
-                      select: {
-                        id: true,
-                        userId: true,
-                        displayName: true,
-                        defaultPkgWeightGrams: true,
-                        defaultPkgLengthCm: true,
-                        defaultPkgWidthCm: true,
-                        defaultPkgHeightCm: true,
-                        chargesEnabled: true,
-                        stripeAccountId: true,
-                        user: { select: { id: true, banned: true, deletedAt: true } },
-                      },
-                    },
-                    variantGroups: { include: { options: true } },
-                  },
-                },
-              },
-              where: sellerIdFromMeta ? { listing: { sellerId: sellerIdFromMeta } } : undefined,
-              orderBy: { createdAt: "asc" as const },
-            },
-          },
-        });
-
-        if (paidItems.length === 0) {
-          Sentry.captureMessage("Paid cart checkout had no recoverable listing line items", {
-            level: "error",
-            tags: { source: "stripe_webhook_cart_paid_items_missing" },
-            extra: { stripeSessionId: sessionId, cartId, sellerIdFromMeta },
-          });
-          await releaseCheckoutLock(checkoutLockKey, sessionId);
-          throw new Error("Paid cart checkout had no recoverable listing line items");
-        }
-
-        const cartItems = cart?.items ?? [];
-        const cartItemById = new Map(cartItems.map((item) => [item.id, item]));
-        const cartItemsByListingVariant = new Map<string, typeof cartItems>();
-        const cartItemsByListing = new Map<string, typeof cartItems>();
-        for (const item of cartItems) {
-          const listingVariantKey = `${item.listingId}:${item.variantKey ?? ""}`;
-          const variantItems = cartItemsByListingVariant.get(listingVariantKey) ?? [];
-          variantItems.push(item);
-          cartItemsByListingVariant.set(listingVariantKey, variantItems);
-          const listingItems = cartItemsByListing.get(item.listingId) ?? [];
-          listingItems.push(item);
-          cartItemsByListing.set(item.listingId, listingItems);
-        }
-
-        const paidListingIds = [...new Set(paidItems.map((item) => item.listingId))];
-        const paidListings = await prisma.listing.findMany({
-          where: { id: { in: paidListingIds } },
-          include: {
-            photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
-            seller: {
-              select: {
-                id: true,
-                userId: true,
-                displayName: true,
-                defaultPkgWeightGrams: true,
-                defaultPkgLengthCm: true,
-                defaultPkgWidthCm: true,
-                defaultPkgHeightCm: true,
-                chargesEnabled: true,
-                stripeAccountId: true,
-                vacationMode: true,
-                acceptingNewOrders: true,
-                user: { select: { id: true, banned: true, deletedAt: true } },
-              },
-            },
-            variantGroups: { include: { options: true } },
-          },
-        });
-        const paidListingById = new Map(paidListings.map((listing) => [listing.id, listing]));
-        const usedCartItemIds = new Set<string>();
-        const takeCartItem = (paid: PaidItem) => {
-          if (paid.cartItemId) {
-            const cartItem = cartItemById.get(paid.cartItemId);
-            if (cartItem && !usedCartItemIds.has(cartItem.id)) {
-              usedCartItemIds.add(cartItem.id);
-              return cartItem;
-            }
-          }
-          const variantItems = cartItemsByListingVariant.get(`${paid.listingId}:${paid.variantKey ?? ""}`) ?? [];
-          const variantItem = variantItems.find((item) => !usedCartItemIds.has(item.id));
-          if (variantItem) {
-            usedCartItemIds.add(variantItem.id);
-            return variantItem;
-          }
-          const listingItems = cartItemsByListing.get(paid.listingId) ?? [];
-          const listingItem = listingItems.find((item) => !usedCartItemIds.has(item.id));
-          if (listingItem) {
-            usedCartItemIds.add(listingItem.id);
-            return listingItem;
-          }
-          return null;
-        };
-        const checkoutItems = paidItems
-          .map((paid) => {
-            const cartItem = takeCartItem(paid);
-            const listing = cartItem?.listing ?? paidListingById.get(paid.listingId);
-            return listing ? { paid, cartItem, listing } : null;
-          })
-          .filter((item): item is NonNullable<typeof item> => item !== null);
-
-        if (checkoutItems.length === 0) {
-          Sentry.captureMessage("Paid cart checkout could not resolve any listing records", {
-            level: "error",
-            tags: { source: "stripe_webhook_cart_listings_missing" },
-            extra: { stripeSessionId: sessionId, cartId, sellerIdFromMeta, paidListingIds },
-          });
-          await releaseCheckoutLock(checkoutLockKey, sessionId);
-          throw new Error("Paid cart checkout could not resolve listing records");
-        }
-        if (checkoutItems.length !== paidItems.length) {
-          const resolvedListingIds = new Set(checkoutItems.map((item) => item.paid.listingId));
-          const unresolvedListingIds = paidItems
-            .map((item) => item.listingId)
-            .filter((listingId) => !resolvedListingIds.has(listingId));
-          Sentry.captureMessage("Paid cart checkout resolved only part of the charged line items", {
-            level: "error",
-            tags: { source: "stripe_webhook_cart_partial_line_item_resolution" },
-            extra: {
-              stripeSessionId: sessionId,
-              cartId,
-              sellerIdFromMeta,
-              paidItemCount: paidItems.length,
-              resolvedItemCount: checkoutItems.length,
-              unresolvedListingIds: unresolvedListingIds.slice(0, 10),
-            },
-          });
-          throw new Error("Paid cart checkout could not resolve all listing records");
-        }
-
-        const maxProcessingDaysCart = Math.max(
-          3,
-          ...checkoutItems.map((item) =>
-            item.listing.listingType === "IN_STOCK"
-              ? (item.listing.shipsWithinDays ?? 1)
-              : (item.listing.processingTimeMaxDays ?? 0)
-          )
-        );
-        const { processingDeadline: cartProcessingDeadline, estimatedDeliveryDate: cartEstDelivery } =
-          calcDeliveryDates(maxProcessingDaysCart, estDays);
-
-        const createdCartOrder = await prisma.$transaction(async (tx) => {
-          await lockCheckoutSessionMutation(tx, sessionId);
-          let stockVisibilityChanged = false;
-
-          const existingOrder = await tx.order.findFirst({
-            where: { stripeSessionId: sessionId },
-            select: { id: true },
-          });
-          if (existingOrder) return null;
-
-          const cartSellerIds = [...new Set(checkoutItems.map((item) => item.listing.sellerId))];
-          const cartSellerProfileId = requireSingleOrderSellerProfileId(cartSellerIds);
-          const cartListingIds = [...new Set(checkoutItems.map((item) => item.listing.id))];
-          await lockUserRowsForUpdate(tx, [buyerId]);
-          await lockSellerProfileRowsForUpdate(tx, cartSellerIds);
-          const cartSellerUserRefs = await tx.sellerProfile.findMany({
-            where: { id: { in: cartSellerIds } },
-            select: { userId: true },
-          });
-          await lockUserRowsForUpdate(tx, cartSellerUserRefs.map((seller) => seller.userId));
-
-          const transactionBuyer = buyerId
-            ? await tx.user.findUnique({
-                where: { id: buyerId },
-                select: { id: true, banned: true, deletedAt: true },
-              })
-            : null;
-          const transactionSellers = await tx.sellerProfile.findMany({
-            where: { id: { in: cartSellerIds } },
-            select: {
-              id: true,
-              userId: true,
-              chargesEnabled: true,
-              stripeAccountId: true,
-              vacationMode: true,
-              acceptingNewOrders: true,
-              user: { select: { id: true, banned: true, deletedAt: true } },
-            },
-          });
-          const transactionListings = await tx.listing.findMany({
-            where: { id: { in: cartListingIds } },
-            select: { id: true, status: true, isPrivate: true, reservedForUserId: true },
-          });
-          const transactionSellerById = new Map(transactionSellers.map((seller) => [seller.id, seller]));
-          const transactionListingById = new Map(transactionListings.map((listing) => [listing.id, listing]));
-          const cartInvalidState = checkoutInvalidReasonState({
-            buyer: transactionBuyer,
-            sellers: cartSellerIds.map((sellerId) => transactionSellerById.get(sellerId)),
-            listings: cartListingIds.map((listingId) => transactionListingById.get(listingId)),
-            buyerUserId: buyerId,
-          });
-          const cartBuyerPii = checkoutBuyerPiiOrderData({
-            buyerInvalidReason: cartInvalidState.buyerInvalidReason,
-            buyerEmail,
-            buyerName,
-            shipToLine1,
-            shipToLine2,
-            shipToCity,
-            shipToState,
-            shipToPostalCode,
-            shipToCountry,
-            quotedToName: sessionMeta.quotedToName,
-            quotedToPhone: sessionMeta.quotedToPhone,
-            quotedToCity: quotedShipToCity || null,
-            quotedToState: quotedShipToState || null,
-            quotedToPostalCode: quotedShipToPostalCode || null,
-            quotedToCountry: quotedShipToCountry || null,
-            shippoShipmentId,
-            shippoRateObjectId,
-            giftNote,
-          });
-
-          const order = await tx.order.create({
-            data: {
-              buyerId: cartInvalidState.buyerUserId,
-              sellerProfileId: cartSellerProfileId,
-              paidAt: signedPaymentTime,
-              stripeSessionId: sessionId,
-
-              currency,
-              chargedTotalCents,
-              itemsSubtotalCents,
-              shippingTitle,
-              shippingAmountCents,
-              taxAmountCents,
-
-              buyerEmail: cartBuyerPii.buyerEmail,
-              buyerName: cartBuyerPii.buyerName,
-              shipToLine1: cartBuyerPii.shipToLine1,
-              shipToLine2: cartBuyerPii.shipToLine2,
-              shipToCity: cartBuyerPii.shipToCity,
-              shipToState: cartBuyerPii.shipToState,
-              shipToPostalCode: cartBuyerPii.shipToPostalCode,
-              shipToCountry: cartBuyerPii.shipToCountry,
-
-              stripePaymentIntentId: paymentIntentId,
-              stripeChargeId,
-              stripeApplicationFeeId,
-              stripeTransferId,
-
-              fulfillmentMethod,
-              fulfillmentStatus,
-
-              // chosen service + quoted snapshot + review flag
-              shippingCarrier,
-              shippingService,
-              shippingEta,
-
-              quotedToName: cartBuyerPii.quotedToName,
-              quotedToPhone: cartBuyerPii.quotedToPhone,
-              quotedToCity: cartBuyerPii.quotedToCity,
-              quotedToState: cartBuyerPii.quotedToState,
-              quotedToPostalCode: cartBuyerPii.quotedToPostalCode,
-              quotedToCountry: cartBuyerPii.quotedToCountry,
-              quotedShippingAmountCents: quotedShippingAmountCents ?? null,
-
-              reviewNeeded: reviewNeeded || !!cartInvalidState.reason,
-              reviewNote: cartInvalidState.reason
-                ? blockedCheckoutReviewPrefix(cartInvalidState.reason)
-                : reviewNeeded
-                  ? "Address and/or quoted amount changed at Checkout."
-                  : null,
-
-              shippoShipmentId: cartBuyerPii.shippoShipmentId,
-              shippoRateObjectId: cartBuyerPii.shippoRateObjectId,
-
-              processingDeadline: cartProcessingDeadline,
-              estimatedDeliveryDate: cartEstDelivery,
-
-              giftNote: cartBuyerPii.giftNote,
-              giftWrapping,
-              giftWrappingPriceCents,
-              buyerDataPurgedAt: cartBuyerPii.buyerDataPurgedAt,
-            },
-          });
-          await logSystemActionOrThrow({
-            client: tx,
-            actorType: "webhook",
-            actorId: event.id,
-            action: "STRIPE_CHECKOUT_ORDER_CREATED",
-            targetType: "ORDER",
-            targetId: order.id,
-            reason: cartInvalidState.reason ?? null,
-            metadata: {
-              stripeEventType: event.type,
-              stripeSessionId: sessionId,
-              stripePaymentIntentId: paymentIntentId ?? null,
-              stripeChargeId: stripeChargeId ?? null,
-              checkoutMode: "cart",
-              reviewNeeded: reviewNeeded || Boolean(cartInvalidState.reason),
-              invalidReason: cartInvalidState.reason ?? null,
-              itemCount: checkoutItems.length,
-              currency,
-              chargedTotalCents,
-              itemsSubtotalCents,
-              shippingAmountCents,
-              taxAmountCents,
-            },
-          });
-
-          for (const checkoutItem of checkoutItems) {
-            const { paid, cartItem, listing } = checkoutItem;
-            const orderQuantity = paid.quantity;
-            const orderPriceCents = paid.priceCents;
-            const priceDrift = checkoutPriceDriftState({
-              stripeUnitAmountCents: paid.priceCents,
-              expectedUnitAmountCents: cartItem?.priceCents ?? listing.priceCents,
-              checkoutPriceVersion: cartItem?.priceVersion ?? null,
-              currentPriceVersion: listing.priceVersion,
-            });
-            if (priceDrift) {
-              Sentry.captureMessage("Stripe checkout line price drift detected", {
-                level: "warning",
-                tags: { source: "stripe_webhook_price_drift", checkoutMode: "cart" },
-                extra: {
-                  stripeSessionId: sessionId,
-                  cartId,
-                  cartItemId: cartItem?.id ?? paid.cartItemId ?? null,
-                  listingId: paid.listingId,
-                  ...priceDrift,
-                },
-              });
-            }
-
-            // Resolve variant selections from cart item option IDs
-            const variantSnapshot: { groupName: string; optionLabel: string; priceAdjustCents: number }[] = [];
-            if (cartItem?.selectedVariantOptionIds?.length) {
-              for (const optId of cartItem.selectedVariantOptionIds) {
-                for (const g of (listing.variantGroups ?? [])) {
-                  const opt = (g.options ?? []).find((o: { id: string }) => o.id === optId);
-                  if (opt) {
-                    variantSnapshot.push({
-                      groupName: g.name,
-                      optionLabel: (opt as { label: string }).label,
-                      priceAdjustCents: (opt as { priceAdjustCents: number }).priceAdjustCents,
-                    });
-                  }
-                }
-              }
-            }
-
-            await tx.orderItem.create({
-              data: {
-                orderId: order.id,
-                sellerProfileId: cartSellerProfileId,
-                listingId: paid.listingId,
-                quantity: orderQuantity,
-                priceCents: orderPriceCents,
-                listingSnapshot: {
-                  title: snapshotText(listing.title, 200),
-                  description: snapshotText(listing.description, 5000),
-                  priceCents: orderPriceCents,
-                  imageUrls: listing.photos?.map((p: { url: string }) => p.url) ?? [],
-                  category: listing.category ?? null,
-                  tags: listing.tags ?? [],
-                  sellerName: snapshotSellerName(listing.seller?.displayName),
-                  listingType: listing.listingType,
-                  processingTimeMinDays: listing.processingTimeMinDays ?? null,
-                  processingTimeMaxDays: listing.processingTimeMaxDays ?? null,
-                  shipsWithinDays: listing.shipsWithinDays ?? null,
-                  ...paid.shippingPackage,
-                  capturedAt: new Date().toISOString(),
-                },
-                selectedVariants: variantSnapshot.length > 0 ? variantSnapshot : undefined,
-              },
-            });
-
-            // Stock was already decremented at checkout time (reservation).
-            // Just check if we need to mark SOLD_OUT.
-            let listingSearchCacheInvalidationNeeded = false;
-            if (listing.listingType === "IN_STOCK") {
-              const soldOutCount = await tx.$executeRaw`
-                UPDATE "Listing"
-                SET status = 'SOLD_OUT'
-                WHERE id = ${paid.listingId}
-                  AND "stockQuantity" <= 0
-                  AND status = 'ACTIVE'
-              `;
-              listingSearchCacheInvalidationNeeded = Number(soldOutCount) > 0;
-            }
-            stockVisibilityChanged = stockVisibilityChanged || listingSearchCacheInvalidationNeeded;
-          }
-
-          await markCheckoutStockReservationCompleted(tx, {
-            eventId: event.id,
-            claimGeneration,
-            reservationId: sessionMeta.checkoutReservationId,
-            buyerId: sessionMeta.buyerId,
-            payloadHash: sessionMeta.checkoutPayloadHash,
-            sessionId,
-          });
-
-          const paidCartItemIds = [...usedCartItemIds];
-          if (paidCartItemIds.length > 0) {
-            await tx.cartItem.deleteMany({
-              where: { cartId, id: { in: paidCartItemIds } },
-            });
-          } else {
-            await tx.cartItem.deleteMany({
-              where: sellerIdFromMeta
-                ? { cartId, listing: { sellerId: sellerIdFromMeta, id: { in: paidListingIds } } }
-                : { cartId, listingId: { in: paidListingIds } },
-            });
-          }
-
-          return {
-            id: order.id,
-            invalidReason: cartInvalidState.reason,
-            invalidSellerUserIds: cartInvalidState.sellerUserIds,
-            listingSearchCacheInvalidationNeeded: stockVisibilityChanged,
-          };
-        });
-
-        await releaseCheckoutLock(checkoutLockKey, sessionId);
-
-        if (!createdCartOrder) return NextResponse.json({ ok: true });
-        if (createdCartOrder.listingSearchCacheInvalidationNeeded) {
-          revalidateListingSearchCaches();
-          revalidateFeaturedMakerCaches();
-        }
-
-        if (createdCartOrder.invalidReason) {
-          await refundBlockedCheckout({
-            orderId: createdCartOrder.id,
-            reason: createdCartOrder.invalidReason,
-            sellerUserIds: createdCartOrder.invalidSellerUserIds,
-          });
-          return NextResponse.json({ ok: true });
-        }
-
-        await enqueueOrderPostPaymentSideEffects(createdCartOrder.id, { multiSellerCheckout });
-
-        return NextResponse.json({ ok: true });
-      }
-
-      // SINGLE LISTING CHECKOUT
       const listingId: string | undefined = sessionMeta.listingId;
-      const quantity: number = parsePositiveInt(sessionMeta.quantity, 1);
-      const priceCentsFromMeta: number | null =
-        parseOptionalNonNegativeInt(sessionMeta.priceCents);
+      const reservationId: string | undefined = sessionMeta.checkoutReservationId;
+      const checkoutMode = cartId && !listingId
+        ? "cart"
+        : listingId && !cartId
+          ? "single"
+          : null;
 
-      if (listingId && buyerId) {
-        const listingData = await prisma.listing.findUnique({
-          where: { id: listingId },
-          select: {
-            priceCents: true,
-            priceVersion: true,
-            processingTimeMinDays: true,
-            processingTimeMaxDays: true,
-            listingType: true,
-            stockQuantity: true,
-            shipsWithinDays: true,
-            packagedWeightGrams: true,
-            packagedLengthCm: true,
-            packagedWidthCm: true,
-            packagedHeightCm: true,
-            // Snapshot fields
-            title: true,
-            description: true,
-            category: true,
-            tags: true,
-            photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
-            seller: {
-              select: {
-                id: true,
-                userId: true,
-                displayName: true,
-                defaultPkgWeightGrams: true,
-                defaultPkgLengthCm: true,
-                defaultPkgWidthCm: true,
-                defaultPkgHeightCm: true,
-                chargesEnabled: true,
-                stripeAccountId: true,
-                vacationMode: true,
-                acceptingNewOrders: true,
-                user: { select: { id: true, banned: true, deletedAt: true } },
-              },
-            },
+      if (!buyerId || !reservationId || !checkoutMode) {
+        Sentry.captureMessage("Stripe checkout completion missing routing metadata", {
+          level: "error",
+          tags: { source: "stripe_webhook_checkout_metadata" },
+          extra: {
+            stripeSessionId: sessionId,
+            hasBuyerId: Boolean(buyerId),
+            hasReservationId: Boolean(reservationId),
+            cartId: cartId ?? null,
+            sellerId: sellerIdFromMeta ?? null,
+            listingId: listingId ?? null,
           },
         });
-        const price = priceCentsFromMeta ?? listingData?.priceCents ?? 0;
-        const isInStock = listingData?.listingType === "IN_STOCK";
-        const effectiveProcessingDays = isInStock
-          ? (listingData?.shipsWithinDays ?? 1)
-          : (listingData?.processingTimeMaxDays ?? 0);
-        const maxProcessingDaysSingle = Math.max(isInStock ? 1 : 3, effectiveProcessingDays);
-        const { processingDeadline: singleProcessingDeadline, estimatedDeliveryDate: singleEstDelivery } =
-          calcDeliveryDates(maxProcessingDaysSingle, estDays);
-        const selectedVariantsResult = parseSelectedVariantsMetadata(sessionMeta.selectedVariants);
-        const selectedVariants = selectedVariantsResult.ok ? selectedVariantsResult.selectedVariants : undefined;
-        if (!selectedVariantsResult.ok) {
-          Sentry.captureMessage("Stripe selectedVariants metadata parse failed", {
-            level: "warning",
-            tags: {
-              source: "stripe_webhook_selected_variants",
-              parseError: selectedVariantsResult.error,
-            },
-            extra: {
-              stripeSessionId: sessionId,
-              listingId,
-              metadataLength: selectedVariantsResult.metadataLength,
-            },
-          });
-        }
-        const singleLineItems: CheckoutLineItem[] = checkoutLineItems;
-        const singlePaidLine = singleLineItems.find((lineItem) => {
-          const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
-          return product?.metadata?.listingId === listingId;
-        });
-        const singlePaidProduct = singlePaidLine
-          && typeof singlePaidLine.price?.product === "object"
-          ? singlePaidLine.price.product
-          : null;
-        const singleShippingPackage = readCheckoutShippingPackageMetadata(
-          singlePaidProduct?.metadata,
+        throw new Error("Stripe checkout completion missing routing metadata");
+      }
+      if (!paymentIntentId || !stripeChargeId || !stripeTransferId) {
+        throw new Error(
+          "Paid checkout payment references are not yet complete; retry the signed event.",
         );
-        const singleOrderPriceCents = singlePaidLine?.price?.unit_amount ?? price;
-        const singlePriceDrift = checkoutPriceDriftState({
-          stripeUnitAmountCents: singlePaidLine?.price?.unit_amount ?? null,
-          expectedUnitAmountCents: priceCentsFromMeta,
-          checkoutPriceVersion: parseOptionalNonNegativeInt(sessionMeta.priceVersion),
-          currentPriceVersion: listingData?.priceVersion ?? null,
-        });
-        if (singlePriceDrift) {
-          Sentry.captureMessage("Stripe checkout line price drift detected", {
-            level: "warning",
-            tags: { source: "stripe_webhook_price_drift", checkoutMode: "single" },
-            extra: {
-              stripeSessionId: sessionId,
-              listingId,
-              ...singlePriceDrift,
-            },
-          });
-        }
-
-        const createdSingleOrder = await prisma.$transaction(async (tx) => {
-          await lockCheckoutSessionMutation(tx, sessionId);
-
-          const existingOrder = await tx.order.findFirst({
-            where: { stripeSessionId: sessionId },
-            select: { id: true },
-          });
-          if (existingOrder) return null;
-
-          await lockUserRowsForUpdate(tx, [buyerId]);
-          const transactionListingRef = await tx.listing.findUnique({
-            where: { id: listingId },
-            select: { sellerId: true },
-          });
-          await lockSellerProfileRowsForUpdate(tx, [transactionListingRef?.sellerId]);
-          const singleSellerUserRef = transactionListingRef?.sellerId
-            ? await tx.sellerProfile.findUnique({
-                where: { id: transactionListingRef.sellerId },
-                select: { userId: true },
-              })
-            : null;
-          await lockUserRowsForUpdate(tx, [singleSellerUserRef?.userId]);
-
-          const transactionBuyer = buyerId
-            ? await tx.user.findUnique({
-                where: { id: buyerId },
-                select: { id: true, banned: true, deletedAt: true },
-              })
-            : null;
-          const transactionListing = await tx.listing.findUnique({
-            where: { id: listingId },
-            select: {
-              id: true,
-              status: true,
-              isPrivate: true,
-              reservedForUserId: true,
-              seller: {
-                select: {
-                  id: true,
-                  userId: true,
-                  chargesEnabled: true,
-                  stripeAccountId: true,
-                  vacationMode: true,
-                  acceptingNewOrders: true,
-                  user: { select: { id: true, banned: true, deletedAt: true } },
-                },
-              },
-            },
-          });
-          const singleSellerProfileId = requireSingleOrderSellerProfileId([
-            transactionListing?.seller?.id,
-          ]);
-          const singleInvalidState = checkoutInvalidReasonState({
-            buyer: transactionBuyer,
-            sellers: [transactionListing?.seller],
-            listings: [transactionListing],
-            buyerUserId: buyerId,
-          });
-          const singleBuyerPii = checkoutBuyerPiiOrderData({
-            buyerInvalidReason: singleInvalidState.buyerInvalidReason,
-            buyerEmail,
-            buyerName,
-            shipToLine1,
-            shipToLine2,
-            shipToCity,
-            shipToState,
-            shipToPostalCode,
-            shipToCountry,
-            quotedToName: sessionMeta.quotedToName,
-            quotedToPhone: sessionMeta.quotedToPhone,
-            quotedToCity: quotedShipToCity || null,
-            quotedToState: quotedShipToState || null,
-            quotedToPostalCode: quotedShipToPostalCode || null,
-            quotedToCountry: quotedShipToCountry || null,
-            shippoShipmentId,
-            shippoRateObjectId,
-            giftNote,
-          });
-
-          const order = await tx.order.create({
-            data: {
-              buyerId: singleInvalidState.buyerUserId,
-              sellerProfileId: singleSellerProfileId,
-              paidAt: signedPaymentTime,
-              stripeSessionId: sessionId,
-
-              currency,
-              chargedTotalCents,
-              itemsSubtotalCents,
-              shippingTitle,
-              shippingAmountCents,
-              taxAmountCents,
-
-              buyerEmail: singleBuyerPii.buyerEmail,
-              buyerName: singleBuyerPii.buyerName,
-              shipToLine1: singleBuyerPii.shipToLine1,
-              shipToLine2: singleBuyerPii.shipToLine2,
-              shipToCity: singleBuyerPii.shipToCity,
-              shipToState: singleBuyerPii.shipToState,
-              shipToPostalCode: singleBuyerPii.shipToPostalCode,
-              shipToCountry: singleBuyerPii.shipToCountry,
-
-              stripePaymentIntentId: paymentIntentId,
-              stripeChargeId,
-              stripeApplicationFeeId,
-              stripeTransferId,
-
-              fulfillmentMethod,
-              fulfillmentStatus,
-
-              items: {
-                create: [{
-                  listingId,
-                  sellerProfileId: singleSellerProfileId,
-                  quantity,
-                  priceCents: singleOrderPriceCents,
-                  listingSnapshot: {
-                    title: snapshotText(listingData?.title, 200),
-                    description: snapshotText(listingData?.description, 5000),
-                    priceCents: singleOrderPriceCents,
-                    imageUrls: listingData?.photos?.map((p: { url: string }) => p.url) ?? [],
-                    category: listingData?.category ?? null,
-                    tags: listingData?.tags ?? [],
-                    sellerName: snapshotSellerName(listingData?.seller?.displayName),
-                    listingType: listingData?.listingType ?? null,
-                    processingTimeMinDays: listingData?.processingTimeMinDays ?? null,
-                    processingTimeMaxDays: listingData?.processingTimeMaxDays ?? null,
-                    shipsWithinDays: listingData?.shipsWithinDays ?? null,
-                    ...singleShippingPackage,
-                    capturedAt: new Date().toISOString(),
-                  },
-                  selectedVariants,
-                }],
-              },
-
-              shippingCarrier,
-              shippingService,
-              shippingEta,
-
-              quotedToName: singleBuyerPii.quotedToName,
-              quotedToPhone: singleBuyerPii.quotedToPhone,
-              quotedToCity: singleBuyerPii.quotedToCity,
-              quotedToState: singleBuyerPii.quotedToState,
-              quotedToPostalCode: singleBuyerPii.quotedToPostalCode,
-              quotedToCountry: singleBuyerPii.quotedToCountry,
-              quotedShippingAmountCents: quotedShippingAmountCents ?? null,
-
-              reviewNeeded: reviewNeeded || !!singleInvalidState.reason,
-              reviewNote: singleInvalidState.reason
-                ? blockedCheckoutReviewPrefix(singleInvalidState.reason)
-                : reviewNeeded
-                  ? "Address and/or quoted amount changed at Checkout."
-                  : null,
-
-              shippoShipmentId: singleBuyerPii.shippoShipmentId,
-              shippoRateObjectId: singleBuyerPii.shippoRateObjectId,
-
-              processingDeadline: singleProcessingDeadline,
-              estimatedDeliveryDate: singleEstDelivery,
-
-              giftNote: singleBuyerPii.giftNote,
-              giftWrapping,
-              giftWrappingPriceCents,
-              buyerDataPurgedAt: singleBuyerPii.buyerDataPurgedAt,
-            },
-          });
-          await logSystemActionOrThrow({
-            client: tx,
-            actorType: "webhook",
-            actorId: event.id,
-            action: "STRIPE_CHECKOUT_ORDER_CREATED",
-            targetType: "ORDER",
-            targetId: order.id,
-            reason: singleInvalidState.reason ?? null,
-            metadata: {
-              stripeEventType: event.type,
-              stripeSessionId: sessionId,
-              stripePaymentIntentId: paymentIntentId ?? null,
-              stripeChargeId: stripeChargeId ?? null,
-              checkoutMode: "single",
-              reviewNeeded: reviewNeeded || Boolean(singleInvalidState.reason),
-              invalidReason: singleInvalidState.reason ?? null,
-              listingId,
-              quantity,
-              currency,
-              chargedTotalCents,
-              itemsSubtotalCents,
-              shippingAmountCents,
-              taxAmountCents,
-            },
-          });
-
-          // Stock was already decremented at checkout time (reservation).
-          // Just check if we need to mark SOLD_OUT.
-          let listingSearchCacheInvalidationNeeded = false;
-          if (isInStock) {
-            const soldOutCount = await tx.$executeRaw`
-              UPDATE "Listing"
-              SET status = 'SOLD_OUT'
-              WHERE id = ${listingId}
-                AND "stockQuantity" <= 0
-                AND status = 'ACTIVE'
-            `;
-            listingSearchCacheInvalidationNeeded = Number(soldOutCount) > 0;
-          }
-
-          await markCheckoutStockReservationCompleted(tx, {
-            eventId: event.id,
-            claimGeneration,
-            reservationId: sessionMeta.checkoutReservationId,
-            buyerId: sessionMeta.buyerId,
-            payloadHash: sessionMeta.checkoutPayloadHash,
-            sessionId,
-          });
-
-          return {
-            id: order.id,
-            invalidReason: singleInvalidState.reason,
-            invalidSellerUserIds: singleInvalidState.sellerUserIds,
-            listingSearchCacheInvalidationNeeded,
-          };
-        });
-
-        await releaseCheckoutLock(checkoutLockKey, sessionId);
-
-        if (!createdSingleOrder) return NextResponse.json({ ok: true });
-        if (createdSingleOrder.listingSearchCacheInvalidationNeeded) {
-          revalidateListingSearchCaches();
-          revalidateFeaturedMakerCaches();
-        }
-
-        if (createdSingleOrder.invalidReason) {
-          await refundBlockedCheckout({
-            orderId: createdSingleOrder.id,
-            reason: createdSingleOrder.invalidReason,
-            sellerUserIds: createdSingleOrder.invalidSellerUserIds,
-          });
-          return NextResponse.json({ ok: true });
-        }
-
-        await enqueueOrderPostPaymentSideEffects(createdSingleOrder.id, { multiSellerCheckout });
-
-        return NextResponse.json({ ok: true });
       }
 
-      Sentry.captureMessage("Stripe checkout completion missing routing metadata", {
-        level: "error",
-        tags: { source: "stripe_webhook_checkout_metadata" },
-        extra: {
-          stripeSessionId: sessionId,
-          hasBuyerId: Boolean(buyerId),
-          cartId: cartId ?? null,
-          sellerId: sellerIdFromMeta ?? null,
-          listingId: listingId ?? null,
+      const paidItems = checkoutLineItems.flatMap((lineItem) => {
+        const product = typeof lineItem.price?.product === "object"
+          ? lineItem.price.product
+          : null;
+        const paidListingId = product?.metadata?.listingId;
+        if (!paidListingId) return [];
+        const sourceKey = checkoutMode === "cart"
+          ? product?.metadata?.cartItemId
+          : paidListingId === listingId
+            ? `single:${paidListingId}`
+            : null;
+        const quantity = lineItem.quantity;
+        const unitAmountCents = lineItem.price?.unit_amount;
+        if (
+          !sourceKey
+          || !Number.isSafeInteger(quantity)
+          || !Number.isSafeInteger(unitAmountCents)
+        ) {
+          throw new Error("Paid checkout line item authority is incomplete");
+        }
+        return [{
+          sourceKey,
+          listingId: paidListingId,
+          variantKey: product?.metadata?.variantKey ?? "",
+          quantity: quantity as number,
+          unitAmountCents: unitAmountCents as number,
+        }];
+      });
+      if (paidItems.length === 0) {
+        throw new Error("Paid checkout had no source-bound listing line items");
+      }
+
+      const createdOrder = await createOrderFromPaidCheckout({
+        eventId: event.id,
+        claimGeneration,
+        reservationId,
+        sessionId,
+        paidAt: signedPaymentTime,
+        provider: {
+          currency,
+          chargedTotalCents,
+          itemsSubtotalCents,
+          shippingTitle: shippingTitle ?? null,
+          shippingAmountCents,
+          taxAmountCents,
+          buyerEmail: buyerEmail ?? null,
+          buyerName: buyerName ?? null,
+          shipToLine1,
+          shipToLine2,
+          shipToCity,
+          shipToState,
+          shipToPostalCode,
+          shipToCountry: shipToCountry?.toUpperCase() ?? null,
+          stripePaymentIntentId: paymentIntentId,
+          stripeChargeId,
+          stripeApplicationFeeId,
+          stripeTransferId,
+          shippingCarrier,
+          shippingService,
+          quotedToLine1: sessionMeta.quotedToLine1 ?? null,
+          quotedToLine2: sessionMeta.quotedToLine2 ?? null,
+          quotedToCity: quotedShipToCity || null,
+          quotedToState: quotedShipToState || null,
+          quotedToPostalCode: quotedShipToPostalCode || null,
+          quotedToCountry: quotedShipToCountry?.toUpperCase() || null,
+          quotedToName: sessionMeta.quotedToName ?? null,
+          quotedToPhone: sessionMeta.quotedToPhone ?? null,
+          quotedShippingAmountCents,
+          shippoShipmentId,
+          shippoRateObjectId,
+          giftNote,
+          giftWrapping,
+          giftWrappingPriceCents: giftWrapping ? (giftWrappingPriceCents ?? 0) : 0,
+          estDays,
+          paidItems,
         },
       });
-      throw new Error("Stripe checkout completion missing routing metadata");
+
+      await releaseCheckoutLock(checkoutLockKey, sessionId);
+      if (createdOrder.outcome === "replayed") {
+        return NextResponse.json({ ok: true });
+      }
+      if (createdOrder.listingVisibilityChanged) {
+        revalidateListingSearchCaches();
+        revalidateFeaturedMakerCaches();
+      }
+      if (createdOrder.invalidReason) {
+        await refundBlockedCheckout({
+          orderId: createdOrder.orderId,
+          reason: createdOrder.invalidReason,
+          sellerUserIds: [...createdOrder.invalidSellerUserIds],
+        });
+        return NextResponse.json({ ok: true });
+      }
+
+      await enqueueOrderPostPaymentSideEffects(createdOrder.orderId, { multiSellerCheckout });
+      return NextResponse.json({ ok: true });
       }, async () => {
         await releaseCheckoutLock(checkoutLockKey, sessionId);
       });
