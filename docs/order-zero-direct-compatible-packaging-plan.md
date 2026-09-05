@@ -124,9 +124,19 @@ deauthorization witness fields, and the private immutable
 66 Prisma models. Historical CI omits the new model from grant inventory only
 while its exact table-creating migration is physically isolated.
 
+CI run `33975850753` then applied the complete prefix and failed closed in the
+global grant audit. Four functions were intentionally absent from ordinary
+runtime authority, but the audit had not classified the two private
+trigger/helper functions or the two separately credentialed staff-read
+projections as runtime-private. The inventory now makes all four exclusions
+explicit and tests them. This correction grants no new authority; it prevents
+the audit from requesting ordinary-runtime access that the design forbids.
+
 ## Sequence after compatible preparation
 
-1. Finish the comprehensive credential-recovery boundary.
+1. Retain and reverify the accepted comprehensive credential-recovery boundary
+   sealed at `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89`; do not reintroduce a
+   superseded credential epoch or deployment.
 2. Provision and prove the separate staff-read login and two-function ACL.
 3. Apply the exact compatible prefix while Order RLS remains off.
 4. Run the distinct pooled-runtime compatibility postflight.

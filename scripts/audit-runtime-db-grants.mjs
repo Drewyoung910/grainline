@@ -53,6 +53,9 @@ import {
 import {
   ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
 } from "./order-label-authority-catalog.mjs";
+import {
+  ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS,
+} from "./stage-order-zero-direct-compatible-prefix.mjs";
 
 const { Client } = pg;
 
@@ -242,6 +245,11 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   ...ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_FUNCTIONS,
   ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
   ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
+  ...ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS.map(([name]) => name),
+  // These projections belong only to the separately authenticated bounded
+  // staff-read login. Ordinary application runtime must never inherit them.
+  "grainline_order_staff_detail_v2",
+  "grainline_order_staff_page_v2",
 ]);
 
 const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);

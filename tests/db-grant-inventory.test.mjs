@@ -722,6 +722,10 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
+      "grainline_checkout_reservation_listing_snapshot_witness",
+      "grainline_seller_deauthorization_application_immutable",
+      "grainline_order_staff_detail_v2",
+      "grainline_order_staff_page_v2",
     ]) {
       assert.equal(
         RUNTIME_PRIVATE_FUNCTIONS.includes(functionName),
