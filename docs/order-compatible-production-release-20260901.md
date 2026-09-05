@@ -143,6 +143,39 @@ before using the authenticated shipping smoke as release evidence.
 11. Continue with `OrderItem`, then `OrderShippingRateQuote`, as separate RLS
     groups.
 
+### 2026-09-05 isolated zero-direct candidate checkpoint
+
+Steps 8 through 10 above are not production-complete, but step 8 has reached a
+material local implementation milestone on isolated branch
+`agent/order-staff-read-app-20260905`. Checkpoints `3aeb05af` through
+`9ebd9293` convert the remaining staff, lifecycle and Stripe-webhook families;
+the current source inventory finds zero direct `Order`, `OrderItem` or
+`OrderShippingRateQuote` access under `src`.
+
+This is not activation readiness by itself. Most of the successor functions
+remain SQL drafts rather than byte-pinned migrations, the compatible
+application cannot safely precede them, and production still retains the
+predecessor Order CRUD contract. The comprehensive credential recovery and a
+fresh complete authenticated Order smoke remain hard gates; neither a prior
+partial smoke nor cleanup-only evidence substitutes for route acceptance.
+
+The next release work is therefore:
+
+1. inventory every isolated draft, schema dependency and exact function ACL;
+2. package only additive compatible migrations, with exact-tree scope and
+   disposable PostgreSQL proof while keeping Order RLS off and predecessor
+   CRUD intact;
+3. finish the credential-recovery boundary and fresh authenticated Order smoke;
+4. deploy the zero-direct compatible application only after its database
+   dependencies exist, then exercise checkout, refund, fulfillment, Case,
+   label and staff paths and drain every direct-CRUD predecessor; and
+5. prepare policyless Order ENABLE/direct-grant revocation, actual pooled
+   runtime proof and later FORCE as separate releases.
+
+Do not combine `OrderItem` or `OrderShippingRateQuote` activation with Order.
+Their application delegates are already zero, but their table invariants,
+grants, proofs and activation remain separate review boundaries.
+
 The database release did not enable or FORCE Order RLS, revoke predecessor
 Order CRUD, mutate Order row data, run a provider operation or change
 credentials/provider configuration. The subsequent application deployment

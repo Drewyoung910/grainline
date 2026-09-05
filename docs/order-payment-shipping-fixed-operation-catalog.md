@@ -152,6 +152,26 @@ Participants never execute these writers and never read raw provider rows.
     single/cart processing-time floors. The isolated webhook candidate now
     uses it for both paid checkout families and has no direct OrderItem access,
     but the SQL is not yet a migration or deployed application dependency.
+
+    Three companion checkout operations keep replay, post-payment work and
+    blocked-refund review narrower than the creation authority:
+
+    - `grainline_stripe_checkout_order_existing(...)` locks the active signed
+      event and exact session-bound Order, then returns only a closed
+      idempotency outcome. Database time alone decides stale-lock recovery.
+    - `grainline_stripe_checkout_postpayment(...)` returns the bounded
+      buyer/seller delivery facts, retained item snapshots, stock warnings and
+      first-legitimate-sale classification only for an unblocked paid Order
+      bound to that event generation and session.
+    - `grainline_stripe_checkout_refund_review(...)` locks the same event and
+      Order, accepts only three closed action codes, derives refund and latest
+      dispute precedence from protected state, and writes only fixed bounded
+      review messages. It accepts no caller review text.
+
+    The four checkout operations are isolated, disposable-PostgreSQL-proven
+    candidates. None is runtime authority until its database-first compatible
+    migration, exact grants and application deployment are separately
+    accepted.
 14. `grainline_order_seller_fulfillment_transition(...)` derives seller authority,
     locks the paid Order and permits only `PENDING -> SHIPPED` or
     `PENDING -> READY_FOR_PICKUP` with bounded tracking fields.

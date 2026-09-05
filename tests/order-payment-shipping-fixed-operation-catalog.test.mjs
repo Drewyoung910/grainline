@@ -41,6 +41,19 @@ test("seller deauthorization is explicit, replayable, and still draft-only", () 
   assert.match(catalog, /not yet a migration or grant/);
 });
 
+test("paid checkout keeps creation, replay, post-payment, and review authority separate", () => {
+  for (const marker of [
+    "grainline_stripe_checkout_order_create",
+    "grainline_stripe_checkout_order_existing",
+    "grainline_stripe_checkout_postpayment",
+    "grainline_stripe_checkout_refund_review",
+  ]) assert.match(catalog, new RegExp(marker), marker);
+  assert.match(catalog, /closed\s+idempotency outcome/);
+  assert.match(catalog, /first-legitimate-sale classification/);
+  assert.match(catalog, /accepts no caller review text/);
+  assert.match(catalog, /database-first compatible\s+migration/);
+});
+
 test("catalog pins every numbered operation family from 1 through 41", () => {
   const operationNumbers = [...catalog.matchAll(/^([0-9]+)\. `grainline_/gm)].map(
     (match) => Number(match[1]),
