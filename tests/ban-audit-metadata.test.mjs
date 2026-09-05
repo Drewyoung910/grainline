@@ -116,6 +116,49 @@ describe("ban audit metadata", () => {
     assert.equal(JSON.stringify(metadata).includes("512-555-1000"), false);
   });
 
+  it("accepts database-derived Order snapshots without exposing raw notes", () => {
+    const metadata = buildBanAuditMetadata({
+      sellerProfile: null,
+      commissionRequests: [],
+      openOrderSnapshots: [{
+        id: "order_1",
+        buyerId: "buyer_1",
+        previousReviewNeeded: false,
+        previousReviewNoteHash: "a".repeat(64),
+        previousReviewNoteLength: 19,
+        addedReviewNote: true,
+      }],
+    });
+
+    assert.deepEqual(metadata.flaggedOpenOrders, [{
+      id: "order_1",
+      buyerId: "buyer_1",
+      previousReviewNeeded: false,
+      previousReviewNoteHash: "a".repeat(64),
+      previousReviewNoteLength: 19,
+      addedReviewNote: true,
+    }]);
+    assert.throws(
+      () => buildBanAuditMetadata({
+        sellerProfile: null,
+        commissionRequests: [],
+        openOrders: [{
+          id: "order_1",
+          buyerId: null,
+          previousReviewNeeded: false,
+        }],
+        openOrderSnapshots: [{
+          id: "order_1",
+          buyerId: null,
+          previousReviewNeeded: false,
+          previousReviewNoteHash: null,
+          previousReviewNoteLength: 0,
+        }],
+      }),
+      /one Order snapshot source/,
+    );
+  });
+
   it("falls back to empty metadata for legacy audit rows", () => {
     assert.deepEqual(readBanAuditMetadata(null), {
       appliedBannedAt: null,

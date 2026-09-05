@@ -42,8 +42,6 @@ const expected = {
     "src/app/admin/orders/page.tsx",
     "src/app/api/stripe/webhook/route.ts",
     "src/lib/accountDeletion.ts",
-    "src/lib/audit.ts",
-    "src/lib/ban.ts",
   ],
   OrderItem: [
     "src/app/api/stripe/webhook/route.ts",

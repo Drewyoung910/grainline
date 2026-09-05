@@ -510,6 +510,18 @@ metadata and timestamp authority. This reduces the candidate direct Order
 inventory from 9 to 8. The SQL is database-first and must deploy before the
 application. See `docs/order-staff-mutation-authority.md`.
 
+2026-09-05 seller-ban review authority checkpoint: ban, manual unban and
+audited ban undo no longer select or mutate Order review state through the
+ordinary table delegate. Two actor-bound fixed operations derive the banned
+seller, lock and recheck exact open/no-refund Orders, return only hashed
+restoration snapshots, and restore only a byte-authenticated marker suffix on
+Orders belonging to that seller. The product audit also removed a silent
+5,000-character truncation of staff notes: an existing note is now preserved
+when the fixed marker cannot fit under the 10,000-character contract. This
+reduces the candidate direct Order inventory from 8 to 6. The SQL is
+database-first and must deploy before the application. See
+`docs/order-ban-review-authority.md`.
+
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
 future cleanup. Runtime can no longer falsely release an ambiguous claim as a
