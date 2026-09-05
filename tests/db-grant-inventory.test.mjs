@@ -520,6 +520,7 @@ describe("database grant inventory guardrails", () => {
       "CaseOpenApplication",
       "DirectUploadReference",
       "OrderRefundReconciliation",
+      "SellerDeauthorizationApplication",
     ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
       "CaseResolutionClaim",
@@ -528,6 +529,7 @@ describe("database grant inventory guardrails", () => {
       "CaseOpenApplication",
       "DirectUploadReference",
       "OrderRefundReconciliation",
+      "SellerDeauthorizationApplication",
     ]);
     assert.equal(
       directUploadRlsActivationExpected(directUploadActivationInventory),
@@ -662,6 +664,7 @@ describe("database grant inventory guardrails", () => {
         "CaseOpenApplication",
         "DirectUploadReference",
         "OrderRefundReconciliation",
+        "SellerDeauthorizationApplication",
         "DirectUpload",
       ],
     );
@@ -674,6 +677,7 @@ describe("database grant inventory guardrails", () => {
         "CaseOpenApplication",
         "DirectUploadReference",
         "OrderRefundReconciliation",
+        "SellerDeauthorizationApplication",
         "DirectUpload",
         "Case",
         "CaseMessage",
@@ -1444,7 +1448,7 @@ describe("database grant inventory guardrails", () => {
         (entry) => inventory.functions.includes(entry.name),
       );
 
-    assert.equal(inventory.tables.length, 65);
+    assert.equal(inventory.tables.length, 66);
     assert.equal(inventory.enums.length, 22);
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
@@ -2618,6 +2622,36 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       deriveGrantInventory(root).tables,
       ["OrderRefundReconciliation"],
+    );
+  });
+
+  it("does not demand the staged seller-deauthorization ledger before its exact migration is restored", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-deauthorization-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model SellerDeauthorizationApplication {",
+        "  eventId String @id",
+        "}",
+      ].join("\n"),
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    const migrationDirectory = join(
+      root,
+      "prisma",
+      "migrations",
+      "20260905120000_prepare_order_seller_deauthorization_authority",
+    );
+    mkdirSync(migrationDirectory, { recursive: true });
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
+      'CREATE TABLE public."SellerDeauthorizationApplication" ("eventId" text PRIMARY KEY);',
+    );
+    assert.deepEqual(
+      deriveGrantInventory(root).tables,
+      ["SellerDeauthorizationApplication"],
     );
   });
 

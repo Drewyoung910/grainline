@@ -102,21 +102,21 @@ function postureRowsWith(tableName, changes) {
 }
 
 describe("Order/payment/shipping aggregate-only legacy inspection", () => {
-  it("proves current inspection SQL at the exact live FORCE prefix", () => {
+  it("proves current inspection SQL after its label-claim schema dependency", () => {
     const forceAudit = ciWorkflow.indexOf(
       "Re-audit restored OrderPaymentEvent FORCE posture",
     );
     const inspection = ciWorkflow.indexOf(
-      "Prove Order/payment/shipping legacy inspection SQL at the reviewed production prefix",
+      "Prove Order/payment/shipping legacy inspection SQL after label claim preparation",
     );
-    const laterRestore = ciWorkflow.indexOf(
-      "Restore compatible Order participant list authority release",
+    const compatibleApply = ciWorkflow.indexOf(
+      "Apply compatible Order participant authority",
     );
     assert.ok(
       forceAudit >= 0
-      && forceAudit < inspection
-      && inspection < laterRestore,
-      "inspection proof must see the production FORCE prefix without later compatible candidates",
+      && forceAudit < compatibleApply
+      && compatibleApply < inspection,
+      "inspection proof must run after compatible label-claim columns exist",
     );
     assert.equal(
       ciWorkflow.match(/npm run audit:rls-order-payment-shipping-legacy-inspection-postgres/g)?.length,

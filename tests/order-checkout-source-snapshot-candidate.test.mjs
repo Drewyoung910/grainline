@@ -7,6 +7,7 @@ const sql = readFileSync(
   "utf8",
 );
 const authority = readFileSync("src/lib/checkoutStockReservationAuthority.ts", "utf8");
+const schema = readFileSync("prisma/schema.prisma", "utf8");
 const singleCheckout = readFileSync("src/app/api/cart/checkout/single/route.ts", "utf8");
 const cartCheckout = readFileSync("src/app/api/cart/checkout-seller/route.ts", "utf8");
 
@@ -17,6 +18,10 @@ describe("Order checkout source snapshot candidate", () => {
     assert.match(sql, /jsonb_typeof\("sourceSnapshot"\) = 'object'/);
     assert.match(sql, /pg_column_size\("sourceSnapshot"\) <= 4194304/);
     assert.doesNotMatch(sql, /UPDATE public\."CheckoutStockReservation"[\s\S]*WHERE "sourceSnapshot" IS NULL/);
+    assert.match(
+      schema,
+      /model CheckoutStockReservation \{[\s\S]*sourceSnapshot\s+Json\?/,
+    );
   });
 
   it("persists cart source only after the locked consistent predecessor accepts it", () => {

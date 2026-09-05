@@ -118,6 +118,12 @@ SHA-256 `1c1ea888e503ba8572c563a16aa18187b70ebb34c016feabec33340a89345467`.
 The regression rejects both partial witness directions; no applied migration
 was rewritten.
 
+The compatible schema now records the reservation `sourceSnapshot`, both Order
+deauthorization witness fields, and the private immutable
+`SellerDeauthorizationApplication` model. The coverage ledger therefore tracks
+66 Prisma models. Historical CI omits the new model from grant inventory only
+while its exact table-creating migration is physically isolated.
+
 ## Sequence after compatible preparation
 
 1. Finish the comprehensive credential-recovery boundary.

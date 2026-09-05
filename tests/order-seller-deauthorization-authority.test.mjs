@@ -9,12 +9,24 @@ const candidate = fs.readFileSync(
   "docs/rls-drafts/order-seller-deauthorization-authority.sql",
   "utf8",
 );
+const schema = fs.readFileSync("prisma/schema.prisma", "utf8");
 
 const rows = (result) => result.rows;
 let db;
 let dataDirectory;
 
 describe("Order seller deauthorization authority", () => {
+  it("keeps the compatible Order fields and private ledger in the Prisma schema", () => {
+    assert.match(
+      schema,
+      /model Order \{[\s\S]*sellerDeauthorizedAt\s+DateTime\?[\s\S]*sellerDeauthorizationEventId\s+String\?\s+@db\.VarChar\(255\)/,
+    );
+    assert.match(
+      schema,
+      /model SellerDeauthorizationApplication \{[\s\S]*eventId\s+String\s+@id\s+@db\.VarChar\(255\)[\s\S]*orderCount\s+Int/,
+    );
+  });
+
   before(async () => {
     dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "grainline-order-deauth-"));
     db = new PGlite({ dataDir: dataDirectory });

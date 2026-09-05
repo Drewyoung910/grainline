@@ -1344,6 +1344,11 @@ jobs:
           mv
           "$RUNNER_TEMP/order-participant-list-projection-correction"
           prisma/migrations/20260901155000_correct_order_participant_list_projection
+      - name: Restore additive Case and Order correctness release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-order-correctness-release"
+          prisma/migrations/20260901160000_correct_case_order_invariants
       - name: Restore Order staff charged-total correction
         run: >-
           mv
@@ -1507,13 +1512,6 @@ jobs:
         run: npm run audit:rls-order-compatible-runtime-postflight
         env:
           ORDER_COMPATIBLE_RUNTIME_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Restore additive Case and Order correctness release
-        run: >-
-          mv
-          "$RUNNER_TEMP/case-order-correctness-release"
-          prisma/migrations/20260901160000_correct_case_order_invariants
-      - name: Apply additive Case and Order correctness release
-        run: npx prisma migrate deploy
       - name: Verify Case and Order correctness migration status
         run: npx prisma migrate status
       - name: Audit corrected Case grants and retained RLS posture

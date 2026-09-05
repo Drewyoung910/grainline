@@ -72,6 +72,8 @@ export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
+const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
+  "20260905120000_prepare_order_seller_deauthorization_authority";
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -79,6 +81,7 @@ export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseOpenApplication",
   "DirectUploadReference",
   "OrderRefundReconciliation",
+  "SellerDeauthorizationApplication",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseResolutionClaim",
@@ -87,6 +90,7 @@ export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseOpenApplication",
   "DirectUploadReference",
   "OrderRefundReconciliation",
+  "SellerDeauthorizationApplication",
 ]);
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
@@ -1071,9 +1075,21 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
     "migration.sql",
   ));
+  const sellerDeauthorizationApplicationMigrationPresent = migrationSql.includes(
+    'CREATE TABLE public."SellerDeauthorizationApplication"',
+  ) && existsSync(path.join(
+    rootDir,
+    "prisma",
+    "migrations",
+    SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION,
+    "migration.sql",
+  ));
   const tables = sortedUnique(schemaTables.filter(
     (tableName) => tableName !== "OrderRefundReconciliation"
       || refundReconciliationMigrationPresent,
+  ).filter(
+    (tableName) => tableName !== "SellerDeauthorizationApplication"
+      || sellerDeauthorizationApplicationMigrationPresent,
   ));
   const enumBlocks = [...schema.matchAll(/^enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
   const enums = sortedUnique(
