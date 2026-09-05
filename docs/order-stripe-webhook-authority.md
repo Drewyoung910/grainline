@@ -228,6 +228,19 @@ replayable from this projection.
 
 `grainline_stripe_seller_deauthorization_apply(...)` implements ORD-W02. No
 generic seller disable or Order review writer is granted to ordinary runtime.
+The isolated application candidate now replaces the former split
+`SellerProfile`/`Order` writes with this single generation-bound operation. It
+passes the signature-authenticated event time as an explicitly UTC-normalized
+PostgreSQL value, invalidates public visibility from the database's replayable
+decision, and expires sessions for the database-derived seller before the
+webhook lease can complete. The result parser rejects malformed cardinality,
+outcomes, nullable identities, booleans and counts rather than guessing.
+
+This candidate is deliberately not deployable yet. The private application
+ledger, fixed operation, dedicated Order columns, fulfillment/label consumers
+and staff review successor must land and pass their joint proofs first. That
+keeps predecessor application instances compatible and prevents a deployment
+from calling a function that production does not yet contain.
 
 ## Release gates
 

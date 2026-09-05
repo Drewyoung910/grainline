@@ -5,7 +5,6 @@ import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { mapWithConcurrency } from "@/lib/concurrency";
 import {
   createNotification,
   createNotificationOrThrow,
@@ -54,12 +53,12 @@ import {
 import { releaseBlockedCheckoutLegacyRefundLock } from "@/lib/orderLegacyRefundLockAuthority";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
+import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
   revalidatePublicSellerVisibilityCaches,
 } from "@/lib/searchCache";
-import { DEAUTHORIZED_SELLER_REVIEW_NOTE } from "@/lib/orderReviewHolds";
 import { requireSingleOrderSellerProfileId } from "@/lib/orderSellerKey";
 import {
   blockedCheckoutDisputeState,
@@ -2307,58 +2306,22 @@ export async function POST(req: Request) {
       return processIdempotentEvent(async () => {
         const deauthAccount = event.data.object as { id: string };
         if (deauthAccount.id) {
-          const affectedSellers = await prisma.sellerProfile.findMany({
-            where: { stripeAccountId: deauthAccount.id },
-            select: { id: true, chargesEnabled: true },
+          const deauthorization = await applyStripeSellerDeauthorization({
+            eventId: event.id,
+            claimGeneration,
+            accountId: deauthAccount.id,
+            eventCreatedAt: signedPaymentTime,
           });
-          const affectedSellerIds = affectedSellers.map((seller) => seller.id);
-          await prisma.$transaction(async (tx) => {
-            await tx.sellerProfile.updateMany({
-              where: { stripeAccountId: deauthAccount.id },
-              data: {
-                chargesEnabled: false,
-                stripeAccountId: null,
-              },
-            });
-            for (const seller of affectedSellers) {
-              await logSystemActionOrThrow({
-                client: tx,
-                actorType: "webhook",
-                actorId: event.id,
-                action: "STRIPE_ACCOUNT_DEAUTHORIZED",
-                targetType: "SELLER_PROFILE",
-                targetId: seller.id,
-                metadata: {
-                  stripeEventType: event.type,
-                  stripeAccountId: deauthAccount.id,
-                  previousChargesEnabled: seller.chargesEnabled,
-                  chargesEnabled: false,
-                  stripeAccountCleared: true,
-                },
-              });
-            }
-          });
-          if (affectedSellerIds.length > 0) {
+          if (deauthorization.publicVisibilityChanged) {
             revalidatePublicSellerVisibilityCaches();
-            await prisma.order.updateMany({
-              where: {
-                reviewNeeded: false,
-                fulfillmentStatus: { in: ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] },
-                sellerProfileId: { in: affectedSellerIds },
-              },
-              data: {
-                reviewNeeded: true,
-                reviewNote: DEAUTHORIZED_SELLER_REVIEW_NOTE,
-              },
-            });
           }
-          await mapWithConcurrency(affectedSellers, 3, (seller) =>
-            expireOpenCheckoutSessionsForSeller({
-              sellerId: seller.id,
+          if (deauthorization.sellerProfileId) {
+            await expireOpenCheckoutSessionsForSeller({
+              sellerId: deauthorization.sellerProfileId,
               stripeAccountId: deauthAccount.id,
               source: "stripe_deauthorized",
-            }),
-          );
+            });
+          }
         }
         return NextResponse.json({ received: true });
       });

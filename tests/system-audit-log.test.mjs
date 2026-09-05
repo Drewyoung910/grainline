@@ -73,6 +73,9 @@ describe("system audit logging", () => {
     const signedAuthority = source(
       "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
     );
+    const deauthorizationAuthority = source(
+      "docs/rls-drafts/order-seller-deauthorization-authority.sql",
+    );
     const mirror = source("src/lib/stripeWebhookMirror.ts");
     const v2Webhook = source("src/app/api/stripe/webhook/v2/route.ts");
 
@@ -82,9 +85,8 @@ describe("system audit logging", () => {
     assert.match(webhook, /checkoutMode: "single"/);
     assert.match(signedAuthority, /'STRIPE_REFUND_RECORDED'/);
     assert.match(signedAuthority, /'STRIPE_DISPUTE_RECORDED'/);
-    assert.match(webhook, /action: "STRIPE_ACCOUNT_DEAUTHORIZED"/);
-    assert.match(webhook, /actorType: "webhook"/);
-    assert.match(webhook, /actorId: event\.id/);
+    assert.match(webhook, /applyStripeSellerDeauthorization/);
+    assert.match(deauthorizationAuthority, /'webhook', p_event_id, 'STRIPE_ACCOUNT_DEAUTHORIZED'/);
 
     assert.match(mirror, /import \{ logSystemActionOrThrow \} from "@\/lib\/systemAudit"/);
     assert.match(mirror, /prisma\.\$transaction\(async \(tx\) => \{/);
@@ -97,9 +99,12 @@ describe("system audit logging", () => {
     assert.match(mirror, /chargesEnabled: effectiveChargesEnabled/);
     assert.match(mirror, /stripeChargesEnabled: chargesEnabled/);
 
-    assert.match(webhook, /actorType: "webhook",\s*actorId: event\.id,[\s\S]*action: "STRIPE_ACCOUNT_DEAUTHORIZED"/);
-    assert.match(webhook, /previousChargesEnabled: seller\.chargesEnabled/);
-    assert.match(webhook, /stripeAccountCleared: true/);
+    assert.match(
+      deauthorizationAuthority,
+      /INSERT INTO public\."SystemAuditLog"[\s\S]*'webhook', p_event_id, 'STRIPE_ACCOUNT_DEAUTHORIZED'/,
+    );
+    assert.match(deauthorizationAuthority, /'previousChargesEnabled', seller_was_public/);
+    assert.match(deauthorizationAuthority, /'stripeAccountCleared', true/);
     assert.match(v2Webhook, /actorType: "webhook"/);
     assert.match(v2Webhook, /actorId: stripeEventId/);
 

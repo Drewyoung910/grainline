@@ -241,6 +241,7 @@ BEGIN
       pg_catalog.jsonb_build_object(
         'stripeEventType', source_event.type,
         'stripeAccountId', p_account_id,
+        'previousChargesEnabled', seller_was_public,
         'chargesEnabled', false,
         'stripeAccountCleared', true,
         'affectedOrderCount', changed_order_count
