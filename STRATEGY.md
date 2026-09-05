@@ -173,6 +173,14 @@ production inspection and compatible application/migration release before
 Order Phase A; do not let the new gate expand into a redesign of either
 provider workflow.
 
+The same pass began the zero-direct-access conversion without widening that
+fix: refund-provider replay needs only the provider-authorized clock for one
+exact active claim. The isolated fixed projection in
+`docs/order-refund-claim-clock-authority.md` reduces the executable inventory
+from 16 to 15 files and returns no Order, actor, money or provider identifiers.
+Its database function must be released and runtime-proven before the stacked
+application change is eligible to deploy.
+
 ### OrderPaymentEvent FORCE acceptance (2026-08-31)
 
 OrderPaymentEvent is accepted in production as policyless ENABLE plus FORCE,

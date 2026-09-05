@@ -50,7 +50,6 @@ const expected = {
     "src/lib/ban.ts",
     "src/lib/caseLifecycleLocks.ts",
     "src/lib/checkoutStockRestore.ts",
-    "src/lib/orderRefundProviderReconciliation.ts",
     "src/lib/refundLocks.ts",
   ],
   OrderItem: [

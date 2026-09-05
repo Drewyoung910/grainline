@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 16 source files still touch Order authority directly
+### ORD-A05: 15 runtime/proof source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -151,7 +151,6 @@ Lifecycle, repair and retention readers/writers:
 - `src/lib/ban.ts`
 - `src/lib/caseLifecycleLocks.ts`
 - `src/lib/checkoutStockRestore.ts`
-- `src/lib/orderRefundProviderReconciliation.ts`
 - `src/lib/refundLocks.ts`
 
 This list is now executable rather than prose-only:
@@ -159,8 +158,13 @@ This list is now executable rather than prose-only:
 direct raw-SQL relation references and fails on either a new unclassified file
 or an undocumented conversion. It also pins the next-release inventories at
 four direct `OrderItem` files and one direct `OrderShippingRateQuote` file.
+The first follow-on conversion replaces
+`src/lib/orderRefundProviderReconciliation.ts`'s full-credential Order read
+with a fixed exact-claim projection that returns only the provider-authorized
+timestamp. Its SQL remains a compatibility draft pending a separate database-
+first release, so the application change must not deploy before that function.
 The remaining work divides cleanly into seven staff/admin consumers, two
-provider/refund routes and seven lifecycle/maintenance modules; it does not
+provider/refund routes and six lifecycle/maintenance modules; it does not
 require reopening already-converted fulfillment, buyer-receipt or label route
 authority.
 
