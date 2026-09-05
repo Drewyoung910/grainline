@@ -498,7 +498,7 @@ or migration yet.
 | Shippo quote and label purchase | `src/app/api/orders/[id]/label/route.ts` | seller-authorized quote replacement and label claim/finalize operations with bounded provider snapshots |
 | Label clawback retry | `src/lib/labelClawbackRetry.ts` | bounded batch claim plus generation-checked success/failure finalizers |
 | Checkout stock lifecycle | `src/lib/checkoutStockRestore.ts`, `src/app/api/cart/checkout/resume/route.ts` | reserve, bind session, complete, restore, repair and terminal-prune transitions with one lock order |
-| Account deletion and PII expiry | `src/lib/accountDeletion.ts` | bounded account-owned reservation cleanup, Order PII purge, quote deletion and seller-history anonymization |
+| Account deletion and PII expiry | `src/lib/accountDeletion.ts` | actor-bound blocker and scrub operations derive durable buyer/seller ownership, signed charged totals and the database clock; lock/recheck before Order PII purge, quote deletion and seller-history anonymization |
 | Admin reconciliation | `src/app/admin/actions.ts`, `src/app/admin/orders/[id]/refundReconciliationActions.ts` | staff-authorized review, evidence-bound ambiguous-refund classification, void/reconcile and append-note transitions with durable audit evidence |
 | Payout failure state | `src/app/api/stripe/webhook/route.ts`, `src/app/api/stripe/webhook/connect/route.ts`, `src/lib/stripePayoutWebhook.ts` | separately signed platform/Connect compatibility routes share one webhook-bound monotonic payout-state upsert; seller receives only a bounded projection |
 | Seller deauthorization review flag | `src/app/api/stripe/webhook/route.ts` | exact affected-seller batch operation using the durable Order seller key, not live Listing ownership |

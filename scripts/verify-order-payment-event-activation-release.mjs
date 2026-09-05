@@ -35,6 +35,10 @@ import {
   verifyOrderStaffReadChargedTotalCorrection,
 } from "./verify-order-staff-read-charged-total-correction.mjs";
 import {
+  ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+  verifyOrderAccountDeletionAuthority,
+} from "./verify-order-account-deletion-authority.mjs";
+import {
   ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
   ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
@@ -184,6 +188,22 @@ export function verifyOrderPaymentEventActivationRelease(
     omittedReviewedMigrationNames.push(
       ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
     );
+  }
+  const accountDeletionAuthorityPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+  );
+  if (fs.existsSync(accountDeletionAuthorityPath)) {
+    if (!omittedReviewedMigrationNames.includes(
+      ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+    )) {
+      throw new Error(
+        "Order account-deletion authority requires the staff charged-total correction",
+      );
+    }
+    verifyOrderAccountDeletionAuthority(rootDirectory);
+    omittedReviewedMigrationNames.push(ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION);
   }
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,

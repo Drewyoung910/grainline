@@ -42,7 +42,11 @@ import {
 } from "./order-participant-list-projection-correction-catalog.mjs";
 import {
   appendReviewedOrderStaffReadChargedTotalCorrection,
+  ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
 } from "./verify-order-staff-read-charged-total-correction.mjs";
+import {
+  appendReviewedOrderAccountDeletionAuthority,
+} from "./verify-order-account-deletion-authority.mjs";
 
 export const ORDER_PAYMENT_EVENT_READ_AUTHORITY_PHASE =
   "order-payment-event-read-authority-reviewed";
@@ -130,6 +134,12 @@ export function verifyOrderPaymentEventReadAuthorityRelease(root = process.cwd()
     laterMigrations: migrationNames,
     reviewedSuccessors,
     expectedPredecessor: CASE_CORRECTNESS_MIGRATION,
+  });
+  appendReviewedOrderAccountDeletionAuthority({
+    root,
+    laterMigrations: migrationNames,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
   });
   assert.deepEqual(
     migrationNames,

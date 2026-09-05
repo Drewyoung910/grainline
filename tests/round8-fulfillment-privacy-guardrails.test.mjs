@@ -35,12 +35,15 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
 
   it("blocks account deletion for recent terminal orders inside the case window", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
+    const authority = source(
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+    );
 
     assert.match(accountDeletion, /import \{ CASE_WINDOW_DAYS \} from "@\/lib\/caseCreateState"/);
     assert.match(accountDeletion, /ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS/);
-    assert.match(accountDeletion, /function accountDeletionFulfillmentBlockerSql\(terminalCutoff: Date\)/);
-    assert.match(accountDeletion, /o\."fulfillmentStatus" = 'DELIVERED'[\s\S]*o\."deliveredAt" IS NULL OR o\."deliveredAt" >= \$\{terminalCutoff\}/);
-    assert.match(accountDeletion, /o\."fulfillmentStatus" = 'PICKED_UP'[\s\S]*o\."pickedUpAt" IS NULL OR o\."pickedUpAt" >= \$\{terminalCutoff\}/);
+    assert.match(authority, /statement_timestamp\(\) AT TIME ZONE 'UTC'[\s\S]*INTERVAL '30 days'/);
+    assert.match(authority, /source_order\."fulfillmentStatus" = 'DELIVERED'[\s\S]*source_order\."deliveredAt" IS NULL[\s\S]*source_order\."deliveredAt" >= terminal_cutoff/);
+    assert.match(authority, /source_order\."fulfillmentStatus" = 'PICKED_UP'[\s\S]*source_order\."pickedUpAt" IS NULL[\s\S]*source_order\."pickedUpAt" >= terminal_cutoff/);
     assert.match(accountDeletion, /within the case window/);
   });
 

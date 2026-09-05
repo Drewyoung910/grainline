@@ -37,16 +37,12 @@ function authorityAccessFiles(delegate, table) {
 const expected = {
   Order: [
     "src/app/api/stripe/webhook/route.ts",
-    "src/lib/accountDeletion.ts",
   ],
   OrderItem: [
     "src/app/api/stripe/webhook/route.ts",
     "src/components/ReviewsSection.tsx",
-    "src/lib/accountDeletion.ts",
   ],
-  OrderShippingRateQuote: [
-    "src/lib/accountDeletion.ts",
-  ],
+  OrderShippingRateQuote: [],
   OrderPaymentEvent: [
     "src/lib/orderRefundFinalization.ts",
     "src/lib/orderRefundRecordAuthority.ts",

@@ -82,6 +82,9 @@ import {
 import {
   ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
 } from "../scripts/verify-order-staff-read-charged-total-correction.mjs";
+import {
+  ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+} from "../scripts/verify-order-account-deletion-authority.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/blocked-checkout-refund-delivery-production.yml",
@@ -194,6 +197,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION);
     remove(ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION);
     remove(CASE_CORRECTNESS_MIGRATION);
     remove(ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION);

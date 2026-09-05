@@ -8,18 +8,14 @@ const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
 
 const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
   "src/app/api/stripe/webhook/route.ts",
-  "src/lib/accountDeletion.ts",
 ]);
 
 const EXPECTED_DIRECT_ORDER_ITEM_FILES = Object.freeze([
   "src/app/api/stripe/webhook/route.ts",
   "src/components/ReviewsSection.tsx",
-  "src/lib/accountDeletion.ts",
 ]);
 
-const EXPECTED_DIRECT_QUOTE_FILES = Object.freeze([
-  "src/lib/accountDeletion.ts",
-]);
+const EXPECTED_DIRECT_QUOTE_FILES = Object.freeze([]);
 
 function sourceFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

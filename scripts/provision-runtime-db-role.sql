@@ -2263,6 +2263,51 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Compatible Order account-deletion operations bind both the target and all
+-- durable Order-family effects to the transaction-local actor. Keep PUBLIC
+-- closed and converge ordinary-runtime execution while predecessor table
+-- grants remain available during the application transition.
+WITH order_account_deletion_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_account_deletion_blockers"(text)'),
+    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_account_deletion_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_account_deletion_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_account_deletion_blockers"(text)'),
+    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_account_deletion_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_account_deletion_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_account_deletion_blockers"(text)'),
+    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_account_deletion_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Compatible participant Order exports are fixed, bounded and actor-scoped.
 -- Keep their PUBLIC boundary closed and converge only ordinary-runtime
 -- execution while the application transitions away from direct table reads.

@@ -149,11 +149,11 @@ Lifecycle, repair and retention readers/writers:
 - `src/lib/audit.ts`
 - `src/lib/ban.ts`
 
-This list is now executable rather than prose-only:
+At that audit checkpoint this list became executable rather than prose-only:
 `tests/order-direct-access-inventory.test.mjs` scans both Prisma delegates and
 direct raw-SQL relation references and fails on either a new unclassified file
-or an undocumented conversion. It also pins the next-release inventories at
-four direct `OrderItem` files and one direct `OrderShippingRateQuote` file.
+or an undocumented conversion. Later checkpoint sections below advance those
+inventories without rewriting this historical baseline.
 The first follow-on conversion replaces
 `src/lib/orderRefundProviderReconciliation.ts`'s full-credential Order read
 with a fixed exact-claim projection that returns only the provider-authorized
@@ -544,6 +544,19 @@ while consulting only current listing type for stock-restoration eligibility.
 This reduces the candidate direct Order inventory from 3 to 2. The only
 remaining direct Order sources are the Stripe webhook service path and the
 account-deletion path.
+
+2026-09-05 account-deletion authority checkpoint: the lifecycle path now uses
+two actor-bound fixed operations for blocker counts and PII scrubbing. The
+audit corrected mutable `OrderItem -> Listing` seller reconstruction, changed
+full-refund comparison to prefer provider-signed `chargedTotalCents`, removed
+caller-supplied clock authority, and added an in-transaction blocker recheck
+after the deleting User is locked. Checkout reservation and final Stripe Order
+creation take the same buyer/seller User locks, so the recheck serializes with
+new paid Orders. The migration is additive and locally PostgreSQL-proven; it
+has not been merged, applied or deployed. This reduces the candidate direct
+Order inventory from 2 to 1, the OrderItem inventory from 3 to 2, and the quote
+inventory from 1 to 0. Stripe webhook remains the only direct Order source. See
+`docs/order-account-deletion-authority.md`.
 
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
