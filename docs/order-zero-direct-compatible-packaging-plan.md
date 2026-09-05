@@ -140,6 +140,14 @@ remains 18 migrations and is not weakened: its reader now accepts only the
 fixed-checksum, contiguous reviewed successor prefix and rejects an unknown,
 missing, duplicate, rolled-back, gapped or checksum-drifted successor.
 
+CI run `33976821521` proved that corrected historical Order scope, then failed
+closed in the downstream Case-correctness PostgreSQL reader because that reader
+still classified the same exact reviewed successor rows as unknown. The Case
+reader now delegates ledger validation to the unchanged strict Order verifier
+and merely includes the fixed reviewed successor names in its query partition.
+It still rejects every unreviewed row and every non-contiguous, duplicate,
+rolled-back or checksum-drifted successor.
+
 ## Sequence after compatible preparation
 
 1. Retain and reverify the accepted comprehensive credential-recovery boundary

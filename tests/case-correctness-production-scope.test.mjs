@@ -15,6 +15,9 @@ import {
   parseCaseCorrectnessProductionScopeEnvironment,
   verifyCaseCorrectnessProductionScope,
 } from "../scripts/verify-case-correctness-production-scope.mjs";
+import {
+  ORDER_COMPATIBLE_REVIEWED_SUCCESSORS,
+} from "../scripts/verify-order-compatible-production-scope.mjs";
 
 const URL = "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
 
@@ -45,9 +48,14 @@ function caseRow() {
   });
 }
 
-function snapshot(caseApplied) {
+function snapshot(caseApplied, successorPrefixLength = caseApplied ? 1 : 0) {
   return {
-    orderLedgerRows: ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(applied),
+    orderLedgerRows: [
+      ...ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(applied),
+      ...ORDER_COMPATIBLE_REVIEWED_SUCCESSORS
+        .slice(0, successorPrefixLength)
+        .map(applied),
+    ],
     caseLedgerRows: caseApplied ? [caseRow()] : [],
     unexpectedLedgerRows: [],
     caseTables: ["Case", "CaseMessage", "CaseMessageAttachment"].map(
@@ -120,6 +128,19 @@ test("scope accepts exact restart and corrected states", async () => {
     { readSnapshot: async () => snapshot(true) },
   );
   assert.equal(verified.caseCorrectnessApplied, true);
+  for (
+    let prefixLength = 1;
+    prefixLength <= ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.length;
+    prefixLength += 1
+  ) {
+    assert.equal(
+      assertCaseCorrectnessProductionScope(
+        snapshot(true, prefixLength),
+        "after",
+      ).state,
+      "case-corrected",
+    );
+  }
 });
 
 test("scope rejects incomplete Order predecessor and Case posture drift", () => {
@@ -143,6 +164,18 @@ test("scope rejects incomplete Order predecessor and Case posture drift", () => 
       ...caseRow(),
       migration_name: "20260901170000_unreviewed_successor",
     });
+  });
+  add((value) => {
+    value.orderLedgerRows.splice(
+      ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.length,
+      1,
+      applied(ORDER_COMPATIBLE_REVIEWED_SUCCESSORS[1]),
+    );
+  });
+  add((value) => {
+    value.orderLedgerRows.push(
+      applied(ORDER_COMPATIBLE_REVIEWED_SUCCESSORS[0]),
+    );
   });
   for (const value of cases) {
     assert.throws(() =>
