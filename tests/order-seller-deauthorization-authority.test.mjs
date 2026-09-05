@@ -83,6 +83,23 @@ describe("Order seller deauthorization authority", () => {
     if (dataDirectory) fs.rmSync(dataDirectory, { recursive: true, force: true });
   });
 
+  it("rejects either half of a deauthorization witness even when CHECK would evaluate to NULL", async () => {
+    for (const assignments of [
+      '"sellerDeauthorizedAt" = CURRENT_TIMESTAMP, "sellerDeauthorizationEventId" = NULL',
+      `"sellerDeauthorizedAt" = NULL, "sellerDeauthorizationEventId" = 'evt_proof'`,
+    ]) {
+      await db.exec("BEGIN");
+      try {
+        await assert.rejects(
+          () => db.exec(`UPDATE public."Order" SET ${assignments} WHERE id = 'order-terminal'`),
+          (error) => error.code === "23514",
+        );
+      } finally {
+        await db.exec("ROLLBACK");
+      }
+    }
+  });
+
   it("atomically clears the account and marks every eligible pre-event order", async () => {
     const eventCreatedAt = rows(await db.query(`
       SELECT (CURRENT_TIMESTAMP - interval '1 minute')::timestamp AS value

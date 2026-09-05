@@ -110,6 +110,14 @@ stage before label authority introduced it. The inspection now runs after the
 compatible Order schema is applied. Its strict aggregate query is unchanged;
 an ordering test pins its schema dependency.
 
+The undeployed seller-deauthorization candidate was corrected after an engine
+test proved that a timestamp with a NULL event ID passed its CHECK through SQL
+three-valued logic. The event-present branch now explicitly requires a non-NULL
+event ID. The draft and staged migration remain byte-identical with reviewed
+SHA-256 `1c1ea888e503ba8572c563a16aa18187b70ebb34c016feabec33340a89345467`.
+The regression rejects both partial witness directions; no applied migration
+was rewritten.
+
 ## Sequence after compatible preparation
 
 1. Finish the comprehensive credential-recovery boundary.

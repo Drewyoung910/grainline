@@ -14,6 +14,7 @@ ALTER TABLE public."Order"
     ("sellerDeauthorizedAt" IS NULL AND "sellerDeauthorizationEventId" IS NULL)
     OR (
       "sellerDeauthorizedAt" IS NOT NULL
+      AND "sellerDeauthorizationEventId" IS NOT NULL
       AND "sellerDeauthorizationEventId" ~ '^evt_[A-Za-z0-9_]+$'
       AND pg_catalog.char_length("sellerDeauthorizationEventId") <= 255
     )
