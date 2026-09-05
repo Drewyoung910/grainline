@@ -12,7 +12,6 @@ const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
   "src/app/admin/flagged/page.tsx",
   "src/app/admin/orders/[id]/page.tsx",
   "src/app/admin/orders/page.tsx",
-  "src/app/admin/verification/page.tsx",
   "src/app/api/stripe/webhook/route.ts",
   "src/lib/accountDeletion.ts",
   "src/lib/audit.ts",
@@ -20,7 +19,6 @@ const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
 ]);
 
 const EXPECTED_DIRECT_ORDER_ITEM_FILES = Object.freeze([
-  "src/app/admin/verification/page.tsx",
   "src/app/api/stripe/webhook/route.ts",
   "src/components/ReviewsSection.tsx",
   "src/lib/accountDeletion.ts",

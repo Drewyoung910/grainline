@@ -489,6 +489,17 @@ direct Order inventory from 11 to 10. The SQL remains database-first and must
 deploy before the application. See
 `docs/order-refund-reconciliation-commit-proof.md`.
 
+2026-09-05 Guild Member verification conversion checkpoint: the staff
+approval path no longer joins `Order`, `OrderItem`, and mutable `Listing`
+ownership directly to compute completed sales. It reuses the already prepared
+and PostgreSQL-proven seller-metrics projection, which attributes historical
+sales through durable Order and OrderItem seller keys and preserves the paid,
+completed, non-refunded and non-blocked filters. Unknown or mismatched sellers
+fail closed instead of being treated as zero sales. This reduces the candidate
+direct Order inventory from 10 to 9 and direct OrderItem inventory from 4 to 3
+without changing the published Guild threshold. See
+`docs/order-seller-metrics-authority.md`.
+
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
 future cleanup. Runtime can no longer falsely release an ambiguous claim as a

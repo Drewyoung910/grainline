@@ -34,7 +34,10 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
       "src/app/api/seller/analytics/recent-sales/route.ts",
       "src/app/api/seller/analytics/route.ts",
     ]);
-    const sellerMetricsConsumers = new Set(["src/lib/metrics.ts"]);
+    const sellerMetricsConsumers = new Set([
+      "src/app/admin/verification/page.tsx",
+      "src/lib/metrics.ts",
+    ]);
     for (const file of aggregateConsumers) {
       const value = source(file);
       assert.match(

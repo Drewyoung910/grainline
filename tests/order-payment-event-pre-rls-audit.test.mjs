@@ -32,7 +32,6 @@ function paymentSemanticFiles() {
 const expectedSemanticFiles = [
   "src/app/account/orders/page.tsx",
   "src/app/admin/orders/[id]/page.tsx",
-  "src/app/admin/verification/page.tsx",
   "src/app/api/account/export/route.ts",
   "src/app/api/reviews/route.ts",
   "src/app/api/stripe/webhook/route.ts",
@@ -62,7 +61,7 @@ const expectedSemanticFiles = [
 
 describe("OrderPaymentEvent pre-RLS domain audit", () => {
   it("pins every current semantic source reference", () => {
-    assert.equal(expectedSemanticFiles.length, 28);
+    assert.equal(expectedSemanticFiles.length, 27);
     assert.deepEqual(paymentSemanticFiles(), expectedSemanticFiles);
     for (const file of expectedSemanticFiles) {
       assert.match(audit, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

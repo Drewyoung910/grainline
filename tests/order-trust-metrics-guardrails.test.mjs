@@ -22,13 +22,14 @@ describe("order trust metrics guardrails", () => {
     assert.match(helper, /stripeChargeId: \{ not: null \}/);
   });
 
-  it("requires raw-SQL marketplace trust metrics to count only Stripe-backed paid orders", () => {
+  it("keeps marketplace trust metrics on fixed Stripe-backed Order projections", () => {
     const paths = ["src/app/admin/verification/page.tsx"];
 
     for (const path of paths) {
       const text = source(path);
 
-      assert.match(text, /PAID_STRIPE_ORDER_SQL/, `${path} should use the shared raw SQL helper`);
+      assert.match(text, /readOrderSellerMetricsFacts/, `${path} should use the fixed Order projection`);
+      assert.doesNotMatch(text, /PAID_STRIPE_ORDER_SQL/, `${path} should not retain raw Order SQL`);
       assert.doesNotMatch(text, /o\."paidAt" IS NOT NULL/, `${path} should not hand-roll paid checks`);
       assert.doesNotMatch(text, /o\."stripeSessionId" IS NOT NULL/, `${path} should not hand-roll Stripe refs`);
     }

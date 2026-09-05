@@ -29,7 +29,6 @@ const expectedOrderAccessFiles = [
   "src/app/admin/flagged/page.tsx",
   "src/app/admin/orders/[id]/page.tsx",
   "src/app/admin/orders/page.tsx",
-  "src/app/admin/verification/page.tsx",
   "src/app/api/stripe/webhook/route.ts",
   "src/lib/accountDeletion.ts",
   "src/lib/audit.ts",
@@ -38,7 +37,7 @@ const expectedOrderAccessFiles = [
 
 describe("core Order pre-RLS audit", () => {
   it("pins every current direct Order source access", () => {
-    assert.equal(expectedOrderAccessFiles.length, 10);
+    assert.equal(expectedOrderAccessFiles.length, 9);
     assert.deepEqual(orderAccessFiles(), expectedOrderAccessFiles);
     for (const file of expectedOrderAccessFiles) {
       assert.equal(audit.includes(`\`${file}\``), true, file);

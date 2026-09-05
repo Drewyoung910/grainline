@@ -29,7 +29,7 @@ describe("seller analytics refund guardrails", () => {
     );
 
     const adminVerification = source("src/app/admin/verification/page.tsx");
-    assert.match(adminVerification, /paymentRefundBlocked/);
+    assert.match(adminVerification, /readOrderSellerMetricsFacts/);
     assert.doesNotMatch(
       adminVerification,
       /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
@@ -122,11 +122,13 @@ describe("seller analytics refund guardrails", () => {
       /'amountCents', locked_claim\."refundAmountCents"/,
     );
 
-    for (const text of [adminVerification]) {
-      assert.match(text, /o\."sellerRefundId" IS NULL/);
-      assert.match(text, /o\."paymentRefundBlocked" = false/);
-      assert.doesNotMatch(text, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
-    }
+    const sellerMetricsAuthority = source(
+      "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
+    );
+    assert.match(adminVerification, /readOrderSellerMetricsFacts/);
+    assert.match(sellerMetricsAuthority, /source_order\."sellerRefundId" IS NULL/);
+    assert.match(sellerMetricsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.doesNotMatch(adminVerification, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
     for (const text of [verificationApplyRoute, dashboardVerification]) {
       assert.match(text, /getSellerVerificationOrderSales/);
       assert.doesNotMatch(text, /(?:FROM|JOIN)\s+"Order"/);
