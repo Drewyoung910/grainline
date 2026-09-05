@@ -24,17 +24,13 @@ function orderAccessFiles() {
 }
 
 const expectedOrderAccessFiles = [
-  "src/app/admin/cases/[id]/page.tsx",
-  "src/app/admin/flagged/page.tsx",
-  "src/app/admin/orders/[id]/page.tsx",
-  "src/app/admin/orders/page.tsx",
   "src/app/api/stripe/webhook/route.ts",
   "src/lib/accountDeletion.ts",
 ];
 
 describe("core Order pre-RLS audit", () => {
   it("pins every current direct Order source access", () => {
-    assert.equal(expectedOrderAccessFiles.length, 6);
+    assert.equal(expectedOrderAccessFiles.length, 2);
     assert.deepEqual(orderAccessFiles(), expectedOrderAccessFiles);
     for (const file of expectedOrderAccessFiles) {
       assert.equal(audit.includes(`\`${file}\``), true, file);
@@ -64,6 +60,8 @@ describe("core Order pre-RLS audit", () => {
     assert.match(audit, /seller-ban review authority checkpoint/);
     assert.match(audit, /silent\s+5,000-character truncation of staff notes/);
     assert.match(audit, /candidate direct Order inventory from 8 to 6/);
+    assert.match(audit, /candidate direct Order inventory from 6 to 3/);
+    assert.match(audit, /candidate direct Order inventory from 3 to 2/);
     assert.match(audit, /without a Stripe Checkout Session, PaymentIntent, Charge, payment-event/);
     assert.match(audit, /nullable seller keys are not the final invariant/);
   });

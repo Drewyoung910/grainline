@@ -182,6 +182,7 @@
     "audit:order-participant-list-authority-release": "node scripts/verify-order-participant-list-authority-release.mjs",
     "audit:order-participant-detail-authority-release": "node scripts/verify-order-participant-detail-authority-release.mjs",
     "audit:order-staff-read-authority-release": "node scripts/verify-order-staff-read-authority-release.mjs",
+    "audit:order-staff-read-charged-total-correction": "node scripts/verify-order-staff-read-charged-total-correction.mjs",
     "audit:order-participant-export-authority-release": "node scripts/verify-order-participant-export-authority-release.mjs",
     "audit:order-eligibility-authority-release": "node scripts/verify-order-eligibility-authority-release.mjs",
     "audit:order-public-aggregate-authority-release": "node scripts/verify-order-public-aggregate-authority-release.mjs",

@@ -2235,7 +2235,9 @@ SELECT format(
 WITH order_staff_read_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_staff_page"(text, text, integer, integer)'),
-    ('public."grainline_order_staff_detail"(text, text)')
+    ('public."grainline_order_staff_detail"(text, text)'),
+    ('public."grainline_order_staff_page_v2"(text, text, integer, integer)'),
+    ('public."grainline_order_staff_detail_v2"(text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
@@ -2248,7 +2250,9 @@ SELECT format(
 WITH order_staff_read_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_staff_page"(text, text, integer, integer)'),
-    ('public."grainline_order_staff_detail"(text, text)')
+    ('public."grainline_order_staff_detail"(text, text)'),
+    ('public."grainline_order_staff_page_v2"(text, text, integer, integer)'),
+    ('public."grainline_order_staff_detail_v2"(text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',

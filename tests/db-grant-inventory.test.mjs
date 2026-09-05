@@ -63,6 +63,9 @@ import {
   ORDER_LABEL_PRIVATE_FUNCTIONS,
   ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/order-label-authority-catalog.mjs";
+import {
+  ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES,
+} from "../scripts/verify-order-staff-read-charged-total-correction.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
@@ -1500,6 +1503,7 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_STAFF_READ_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
+      ...ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES,
       ...ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
@@ -1579,6 +1583,7 @@ describe("database grant inventory guardrails", () => {
         + ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS.length
         + ORDER_PARTICIPANT_DETAIL_AUTHORITY_FUNCTIONS.length
         + ORDER_STAFF_READ_AUTHORITY_FUNCTIONS.length
+        + ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES.length
         + ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS.length
         + ORDER_ELIGIBILITY_AUTHORITY_FUNCTIONS.length
         + ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS.length
@@ -1735,6 +1740,15 @@ describe("database grant inventory guardrails", () => {
         )),
         true,
         `${functionName} must revoke PUBLIC execution in the staff read-authority migration`,
+      );
+    }
+    for (const functionName of ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES) {
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the staff read correction`,
       );
     }
     for (const identity of ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS) {

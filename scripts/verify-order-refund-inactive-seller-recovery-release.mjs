@@ -66,6 +66,9 @@ import {
 import {
   ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
 } from "./order-participant-list-projection-correction-catalog.mjs";
+import {
+  appendReviewedOrderStaffReadChargedTotalCorrection,
+} from "./verify-order-staff-read-charged-total-correction.mjs";
 
 export const ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PHASE =
   "order-refund-inactive-seller-recovery-prepared";
@@ -258,6 +261,12 @@ export function verifyOrderRefundInactiveSellerRecoveryRelease(
     );
     reviewedSuccessors.push(CASE_CORRECTNESS_MIGRATION);
   }
+  appendReviewedOrderStaffReadChargedTotalCorrection({
+    root: rootDirectory,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: CASE_CORRECTNESS_MIGRATION,
+  });
   assert.deepEqual(
     laterMigrations,
     reviewedSuccessors,

@@ -79,9 +79,9 @@ describe("admin server action guardrails", () => {
     assert.match(helper, /user\.role !== "EMPLOYEE" && user\.role !== "ADMIN"/);
 
     for (const [path, queryNeedle] of [
-      ["src/app/admin/orders/page.tsx", "prisma.order.findMany"],
-      ["src/app/admin/orders/[id]/page.tsx", "prisma.order.findUnique"],
-      ["src/app/admin/flagged/page.tsx", "prisma.order.findMany"],
+      ["src/app/admin/orders/page.tsx", "readStaffOrderPage("],
+      ["src/app/admin/orders/[id]/page.tsx", "readStaffOrderDetail("],
+      ["src/app/admin/flagged/page.tsx", "readStaffOrderPage("],
       ["src/app/admin/cases/page.tsx", "getStaffCaseQueue"],
       ["src/app/admin/cases/[id]/page.tsx", "getVisibleCaseById"],
       ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],

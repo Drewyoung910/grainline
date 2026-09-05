@@ -39,7 +39,7 @@ export async function readStaffOrderPage(
   }
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
     SELECT *
-      FROM public.grainline_order_staff_page(
+      FROM public.grainline_order_staff_page_v2(
         ${actorUserId}, ${scope}, ${requestedPage}, ${pageSize}
       )
   `);
@@ -55,7 +55,7 @@ export async function readStaffOrderDetail(
   const normalizedOrderId = orderId(orderIdInput);
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
     SELECT *
-      FROM public.grainline_order_staff_detail(${actorUserId}, ${normalizedOrderId})
+      FROM public.grainline_order_staff_detail_v2(${actorUserId}, ${normalizedOrderId})
   `);
   return staffOrderDetailFromRows(rows);
 }

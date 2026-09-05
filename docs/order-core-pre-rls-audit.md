@@ -522,6 +522,29 @@ reduces the candidate direct Order inventory from 8 to 6. The SQL is
 database-first and must deploy before the application. See
 `docs/order-ban-review-authority.md`.
 
+2026-09-05 staff read application checkpoint: the all-Orders queue,
+review-needed queue and Order detail page now use the fixed staff projections
+through a lazy server-only client that can authenticate only with the separate
+`grainline_staff_read_runtime` credential. There is no ordinary-runtime
+fallback, the pool is capped independently at two connections, and the Vercel
+guard requires the staff URL to be pooled and bound to the same reviewed
+database. Both queues now render immutable checkout snapshots rather than the
+flagged queue drifting through mutable current Listing identity. This reduces
+the candidate direct Order inventory from 6 to 3. The local branch is
+intentionally not deployable until the database-first login, function grants
+and production secret are separately provisioned and proved. See
+`docs/order-staff-read-authority.md`.
+
+2026-09-05 staff Case composition checkpoint: the admin Case detail no longer
+reads `Order` or participant `User` rows directly. It combines the existing
+fixed Case result with the corrected staff Order detail through the dedicated
+staff credential, rejects any buyer/seller relationship mismatch, uses the
+signed charged total when available, and shows immutable purchased-item titles
+while consulting only current listing type for stock-restoration eligibility.
+This reduces the candidate direct Order inventory from 3 to 2. The only
+remaining direct Order sources are the Stripe webhook service path and the
+account-deletion path.
+
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
 future cleanup. Runtime can no longer falsely release an ambiguous claim as a

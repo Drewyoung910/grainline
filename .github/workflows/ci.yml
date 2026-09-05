@@ -81,6 +81,16 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify dormant Order staff charged-total correction
+        run: >-
+          node --test
+          tests/order-staff-read-charged-total-correction.test.mjs
+          tests/order-staff-read-authority-postgres.test.mjs
+      - name: Isolate Order staff charged-total correction until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260905010000_correct_order_staff_read_charged_total
+          "$RUNNER_TEMP/order-staff-read-charged-total-correction"
       - name: Verify Shippo test-token credential recovery
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -1297,6 +1307,11 @@ jobs:
           mv
           "$RUNNER_TEMP/order-participant-list-projection-correction"
           prisma/migrations/20260901155000_correct_order_participant_list_projection
+      - name: Restore Order staff charged-total correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-staff-read-charged-total-correction"
+          prisma/migrations/20260905010000_correct_order_staff_read_charged_total
       - name: Re-verify compatible Order participant list authority release
         run: npm run audit:order-participant-list-authority-release
       - name: Re-verify compatible Order participant detail authority release
@@ -1356,6 +1371,7 @@ jobs:
           tests/order-staff-read-authority-postgres.test.mjs
           tests/order-staff-read-authority-contract.test.mjs
           tests/order-staff-read-authority-release.test.mjs
+          tests/order-staff-read-charged-total-correction.test.mjs
           tests/order-staff-read-state.test.mjs
           tests/order-participant-export-authority-postgres.test.mjs
           tests/order-participant-export-authority-contract.test.mjs

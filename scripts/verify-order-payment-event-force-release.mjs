@@ -29,6 +29,10 @@ import {
   verifyOptionalCaseCorrectnessSuccessor,
 } from "./build-case-correctness-migration.mjs";
 import {
+  ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+  verifyOrderStaffReadChargedTotalCorrection,
+} from "./verify-order-staff-read-charged-total-correction.mjs";
+import {
   ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
   ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
@@ -138,6 +142,22 @@ export function verifyOrderPaymentEventForceRelease(
     : [];
   if (caseCorrectnessSuccessor) {
     omittedReviewedMigrationNames.push(CASE_CORRECTNESS_MIGRATION);
+  }
+  const staffReadCorrectionPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+  );
+  if (fs.existsSync(staffReadCorrectionPath)) {
+    if (!caseCorrectnessSuccessor) {
+      throw new Error(
+        "Order staff charged-total correction requires the Case correctness predecessor",
+      );
+    }
+    verifyOrderStaffReadChargedTotalCorrection(rootDirectory);
+    omittedReviewedMigrationNames.push(
+      ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+    );
   }
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,

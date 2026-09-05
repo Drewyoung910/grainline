@@ -79,6 +79,9 @@ import {
 import {
   ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
 } from "../scripts/order-participant-list-projection-correction-catalog.mjs";
+import {
+  ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+} from "../scripts/verify-order-staff-read-charged-total-correction.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/blocked-checkout-refund-delivery-production.yml",
@@ -191,6 +194,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION);
     remove(CASE_CORRECTNESS_MIGRATION);
     remove(ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION);
     remove(ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION);
