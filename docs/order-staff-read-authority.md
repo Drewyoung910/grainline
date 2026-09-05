@@ -174,3 +174,21 @@ and rejects substituted staff/runtime role names. A separate PGlite test
 executes the actual final catalog query against minimal fixtures; it does not
 substitute for the network-login proof. No production grant or credential has
 been changed by this preparation. Full CI execution remains a release gate.
+
+Validation checkpoint `dafe0c6c` is pushed on
+`agent/order-staff-read-role-preparation-20260905`. Local full-suite validation
+reported 4,223 tests: 4,212 passed, 11 skipped, zero failures. The newly added
+catalog regression was run separately alongside the focused target/grant
+tests (six passed, zero failures). TypeScript and lint passed; the helper,
+which the default lint configuration ignores, was also linted with
+`--no-ignore`. The network-login proof remains skipped locally because there
+is no disposable PostgreSQL server. Do not describe it as passed.
+
+PR #429 remains draft at `2958fbb1fd0b2d3bcc70f6ba57d7a3e9358653d6`;
+CI `33977320851` was reverified successful for that exact predecessor.
+The permission reviewer allowed pushing the follow-up branch but rejected
+opening its draft PR, citing publication authorization. No follow-up PR or CI
+run was created. Next: open the isolated follow-up draft with authorization,
+obtain successful PostgreSQL 16 login/convergence proof, then finish review
+before any merge or production credential/grant work. The existing security
+plugin scan was not completed and provides no security approval.
