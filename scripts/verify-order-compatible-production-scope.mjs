@@ -16,6 +16,13 @@ import {
   ORDER_COMPATIBLE_PRODUCTION_FIRST_MIGRATION,
   ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS,
 } from "./order-compatible-production-catalog.mjs";
+import {
+  CASE_CORRECTNESS_MIGRATION,
+  CASE_CORRECTNESS_MIGRATION_SHA256,
+} from "./build-case-correctness-migration.mjs";
+import {
+  ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS,
+} from "./stage-order-zero-direct-compatible-prefix.mjs";
 
 const { Client } = pg;
 const MIGRATION_ROLE = "neondb_owner";
@@ -24,6 +31,15 @@ const RUNTIME_ROLE = "grainline_app_runtime";
 export const ORDER_COMPATIBLE_PRODUCTION_SCOPE_STAGES = Object.freeze([
   "restart",
   "after",
+]);
+export const ORDER_COMPATIBLE_REVIEWED_SUCCESSORS = Object.freeze([
+  Object.freeze({
+    name: CASE_CORRECTNESS_MIGRATION,
+    checksum: CASE_CORRECTNESS_MIGRATION_SHA256,
+  }),
+  ...ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS.map(({ migration, sha256 }) =>
+    Object.freeze({ name: migration, checksum: sha256 })
+  ),
 ]);
 
 function required(env, key) {
@@ -83,7 +99,10 @@ export function assertOrderCompatibleProductionLedger(rows, stage) {
     throw new Error("Order compatible migration ledger is invalid");
   }
   const expectedNames = new Set(
-    ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map((entry) => entry.name),
+    [
+      ...ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS,
+      ...ORDER_COMPATIBLE_REVIEWED_SUCCESSORS,
+    ].map((entry) => entry.name),
   );
   if (rows.some((row) => !expectedNames.has(row?.migration_name))) {
     throw new Error("Order compatible migration ledger has an unknown row");
@@ -104,6 +123,33 @@ export function assertOrderCompatibleProductionLedger(rows, stage) {
       throw new Error("Order compatible migration ledger is not an exact prefix");
     }
     prefixLength += 1;
+  }
+  let successorPrefixLength = 0;
+  let successorAbsentSeen = false;
+  for (const migration of ORDER_COMPATIBLE_REVIEWED_SUCCESSORS) {
+    const matches = rows.filter((row) => row?.migration_name === migration.name);
+    if (matches.length === 0) {
+      successorAbsentSeen = true;
+      continue;
+    }
+    if (
+      successorAbsentSeen
+      || matches.length !== 1
+      || !isAppliedRow(matches[0], migration.checksum)
+    ) {
+      throw new Error(
+        "Order compatible migration ledger has a non-exact reviewed successor prefix",
+      );
+    }
+    successorPrefixLength += 1;
+  }
+  if (
+    successorPrefixLength > 0
+    && prefixLength !== ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.length
+  ) {
+    throw new Error(
+      "Order compatible reviewed successors require the complete historical prefix",
+    );
   }
   if (
     stage === "after"

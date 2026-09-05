@@ -132,6 +132,14 @@ projections as runtime-private. The inventory now makes all four exclusions
 explicit and tests them. This correction grants no new authority; it prevents
 the audit from requesting ordinary-runtime access that the design forbids.
 
+The corrected grant audit and the complete PostgreSQL prefix proof passed in
+CI run `33976265570`. That run then failed closed in the historical
+18-migration Order scope proof because the reader rejected the exact later
+Case correction and zero-direct prefix as unknown rows. The historical verdict
+remains 18 migrations and is not weakened: its reader now accepts only the
+fixed-checksum, contiguous reviewed successor prefix and rejects an unknown,
+missing, duplicate, rolled-back, gapped or checksum-drifted successor.
+
 ## Sequence after compatible preparation
 
 1. Retain and reverify the accepted comprehensive credential-recovery boundary
