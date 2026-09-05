@@ -190,7 +190,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
   });
 
   it("normalizes only the exact nonnegative aggregate shape", () => {
-    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 86);
+    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 87);
     const normalized = normalizeOrderPaymentShippingLegacyCounts(countRow("2"));
     assert.equal(
       Object.keys(normalized).length,
@@ -413,6 +413,10 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
       /HAVING pg_catalog\.count\(\*\) > 1[\s\S]*label_duplicate_shippo_transaction_identity_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"labelClaimStatus" IN \([\s\S]*'PROVIDER_PENDING'[\s\S]*'PROVIDER_AMBIGUOUS'[\s\S]*'PROVIDER_RECORDED'[\s\S]*"sellerRefundId" IS NOT NULL[\s\S]*"refundClaimId" IS NOT NULL[\s\S]*label_refund_provider_claim_overlap_count/,
     );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,

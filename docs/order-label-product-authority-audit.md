@@ -248,7 +248,9 @@ seller, blocked-checkout and Case writers at their shared row boundary. The
 seller route also gives an early friendly conflict, and corroborates a raced
 PostgreSQL `23514` against fresh label state before classifying it; unrelated
 constraint failures still fail loudly. The migration preserves current RLS and
-grant posture and fails closed if aggregate predecessor inspection finds any
+grant posture. The existing engine-read-only Order/payment/shipping inspection
+now reports `label_refund_provider_claim_overlap_count` and rejects any nonzero
+result without exporting identifiers or rows, so the migration fails closed on
 legacy overlap. It remains outside the Prisma migration tree until a separate
 byte-pinned release wires it without weakening historical seals, and is not
 production-applied as of 2026-09-05.
