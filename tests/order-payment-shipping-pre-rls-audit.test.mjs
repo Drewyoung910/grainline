@@ -40,7 +40,6 @@ const expected = {
   ],
   OrderItem: [
     "src/app/api/stripe/webhook/route.ts",
-    "src/components/ReviewsSection.tsx",
   ],
   OrderShippingRateQuote: [],
   OrderPaymentEvent: [

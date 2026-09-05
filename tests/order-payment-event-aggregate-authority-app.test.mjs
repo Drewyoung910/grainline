@@ -47,7 +47,7 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
             ? /orderSellerAnalyticsAuthority|readSeller|countSellerCompletedOrders/
           : sellerMetricsConsumers.has(file)
             ? /orderSellerMetricsAuthority|readOrderSellerMetricsFacts/
-          : /paymentRefundBlocked|paymentConversionDisputeBlocked/,
+          : /lockReviewEligibleOrderItem/,
         `${file} lost its fixed payment eligibility projection`,
       );
       assert.doesNotMatch(

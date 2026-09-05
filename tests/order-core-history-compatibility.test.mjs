@@ -163,7 +163,8 @@ describe("core Order historical compatibility", () => {
     assert.match(webhook, /sellerProfileId: cartSellerProfileId/);
     assert.match(webhook, /sellerProfileId: singleSellerProfileId/);
     assert.match(webhook, /const seller = order\.sellerProfile/);
-    assert.match(webhook, /where: \{ sellerProfileId: seller\.id \}/);
+    assert.match(webhook, /sellerProfileId: seller\.id,[\s\S]*paidAt: \{ not: null \}/);
+    assert.match(webhook, /sellerRefundId: null,[\s\S]*paymentRefundBlocked: false/);
     assert.doesNotMatch(webhook, /order\.items\[0\]\?\.listing\.seller/);
   });
 

@@ -53,6 +53,31 @@ describe("Stripe webhook state helpers", () => {
     }
   });
 
+  it("stamps new Orders with the signed Stripe event time", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /if \(eventCreatedSeconds == null \|\| isStaleStripeEvent\(eventCreatedSeconds\)\)/);
+    assert.match(source, /const signedPaymentTime = new Date\(eventCreatedSeconds \* 1000\)/);
+    assert.equal((source.match(/paidAt: signedPaymentTime/g) ?? []).length, 2);
+    assert.doesNotMatch(source, /paidAt: new Date\(\)/);
+  });
+
+  it("does not let a blocked or refunded checkout consume first-sale congratulations", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const countStart = source.indexOf("const sellerOrderCount = await prisma.order.count");
+    const firstSaleStart = source.indexOf("if (sellerOrderCount === 1)", countStart);
+    const block = source.slice(countStart, firstSaleStart);
+
+    assert.ok(countStart >= 0 && firstSaleStart > countStart);
+    assert.match(block, /sellerProfileId: seller\.id/);
+    assert.match(block, /paidAt: \{ not: null \}/);
+    assert.match(block, /sellerRefundId: null/);
+    assert.match(block, /paymentRefundBlocked: false/);
+    assert.match(block, /\{ reviewNeeded: false \}/);
+    assert.match(block, /\{ reviewNote: null \}/);
+    assert.match(block, /reviewNote: \{ contains: BLOCKED_CHECKOUT_REVIEW_MARKER \}/);
+  });
+
   it("keeps checkout session shipping-address casting centralized in the webhook", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
 

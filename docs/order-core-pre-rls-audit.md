@@ -558,6 +558,20 @@ Order inventory from 2 to 1, the OrderItem inventory from 3 to 2, and the quote
 inventory from 1 to 0. Stripe webhook remains the only direct Order source. See
 `docs/order-account-deletion-authority.md`.
 
+2026-09-05 final webhook product-audit checkpoint: before sealing the last
+direct Order/OrderItem runtime source, the paid-checkout path was reviewed as
+a payment and fulfillment state machine rather than mechanically wrapped. Two
+correctness defects were found and corrected in the isolated candidate. New
+Orders now use the already age-validated, signed Stripe event timestamp for
+`paidAt` instead of webhook handler time, so provider delay and replay do not
+shift review windows or sales analytics. The first-sale email count now
+excludes refunded, payment-blocked, and blocked-checkout review Orders, so a
+failed first checkout cannot consume the first legitimate sale milestone.
+The listing-page review hint also reuses the fixed actor-bound eligibility
+operation, reducing direct `OrderItem` access to the webhook alone. These are
+application-only candidate corrections; they are not deployed and do not
+authorize Order activation.
+
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
 future cleanup. Runtime can no longer falsely release an ambiguous claim as a

@@ -1,6 +1,7 @@
 # Order eligibility authority
 
-Status: isolated compatible-preparation candidate; not applied or deployed.
+Status: compatible preparation plus application conversion candidate; not
+applied or deployed from this isolated branch.
 
 The Order pre-RLS audit found four application decisions that read Order rows
 even though none needs a general Order projection. This release replaces them
@@ -29,3 +30,12 @@ This remains preparation only. The migration does not enable RLS, revoke
 predecessor table grants, change rows, or authorize Order activation. Seller
 analytics, public aggregates, maintenance scoring, and every Order mutation
 remain separate follow-on authority families.
+
+The 2026-09-05 application follow-up also moves the listing-page composer hint
+to `lockReviewEligibleOrderItem`. The hint and the POST route therefore share
+one paid, delivered, non-refunded, actor-bound rule. The render-time call uses
+only its implicit statement transaction, so its row lock is released before
+the response; the POST route repeats the operation inside its write
+transaction and remains the authoritative concurrency decision. This reduces
+the candidate direct `OrderItem` inventory from two source files to the Stripe
+webhook alone without adding database or runtime authority.

@@ -12,7 +12,6 @@ const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
 
 const EXPECTED_DIRECT_ORDER_ITEM_FILES = Object.freeze([
   "src/app/api/stripe/webhook/route.ts",
-  "src/components/ReviewsSection.tsx",
 ]);
 
 const EXPECTED_DIRECT_QUOTE_FILES = Object.freeze([]);

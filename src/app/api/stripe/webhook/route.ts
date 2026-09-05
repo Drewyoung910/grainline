@@ -382,7 +382,7 @@ export async function POST(req: Request) {
   const eventCreatedSeconds = stripeWebhookCreatedSeconds(
     (event as { created?: number | string | null }).created,
   );
-  if (isStaleStripeEvent(eventCreatedSeconds)) {
+  if (eventCreatedSeconds == null || isStaleStripeEvent(eventCreatedSeconds)) {
     Sentry.captureMessage("Stripe webhook event is too old", {
       level: "warning",
       tags: { source: "stripe_webhook_stale_event" },
@@ -396,6 +396,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ error: "Stale Stripe event" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
+  const signedPaymentTime = new Date(eventCreatedSeconds * 1000);
 
   let reservation: Awaited<ReturnType<typeof beginStripeWebhookEvent>>;
   try {
@@ -700,7 +701,17 @@ export async function POST(req: Request) {
 
     if (sellerUserId && seller?.user?.email) {
       const sellerOrderCount = await prisma.order.count({
-        where: { sellerProfileId: seller.id },
+        where: {
+          sellerProfileId: seller.id,
+          paidAt: { not: null },
+          sellerRefundId: null,
+          paymentRefundBlocked: false,
+          OR: [
+            { reviewNeeded: false },
+            { reviewNote: null },
+            { NOT: { reviewNote: { contains: BLOCKED_CHECKOUT_REVIEW_MARKER } } },
+          ],
+        },
       });
       if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
         await sendOrderTransactionalEmailWithFallback({
@@ -1563,7 +1574,7 @@ export async function POST(req: Request) {
             data: {
               buyerId: cartInvalidState.buyerUserId,
               sellerProfileId: cartSellerProfileId,
-              paidAt: new Date(),
+              paidAt: signedPaymentTime,
               stripeSessionId: sessionId,
 
               currency,
@@ -1965,7 +1976,7 @@ export async function POST(req: Request) {
             data: {
               buyerId: singleInvalidState.buyerUserId,
               sellerProfileId: singleSellerProfileId,
-              paidAt: new Date(),
+              paidAt: signedPaymentTime,
               stripeSessionId: sessionId,
 
               currency,

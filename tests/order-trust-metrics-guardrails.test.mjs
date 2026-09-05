@@ -58,7 +58,7 @@ describe("order trust metrics guardrails", () => {
     assert.match(source("src/app/api/seller/analytics/route.ts"), /readSellerOrderAnalyticsSummary/);
   });
 
-  it("requires Prisma marketplace trust metrics to count only Stripe-backed paid orders", () => {
+  it("requires marketplace review eligibility to use the actor-bound fixed operation", () => {
     const paths = [
       "src/components/ReviewsSection.tsx",
     ];
@@ -66,9 +66,10 @@ describe("order trust metrics guardrails", () => {
     for (const path of paths) {
       const text = source(path);
 
-      assert.match(text, /paidStripeOrderWhere/, `${path} should use the shared Prisma helper`);
+      assert.match(text, /lockReviewEligibleOrderItem/, `${path} should use the fixed eligibility operation`);
       assert.doesNotMatch(text, /paidAt: \{ not: null \}/, `${path} should not hand-roll paid checks`);
       assert.doesNotMatch(text, /stripeSessionId: \{ not: null \}/, `${path} should not hand-roll Stripe refs`);
+      assert.doesNotMatch(text, /prisma\.orderItem\./, `${path} should not read OrderItem directly`);
     }
     assert.match(source("src/app/api/seller/analytics/recent-sales/route.ts"), /readSellerRecentSales/);
     assert.match(source("src/app/account/page.tsx"), /countSellerCompletedOrders/);
