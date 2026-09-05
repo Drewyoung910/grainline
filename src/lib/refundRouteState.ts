@@ -3,6 +3,7 @@ import {
   REFUND_AMBIGUOUS_SENTINEL,
   REFUND_LOCK_SENTINEL,
 } from "./refundLockState.ts";
+import type { SellerRefundPreflightDecision } from "./orderSellerRefundPreflightAuthority.ts";
 
 type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL" | "DISMISSED";
 
@@ -96,6 +97,58 @@ export function sellerRefundConflictResponse(sellerRefundId: string | null | und
     status: HTTP_STATUS.BAD_REQUEST,
     error: "A refund has already been issued for this order.",
   };
+}
+
+export function sellerRefundPreflightConflictResponse(
+  decision: SellerRefundPreflightDecision,
+) {
+  switch (decision) {
+    case "READY":
+      return null;
+    case "FORBIDDEN":
+      return { status: HTTP_STATUS.FORBIDDEN, error: "Forbidden." };
+    case "NOT_FOUND":
+      return { status: HTTP_STATUS.NOT_FOUND, error: "Order not found." };
+    case "OPEN_DISPUTE":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error:
+          "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",
+      };
+    case "PROCESSING":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error: "A refund is already being processed for this order.",
+      };
+    case "AMBIGUOUS":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error:
+          "A refund attempt needs manual reconciliation before another refund can be issued.",
+      };
+    case "RECORDED":
+      return {
+        status: HTTP_STATUS.BAD_REQUEST,
+        error: "A refund has already been issued for this order.",
+      };
+    case "LABEL_BLOCKED":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error:
+          "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
+      };
+    case "NO_PAYMENT":
+      return {
+        status: HTTP_STATUS.BAD_REQUEST,
+        error:
+          "Order has no Stripe payment intent. Refund must be processed manually.",
+      };
+    case "STATE_CHANGED":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error: "Refund state changed while processing. Refresh and try again.",
+      };
+  }
 }
 
 export function orderHasRefundLedger(order: {

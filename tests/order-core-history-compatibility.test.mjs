@@ -28,7 +28,6 @@ const boundedSellerSummaryRenderers = [
 
 const durableSellerConsumers = [
   "src/app/api/account/export/route.ts",
-  "src/app/api/orders/[id]/refund/route.ts",
   "src/app/api/stripe/webhook/route.ts",
   "src/lib/accountDeletion.ts",
   "src/lib/ban.ts",
@@ -85,6 +84,17 @@ describe("core Order historical compatibility", () => {
         file,
       );
     }
+    const sellerRefundPreflight = read(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
+    assert.match(
+      sellerRefundPreflight,
+      /locked_order\."sellerProfileId" IS DISTINCT FROM locked_seller\.id/,
+    );
+    assert.doesNotMatch(
+      read("src/app/api/orders/[id]/refund/route.ts"),
+      /\bprisma\.order\b/,
+    );
 
     assert.match(read("src/app/account/page.tsx"), /countSellerCompletedOrders\(me\.id\)/);
     assert.match(

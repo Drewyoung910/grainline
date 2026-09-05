@@ -98,7 +98,7 @@ test("uses one fixed exact-claim ambiguous transition from every provider failur
   );
   assert.match(migration, /p_reason_code NOT IN \(/);
   assert.doesNotMatch(migration, /review_note\s*:=\s*p_/);
-  assert.match(sellerRefund, /reason: "SELLER_CLAIM_DRIFT"/);
+  assert.doesNotMatch(sellerRefund, /reason: "SELLER_CLAIM_DRIFT"/);
   assert.match(sellerRefund, /reason: "SELLER_PROVIDER_AMBIGUOUS"/);
   assert.match(webhook, /reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/);
   assert.doesNotMatch(

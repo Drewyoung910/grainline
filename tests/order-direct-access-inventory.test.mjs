@@ -14,7 +14,6 @@ const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
   "src/app/admin/orders/[id]/refundReconciliationActions.ts",
   "src/app/admin/orders/page.tsx",
   "src/app/admin/verification/page.tsx",
-  "src/app/api/orders/[id]/refund/route.ts",
   "src/app/api/stripe/webhook/route.ts",
   "src/lib/accountDeletion.ts",
   "src/lib/audit.ts",

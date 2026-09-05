@@ -3,7 +3,6 @@
 // seller refunds use Stripe reverse_transfer under the manual transfer_data
 // checkout model; full refunds also restore IN_STOCK inventory.
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import {
@@ -11,17 +10,9 @@ import {
   refundRatelimit,
   safeRateLimit,
 } from "@/lib/ratelimit";
-import {
-  releaseStaleRefundLocks,
-} from "@/lib/refundLocks";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
-  orderHasBlockingLabelOperation,
-  orderHasRefundLedger,
-  refundAmountForResolution,
-  refundLockAcquisitionConflictResponse,
-  sellerRefundIdAfterStaleRelease,
-  sellerRefundConflictResponse,
+  sellerRefundPreflightConflictResponse,
 } from "@/lib/refundRouteState";
 import {
   isInvalidJsonBodyError,
@@ -44,6 +35,7 @@ import { finalizeSellerOrderRefund } from "@/lib/orderRefundFinalization";
 import { resolveOrderRefundProviderOutcome } from "@/lib/orderRefundProviderReconciliation";
 import { markOrderRefundClaimAmbiguous } from "@/lib/orderRefundReconciliationAuthority";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
+import { sellerRefundPreflight } from "@/lib/orderSellerRefundPreflightAuthority";
 
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
@@ -133,81 +125,18 @@ export async function POST(
       );
     }
 
-    // Verify seller owns this Order through the checkout-bound durable key.
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { userId: me.id },
-      select: { id: true },
+    const initialDecision = await sellerRefundPreflight({
+      actorUserId: me.id,
+      orderId,
     });
-    if (!seller) return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
-
-    const order = await prisma.order.findFirst({
-      where: { id: orderId, sellerProfileId: seller.id },
-    });
-    if (!order)
-      return privateJson({ error: "Order not found." }, { status: HTTP_STATUS.NOT_FOUND });
-
-    const staleLocksReleased = await releaseStaleRefundLocks(orderId);
-    const orderForRefundState = {
-      ...order,
-      sellerRefundId: sellerRefundIdAfterStaleRelease(
-        order.sellerRefundId,
-        staleLocksReleased.count,
-      ),
-    };
-
-    if (order.paymentOpenDisputeBlocked) {
+    const initialConflict = sellerRefundPreflightConflictResponse(initialDecision);
+    if (initialConflict) {
       return privateJson(
-        {
-          error:
-            "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",
-        },
-        { status: HTTP_STATUS.CONFLICT },
+        { error: initialConflict.error },
+        { status: initialConflict.status },
       );
     }
 
-    const refundConflict = sellerRefundConflictResponse(
-      orderForRefundState.sellerRefundId,
-    );
-    if (refundConflict) {
-      return privateJson(
-        { error: refundConflict.error },
-        { status: refundConflict.status },
-      );
-    }
-    if (orderHasRefundLedger(orderForRefundState)) {
-      return privateJson(
-        { error: "A refund has already been issued for this order." },
-        { status: HTTP_STATUS.BAD_REQUEST },
-      );
-    }
-    if (orderHasBlockingLabelOperation(order)) {
-      return privateJson(
-        {
-          error:
-            "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
-        },
-        { status: HTTP_STATUS.CONFLICT },
-      );
-    }
-
-    if (!order.stripePaymentIntentId) {
-      return privateJson(
-        {
-          error:
-            "Order has no Stripe payment intent. Refund must be processed manually.",
-        },
-        { status: HTTP_STATUS.BAD_REQUEST },
-      );
-    }
-
-    const refundAmountCents = refundAmountForResolution(
-      type,
-      order,
-      null,
-    );
-    if (refundAmountCents == null) {
-      throw new TypeError("Full seller refund amount could not be derived from the order");
-    }
     let refundClaim;
     try {
       refundClaim = await claimSellerOrderRefund({
@@ -221,52 +150,32 @@ export async function POST(
       // label state before presenting it as a normal conflict. Unrelated
       // invariant failures still fail loudly.
       if (getPrismaRawSqlState(error) !== "23514") throw error;
-      const freshOrder = await prisma.order.findUnique({
-        where: { id: orderId },
-        select: { labelStatus: true, labelClaimStatus: true },
+      const freshDecision = await sellerRefundPreflight({
+        actorUserId: me.id,
+        orderId,
       });
-      if (!freshOrder || !orderHasBlockingLabelOperation(freshOrder)) {
+      if (freshDecision !== "LABEL_BLOCKED") {
         throw error;
       }
-      return privateJson(
-        {
-          error:
-            "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
-        },
-        { status: HTTP_STATUS.CONFLICT },
-      );
+      const conflict = sellerRefundPreflightConflictResponse(freshDecision);
+      if (!conflict) throw error;
+      return privateJson({ error: conflict.error }, { status: conflict.status });
     }
     if (!refundClaim) {
-      const freshOrder = await prisma.order.findUnique({
-        where: { id: orderId },
-        select: {
-          sellerRefundId: true,
-          labelStatus: true,
-          labelClaimStatus: true,
-          paymentRefundBlocked: true,
-          paymentOpenDisputeBlocked: true,
-        },
+      const freshDecision = await sellerRefundPreflight({
+        actorUserId: me.id,
+        orderId,
       });
-      const conflict = refundLockAcquisitionConflictResponse(
-        freshOrder,
-        freshOrder?.paymentOpenDisputeBlocked ?? false,
-      );
+      const conflict = sellerRefundPreflightConflictResponse(freshDecision) ?? {
+        status: HTTP_STATUS.CONFLICT,
+        error: "Refund state changed while processing. Refresh and try again.",
+      };
       return privateJson(
         { error: conflict.error },
         { status: conflict.status },
       );
     }
-    if (
-      refundClaim.refundAmountCents !== refundAmountCents
-      || refundClaim.currency !== order.currency.toLowerCase()
-      || refundClaim.paymentIntentId !== order.stripePaymentIntentId
-    ) {
-      await markOrderRefundClaimAmbiguous({
-        claim: refundClaim,
-        reason: "SELLER_CLAIM_DRIFT",
-      });
-      throw new Error("Seller refund claim result drifted from the loaded Order");
-    }
+    const refundAmountCents = refundClaim.refundAmountCents;
 
     let refundId: string | null = null;
     let refundIds: string[] = [];

@@ -181,6 +181,14 @@ from 16 to 15 files and returns no Order, actor, money or provider identifiers.
 Its database function must be released and runtime-proven before the stacked
 application change is eligible to deploy.
 
+The next stacked conversion removes the seller refund route's redundant broad
+Order reads and seller-directed stale-lock update. The actor-bound preflight in
+`docs/order-seller-refund-preflight-authority.md` preserves the User, durable
+SellerProfile and Order lock order, returns only a closed decision, and never
+ages out Case or generation-fenced claims. The existing claim remains the sole
+provider-authority transition. This reduces the candidate inventory from 15 to
+14, again with a mandatory database-first release.
+
 ### OrderPaymentEvent FORCE acceptance (2026-08-31)
 
 OrderPaymentEvent is accepted in production as policyless ENABLE plus FORCE,

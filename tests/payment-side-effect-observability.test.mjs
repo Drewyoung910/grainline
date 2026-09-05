@@ -296,18 +296,20 @@ describe("payment and fulfillment side-effect observability", () => {
     const sellerAuthority = source(
       "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
     );
+    const sellerPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
 
-    assert.match(sellerRoute, /paymentRefundBlocked/);
-    assert.match(sellerRoute, /paymentOpenDisputeBlocked/);
+    assert.match(sellerPreflight, /locked_order\."paymentRefundBlocked"/);
+    assert.match(sellerPreflight, /locked_order\."paymentOpenDisputeBlocked"/);
     assert.doesNotMatch(sellerRoute, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
-    assert.match(sellerRoute, /sellerRefundConflictResponse/);
-    assert.match(sellerRoute, /orderHasRefundLedger/);
+    assert.match(sellerRoute, /sellerRefundPreflightConflictResponse/);
     assert.match(sellerRoute, /claimSellerOrderRefund\(\{/);
     assert.doesNotMatch(sellerRoute, /\.\$executeRaw`[\s\S]*SET "sellerRefundId"/);
 
     assert.match(
       sellerRoute,
-      /if \(orderHasRefundLedger\(orderForRefundState\)\)/,
+      /const initialDecision = await sellerRefundPreflight\(\{/,
     );
     assert.match(
       sellerAuthority,
@@ -389,17 +391,21 @@ describe("payment and fulfillment side-effect observability", () => {
     const providerClaimExclusion = source(
       "docs/rls-drafts/order-provider-claim-exclusion.sql",
     );
+    const sellerPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
 
-    assert.match(sellerRoute, /orderHasBlockingLabelOperation/);
+    assert.match(sellerRoute, /freshDecision !== "LABEL_BLOCKED"/);
     assert.match(
-      sellerRoute,
+      source("src/lib/refundRouteState.ts"),
       /Cannot refund while a shipping label purchase is active or completed/,
     );
     assert.match(
       sellerAuthority,
       /locked_order\."labelStatus"::text = 'PURCHASED'/,
     );
-    assert.match(sellerRoute, /labelStatus: true/);
+    assert.match(sellerPreflight, /locked_order\."labelStatus"::text = 'PURCHASED'/);
+    assert.match(sellerPreflight, /'PROVIDER_PENDING'/);
 
     assert.doesNotMatch(caseRoute, /orderHasPurchasedLabel/);
     assert.match(

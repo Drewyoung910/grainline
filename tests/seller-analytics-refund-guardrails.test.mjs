@@ -140,9 +140,13 @@ describe("seller analytics refund guardrails", () => {
 
   it("orders seller refund and blocked-checkout dispute guards by Stripe event time", () => {
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const sellerRefundPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
     const stripeWebhook = source("src/app/api/stripe/webhook/route.ts");
 
-    assert.match(sellerRefundRoute, /order\.paymentOpenDisputeBlocked/);
+    assert.match(sellerRefundRoute, /sellerRefundPreflight/);
+    assert.match(sellerRefundPreflight, /locked_order\."paymentOpenDisputeBlocked"/);
     assert.match(stripeWebhook, /currentOrder\.paymentOpenDisputeBlocked/);
     assert.doesNotMatch(sellerRefundRoute, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
     assert.doesNotMatch(stripeWebhook, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);

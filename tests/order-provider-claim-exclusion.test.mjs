@@ -10,6 +10,11 @@ const refundRoute = readFileSync(
   "src/app/api/orders/[id]/refund/route.ts",
   "utf8",
 );
+const refundState = readFileSync("src/lib/refundRouteState.ts", "utf8");
+const refundPreflight = readFileSync(
+  "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+  "utf8",
+);
 
 describe("Order provider-claim exclusion", () => {
   it("adds only an additive, validated data invariant", () => {
@@ -49,10 +54,10 @@ describe("Order provider-claim exclusion", () => {
   });
 
   it("keeps the route guard friendly and the database race rejection fail-closed", () => {
-    assert.match(refundRoute, /orderHasBlockingLabelOperation\(order\)/);
-    assert.match(refundRoute, /labelClaimStatus: true/);
+    assert.match(refundPreflight, /locked_order\."labelStatus"::text = 'PURCHASED'/);
+    assert.match(refundPreflight, /locked_order\."labelClaimStatus" IN/);
     assert.match(
-      refundRoute,
+      refundState,
       /Cannot refund while a shipping label purchase is active or completed/,
     );
     assert.match(
@@ -61,7 +66,7 @@ describe("Order provider-claim exclusion", () => {
     );
     assert.match(
       refundRoute,
-      /freshOrder[\s\S]*orderHasBlockingLabelOperation\(freshOrder\)/,
+      /freshDecision !== "LABEL_BLOCKED"/,
     );
     assert.match(refundRoute, /throw error;/);
   });
