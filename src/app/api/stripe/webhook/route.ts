@@ -51,7 +51,7 @@ import {
   REFUND_LOCK_SENTINEL,
   isStaleRefundLock,
 } from "@/lib/refundLockState";
-import { releaseStaleRefundLocks } from "@/lib/refundLocks";
+import { releaseBlockedCheckoutLegacyRefundLock } from "@/lib/orderLegacyRefundLockAuthority";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import {
@@ -1097,7 +1097,12 @@ export async function POST(req: Request) {
         let refundRecordResult: OrderRefundRecordResult | null = null;
         let retryBlockedCheckoutRefund = false;
         try {
-          await releaseStaleRefundLocks(input.orderId);
+          await releaseBlockedCheckoutLegacyRefundLock({
+            eventId: event.id,
+            eventClaimGeneration: claimGeneration,
+            sessionId,
+            orderId: input.orderId,
+          });
           const currentOrder = await prisma.order.findUnique({
             where: { id: input.orderId },
             select: {

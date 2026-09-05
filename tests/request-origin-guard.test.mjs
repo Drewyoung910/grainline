@@ -106,8 +106,8 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/cases/[id]/resolve/route.ts", [
       "await auth()",
       "await requireStaffAdminPinForApi(",
-      "releaseStaleRefundLocks()",
       "readBoundedJson(req",
+      "releaseCaseLegacyRefundLock({",
       "prepareCaseStaffResolution({",
       "createMarketplaceRefund({",
     ]);

@@ -674,7 +674,11 @@ describe("payment and fulfillment side-effect observability", () => {
       "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
     );
 
-    assert.match(route, /releaseStaleRefundLocks\(input\.orderId\)/);
+    assert.match(route, /releaseBlockedCheckoutLegacyRefundLock\(\{/);
+    assert.match(
+      route,
+      /eventId: event\.id,[\s\S]*eventClaimGeneration: claimGeneration,[\s\S]*sessionId,[\s\S]*orderId: input\.orderId/,
+    );
     assert.match(route, /claimBlockedCheckoutOrderRefund\(\{/);
     assert.match(route, /eventClaimGeneration: claimGeneration/);
     assert.match(route, /sessionId,[\s\S]*orderId: input\.orderId/);

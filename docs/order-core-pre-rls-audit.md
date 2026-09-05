@@ -150,7 +150,6 @@ Lifecycle, repair and retention readers/writers:
 - `src/lib/ban.ts`
 - `src/lib/caseLifecycleLocks.ts`
 - `src/lib/checkoutStockRestore.ts`
-- `src/lib/refundLocks.ts`
 
 This list is now executable rather than prose-only:
 `tests/order-direct-access-inventory.test.mjs` scans both Prisma delegates and
@@ -448,6 +447,19 @@ grant that must be retired after the compatible app drain and before Order RLS
 activation. Aggregate production inspection for duplicate Shippo transaction
 identities and legacy package-fallback counts also remains required. No
 migration, deployment, RLS/grant or production state changed.
+
+2026-09-05 legacy refund-lock authority checkpoint: the generic runtime
+`Order.updateMany` cleanup is removed from the stacked candidate. Its three
+callers now use separate fixed operations: the blocked-checkout path must prove
+the exact active signed Stripe event generation and Checkout Session; the Case
+path must prove the active staff actor plus nonterminal Case-to-Order source;
+and the cron path can release only a 100-row `FOR UPDATE SKIP LOCKED` batch.
+Every operation clears only a stale pre-generation `pending` sentinel with no
+Case or modern refund claim. Invalid Case input no longer triggers a global
+cleanup. This reduces the candidate direct Order inventory from 14 to 13. The
+SQL remains a database-first draft, so none of the application changes may
+deploy before the fixed functions. See
+`docs/order-legacy-refund-lock-authority.md`.
 
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as

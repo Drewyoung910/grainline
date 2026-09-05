@@ -20,7 +20,6 @@ const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
   "src/lib/ban.ts",
   "src/lib/caseLifecycleLocks.ts",
   "src/lib/checkoutStockRestore.ts",
-  "src/lib/refundLocks.ts",
 ]);
 
 const EXPECTED_DIRECT_ORDER_ITEM_FILES = Object.freeze([
