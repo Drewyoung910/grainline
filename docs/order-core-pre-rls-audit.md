@@ -478,6 +478,17 @@ commit concurrently. The candidate direct Order inventory falls from 12 to 11.
 The replacement SQL is database-first and must deploy before the application.
 See `docs/order-legacy-stock-restore-fence.md`.
 
+2026-09-05 refund-reconciliation commit-proof checkpoint: the administrator
+recovery catch path no longer infers success from any `re_` refund on an Order.
+It asks one fixed operation whether the exact Order, claim id and claim
+generation have an immutable retry/provider-effect reconciliation and have
+reached the corresponding finalized Order state. A no-effect reconciliation,
+an older generation, a different claim or an unfinished finalization all
+return false. This removes a false-success edge and reduces the candidate
+direct Order inventory from 11 to 10. The SQL remains database-first and must
+deploy before the application. See
+`docs/order-refund-reconciliation-commit-proof.md`.
+
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
 future cleanup. Runtime can no longer falsely release an ambiguous claim as a
