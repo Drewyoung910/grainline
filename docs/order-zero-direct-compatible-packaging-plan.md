@@ -96,6 +96,14 @@ retained Order posture, private SellerDeauthorizationApplication posture,
 function identities/ACLs, constraints and immutable trigger. This is CI proof
 only; it is not production evidence or an actual pooled-runtime postflight.
 
+Draft PR #429 publishes this complete candidate. During local engine validation
+of its catalog reader, PostgreSQL rejected the reserved `constraint` alias
+(`42601`); the reader now uses `catalog_constraint`. The same reader is covered
+by disposable PGlite tests that reject misplaced constraints, disabled or
+substituted triggers, unexpected function overloads, public/grantable/private
+execution drift, and changed table RLS/grants. These local engine tests passed;
+the PostgreSQL 16 CI run remains a separate acceptance gate.
+
 ## Sequence after compatible preparation
 
 1. Finish the comprehensive credential-recovery boundary.

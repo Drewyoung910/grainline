@@ -113,7 +113,7 @@ async function verifyMigrationLedger(client) {
   }
 }
 
-async function verifyTablePosture(client) {
+export async function verifyTablePosture(client) {
   const result = await client.query(`
     SELECT
       class.relname AS table_name,
@@ -158,7 +158,7 @@ async function verifyTablePosture(client) {
   ]);
 }
 
-async function verifyFunctionCatalog(client) {
+export async function verifyFunctionCatalog(client) {
   const expected = expectedFunctions();
   const result = await client.query(`
     WITH expected(function_name, identity_arguments) AS (
@@ -199,8 +199,6 @@ async function verifyFunctionCatalog(client) {
     FROM expected
     JOIN pg_catalog.pg_proc AS procedure
       ON procedure.proname = expected.function_name
-     AND pg_catalog.oidvectortypes(procedure.proargtypes)
-       = expected.identity_arguments
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
      AND namespace.nspname = 'public'
@@ -224,23 +222,24 @@ async function verifyFunctionCatalog(client) {
   }
 }
 
-async function verifyConstraintsAndTrigger(client) {
+export async function verifyConstraintsAndTrigger(client) {
   const constraints = await client.query(`
     SELECT
       class.relname AS table_name,
-      constraint.conname,
-      constraint.convalidated
-    FROM pg_catalog.pg_constraint AS constraint
-    JOIN pg_catalog.pg_class AS class ON class.oid = constraint.conrelid
+      catalog_constraint.conname,
+      catalog_constraint.convalidated,
+      catalog_constraint.contype AS constraint_type
+    FROM pg_catalog.pg_constraint AS catalog_constraint
+    JOIN pg_catalog.pg_class AS class ON class.oid = catalog_constraint.conrelid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
     JOIN (
       SELECT * FROM unnest($1::text[], $2::text[])
         AS expected(table_name, constraint_name)
     ) AS expected
       ON expected.table_name = class.relname
-     AND expected.constraint_name = constraint.conname
+     AND expected.constraint_name = catalog_constraint.conname
     WHERE namespace.nspname = 'public'
-    ORDER BY class.relname, constraint.conname
+    ORDER BY class.relname, catalog_constraint.conname
   `, [
     ["CheckoutStockReservation", "Order", "Order"],
     [
@@ -254,27 +253,36 @@ async function verifyConstraintsAndTrigger(client) {
       table_name: "CheckoutStockReservation",
       conname: "CheckoutStockReservation_sourceSnapshot_check",
       convalidated: true,
+      constraint_type: "c",
     },
     {
       table_name: "Order",
       conname: "Order_provider_claim_mutual_exclusion_check",
       convalidated: true,
+      constraint_type: "c",
     },
     {
       table_name: "Order",
       conname: "Order_sellerDeauthorization_check",
       convalidated: true,
+      constraint_type: "c",
     },
   ]);
   const trigger = await client.query(`
     SELECT
       trigger.tgenabled,
+      trigger.tgtype::integer AS trigger_type,
+      trigger.tgnargs::integer AS argument_count,
+      trigger.tgqual IS NULL AS unconditional,
       procedure.proname AS function_name,
+      function_namespace.nspname AS function_schema,
       pg_catalog.oidvectortypes(procedure.proargtypes) AS identity_arguments
     FROM pg_catalog.pg_trigger AS trigger
     JOIN pg_catalog.pg_class AS class ON class.oid = trigger.tgrelid
     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = trigger.tgfoid
+    JOIN pg_catalog.pg_namespace AS function_namespace
+      ON function_namespace.oid = procedure.pronamespace
     WHERE namespace.nspname = 'public'
       AND class.relname = 'SellerDeauthorizationApplication'
       AND trigger.tgname = 'SellerDeauthorizationApplication_immutable'
@@ -282,7 +290,11 @@ async function verifyConstraintsAndTrigger(client) {
   `);
   assert.deepEqual(trigger.rows, [{
     tgenabled: "O",
+    trigger_type: 27,
+    argument_count: 0,
+    unconditional: true,
     function_name: "grainline_seller_deauthorization_application_immutable",
+    function_schema: "public",
     identity_arguments: "",
   }]);
 }
