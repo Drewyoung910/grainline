@@ -36,7 +36,6 @@ function authorityAccessFiles(delegate, table) {
 
 const expected = {
   Order: [
-    "src/app/admin/actions.ts",
     "src/app/admin/cases/[id]/page.tsx",
     "src/app/admin/flagged/page.tsx",
     "src/app/admin/orders/[id]/page.tsx",

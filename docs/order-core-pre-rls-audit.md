@@ -500,6 +500,16 @@ direct Order inventory from 10 to 9 and direct OrderItem inventory from 4 to 3
 without changing the published Guild threshold. See
 `docs/order-seller-metrics-authority.md`.
 
+2026-09-05 staff mutation authority checkpoint: mark-reviewed, external-label
+voiding and staff-note append now use three actor-bound fixed operations. Each
+revalidates the active EMPLOYEE/ADMIN row, locks one exact Order, derives its
+database timestamp, enforces the active label-clawback and 10,000-character
+review-note boundaries, and co-commits its immutable AdminAuditLog row. The
+application no longer performs read/compare/write sequences or supplies audit
+metadata and timestamp authority. This reduces the candidate direct Order
+inventory from 9 to 8. The SQL is database-first and must deploy before the
+application. See `docs/order-staff-mutation-authority.md`.
+
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
 future cleanup. Runtime can no longer falsely release an ambiguous claim as a

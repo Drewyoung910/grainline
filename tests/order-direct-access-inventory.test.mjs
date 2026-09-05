@@ -7,7 +7,6 @@ const SOURCE_ROOT = "src";
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
 
 const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
-  "src/app/admin/actions.ts",
   "src/app/admin/cases/[id]/page.tsx",
   "src/app/admin/flagged/page.tsx",
   "src/app/admin/orders/[id]/page.tsx",
