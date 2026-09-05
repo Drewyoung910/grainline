@@ -88,6 +88,21 @@ function runtimeRole() {
   };
 }
 
+function staffReadRole() {
+  return {
+    rolname: "grainline_staff_read_runtime",
+    rolsuper: false,
+    rolcreatedb: false,
+    rolcreaterole: false,
+    rolinherit: false,
+    rolcanlogin: true,
+    rolreplication: false,
+    rolbypassrls: false,
+    memberships: [],
+    membership_options: [],
+  };
+}
+
 function databaseState() {
   return {
     identity: {
@@ -137,6 +152,7 @@ describe("isolated production migration runner", () => {
       databaseName: "neondb",
       ownerRole: "neondb_owner",
       runtimeRole: "grainline_app_runtime",
+      staffReadRolePresent: false,
       savedSearchRlsEnabled: true,
       savedSearchRlsForced: true,
       savedSearchPolicyCount: 3,
@@ -153,6 +169,41 @@ describe("isolated production migration runner", () => {
       const drifted = databaseState();
       mutate(drifted);
       assert.throws(() => assertProductionMigrationDatabaseState(drifted), /drifted/);
+    }
+  });
+
+  it("accepts only the exact optional staff-read bootstrap posture", () => {
+    const withStaff = databaseState();
+    withStaff.staffReadRole = staffReadRole();
+    withStaff.ownerRole.memberships.splice(
+      2,
+      0,
+      "grainline_staff_read_runtime",
+    );
+    withStaff.ownerRole.membership_options.splice(2, 0, {
+      role: "grainline_staff_read_runtime",
+      adminOption: true,
+      inheritOption: false,
+      setOption: false,
+    });
+    assert.equal(
+      assertProductionMigrationDatabaseState(withStaff).staffReadRolePresent,
+      true,
+    );
+
+    for (const mutate of [
+      (state) => { state.staffReadRole.rolinherit = true; },
+      (state) => { state.staffReadRole.memberships = ["grainline_app_runtime"]; },
+      (state) => { state.ownerRole.membership_options[2].setOption = true; },
+      (state) => { state.ownerRole.memberships.splice(2, 1); },
+      (state) => { delete state.staffReadRole; },
+    ]) {
+      const drifted = structuredClone(withStaff);
+      mutate(drifted);
+      assert.throws(
+        () => assertProductionMigrationDatabaseState(drifted),
+        /drifted/,
+      );
     }
   });
 
