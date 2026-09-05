@@ -476,6 +476,10 @@ debt that should be fixed before Order RLS:
 - seller fulfillment and buyer receipt semantics are product-corrected so a
   seller cannot assert pickup completion or start the buyer's Case window, and
   their isolated fixed operations close the Notification/email crash gap;
+- a fresh route audit found that label-provider and refund-provider claims
+  could overlap in one direction; the isolated shared Order constraint closes
+  that race but remains unapplied pending its own inspection and compatibility
+  release;
 - the incomplete development Order fixture is retired; and
 - the nullable seller keys and historical non-package snapshot shape still
   need final convergence.
@@ -546,6 +550,9 @@ fresh `OrderItem` audit/activation work, followed by
 - snapshot history and legacy fallback are defined and production-classified;
 - every write/maintenance family has a source-validating operation and lock
   proof;
+- the provider-claim mutual-exclusion successor is PostgreSQL-proven,
+  production-inspected, applied and exercised before either claim family is
+  relied on under RLS;
 - seller keys and other authority-relevant invariants pass fresh inspection;
 - the compatible app is deployed and predecessor overlap is drained;
 - the migration, grants, rollback and separate-login PostgreSQL proofs pass;

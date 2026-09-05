@@ -386,11 +386,14 @@ describe("payment and fulfillment side-effect observability", () => {
     const labelAuthority = source(
       "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
     );
+    const providerClaimExclusion = source(
+      "docs/rls-drafts/order-provider-claim-exclusion.sql",
+    );
 
-    assert.match(sellerRoute, /orderHasPurchasedLabel/);
+    assert.match(sellerRoute, /orderHasBlockingLabelOperation/);
     assert.match(
       sellerRoute,
-      /Cannot refund this order after a shipping label has been purchased/,
+      /Cannot refund while a shipping label purchase is active or completed/,
     );
     assert.match(
       sellerAuthority,
@@ -418,6 +421,16 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(labelAuthority, /locked_order\."paymentRefundBlocked"/);
     assert.match(labelAuthority, /locked_order\."paymentOpenDisputeBlocked"/);
     assert.doesNotMatch(labelRoute, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
+
+    assert.match(
+      providerClaimExclusion,
+      /"labelClaimStatus" IN \([\s\S]*'PROVIDER_PENDING'[\s\S]*'PROVIDER_AMBIGUOUS'[\s\S]*'PROVIDER_RECORDED'/,
+    );
+    assert.match(
+      providerClaimExclusion,
+      /"sellerRefundId" IS NOT NULL[\s\S]*"refundClaimId" IS NOT NULL/,
+    );
+    assert.doesNotMatch(providerClaimExclusion, /ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY|GRANT|REVOKE/);
   });
 
   it("keeps seller refund copy honest when transfer reversal needs manual reconciliation", () => {

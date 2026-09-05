@@ -120,9 +120,24 @@ export function orderHasPurchasedLabel(order: { labelStatus?: string | null | un
   return order.labelStatus === "PURCHASED";
 }
 
+const ACTIVE_LABEL_CLAIM_STATUSES = new Set([
+  "PROVIDER_PENDING",
+  "PROVIDER_AMBIGUOUS",
+  "PROVIDER_RECORDED",
+]);
+
+export function orderHasBlockingLabelOperation(order: {
+  labelStatus?: string | null | undefined;
+  labelClaimStatus?: string | null | undefined;
+}) {
+  return orderHasPurchasedLabel(order)
+    || ACTIVE_LABEL_CLAIM_STATUSES.has(order.labelClaimStatus ?? "");
+}
+
 export function refundLockAcquisitionConflictResponse(order: {
   sellerRefundId?: string | null | undefined;
   labelStatus?: string | null | undefined;
+  labelClaimStatus?: string | null | undefined;
   paymentRefundBlocked?: boolean | null | undefined;
   paymentEvents?: Array<{ eventType?: string | null | undefined; status?: string | null | undefined }> | null | undefined;
 } | null | undefined, hasOpenDispute = false) {
@@ -143,10 +158,10 @@ export function refundLockAcquisitionConflictResponse(order: {
     };
   }
 
-  if (order && orderHasPurchasedLabel(order)) {
+  if (order && orderHasBlockingLabelOperation(order)) {
     return {
       status: HTTP_STATUS.CONFLICT,
-      error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
+      error: "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
     };
   }
 

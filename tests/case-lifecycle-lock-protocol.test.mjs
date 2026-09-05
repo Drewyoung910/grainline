@@ -121,7 +121,7 @@ describe("Case and Order lifecycle lock protocol", () => {
       ["delivery audit", 'INSERT INTO public."SystemAuditLog"'],
     ]);
     assertOrdered(refund, [
-      ["refund database claim", "const refundClaim = await claimSellerOrderRefund"],
+      ["refund database claim", "refundClaim = await claimSellerOrderRefund"],
       ["refund provider outcome", "await resolveOrderRefundProviderOutcome(refundClaim)"],
     ]);
     const refundFinalization = source(

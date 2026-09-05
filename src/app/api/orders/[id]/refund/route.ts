@@ -16,7 +16,7 @@ import {
 } from "@/lib/refundLocks";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
-  orderHasPurchasedLabel,
+  orderHasBlockingLabelOperation,
   orderHasRefundLedger,
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
@@ -43,6 +43,7 @@ import {
 import { finalizeSellerOrderRefund } from "@/lib/orderRefundFinalization";
 import { resolveOrderRefundProviderOutcome } from "@/lib/orderRefundProviderReconciliation";
 import { markOrderRefundClaimAmbiguous } from "@/lib/orderRefundReconciliationAuthority";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
@@ -179,11 +180,11 @@ export async function POST(
         { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
-    if (orderHasPurchasedLabel(order)) {
+    if (orderHasBlockingLabelOperation(order)) {
       return privateJson(
         {
           error:
-            "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
+            "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
         },
         { status: HTTP_STATUS.CONFLICT },
       );
@@ -207,16 +208,41 @@ export async function POST(
     if (refundAmountCents == null) {
       throw new TypeError("Full seller refund amount could not be derived from the order");
     }
-    const refundClaim = await claimSellerOrderRefund({
-      actorUserId: me.id,
-      orderId,
-    });
+    let refundClaim;
+    try {
+      refundClaim = await claimSellerOrderRefund({
+        actorUserId: me.id,
+        orderId,
+      });
+    } catch (error) {
+      // The shared Order constraint closes the final label/refund race after
+      // both requests have loaded an eligible row. Prisma's pg adapter retains
+      // SQLSTATE but not the CHECK name, so corroborate 23514 against fresh
+      // label state before presenting it as a normal conflict. Unrelated
+      // invariant failures still fail loudly.
+      if (getPrismaRawSqlState(error) !== "23514") throw error;
+      const freshOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { labelStatus: true, labelClaimStatus: true },
+      });
+      if (!freshOrder || !orderHasBlockingLabelOperation(freshOrder)) {
+        throw error;
+      }
+      return privateJson(
+        {
+          error:
+            "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
+        },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    }
     if (!refundClaim) {
       const freshOrder = await prisma.order.findUnique({
         where: { id: orderId },
         select: {
           sellerRefundId: true,
           labelStatus: true,
+          labelClaimStatus: true,
           paymentRefundBlocked: true,
           paymentOpenDisputeBlocked: true,
         },

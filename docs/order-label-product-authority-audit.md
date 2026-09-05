@@ -230,6 +230,29 @@ recording `SUCCESS` or releasing `ERROR`. Release audit attribution records the
 actual database session principal and separately records the authorizing staff
 row instead of presenting the caller-supplied staff ID as session identity.
 
+### OL-A14: label and refund provider claims need a shared database exclusion
+
+The 2026-09-05 pre-RLS route audit found an asymmetric race that the individual
+claim functions did not close. Label claim acquisition rejects an existing
+seller refund, but seller refund acquisition checked only a completed
+`PURCHASED` label. A label request could therefore hold
+`PROVIDER_PENDING` while a refund request acquired its own claim and began a
+Stripe refund; the label finalizer still accepted its original generation.
+That permits two externally irreversible money paths to overlap for one Order.
+
+The isolated draft intended for successor
+`20260905010000_enforce_order_provider_claim_exclusion` adds one validated
+Order CHECK invariant: a purchased or provider-active label
+cannot coexist with either seller-refund evidence or a refund claim. It covers
+seller, blocked-checkout and Case writers at their shared row boundary. The
+seller route also gives an early friendly conflict, and corroborates a raced
+PostgreSQL `23514` against fresh label state before classifying it; unrelated
+constraint failures still fail loudly. The migration preserves current RLS and
+grant posture and fails closed if aggregate predecessor inspection finds any
+legacy overlap. It remains outside the Prisma migration tree until a separate
+byte-pinned release wires it without weakening historical seals, and is not
+production-applied as of 2026-09-05.
+
 ## Target state machine
 
 ```text
