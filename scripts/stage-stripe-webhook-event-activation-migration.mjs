@@ -97,7 +97,9 @@ export function buildStripeWebhookEventActivationCandidate(
   }
 
   const compactMigration = migration.replace(/\s+/g, " ");
-  const sourceMd5 = stripeWebhookEventFunctionSourceMd5(rootDirectory);
+  const sourceMd5 = stripeWebhookEventFunctionSourceMd5(rootDirectory, {
+    throughMigration: STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+  });
   for (const entry of STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS) {
     const signature = `'${entry.name}', '${entry.identityArguments}', '${sourceMd5[entry.name]}'`;
     if (!compactMigration.includes(signature)) {

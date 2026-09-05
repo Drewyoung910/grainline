@@ -1,11 +1,12 @@
 # Order zero-direct compatible packaging plan
 
-Status: isolated planning and source candidate only. No migration in this plan
-has been generated or applied, no application candidate has been deployed, and
-`Order` RLS plus predecessor runtime CRUD remain unchanged.
+Status: isolated compatible-prefix candidate. All sixteen byte-pinned migration
+members are staged locally and none has been applied, no application candidate
+has been deployed, and `Order` RLS plus predecessor runtime CRUD remain
+unchanged.
 
 Prepared: 2026-09-05 from isolated branch
-`agent/order-staff-read-app-20260905` through checkpoint `9ebd9293`.
+`agent/order-staff-read-app-20260905` after zero-direct checkpoint `9ebd9293`.
 
 ## Decision
 
@@ -29,13 +30,14 @@ credential.
 
 ## Exact compatible prefix
 
-Two migration members already exist on the isolated branch:
+The exact sixteen-member candidate is staged on the isolated branch. The first
+two members were already migrations:
 
 1. `20260905010000_correct_order_staff_read_charged_total`;
 2. `20260905020000_prepare_order_account_deletion_authority`.
 
-The remaining fourteen audited SQL drafts must become immutable migration
-members in this dependency order:
+The remaining fourteen audited SQL sources are staged byte-identically as
+immutable migration candidates in this dependency order:
 
 3. `order-provider-claim-exclusion.sql`;
 4. `order-refund-claim-clock-authority.sql`;

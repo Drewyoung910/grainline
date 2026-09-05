@@ -85,6 +85,9 @@ import {
 import {
   ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
 } from "../scripts/verify-order-account-deletion-authority.mjs";
+import {
+  ORDER_ZERO_DIRECT_COMPATIBLE_SUCCESSOR_MIGRATIONS,
+} from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/blocked-checkout-refund-delivery-production.yml",
@@ -197,6 +200,9 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    for (const migration of ORDER_ZERO_DIRECT_COMPATIBLE_SUCCESSOR_MIGRATIONS) {
+      remove(migration);
+    }
     remove(ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION);
     remove(ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION);
     remove(CASE_CORRECTNESS_MIGRATION);

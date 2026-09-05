@@ -69,6 +69,10 @@ import {
 import {
   ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTION_NAMES,
 } from "../scripts/verify-order-account-deletion-authority.mjs";
+import {
+  ORDER_ZERO_DIRECT_COMPATIBLE_NEW_FUNCTION_NAMES,
+  ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
+} from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
@@ -1508,6 +1512,7 @@ describe("database grant inventory guardrails", () => {
       ),
       ...ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES,
       ...ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTION_NAMES,
+      ...ORDER_ZERO_DIRECT_COMPATIBLE_NEW_FUNCTION_NAMES,
       ...ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
@@ -1589,6 +1594,7 @@ describe("database grant inventory guardrails", () => {
         + ORDER_STAFF_READ_AUTHORITY_FUNCTIONS.length
         + ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES.length
         + ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTION_NAMES.length
+        + ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT
         + ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS.length
         + ORDER_ELIGIBILITY_AUTHORITY_FUNCTIONS.length
         + ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS.length
@@ -1900,6 +1906,7 @@ describe("database grant inventory guardrails", () => {
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "SavedSearch",
+        "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
       ],
@@ -1923,6 +1930,7 @@ describe("database grant inventory guardrails", () => {
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "SavedSearch",
+        "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
       ],

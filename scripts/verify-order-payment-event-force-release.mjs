@@ -37,6 +37,9 @@ import {
   verifyOrderAccountDeletionAuthority,
 } from "./verify-order-account-deletion-authority.mjs";
 import {
+  appendReviewedOrderZeroDirectCompatibleSuccessors,
+} from "./stage-order-zero-direct-compatible-prefix.mjs";
+import {
   ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
   ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
@@ -179,6 +182,17 @@ export function verifyOrderPaymentEventForceRelease(
     verifyOrderAccountDeletionAuthority(rootDirectory);
     omittedReviewedMigrationNames.push(ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION);
   }
+  appendReviewedOrderZeroDirectCompatibleSuccessors({
+    root: rootDirectory,
+    laterMigrations: fs.readdirSync(
+      path.join(rootDirectory, "prisma/migrations"),
+      { withFileTypes: true },
+    ).filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => name > ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION),
+    reviewedSuccessors: omittedReviewedMigrationNames,
+    expectedPredecessor: ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+  });
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,
     rootDirectory,

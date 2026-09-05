@@ -44,7 +44,9 @@ import {
 } from "./verify-order-staff-read-charged-total-correction.mjs";
 import {
   appendReviewedOrderAccountDeletionAuthority,
+  ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
 } from "./verify-order-account-deletion-authority.mjs";
+import { appendReviewedOrderZeroDirectCompatibleSuccessors } from "./stage-order-zero-direct-compatible-prefix.mjs";
 
 export const ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_PHASE =
   "order-payment-event-aggregate-authority-reviewed";
@@ -126,6 +128,12 @@ export function verifyOrderPaymentEventAggregateAuthorityRelease(
     laterMigrations,
     reviewedSuccessors,
     expectedPredecessor: ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+  });
+  appendReviewedOrderZeroDirectCompatibleSuccessors({
+    root,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
   });
   assert.deepEqual(
     laterMigrations,

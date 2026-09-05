@@ -2652,6 +2652,73 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- The Order zero-direct compatible prefix replaces the remaining application
+-- table calls with fixed operations. Keep helper/trigger functions private and
+-- converge only the reviewed runtime entry points when they exist.
+WITH order_zero_direct_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_refund_claim_provider_clock"(text, bigint, text, text, bigint, text)'),
+    ('public."grainline_seller_refund_preflight"(text, text)'),
+    ('public."grainline_blocked_checkout_legacy_refund_lock_release"(text, bigint, text, text)'),
+    ('public."grainline_case_legacy_refund_lock_release"(text, text)'),
+    ('public."grainline_order_legacy_refund_lock_prune"(integer)'),
+    ('public."grainline_legacy_stock_restore_claim"(text)'),
+    ('public."grainline_order_refund_reconciliation_committed"(text, text, bigint)'),
+    ('public."grainline_order_staff_mark_reviewed"(text, text)'),
+    ('public."grainline_order_staff_record_label_voided"(text, text)'),
+    ('public."grainline_order_staff_append_note"(text, text, text)'),
+    ('public."grainline_order_flag_banned_seller_open_orders"(text, text)'),
+    ('public."grainline_order_restore_banned_seller_reviews"(text, text, jsonb)'),
+    ('public."grainline_checkout_reservation_create_cart_snapshot"(text, text, text, text, text, jsonb)'),
+    ('public."grainline_checkout_reservation_listing_snapshot_witness"(text)'),
+    ('public."grainline_checkout_reservation_create_single_snapshot"(text, text, integer, text[], text, jsonb)'),
+    ('public."grainline_seller_deauthorization_application_immutable"()'),
+    ('public."grainline_stripe_seller_deauthorization_apply"(text, bigint, text, timestamp without time zone)'),
+    ('public."grainline_stripe_checkout_order_create"(text, bigint, text, text, timestamp without time zone, jsonb)'),
+    ('public."grainline_stripe_checkout_order_existing"(text, bigint, text)'),
+    ('public."grainline_stripe_checkout_postpayment"(text, bigint, text)'),
+    ('public."grainline_stripe_checkout_refund_review"(text, bigint, text, text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_zero_direct_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_zero_direct_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_refund_claim_provider_clock"(text, bigint, text, text, bigint, text)'),
+    ('public."grainline_seller_refund_preflight"(text, text)'),
+    ('public."grainline_blocked_checkout_legacy_refund_lock_release"(text, bigint, text, text)'),
+    ('public."grainline_case_legacy_refund_lock_release"(text, text)'),
+    ('public."grainline_order_legacy_refund_lock_prune"(integer)'),
+    ('public."grainline_legacy_stock_restore_claim"(text)'),
+    ('public."grainline_order_refund_reconciliation_committed"(text, text, bigint)'),
+    ('public."grainline_order_staff_mark_reviewed"(text, text)'),
+    ('public."grainline_order_staff_record_label_voided"(text, text)'),
+    ('public."grainline_order_staff_append_note"(text, text, text)'),
+    ('public."grainline_order_flag_banned_seller_open_orders"(text, text)'),
+    ('public."grainline_order_restore_banned_seller_reviews"(text, text, jsonb)'),
+    ('public."grainline_checkout_reservation_create_cart_snapshot"(text, text, text, text, text, jsonb)'),
+    ('public."grainline_checkout_reservation_create_single_snapshot"(text, text, integer, text[], text, jsonb)'),
+    ('public."grainline_stripe_seller_deauthorization_apply"(text, bigint, text, timestamp without time zone)'),
+    ('public."grainline_stripe_checkout_order_create"(text, bigint, text, text, timestamp without time zone, jsonb)'),
+    ('public."grainline_stripe_checkout_order_existing"(text, bigint, text)'),
+    ('public."grainline_stripe_checkout_postpayment"(text, bigint, text)'),
+    ('public."grainline_stripe_checkout_refund_review"(text, bigint, text, text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_zero_direct_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- OrderPaymentEvent becomes a policyless service ledger at Phase A. The bulk
 -- predecessor grant and the two legacy compatibility entry points above are
 -- intentional only while RLS is off. If provisioning is rerun after ENABLE,

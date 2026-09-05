@@ -199,6 +199,7 @@
     "audit:order-charged-total-compatibility": "node --test tests/order-charged-total-compatibility.test.mjs tests/order-charged-total-compatibility-postgres.test.mjs",
     "audit:order-participant-list-projection-correction": "node --test tests/order-participant-list-projection-correction.test.mjs tests/order-participant-list-projection-correction-postgres.test.mjs",
     "audit:order-compatible-production-scope": "node scripts/verify-order-compatible-production-scope.mjs",
+    "audit:order-zero-direct-compatible-prefix": "node scripts/stage-order-zero-direct-compatible-prefix.mjs",
     "audit:case-correctness-production-scope": "node scripts/verify-case-correctness-production-scope.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope": "node scripts/verify-blocked-checkout-refund-delivery-production-scope.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres": "node scripts/blocked-checkout-refund-delivery-production-scope-postgres-proof.mjs",
