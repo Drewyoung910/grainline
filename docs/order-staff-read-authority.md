@@ -153,11 +153,24 @@ production order is: create the authority-free login and install its secret;
 apply the compatible Order prefix; converge the two grants; deploy and smoke
 the converted application. No action in this checkpoint changes production.
 
-The dormant real-PostgreSQL proof at
+The real-PostgreSQL proof at
 `tests/order-staff-read-role-provision-postgres.test.mjs` creates the restricted
-role only inside the explicitly supplied disposable database, runs the
+role only after validating the exact loopback `ci`/`grainline_ci` connection
+and checking database/session identity, runs the
 convergence SQL, authenticates through the separate login, proves direct Order
-denial and corrected-function execution, and removes the role. It is skipped
+denial and the exact empty result for an unknown staff actor, and removes the role.
+It also checks successful replay, attribute/membership/PUBLIC-execution drift,
+and transactional grant rollback after a default-privilege refusal. It is skipped
 unless `ORDER_STAFF_READ_ROLE_PROVISION_PROOF_DATABASE_URL` is explicitly set.
-It is not yet wired into CI; the local permission reviewer classified that
-loopback-only wiring as a production mutation, so no workflow change was made.
+CI wiring uses a literal loopback URL for its PostgreSQL 16 service, not a
+production variable. Host/service overrides and non-CI credentials are refused;
+psql startup files and ambient database/provider environment are not inherited.
+
+The initial harness did not enforce its documented disposable target and
+accepted unexpected SQL errors from the staff projection. Both were corrected
+before CI execution. The grant script also now resolves PUBLIC authority using
+ACL grantee zero, protects sequence privilege checks with a CASE expression,
+and rejects substituted staff/runtime role names. A separate PGlite test
+executes the actual final catalog query against minimal fixtures; it does not
+substitute for the network-login proof. No production grant or credential has
+been changed by this preparation. Full CI execution remains a release gate.

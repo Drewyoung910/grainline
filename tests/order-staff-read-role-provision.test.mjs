@@ -15,6 +15,8 @@ test("staff-read role convergence is credential-free and fail closed", () => {
   assert.match(script, /current_user <> :'migration_role'/u);
   assert.match(script, /session_user <> :'migration_role'/u);
   assert.match(script, /roles must be pairwise distinct/u);
+  assert.match(script, /:'staff_role' <> 'grainline_staff_read_runtime'/u);
+  assert.match(script, /:'runtime_role' <> 'grainline_app_runtime'/u);
 });
 
 test("staff-read role convergence requires the restricted login posture", () => {
@@ -54,4 +56,7 @@ test("staff-read role receives exactly the corrected projections and no tables",
   assert.match(script, /pg_default_acl/u);
   assert.match(script, /unexpected_definer_authority/u);
   assert.match(script, /runtime_execute OR public_execute/u);
+  assert.match(script, /acl\.grantee = 0 AND acl\.privilege_type = 'EXECUTE'/u);
+  assert.doesNotMatch(script, /has_function_privilege\(\s*'PUBLIC'/u);
+  assert.match(script, /CASE WHEN class\.relkind = 'S' THEN pg_catalog\.has_sequence_privilege/u);
 });

@@ -58,10 +58,15 @@ WITH failure AS (
   SELECT 'staff, runtime, and migration roles must be pairwise distinct' AS message
   WHERE :'staff_role' IN (:'runtime_role', :'migration_role')
      OR :'runtime_role' = :'migration_role'
+), wrong_target AS (
+  SELECT 'staff and runtime role names must match the reviewed identities' AS message
+  WHERE :'staff_role' <> 'grainline_staff_read_runtime'
+     OR :'runtime_role' <> 'grainline_app_runtime'
 ), combined AS (
   SELECT message FROM failure
   UNION ALL SELECT message FROM missing
   UNION ALL SELECT message FROM collision
+  UNION ALL SELECT message FROM wrong_target
   LIMIT 1
 )
 SELECT
@@ -257,9 +262,9 @@ WITH table_authority AS (
   FROM pg_catalog.pg_class AS class
   JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
   WHERE namespace.nspname = 'public' AND class.relkind = 'S'
-    AND pg_catalog.has_sequence_privilege(
+    AND CASE WHEN class.relkind = 'S' THEN pg_catalog.has_sequence_privilege(
       :'staff_role', class.oid, 'USAGE,SELECT,UPDATE'
-    )
+    ) ELSE false END
 ), column_authority AS (
   SELECT class.oid, attribute.attnum
   FROM pg_catalog.pg_class AS class
@@ -294,8 +299,13 @@ WITH table_authority AS (
          pg_catalog.has_function_privilege(
            :'runtime_role', pg_catalog.to_regprocedure(function_signature), 'EXECUTE'
          ) AS runtime_execute,
-         pg_catalog.has_function_privilege(
-           'PUBLIC', pg_catalog.to_regprocedure(function_signature), 'EXECUTE'
+         EXISTS (
+           SELECT 1 FROM pg_catalog.pg_proc AS routine
+           CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+             routine.proacl, pg_catalog.acldefault('f', routine.proowner)
+           )) AS acl
+           WHERE routine.oid = pg_catalog.to_regprocedure(function_signature)
+             AND acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
          ) AS public_execute
   FROM expected
 ), unexpected_definer_authority AS (

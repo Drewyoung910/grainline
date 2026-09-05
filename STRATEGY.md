@@ -2529,6 +2529,17 @@ membership-free NOBYPASSRLS login, isolating its credential, proving zero base
 table access and then granting only the reviewed functions are separate gates
 before app conversion. See `docs/order-staff-read-authority.md`.
 
+Prelaunch execution should batch compatible work without weakening those
+boundaries: apply the reviewed additive Order prefix as one compatible release,
+provision the dedicated login before application conversion, then smoke and
+remove exact incompatible predecessors without an arbitrary long drain window.
+ENABLE and FORCE remain separate verified migrations but can run in one
+release session. Reuse established provider evidence unless the code changes
+the relevant provider/connection/locking behavior. Webhooks and cron still
+require deployment compatibility even with no active human users. Exact
+sequencing and pending gates live in
+`docs/order-zero-direct-compatible-packaging-plan.md`.
+
 ### Core Order participant export decision (2026-08-31)
 
 Account export must use bounded actor-scoped Order projections before
