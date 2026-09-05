@@ -275,8 +275,19 @@ than silently switching sources.
 ### Exact idempotency projection
 
 `grainline_stripe_checkout_order_existing(...)` returns only the exact Order ID
-and state for the active event's bound Checkout Session. It is not a general
-session-ID lookup.
+and a closed `absent`, `complete`, `retry` or `processing` decision for the
+active event's bound Checkout Session. It is not a general session-ID lookup.
+The operation derives the blocked-checkout reason, same-event claim recovery,
+seller recipient and 15-minute stale-lock boundary inside PostgreSQL using
+database time. The route no longer receives raw refund/review columns or uses
+an application-server clock to classify an existing Order.
+
+The isolated SQL, strict result parser and application conversion are complete
+with disposable PostgreSQL coverage for absence non-disclosure, forged event
+and session rejection, new retry, fresh/stale lock behavior, exact-claim replay,
+processed-lease rejection, direct-table denial and all closed result shapes.
+This remains an undeployable compatibility candidate until the fixed operation
+is packaged database-first.
 
 ### Blocked-checkout transitions
 

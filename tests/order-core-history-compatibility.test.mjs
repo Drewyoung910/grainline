@@ -153,6 +153,7 @@ describe("core Order historical compatibility", () => {
   it("writes the expanded snapshot in both paid webhook families", () => {
     const webhook = read("src/app/api/stripe/webhook/route.ts");
     const paidCheckoutAuthority = read("docs/rls-drafts/order-paid-checkout-authority.sql");
+    const postpaymentAuthority = read("docs/rls-drafts/order-checkout-postpayment-authority.sql");
     for (const field of [
       "listingType",
       "processingTimeMinDays",
@@ -164,9 +165,11 @@ describe("core Order historical compatibility", () => {
     assert.match(webhook, /createOrderFromPaidCheckout\(/);
     assert.match(paidCheckoutAuthority, /source_seller_id, source_now, p_paid_at, p_session_id/);
     assert.match(paidCheckoutAuthority, /source_order_id, source_listing_id,[\s\S]*source_seller_id/);
-    assert.match(webhook, /const seller = order\.sellerProfile/);
-    assert.match(webhook, /sellerProfileId: seller\.id,[\s\S]*paidAt: \{ not: null \}/);
-    assert.match(webhook, /sellerRefundId: null,[\s\S]*paymentRefundBlocked: false/);
+    assert.match(webhook, /readCheckoutPostpaymentProjection\(\{/);
+    assert.match(postpaymentAuthority, /candidate\."sellerProfileId" = source_seller\.id/);
+    assert.match(postpaymentAuthority, /candidate\."paidAt" IS NOT NULL/);
+    assert.match(postpaymentAuthority, /candidate\."sellerRefundId" IS NULL/);
+    assert.match(postpaymentAuthority, /NOT candidate\."paymentRefundBlocked"/);
     assert.doesNotMatch(webhook, /order\.items\[0\]\?\.listing\.seller/);
   });
 

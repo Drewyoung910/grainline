@@ -42,7 +42,6 @@ import {
 import { isStripeSessionUniqueConstraintError } from "@/lib/stripeWebhookEventState";
 import {
   REFUND_LOCK_SENTINEL,
-  isStaleRefundLock,
 } from "@/lib/refundLockState";
 import { releaseBlockedCheckoutLegacyRefundLock } from "@/lib/orderLegacyRefundLockAuthority";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
@@ -50,6 +49,7 @@ import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
 import { createOrderFromPaidCheckout } from "@/lib/orderPaidCheckoutAuthority";
 import { readCheckoutPostpaymentProjection } from "@/lib/orderCheckoutPostpaymentAuthority";
+import { readExistingCheckoutOrder } from "@/lib/orderCheckoutExistingAuthority";
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
@@ -136,82 +136,6 @@ const BLOCKED_CHECKOUT_REVIEW_MARKER = "Order was held for staff review.";
 
 function blockedCheckoutReviewPrefix(reason: string) {
   return `${reason} ${BLOCKED_CHECKOUT_REVIEW_MARKER}`;
-}
-
-function blockedCheckoutReviewReason(reviewNote: string | null | undefined) {
-  if (!reviewNote) return null;
-  const markerIndex = reviewNote.indexOf(BLOCKED_CHECKOUT_REVIEW_MARKER);
-  if (markerIndex < 0) return null;
-  const reason = reviewNote.slice(0, markerIndex).trim();
-  return reason.length > 0 ? reason : null;
-}
-
-function orderPostPaymentSideEffectsBlocked(order: {
-  sellerRefundId?: string | null;
-  paymentRefundBlocked?: boolean | null;
-  reviewNeeded?: boolean | null;
-  reviewNote?: string | null;
-}) {
-  return (
-    orderHasRefundLedger(order) ||
-    Boolean(order.reviewNeeded && order.reviewNote?.includes(BLOCKED_CHECKOUT_REVIEW_MARKER))
-  );
-}
-
-function blockedCheckoutRefundRetryReason(order: {
-  sellerRefundId?: string | null;
-  sellerRefundLockedAt?: Date | null;
-  refundClaimId?: string | null;
-  refundClaimSource?: string | null;
-  refundClaimSourceId?: string | null;
-  paymentRefundBlocked?: boolean | null;
-  reviewNeeded?: boolean | null;
-  reviewNote?: string | null;
-}, eventId: string) {
-  if (!order.reviewNeeded) return null;
-  const reason = blockedCheckoutReviewReason(order.reviewNote);
-  if (!reason) return null;
-  if (order.paymentRefundBlocked) return null;
-  if (order.refundClaimId) {
-    return order.sellerRefundId === REFUND_LOCK_SENTINEL
-      && order.refundClaimSource === "BLOCKED_CHECKOUT"
-      && order.refundClaimSourceId === eventId
-      ? reason
-      : null;
-  }
-  if (!order.sellerRefundId) return reason;
-  if (isStaleRefundLock({
-    sellerRefundId: order.sellerRefundId,
-    sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
-  })) {
-    return reason;
-  }
-  return null;
-}
-
-function blockedCheckoutRefundStillInProgress(order: {
-  sellerRefundId?: string | null;
-  sellerRefundLockedAt?: Date | null;
-  refundClaimId?: string | null;
-  paymentRefundBlocked?: boolean | null;
-  reviewNeeded?: boolean | null;
-  reviewNote?: string | null;
-}) {
-  return Boolean(
-    order.reviewNeeded &&
-      blockedCheckoutReviewReason(order.reviewNote) &&
-      !order.paymentRefundBlocked &&
-      (
-        Boolean(order.refundClaimId) ||
-        (
-          order.sellerRefundId === REFUND_LOCK_SENTINEL &&
-          !isStaleRefundLock({
-            sellerRefundId: order.sellerRefundId,
-            sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
-          })
-        )
-      ),
-  );
 }
 
 export async function POST(req: Request) {
@@ -692,40 +616,25 @@ export async function POST(req: Request) {
       } | null = null;
 
       // Idempotency
-      const already = await prisma.order.findFirst({
-        where: { stripeSessionId: sessionId },
-        select: {
-          id: true,
-          sellerRefundId: true,
-          sellerRefundLockedAt: true,
-          refundClaimId: true,
-          refundClaimSource: true,
-          refundClaimSourceId: true,
-          paymentRefundBlocked: true,
-          reviewNeeded: true,
-          reviewNote: true,
-          sellerProfile: { select: { userId: true } },
-        },
+      const existingOrder = await readExistingCheckoutOrder({
+        eventId: event.id,
+        claimGeneration,
+        sessionId,
       });
-      if (already) {
-        const retryReason = blockedCheckoutRefundRetryReason(already, event.id);
-        if (retryReason) {
+      if (existingOrder.outcome !== "absent") {
+        if (existingOrder.outcome === "retry") {
           existingBlockedCheckoutRetry = {
-            id: already.id,
-            retryReason,
-            sellerUserIds: already.sellerProfile?.userId
-              ? [already.sellerProfile.userId]
-              : [],
+            id: existingOrder.orderId,
+            retryReason: existingOrder.retryReason,
+            sellerUserIds: [...existingOrder.sellerUserIds],
           };
-        } else if (blockedCheckoutRefundStillInProgress(already)) {
+        } else if (existingOrder.outcome === "processing") {
           throw new Error("Blocked checkout automatic refund is still in progress.");
         } else {
           await releaseCheckoutLock(checkoutLockKey, sessionId);
-          if (!orderPostPaymentSideEffectsBlocked(already)) {
-            await enqueueOrderPostPaymentSideEffects(sessionId, {
-              multiSellerCheckout: initialMultiSellerCheckout,
-            });
-          }
+          await enqueueOrderPostPaymentSideEffects(sessionId, {
+            multiSellerCheckout: initialMultiSellerCheckout,
+          });
           return NextResponse.json({ ok: true });
         }
       }
