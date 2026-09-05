@@ -36,13 +36,7 @@ import {
   restoreUnorderedCheckoutStockOnce,
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
-import {
-  orderHasRefundLedger,
-} from "@/lib/refundRouteState";
 import { isStripeSessionUniqueConstraintError } from "@/lib/stripeWebhookEventState";
-import {
-  REFUND_LOCK_SENTINEL,
-} from "@/lib/refundLockState";
 import { releaseBlockedCheckoutLegacyRefundLock } from "@/lib/orderLegacyRefundLockAuthority";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
@@ -56,7 +50,6 @@ import {
   revalidatePublicSellerVisibilityCaches,
 } from "@/lib/searchCache";
 import {
-  blockedCheckoutDisputeState,
   checkoutItemsSubtotalCents,
   isLikelyThinStripeEventObject,
   isStaleStripeEvent,
@@ -83,6 +76,7 @@ import {
   applySignedDisputeWebhook,
   applySignedRefundWebhook,
 } from "@/lib/orderPaymentSignedWebhook";
+import { recordCheckoutRefundReview } from "@/lib/orderCheckoutRefundReviewAuthority";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -132,12 +126,6 @@ const STRIPE_DISPUTE_EVENT_TYPES = new Set([
   "charge.dispute.funds_withdrawn",
   "charge.dispute.funds_reinstated",
 ]);
-const BLOCKED_CHECKOUT_REVIEW_MARKER = "Order was held for staff review.";
-
-function blockedCheckoutReviewPrefix(reason: string) {
-  return `${reason} ${BLOCKED_CHECKOUT_REVIEW_MARKER}`;
-}
-
 export async function POST(req: Request) {
   const signature = (await headers()).get("stripe-signature");
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -737,7 +725,6 @@ export async function POST(req: Request) {
         reason: string;
         sellerUserIds: string[];
       }) {
-        const reviewPrefix = blockedCheckoutReviewPrefix(input.reason);
         const { logSecurityEvent } = await import("@/lib/security");
         for (const sellerUserId of input.sellerUserIds) {
           logSecurityEvent("ownership_violation", {
@@ -748,12 +735,12 @@ export async function POST(req: Request) {
         }
 
         if (!paymentIntentId) {
-          await prisma.order.update({
-            where: { id: input.orderId },
-            data: {
-              reviewNeeded: true,
-              reviewNote: `${reviewPrefix} Automatic refund could not be issued because the PaymentIntent ID was unavailable.`,
-            },
+          await recordCheckoutRefundReview({
+            eventId: event.id,
+            claimGeneration,
+            sessionId,
+            orderId: input.orderId,
+            action: "missing_payment_intent",
           });
           Sentry.captureMessage("Blocked checkout missing PaymentIntent for automatic refund", {
             level: "warning",
@@ -798,62 +785,6 @@ export async function POST(req: Request) {
             sessionId,
             orderId: input.orderId,
           });
-          const currentOrder = await prisma.order.findUnique({
-            where: { id: input.orderId },
-            select: {
-              sellerRefundId: true,
-              paymentRefundBlocked: true,
-              paymentOpenDisputeBlocked: true,
-            },
-          });
-          if (!currentOrder) {
-            Sentry.captureMessage("Blocked checkout order missing before automatic refund", {
-              level: "warning",
-              tags: { source: "stripe_webhook_blocked_checkout_missing_order" },
-              extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
-            });
-            return;
-          }
-          if (
-            orderHasRefundLedger(currentOrder)
-            && currentOrder.sellerRefundId !== REFUND_LOCK_SENTINEL
-          ) {
-            await prisma.order.update({
-              where: { id: input.orderId },
-              data: {
-                reviewNeeded: true,
-                reviewNote: `${reviewPrefix} Automatic refund was skipped because a refund is already recorded for this order.`,
-              },
-            });
-            return;
-          }
-
-          const disputeGuard = blockedCheckoutDisputeState({
-            openDisputeBlocked: currentOrder.paymentOpenDisputeBlocked,
-            reviewPrefix,
-          });
-          if (disputeGuard) {
-            await prisma.order.update({
-              where: { id: input.orderId },
-              data: {
-                reviewNeeded: disputeGuard.reviewNeeded,
-                reviewNote: disputeGuard.reviewNote,
-              },
-            });
-            Sentry.captureMessage("Blocked checkout automatic refund skipped for open Stripe dispute", {
-              level: "warning",
-              tags: { source: "stripe_webhook_blocked_checkout_dispute_guard" },
-              extra: {
-                stripeSessionId: sessionId,
-                orderId: input.orderId,
-                reason: input.reason,
-                disputeId: disputeGuard.disputeId,
-                disputeStatus: disputeGuard.disputeStatus,
-              },
-            });
-            return;
-          }
-
           refundAmountCents =
             chargedTotalCents;
           const refundClaim = await claimBlockedCheckoutOrderRefund({
@@ -864,23 +795,24 @@ export async function POST(req: Request) {
             expectedAmountCents: refundAmountCents,
           });
           if (!refundClaim) {
-            const conflictingOrder = await prisma.order.findUnique({
-              where: { id: input.orderId },
-              select: {
-                sellerRefundId: true,
-                paymentRefundBlocked: true,
-              },
+            const reviewOutcome = await recordCheckoutRefundReview({
+              eventId: event.id,
+              claimGeneration,
+              sessionId,
+              orderId: input.orderId,
+              action: "claim_conflict",
             });
-            const hasRefund = conflictingOrder ? orderHasRefundLedger(conflictingOrder) : false;
-            await prisma.order.updateMany({
-              where: { id: input.orderId },
-              data: {
-                reviewNeeded: true,
-                reviewNote: hasRefund
-                  ? `${reviewPrefix} Automatic refund was skipped because another refund is already being processed or recorded for this order.`
-                  : `${reviewPrefix} Automatic refund was skipped because refund or dispute state changed while processing; staff must reconcile this payment manually.`,
-              },
-            });
+            if (reviewOutcome === "open_dispute") {
+              Sentry.captureMessage("Blocked checkout automatic refund skipped for open Stripe dispute", {
+                level: "warning",
+                tags: { source: "stripe_webhook_blocked_checkout_dispute_guard" },
+                extra: {
+                  stripeSessionId: sessionId,
+                  orderId: input.orderId,
+                  reason: input.reason,
+                },
+              });
+            }
             return;
           }
 
@@ -968,12 +900,12 @@ export async function POST(req: Request) {
           if (refundId || retryBlockedCheckoutRefund) {
             throw refundError;
           }
-          await prisma.order.update({
-            where: { id: input.orderId },
-            data: {
-              reviewNeeded: true,
-              reviewNote: `${reviewPrefix} Automatic refund failed; staff must reconcile this payment manually.`,
-            },
+          await recordCheckoutRefundReview({
+            eventId: event.id,
+            claimGeneration,
+            sessionId,
+            orderId: input.orderId,
+            action: "provider_failure",
           });
           Sentry.captureException(refundError, {
             tags: { source: "stripe_webhook_blocked_checkout_refund" },

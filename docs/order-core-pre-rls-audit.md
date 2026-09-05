@@ -583,6 +583,20 @@ operation, reducing direct `OrderItem` access to the webhook alone. These are
 application-only candidate corrections; they are not deployed and do not
 authorize Order activation.
 
+2026-09-05 Stripe-webhook authority completion checkpoint: the final direct
+Order source is now converted across four distinct, source-bound operations.
+Paid creation derives protected rows from the retained checkout snapshot;
+exact-session replay returns a closed idempotency decision; post-payment work
+receives only a bounded delivery/stock/first-sale projection; and blocked
+refund review writes use fixed PostgreSQL-derived messages bound to the active
+signed event generation and exact Order/session. The final operation accepts
+only three closed action codes, derives refund/dispute precedence itself, and
+cannot accept caller review text. This reduces the candidate direct Order
+inventory from 1 to 0 while preserving the existing generation-fenced refund
+claim and finalization authorities. Disposable PostgreSQL proves direct-table
+denial, forged identity rejection, closed outcomes and rollback-safe writes.
+All work remains isolated compatibility code, not a migration or activation.
+
 2026-09-05 paid-checkout application conversion checkpoint: the cart and
 single-listing direct writers now converge on the one fixed
 `grainline_stripe_checkout_order_create(...)` candidate. The route supplies a

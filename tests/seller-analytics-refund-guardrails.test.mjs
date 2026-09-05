@@ -146,10 +146,15 @@ describe("seller analytics refund guardrails", () => {
       "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
     );
     const stripeWebhook = source("src/app/api/stripe/webhook/route.ts");
+    const blockedCheckoutReview = source(
+      "docs/rls-drafts/order-checkout-refund-review-authority.sql",
+    );
 
     assert.match(sellerRefundRoute, /sellerRefundPreflight/);
     assert.match(sellerRefundPreflight, /locked_order\."paymentOpenDisputeBlocked"/);
-    assert.match(stripeWebhook, /currentOrder\.paymentOpenDisputeBlocked/);
+    assert.match(stripeWebhook, /recordCheckoutRefundReview/);
+    assert.match(blockedCheckoutReview, /source_order\."paymentOpenDisputeBlocked"/);
+    assert.match(blockedCheckoutReview, /latest_dispute/);
     assert.doesNotMatch(sellerRefundRoute, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
     assert.doesNotMatch(stripeWebhook, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
   });

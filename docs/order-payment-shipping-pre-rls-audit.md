@@ -54,12 +54,13 @@ through fixed source-bound authorities or database-maintained `Order`
 projections. The two remaining matches are the intentionally retained fixed
 refund-authority helpers in `orderRefundFinalization.ts` and
 `orderRefundRecordAuthority.ts`; neither grants generic table lookup or write
-authority. The separate current 32-file semantic inventory remains authoritative for
+authority. The separate current 25-file semantic matcher remains authoritative for
 nested projections, event-identity helpers, fixed Case/Notification functions,
 cron and provider side effects, so this smaller direct-access floor cannot hide
 semantic consumers. The release-time application inventory was 33 files; the
-current `src` inventory is 32 after Guild payment predicates moved into a
-byte-pinned database authority migration. It includes converted application callsites and
+inventory reached 32 after Guild payment predicates moved into a byte-pinned
+database authority migration, and subsequent fixed-operation conversions now
+place the matcher at 25. It includes converted application callsites and
 `src/lib/orderEligibilityAuthority.ts` and
 `src/lib/orderPublicAggregateAuthority.ts`; the direct-access floor no longer
 counts the nine consumers routed through those eight source-bound functions.

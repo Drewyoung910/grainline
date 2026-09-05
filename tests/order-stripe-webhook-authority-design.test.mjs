@@ -44,7 +44,7 @@ describe("Order Stripe webhook authority design", () => {
     assert.match(design, /single in-stock orders preserve the existing one-day minimum/);
     assert.match(design, /forced downstream completion failure/);
     assert.match(design, /isolated application conversion is now complete/);
-    assert.match(design, /route has no direct OrderItem access/);
+    assert.match(design, /webhook now has zero direct Order,\s+OrderItem/);
     assert.match(design, /must not be deployed before the database candidate/);
   });
 

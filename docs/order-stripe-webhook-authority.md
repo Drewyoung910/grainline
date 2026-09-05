@@ -6,9 +6,10 @@ intentionally not deployable before its database-first compatible release.
 This record does not authorize a deployment, grant change, provider mutation,
 or Order/OrderItem RLS activation.
 
-Audited application checkpoints: `3aeb05af`, `45c23c3e`, `9d52ab86`, and
-`448d0cb8` (2026-09-05). The paid-order database and webhook application
-candidates described below remain local; the SQL is not a production
+Audited application checkpoints: `3aeb05af`, `45c23c3e`, `9d52ab86`,
+`448d0cb8`, `7a19517d`, and `6c2b6266` (2026-09-05). The paid-order database
+and webhook application candidates described below remain local; the SQL is
+not a production
 migration and the combined candidate is intentionally undeployable until its
 database-first compatibility release exists.
 
@@ -253,9 +254,10 @@ this one operation. The prior duplicated direct Order/OrderItem writer—976
 lines across the two branches—has been removed. Blocked-checkout refunds,
 exact retry behavior, cache invalidation and post-payment side effects remain
 outside the creation transaction and consume only the operation's closed
-result. The route has no direct OrderItem access; its remaining direct Order
-access belongs to the still-separate exact-idempotency, blocked-refund and
-post-payment projection work below.
+result. At that checkpoint the route had no direct OrderItem access; its
+remaining direct Order access belonged to the still-separate exact-idempotency,
+blocked-refund and post-payment projection work described below. Those three
+families are now converted as isolated candidates.
 
 This application candidate must not be deployed before the database candidate
 and snapshot schema are packaged and accepted database-first. The conversion
@@ -291,10 +293,30 @@ is packaged database-first.
 
 ### Blocked-checkout transitions
 
-One fixed state machine derives the review reason category from closed inputs,
-sets or advances the generation-fenced refund claim, and preserves unrelated
-staff notes. It must not expose a generic review-note writer. Signed refund
-finalization remains in the already protected payment-event authority.
+The existing generation-fenced refund claim remains the sole authority that
+can begin provider movement. The route now calls it without first selecting
+raw Order refund/dispute state. A null claim is classified by
+`grainline_stripe_checkout_refund_review(...)`, which locks the active signed
+event generation and exact Order/session, derives refund and latest-dispute
+precedence from PostgreSQL, preserves only the original blocked-checkout reason
+prefix, and writes one fixed bounded message. Missing PaymentIntent and
+pre-provider failure paths use the same operation with closed action codes;
+caller-supplied reason or review text is never accepted. The runtime operation
+must not expose a generic review-note writer.
+
+The provider-failure action rechecks refund and latest-dispute state after the
+provider call fails. A concurrent or ambiguous provider outcome therefore
+retains the stronger refund/dispute review classification instead of
+overwriting it with a generic failure message.
+
+The isolated function, strict outcome parser and application conversion have
+disposable PostgreSQL coverage for direct-table denial, forged generation,
+session and Order rejection, missing-payment identity revalidation, refund and
+open-dispute precedence, generic state drift, provider failure, processed
+leases and non-blocked Order rejection. The webhook now has zero direct Order,
+OrderItem or OrderShippingRateQuote access. Signed refund finalization remains
+in the already protected payment-event authority. This is still a draft
+compatibility candidate, not a migration or activation.
 
 ### Post-payment projection
 

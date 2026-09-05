@@ -35,9 +35,7 @@ function authorityAccessFiles(delegate, table) {
 }
 
 const expected = {
-  Order: [
-    "src/app/api/stripe/webhook/route.ts",
-  ],
+  Order: [],
   OrderItem: [],
   OrderShippingRateQuote: [],
   OrderPaymentEvent: [

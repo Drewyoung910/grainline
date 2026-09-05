@@ -589,8 +589,9 @@ describe("payment and fulfillment side-effect observability", () => {
     const postpaymentSql = source("docs/rls-drafts/order-checkout-postpayment-authority.sql");
     const existingSql = source("docs/rls-drafts/order-checkout-existing-authority.sql");
 
-    assert.match(route, /function blockedCheckoutReviewPrefix/);
-    assert.match(route, /BLOCKED_CHECKOUT_REVIEW_MARKER/);
+    const refundReviewSql = source(
+      "docs/rls-drafts/order-checkout-refund-review-authority.sql",
+    );
     assert.match(route, /if \(result\.outcome === "blocked"\) return/);
     assert.match(postpaymentSql, /source_order\."sellerRefundId" IS NOT NULL/);
     assert.match(postpaymentSql, /source_order\."paymentRefundBlocked"/);
@@ -627,7 +628,9 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(blockedRefundHelper, /input\.lineItems/);
     assert.match(blockedRefundHelper, /finalizeBlockedCheckoutOrderRefund\(/);
     assert.match(existingRetryBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
-    assert.match(route, /const reviewPrefix = blockedCheckoutReviewPrefix\(input\.reason\)/);
+    assert.match(route, /recordCheckoutRefundReview\(\{/);
+    assert.match(refundReviewSql, /Order was held for staff review\./);
+    assert.doesNotMatch(refundReviewSql, /p_reason|p_review_note|p_message/);
 
     const invalidBranch = route.slice(
       route.indexOf("if (createdOrder.invalidReason)"),
@@ -730,11 +733,15 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(noRefundIdBranch, /retryBlockedCheckoutRefund = true/);
     assert.match(noRefundIdBranch, /throw refundError/);
 
-    const outerCatch = route.slice(
-      route.indexOf("} catch (refundError) {", lockReleaseStart),
-      route.indexOf("await prisma.order.update({", lockReleaseStart),
+    const blockedRefundEnd = route.indexOf("if (existingBlockedCheckoutRetry)");
+    const outerCatchStart = route.lastIndexOf(
+      "} catch (refundError) {",
+      blockedRefundEnd,
     );
+    const outerCatch = route.slice(outerCatchStart, blockedRefundEnd);
     assert.match(outerCatch, /if \(refundId \|\| retryBlockedCheckoutRefund\) \{\s*throw refundError;\s*\}/);
+    assert.match(outerCatch, /recordCheckoutRefundReview\(\{/);
+    assert.match(outerCatch, /action: "provider_failure"/);
   });
 
   it("does not tag ordinary staff case refunds as fraudulent Stripe refunds", () => {

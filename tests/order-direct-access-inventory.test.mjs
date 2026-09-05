@@ -6,9 +6,7 @@ import { describe, it } from "node:test";
 const SOURCE_ROOT = "src";
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
 
-const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
-  "src/app/api/stripe/webhook/route.ts",
-]);
+const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([]);
 
 const EXPECTED_DIRECT_ORDER_ITEM_FILES = Object.freeze([]);
 

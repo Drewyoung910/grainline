@@ -23,13 +23,11 @@ function orderAccessFiles() {
   return sourceFiles().filter((file) => access.test(fs.readFileSync(file, "utf8")));
 }
 
-const expectedOrderAccessFiles = [
-  "src/app/api/stripe/webhook/route.ts",
-];
+const expectedOrderAccessFiles = [];
 
 describe("core Order pre-RLS audit", () => {
   it("pins every current direct Order source access", () => {
-    assert.equal(expectedOrderAccessFiles.length, 1);
+    assert.equal(expectedOrderAccessFiles.length, 0);
     assert.deepEqual(orderAccessFiles(), expectedOrderAccessFiles);
     for (const file of expectedOrderAccessFiles) {
       assert.equal(audit.includes(`\`${file}\``), true, file);
@@ -62,6 +60,7 @@ describe("core Order pre-RLS audit", () => {
     assert.match(audit, /candidate direct Order inventory from 6 to 3/);
     assert.match(audit, /candidate direct Order inventory from 3 to 2/);
     assert.match(audit, /candidate direct\s+Order inventory from 2 to 1/);
+    assert.match(audit, /candidate direct Order\s+inventory from 1 to 0/);
     assert.match(audit, /without a Stripe Checkout Session, PaymentIntent, Charge, payment-event/);
     assert.match(audit, /nullable seller keys are not the final invariant/);
   });
