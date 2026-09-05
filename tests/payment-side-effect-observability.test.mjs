@@ -586,6 +586,7 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("skips post-payment side effects for refunded or blocked checkout orders", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
+    const postpaymentSql = source("docs/rls-drafts/order-checkout-postpayment-authority.sql");
 
     assert.match(route, /function orderPostPaymentSideEffectsBlocked/);
     assert.match(route, /function blockedCheckoutReviewPrefix/);
@@ -597,10 +598,10 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /sellerRefundId: true/);
     assert.match(route, /sellerRefundLockedAt: true/);
     assert.match(route, /reviewNeeded: true/);
-    assert.match(
-      route,
-      /if \(orderPostPaymentSideEffectsBlocked\(order\)\) return/,
-    );
+    assert.match(route, /if \(result\.outcome === "blocked"\) return/);
+    assert.match(postpaymentSql, /source_order\."sellerRefundId" IS NOT NULL/);
+    assert.match(postpaymentSql, /source_order\."paymentRefundBlocked"/);
+    assert.match(postpaymentSql, /Order was held for staff review\./);
     const existingOrderBranch = route.slice(
       route.indexOf("const already = await prisma.order.findFirst"),
       route.indexOf("// Retrieve with expansions"),
@@ -621,7 +622,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(existingOrderBranch, /if \(!orderPostPaymentSideEffectsBlocked\(already\)\) \{/);
     assert.ok(
       existingOrderBranch.indexOf("orderPostPaymentSideEffectsBlocked(already)") <
-        existingOrderBranch.indexOf("enqueueOrderPostPaymentSideEffects(already.id"),
+        existingOrderBranch.indexOf("enqueueOrderPostPaymentSideEffects(sessionId"),
       "existing-order retries must block side effects for marked blocked checkouts",
     );
     assert.ok(

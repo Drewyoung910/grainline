@@ -69,6 +69,11 @@ The first-sale congratulations query previously counted every seller Order,
 including a blocked checkout or refunded payment. The candidate now requires a
 paid, non-refunded, non-payment-blocked Order and excludes the blocked-checkout
 review marker. A failed synthetic sale can no longer consume the milestone.
+The post-payment authority also corrects a concurrency defect in the initial
+candidate: `count = 1` could congratulate neither Order when two first sales
+committed before either side-effect pass. PostgreSQL now deterministically
+selects the earliest legitimate `(paidAt, id)` tuple, so exactly one concurrent
+Order owns the milestone.
 
 ### Listing-page review hint
 
@@ -283,10 +288,20 @@ finalization remains in the already protected payment-event authority.
 ### Post-payment projection
 
 `grainline_stripe_checkout_postpayment(...)` returns the bounded buyer/seller
-delivery facts, cart cleanup targets and a database-derived
-`isFirstLegitimateSale` boolean only for the exact paid Order/session. Email,
-cache and analytics side effects remain outside PostgreSQL and are exactly
-replayable from this projection.
+delivery facts, complete retained item snapshots, current low-stock quantities
+and a database-derived `isFirstLegitimateSale` boolean only for the active
+signed event generation and exact paid Order/session. Blocked or refunded
+Orders return no PII projection. Email, Notification, cache and analytics side
+effects remain outside PostgreSQL and are exactly replayable from this closed
+projection.
+
+The isolated SQL, fail-closed result parser and application conversion are now
+implemented. The former full Order graph read, separate Listing query and
+seller Order count are gone from the side-effect block. Disposable PostgreSQL
+proves restricted-runtime execution, direct-table denial, forged generation
+and session rejection, blocked-result non-disclosure, low-stock projection and
+deterministic first-sale selection. This remains a draft compatibility
+candidate and must not deploy before the function exists in production.
 
 ### Seller deauthorization
 

@@ -49,6 +49,7 @@ import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
 import { createOrderFromPaidCheckout } from "@/lib/orderPaidCheckoutAuthority";
+import { readCheckoutPostpaymentProjection } from "@/lib/orderCheckoutPostpaymentAuthority";
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
@@ -82,11 +83,6 @@ import {
   applySignedDisputeWebhook,
   applySignedRefundWebhook,
 } from "@/lib/orderPaymentSignedWebhook";
-import {
-  readHistoricalOrderItemSnapshot,
-} from "@/lib/orderItemSnapshot";
-
-
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -429,130 +425,77 @@ export async function POST(req: Request) {
   }
 
   async function enqueueOrderPostPaymentSideEffects(
-    orderId: string,
+    sessionId: string,
     opts: { multiSellerCheckout?: boolean } = {},
   ) {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        buyerId: true,
-        sellerRefundId: true,
-        reviewNeeded: true,
-        reviewNote: true,
-        itemsSubtotalCents: true,
-        shippingAmountCents: true,
-        taxAmountCents: true,
-        giftWrapping: true,
-        giftWrappingPriceCents: true,
-        currency: true,
-        estimatedDeliveryDate: true,
-        processingDeadline: true,
-        shipToLine1: true,
-        shipToCity: true,
-        shipToState: true,
-        shipToPostalCode: true,
-        buyer: { select: { name: true, email: true } },
-        paymentRefundBlocked: true,
-        sellerProfile: {
-          select: {
-            id: true,
-            userId: true,
-            displayName: true,
-            user: { select: { email: true } },
-          },
-        },
-        items: {
-          select: {
-            id: true,
-            quantity: true,
-            priceCents: true,
-            listingId: true,
-            listingSnapshot: true,
-            listing: {
-              select: {
-                listingType: true,
-              },
-            },
-          },
-        },
-      },
+    const result = await readCheckoutPostpaymentProjection({
+      eventId: event.id,
+      claimGeneration,
+      sessionId,
     });
-    if (!order) return;
-    if (orderPostPaymentSideEffectsBlocked(order)) return;
-
-    const historicalItems = order.items.map((item) => ({
-      ...item,
-      snapshot: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents),
-    }));
-    const seller = order.sellerProfile;
-    const sellerUserId = seller?.userId;
-    const sellerName = historicalItems[0]?.snapshot.sellerName ?? seller?.displayName ?? "Maker";
+    if (result.outcome === "blocked") return;
+    const order = result.projection;
+    const historicalItems = order.items;
+    const sellerUserId = order.sellerUserId;
+    const sellerName = historicalItems[0]?.snapshot.sellerName ?? order.sellerDisplayName;
     const firstItemTitle = historicalItems[0]?.snapshot.title ?? "an item";
-    const buyerDisplayName = order.buyer?.name ?? "A buyer";
+    const buyerDisplayName = order.buyerName ?? "A buyer";
 
     await Promise.all([
-      order.buyerId
-        ? createNotification({
-            userId: order.buyerId,
-            type: "NEW_ORDER",
-            title: "Order confirmed!",
-            body: `Your order from ${sellerName} is being prepared`,
-            link: `/dashboard/orders/${order.id}`,
-            relatedUserId: sellerUserId,
-            sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_CHECKOUT,
-            sourceId: order.id,
-          })
-        : Promise.resolve(),
-      sellerUserId
-        ? createNotification({
-            userId: sellerUserId,
-            type: "NEW_ORDER",
-            title: "New sale! Congrats!",
-            body: `${buyerDisplayName} purchased ${firstItemTitle}`,
-            link: `/dashboard/sales/${order.id}`,
-            relatedUserId: order.buyerId ?? undefined,
-            sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_CHECKOUT,
-            sourceId: order.id,
-          })
-        : Promise.resolve(),
+      createNotification({
+        userId: order.buyerId,
+        type: "NEW_ORDER",
+        title: "Order confirmed!",
+        body: `Your order from ${sellerName} is being prepared`,
+        link: `/dashboard/orders/${order.orderId}`,
+        relatedUserId: sellerUserId,
+        sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_CHECKOUT,
+        sourceId: order.orderId,
+      }),
+      createNotification({
+        userId: sellerUserId,
+        type: "NEW_ORDER",
+        title: "New sale! Congrats!",
+        body: `${buyerDisplayName} purchased ${firstItemTitle}`,
+        link: `/dashboard/sales/${order.orderId}`,
+        relatedUserId: order.buyerId,
+        sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_CHECKOUT,
+        sourceId: order.orderId,
+      }),
     ]);
 
-    if (sellerUserId) {
-      const inStockItems = new Map<string, { orderItemId: string; title: string }>();
-      for (const item of historicalItems) {
-        if ((item.snapshot.listingType ?? item.listing.listingType) === "IN_STOCK") {
-          const current = inStockItems.get(item.listingId);
-          if (!current || item.id < current.orderItemId) {
-            inStockItems.set(item.listingId, {
-              orderItemId: item.id,
-              title: item.snapshot.title,
-            });
-          }
+    const inStockItems = new Map<string, {
+      orderItemId: string;
+      title: string;
+      stockQuantity: number;
+    }>();
+    for (const item of historicalItems) {
+      if (
+        item.snapshot.listingType === "IN_STOCK"
+        && item.currentStockQuantity != null
+        && item.currentStockQuantity > 0
+        && item.currentStockQuantity <= 2
+      ) {
+        const current = inStockItems.get(item.listingId);
+        if (!current || item.id < current.orderItemId) {
+          inStockItems.set(item.listingId, {
+            orderItemId: item.id,
+            title: item.snapshot.title,
+            stockQuantity: item.currentStockQuantity,
+          });
         }
       }
-      const lowStockListings = inStockItems.size
-        ? await prisma.listing.findMany({
-            where: {
-              id: { in: [...inStockItems.keys()] },
-              stockQuantity: { gt: 0, lte: 2 },
-            },
-            select: { id: true, stockQuantity: true },
-          })
-        : [];
-      for (const lowStockListing of lowStockListings) {
-        const sourceItem = inStockItems.get(lowStockListing.id);
-        if (!sourceItem) continue;
-        await createNotification({
-          userId: sellerUserId,
-          type: "LOW_STOCK",
-          title: `${sourceItem.title} is running low`,
-          body: `Only ${lowStockListing.stockQuantity ?? 0} left in stock`,
-          link: `/dashboard/inventory`,
-          sourceType: NOTIFICATION_SOURCE_TYPES.CHECKOUT_LOW_STOCK,
-          sourceId: sourceItem.orderItemId,
-        });
-      }
+    }
+    for (const sourceItem of inStockItems.values()) {
+      await createNotification({
+        userId: sellerUserId,
+        type: "LOW_STOCK",
+        title: `${sourceItem.title} is running low`,
+        body: `Only ${sourceItem.stockQuantity} left in stock`,
+        link: `/dashboard/inventory`,
+        sourceType: NOTIFICATION_SOURCE_TYPES.CHECKOUT_LOW_STOCK,
+        sourceId: sourceItem.orderItemId,
+      });
     }
 
     const emailItems = historicalItems.map((item) => ({
@@ -561,7 +504,7 @@ export async function POST(req: Request) {
       priceCents: item.priceCents,
     }));
     const orderSummary = {
-      id: order.id,
+      id: order.orderId,
       itemsSubtotalCents: order.itemsSubtotalCents,
       shippingAmountCents: order.shippingAmountCents,
       taxAmountCents: order.taxAmountCents,
@@ -576,63 +519,46 @@ export async function POST(req: Request) {
       shipToPostalCode: order.shipToPostalCode,
     };
 
-    if (order.buyer?.email) {
+    await sendOrderTransactionalEmailWithFallback({
+      email: renderOrderConfirmedBuyerEmail({
+        order: orderSummary,
+        buyer: { name: order.buyerName, email: order.buyerEmail },
+        seller: { displayName: sellerName },
+        items: emailItems,
+        multiSellerCheckout: opts.multiSellerCheckout === true,
+      }),
+      dedupKey: `order-confirmed-buyer:${order.orderId}`,
+      userId: order.buyerId,
+      source: "order_confirmed_buyer",
+      extra: { orderId: order.orderId, buyerId: order.buyerId },
+    });
+
+    if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
       await sendOrderTransactionalEmailWithFallback({
-        email: renderOrderConfirmedBuyerEmail({
+        email: renderOrderConfirmedSellerEmail({
           order: orderSummary,
-          buyer: { name: order.buyer.name, email: order.buyer.email },
-          seller: { displayName: sellerName },
+          buyer: { name: buyerDisplayName },
+          seller: { displayName: sellerName, email: order.sellerEmail },
           items: emailItems,
-          multiSellerCheckout: opts.multiSellerCheckout === true,
         }),
-        dedupKey: `order-confirmed-buyer:${order.id}`,
-        userId: order.buyerId,
-        source: "order_confirmed_buyer",
-        extra: { orderId: order.id, buyerId: order.buyerId },
+        dedupKey: `order-confirmed-seller:${order.orderId}`,
+        userId: sellerUserId,
+        preferenceKey: "EMAIL_NEW_ORDER",
+        source: "order_confirmed_seller",
+        extra: { orderId: order.orderId, sellerUserId },
       });
     }
-
-    if (sellerUserId && seller?.user?.email) {
-      const sellerOrderCount = await prisma.order.count({
-        where: {
-          sellerProfileId: seller.id,
-          paidAt: { not: null },
-          sellerRefundId: null,
-          paymentRefundBlocked: false,
-          OR: [
-            { reviewNeeded: false },
-            { reviewNote: null },
-            { NOT: { reviewNote: { contains: BLOCKED_CHECKOUT_REVIEW_MARKER } } },
-          ],
-        },
+    if (order.isFirstLegitimateSale) {
+      await sendOrderTransactionalEmailWithFallback({
+        email: renderFirstSaleCongratsEmail({
+          seller: { displayName: sellerName, email: order.sellerEmail },
+          order: orderSummary,
+        }),
+        dedupKey: `first-sale-congrats:${order.orderId}:${sellerUserId}`,
+        userId: sellerUserId,
+        source: "first_sale_congrats",
+        extra: { orderId: order.orderId, sellerUserId },
       });
-      if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
-        await sendOrderTransactionalEmailWithFallback({
-          email: renderOrderConfirmedSellerEmail({
-            order: orderSummary,
-            buyer: { name: buyerDisplayName },
-            seller: { displayName: sellerName, email: seller.user.email },
-            items: emailItems,
-          }),
-          dedupKey: `order-confirmed-seller:${order.id}`,
-          userId: sellerUserId,
-          preferenceKey: "EMAIL_NEW_ORDER",
-          source: "order_confirmed_seller",
-          extra: { orderId: order.id, sellerUserId },
-        });
-      }
-      if (sellerOrderCount === 1) {
-        await sendOrderTransactionalEmailWithFallback({
-          email: renderFirstSaleCongratsEmail({
-            seller: { displayName: sellerName, email: seller.user.email },
-            order: orderSummary,
-          }),
-          dedupKey: `first-sale-congrats:${order.id}:${sellerUserId}`,
-          userId: sellerUserId,
-          source: "first_sale_congrats",
-          extra: { orderId: order.id, sellerUserId },
-        });
-      }
     }
   }
 
@@ -796,7 +722,7 @@ export async function POST(req: Request) {
         } else {
           await releaseCheckoutLock(checkoutLockKey, sessionId);
           if (!orderPostPaymentSideEffectsBlocked(already)) {
-            await enqueueOrderPostPaymentSideEffects(already.id, {
+            await enqueueOrderPostPaymentSideEffects(sessionId, {
               multiSellerCheckout: initialMultiSellerCheckout,
             });
           }
@@ -1283,7 +1209,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      await enqueueOrderPostPaymentSideEffects(createdOrder.orderId, { multiSellerCheckout });
+      await enqueueOrderPostPaymentSideEffects(sessionId, { multiSellerCheckout });
       return NextResponse.json({ ok: true });
       }, async () => {
         await releaseCheckoutLock(checkoutLockKey, sessionId);

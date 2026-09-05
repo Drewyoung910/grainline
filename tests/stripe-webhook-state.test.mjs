@@ -64,18 +64,18 @@ describe("Stripe webhook state helpers", () => {
 
   it("does not let a blocked or refunded checkout consume first-sale congratulations", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
-    const countStart = source.indexOf("const sellerOrderCount = await prisma.order.count");
-    const firstSaleStart = source.indexOf("if (sellerOrderCount === 1)", countStart);
-    const block = source.slice(countStart, firstSaleStart);
-
-    assert.ok(countStart >= 0 && firstSaleStart > countStart);
-    assert.match(block, /sellerProfileId: seller\.id/);
-    assert.match(block, /paidAt: \{ not: null \}/);
-    assert.match(block, /sellerRefundId: null/);
-    assert.match(block, /paymentRefundBlocked: false/);
-    assert.match(block, /\{ reviewNeeded: false \}/);
-    assert.match(block, /\{ reviewNote: null \}/);
-    assert.match(block, /reviewNote: \{ contains: BLOCKED_CHECKOUT_REVIEW_MARKER \}/);
+    const sql = readFileSync(
+      "docs/rls-drafts/order-checkout-postpayment-authority.sql",
+      "utf8",
+    );
+    assert.match(source, /if \(order\.isFirstLegitimateSale\)/);
+    assert.match(sql, /candidate\."sellerProfileId" = source_seller\.id/);
+    assert.match(sql, /candidate\."paidAt" IS NOT NULL/);
+    assert.match(sql, /candidate\."sellerRefundId" IS NULL/);
+    assert.match(sql, /NOT candidate\."paymentRefundBlocked"/);
+    assert.match(sql, /NOT candidate\."reviewNeeded"/);
+    assert.match(sql, /candidate\."reviewNote" IS NULL/);
+    assert.match(sql, /Order was held for staff review\./);
   });
 
   it("keeps checkout session shipping-address casting centralized in the webhook", () => {
