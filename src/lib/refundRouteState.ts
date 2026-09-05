@@ -3,6 +3,7 @@ import {
   REFUND_AMBIGUOUS_SENTINEL,
   REFUND_LOCK_SENTINEL,
 } from "./refundLockState.ts";
+import type { SellerRefundPreflightDecision } from "./orderSellerRefundPreflightAuthority.ts";
 
 type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL" | "DISMISSED";
 
@@ -98,6 +99,58 @@ export function sellerRefundConflictResponse(sellerRefundId: string | null | und
   };
 }
 
+export function sellerRefundPreflightConflictResponse(
+  decision: SellerRefundPreflightDecision,
+) {
+  switch (decision) {
+    case "READY":
+      return null;
+    case "FORBIDDEN":
+      return { status: HTTP_STATUS.FORBIDDEN, error: "Forbidden." };
+    case "NOT_FOUND":
+      return { status: HTTP_STATUS.NOT_FOUND, error: "Order not found." };
+    case "OPEN_DISPUTE":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error:
+          "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",
+      };
+    case "PROCESSING":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error: "A refund is already being processed for this order.",
+      };
+    case "AMBIGUOUS":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error:
+          "A refund attempt needs manual reconciliation before another refund can be issued.",
+      };
+    case "RECORDED":
+      return {
+        status: HTTP_STATUS.BAD_REQUEST,
+        error: "A refund has already been issued for this order.",
+      };
+    case "LABEL_BLOCKED":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error:
+          "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
+      };
+    case "NO_PAYMENT":
+      return {
+        status: HTTP_STATUS.BAD_REQUEST,
+        error:
+          "Order has no Stripe payment intent. Refund must be processed manually.",
+      };
+    case "STATE_CHANGED":
+      return {
+        status: HTTP_STATUS.CONFLICT,
+        error: "Refund state changed while processing. Refresh and try again.",
+      };
+  }
+}
+
 export function orderHasRefundLedger(order: {
   sellerRefundId?: string | null | undefined;
   paymentRefundBlocked?: boolean | null | undefined;
@@ -120,9 +173,24 @@ export function orderHasPurchasedLabel(order: { labelStatus?: string | null | un
   return order.labelStatus === "PURCHASED";
 }
 
+const ACTIVE_LABEL_CLAIM_STATUSES = new Set([
+  "PROVIDER_PENDING",
+  "PROVIDER_AMBIGUOUS",
+  "PROVIDER_RECORDED",
+]);
+
+export function orderHasBlockingLabelOperation(order: {
+  labelStatus?: string | null | undefined;
+  labelClaimStatus?: string | null | undefined;
+}) {
+  return orderHasPurchasedLabel(order)
+    || ACTIVE_LABEL_CLAIM_STATUSES.has(order.labelClaimStatus ?? "");
+}
+
 export function refundLockAcquisitionConflictResponse(order: {
   sellerRefundId?: string | null | undefined;
   labelStatus?: string | null | undefined;
+  labelClaimStatus?: string | null | undefined;
   paymentRefundBlocked?: boolean | null | undefined;
   paymentEvents?: Array<{ eventType?: string | null | undefined; status?: string | null | undefined }> | null | undefined;
 } | null | undefined, hasOpenDispute = false) {
@@ -143,10 +211,10 @@ export function refundLockAcquisitionConflictResponse(order: {
     };
   }
 
-  if (order && orderHasPurchasedLabel(order)) {
+  if (order && orderHasBlockingLabelOperation(order)) {
     return {
       status: HTTP_STATUS.CONFLICT,
-      error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
+      error: "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
     };
   }
 

@@ -156,7 +156,7 @@ function parseCreation(rows: readonly Record<string, unknown>[]) {
   });
 }
 
-export async function createConsistentCartCheckoutStockReservation(input: {
+export async function createSnapshotCartCheckoutStockReservation(input: {
   buyerId: string;
   cartId: string;
   sellerProfileId: string;
@@ -166,7 +166,7 @@ export async function createConsistentCartCheckoutStockReservation(input: {
 }, client: AuthorityClient = prisma) {
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
     SELECT reservation_id, reserved_items, expires_at
-      FROM public.grainline_checkout_reservation_create_cart_consistent(
+      FROM public.grainline_checkout_reservation_create_cart_snapshot(
         ${input.buyerId},
         ${input.cartId},
         ${input.sellerProfileId},
@@ -178,7 +178,7 @@ export async function createConsistentCartCheckoutStockReservation(input: {
   return parseCreation(rows);
 }
 
-export async function createConsistentSingleCheckoutStockReservation(input: {
+export async function createSnapshotSingleCheckoutStockReservation(input: {
   buyerId: string;
   listingId: string;
   quantity: number;
@@ -191,7 +191,7 @@ export async function createConsistentSingleCheckoutStockReservation(input: {
     : Prisma.sql`ARRAY[]::text[]`;
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
     SELECT reservation_id, reserved_items, expires_at
-      FROM public.grainline_checkout_reservation_create_single_consistent(
+      FROM public.grainline_checkout_reservation_create_single_snapshot(
         ${input.buyerId},
         ${input.listingId},
         ${input.quantity},

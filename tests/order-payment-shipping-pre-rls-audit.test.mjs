@@ -35,33 +35,9 @@ function authorityAccessFiles(delegate, table) {
 }
 
 const expected = {
-  Order: [
-    "src/app/admin/actions.ts",
-    "src/app/admin/cases/[id]/page.tsx",
-    "src/app/admin/flagged/page.tsx",
-    "src/app/admin/orders/[id]/page.tsx",
-    "src/app/admin/orders/[id]/refundReconciliationActions.ts",
-    "src/app/admin/orders/page.tsx",
-    "src/app/admin/verification/page.tsx",
-    "src/app/api/orders/[id]/refund/route.ts",
-    "src/app/api/stripe/webhook/route.ts",
-    "src/lib/accountDeletion.ts",
-    "src/lib/audit.ts",
-    "src/lib/ban.ts",
-    "src/lib/caseLifecycleLocks.ts",
-    "src/lib/checkoutStockRestore.ts",
-    "src/lib/orderRefundProviderReconciliation.ts",
-    "src/lib/refundLocks.ts",
-  ],
-  OrderItem: [
-    "src/app/admin/verification/page.tsx",
-    "src/app/api/stripe/webhook/route.ts",
-    "src/components/ReviewsSection.tsx",
-    "src/lib/accountDeletion.ts",
-  ],
-  OrderShippingRateQuote: [
-    "src/lib/accountDeletion.ts",
-  ],
+  Order: [],
+  OrderItem: [],
+  OrderShippingRateQuote: [],
   OrderPaymentEvent: [
     "src/lib/orderRefundFinalization.ts",
     "src/lib/orderRefundRecordAuthority.ts",

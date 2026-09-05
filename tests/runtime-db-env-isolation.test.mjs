@@ -9,12 +9,17 @@ import {
 } from "../scripts/guard-runtime-db-env.mjs";
 
 const RUNTIME_URL = "postgresql://grainline_app_runtime:runtime-password@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
+const STAFF_READ_URL = RUNTIME_URL.replace(
+  "grainline_app_runtime:runtime-password",
+  "grainline_staff_read_runtime:staff-password",
+);
 
 function productionEnv(overrides = {}) {
   return {
     VERCEL: "1",
     VERCEL_ENV: "production",
     DATABASE_URL: RUNTIME_URL,
+    ORDER_STAFF_READ_DATABASE_URL: STAFF_READ_URL,
     RUNTIME_DB_ROLE: "grainline_app_runtime",
     ...overrides,
   };
@@ -31,6 +36,7 @@ describe("Vercel runtime database environment isolation", () => {
       databaseName: "neondb",
       region: "westus3.azure",
       runtimeRole: "grainline_app_runtime",
+      staffReadRole: "grainline_staff_read_runtime",
     });
   });
 
@@ -63,6 +69,39 @@ describe("Vercel runtime database environment isolation", () => {
     assert.throws(
       () => assertVercelRuntimeDatabaseIsolation(productionEnv(hidden)),
       /PostgreSQL URLs outside DATABASE_URL/,
+    );
+  });
+
+  it("accepts only the separately authenticated staff read URL on the same pooler", () => {
+    assert.deepEqual(
+      unreviewedPostgresUrlEnvironmentKeys({
+        DATABASE_URL: RUNTIME_URL,
+        ORDER_STAFF_READ_DATABASE_URL: STAFF_READ_URL,
+      }),
+      [],
+    );
+    const invalid = [
+      RUNTIME_URL,
+      STAFF_READ_URL.replace("-pooler", ""),
+      STAFF_READ_URL.replace("ep-plain-river-aaqg8gj4", "ep-other-endpoint"),
+      STAFF_READ_URL.replace("/neondb?", "/otherdb?"),
+    ];
+    for (const ORDER_STAFF_READ_DATABASE_URL of invalid) {
+      assert.throws(
+        () => assertVercelRuntimeDatabaseIsolation(
+          productionEnv({ ORDER_STAFF_READ_DATABASE_URL }),
+        ),
+      );
+    }
+  });
+
+  it("requires the reviewed staff read credential in production", () => {
+    assert.throws(
+      () => assertVercelRuntimeDatabaseIsolation(
+        productionEnv({ ORDER_STAFF_READ_DATABASE_URL: undefined }),
+        { requireOrderStaffReadDatabase: true },
+      ),
+      /required for staff Order reads/,
     );
   });
 
@@ -99,6 +138,14 @@ describe("Vercel runtime database environment isolation", () => {
       VERCEL_ENV: "preview",
       DIRECT_URL: "",
     }));
+    assert.throws(
+      () => assertVercelRuntimeDatabaseIsolation({
+        VERCEL: "1",
+        VERCEL_ENV: "preview",
+        ORDER_STAFF_READ_DATABASE_URL: STAFF_READ_URL,
+      }),
+      /must be absent when DATABASE_URL is absent/,
+    );
   });
 
   it("does not impose Vercel-only identity checks on local or CI builds", () => {

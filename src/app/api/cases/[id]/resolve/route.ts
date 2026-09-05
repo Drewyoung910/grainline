@@ -13,7 +13,7 @@ import {
 } from "@/lib/caseStaffResolutionAuthority";
 import { finalizeCaseStaffResolutionWithSideEffects } from "@/lib/caseStaffResolutionFinalization";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { releaseStaleRefundLocks } from "@/lib/refundLocks";
+import { releaseCaseLegacyRefundLock } from "@/lib/orderLegacyRefundLockAuthority";
 import {
   partialRefundInputError,
 } from "@/lib/refundRouteState";
@@ -133,10 +133,6 @@ export async function POST(
       );
     }
 
-    // Legacy refund reservations may still be reclaimed, but the shared
-    // cleanup excludes every Order carrying a durable Case claim lease.
-    await releaseStaleRefundLocks();
-
     let parsed: z.infer<typeof CaseResolveSchema>;
     try {
       parsed = CaseResolveSchema.parse(
@@ -191,6 +187,10 @@ export async function POST(
 
     let prepared;
     try {
+      // Retire only a stale pre-generation lock on this Case's exact Order.
+      // The fixed operation independently revalidates the active staff actor,
+      // nonterminal Case relationship and absence of every modern claim.
+      await releaseCaseLegacyRefundLock({ actorUserId: me.id, caseId: id });
       prepared = await prepareCaseStaffResolution({
         actorUserId: me.id,
         caseId: id,

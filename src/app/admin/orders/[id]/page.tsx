@@ -1,10 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import AdminOrderActions from "./AdminOrderActions";
 import { publicListingPath } from "@/lib/publicPaths";
 import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
-import { isAmbiguousRefundState, isRefundProcessingState } from "@/lib/refundLockState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
@@ -13,7 +11,8 @@ import { caseResolutionLabel } from "@/lib/caseLabels";
 import { orderPaymentEventTypeLabel } from "@/lib/orderPaymentEventLabels";
 import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
 import { staffOrderPaymentTimeline } from "@/lib/orderPaymentEventReadAuthority";
-import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
+import { readStaffOrderDetail } from "@/lib/orderStaffReadAuthority";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -56,22 +55,11 @@ export default async function AdminOrderDetailPage({
   const staff = await requireAdminPageAccess();
   const { id } = await params;
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      buyer: { select: { name: true, email: true, clerkId: true } },
-      sellerProfile: { select: { id: true, displayName: true } },
-      items: {
-        select: {
-          id: true,
-          listingId: true,
-          listingSnapshot: true,
-          priceCents: true,
-          quantity: true,
-        },
-      },
-    },
-  });
+  const order = await readStaffOrderDetail(
+    staff.id,
+    id,
+    getOrderStaffReadClient(),
+  );
 
   if (!order) notFound();
   const paymentEvents = await staffOrderPaymentTimeline(staff.id, order.id);
@@ -87,10 +75,8 @@ export default async function AdminOrderDetailPage({
   const total = orderTotalCents(order);
   const buyerName = order.buyerDataPurgedAt
     ? "Buyer data purged"
-    : order.buyerName ?? order.buyer?.name ?? "Deleted user";
-  const buyerEmail = order.buyerDataPurgedAt
-    ? null
-    : order.buyerEmail ?? order.buyer?.email ?? null;
+    : order.buyerName ?? "Deleted user";
+  const buyerEmail = order.buyerDataPurgedAt ? null : order.buyerEmail;
 
   // Fulfillment timeline entries
   const timeline: { label: string; at: Date | null }[] = [
@@ -104,16 +90,10 @@ export default async function AdminOrderDetailPage({
     { label: "Delivered", at: order.deliveredAt },
   ].filter((e) => e.at !== null);
 
-  const historicalItems = order.items.map((item) => ({
-    ...item,
-    snapshot: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents),
-  }));
+  const historicalItems = order.items;
   const sellers = [{
-    id: order.sellerProfile?.id ?? "legacy-order-seller",
-    displayName:
-      historicalItems[0]?.snapshot.sellerName
-      ?? order.sellerProfile?.displayName
-      ?? "Unnamed seller",
+    id: order.sellerProfileId ?? "legacy-order-seller",
+    displayName: order.sellerDisplayName,
   }];
   const externalRefund = latestRefundLedgerEvent(paymentEvents);
 
@@ -215,12 +195,18 @@ export default async function AdminOrderDetailPage({
                   <div className="h-14 w-14 rounded border bg-neutral-100 shrink-0" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <Link
-                    href={publicListingPath(it.listingId, it.snapshot.title)}
-                    className="block truncate text-sm font-medium text-neutral-800 hover:underline"
-                  >
-                    {it.snapshot.title}
-                  </Link>
+                  {it.listingActive ? (
+                    <Link
+                      href={publicListingPath(it.listingId, it.snapshot.title)}
+                      className="block truncate text-sm font-medium text-neutral-800 hover:underline"
+                    >
+                      {it.snapshot.title}
+                    </Link>
+                  ) : (
+                    <span className="block truncate text-sm font-medium text-neutral-800">
+                      {it.snapshot.title}
+                    </span>
+                  )}
                   <div className="mt-0.5 text-xs text-neutral-500">
                     {it.snapshot.sellerName} · {fmtMoney(it.priceCents, currency)} ×{" "}
                     {it.quantity}
@@ -259,12 +245,12 @@ export default async function AdminOrderDetailPage({
             <span>Total</span>
             <span>{fmtMoney(total, currency)}</span>
           </div>
-          {isRefundProcessingState(order.sellerRefundId) ? (
+          {order.sellerRefundState === "PROCESSING" || order.sellerRefundState === "AMBIGUOUS" ? (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
-              <span>{isAmbiguousRefundState(order.sellerRefundId) ? "Seller refund needs review" : "Seller refund processing"}</span>
-              <span className="font-medium">{isAmbiguousRefundState(order.sellerRefundId) ? "Manual review" : "Pending"}</span>
+              <span>{order.sellerRefundState === "AMBIGUOUS" ? "Seller refund needs review" : "Seller refund processing"}</span>
+              <span className="font-medium">{order.sellerRefundState === "AMBIGUOUS" ? "Manual review" : "Pending"}</span>
             </div>
-          ) : order.sellerRefundId ? (
+          ) : order.sellerRefundState === "RECORDED" && order.sellerRefundId ? (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
               <span>
                 Seller refund
@@ -290,7 +276,7 @@ export default async function AdminOrderDetailPage({
               <span className="font-medium">{fmtMoney(caseRecord.refundAmountCents, currency)}</span>
             </div>
           )}
-          {!order.sellerRefundId && !hasCaseRefund && externalRefund && (
+          {order.sellerRefundState !== "RECORDED" && !hasCaseRefund && externalRefund && (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
               <span>
                 External Stripe refund
@@ -500,12 +486,12 @@ export default async function AdminOrderDetailPage({
           labelStatus={order.labelStatus ?? null}
           labelClawbackStatus={order.labelClawbackStatus ?? null}
           canReconcileRefundClaim={
-            staff.role === "ADMIN" && order.refundClaimId !== null
+            staff.role === "ADMIN" && order.refundClaimState !== null
           }
           refundClaimState={
-            order.refundClaimId === null
+            order.refundClaimState === null
               ? null
-              : isAmbiguousRefundState(order.sellerRefundId)
+              : order.refundClaimState === "AMBIGUOUS"
                 ? "ambiguous"
                 : "pending"
           }

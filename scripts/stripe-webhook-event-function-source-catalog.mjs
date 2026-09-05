@@ -64,7 +64,10 @@ function normalizeIdentityArguments(declarations) {
     .join(", ");
 }
 
-export function stripeWebhookEventFunctionSources(rootDir = ROOT_DIR) {
+export function stripeWebhookEventFunctionSources(
+  rootDir = ROOT_DIR,
+  { throughMigration } = {},
+) {
   const migrationsDir = path.join(rootDir, "prisma", "migrations");
   const expected = new Map(
     STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map((entry) => [
@@ -75,6 +78,9 @@ export function stripeWebhookEventFunctionSources(rootDir = ROOT_DIR) {
   const sources = new Map();
   for (const entry of readdirSync(migrationsDir, { withFileTypes: true })
     .filter((candidate) => candidate.isDirectory())
+    .filter((candidate) => (
+      throughMigration === undefined || candidate.name <= throughMigration
+    ))
     .sort((left, right) => left.name.localeCompare(right.name))) {
     const migrationPath = path.join(migrationsDir, entry.name, "migration.sql");
     if (!existsSync(migrationPath)) continue;
@@ -101,16 +107,22 @@ export function stripeWebhookEventFunctionSources(rootDir = ROOT_DIR) {
   ));
 }
 
-export function stripeWebhookEventFunctionSourceMd5(rootDir = ROOT_DIR) {
+export function stripeWebhookEventFunctionSourceMd5(
+  rootDir = ROOT_DIR,
+  options = {},
+) {
   return Object.freeze(Object.fromEntries(
-    Object.entries(stripeWebhookEventFunctionSources(rootDir))
+    Object.entries(stripeWebhookEventFunctionSources(rootDir, options))
       .map(([name, source]) => [name, digest("md5", source)]),
   ));
 }
 
-export function stripeWebhookEventFunctionSourceSha256(rootDir = ROOT_DIR) {
+export function stripeWebhookEventFunctionSourceSha256(
+  rootDir = ROOT_DIR,
+  options = {},
+) {
   return Object.freeze(Object.fromEntries(
-    Object.entries(stripeWebhookEventFunctionSources(rootDir))
+    Object.entries(stripeWebhookEventFunctionSources(rootDir, options))
       .map(([name, source]) => [name, digest("sha256", source)]),
   ));
 }

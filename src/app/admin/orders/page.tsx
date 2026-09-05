@@ -1,11 +1,12 @@
-import { prisma } from "@/lib/db";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
-import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
+import { readStaffOrderPage } from "@/lib/orderStaffReadAuthority";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 const PAGE_SIZE = 25;
 
@@ -19,30 +20,20 @@ export default async function AllOrdersPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  await requireAdminPageAccess();
+  const staff = await requireAdminPageAccess();
   const { page: pageParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 
-  const total = await prisma.order.count();
+  const result = await readStaffOrderPage(
+    staff.id,
+    "ALL",
+    requestedPage,
+    PAGE_SIZE,
+    getOrderStaffReadClient(),
+  );
+  if (!result) notFound();
+  const { totalCount: total, safePage, orders } = result;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const safePage = Math.min(requestedPage, totalPages);
-
-  const orders = await prisma.order.findMany({
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (safePage - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    include: {
-      buyer: { select: { name: true, email: true } },
-      sellerProfile: { select: { id: true, displayName: true } },
-      items: {
-        select: {
-          priceCents: true,
-          quantity: true,
-          listingSnapshot: true,
-        },
-      },
-    },
-  });
 
   return (
     <div>
@@ -73,35 +64,21 @@ export default async function AllOrdersPage({
               </thead>
               <tbody className="divide-y divide-neutral-100">
                 {orders.map((order) => {
-                  const rowTotal = orderTotalCents(order);
-                  const historicalItems = order.items.map((item) => ({
-                    ...item,
-                    snapshot: readHistoricalOrderItemSnapshot(
-                      item.listingSnapshot,
-                      item.priceCents,
-                    ),
-                  }));
-                  const sellerName =
-                    historicalItems[0]?.snapshot.sellerName
-                    ?? order.sellerProfile?.displayName
-                    ?? "Unnamed seller";
+                  const rowTotal = orderTotalCents({
+                    chargedTotalCents: order.chargedTotalCents,
+                    itemsSubtotalCents: order.itemsSubtotalCents,
+                    shippingAmountCents: order.shippingAmountCents,
+                    taxAmountCents: order.taxAmountCents,
+                    giftWrappingPriceCents: order.giftWrappingPriceCents,
+                  });
+                  const sellerName = order.sellerLabel;
                   const itemSummary = order.items
                     .slice(0, 3)
-                    .map((item) => {
-                      const snapshot = readHistoricalOrderItemSnapshot(
-                        item.listingSnapshot,
-                        item.priceCents,
-                      );
-                      return `${item.quantity}× ${snapshot.title}`;
-                    })
+                    .map((item) => `${item.quantity}× ${item.title}`)
                     .join(", ");
-                  const remainingItems = Math.max(0, order.items.length - 3);
-                  const buyer = order.buyerDataPurgedAt
-                    ? "Buyer data purged"
-                    : order.buyerName ?? order.buyerEmail ?? order.buyer?.name ?? order.buyer?.email ?? "Deleted user";
-                  const buyerEmail = order.buyerDataPurgedAt
-                    ? null
-                    : order.buyerEmail ?? order.buyer?.email ?? null;
+                  const remainingItems = Math.max(0, order.itemCount - 3);
+                  const buyer = order.buyerLabel;
+                  const buyerEmail = order.buyerEmail;
                   return (
                     <tr key={order.id} className="hover:bg-neutral-50">
                       <td className="px-4 py-3">

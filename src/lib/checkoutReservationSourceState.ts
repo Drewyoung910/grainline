@@ -27,11 +27,17 @@ type CheckoutSourceListing = Readonly<{
   id: string;
   sellerId: string;
   title: string;
+  description: string;
   priceCents: number;
   priceVersion: number;
   currency: string | null;
   status: string;
   listingType: string;
+  processingTimeMinDays: number | null;
+  processingTimeMaxDays: number | null;
+  shipsWithinDays: number | null;
+  category: string | null;
+  tags: readonly string[];
   isPrivate: boolean;
   reservedForUserId: string | null;
   packagedWeightGrams: number | null;
@@ -222,6 +228,19 @@ function listingSourceWitness(listing: CheckoutSourceListing) {
   };
 }
 
+function listingSnapshotWitness(listing: CheckoutSourceListing) {
+  return {
+    ...listingSourceWitness(listing),
+    description: listing.description,
+    category: listing.category,
+    tags: [...listing.tags],
+    imageUrls: listing.photos.map((photo) => photo.url),
+    processingTimeMinDays: listing.processingTimeMinDays,
+    processingTimeMaxDays: listing.processingTimeMaxDays,
+    shipsWithinDays: listing.shipsWithinDays,
+  };
+}
+
 /**
  * Returns the raw database witness PostgreSQL independently rebuilds while all
  * checkout source rows are locked. The witness is rejection-only: the fixed
@@ -269,6 +288,60 @@ export function singleCheckoutReservationSourceWitness(
       selectedVariantOptionIds: [...selectedVariantOptionIds],
       listing: listingSourceWitness(listing),
     },
+  });
+}
+
+/**
+ * Versioned Order-history source. It retains the predecessor pricing witness
+ * and adds every mutable listing field copied into the eventual OrderItem.
+ */
+export function cartCheckoutReservationSnapshotWitness(
+  buyerId: string,
+  sellerProfileId: string,
+  items: readonly CheckoutSourceCartItem[],
+): string | null {
+  const legacyWitness = cartCheckoutReservationSourceWitness(
+    buyerId,
+    sellerProfileId,
+    items,
+  );
+  if (!legacyWitness) return null;
+  const legacy = JSON.parse(legacyWitness) as {
+    seller: ReturnType<typeof sellerSourceWitness>;
+    items: Array<Record<string, unknown> & { cartItemId: string }>;
+  };
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  return exactSignature({
+    seller: legacy.seller,
+    items: legacy.items.map((item) => {
+      const sourceItem = itemById.get(item.cartItemId);
+      if (!sourceItem) throw new Error("Checkout snapshot witness lost a cart item");
+      return { ...item, listing: listingSnapshotWitness(sourceItem.listing) };
+    }),
+  });
+}
+
+/** Equivalent full Order-history source for Buy Now. */
+export function singleCheckoutReservationSnapshotWitness(
+  buyerId: string,
+  listing: CheckoutSourceListing,
+  quantity: number,
+  selectedVariantOptionIds: readonly string[],
+): string | null {
+  const legacyWitness = singleCheckoutReservationSourceWitness(
+    buyerId,
+    listing,
+    quantity,
+    selectedVariantOptionIds,
+  );
+  if (!legacyWitness) return null;
+  const legacy = JSON.parse(legacyWitness) as {
+    seller: ReturnType<typeof sellerSourceWitness>;
+    item: Record<string, unknown>;
+  };
+  return exactSignature({
+    seller: legacy.seller,
+    item: { ...legacy.item, listing: listingSnapshotWitness(listing) },
   });
 }
 

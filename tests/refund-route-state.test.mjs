@@ -10,6 +10,7 @@ const {
   isOpenStripeDisputeStatus,
   isBlockingRefundLedgerEvent,
   latestRefundLedgerEvent,
+  orderHasBlockingLabelOperation,
   orderHasPurchasedLabel,
   orderHasRefundLedger,
   orderRefundTotalCents,
@@ -137,7 +138,19 @@ describe("refund route state", () => {
       }),
       {
         status: 409,
-        error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
+        error: "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
+      },
+    );
+    assert.deepEqual(
+      refundLockAcquisitionConflictResponse({
+        sellerRefundId: null,
+        labelStatus: null,
+        labelClaimStatus: "PROVIDER_PENDING",
+        paymentEvents: [],
+      }),
+      {
+        status: 409,
+        error: "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
       },
     );
     assert.deepEqual(refundLockAcquisitionConflictResponse(null), {
@@ -186,6 +199,33 @@ describe("refund route state", () => {
     assert.equal(orderHasPurchasedLabel({ labelStatus: null }), false);
     assert.equal(orderHasPurchasedLabel({ labelStatus: "PURCHASED" }), true);
     assert.equal(orderHasPurchasedLabel({ labelStatus: "VOIDED" }), false);
+  });
+
+  it("blocks refunds throughout an active label provider claim", () => {
+    assert.equal(orderHasBlockingLabelOperation({}), false);
+    assert.equal(
+      orderHasBlockingLabelOperation({ labelClaimStatus: "PROVIDER_PENDING" }),
+      true,
+    );
+    assert.equal(
+      orderHasBlockingLabelOperation({ labelClaimStatus: "PROVIDER_AMBIGUOUS" }),
+      true,
+    );
+    assert.equal(
+      orderHasBlockingLabelOperation({ labelClaimStatus: "PROVIDER_RECORDED" }),
+      true,
+    );
+    assert.equal(
+      orderHasBlockingLabelOperation({ labelClaimStatus: "FINALIZED" }),
+      false,
+    );
+    assert.equal(
+      orderHasBlockingLabelOperation({
+        labelStatus: "PURCHASED",
+        labelClaimStatus: "FINALIZED",
+      }),
+      true,
+    );
   });
 
   it("treats only failed and canceled refund ledger events as non-blocking", () => {

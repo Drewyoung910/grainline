@@ -31,6 +31,17 @@ import {
   verifyOptionalCaseCorrectnessSuccessor,
 } from "./build-case-correctness-migration.mjs";
 import {
+  ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+  verifyOrderStaffReadChargedTotalCorrection,
+} from "./verify-order-staff-read-charged-total-correction.mjs";
+import {
+  ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+  verifyOrderAccountDeletionAuthority,
+} from "./verify-order-account-deletion-authority.mjs";
+import {
+  appendReviewedOrderZeroDirectCompatibleSuccessors,
+} from "./stage-order-zero-direct-compatible-prefix.mjs";
+import {
   ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
   ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
@@ -165,6 +176,47 @@ export function verifyOrderPaymentEventActivationRelease(
   if (caseCorrectnessSuccessor) {
     omittedReviewedMigrationNames.push(CASE_CORRECTNESS_MIGRATION);
   }
+  const staffReadCorrectionPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+  );
+  if (fs.existsSync(staffReadCorrectionPath)) {
+    if (!caseCorrectnessSuccessor) {
+      throw new Error(
+        "Order staff charged-total correction requires the Case correctness predecessor",
+      );
+    }
+    verifyOrderStaffReadChargedTotalCorrection(rootDirectory);
+    omittedReviewedMigrationNames.push(
+      ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+    );
+  }
+  const accountDeletionAuthorityPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+  );
+  if (fs.existsSync(accountDeletionAuthorityPath)) {
+    if (!omittedReviewedMigrationNames.includes(
+      ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+    )) {
+      throw new Error(
+        "Order account-deletion authority requires the staff charged-total correction",
+      );
+    }
+    verifyOrderAccountDeletionAuthority(rootDirectory);
+    omittedReviewedMigrationNames.push(ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION);
+  }
+  appendReviewedOrderZeroDirectCompatibleSuccessors({
+    root: rootDirectory,
+    laterMigrations: fs.readdirSync(migrationDirectory, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => name > ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION),
+    reviewedSuccessors: omittedReviewedMigrationNames,
+    expectedPredecessor: ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+  });
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
     rootDirectory,

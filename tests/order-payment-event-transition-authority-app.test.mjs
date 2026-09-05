@@ -44,7 +44,13 @@ describe("OrderPaymentEvent transition-authority application conversion", () => 
       "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
     );
     const refund = source("src/app/api/orders/[id]/refund/route.ts");
+    const refundPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const webhookReviewAuthority = source(
+      "docs/rls-drafts/order-checkout-refund-review-authority.sql",
+    );
 
     assert.match(confirmation, /finalizeBuyerOrderReceipt/u);
     assert.match(fulfillment, /finalizeSellerOrderFulfillment/u);
@@ -54,9 +60,12 @@ describe("OrderPaymentEvent transition-authority application conversion", () => 
     assert.doesNotMatch(label, /paymentRefundBlockedSql|paymentOpenDisputeBlockedSql/u);
     assert.match(labelAuthority, /source_order\."paymentRefundBlocked"/u);
     assert.match(labelAuthority, /source_order\."paymentOpenDisputeBlocked"/u);
-    assert.match(refund, /paymentOpenDisputeBlocked/u);
-    assert.match(webhook, /paymentRefundBlocked/u);
-    assert.match(webhook, /paymentOpenDisputeBlocked/u);
+    assert.match(refund, /sellerRefundPreflight/u);
+    assert.match(refundPreflight, /locked_order\."paymentOpenDisputeBlocked"/u);
+    assert.match(webhook, /recordCheckoutRefundReview/u);
+    assert.doesNotMatch(webhook, /paymentRefundBlocked|paymentOpenDisputeBlocked/u);
+    assert.match(webhookReviewAuthority, /source_order\."paymentRefundBlocked"/u);
+    assert.match(webhookReviewAuthority, /source_order\."paymentOpenDisputeBlocked"/u);
   });
 
   it("keeps runtime SQL projection-only and retires the unused generic writer", () => {

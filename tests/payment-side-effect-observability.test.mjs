@@ -296,18 +296,20 @@ describe("payment and fulfillment side-effect observability", () => {
     const sellerAuthority = source(
       "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
     );
+    const sellerPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
 
-    assert.match(sellerRoute, /paymentRefundBlocked/);
-    assert.match(sellerRoute, /paymentOpenDisputeBlocked/);
+    assert.match(sellerPreflight, /locked_order\."paymentRefundBlocked"/);
+    assert.match(sellerPreflight, /locked_order\."paymentOpenDisputeBlocked"/);
     assert.doesNotMatch(sellerRoute, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
-    assert.match(sellerRoute, /sellerRefundConflictResponse/);
-    assert.match(sellerRoute, /orderHasRefundLedger/);
+    assert.match(sellerRoute, /sellerRefundPreflightConflictResponse/);
     assert.match(sellerRoute, /claimSellerOrderRefund\(\{/);
     assert.doesNotMatch(sellerRoute, /\.\$executeRaw`[\s\S]*SET "sellerRefundId"/);
 
     assert.match(
       sellerRoute,
-      /if \(orderHasRefundLedger\(orderForRefundState\)\)/,
+      /const initialDecision = await sellerRefundPreflight\(\{/,
     );
     assert.match(
       sellerAuthority,
@@ -386,17 +388,24 @@ describe("payment and fulfillment side-effect observability", () => {
     const labelAuthority = source(
       "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
     );
+    const providerClaimExclusion = source(
+      "docs/rls-drafts/order-provider-claim-exclusion.sql",
+    );
+    const sellerPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
 
-    assert.match(sellerRoute, /orderHasPurchasedLabel/);
+    assert.match(sellerRoute, /freshDecision !== "LABEL_BLOCKED"/);
     assert.match(
-      sellerRoute,
-      /Cannot refund this order after a shipping label has been purchased/,
+      source("src/lib/refundRouteState.ts"),
+      /Cannot refund while a shipping label purchase is active or completed/,
     );
     assert.match(
       sellerAuthority,
       /locked_order\."labelStatus"::text = 'PURCHASED'/,
     );
-    assert.match(sellerRoute, /labelStatus: true/);
+    assert.match(sellerPreflight, /locked_order\."labelStatus"::text = 'PURCHASED'/);
+    assert.match(sellerPreflight, /'PROVIDER_PENDING'/);
 
     assert.doesNotMatch(caseRoute, /orderHasPurchasedLabel/);
     assert.match(
@@ -418,6 +427,16 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(labelAuthority, /locked_order\."paymentRefundBlocked"/);
     assert.match(labelAuthority, /locked_order\."paymentOpenDisputeBlocked"/);
     assert.doesNotMatch(labelRoute, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
+
+    assert.match(
+      providerClaimExclusion,
+      /"labelClaimStatus" IN \([\s\S]*'PROVIDER_PENDING'[\s\S]*'PROVIDER_AMBIGUOUS'[\s\S]*'PROVIDER_RECORDED'/,
+    );
+    assert.match(
+      providerClaimExclusion,
+      /"sellerRefundId" IS NOT NULL[\s\S]*"refundClaimId" IS NOT NULL/,
+    );
+    assert.doesNotMatch(providerClaimExclusion, /ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY|GRANT|REVOKE/);
   });
 
   it("keeps seller refund copy honest when transfer reversal needs manual reconciliation", () => {
@@ -567,52 +586,36 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("skips post-payment side effects for refunded or blocked checkout orders", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
+    const postpaymentSql = source("docs/rls-drafts/order-checkout-postpayment-authority.sql");
+    const existingSql = source("docs/rls-drafts/order-checkout-existing-authority.sql");
 
-    assert.match(route, /function orderPostPaymentSideEffectsBlocked/);
-    assert.match(route, /function blockedCheckoutReviewPrefix/);
-    assert.match(route, /function blockedCheckoutReviewReason/);
-    assert.match(route, /function blockedCheckoutRefundRetryReason/);
-    assert.match(route, /function blockedCheckoutRefundStillInProgress/);
-    assert.match(route, /orderHasRefundLedger\(order\)/);
-    assert.match(route, /BLOCKED_CHECKOUT_REVIEW_MARKER/);
-    assert.match(route, /sellerRefundId: true/);
-    assert.match(route, /sellerRefundLockedAt: true/);
-    assert.match(route, /reviewNeeded: true/);
-    assert.match(
-      route,
-      /if \(orderPostPaymentSideEffectsBlocked\(order\)\) return/,
+    const refundReviewSql = source(
+      "docs/rls-drafts/order-checkout-refund-review-authority.sql",
     );
+    assert.match(route, /if \(result\.outcome === "blocked"\) return/);
+    assert.match(postpaymentSql, /source_order\."sellerRefundId" IS NOT NULL/);
+    assert.match(postpaymentSql, /source_order\."paymentRefundBlocked"/);
+    assert.match(postpaymentSql, /Order was held for staff review\./);
     const existingOrderBranch = route.slice(
-      route.indexOf("const already = await prisma.order.findFirst"),
+      route.indexOf("const existingOrder = await readExistingCheckoutOrder"),
       route.indexOf("// Retrieve with expansions"),
     );
-    assert.match(existingOrderBranch, /reviewNeeded: true/);
-    assert.match(existingOrderBranch, /reviewNote: true/);
-    assert.match(existingOrderBranch, /paymentRefundBlocked: true/);
-    assert.doesNotMatch(existingOrderBranch, /blockingRefundLedgerWhere\(\)|paymentEvents\s*:/);
-    assert.match(existingOrderBranch, /const retryReason = blockedCheckoutRefundRetryReason\(already, event\.id\)/);
-    assert.match(existingOrderBranch, /refundClaimSource: true/);
-    assert.match(existingOrderBranch, /refundClaimSourceId: true/);
-    assert.doesNotMatch(existingOrderBranch, /buyerId: already\.buyerId/);
-    assert.match(existingOrderBranch, /sellerProfile: \{ select: \{ userId: true \} \}/);
-    assert.match(existingOrderBranch, /sellerUserIds: already\.sellerProfile\?\.userId/);
-    assert.doesNotMatch(existingOrderBranch, /listing:\s*\{\s*select:\s*\{\s*seller:/s);
-    assert.match(existingOrderBranch, /blockedCheckoutRefundStillInProgress\(already\)/);
+    assert.doesNotMatch(existingOrderBranch, /prisma\.order\./);
+    assert.match(existingOrderBranch, /existingOrder\.outcome === "retry"/);
+    assert.match(existingOrderBranch, /existingOrder\.outcome === "processing"/);
     assert.match(existingOrderBranch, /throw new Error\("Blocked checkout automatic refund is still in progress\."\)/);
-    assert.match(existingOrderBranch, /if \(!orderPostPaymentSideEffectsBlocked\(already\)\) \{/);
+    assert.match(existingOrderBranch, /enqueueOrderPostPaymentSideEffects\(sessionId/);
+    assert.match(existingSql, /source_order\."refundClaimId" IS NOT NULL/);
+    assert.match(existingSql, /source_order\."refundClaimSourceId" = p_event_id/);
+    assert.match(existingSql, /source_order\."sellerRefundLockedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes'/);
     assert.ok(
-      existingOrderBranch.indexOf("orderPostPaymentSideEffectsBlocked(already)") <
-        existingOrderBranch.indexOf("enqueueOrderPostPaymentSideEffects(already.id"),
-      "existing-order retries must block side effects for marked blocked checkouts",
-    );
-    assert.ok(
-      route.indexOf("blockedCheckoutRefundRetryReason(already, event.id)") <
+      route.indexOf("readExistingCheckoutOrder({") <
         route.indexOf("stripe.checkout.sessions.retrieve"),
       "existing blocked-checkout retries should be detected before retrieving Stripe session details",
     );
     const existingRetryBranch = route.slice(
       route.indexOf("if (existingBlockedCheckoutRetry)"),
-      route.indexOf("// CART CHECKOUT"),
+      route.indexOf("const cartId: string"),
     );
     assert.match(existingRetryBranch, /await releaseCheckoutLock\(checkoutLockKey, sessionId\)/);
     assert.match(existingRetryBranch, /await refundBlockedCheckout\(\{/);
@@ -625,22 +628,17 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(blockedRefundHelper, /input\.lineItems/);
     assert.match(blockedRefundHelper, /finalizeBlockedCheckoutOrderRefund\(/);
     assert.match(existingRetryBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
-    assert.match(route, /reviewNote: cartInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(cartInvalidState\.reason\)/);
-    assert.match(route, /reviewNote: singleInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(singleInvalidState\.reason\)/);
-    assert.match(route, /const reviewPrefix = blockedCheckoutReviewPrefix\(input\.reason\)/);
+    assert.match(route, /recordCheckoutRefundReview\(\{/);
+    assert.match(refundReviewSql, /Order was held for staff review\./);
+    assert.doesNotMatch(refundReviewSql, /p_reason|p_review_note|p_message/);
 
-    const cartInvalidBranch = route.slice(
-      route.indexOf("if (createdCartOrder.invalidReason)"),
-      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdCartOrder.id"),
+    const invalidBranch = route.slice(
+      route.indexOf("if (createdOrder.invalidReason)"),
+      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdOrder.orderId"),
     );
-    const singleInvalidBranch = route.slice(
-      route.indexOf("if (createdSingleOrder.invalidReason)"),
-      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdSingleOrder.id"),
-    );
-    assert.match(cartInvalidBranch, /await refundBlockedCheckout\(\{/);
-    assert.match(cartInvalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
-    assert.match(singleInvalidBranch, /await refundBlockedCheckout\(\{/);
-    assert.match(singleInvalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
+    assert.match(invalidBranch, /await refundBlockedCheckout\(\{/);
+    assert.match(invalidBranch, /reason: createdOrder\.invalidReason/);
+    assert.match(invalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
   });
 
   it("uses a source-bound generation claim before automatic blocked-checkout refunds", () => {
@@ -655,7 +653,11 @@ describe("payment and fulfillment side-effect observability", () => {
       "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
     );
 
-    assert.match(route, /releaseStaleRefundLocks\(input\.orderId\)/);
+    assert.match(route, /releaseBlockedCheckoutLegacyRefundLock\(\{/);
+    assert.match(
+      route,
+      /eventId: event\.id,[\s\S]*eventClaimGeneration: claimGeneration,[\s\S]*sessionId,[\s\S]*orderId: input\.orderId/,
+    );
     assert.match(route, /claimBlockedCheckoutOrderRefund\(\{/);
     assert.match(route, /eventClaimGeneration: claimGeneration/);
     assert.match(route, /sessionId,[\s\S]*orderId: input\.orderId/);
@@ -731,11 +733,15 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(noRefundIdBranch, /retryBlockedCheckoutRefund = true/);
     assert.match(noRefundIdBranch, /throw refundError/);
 
-    const outerCatch = route.slice(
-      route.indexOf("} catch (refundError) {", lockReleaseStart),
-      route.indexOf("await prisma.order.update({", lockReleaseStart),
+    const blockedRefundEnd = route.indexOf("if (existingBlockedCheckoutRetry)");
+    const outerCatchStart = route.lastIndexOf(
+      "} catch (refundError) {",
+      blockedRefundEnd,
     );
+    const outerCatch = route.slice(outerCatchStart, blockedRefundEnd);
     assert.match(outerCatch, /if \(refundId \|\| retryBlockedCheckoutRefund\) \{\s*throw refundError;\s*\}/);
+    assert.match(outerCatch, /recordCheckoutRefundReview\(\{/);
+    assert.match(outerCatch, /action: "provider_failure"/);
   });
 
   it("does not tag ordinary staff case refunds as fraudulent Stripe refunds", () => {
@@ -797,18 +803,15 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("fails paid checkout webhooks instead of creating partial or unrouted orders", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = source("docs/rls-drafts/order-paid-checkout-authority.sql");
 
-    const partialResolutionStart = route.indexOf("stripe_webhook_cart_partial_line_item_resolution");
-    const orderCreateStart = route.indexOf("const order = await tx.order.create", partialResolutionStart);
-    assert.ok(partialResolutionStart > 0, "cart checkout must guard partial paid line resolution");
-    assert.ok(orderCreateStart > partialResolutionStart, "partial paid line guard must run before order creation");
-    assert.match(
-      route,
-      /if \(checkoutItems\.length !== paidItems\.length\) \{[\s\S]*throw new Error\("Paid cart checkout could not resolve all listing records"\);[\s\S]*\}/,
-    );
+    assert.match(route, /if \(paidItems\.length === 0\) \{[\s\S]*throw new Error\("Paid checkout had no source-bound listing line items"\)/);
+    assert.match(paidCheckoutAuthority, /jsonb_array_length\(source_items\) <>[\s\S]*jsonb_array_length\(p_provider->'paidItems'\)/);
+    assert.match(paidCheckoutAuthority, /Paid checkout provider item keys are invalid/);
+    assert.match(paidCheckoutAuthority, /Paid checkout provider item is invalid/);
 
     const metadataStart = route.indexOf("Stripe checkout completion missing routing metadata");
-    const metadataBranch = route.slice(metadataStart, route.indexOf("}, async () => {", metadataStart));
+    const metadataBranch = route.slice(metadataStart, route.indexOf("if (!paymentIntentId", metadataStart));
     assert.match(metadataBranch, /level: "error"/);
     assert.match(metadataBranch, /throw new Error\("Stripe checkout completion missing routing metadata"\)/);
     assert.doesNotMatch(metadataBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
@@ -864,7 +867,7 @@ describe("payment and fulfillment side-effect observability", () => {
       /source: "checkout_stock_restore_failed", route: "cart_checkout_seller"/,
     );
     assert.match(sellerCheckout, /isCheckoutStockUnavailableDatabaseError\(reservationError\)/);
-    assert.match(sellerCheckout, /createConsistentCartCheckoutStockReservation/);
+    assert.match(sellerCheckout, /createSnapshotCartCheckoutStockReservation/);
     assert.match(sellerCheckout, /abortCheckoutStockReservation/);
     assert.match(sellerCheckout, /restoreBuyerExpiredCheckoutStockOnce/);
     assert.match(sellerCheckout, /reason: "checkout_create_error"/);
@@ -873,7 +876,7 @@ describe("payment and fulfillment side-effect observability", () => {
       /source: "checkout_stock_restore_failed", route: "cart_checkout_single"/,
     );
     assert.match(singleCheckout, /isCheckoutStockUnavailableDatabaseError\(reservationError\)/);
-    assert.match(singleCheckout, /createConsistentSingleCheckoutStockReservation/);
+    assert.match(singleCheckout, /createSnapshotSingleCheckoutStockReservation/);
     assert.match(singleCheckout, /abortCheckoutStockReservation/);
     assert.match(singleCheckout, /restoreBuyerExpiredCheckoutStockOnce/);
     assert.match(singleCheckout, /reason: "checkout_create_error"/);

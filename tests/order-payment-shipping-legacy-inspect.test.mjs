@@ -102,21 +102,21 @@ function postureRowsWith(tableName, changes) {
 }
 
 describe("Order/payment/shipping aggregate-only legacy inspection", () => {
-  it("proves current inspection SQL at the exact live FORCE prefix", () => {
+  it("proves current inspection SQL after its label-claim schema dependency", () => {
     const forceAudit = ciWorkflow.indexOf(
       "Re-audit restored OrderPaymentEvent FORCE posture",
     );
     const inspection = ciWorkflow.indexOf(
-      "Prove Order/payment/shipping legacy inspection SQL at the reviewed production prefix",
+      "Prove Order/payment/shipping legacy inspection SQL after label claim preparation",
     );
-    const laterRestore = ciWorkflow.indexOf(
-      "Restore compatible Order participant list authority release",
+    const compatibleApply = ciWorkflow.indexOf(
+      "Apply compatible Order participant authority",
     );
     assert.ok(
       forceAudit >= 0
-      && forceAudit < inspection
-      && inspection < laterRestore,
-      "inspection proof must see the production FORCE prefix without later compatible candidates",
+      && forceAudit < compatibleApply
+      && compatibleApply < inspection,
+      "inspection proof must run after compatible label-claim columns exist",
     );
     assert.equal(
       ciWorkflow.match(/npm run audit:rls-order-payment-shipping-legacy-inspection-postgres/g)?.length,
@@ -190,7 +190,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
   });
 
   it("normalizes only the exact nonnegative aggregate shape", () => {
-    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 86);
+    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 87);
     const normalized = normalizeOrderPaymentShippingLegacyCounts(countRow("2"));
     assert.equal(
       Object.keys(normalized).length,
@@ -413,6 +413,10 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
       /HAVING pg_catalog\.count\(\*\) > 1[\s\S]*label_duplicate_shippo_transaction_identity_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"labelClaimStatus" IN \([\s\S]*'PROVIDER_PENDING'[\s\S]*'PROVIDER_AMBIGUOUS'[\s\S]*'PROVIDER_RECORDED'[\s\S]*"sellerRefundId" IS NOT NULL[\s\S]*"refundClaimId" IS NOT NULL[\s\S]*label_refund_provider_claim_overlap_count/,
     );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,

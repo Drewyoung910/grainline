@@ -79,9 +79,9 @@ describe("admin server action guardrails", () => {
     assert.match(helper, /user\.role !== "EMPLOYEE" && user\.role !== "ADMIN"/);
 
     for (const [path, queryNeedle] of [
-      ["src/app/admin/orders/page.tsx", "prisma.order.findMany"],
-      ["src/app/admin/orders/[id]/page.tsx", "prisma.order.findUnique"],
-      ["src/app/admin/flagged/page.tsx", "prisma.order.findMany"],
+      ["src/app/admin/orders/page.tsx", "readStaffOrderPage("],
+      ["src/app/admin/orders/[id]/page.tsx", "readStaffOrderDetail("],
+      ["src/app/admin/flagged/page.tsx", "readStaffOrderPage("],
       ["src/app/admin/cases/page.tsx", "getStaffCaseQueue"],
       ["src/app/admin/cases/[id]/page.tsx", "getVisibleCaseById"],
       ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
@@ -125,10 +125,12 @@ describe("admin server action guardrails", () => {
     const page = source("src/app/admin/orders/[id]/page.tsx");
 
     assert.match(actions, /export async function recordLabelVoided/);
-    assert.match(actions, /labelStatus !== "PURCHASED"/);
-    assert.match(actions, /labelClawbackStatus === "RETRY_PENDING" \|\| order\.labelClawbackStatus === "RETRYING"/);
-    assert.match(actions, /labelStatus: "VOIDED"/);
-    assert.match(actions, /action: "RECORD_LABEL_VOIDED"/);
+    assert.match(actions, /recordStaffOrderLabelVoided\(admin\.id, orderId\)/);
+    const authority = source("docs/rls-drafts/order-staff-mutation-authority.sql");
+    assert.match(authority, /"labelStatus" IS DISTINCT FROM 'PURCHASED'/);
+    assert.match(authority, /"labelClawbackStatus" IN \('RETRY_PENDING', 'RETRYING'\)/);
+    assert.match(authority, /"labelStatus" = 'VOIDED'/);
+    assert.match(authority, /'RECORD_LABEL_VOIDED'/);
     assert.match(actions, /source: "admin_order_record_label_voided"/);
     assert.match(panel, /recordLabelVoided/);
     assert.match(panel, /Only use this after staff has voided or reconciled the carrier label outside Grainline/);

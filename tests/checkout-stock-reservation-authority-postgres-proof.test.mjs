@@ -18,7 +18,9 @@ import {
   verifyReservationCompatibleTablePosture,
 } from "../scripts/checkout-stock-reservation-authority-production-postflight.mjs";
 import {
+  cartCheckoutReservationSnapshotWitness,
   cartCheckoutReservationSourceWitness,
+  singleCheckoutReservationSnapshotWitness,
   singleCheckoutReservationSourceWitness,
 } from "../src/lib/checkoutReservationSourceState.ts";
 import {
@@ -30,6 +32,10 @@ const sourceConsistencyMigration = fs.readFileSync(
   "prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency/migration.sql",
   "utf8",
 );
+const orderCheckoutSourceSnapshotCandidate = fs.readFileSync(
+  "docs/rls-drafts/order-checkout-source-snapshot.sql",
+  "utf8",
+).replace(/^([\s\S]*?)BEGIN;\s*/, "").replace(/\s*COMMIT;\s*$/, "");
 const activation = fs.readFileSync(
   "docs/rls-drafts/checkout-stock-reservation-activation.sql",
   "utf8",
@@ -87,11 +93,17 @@ const SOURCE_SCHEMA = String.raw`
     id text PRIMARY KEY,
     "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id),
     title varchar(150) NOT NULL DEFAULT 'Proof listing',
+    description varchar(5000) NOT NULL DEFAULT 'Proof description',
     "priceCents" integer NOT NULL DEFAULT 10000,
     "priceVersion" integer NOT NULL DEFAULT 1,
     currency varchar(3) NOT NULL DEFAULT 'usd',
     status public."ListingStatus" NOT NULL DEFAULT 'ACTIVE',
     "listingType" public."ListingType" NOT NULL DEFAULT 'MADE_TO_ORDER',
+    "processingTimeMinDays" integer,
+    "processingTimeMaxDays" integer,
+    "shipsWithinDays" integer,
+    category text,
+    tags text[] NOT NULL DEFAULT '{}',
     "stockQuantity" integer,
     "isPrivate" boolean NOT NULL DEFAULT false,
     "reservedForUserId" text,
@@ -311,11 +323,17 @@ function sourceListing(overrides = {}) {
     id: "source-listing",
     sellerId: "source-seller",
     title: "Source listing",
+    description: "Proof description",
     priceCents: 10500,
     priceVersion: 7,
     currency: "usd",
     status: "ACTIVE",
     listingType: "IN_STOCK",
+    processingTimeMinDays: null,
+    processingTimeMaxDays: null,
+    shipsWithinDays: null,
+    category: null,
+    tags: [],
     isPrivate: false,
     reservedForUserId: null,
     packagedWeightGrams: 1100,
@@ -781,6 +799,172 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
          'NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN'
        )
     `))[0].count), 0);
+  });
+
+  it("persists cart and made-to-order checkout source snapshots in real PostgreSQL", async () => {
+    const cartWitness = cartCheckoutReservationSnapshotWitness(
+      "source-buyer",
+      "source-seller",
+      [sourceCartItem()],
+    );
+    assert.ok(cartWitness);
+
+    await db.exec("BEGIN");
+    try {
+      await db.exec(orderCheckoutSourceSnapshotCandidate);
+      const forgedCartWitness = JSON.stringify({
+        ...JSON.parse(cartWitness),
+        items: [{ ...JSON.parse(cartWitness).items[0], quantity: 99 }],
+      });
+      await db.exec("SAVEPOINT forged_cart_source");
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await assert.rejects(
+        db.query(`
+          SELECT * FROM public.grainline_checkout_reservation_create_cart_snapshot(
+            $1, $2, $3, $4, $5, $6::jsonb
+          )
+        `, [
+          "source-buyer",
+          "source-cart",
+          "source-seller",
+          "snapshot-group",
+          "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+          forgedCartWitness,
+        ]),
+        /Checkout source witness changed/,
+      );
+      await db.exec("ROLLBACK TO SAVEPOINT forged_cart_source");
+      await db.exec("RESET ROLE");
+      assert.equal(Number(rows(await db.query(`
+        SELECT pg_catalog.count(*) AS count
+          FROM public."CheckoutStockReservation"
+         WHERE "payloadHash" = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
+      `))[0].count), 0);
+
+      const forgedHistoryWitness = JSON.stringify({
+        ...JSON.parse(cartWitness),
+        items: [{
+          ...JSON.parse(cartWitness).items[0],
+          listing: {
+            ...JSON.parse(cartWitness).items[0].listing,
+            description: "Description changed after checkout",
+          },
+        }],
+      });
+      await db.exec("SAVEPOINT forged_history_source");
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await assert.rejects(
+        db.query(`
+          SELECT * FROM public.grainline_checkout_reservation_create_cart_snapshot(
+            $1, $2, $3, $4, $5, $6::jsonb
+          )
+        `, [
+          "source-buyer",
+          "source-cart",
+          "source-seller",
+          "snapshot-group",
+          "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+          forgedHistoryWitness,
+        ]),
+        /Checkout source snapshot changed/,
+      );
+      await db.exec("ROLLBACK TO SAVEPOINT forged_history_source");
+      await db.exec("RESET ROLE");
+      assert.equal(Number(rows(await db.query(`
+        SELECT pg_catalog.count(*) AS count
+          FROM public."CheckoutStockReservation"
+         WHERE "payloadHash" = 'HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH'
+      `))[0].count), 0);
+      assert.equal(rows(await db.query(`
+        SELECT pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_checkout_reservation_listing_snapshot_witness(text)',
+          'EXECUTE'
+        ) AS can_read_snapshot_witness
+      `))[0].can_read_snapshot_witness, false);
+
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      const cartCreated = rows(await db.query(`
+        SELECT * FROM public.grainline_checkout_reservation_create_cart_snapshot(
+          $1, $2, $3, $4, $5, $6::jsonb
+        )
+      `, [
+        "source-buyer",
+        "source-cart",
+        "source-seller",
+        "snapshot-group",
+        "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        cartWitness,
+      ]));
+      assert.equal(cartCreated.length, 1);
+
+      await db.exec("RESET ROLE");
+      await db.exec(`
+        UPDATE public."Listing"
+           SET "listingType" = 'MADE_TO_ORDER', "stockQuantity" = NULL
+         WHERE id = 'source-listing'
+      `);
+      const madeToOrderWitness = singleCheckoutReservationSnapshotWitness(
+        "source-buyer",
+        sourceListing({ listingType: "MADE_TO_ORDER" }),
+        1,
+        ["source-walnut"],
+      );
+      assert.ok(madeToOrderWitness);
+
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      const singleCreated = rows(await db.query(`
+        SELECT * FROM public.grainline_checkout_reservation_create_single_snapshot(
+          $1, $2, $3, $4::text[], $5, $6::jsonb
+        )
+      `, [
+        "source-buyer",
+        "source-listing",
+        1,
+        ["source-walnut"],
+        "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+        madeToOrderWitness,
+      ]));
+      assert.equal(singleCreated.length, 1);
+      assert.deepEqual(singleCreated[0].reserved_items, []);
+
+      await db.exec("SAVEPOINT duplicate_made_to_order");
+      await assert.rejects(
+        db.query(`
+          SELECT * FROM public.grainline_checkout_reservation_create_single_snapshot(
+            $1, $2, $3, $4::text[], $5, $6::jsonb
+          )
+        `, [
+          "source-buyer",
+          "source-listing",
+          1,
+          ["source-walnut"],
+          "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+          madeToOrderWitness,
+        ]),
+        /CheckoutStockReservation_active_lock_key|duplicate key/,
+      );
+      await db.exec("ROLLBACK TO SAVEPOINT duplicate_made_to_order");
+
+      await db.exec("RESET ROLE");
+      const persisted = rows(await db.query(`
+        SELECT "payloadHash" AS payload_hash,
+               "reservedItems" AS reserved_items,
+               "sourceSnapshot" AS source_snapshot
+          FROM public."CheckoutStockReservation"
+         WHERE "payloadHash" IN (
+           'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+           'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD'
+         )
+         ORDER BY "payloadHash"
+      `));
+      assert.equal(persisted.length, 2);
+      assert.deepEqual(persisted[0].source_snapshot, JSON.parse(cartWitness));
+      assert.deepEqual(persisted[1].reserved_items, []);
+      assert.deepEqual(persisted[1].source_snapshot, JSON.parse(madeToOrderWitness));
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
   });
 
   it("binds the complete variant graph and validates cart price inside PostgreSQL", async () => {

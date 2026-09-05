@@ -133,8 +133,14 @@ describe("label clawback reconciliation state", () => {
 
   it("keeps active label-cost reconciliation holds visible to staff", () => {
     const adminActions = source("src/app/admin/actions.ts");
+    const staffAuthority = source(
+      "docs/rls-drafts/order-staff-mutation-authority.sql",
+    );
 
-    assert.match(adminActions, /NOT: \{ labelClawbackStatus: \{ in: \["RETRY_PENDING", "RETRYING"\] \} \}/);
+    assert.match(
+      staffAuthority,
+      /locked_order\."labelClawbackStatus" IN \('RETRY_PENDING', 'RETRYING'\)/,
+    );
     assert.match(adminActions, /active label-cost reconciliation/);
   });
 });
