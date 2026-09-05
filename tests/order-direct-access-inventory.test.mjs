@@ -18,7 +18,6 @@ const EXPECTED_DIRECT_ORDER_FILES = Object.freeze([
   "src/lib/accountDeletion.ts",
   "src/lib/audit.ts",
   "src/lib/ban.ts",
-  "src/lib/caseLifecycleLocks.ts",
   "src/lib/checkoutStockRestore.ts",
 ]);
 

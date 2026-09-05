@@ -148,7 +148,6 @@ Lifecycle, repair and retention readers/writers:
 - `src/lib/accountDeletion.ts`
 - `src/lib/audit.ts`
 - `src/lib/ban.ts`
-- `src/lib/caseLifecycleLocks.ts`
 - `src/lib/checkoutStockRestore.ts`
 
 This list is now executable rather than prose-only:
@@ -460,6 +459,14 @@ cleanup. This reduces the candidate direct Order inventory from 14 to 13. The
 SQL remains a database-first draft, so none of the application changes may
 deploy before the fixed functions. See
 `docs/order-legacy-refund-lock-authority.md`.
+
+2026-09-05 proof-lock retirement checkpoint: the remaining raw Order lock in
+`src/lib/caseLifecycleLocks.ts` had no application callsite; only the
+disposable Case concurrency harness imported it. The primitive and its
+database-clock helper now live inside that harness, while the tracked source
+path remains an inert historical marker. This does not change the proof or any
+runtime behavior and avoids creating a fixed database operation for dead code.
+The candidate direct Order inventory falls from 13 to 12.
 
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as

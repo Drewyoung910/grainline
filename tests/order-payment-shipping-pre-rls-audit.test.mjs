@@ -47,7 +47,6 @@ const expected = {
     "src/lib/accountDeletion.ts",
     "src/lib/audit.ts",
     "src/lib/ban.ts",
-    "src/lib/caseLifecycleLocks.ts",
     "src/lib/checkoutStockRestore.ts",
   ],
   OrderItem: [

@@ -17,29 +17,24 @@ function assertOrdered(text, labels) {
 }
 
 describe("Case and Order lifecycle lock protocol", () => {
-  it("uses exact production row locks and keeps the retired Case lock proof-local", () => {
-    const locks = source("src/lib/caseLifecycleLocks.ts");
+  it("keeps the retired raw lifecycle lock model proof-local", () => {
+    const retiredLocks = source("src/lib/caseLifecycleLocks.ts");
     const lifecycleProof = source("scripts/case-lifecycle-postgres-proof.mjs");
 
     assert.match(
-      locks,
-      /SELECT id\s+FROM "User"\s+WHERE id = \$\{userId\}\s+FOR SHARE/s,
-    );
-    assert.match(
-      locks,
+      lifecycleProof,
       /SELECT id\s+FROM "Order"\s+WHERE id = \$\{orderId\}\s+FOR UPDATE/s,
     );
     assert.match(
       lifecycleProof,
       /SELECT id\s+FROM "Case"\s+WHERE id = \$\{caseId\}\s+FOR UPDATE/s,
     );
-    assert.doesNotMatch(locks, /FROM "Case"/);
-    assert.doesNotMatch(locks, /FOR UPDATE SKIP LOCKED|WHERE id IS NOT NULL/);
+    assert.doesNotMatch(retiredLocks, /FROM "(?:User|Order|Case)"/);
     assert.doesNotMatch(
       lifecycleProof,
       /FOR UPDATE SKIP LOCKED|WHERE id IS NOT NULL/,
     );
-    assert.match(locks, /SELECT clock_timestamp\(\) AS now/);
+    assert.match(lifecycleProof, /SELECT clock_timestamp\(\) AS now/);
   });
 
   it("delegates atomic buyer Case creation to the fixed database authority", () => {
