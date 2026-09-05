@@ -148,7 +148,6 @@ Lifecycle, repair and retention readers/writers:
 - `src/lib/accountDeletion.ts`
 - `src/lib/audit.ts`
 - `src/lib/ban.ts`
-- `src/lib/checkoutStockRestore.ts`
 
 This list is now executable rather than prose-only:
 `tests/order-direct-access-inventory.test.mjs` scans both Prisma delegates and
@@ -467,6 +466,17 @@ database-clock helper now live inside that harness, while the tracked source
 path remains an inert historical marker. This does not change the proof or any
 runtime behavior and avoids creating a fixed database operation for dead code.
 The candidate direct Order inventory falls from 13 to 12.
+
+2026-09-05 legacy stock-restore fence checkpoint: unordered-checkout recovery
+previously took the shared Checkout Session advisory lock, queried `Order`
+directly, and then called the fixed legacy restore claim. The source-consistent
+replacement performs the exact `stripeSessionId` existence check inside that
+fixed operation while holding the same transaction-scoped advisory lock used
+by compatible Order creation. The runtime transaction therefore retains the
+lock through stock restoration, and neither side can pass an absence check and
+commit concurrently. The candidate direct Order inventory falls from 12 to 11.
+The replacement SQL is database-first and must deploy before the application.
+See `docs/order-legacy-stock-restore-fence.md`.
 
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
