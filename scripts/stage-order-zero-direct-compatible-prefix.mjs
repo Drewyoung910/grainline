@@ -122,6 +122,33 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_NEW_FUNCTION_NAMES = Object.freeze([
 ]);
 export const ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT = 21;
 
+export const ORDER_ZERO_DIRECT_COMPATIBLE_RUNTIME_FUNCTIONS = Object.freeze([
+  ["grainline_order_refund_claim_provider_clock", "text, bigint, text, text, bigint, text"],
+  ["grainline_seller_refund_preflight", "text, text"],
+  ["grainline_blocked_checkout_legacy_refund_lock_release", "text, bigint, text, text"],
+  ["grainline_case_legacy_refund_lock_release", "text, text"],
+  ["grainline_order_legacy_refund_lock_prune", "integer"],
+  ["grainline_legacy_stock_restore_claim", "text"],
+  ["grainline_order_refund_reconciliation_committed", "text, text, bigint"],
+  ["grainline_order_staff_mark_reviewed", "text, text"],
+  ["grainline_order_staff_record_label_voided", "text, text"],
+  ["grainline_order_staff_append_note", "text, text, text"],
+  ["grainline_order_flag_banned_seller_open_orders", "text, text"],
+  ["grainline_order_restore_banned_seller_reviews", "text, text, jsonb"],
+  ["grainline_checkout_reservation_create_cart_snapshot", "text, text, text, text, text, jsonb"],
+  ["grainline_checkout_reservation_create_single_snapshot", "text, text, integer, text[], text, jsonb"],
+  ["grainline_stripe_seller_deauthorization_apply", "text, bigint, text, timestamp without time zone"],
+  ["grainline_stripe_checkout_order_create", "text, bigint, text, text, timestamp without time zone, jsonb"],
+  ["grainline_stripe_checkout_order_existing", "text, bigint, text"],
+  ["grainline_stripe_checkout_postpayment", "text, bigint, text"],
+  ["grainline_stripe_checkout_refund_review", "text, bigint, text, text, text"],
+].map((entry) => Object.freeze(entry)));
+
+export const ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS = Object.freeze([
+  ["grainline_checkout_reservation_listing_snapshot_witness", "text"],
+  ["grainline_seller_deauthorization_application_immutable", ""],
+].map((entry) => Object.freeze(entry)));
+
 function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }

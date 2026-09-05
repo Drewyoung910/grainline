@@ -12,6 +12,7 @@ import {
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 
 const temporaryRoots = [];
+const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
 
 function temporaryRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "grainline-order-prefix-"));
@@ -144,6 +145,37 @@ describe("Order zero-direct compatible prefix staging", () => {
           "20260905020000_prepare_order_account_deletion_authority",
       }),
       /exact reviewed predecessor/,
+    );
+  });
+
+  it("isolates the complete suffix until its exact predecessors are applied", () => {
+    const isolateIndex = ciWorkflow.indexOf(
+      "Isolate Order zero-direct suffix until every predecessor passes",
+    );
+    const firstDeployIndex = ciWorkflow.indexOf("npx prisma migrate deploy");
+    const restoreIndex = ciWorkflow.indexOf(
+      "Restore complete Order zero-direct compatible suffix",
+    );
+    const compatibleDeployIndex = ciWorkflow.indexOf(
+      "Apply compatible Order participant authority",
+    );
+    const proofIndex = ciWorkflow.indexOf(
+      "Prove complete Order zero-direct prefix in disposable PostgreSQL",
+    );
+    assert.ok(isolateIndex > 0 && isolateIndex < firstDeployIndex);
+    assert.ok(restoreIndex > firstDeployIndex);
+    assert.ok(restoreIndex < compatibleDeployIndex);
+    assert.ok(proofIndex > compatibleDeployIndex);
+    for (const migration of ORDER_ZERO_DIRECT_COMPATIBLE_SUCCESSOR_MIGRATIONS) {
+      assert.equal(
+        (ciWorkflow.match(new RegExp(migration, "gu")) ?? []).length,
+        2,
+        `${migration} must appear once in isolation and once in restoration`,
+      );
+    }
+    assert.match(
+      ciWorkflow,
+      /ORDER_ZERO_DIRECT_COMPATIBLE_PREFIX_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/u,
     );
   });
 });

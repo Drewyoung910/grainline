@@ -88,6 +88,14 @@ must run migration status, the global grant/RLS audit and an exact read-only
 post-application scope proof. A distinct actual pooled-runtime postflight is
 still required.
 
+The isolated CI candidate now removes all fourteen suffix migrations before
+any predecessor deployment, restores them only after the two leading members,
+and applies the complete prefix to the disposable PostgreSQL 16 service. Its
+engine-read-only proof pins all sixteen migration-ledger rows and checks the
+retained Order posture, private SellerDeauthorizationApplication posture,
+function identities/ACLs, constraints and immutable trigger. This is CI proof
+only; it is not production evidence or an actual pooled-runtime postflight.
+
 ## Sequence after compatible preparation
 
 1. Finish the comprehensive credential-recovery boundary.
