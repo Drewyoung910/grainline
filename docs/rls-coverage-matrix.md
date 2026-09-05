@@ -158,6 +158,23 @@ completed alternative.
 > See `docs/order-core-pre-rls-audit.md` and
 > `docs/order-compatible-production-release-20260901.md`.
 
+> **Current final-webhook authority audit (2026-09-05):** isolated application
+> checkpoint `3aeb05af` leaves exactly one direct `Order` and one direct
+> `OrderItem` source file, both the signed Stripe webhook; direct
+> `OrderShippingRateQuote` access is zero. The functional audit found two
+> release-blocking design defects before RLS: the locked checkout source was
+> accepted and then discarded before paid-order creation, and seller
+> deauthorization was neither complete for already-held Orders nor restart-safe
+> after clearing the current account ID. Additive draft successors now have
+> disposable PostgreSQL proof for a bounded reservation `sourceSnapshot`, a
+> made-to-order source-only reservation, explicit Order deauthorization fields,
+> and a private immutable event-application ledger. They remain drafts—not
+> Prisma migrations, deployable application authority or production state.
+> Promote them database-first, convert and prove the webhook, drain predecessor
+> deployments, and reach zero direct access before Order Phase A. OrderItem and
+> OrderShippingRateQuote remain later separate activation releases. See
+> `docs/order-stripe-webhook-authority.md`.
+
 ## Coverage Matrix
 
 | Prisma model | Target | Activation owner/group | Data and actors | Blocking prerequisite or next proof |

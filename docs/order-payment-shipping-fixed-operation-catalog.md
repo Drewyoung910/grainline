@@ -4,10 +4,10 @@ Status: mixed implementation ledger. StripeWebhookEvent operations 1-3 and
 34-36 are live behind policyless FORCE RLS. CheckoutStockReservation operations
 4-9 and its bounded export/scrub projections are live behind policyless FORCE
 RLS. SellerPayoutEvent operation 11 plus its latest/export projections are live
-as compatible preparation with RLS off and predecessor table CRUD retained;
-their application conversion remains isolated and undeployed. Remaining Order,
-OrderItem, shipping-quote and
-payment families are design contracts only until their own audited releases.
+behind policyless FORCE RLS. OrderPaymentEvent is also live behind policyless
+FORCE RLS through its separately retained operation catalog. Remaining Order,
+OrderItem and shipping-quote families are design contracts only until their own
+audited releases.
 This document does not authorize SQL, a migration, an EXECUTE grant,
 application deployment or production mutation.
 
@@ -65,6 +65,15 @@ ID-only finalization is forbidden.
    expiry. The older `create_cart` and `create_single` wrappers remain only for
    predecessor deployment coexistence and must be drained before direct grants
    are revoked.
+   The 2026-09-05 final-webhook audit found that these operations prove the
+   complete checkout source and then discard everything except the inventory
+   subset. The additive draft successors
+   `grainline_checkout_reservation_create_cart_snapshot(...)` and
+   `grainline_checkout_reservation_create_single_snapshot(...)` persist the
+   already-accepted witness in a bounded nullable `sourceSnapshot`. The single
+   successor also creates a source-only reservation for made-to-order checkout.
+   These successors have disposable PostgreSQL proof but are not migrations or
+   runtime authority until their separate compatible release is accepted.
 5. `grainline_checkout_reservation_bind_session(...)` binds once to the same
    buyer and application-derived replay fingerprint; a Stripe session cannot
    move between reservations.
@@ -111,14 +120,22 @@ ownership.
 11. `grainline_seller_payout_event_apply(...)` requires the active webhook
     generation, derives SellerProfile from the Stripe account mapping and
     permits only a monotonic payout transition for one payout ID. The
-    2026-08-15 production-live compatible preparation adds an advisory lock for the no-row-yet
+    2026-08-15 compatible preparation added an advisory lock for the no-row-yet
     first-write race, exact replay validation, stale-event rejection and
-    equal-time ambiguity refusal. RLS remains off and the app conversion remains
-    isolated; see
+    equal-time ambiguity refusal. Its later Phase A and FORCE releases are live
+    with no direct ordinary-runtime table authority; see
     `docs/seller-payout-event-compatible-authority-release.md`.
-12. `grainline_seller_deauthorization_flag_orders(...)` requires the webhook
-    generation and uses the durable Order seller key in a bounded batch; it
-    never reconstructs historical ownership through Listing.
+12. `grainline_stripe_seller_deauthorization_apply(...)` is the reviewed draft
+    successor for `account.application.deauthorized`. It requires the active
+    exact webhook event/generation/account tuple, serializes by provider
+    account, derives current or immutable historical seller ownership, clears
+    only the matching current account, and marks every paid pre-event open
+    Order even when another staff hold already exists. Its private immutable
+    `SellerDeauthorizationApplication` ledger makes a retry discoverable after
+    the account ID has been cleared and prevents an older replay from clearing
+    a newly connected account. Dedicated Order columns—not a mutable review-note
+    prefix—become fulfillment and label authority. This draft has real
+    PostgreSQL replay and denial proof but is not yet a migration or grant.
 
 Participants never execute these writers and never read raw provider rows.
 
@@ -254,8 +271,12 @@ the application compatibility layer until converted.
 4. Activate webhook and reservation ledgers through fixed operations.
 5. Activate payment/payout and quote/label ledgers through fixed operations.
 6. Convert every participant, staff, export and aggregate read/mutation.
-7. Activate Order/OrderItem with policyless RLS and zero direct runtime access.
-8. Run pooled-runtime actor/service proofs, then apply FORCE and repeat.
+7. Persist the complete accepted checkout witness and convert the final Stripe
+   webhook writer, including restart-safe seller deauthorization.
+8. Activate Order with policyless RLS and zero direct runtime access; prove it,
+   then apply FORCE and repeat.
+9. Convert and activate OrderItem, then OrderShippingRateQuote, as separate
+   releases rather than inheriting the Order acceptance.
 
 No release may claim a later dependency or leave an unconverted ordinary
 runtime base-table access behind.

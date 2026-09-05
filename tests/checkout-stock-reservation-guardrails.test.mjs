@@ -57,11 +57,11 @@ describe("durable checkout stock reservation guardrails", () => {
     const routes = [
       {
         path: "src/app/api/cart/checkout/single/route.ts",
-        create: /createConsistentSingleCheckoutStockReservation\(\{/,
+        create: /createSnapshotSingleCheckoutStockReservation\(\{/,
       },
       {
         path: "src/app/api/cart/checkout-seller/route.ts",
-        create: /createConsistentCartCheckoutStockReservation\(\{/,
+        create: /createSnapshotCartCheckoutStockReservation\(\{/,
       },
     ];
 
@@ -97,8 +97,8 @@ describe("durable checkout stock reservation guardrails", () => {
       assert.notEqual(stripeCreate, -1);
       assert.ok(sourceMatch < stripeCreate, `${routePath} must compare the locked source before Stripe creation`);
     }
-    assert.match(authorityClient, /createConsistentCartCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
-    assert.match(authorityClient, /createConsistentSingleCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
+    assert.match(authorityClient, /createSnapshotCartCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
+    assert.match(authorityClient, /createSnapshotSingleCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
     assert.match(sourceConsistencySql, /grainline_checkout_reservation_create_cart_consistent/);
     assert.match(sourceConsistencySql, /grainline_checkout_reservation_create_single_consistent/);
     assert.match(sourceConsistencySql, /source_witness IS DISTINCT FROM p_expected_source/);
@@ -304,8 +304,8 @@ describe("durable checkout stock reservation guardrails", () => {
 
   it("exposes only fixed reservation operations through the application authority module", () => {
     for (const operation of [
-      "createConsistentCartCheckoutStockReservation",
-      "createConsistentSingleCheckoutStockReservation",
+      "createSnapshotCartCheckoutStockReservation",
+      "createSnapshotSingleCheckoutStockReservation",
       "bindCheckoutStockReservationSession",
       "completeCheckoutStockReservation",
       "abortCheckoutStockReservation",
