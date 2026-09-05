@@ -91,13 +91,21 @@ Consequences:
   a durable checkout-to-payment database source.
 
 Decision: extend the already policyless-FORCE `CheckoutStockReservation` with
-one nullable, size-bounded object `sourceSnapshot`. Add new versioned creation
+one nullable, 4-MiB-bounded object `sourceSnapshot`. Add new versioned creation
 functions; do not replace predecessor functions in place. The new functions
-persist the application JSON only after the existing locked database function
-has independently rebuilt and accepted that exact witness. The single-item
-successor creates a source-only reservation with `reservedItems = []` for
-made-to-order checkout. This gives every new Checkout Session one durable
-source row without inventing stock.
+first reduce the versioned witness to the predecessor pricing shape and let the
+existing locked function accept it. While those locks remain held, a private
+successor helper independently rebuilds and compares the additional retained
+history fields: description, category, tags, every ordered photo URL,
+processing bounds and ships-within days. Only then is the full JSON persisted.
+The single-item successor creates a source-only reservation with
+`reservedItems = []` for made-to-order checkout. This gives every new Checkout
+Session one durable source row without inventing stock.
+
+The original 1-MiB candidate bound was insufficient: a legitimate 50-item cart
+with ten maximum-length photo URLs per listing can exceed it. The 4-MiB bound
+is covered by a worst-shape application test and remains enforced both on the
+column and at each fixed-operation entry point.
 
 Deployment compatibility order:
 

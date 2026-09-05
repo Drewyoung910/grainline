@@ -16,8 +16,10 @@ describe("Order Stripe webhook authority design", () => {
 
   it("preserves the complete locked checkout source for every new listing type", () => {
     assert.match(design, /sourceSnapshot/);
-    assert.match(design, /only after the existing locked database function[\s\S]*accepted that exact witness/);
-    assert.match(design, /source-only reservation with `reservedItems = \[\]` for[\s\S]*made-to-order/);
+    assert.match(design, /existing locked function accept it[\s\S]*private[\s\S]*helper independently rebuilds/);
+    assert.match(design, /description, category, tags, every ordered photo URL/);
+    assert.match(design, /original 1-MiB candidate bound was insufficient/);
+    assert.match(design, /source-only reservation with\s+`reservedItems = \[\]` for[\s\S]*made-to-order/);
     assert.match(design, /do not replace predecessor functions in place/);
     assert.match(design, /application candidate now calls only the two versioned snapshot\s+functions/);
     assert.match(design, /Do not deploy this candidate until the nullable\s+column and successor functions exist/);

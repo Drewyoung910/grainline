@@ -86,7 +86,7 @@ describe("durable checkout stock reservation guardrails", () => {
       "src/app/api/cart/checkout-seller/route.ts",
     ]) {
       const route = source(routePath);
-      const sourceMatch = route.indexOf("SourceWitness(");
+      const sourceMatch = route.indexOf("SnapshotWitness(");
       const stripeCreate = route.indexOf("stripe.checkout.sessions.create(");
 
       assert.doesNotMatch(route, /prisma\.\$transaction\(async \(tx\) =>/);

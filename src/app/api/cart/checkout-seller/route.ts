@@ -31,7 +31,7 @@ import {
   isCheckoutStockUnavailableDatabaseError,
 } from "@/lib/checkoutStockReservationAuthority";
 import {
-  cartCheckoutReservationSourceWitness,
+  cartCheckoutReservationSnapshotWitness,
 } from "@/lib/checkoutReservationSourceState";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
@@ -539,7 +539,7 @@ export async function POST(req: Request) {
         title: it.listing.title,
       }));
     checkoutReservationItemCount = reservableItems.length;
-    const pricedSourceWitness = cartCheckoutReservationSourceWitness(
+    const pricedSourceWitness = cartCheckoutReservationSnapshotWitness(
       me.id,
       sellerId,
       resolvedSellerItems,

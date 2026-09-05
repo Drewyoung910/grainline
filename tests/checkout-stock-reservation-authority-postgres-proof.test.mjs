@@ -18,7 +18,9 @@ import {
   verifyReservationCompatibleTablePosture,
 } from "../scripts/checkout-stock-reservation-authority-production-postflight.mjs";
 import {
+  cartCheckoutReservationSnapshotWitness,
   cartCheckoutReservationSourceWitness,
+  singleCheckoutReservationSnapshotWitness,
   singleCheckoutReservationSourceWitness,
 } from "../src/lib/checkoutReservationSourceState.ts";
 import {
@@ -91,11 +93,17 @@ const SOURCE_SCHEMA = String.raw`
     id text PRIMARY KEY,
     "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id),
     title varchar(150) NOT NULL DEFAULT 'Proof listing',
+    description varchar(5000) NOT NULL DEFAULT 'Proof description',
     "priceCents" integer NOT NULL DEFAULT 10000,
     "priceVersion" integer NOT NULL DEFAULT 1,
     currency varchar(3) NOT NULL DEFAULT 'usd',
     status public."ListingStatus" NOT NULL DEFAULT 'ACTIVE',
     "listingType" public."ListingType" NOT NULL DEFAULT 'MADE_TO_ORDER',
+    "processingTimeMinDays" integer,
+    "processingTimeMaxDays" integer,
+    "shipsWithinDays" integer,
+    category text,
+    tags text[] NOT NULL DEFAULT '{}',
     "stockQuantity" integer,
     "isPrivate" boolean NOT NULL DEFAULT false,
     "reservedForUserId" text,
@@ -315,11 +323,17 @@ function sourceListing(overrides = {}) {
     id: "source-listing",
     sellerId: "source-seller",
     title: "Source listing",
+    description: "Proof description",
     priceCents: 10500,
     priceVersion: 7,
     currency: "usd",
     status: "ACTIVE",
     listingType: "IN_STOCK",
+    processingTimeMinDays: null,
+    processingTimeMaxDays: null,
+    shipsWithinDays: null,
+    category: null,
+    tags: [],
     isPrivate: false,
     reservedForUserId: null,
     packagedWeightGrams: 1100,
@@ -788,7 +802,7 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
   });
 
   it("persists cart and made-to-order checkout source snapshots in real PostgreSQL", async () => {
-    const cartWitness = cartCheckoutReservationSourceWitness(
+    const cartWitness = cartCheckoutReservationSnapshotWitness(
       "source-buyer",
       "source-seller",
       [sourceCartItem()],
@@ -827,6 +841,48 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
          WHERE "payloadHash" = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
       `))[0].count), 0);
 
+      const forgedHistoryWitness = JSON.stringify({
+        ...JSON.parse(cartWitness),
+        items: [{
+          ...JSON.parse(cartWitness).items[0],
+          listing: {
+            ...JSON.parse(cartWitness).items[0].listing,
+            description: "Description changed after checkout",
+          },
+        }],
+      });
+      await db.exec("SAVEPOINT forged_history_source");
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await assert.rejects(
+        db.query(`
+          SELECT * FROM public.grainline_checkout_reservation_create_cart_snapshot(
+            $1, $2, $3, $4, $5, $6::jsonb
+          )
+        `, [
+          "source-buyer",
+          "source-cart",
+          "source-seller",
+          "snapshot-group",
+          "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+          forgedHistoryWitness,
+        ]),
+        /Checkout source snapshot changed/,
+      );
+      await db.exec("ROLLBACK TO SAVEPOINT forged_history_source");
+      await db.exec("RESET ROLE");
+      assert.equal(Number(rows(await db.query(`
+        SELECT pg_catalog.count(*) AS count
+          FROM public."CheckoutStockReservation"
+         WHERE "payloadHash" = 'HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH'
+      `))[0].count), 0);
+      assert.equal(rows(await db.query(`
+        SELECT pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_checkout_reservation_listing_snapshot_witness(text)',
+          'EXECUTE'
+        ) AS can_read_snapshot_witness
+      `))[0].can_read_snapshot_witness, false);
+
       await db.exec("SET LOCAL ROLE grainline_app_runtime");
       const cartCreated = rows(await db.query(`
         SELECT * FROM public.grainline_checkout_reservation_create_cart_snapshot(
@@ -848,7 +904,7 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
            SET "listingType" = 'MADE_TO_ORDER', "stockQuantity" = NULL
          WHERE id = 'source-listing'
       `);
-      const madeToOrderWitness = singleCheckoutReservationSourceWitness(
+      const madeToOrderWitness = singleCheckoutReservationSnapshotWitness(
         "source-buyer",
         sourceListing({ listingType: "MADE_TO_ORDER" }),
         1,

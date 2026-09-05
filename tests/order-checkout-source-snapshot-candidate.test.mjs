@@ -15,7 +15,7 @@ describe("Order checkout source snapshot candidate", () => {
     assert.match(sql, /ADD COLUMN "sourceSnapshot" jsonb/);
     assert.match(sql, /"sourceSnapshot" IS NULL/);
     assert.match(sql, /jsonb_typeof\("sourceSnapshot"\) = 'object'/);
-    assert.match(sql, /pg_column_size\("sourceSnapshot"\) <= 1048576/);
+    assert.match(sql, /pg_column_size\("sourceSnapshot"\) <= 4194304/);
     assert.doesNotMatch(sql, /UPDATE public\."CheckoutStockReservation"[\s\S]*WHERE "sourceSnapshot" IS NULL/);
   });
 
@@ -26,6 +26,8 @@ describe("Order checkout source snapshot candidate", () => {
     assert.match(sql, /reservation\."sellerId" = p_seller_profile_id/);
     assert.match(sql, /reservation\.status = 'RESERVED'/);
     assert.match(sql, /updated_count <> 1[\s\S]*serialization_failure/);
+    assert.match(sql, /grainline_checkout_reservation_listing_snapshot_witness/);
+    assert.match(sql, /source_item->'listing' IS DISTINCT FROM/);
   });
 
   it("creates a source-only made-to-order lifecycle row without inventing stock", () => {
@@ -38,9 +40,9 @@ describe("Order checkout source snapshot candidate", () => {
   });
 
   it("keeps both successors fixed, search-path pinned and runtime-only", () => {
-    assert.equal((sql.match(/SECURITY DEFINER/g) ?? []).length, 2);
-    assert.equal((sql.match(/SET search_path = pg_catalog/g) ?? []).length, 2);
-    assert.equal((sql.match(/REVOKE ALL ON FUNCTION/g) ?? []).length, 2);
+    assert.equal((sql.match(/SECURITY DEFINER/g) ?? []).length, 3);
+    assert.equal((sql.match(/SET search_path = pg_catalog/g) ?? []).length, 3);
+    assert.equal((sql.match(/REVOKE ALL ON FUNCTION/g) ?? []).length, 3);
     assert.equal((sql.match(/GRANT EXECUTE ON FUNCTION/g) ?? []).length, 2);
     assert.doesNotMatch(sql, /EXECUTE\s+format|\bEXECUTE\s+p_/i);
   });
@@ -56,6 +58,8 @@ describe("Order checkout source snapshot candidate", () => {
     );
     assert.match(cartCheckout, /createSnapshotCartCheckoutStockReservation\(\{/);
     assert.match(singleCheckout, /createSnapshotSingleCheckoutStockReservation\(\{/);
+    assert.match(cartCheckout, /cartCheckoutReservationSnapshotWitness\(/);
+    assert.match(singleCheckout, /singleCheckoutReservationSnapshotWitness\(/);
     assert.match(singleCheckout, /if \(!reservation\)[\s\S]*Snapshot single reservation returned no reservation/);
     assert.match(singleCheckout, /checkoutReservationId = reservation\.id/);
     assert.doesNotMatch(singleCheckout, /listing\.listingType === "IN_STOCK"\)\) \{/);

@@ -15,12 +15,43 @@ ALTER TABLE public."CheckoutStockReservation"
     "sourceSnapshot" IS NULL
     OR (
       pg_catalog.jsonb_typeof("sourceSnapshot") = 'object'
-      AND pg_catalog.pg_column_size("sourceSnapshot") <= 1048576
+      AND pg_catalog.pg_column_size("sourceSnapshot") <= 4194304
     )
   ) NOT VALID;
 
 ALTER TABLE public."CheckoutStockReservation"
   VALIDATE CONSTRAINT "CheckoutStockReservation_sourceSnapshot_check";
+
+-- This successor intentionally includes every mutable Listing value copied
+-- into retained OrderItem history. The predecessor witness remains unchanged
+-- for coexistence with already-deployed checkout routes.
+CREATE FUNCTION public.grainline_checkout_reservation_listing_snapshot_witness(
+  p_listing_id text
+)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+PARALLEL RESTRICTED
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_checkout_reservation_listing_snapshot_witness$
+  SELECT public.grainline_checkout_reservation_listing_witness(listing.id)
+    || pg_catalog.jsonb_build_object(
+      'description', listing.description,
+      'category', listing.category,
+      'tags', pg_catalog.to_jsonb(listing.tags),
+      'imageUrls', COALESCE((
+        SELECT pg_catalog.jsonb_agg(photo.url ORDER BY photo."sortOrder", photo.id)
+          FROM public."Photo" AS photo
+         WHERE photo."listingId" = listing.id
+      ), '[]'::jsonb),
+      'processingTimeMinDays', listing."processingTimeMinDays",
+      'processingTimeMaxDays', listing."processingTimeMaxDays",
+      'shipsWithinDays', listing."shipsWithinDays"
+    )
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+$grainline_checkout_reservation_listing_snapshot_witness$;
 
 CREATE FUNCTION public.grainline_checkout_reservation_create_cart_snapshot(
   p_buyer_id text,
@@ -41,11 +72,40 @@ DECLARE
   source_reservation_id text;
   source_reserved_items jsonb;
   source_expires_at timestamp(3) without time zone;
+  legacy_expected_source jsonb;
+  source_mismatch_count bigint;
   updated_count integer;
 BEGIN
   -- The predecessor rebuilds the complete database source while holding every
   -- mutable dependency lock and accepts p_expected_source only as an equality
   -- witness. Persisting it is safe only after that exact call succeeds.
+  IF p_expected_source IS NULL
+     OR pg_catalog.jsonb_typeof(p_expected_source) <> 'object'
+     OR pg_catalog.jsonb_typeof(p_expected_source->'items') <> 'array'
+     OR pg_catalog.jsonb_array_length(p_expected_source->'items') < 1
+     OR pg_catalog.pg_column_size(p_expected_source) > 4194304 THEN
+    RAISE EXCEPTION 'Checkout source snapshot is invalid'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  SELECT pg_catalog.jsonb_build_object(
+    'seller', p_expected_source->'seller',
+    'items', pg_catalog.jsonb_agg(
+      source_item || pg_catalog.jsonb_build_object(
+        'listing', (source_item->'listing')
+          - 'description'
+          - 'category'
+          - 'tags'
+          - 'imageUrls'
+          - 'processingTimeMinDays'
+          - 'processingTimeMaxDays'
+          - 'shipsWithinDays'
+      ) ORDER BY source_item->>'cartItemId' COLLATE "C"
+    )
+  )
+    INTO STRICT legacy_expected_source
+    FROM pg_catalog.jsonb_array_elements(p_expected_source->'items') AS source(source_item);
+
   SELECT created.reservation_id, created.reserved_items, created.expires_at
     INTO STRICT source_reservation_id, source_reserved_items, source_expires_at
     FROM public.grainline_checkout_reservation_create_cart_consistent(
@@ -54,8 +114,20 @@ BEGIN
       p_seller_profile_id,
       p_checkout_group_id,
       p_payload_hash,
-      p_expected_source
+      legacy_expected_source
     ) AS created;
+
+  SELECT pg_catalog.count(*)
+    INTO STRICT source_mismatch_count
+    FROM pg_catalog.jsonb_array_elements(p_expected_source->'items') AS source(source_item)
+   WHERE source_item->'listing' IS DISTINCT FROM
+         public.grainline_checkout_reservation_listing_snapshot_witness(
+           source_item->>'listingId'
+         );
+  IF source_mismatch_count <> 0 THEN
+    RAISE EXCEPTION 'Checkout source snapshot changed'
+      USING ERRCODE = 'serialization_failure';
+  END IF;
 
   UPDATE public."CheckoutStockReservation" AS reservation
      SET "sourceSnapshot" = p_expected_source
@@ -97,10 +169,36 @@ DECLARE
   source_expires_at timestamp(3) without time zone;
   source_seller_id text;
   source_listing_type text;
+  source_has_reservation boolean := false;
+  legacy_expected_source jsonb;
+  database_listing_snapshot jsonb;
   source_now timestamp(3) without time zone :=
     pg_catalog.statement_timestamp() AT TIME ZONE 'UTC';
   updated_count integer;
 BEGIN
+  IF p_expected_source IS NULL
+     OR pg_catalog.jsonb_typeof(p_expected_source) <> 'object'
+     OR pg_catalog.jsonb_typeof(p_expected_source->'item') <> 'object'
+     OR pg_catalog.jsonb_typeof(p_expected_source#>'{item,listing}') <> 'object'
+     OR pg_catalog.pg_column_size(p_expected_source) > 4194304 THEN
+    RAISE EXCEPTION 'Checkout source snapshot is invalid'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  legacy_expected_source := pg_catalog.jsonb_set(
+    p_expected_source,
+    '{item,listing}',
+    (p_expected_source#>'{item,listing}')
+      - 'description'
+      - 'category'
+      - 'tags'
+      - 'imageUrls'
+      - 'processingTimeMinDays'
+      - 'processingTimeMaxDays'
+      - 'shipsWithinDays',
+    false
+  );
+
   SELECT created.reservation_id, created.reserved_items, created.expires_at
     INTO source_reservation_id, source_reserved_items, source_expires_at
     FROM public.grainline_checkout_reservation_create_single_consistent(
@@ -109,10 +207,18 @@ BEGIN
       p_quantity,
       p_selected_variant_option_ids,
       p_payload_hash,
-      p_expected_source
+      legacy_expected_source
     ) AS created;
+  source_has_reservation := FOUND;
 
-  IF FOUND THEN
+  SELECT public.grainline_checkout_reservation_listing_snapshot_witness(p_listing_id)
+    INTO STRICT database_listing_snapshot;
+  IF p_expected_source#>'{item,listing}' IS DISTINCT FROM database_listing_snapshot THEN
+    RAISE EXCEPTION 'Checkout source snapshot changed'
+      USING ERRCODE = 'serialization_failure';
+  END IF;
+
+  IF source_has_reservation THEN
     UPDATE public."CheckoutStockReservation" AS reservation
        SET "sourceSnapshot" = p_expected_source
      WHERE reservation.id = source_reservation_id
@@ -185,6 +291,8 @@ $grainline_checkout_reservation_create_single_snapshot$;
 REVOKE ALL ON FUNCTION public.grainline_checkout_reservation_create_cart_snapshot(
   text, text, text, text, text, jsonb
 ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.grainline_checkout_reservation_listing_snapshot_witness(text)
+  FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_checkout_reservation_create_single_snapshot(
   text, text, integer, text[], text, jsonb
 ) FROM PUBLIC;

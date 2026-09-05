@@ -31,7 +31,7 @@ import {
   isCheckoutStockUnavailableDatabaseError,
 } from "@/lib/checkoutStockReservationAuthority";
 import {
-  singleCheckoutReservationSourceWitness,
+  singleCheckoutReservationSnapshotWitness,
 } from "@/lib/checkoutReservationSourceState";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
@@ -425,7 +425,7 @@ export async function POST(req: Request) {
         }]
       : [];
     checkoutReservationItemCount = reservableItems.length;
-    const pricedSourceWitness = singleCheckoutReservationSourceWitness(
+    const pricedSourceWitness = singleCheckoutReservationSnapshotWitness(
       me.id,
       listing,
       body.quantity,
