@@ -167,3 +167,29 @@ rolled-back or checksum-drifted successor.
 
 No step in this plan authorizes a production workflow, deployment, provider or
 credential change, table-grant revocation, Order RLS activation, or FORCE.
+
+## Pre-launch acceleration decision
+
+Grainline currently has no active human users, so the remaining Order rollout
+must not inherit long production observation windows by habit. The safety floor
+does not change: audit the product and authority model once, prove the exact SQL
+in disposable PostgreSQL, preserve webhook/cron compatibility, deploy and smoke
+the zero-direct application, and retain an exact rollback boundary. The faster
+execution is:
+
+- apply the complete additive compatible prefix as one reviewed batch;
+- provision the staff-read credential in the same compatibility phase, while
+  keeping its two grants and application deployment correctly ordered;
+- remove exact predecessor deployments immediately after the fresh smoke rather
+  than waiting through a traffic-drain window with no users;
+- dispatch the already separate ENABLE and FORCE migrations in one controlled
+  release session, with the engine-read-only activation postflight between
+  them; and
+- run immutable historical proofs independently from the active Order proof so
+  CI can execute them in parallel instead of replaying one 400-step serial job
+  for every small correction.
+
+Stripe, Shippo, webhook and cron traffic still exists without human users.
+Therefore pre-launch does not justify database-first activation, skipping the
+compatible application, weakening replay/concurrency proofs, or combining
+`Order`, `OrderItem` and `OrderShippingRateQuote` into one activation.
