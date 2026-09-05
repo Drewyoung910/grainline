@@ -132,3 +132,23 @@ State-changing admin actions, refund reconciliation, participant export,
 eligibility and aggregate operations remain separate O2/O3 families. This
 candidate does not authorize a role, credential, migration run, deployment,
 RLS activation, table-grant change or provider mutation.
+
+## 2026-09-05 role-grant convergence checkpoint
+
+`scripts/provision-order-staff-read-role.sql` now stages the credential-free
+half of the dedicated-role release. It refuses a missing, colliding, inherited,
+privileged or membership-bearing login; permits only Neon's exact non-effective
+`cloud_admin` bootstrap member edge; removes direct table, column, sequence and
+function grants; rejects default-privilege authority; and grants only the two
+corrected `*_v2` projections. It also proves that `PUBLIC` and
+`grainline_app_runtime` cannot execute those projections and that the staff
+role cannot execute any other `SECURITY DEFINER` function.
+
+This script intentionally cannot create the role or set its password. A
+separate restart-safe provider operator must generate the credential, create
+and authenticate the exact `LOGIN NOINHERIT NOBYPASSRLS` role, install only the
+sensitive Production `ORDER_STAFF_READ_DATABASE_URL`, and retain sanitized
+evidence. The projection functions must exist before grant convergence, so the
+production order is: create the authority-free login and install its secret;
+apply the compatible Order prefix; converge the two grants; deploy and smoke
+the converted application. No action in this checkpoint changes production.
