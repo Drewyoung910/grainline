@@ -37,6 +37,15 @@ describe("Order Stripe webhook authority design", () => {
     assert.match(design, /deliberately not deployable yet/);
   });
 
+  it("records the proven paid-order boundary without claiming conversion", () => {
+    assert.match(design, /exact 36-key provider projection/);
+    assert.match(design, /single-listing and cart checkout/);
+    assert.match(design, /duplicate retained source keys/);
+    assert.match(design, /single in-stock orders preserve the existing one-day minimum/);
+    assert.match(design, /forced downstream completion failure/);
+    assert.match(design, /This is not yet the application conversion/);
+  });
+
   it("keeps Order, OrderItem and quote activation as separate releases", () => {
     assert.match(design, /Order activation remains separate from later `OrderItem` and[\s\S]*`OrderShippingRateQuote` activation/);
     assert.match(design, /read-only inspection,[\s\S]*Phase A,[\s\S]*then FORCE/);

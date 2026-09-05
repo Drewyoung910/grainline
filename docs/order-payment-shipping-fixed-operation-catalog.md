@@ -145,7 +145,12 @@ Participants never execute these writers and never read raw provider rows.
     generation and exact reservation/session binding; locks buyer, seller,
     Listings and reservation in the global order; derives durable seller keys
     and canonical snapshots; validates totals/currency; creates exactly one
-    Order and at least one same-seller OrderItem; and is idempotent.
+    Order and at least one same-seller OrderItem; and is idempotent. Its
+    isolated candidate now has real PostgreSQL single/cart, forged-input,
+    replay, direct-denial and atomic-rollback proof. It also preserves the
+    complete checkout-time descriptive snapshot and the existing distinct
+    single/cart processing-time floors. It is not yet a migration or a deployed
+    application dependency.
 14. `grainline_order_seller_fulfillment_transition(...)` derives seller authority,
     locks the paid Order and permits only `PENDING -> SHIPPED` or
     `PENDING -> READY_FOR_PICKUP` with bounded tracking fields.

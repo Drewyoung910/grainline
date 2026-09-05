@@ -337,6 +337,17 @@ does not independently authenticate Stripe or Shippo. The application-held
 provider secrets remain the ingress trust boundary; fixed functions bind an
 accepted source event/claim to narrow local effects.
 
+2026-09-05 paid-checkout authority checkpoint: the isolated fixed operation
+now derives Order/OrderItem source facts from the complete retained reservation
+snapshot and has real PostgreSQL single/cart, replay, forged-input, direct-grant
+denial and rollback proof. The audit corrected currency binding, duplicate
+source/variant handling, single-versus-cart processing floors, fulfillment
+validation, quoted address-line retention and bounded audit text before any
+route conversion. The webhook's predecessor writers remain intentionally in
+place until the compatible database dependency is packaged first; therefore
+this checkpoint proves the candidate but does not reduce the direct-access
+inventory or authorize deployment/RLS.
+
 ### ORD-A10: compatible nullable seller keys are not the final invariant
 
 Production inspection previously found no seller-key derivation ambiguity,

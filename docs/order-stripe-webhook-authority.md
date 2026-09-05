@@ -6,7 +6,9 @@ intentionally not deployable before its database-first compatible release.
 This record does not authorize a deployment, grant change, provider mutation,
 or Order/OrderItem RLS activation.
 
-Audited application checkpoint: `3aeb05af` (2026-09-05).
+Audited application checkpoints: `3aeb05af`, `45c23c3e`, and `9d52ab86`
+(2026-09-05). The paid-order database candidate described below remains local
+and is not a production migration.
 
 ## Decision
 
@@ -201,6 +203,43 @@ The future `grainline_stripe_checkout_order_create` operation must:
 It must not accept caller-selected Order IDs, buyer/seller relationships,
 listing snapshots, review state, fulfillment state, refund state or
 notification recipients.
+
+The isolated database candidate now implements that boundary and has a real
+PostgreSQL proof for both single-listing and cart checkout. It validates an
+exact 36-key provider projection, requires PaymentIntent, Charge and destination
+Transfer identifiers before committing retained payment state, and matches
+every paid line's source key, listing, variant key, quantity and unit amount to
+the complete checkout-time snapshot. Provider strings, arrays, counts, totals
+and timestamps are bounded; unknown keys fail closed. The ordinary runtime can
+execute only this operation and still has no direct Order or OrderItem write
+privilege in the proof.
+
+The product audit caught and corrected four draft-level defects before any app
+conversion: paid currency is now compared with every retained listing source;
+duplicate retained source keys and duplicate selected variant IDs are rejected;
+single in-stock orders preserve the existing one-day minimum rather than
+silently inheriting the cart's three-day minimum; and pickup/shipping state is
+validated against the seller's retained pickup capability and a minimally
+complete destination. The function also persists both quoted address lines,
+which the predecessor writer omitted, and bounds long multi-item review/audit
+text to the actual database columns.
+
+Order, OrderItem, listing visibility, audit, reservation completion and exact
+cart-item cleanup are one transaction. A forced downstream completion failure
+is proven to roll all of them back. Exact financial replay returns the existing
+Order, while a changed amount tuple, forged event generation, provider/source
+price drift, seller drift or malformed provider projection is rejected. The
+TypeScript wrapper converts the signed Stripe instant to UTC at the SQL
+boundary, serializes one exact JSON projection, and rejects malformed database
+cardinality or result combinations.
+
+This is not yet the application conversion. The webhook still contains its
+predecessor direct writers until the database candidate and snapshot schema are
+packaged database-first. Removing those writers before that dependency exists
+would make the app undeployable; leaving them indefinitely would block Order
+and OrderItem RLS. The next isolated step is to replace both checkout branches
+with this one operation while preserving blocked-refund and post-payment retry
+semantics, then update the pinned direct-access inventory.
 
 The checkout address is intentionally the address signed into Grainline's rate
 token and copied into Checkout metadata. Stripe Checkout currently does not
