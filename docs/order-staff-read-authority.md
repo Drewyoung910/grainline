@@ -152,3 +152,12 @@ evidence. The projection functions must exist before grant convergence, so the
 production order is: create the authority-free login and install its secret;
 apply the compatible Order prefix; converge the two grants; deploy and smoke
 the converted application. No action in this checkpoint changes production.
+
+The dormant real-PostgreSQL proof at
+`tests/order-staff-read-role-provision-postgres.test.mjs` creates the restricted
+role only inside the explicitly supplied disposable database, runs the
+convergence SQL, authenticates through the separate login, proves direct Order
+denial and corrected-function execution, and removes the role. It is skipped
+unless `ORDER_STAFF_READ_ROLE_PROVISION_PROOF_DATABASE_URL` is explicitly set.
+It is not yet wired into CI; the local permission reviewer classified that
+loopback-only wiring as a production mutation, so no workflow change was made.
