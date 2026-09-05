@@ -104,6 +104,12 @@ substituted triggers, unexpected function overloads, public/grantable/private
 execution drift, and changed table RLS/grants. These local engine tests passed;
 the PostgreSQL 16 CI run remains a separate acceptance gate.
 
+CI run `33974736590` failed before the new prefix was applied: the expanded
+legacy overlap inspection referenced `labelClaimStatus` at a historical schema
+stage before label authority introduced it. The inspection now runs after the
+compatible Order schema is applied. Its strict aggregate query is unchanged;
+an ordering test pins its schema dependency.
+
 ## Sequence after compatible preparation
 
 1. Finish the comprehensive credential-recovery boundary.

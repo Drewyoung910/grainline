@@ -1254,10 +1254,6 @@ jobs:
           ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Re-audit restored OrderPaymentEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Prove Order/payment/shipping legacy inspection SQL at the reviewed production prefix
-        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
-        env:
-          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Restore compatible Order participant list authority release
         run: >-
           mv
@@ -1431,6 +1427,10 @@ jobs:
           --file=scripts/provision-runtime-db-role.sql
       - name: Audit Order participant grants and retained Order posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove Order/payment/shipping legacy inspection SQL after label claim preparation
+        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
+        env:
+          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove complete Order zero-direct prefix in disposable PostgreSQL
         run: npm run audit:order-zero-direct-compatible-prefix-postgres
         env:
