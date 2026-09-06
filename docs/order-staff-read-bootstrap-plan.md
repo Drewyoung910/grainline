@@ -1,6 +1,6 @@
 # Order staff-read login bootstrap
 
-Status: isolated, dormant bootstrap core and local journal adapter; not an
+Status: isolated, dormant bootstrap core, journal and connection adapters; not an
 executable production operator.
 Prepared from the green PR #430 head
 `fa94c89fc09239ecfed8510d188e0aace4b8b436` (CI `34010014880` succeeded).
@@ -116,6 +116,52 @@ not a new GitHub CI result or production-login attestation.
 
 ## Remaining production-adapter gate
 
+### Prepared release and transport checks
+
+`order-staff-read-bootstrap-release.mjs` validates a reviewed release binding
+against clean exact-main Git state, successful push/main CI from the correct
+repository/workflow, the unchanged READY production deployment and all four
+resolved canonical aliases, and the accepted credential epoch. These are pure
+checks, not live observation collectors. The actual sealed release manifest,
+independent GitHub/Vercel/credential observations and their composition remain
+required before any production execution. No current production state is
+asserted from the test fixtures.
+
+`order-staff-read-bootstrap-connection.mjs` now provides the direct-owner and
+separate pooled-staff connection operations. It pins the reviewed endpoint,
+database, role and TLS parameters, rejects ambient PG/startup/trust overrides,
+uses fresh bounded clients, verifies the owner session before SQL, attempts
+rollback after SQL failure, and discards every connection. The SQL and staff
+password must match the same private attempt; no password replacement occurs.
+
+Inspection of the installed `pg` driver found that `enableChannelBinding` only
+prefers SCRAM-PLUS and can fall back to ordinary SCRAM. The bootstrap-specific
+client therefore refuses cleartext, MD5, ordinary SCRAM, unverified TLS and
+trust-only readiness; it requires a verified SCRAM-PLUS final signature before
+accepting its initial ReadyForQuery. This uses narrow `pg` authentication hooks,
+so dependency changes must retain the driver regression and actual TLS proof.
+No application client or existing production operator was changed.
+
+The independent `Order Staff Bootstrap Proof` workflow creates only its own
+disposable PostgreSQL 16 service and test TLS certificate. The harness hardwires
+every socket to loopback, runs the real connection adapter through a test-only
+transport mapping, and checks committed-response-loss recovery, concurrent
+same-attempt replay, rejection of a replacement password, original-password
+login and terminal no-SQL replay. It models the owner as a fixture superuser,
+not Neon's `cloud_admin` hook. It has no production secrets, protected
+environment, workflow dispatch or deployment/migration command.
+
+Local driver/lifecycle/release tests passed. The real PostgreSQL/TLS test is
+prepared but **not yet executed or accepted**: no local PostgreSQL server or
+Docker executable is available. Its normal local skip is not login evidence.
+The new proof workflow must succeed on the exact candidate before release.
+
+Local transport/release-pass validation passed: ten focused connection/release
+tests, targeted lint, TypeScript, workflow YAML parsing, and the full suite
+(4,254 total; 4,242 passed, 12 skipped; zero failures). One additional skip is
+the explicitly gated real TLS/PostgreSQL test. The local full-suite log is
+`/private/tmp/grainline-staff-bootstrap-transport-full-20260906.log`.
+
 Before this can be invoked outside tests, implement and review an adapter that:
 
 1. pins exact merged source, successful CI and the reviewed production endpoint,
@@ -123,12 +169,12 @@ Before this can be invoked outside tests, implement and review an adapter that:
 2. pins a fixed ignored private directory and connects the tested journal
    adapter above to the bootstrap core; prove Git excludes the entire directory
    and retain the fail-closed stale-lock/pending-write recovery boundary;
-3. connects only through the reviewed direct owner URL and a fresh separately
-   authenticated pooled staff client, enforces strict TLS/channel-binding URL
-   parameters and rejects ambient connection overrides;
-4. rolls back or discards an owner connection after a failed transaction; never
-   leaves a failed transaction in a reusable pool;
-5. completes actual PostgreSQL 16 login/restart/concurrency transport coverage;
+3. composes the prepared connection operations with the journal and core using
+   privately loaded credentials and independently attested release observations;
+4. retains the tested rollback/discard behavior and never substitutes a reusable
+   owner pool or ordinary-runtime client for a separate staff login;
+5. obtains successful exact-candidate PostgreSQL 16/TLS login, restart and
+   concurrency proof evidence from the prepared standalone workflow;
 6. stages a separately bounded sensitive Production
    `ORDER_STAFF_READ_DATABASE_URL` installation with metadata attestation and
    explicit handling of an ambiguous provider write; and
@@ -140,12 +186,14 @@ that boundary must be demonstrated through the subsequently deployed client.
 Do not use a generic credential-recovery operator: this release must not rotate
 the existing owner/runtime credentials or deploy an application as a side effect.
 
-Next implementation pass: bind live exact-main/CI/target observations to the
-reviewed release and compose the direct-owner/fresh-staff connection adapter.
-Reuse existing URL parsing, but do not mistake
+Next implementation pass: run the standalone TLS proof through candidate CI,
+then compose live exact-main/CI/target observation collection and the fixed
+private journal with the prepared connection operations. Reuse existing URL
+parsing, but do not mistake
 `assertDeterministicPostgresEnvironment` for a complete environment allowlist:
-it currently checks `PGOPTIONS` and disabled TLS verification only. The adapter
-must explicitly exclude other ambient connection overrides as required above.
+it currently checks `PGOPTIONS` and disabled TLS verification only. The new
+bootstrap connection adapter explicitly rejects the other overrides; that local
+hardening is not a claim about unrelated historical operators.
 
 Release order remains: authority-free login and isolated secret; compatible
 Order prefix; exact two-function grant convergence; separate-login proofs;
