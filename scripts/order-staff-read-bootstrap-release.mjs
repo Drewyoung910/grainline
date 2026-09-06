@@ -12,17 +12,25 @@ const KEYS = ["releaseCommit", "ciRunId", "deployedSourceCommit", "deploymentId"
 const REQUIRED_TLS_STEPS = ["Enable TLS only on the disposable proof service",
   "Prove real TLS channel-bound bootstrap and exact restart", "Stop containers"];
 
-// reviewed must come from the sealed, authorized release artifact, not CLI
-// overrides. Other arguments must come from independently fetched observations.
-// The future production entrypoint must supply both; this is not self-attestation.
-export function assertStaffBootstrapRelease({ reviewed, git, ci, tlsProofRun, tlsProofJob, deployment, credentialEpoch }) {
+export function assertStaffBootstrapReviewedBinding(value) {
   try {
+    const reviewed = structuredClone(value);
     assert.ok(reviewed && JSON.stringify(Object.keys(reviewed).sort()) === JSON.stringify(KEYS));
     for (const field of KEYS) assert.ok(typeof reviewed[field] === "string" && reviewed[field] === reviewed[field].trim());
     assert.ok(COMMIT.test(reviewed.releaseCommit) && COMMIT.test(reviewed.deployedSourceCommit) &&
       RUN.test(reviewed.ciRunId) && /^dpl_[A-Za-z0-9]{20,40}$/u.test(reviewed.deploymentId) &&
       DIGEST.test(reviewed.credentialEpochSha256));
     for (const key of ["tlsProofRunId", "tlsProofJobId", "tlsProofRunAttempt"]) assert.ok(RUN.test(reviewed[key]));
+    return Object.freeze(reviewed);
+  } catch { throw new Error("staff bootstrap reviewed binding is invalid"); }
+}
+
+// reviewed must come from the sealed, authorized release artifact, not CLI
+// overrides. Other arguments must come from independently fetched observations.
+// The future production entrypoint must supply both; this is not self-attestation.
+export function assertStaffBootstrapRelease({ reviewed, git, ci, tlsProofRun, tlsProofJob, deployment, credentialEpoch }) {
+  try {
+    reviewed = assertStaffBootstrapReviewedBinding(reviewed);
     assert.ok(git?.head === reviewed.releaseCommit && git.remoteMain === reviewed.releaseCommit &&
       git.status === "" && git.repository === "Drewyoung910/grainline");
     assert.ok(Number.isSafeInteger(ci?.id) && String(ci.id) === reviewed.ciRunId &&

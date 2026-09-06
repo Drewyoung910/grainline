@@ -1,7 +1,7 @@
 # Order staff-read login bootstrap
 
-Status: isolated, dormant bootstrap core, journal, connection adapters and coordinator; not an
-executable production operator.
+Status: isolated, dormant bootstrap core, journal, connection adapters,
+coordinator and read-only observation collectors; not an executable production operator.
 Prepared from the green PR #430 head
 `fa94c89fc09239ecfed8510d188e0aace4b8b436` (CI `34010014880` succeeded).
 No role, password, provider variable, grant, deployment or production data was
@@ -202,10 +202,11 @@ resume repeats admission and authentication without creation SQL. Competing
 coordinators cannot load the private credential or operate under another
 attempt's held journal lock.
 
-The coordinator has no CLI, fixed production paths, GitHub/Vercel collectors,
-credential-file loader, provider-secret installer or grant writer. Those remain
-explicitly unfinished below. The injected observers and credential loader are
-trust boundaries, not self-attested production evidence. Unit tests simulate
+The coordinator has no CLI, fixed production paths, credential-file loader,
+provider-secret installer or grant writer. The separate read-only collectors
+described below now implement its Git/GitHub/Vercel observation boundary; private
+loaders and invocation remain unfinished. Injected observers and credential
+loaders are trust boundaries, not self-attested production evidence. Unit tests simulate
 them; the updated real TLS harness uses fabricated release metadata while
 exercising the complete coordinator against its actual isolated database.
 
@@ -225,16 +226,78 @@ run alone should not require another documentation-only commit and full CI wait.
 Local coordinator-pass validation: ten coordinator/release tests and 26 existing
 core/journal/connection tests passed; TypeScript, targeted lint and diff checks
 passed. The full suite passed: 4,262 tests, 4,250 passed, 12 skipped, zero failures.
-The gated real TLS test remains a local skip; its updated coordinator integration
-requires a new, exact-commit GitHub Actions result, recorded on PR #431. Local
+The gated real TLS test remains a local skip. The updated coordinator integration
+passed on exact commit `a6f46aa62003f4ce809b4691f4c7b0701ff4257a` in
+[TLS run 34023052923](https://github.com/Drewyoung910/grainline/actions/runs/34023052923),
+job `101459038119`, attempt 1: one passed, zero skipped, zero failures, with
+successful container teardown. Broad
+[CI 34023052929](https://github.com/Drewyoung910/grainline/actions/runs/34023052929)
+also passed on that same commit: 4,262 total, 4,254 passed, eight skipped, zero
+failures; historical database proofs and application build accepted. Local
 test output is at `/private/tmp/staff-coordinator-full.log`; these durable counts
 do not depend on retaining that disposable log.
 
+### Read-only observation collectors
+
+`order-staff-read-bootstrap-observations.mjs` supplies real local Git reads and
+fixed-origin GitHub/Vercel GET collectors. Imports perform no I/O and there is no
+CLI. The reviewed binding is validated and frozen before credentials or requests;
+tokens and credential-epoch observations still require separately reviewed loaders.
+
+- Git uses a fixed executable and restricted child environment, disables hooks,
+  filesystem monitors and replace objects, checks the exact repository root and
+  origin, and requires a clean index/worktree including untracked files. It also
+  refuses assume-unchanged and skip-worktree entries that can hide edited files.
+- GitHub main is read independently before and after collection. Exact main CI,
+  TLS run and TLS job come from fixed endpoints in the Grainline repository.
+- Vercel queries only the reviewed deployment and four fixed canonical aliases,
+  scoped to the exact team, validating project, team, READY production posture,
+  deployment identity and source labels for every result. The deployment's alias
+  array is not accepted instead of resolving the actual aliases.
+- Requests are GET-only, refuse redirects, use bounded 15-second requests and
+  two-MiB response streams, and reject alternate ambient TLS/proxy settings.
+  Tokens appear only in the matching provider's authorization header, never
+  argv, URLs, returned evidence or errors. Raw provider payloads (which can
+  contain sensitive fields) are discarded after selecting admission fields.
+- Local Git is rechecked at the end. Returned observations are deeply frozen,
+  sanitized and checked by the existing release admission function before the
+  coordinator can use them. A mismatched observation produces no admission.
+
+**Source-provenance limit:** the current manual deployment was inspected through
+a read-only, field-selected provider query during this pass. It is a CLI release
+with a `meta.gitCommitSha` label and no `gitSource`, so requiring `gitSource.sha`
+would falsely block that deployment. The collector checks the CLI label (or Git
+source SHA for Git releases) against an **externally reviewed exact deployment
+binding** and rejects conflicting labels. A CLI metadata value alone does not
+prove uploaded build bytes. The manifest review must use accepted deployment
+evidence; never generate the approved binding from the same metadata being
+checked. No production deployment change was made by this inspection.
+
+The deployment API's `url` query resolves aliases while `teamId` selects team
+scope ([Vercel API reference](https://openapi-explorer.vercel.app/)). The returned
+observations are bounded point-in-time reads, not a distributed atomic snapshot
+or a lock against unrelated provider changes. Coordinator reattestation detects
+observed drift at its boundaries; it does not prevent third-party changes.
+
+Tests exercise all fixed requests, failure/redirect/size limits, mixed/stale
+snapshots, alias moves, unsafe tokens/environment, payload minimization and
+collector-to-coordinator recovery. A real disposable Git repository proves
+clean/dirty/root/origin and hidden-index-flag handling. Provider responses are
+simulated in these tests: the complete collector has not run using production
+tokens, and credential epoch verification remains unfinished.
+
+Local collector-pass validation: 20 observation/release/coordinator tests passed,
+including ten new collector tests; targeted lint and TypeScript passed. Full
+suite: 4,272 total, 4,260 passed, 12 environment-gated skips, zero failures.
+The disposable log is `/private/tmp/staff-observations-full.log`. New exact-head
+CI acceptance is recorded on PR #431 rather than inferred from the previous
+checkpoint's successful run.
+
 Before this can be invoked outside tests, implement and review an adapter that:
 
-1. supplies an externally reviewed immutable release manifest and independent
-   live Git, main CI, TLS proof, deployment/alias and credential-epoch collectors
-   to the prepared admission checker; observation provenance is not yet wired;
+1. supplies an externally reviewed immutable release manifest (with accepted
+   deployment source evidence), private provider-token loaders and independent
+   credential-epoch verification to the prepared real Git/GitHub/Vercel collectors;
 2. pins a fixed ignored private directory for the composed journal;
    prove Git excludes the entire directory
    and retain the fail-closed stale-lock/pending-write recovery boundary;
@@ -256,9 +319,9 @@ that boundary must be demonstrated through the subsequently deployed client.
 Do not use a generic credential-recovery operator: this release must not rotate
 the existing owner/runtime credentials or deploy an application as a side effect.
 
-Next implementation pass: wire independent live observation collection, the
-externally reviewed release manifest, fixed ignored storage and the private
-credential loader into the prepared coordinator. Reuse existing URL
+Next implementation pass: wire the externally reviewed release manifest, fixed
+ignored storage, provider-token loaders and private credential/epoch verification
+into the prepared collectors and coordinator. Reuse existing URL
 parsing, but do not mistake
 `assertDeterministicPostgresEnvironment` for a complete environment allowlist:
 it currently checks `PGOPTIONS` and disabled TLS verification only. The new
