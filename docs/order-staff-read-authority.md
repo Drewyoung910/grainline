@@ -215,3 +215,7 @@ prefix, then converge the two grants and prove both login boundaries before
 application deployment. These recording/ordering edits are documentation-only
 successors to the accepted code head. PR #430 remains draft; neither PR was
 merged, and no production credentials, grants, migrations or deployment changed.
+
+The next isolated bootstrap core and its explicit remaining production-adapter
+gate are tracked in `docs/order-staff-read-bootstrap-plan.md`. It does not yet
+provide an executable production provisioning command.
