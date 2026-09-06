@@ -62,6 +62,13 @@ collision (`candidate.oid`); the disposable proof rejected it. Distinct
 production execution. The test requires the exact expected rejection, so an
 unrelated SQL error cannot masquerade as a successful security denial.
 
+Local validation of code checkpoint
+`9c8bc182e02947a8afa12acd2fa3a17affb649f9` passed: ten focused tests,
+TypeScript, targeted lint including the otherwise ignored script, and the full
+suite (4,234 total; 4,223 passed, 11 skipped, zero failures). No production
+adapter, CI dispatch or provider execution was added. This checkpoint lives on
+`agent/order-staff-read-bootstrap-20260906`; PR #430 remains unchanged.
+
 ## Remaining production-adapter gate
 
 Before this can be invoked outside tests, implement and review an adapter that:
