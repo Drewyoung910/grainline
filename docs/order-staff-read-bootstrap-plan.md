@@ -1,6 +1,6 @@
 # Order staff-read login bootstrap
 
-Status: isolated, dormant bootstrap core, journal and connection adapters; not an
+Status: isolated, dormant bootstrap core, journal, connection adapters and coordinator; not an
 executable production operator.
 Prepared from the green PR #430 head
 `fa94c89fc09239ecfed8510d188e0aace4b8b436` (CI `34010014880` succeeded).
@@ -121,7 +121,12 @@ not a new GitHub CI result or production-login attestation.
 `order-staff-read-bootstrap-release.mjs` validates a reviewed release binding
 against clean exact-main Git state, successful push/main CI from the correct
 repository/workflow, the unchanged READY production deployment and all four
-resolved canonical aliases, and the accepted credential epoch. These are pure
+resolved canonical aliases, and the accepted credential epoch. It also requires
+the separately reviewed TLS proof run, job and run attempt on that **same main
+commit**, with the correct workflow, successful proof step and successful
+container teardown. Missing, skipped, duplicated, stale or cross-run job
+observations are rejected. A PR proof is preparatory evidence, not a substitute
+for the required main-push production admission evidence. These are pure
 checks, not live observation collectors. The actual sealed release manifest,
 independent GitHub/Vercel/credential observations and their composition remain
 required before any production execution. No current production state is
@@ -179,22 +184,67 @@ tests, targeted lint, TypeScript, workflow YAML parsing, and the full suite
 the explicitly gated real TLS/PostgreSQL test. The local full-suite log is
 `/private/tmp/grainline-staff-bootstrap-transport-full-20260906.log`.
 
+### Coordinator and exact proof admission
+
+`order-staff-read-bootstrap-coordinator.mjs` now composes the release check,
+private journal, bootstrap core and fresh-connection operations. It freezes the
+reviewed binding before asynchronous observation reads, checks admission before
+opening the journal and again under its exclusive lock, and rejects a privately
+loaded owner credential from a different attested epoch. It rechecks admission
+before owner SQL, before the separate staff login and before returning a
+sanitized receipt. Journal readback precedes each database operation.
+
+If a release or alias drifts after creation, the same private attempt remains
+recoverable. `role-verified` in the private journal means the role/login proof
+completed, not that final release admission or secret installation succeeded;
+no success receipt is returned if the final observation fails. A terminal
+resume repeats admission and authentication without creation SQL. Competing
+coordinators cannot load the private credential or operate under another
+attempt's held journal lock.
+
+The coordinator has no CLI, fixed production paths, GitHub/Vercel collectors,
+credential-file loader, provider-secret installer or grant writer. Those remain
+explicitly unfinished below. The injected observers and credential loader are
+trust boundaries, not self-attested production evidence. Unit tests simulate
+them; the updated real TLS harness uses fabricated release metadata while
+exercising the complete coordinator against its actual isolated database.
+
+The short standalone TLS workflow now runs for every main push and PR targeting
+main, including documentation checkpoints. This lets admission demand an exact
+main-SHA proof without accepting historical-byte aliases. It remains independent
+and parallel to the long historical migration suite. Shell preconditions reject
+missing proof activation or certificate settings before Node can silently skip
+the harness. Repository tests parse the workflow to enforce this boundary.
+
+Evidence publication for this preparation: batch design/limits/next-step edits
+with implementation commits; attach each subsequent exact SHA, CI run and
+result to the durable [PR #431 record](https://github.com/Drewyoung910/grainline/pull/431).
+Fold accepted prior-run evidence into the next source pass. Recording a green
+run alone should not require another documentation-only commit and full CI wait.
+
+Local coordinator-pass validation: ten coordinator/release tests and 26 existing
+core/journal/connection tests passed; TypeScript, targeted lint and diff checks
+passed. The full suite passed: 4,262 tests, 4,250 passed, 12 skipped, zero failures.
+The gated real TLS test remains a local skip; its updated coordinator integration
+requires a new, exact-commit GitHub Actions result, recorded on PR #431. Local
+test output is at `/private/tmp/staff-coordinator-full.log`; these durable counts
+do not depend on retaining that disposable log.
+
 Before this can be invoked outside tests, implement and review an adapter that:
 
-1. pins exact merged source, successful CI and the reviewed production endpoint,
-   database, owner identity, current credential epoch and unchanged deployment;
-2. pins a fixed ignored private directory and connects the tested journal
-   adapter above to the bootstrap core; prove Git excludes the entire directory
+1. supplies an externally reviewed immutable release manifest and independent
+   live Git, main CI, TLS proof, deployment/alias and credential-epoch collectors
+   to the prepared admission checker; observation provenance is not yet wired;
+2. pins a fixed ignored private directory for the composed journal;
+   prove Git excludes the entire directory
    and retain the fail-closed stale-lock/pending-write recovery boundary;
-3. composes the prepared connection operations with the journal and core using
-   privately loaded credentials and independently attested release observations;
+3. implements the fixed, mode-0600 owner credential loader with actual
+   credential-epoch verification; no credential value may enter logs or argv;
 4. retains the tested rollback/discard behavior and never substitutes a reusable
    owner pool or ordinary-runtime client for a separate staff login;
-5. binds the accepted PostgreSQL 16/TLS proof run and its source to the final
-   release alongside main CI. The pure release checker currently attests main
-   CI only; it is not yet the complete production admission gate. Preserve the
-   accepted source result above, and require a fresh proof or reviewed exact
-   implementation-byte equivalence if selecting a different release commit;
+5. obtains successful main CI and a successful TLS run/job/attempt for the exact
+   final main release. The prepared checker now enforces that binding; no
+   historical proof substitution or branch-only proof is accepted for production;
 6. stages a separately bounded sensitive Production
    `ORDER_STAFF_READ_DATABASE_URL` installation with metadata attestation and
    explicit handling of an ambiguous provider write; and
@@ -206,9 +256,9 @@ that boundary must be demonstrated through the subsequently deployed client.
 Do not use a generic credential-recovery operator: this release must not rotate
 the existing owner/runtime credentials or deploy an application as a side effect.
 
-Next implementation pass: complete the standalone-proof-to-release binding,
-then compose live exact-main/CI/target observation collection and the fixed
-private journal with the prepared connection operations. Reuse existing URL
+Next implementation pass: wire independent live observation collection, the
+externally reviewed release manifest, fixed ignored storage and the private
+credential loader into the prepared coordinator. Reuse existing URL
 parsing, but do not mistake
 `assertDeterministicPostgresEnvironment` for a complete environment allowlist:
 it currently checks `PGOPTIONS` and disabled TLS verification only. The new

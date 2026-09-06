@@ -1,28 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import yaml from "js-yaml";
 import { assertStaffBootstrapRelease } from "../scripts/order-staff-read-bootstrap-release.mjs";
-
-function fixture() {
-  const releaseCommit = "a".repeat(40);
-  const deploymentId = "dpl_" + "b".repeat(24);
-  return {
-    reviewed: { releaseCommit, ciRunId: "34010014880", deployedSourceCommit: "c".repeat(40),
-      deploymentId, credentialEpochSha256: "d".repeat(64) },
-    git: { head: releaseCommit, remoteMain: releaseCommit, status: "", repository: "Drewyoung910/grainline" },
-    ci: { id: 34010014880, repository: { full_name: "Drewyoung910/grainline" }, head_sha: releaseCommit,
-      head_branch: "main", path: ".github/workflows/ci.yml", event: "push", status: "completed", conclusion: "success" },
-    deployment: { id: deploymentId, projectId: "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp", teamId: "team_wvQeQHZGwCSwinC1uB7xbpjr",
-      target: "production", readyState: "READY", sourceCommit: "c".repeat(40),
-      aliases: ["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app", "grainline-drew-youngs-projects.vercel.app"]
-        .map(hostname => ({ hostname, deploymentId })) },
-    credentialEpoch: { evidenceSha256: "d".repeat(64), status: "complete", currentCredentialsMatch: true },
-  };
-}
+import { staffReleaseFixture } from "./helpers/staff-bootstrap-release-fixture.mjs";
 
 test("staff bootstrap release binds clean exact main, CI, unchanged deployment and credential epoch", () => {
-  const value = fixture();
+  const value = staffReleaseFixture();
   const result = assertStaffBootstrapRelease(value);
   assert.deepEqual(result, { releaseCommit: value.reviewed.releaseCommit, ciRunId: "34010014880",
+    tlsProofRunId: "34021451851", tlsProofJobId: "101454688066", tlsProofRunAttempt: "1",
     deploymentId: value.reviewed.deploymentId, credentialEpochSha256: value.reviewed.credentialEpochSha256 });
   assert.ok(Object.isFrozen(result));
 });
@@ -59,13 +46,59 @@ test("every release identity, CI status, alias and credential epoch mismatch is 
     value => { value.credentialEpoch.currentCredentialsMatch = false; },
   ];
   for (const mutate of mutations) {
-    const value = fixture();
+    const value = staffReleaseFixture();
     mutate(value);
     assert.throws(() => assertStaffBootstrapRelease(value), /observations do not match/u);
   }
-  for (const field of Object.keys(fixture())) {
-    const value = fixture();
+  for (const field of Object.keys(staffReleaseFixture())) {
+    const value = staffReleaseFixture();
     delete value[field];
     assert.throws(() => assertStaffBootstrapRelease(value), /observations do not match/u);
   }
+});
+
+test("TLS proof must be the exact main push, run attempt and successful unskipped job", () => {
+  const mutations = [
+    value => { value.tlsProofRun.id += 1; },
+    value => { value.tlsProofRun.run_attempt += 1; },
+    value => { value.tlsProofRun.head_sha = "b".repeat(40); },
+    value => { value.tlsProofRun.repository.full_name = "other/grainline"; },
+    value => { value.tlsProofRun.head_branch = "draft"; },
+    value => { value.tlsProofRun.event = "pull_request"; },
+    value => { value.tlsProofRun.path = ".github/workflows/ci.yml"; },
+    value => { value.tlsProofRun.conclusion = "failure"; },
+    value => { value.tlsProofRun.status = "in_progress"; },
+    value => { value.tlsProofJob.id += 1; },
+    value => { value.tlsProofJob.run_id += 1; },
+    value => { value.tlsProofJob.run_attempt += 1; },
+    value => { value.tlsProofJob.head_sha = "b".repeat(40); },
+    value => { value.tlsProofJob.name = "different"; },
+    value => { value.tlsProofJob.status = "in_progress"; },
+    value => { value.tlsProofJob.conclusion = "failure"; },
+    value => { value.tlsProofJob.steps[1].conclusion = "skipped"; },
+    value => { value.tlsProofJob.steps[1].status = "queued"; },
+    value => { value.tlsProofJob.steps.pop(); },
+    value => { value.tlsProofJob.steps.push(value.tlsProofJob.steps[1]); },
+  ];
+  for (const mutate of mutations) {
+    const value = staffReleaseFixture();
+    mutate(value);
+    assert.throws(() => assertStaffBootstrapRelease(value), /observations do not match/u);
+  }
+});
+
+test("standalone proof is available for every exact main head and refuses an accidentally disabled harness", () => {
+  const workflow = yaml.load(readFileSync(".github/workflows/order-staff-bootstrap-proof.yml", "utf8"));
+  assert.deepEqual(workflow.on, { pull_request: { branches: ["main"] }, push: { branches: ["main"] } });
+  assert.deepEqual(workflow.permissions, { contents: "read" });
+  const job = workflow.jobs["tls-login"];
+  assert.equal(job.environment, undefined);
+  assert.equal(job.services.postgres.image, "postgres:16");
+  const proof = job.steps.find(step => step.name === "Prove real TLS channel-bound bootstrap and exact restart");
+  assert.equal(proof.env.ORDER_STAFF_BOOTSTRAP_TLS_PROOF, "loopback-ci-postgres16");
+  const command = proof.run.replace(/\s+/gu, " ");
+  assert.ok(command.includes('test "$ORDER_STAFF_BOOTSTRAP_TLS_PROOF" = loopback-ci-postgres16'));
+  assert.ok(command.includes('test -r "$ORDER_STAFF_BOOTSTRAP_TLS_PROOF_CA"'));
+  assert.ok(command.indexOf("test -r") < command.indexOf("node --test"));
+  assert.doesNotMatch(JSON.stringify(workflow), /secrets\./u);
 });

@@ -5,7 +5,9 @@ import os from "node:os";
 import path from "node:path";
 import { StaffBootstrapPgClient, staffBootstrapConnectionOperations } from "../scripts/order-staff-read-bootstrap-connection.mjs";
 import { withStaffBootstrapJournal } from "../scripts/order-staff-read-bootstrap-journal.mjs";
-import { newStaffBootstrapState, buildStaffBootstrapSql, runStaffBootstrapCore, STAFF_BOOTSTRAP_ROLE } from "../scripts/order-staff-read-role-bootstrap.mjs";
+import { newStaffBootstrapState, buildStaffBootstrapSql, STAFF_BOOTSTRAP_ROLE } from "../scripts/order-staff-read-role-bootstrap.mjs";
+import { coordinateStaffBootstrap } from "../scripts/order-staff-read-bootstrap-coordinator.mjs";
+import { staffReleaseFixture } from "./helpers/staff-bootstrap-release-fixture.mjs";
 
 const enabled = process.env.ORDER_STAFF_BOOTSTRAP_TLS_PROOF;
 test("isolated PostgreSQL 16 proves TLS PLUS login, committed-response-loss restart and concurrent replay",
@@ -36,25 +38,33 @@ test("isolated PostgreSQL 16 proves TLS PLUS login, committed-response-loss rest
         identity.version >= 160000 && identity.version < 170000);
       assert.equal((await admin.query("SELECT 1 FROM pg_roles WHERE rolname = $1", [STAFF_BOOTSTRAP_ROLE])).rowCount, 0);
       const operations = staffBootstrapConnectionOperations({ ownerUrl, state, binding, env: {}, Client: LocalClient });
-      await assert.rejects(withStaffBootstrapJournal({ directory, binding }, async journal => {
-        journal.persistPrivateState(state);
-        await runStaffBootstrapCore({ state, binding, operations: { ...operations,
-          persistPrivateState: journal.persistPrivateState,
+      // Observations here are explicitly fabricated main metadata. This proves
+      // the coordinator with real database transport, not live GitHub/Vercel
+      // collection or a production credential epoch.
+      const release = staffReleaseFixture();
+      release.reviewed.ciRunId = binding.ciRunId;
+      release.ci.id = Number(binding.ciRunId);
+      const coordinator = { reviewed: release.reviewed, directory, env: {},
+        observeRelease: async () => release,
+        loadOwnerCredential: async () => ({ url: ownerUrl, epochSha256: release.reviewed.credentialEpochSha256 }),
+        connectionFactory: params => staffBootstrapConnectionOperations({ ...params, Client: LocalClient }),
+      };
+      await withStaffBootstrapJournal({ directory, binding }, journal => journal.persistPrivateState(state));
+      await assert.rejects(coordinateStaffBootstrap({ ...coordinator,
+        connectionFactory: params => ({ ...coordinator.connectionFactory(params),
           async executeOwnerTransaction(sql) {
             await operations.executeOwnerTransaction(sql);
             roleCreated = true;
             throw new Error("simulated lost committed response");
           },
-        } });
-      }), /preserve files for exact-attempt recovery/u);
+        }),
+      }), /preserve the exact private attempt/u);
       assert.equal(roleCreated, true);
       const initialOid = (await admin.query("SELECT oid FROM pg_roles WHERE rolname = $1", [STAFF_BOOTSTRAP_ROLE])).rows[0].oid;
-      await withStaffBootstrapJournal({ directory, binding }, async journal => {
+      await withStaffBootstrapJournal({ directory, binding }, journal => {
         assert.equal(journal.read().stage, "create-pending");
-        const result = await runStaffBootstrapCore({ state: journal.read(), binding,
-          operations: { ...operations, persistPrivateState: journal.persistPrivateState } });
-        assert.equal(result.status, "role-verified");
       });
+      assert.equal((await coordinateStaffBootstrap(coordinator)).status, "role-verified");
       await Promise.all([operations.executeOwnerTransaction(buildStaffBootstrapSql(state, binding)),
         operations.executeOwnerTransaction(buildStaffBootstrapSql(state, binding))]);
       assert.equal((await admin.query("SELECT oid FROM pg_roles WHERE rolname = $1", [STAFF_BOOTSTRAP_ROLE])).rows[0].oid, initialOid);
@@ -67,11 +77,10 @@ test("isolated PostgreSQL 16 proves TLS PLUS login, committed-response-loss rest
       await changedOperations.executeOwnerTransaction(buildStaffBootstrapSql(changed, binding));
       await assert.rejects(changedOperations.proveSeparateLogin(changed.password), /connection refused or failed/u);
       assert.equal((await operations.proveSeparateLogin(state.password)).restrictedRole, true);
-      await withStaffBootstrapJournal({ directory, binding }, async journal => {
-        await runStaffBootstrapCore({ state: journal.read(), binding, operations: { ...operations,
-          persistPrivateState: journal.persistPrivateState,
+      await coordinateStaffBootstrap({ ...coordinator,
+        connectionFactory: params => ({ ...coordinator.connectionFactory(params),
           async executeOwnerTransaction() { assert.fail("terminal replay must not run SQL"); },
-        } });
+        }),
       });
     } finally {
       try {
