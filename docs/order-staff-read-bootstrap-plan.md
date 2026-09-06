@@ -151,10 +151,27 @@ login and terminal no-SQL replay. It models the owner as a fixture superuser,
 not Neon's `cloud_admin` hook. It has no production secrets, protected
 environment, workflow dispatch or deployment/migration command.
 
-Local driver/lifecycle/release tests passed. The real PostgreSQL/TLS test is
-prepared but **not yet executed or accepted**: no local PostgreSQL server or
-Docker executable is available. Its normal local skip is not login evidence.
-The new proof workflow must succeed on the exact candidate before release.
+Local driver/lifecycle/release tests passed. No local PostgreSQL server or
+Docker executable is available, so its normal local skip is not login evidence.
+The actual PostgreSQL/TLS proof subsequently **passed in GitHub Actions** on
+exact source `778b435ef0df0ec818dc3a37c908d4f27e35f87c`:
+[run 34021451851](https://github.com/Drewyoung910/grainline/actions/runs/34021451851),
+job `101454688066`, one passed test, zero skipped, zero failures. The service
+reported PostgreSQL 16.15; both container and network teardown completed. This
+accepts the disposable network proof, not a Neon production bootstrap or grant.
+
+Preparation is in [draft PR #431](https://github.com/Drewyoung910/grainline/pull/431),
+stacked on unmerged PR #430. No PR was merged and no production operation ran.
+The broader source-candidate
+[CI run 34021451797](https://github.com/Drewyoung910/grainline/actions/runs/34021451797)
+also succeeded on exact source `778b435ef0df0ec818dc3a37c908d4f27e35f87c`:
+4,254 tests, 4,246 passed, eight skipped, zero failures; all historical database
+proofs, TypeScript, lint, dependency audit and the CI application build passed.
+The standalone TLS result above supplies the real login evidence that the
+ordinary suite deliberately skips. Preview
+`dpl_BqFen1J1vUdsMyBKmqEmZMx6jhdp` was inspected: compilation and TypeScript
+passed, then page-data collection failed because Preview intentionally lacks
+`DATABASE_URL`. No Preview credential or configuration was changed.
 
 Local transport/release-pass validation passed: ten focused connection/release
 tests, targeted lint, TypeScript, workflow YAML parsing, and the full suite
@@ -173,8 +190,11 @@ Before this can be invoked outside tests, implement and review an adapter that:
    privately loaded credentials and independently attested release observations;
 4. retains the tested rollback/discard behavior and never substitutes a reusable
    owner pool or ordinary-runtime client for a separate staff login;
-5. obtains successful exact-candidate PostgreSQL 16/TLS login, restart and
-   concurrency proof evidence from the prepared standalone workflow;
+5. binds the accepted PostgreSQL 16/TLS proof run and its source to the final
+   release alongside main CI. The pure release checker currently attests main
+   CI only; it is not yet the complete production admission gate. Preserve the
+   accepted source result above, and require a fresh proof or reviewed exact
+   implementation-byte equivalence if selecting a different release commit;
 6. stages a separately bounded sensitive Production
    `ORDER_STAFF_READ_DATABASE_URL` installation with metadata attestation and
    explicit handling of an ambiguous provider write; and
@@ -186,7 +206,7 @@ that boundary must be demonstrated through the subsequently deployed client.
 Do not use a generic credential-recovery operator: this release must not rotate
 the existing owner/runtime credentials or deploy an application as a side effect.
 
-Next implementation pass: run the standalone TLS proof through candidate CI,
+Next implementation pass: complete the standalone-proof-to-release binding,
 then compose live exact-main/CI/target observation collection and the fixed
 private journal with the prepared connection operations. Reuse existing URL
 parsing, but do not mistake
