@@ -373,6 +373,48 @@ targeted lint and diff checks passed. Full suite: 4,282 tests, 4,270 passed,
 or the real PostgreSQL/TLS proof of the changed coordinator sequencing. New
 results are attached to PR #431 without a results-only commit loop.
 
+### Loaded-source identity review and correction
+
+The completed read-only review covered the bootstrap-only range
+`fa94c89fc09239ecfed8510d188e0aace4b8b436..ae24949d21d6620f95b7dc35a540d1e47286b02b`
+(21 files; binary diff SHA-256
+`61d5430d3549b659234bee9036eee0f52c2aafe5656f6c90e1acc7b09f35ea12`). It found one
+concrete release-admission defect: the production entry attested `process.cwd()`
+without binding that directory to the operator module actually loaded. An
+absolute invocation from an older worktree could therefore attest a different,
+clean approved checkout. This is an operator provenance gap, not evidence of
+an exploited or deployed application defect. The original review verdict was
+`revise`; green CI did not prove this missing property.
+
+A credential-free VM reproduction evaluated the actual operator bytes with
+synthetic dependencies. Both the matching-root control and mismatched-root
+case reached the synthetic coordinator; no private credential, network or
+database capability was available to that reproduction.
+
+The successor production entry now derives its source root from its own
+`import.meta.url`, requires a canonical real script path and matching canonical
+working directory, and performs that check **before** constructing private
+loaders. Callers cannot override the module identity. Existing exact-main Git
+admission subsequently checks that same root. No SQL, login authority, private
+journal format, provider configuration or execution permission changed.
+
+Regression coverage uses real disposable filesystem paths plus the actual
+operator module with synthetic imports. It covers imported and CLI entrypoints,
+a different checkout, nested/aliased paths, module URL qualifiers and normal
+matching-root calls. Rejected cases reach no private loader; both normal
+entrypoints remain accepted by the synthetic coordinator. This is not a sandbox
+against an already compromised same-user process or modified dependencies.
+
+Pre-correction exact-head evidence is now complete: broad
+[CI 34055265188](https://github.com/Drewyoung910/grainline/actions/runs/34055265188),
+job `101545930624`, passed on `ae24949d`: 4,282 total, 4,274 passed, eight skipped,
+zero failures, with historical database proofs, TypeScript, lint, dependency
+audit and application build accepted. Standalone TLS
+[proof 34055265171](https://github.com/Drewyoung910/grainline/actions/runs/34055265171),
+job `101545930443`, attempt 1, passed one test with zero skips/failures and
+successful container teardown. These remain predecessor evidence; the
+source-binding correction needs its own exact-head checks.
+
 Remaining release gates:
 
 1. Independently review the final operator and accepted deployment/epoch evidence;
