@@ -148,14 +148,29 @@ and merely includes the fixed reviewed successor names in its query partition.
 It still rejects every unreviewed row and every non-contiguous, duplicate,
 rolled-back or checksum-drifted successor.
 
+## Accepted candidate and staff-login CI
+
+The complete candidate at `2958fbb1fd0b2d3bcc70f6ba57d7a3e9358653d6`
+passed CI `33977320851`. Draft PR #430 includes that unmerged #429 candidate
+plus isolated staff-role preparation at exact code head
+`4e3a9ffcdb265e7c41701e53a346dbe04e104d15`. CI `34009391239` passed all
+checks, including the PostgreSQL 16 separate-login/grant-convergence proof,
+4,217 full-suite passes (seven skips, zero failures), and production build.
+See `docs/order-staff-read-authority.md` for proof boundaries. Production role
+provisioning, compatible-prefix execution and deployment remain separate pending
+gates; accepted CI is not evidence that any of them has happened.
+
 ## Sequence after compatible preparation
 
 1. Retain and reverify the accepted comprehensive credential-recovery boundary
    sealed at `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89`; do not reintroduce a
    superseded credential epoch or deployment.
-2. Provision and prove the separate staff-read login and two-function ACL.
-3. Apply the exact compatible prefix while Order RLS remains off.
-4. Run the distinct pooled-runtime compatibility postflight.
+2. Provision and prove the separate authority-free staff-read login and isolate
+   its credential. Do not grant the v2 functions before they exist.
+3. Apply the exact compatible prefix while Order RLS remains off, then converge
+   only the two separately reviewed staff-function grants.
+4. Run the distinct ordinary pooled-runtime compatibility postflight and the
+   dedicated staff-login authority proof.
 5. Deploy the zero-direct application, run the fresh complete authenticated
    Order smoke, then drain every deployment that can still use direct Order
    CRUD.

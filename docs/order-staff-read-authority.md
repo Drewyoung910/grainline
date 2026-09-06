@@ -186,9 +186,32 @@ is no disposable PostgreSQL server. Do not describe it as passed.
 
 PR #429 remains draft at `2958fbb1fd0b2d3bcc70f6ba57d7a3e9358653d6`;
 CI `33977320851` was reverified successful for that exact predecessor.
-The permission reviewer allowed pushing the follow-up branch but rejected
+At that checkpoint, the permission reviewer allowed pushing the follow-up branch but rejected
 opening its draft PR, citing publication authorization. No follow-up PR or CI
 run was created. Next: open the isolated follow-up draft with authorization,
 obtain successful PostgreSQL 16 login/convergence proof, then finish review
 before any merge or production credential/grant work. The existing security
 plugin scan was not completed and provides no security approval.
+
+### Accepted disposable CI proof
+
+Following Drew's approval, draft PR #430 was opened from exact head
+`4e3a9ffcdb265e7c41701e53a346dbe04e104d15`, including the unmerged #429
+candidate. CI `34009391239` completed successfully. The real PostgreSQL 16
+staff-login/convergence step reported one passed test, zero failures and zero
+skips. The full suite reported 4,224 tests: 4,217 passed, seven skipped, zero
+failures. TypeScript, lint, dependency audit, production build and the historical
+database proofs also passed. This is disposable CI evidence, not a production
+staff-login or pooled-provider proof.
+
+The failed Vercel Preview `dpl_5aUaszWuMLedbeqMYx9Chr6f9PNw` was inspected
+read-only using the cached reviewed CLI. Its build log explicitly reports
+`DATABASE_URL env var is required in production` during page-data collection
+for `/_not-found`. No Preview variable was installed or guard weakened.
+
+The release plan's stale grant-before-function ordering was corrected to match
+the actual dependency: create the authority-free login, apply the compatible
+prefix, then converge the two grants and prove both login boundaries before
+application deployment. These recording/ordering edits are documentation-only
+successors to the accepted code head. PR #430 remains draft; neither PR was
+merged, and no production credentials, grants, migrations or deployment changed.
