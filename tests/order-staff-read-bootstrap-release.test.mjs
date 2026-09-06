@@ -43,7 +43,7 @@ test("every release identity, CI status, alias and credential epoch mismatch is 
     value => { value.deployment.aliases[0].deploymentId += "X"; },
     value => { value.credentialEpoch.evidenceSha256 = "e".repeat(64); },
     value => { value.credentialEpoch.status = "pending"; },
-    value => { value.credentialEpoch.currentCredentialsMatch = false; },
+    value => { value.credentialEpoch.localCredentialsMatch = false; },
   ];
   for (const mutate of mutations) {
     const value = staffReleaseFixture();

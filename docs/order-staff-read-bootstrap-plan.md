@@ -1,7 +1,8 @@
 # Order staff-read login bootstrap
 
-Status: isolated, dormant bootstrap core, journal, connection adapters,
-coordinator and read-only observation collectors; not an executable production operator.
+Status: isolated bootstrap operator and private-input wiring implemented; not
+executed in production. The draft, real release manifest and production bootstrap
+still require their remaining review/admission gates below.
 Prepared from the green PR #430 head
 `fa94c89fc09239ecfed8510d188e0aace4b8b436` (CI `34010014880` succeeded).
 No role, password, provider variable, grant, deployment or production data was
@@ -187,9 +188,9 @@ the explicitly gated real TLS/PostgreSQL test. The local full-suite log is
 ### Coordinator and exact proof admission
 
 `order-staff-read-bootstrap-coordinator.mjs` now composes the release check,
-private journal, bootstrap core and fresh-connection operations. It freezes the
-reviewed binding before asynchronous observation reads, checks admission before
-opening the journal and again under its exclusive lock, and rejects a privately
+private journal, bootstrap core and fresh-connection operations. It validates and
+freezes the reviewed binding before opening the journal, then performs full
+admission under its exclusive lock, and rejects a privately
 loaded owner credential from a different attested epoch. It rechecks admission
 before owner SQL, before the separate staff login and before returning a
 sanitized receipt. Journal readback precedes each database operation.
@@ -202,11 +203,11 @@ resume repeats admission and authentication without creation SQL. Competing
 coordinators cannot load the private credential or operate under another
 attempt's held journal lock.
 
-The coordinator has no CLI, fixed production paths, credential-file loader,
-provider-secret installer or grant writer. The separate read-only collectors
-described below now implement its Git/GitHub/Vercel observation boundary; private
-loaders and invocation remain unfinished. Injected observers and credential
-loaders are trust boundaries, not self-attested production evidence. Unit tests simulate
+The coordinator itself has no CLI, fixed production paths, provider-secret
+installer or grant writer. Separate collectors, private-input loaders and the
+operator described below now compose these boundaries. Injected observers and
+credential loaders in unit tests are trust boundaries, not self-attested
+production evidence. Unit tests simulate
 them; the updated real TLS harness uses fabricated release metadata while
 exercising the complete coordinator against its actual isolated database.
 
@@ -242,7 +243,7 @@ do not depend on retaining that disposable log.
 `order-staff-read-bootstrap-observations.mjs` supplies real local Git reads and
 fixed-origin GitHub/Vercel GET collectors. Imports perform no I/O and there is no
 CLI. The reviewed binding is validated and frozen before credentials or requests;
-tokens and credential-epoch observations still require separately reviewed loaders.
+the fixed private-input loaders below supply tokens and credential-epoch observations.
 
 - Git uses a fixed executable and restricted child environment, disables hooks,
   filesystem monitors and replace objects, checks the exact repository root and
@@ -284,34 +285,109 @@ snapshots, alias moves, unsafe tokens/environment, payload minimization and
 collector-to-coordinator recovery. A real disposable Git repository proves
 clean/dirty/root/origin and hidden-index-flag handling. Provider responses are
 simulated in these tests: the complete collector has not run using production
-tokens, and credential epoch verification remains unfinished.
+tokens. Private epoch verification is now implemented below but has only been
+exercised with disposable fixture credentials during this preparation.
 
 Local collector-pass validation: 20 observation/release/coordinator tests passed,
 including ten new collector tests; targeted lint and TypeScript passed. Full
 suite: 4,272 total, 4,260 passed, 12 environment-gated skips, zero failures.
-The disposable log is `/private/tmp/staff-observations-full.log`. New exact-head
-CI acceptance is recorded on PR #431 rather than inferred from the previous
-checkpoint's successful run.
+The disposable log is `/private/tmp/staff-observations-full.log`. Exact checkpoint
+`067fccb8cb622f0eca36d0e1e4b5a588a378cbb8` subsequently passed broad
+[CI 34047881794](https://github.com/Drewyoung910/grainline/actions/runs/34047881794):
+4,272 total, 4,264 passed, eight skipped, zero failures. Its real TLS proof
+[34047881793](https://github.com/Drewyoung910/grainline/actions/runs/34047881793),
+job `101526104069`, attempt 1, passed one test with zero skips/failures and
+successful teardown. These are predecessor results, not acceptance of newer code.
 
-Before this can be invoked outside tests, implement and review an adapter that:
+### Fixed private inputs and operator
 
-1. supplies an externally reviewed immutable release manifest (with accepted
-   deployment source evidence), private provider-token loaders and independent
-   credential-epoch verification to the prepared real Git/GitHub/Vercel collectors;
-2. pins a fixed ignored private directory for the composed journal;
-   prove Git excludes the entire directory
-   and retain the fail-closed stale-lock/pending-write recovery boundary;
-3. implements the fixed, mode-0600 owner credential loader with actual
-   credential-epoch verification; no credential value may enter logs or argv;
-4. retains the tested rollback/discard behavior and never substitutes a reusable
-   owner pool or ordinary-runtime client for a separate staff login;
-5. obtains successful main CI and a successful TLS run/job/attempt for the exact
-   final main release. The prepared checker now enforces that binding; no
-   historical proof substitution or branch-only proof is accepted for production;
-6. stages a separately bounded sensitive Production
-   `ORDER_STAFF_READ_DATABASE_URL` installation with metadata attestation and
-   explicit handling of an ambiguous provider write; and
-7. requires the scoped production authorization before mutation.
+`order-staff-read-bootstrap-private-inputs.mjs` pins production storage to
+`/Users/drewyoung/grainline/.env.order-staff-bootstrap/`. The production wrapper
+accepts only the externally reviewed manifest SHA-256, with no path/environment
+fallback. An explicit-path dependency-injection seam exists only for fixture
+tests. It does not change the executable's fixed production targets.
+
+The directory must already be canonical, operator-owned and mode 0700. Git must
+ignore the parent directory itself, not merely today's named files, and must
+track neither descendants nor either credential file. Each bounded private read
+requires a canonical regular mode-0600 file, matching owner, one hard link,
+no symlink, and stable file identity/size/timestamps across the read. The root
+and direct file parents must not be group/world writable. No loader creates,
+deletes, repairs or rewrites files. Every callback rechecks the manifest and
+ignore boundary; drift is a stop, not a reason to create a competing attempt.
+
+Private input layout:
+
+- `release.json`: canonical two-space JSON plus newline; exactly `schemaVersion: 1`,
+  `operation: order-staff-read-bootstrap`,
+  `authority: create-and-verify-authority-free-login-only`, and the eight-field
+  `reviewed` binding accepted by the release verifier. Its exact bytes must hash
+  to the independently approved digest. Duplicate keys, extra fields, changed
+  authority and alternate serialization are rejected. Because the final main
+  SHA and CI IDs are not known until release, this manifest stays outside Git;
+  never make a commit recursively contain its own final hash.
+- `provider-tokens.json`: canonical two-space JSON plus newline, with exactly
+  `github` and `vercel` token strings. Stage through approved private handling,
+  never chat, command arguments, repository files or pasted tool output. The
+  loader has no CLI-token/environment fallback and does not request new tokens.
+- Existing root `.env.migration-owner.local`: exactly one canonical quoted
+  `DIRECT_URL` assignment; it is never replaced by an ambient owner variable.
+- Existing root `.env.local`: exactly one parsed `DATABASE_URL` assignment;
+  duplicated, indented/export/colon duplicate assignments are rejected. Other
+  settings remain private and unchanged. The URL must identify the reviewed
+  ordinary pooled runtime, not an owner or another endpoint.
+- Existing mode-0600 recovery evidence
+  `/Users/drewyoung/grainline-rollout-evidence/database-credential-recovery-20260902.json`:
+  exact bytes pinned by `reviewed.credentialEpochSha256`. Accepted recovery flags,
+  restricted role identities and prior-password rejection evidence are checked;
+  both local URL hashes must equal the recorded replacement hashes.
+
+The epoch field is deliberately named `localCredentialsMatch`, replacing the
+ambiguous preparation-only name `currentCredentialsMatch`. It proves local file
+identity against an accepted epoch, **not fresh remote authentication, current
+Vercel secret contents or a newly sampled ordinary-runtime RLS posture**. Fresh
+owner identity and separate staff authentication still occur through the actual
+connection adapter. Existing ordinary-runtime release proofs remain separate.
+
+Full observation now runs under the private journal lock because epoch checking
+reads credentials. A competing coordinator cannot call any observer/token/owner
+loader. The former redundant pre-lock attestation was removed, retaining fresh
+checks before SQL, login and receipt. Invalid admission can briefly acquire and
+release the local lock but cannot create an attempt or reach owner SQL.
+
+`order-staff-read-bootstrap-operator.mjs` now wires the fixed loaders, collectors,
+coordinator and fresh database connections. Its CLI requires exactly
+`--manifest-sha256 REVIEWED_DIGEST --confirm create-and-verify-authority-free-login-only`.
+This is a description of the interface, **not approval to run it**. No-argument,
+wrong-confirmation, extra-option and path-override invocations stop. Imports are
+inert. Success emits only the sanitized receipt (including manifest digest);
+the authorized caller must retain it in a mode-0600 evidence file. Failure emits
+one sanitized message and preserves the existing inputs/journal. It never
+installs a secret, changes grants, deploys, rotates credentials or activates RLS.
+
+Local private-input/operator validation: 30 focused tests passed, including eight
+new private-filesystem tests and two operator-composition/entry tests. TypeScript,
+targeted lint and diff checks passed. Full suite: 4,282 tests, 4,270 passed,
+12 environment-gated skips, zero failures; disposable output is at
+`/private/tmp/staff-private-inputs-full.log`. This does not replace exact-head CI
+or the real PostgreSQL/TLS proof of the changed coordinator sequencing. New
+results are attached to PR #431 without a results-only commit loop.
+
+Remaining release gates:
+
+1. Independently review the final operator and accepted deployment/epoch evidence;
+   merge only after the stacked predecessors and this draft are admitted.
+2. Obtain successful main CI and TLS run/job/attempt for the exact final main
+   SHA. Finalize and separately review the external manifest/digest; no branch
+   proof, historical proof substitution or self-derived metadata approval.
+3. Stage the exact private directory, manifest and provider-token file without
+   exposing values or modifying the existing owner/runtime credentials. These
+   real files have not been created or read by the new loaders in this pass.
+4. Obtain the scoped production bootstrap authorization, run the fixed operator,
+   verify the resulting exact restricted login and retain sanitized evidence.
+5. Subsequently prepare/review the separately bounded sensitive Production
+   `ORDER_STAFF_READ_DATABASE_URL` installation, including metadata attestation
+   and ambiguous-write recovery. That provider writer is not part of this operator.
 
 Do not infer that a sensitive Vercel value can be read back. A successful API
 response/metadata observation is not proof that an application can authenticate;
@@ -319,10 +395,9 @@ that boundary must be demonstrated through the subsequently deployed client.
 Do not use a generic credential-recovery operator: this release must not rotate
 the existing owner/runtime credentials or deploy an application as a side effect.
 
-Next implementation pass: wire the externally reviewed release manifest, fixed
-ignored storage, provider-token loaders and private credential/epoch verification
-into the prepared collectors and coordinator. Reuse existing URL
-parsing, but do not mistake
+Next preparation: finish exact-head CI/review, then finalize the external release
+binding and secure input staging at the admitted production boundary. The
+subsequent secret-install operation remains separately scoped. Do not mistake
 `assertDeterministicPostgresEnvironment` for a complete environment allowlist:
 it currently checks `PGOPTIONS` and disabled TLS verification only. The new
 bootstrap connection adapter explicitly rejects the other overrides; that local

@@ -45,7 +45,7 @@ function fixture(t) {
 test("coordinator composes admitted release, durable intent, separate login and final attestation", async t => {
   const f = fixture(t);
   const result = await coordinateStaffBootstrap(f.options);
-  assert.deepEqual(f.calls, ["attest", "attest", "credential", "connection-factory", "attest", "owner", "attest", "login", "attest"]);
+  assert.deepEqual(f.calls, ["attest", "credential", "connection-factory", "attest", "owner", "attest", "login", "attest"]);
   assert.equal(result.status, "role-verified");
   assert.equal(result.tlsProofRunId, f.release.reviewed.tlsProofRunId);
   assert.equal(result.secretInstalled, false);
@@ -68,7 +68,7 @@ test("bad initial release or credential epoch cannot reach a connection or creat
 });
 
 test("release drift before SQL, login or final receipt stops at that boundary and preserves state", async t => {
-  for (const phase of [3, 4, 5]) {
+  for (const phase of [2, 3, 4]) {
     const f = fixture(t);
     let observations = 0;
     const original = f.options.observeRelease;
@@ -77,9 +77,9 @@ test("release drift before SQL, login or final receipt stops at that boundary an
       return original();
     };
     await assert.rejects(coordinateStaffBootstrap(f.options), /preserve the exact private attempt/u);
-    assert.equal(f.calls.includes("owner"), phase > 3);
-    assert.equal(f.calls.includes("login"), phase > 4);
-    assert.equal(f.read().stage, phase === 5 ? "role-verified" : "create-pending");
+    assert.equal(f.calls.includes("owner"), phase > 2);
+    assert.equal(f.calls.includes("login"), phase > 3);
+    assert.equal(f.read().stage, phase === 4 ? "role-verified" : "create-pending");
   }
 });
 

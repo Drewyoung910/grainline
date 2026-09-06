@@ -20,6 +20,6 @@ export function staffReleaseFixture() {
       target: "production", readyState: "READY", sourceCommit: "c".repeat(40),
       aliases: ["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app", "grainline-drew-youngs-projects.vercel.app"]
         .map(hostname => ({ hostname, deploymentId })) },
-    credentialEpoch: { evidenceSha256: "d".repeat(64), status: "complete", currentCredentialsMatch: true },
+    credentialEpoch: { evidenceSha256: "d".repeat(64), status: "complete", localCredentialsMatch: true },
   };
 }

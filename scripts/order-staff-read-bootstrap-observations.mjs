@@ -136,7 +136,7 @@ export async function collectStaffBootstrapObservations({ reviewed: input, direc
     for (const hostname of ALIASES) deployment.aliases.push({ hostname, deploymentId: (await vercel(hostname)).id });
     const epoch = await observeCredentialEpoch();
     const credentialEpoch = { evidenceSha256: epoch?.evidenceSha256, status: epoch?.status,
-      currentCredentialsMatch: epoch?.currentCredentialsMatch };
+      localCredentialsMatch: epoch?.localCredentialsMatch };
     const after = readGit(directory);
     assert.deepEqual(after, before);
     const finalRemote = await github("git/ref/heads/main");

@@ -8,6 +8,7 @@ import { collectStaffBootstrapObservations, readStaffBootstrapGit } from "../scr
 import { staffReleaseFixture } from "./helpers/staff-bootstrap-release-fixture.mjs";
 import { coordinateStaffBootstrap } from "../scripts/order-staff-read-bootstrap-coordinator.mjs";
 import { STAFF_BOOTSTRAP_ROLE, staffBootstrapMarker } from "../scripts/order-staff-read-role-bootstrap.mjs";
+import { executeStaffBootstrapWithInputs, runStaffBootstrapFromApprovedManifest } from "../scripts/order-staff-read-bootstrap-operator.mjs";
 
 function fixture() {
   const release = staffReleaseFixture();
@@ -140,7 +141,7 @@ test("stale or mixed release snapshots cannot be admitted", async () => {
     f => { f.rawDeployment.meta.gitCommitSha = "b".repeat(40); },
     f => { f.rawDeployment.gitSource = { sha: "b".repeat(40) }; },
     f => { f.rawDeployment.source = "unknown"; },
-    f => { f.options.observeCredentialEpoch = async () => ({ ...f.release.credentialEpoch, currentCredentialsMatch: false }); },
+    f => { f.options.observeCredentialEpoch = async () => ({ ...f.release.credentialEpoch, localCredentialsMatch: false }); },
     f => { let n = 0; const original = f.options.readGit; f.options.readGit = () => ({ ...original(), head: ++n === 1 ? f.release.reviewed.releaseCommit : "b".repeat(40) }); },
   ]) {
     const f = fixture(); mutation(f);
@@ -179,7 +180,7 @@ test("collector feeds the journal coordinator and refuses an observed alias move
   const f = fixture(); let observations = 0, ownerCalls = 0;
   const options = { reviewed: f.release.reviewed, directory, env: {},
     observeRelease: () => {
-      if (++observations === 3) f.rawDeployment.id = "dpl_moved";
+      if (++observations === 2) f.rawDeployment.id = "dpl_moved";
       return collectStaffBootstrapObservations(f.options);
     },
     loadOwnerCredential: async () => ({ url: "unused-test-only", epochSha256: f.release.reviewed.credentialEpochSha256 }),
@@ -220,4 +221,46 @@ test("local Git collector uses real repository state and refuses dirty, wrong-or
   }
   git(["remote", "set-url", "origin", "https://github.com/other/grainline.git"]);
   assert.throws(() => readStaffBootstrapGit(directory), /no admission/u);
+});
+
+test("operator composes private input callbacks, real collectors and journal without broadening authority", async t => {
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "grainline-staff-operator-test-")));
+  fs.chmodSync(directory, 0o700);
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const f = fixture(); let checks = 0, writes = 0;
+  const inputs = { reviewed: f.release.reviewed, directory, manifestSha256: "e".repeat(64),
+    verifyManifest: () => { checks++; return true; },
+    loadProviderTokens: f.options.loadProviderTokens, observeCredentialEpoch: f.options.observeCredentialEpoch,
+    loadOwnerCredential: async () => ({ url: "private-fixture-url", epochSha256: f.release.reviewed.credentialEpochSha256 }),
+  };
+  const options = { sourceDirectory: f.options.directory, env: {}, fetchImpl: f.options.fetchImpl, readGit: f.options.readGit,
+    connectionFactory: ({ state }) => ({
+      async executeOwnerTransaction() { writes++; },
+      async proveSeparateLogin() { return { currentUser: STAFF_BOOTSTRAP_ROLE, sessionUser: STAFF_BOOTSTRAP_ROLE,
+        database: "neondb", marker: staffBootstrapMarker(state), restrictedRole: true, hasApplicationAuthority: false }; },
+    }),
+  };
+  const result = await executeStaffBootstrapWithInputs(inputs, options);
+  assert.equal(result.status, "role-verified"); assert.equal(result.manifestSha256, inputs.manifestSha256);
+  assert.equal(result.secretInstalled, false); assert.equal(result.grantsApplied, false);
+  assert.equal(writes, 1); assert.ok(checks >= 8);
+  assert.doesNotMatch(JSON.stringify(result), /private-fixture|fixture-github|fixture-vercel/u);
+  await executeStaffBootstrapWithInputs(inputs, options);
+  assert.equal(writes, 1);
+  inputs.verifyManifest = () => { throw new Error("PRIVATE_SENTINEL"); };
+  await assert.rejects(executeStaffBootstrapWithInputs(inputs, options), error =>
+    !error.cause && !error.message.includes("PRIVATE_SENTINEL") && /operator stopped/u.test(error.message));
+});
+
+test("production entry cannot accept unreviewed paths, dependencies or missing confirmation", async () => {
+  for (const options of [undefined, {}, { manifestSha256: "a".repeat(64), confirmation: "wrong" },
+    { manifestSha256: "a".repeat(64), confirmation: "create-and-verify-authority-free-login-only", root: "/override" }]) {
+    await assert.rejects(runStaffBootstrapFromApprovedManifest(options), /operator stopped/u);
+  }
+  assert.throws(() => execFileSync(process.execPath, ["scripts/order-staff-read-bootstrap-operator.mjs"],
+    { stdio: "pipe", env: { PATH: "/usr/bin:/bin" } }), error => {
+    assert.equal(error.status, 1); assert.equal(error.stdout.toString(), "");
+    assert.equal(error.stderr.toString(), "staff bootstrap operator stopped; preserve the exact private inputs and journal\n");
+    return true;
+  });
 });

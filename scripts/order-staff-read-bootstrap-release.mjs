@@ -57,7 +57,7 @@ export function assertStaffBootstrapRelease({ reviewed, git, ci, tlsProofRun, tl
       JSON.stringify(deployment.aliases.map(item => item.hostname).sort()) === JSON.stringify(ALIASES) &&
       deployment.aliases.every(item => item.deploymentId === reviewed.deploymentId));
     assert.ok(credentialEpoch?.evidenceSha256 === reviewed.credentialEpochSha256 &&
-      credentialEpoch.status === "complete" && credentialEpoch.currentCredentialsMatch === true);
+      credentialEpoch.status === "complete" && credentialEpoch.localCredentialsMatch === true);
     return Object.freeze({ releaseCommit: reviewed.releaseCommit, ciRunId: reviewed.ciRunId,
       tlsProofRunId: reviewed.tlsProofRunId, tlsProofJobId: reviewed.tlsProofJobId,
       tlsProofRunAttempt: reviewed.tlsProofRunAttempt,

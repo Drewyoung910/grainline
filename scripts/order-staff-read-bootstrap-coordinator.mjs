@@ -1,7 +1,7 @@
 // Dormant composition only. No executable entrypoint, production paths,
 // observation/credential readers, secret installation or grant convergence.
 import assert from "node:assert/strict";
-import { assertStaffBootstrapRelease } from "./order-staff-read-bootstrap-release.mjs";
+import { assertStaffBootstrapRelease, assertStaffBootstrapReviewedBinding } from "./order-staff-read-bootstrap-release.mjs";
 import { withStaffBootstrapJournal } from "./order-staff-read-bootstrap-journal.mjs";
 import { newStaffBootstrapState, runStaffBootstrapCore } from "./order-staff-read-role-bootstrap.mjs";
 import { staffBootstrapConnectionOperations } from "./order-staff-read-bootstrap-connection.mjs";
@@ -11,18 +11,18 @@ export async function coordinateStaffBootstrap({ reviewed: input, directory, obs
   let phase = "release-admission";
   try {
     // Never let a caller change the admitted binding during an awaited read.
-    const reviewed = Object.freeze(structuredClone(input));
+    const reviewed = assertStaffBootstrapReviewedBinding(input);
     const environment = Object.freeze({ ...env });
     for (const callback of [observeRelease, loadOwnerCredential, connectionFactory]) assert.equal(typeof callback, "function");
     const attest = async () => assertStaffBootstrapRelease({ ...await observeRelease(), reviewed });
-    await attest();
     const binding = Object.freeze({ releaseCommit: reviewed.releaseCommit, ciRunId: reviewed.ciRunId });
     phase = "private-journal";
     return await withStaffBootstrapJournal({ directory, binding }, async journal => {
-      // Check under the exclusive lock before loading credentials or creating
-      // an attempt. The future loader must compute this epoch binding itself.
-      phase = "credential-admission";
+      // Full observation includes reading private files to check the accepted
+      // credential epoch. No observer/credential callback runs before this lock.
+      phase = "release-admission";
       await attest();
+      phase = "credential-admission";
       const credential = await loadOwnerCredential();
       assert.ok(credential && typeof credential.url === "string" &&
         credential.epochSha256 === reviewed.credentialEpochSha256);
