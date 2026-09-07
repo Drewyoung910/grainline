@@ -1077,17 +1077,22 @@ could never succeed before the shared route itself aged the event out.
 The correction does not widen cryptographic or source authority. Both writers
 still require the active `StripeWebhookEvent` generation, exact source object,
 processing lease, normalized UTC timestamp and all existing source-derived
-business invariants. Their input windows now match the single shared constants:
-30 days old and ten minutes future skew. The route remains the signature and
-age boundary; the database remains the event-generation and state-transition
-boundary.
+business invariants. Their future bound matches the shared ten-minute skew
+constant. Their lower bound preserves the route's 30-day age window plus a
+two-minute database allowance around the route's explicit 60-second execution
+ceiling and clock transit. That small asymmetric allowance prevents an event
+accepted at the route boundary from aging out before the SQL call; it is not an
+extension of the public route or a substitute for its signature check. The
+route remains the signature and age boundary; the database remains the active-
+generation and state-transition boundary.
 
 Static contract tests bind both SQL members to
 `STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS` and
-`STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS` and reject recurrence of the old 8-day or
-5-minute predicates. Disposable engine tests exercise accepted 29-day/9-minute
-and rejected 30-day-plus/11-minute witnesses through the restricted runtime
-role. UTC wall-clock strings are kept inside PostgreSQL semantics so the proof
+`STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS`, the 60-second route ceiling and the SQL
+allowance, and reject recurrence of the old 8-day or 5-minute predicates.
+Disposable engine tests exercise accepted 30-day-plus-90-second/9-minute and
+rejected 30-day-plus-150-second/11-minute witnesses through the restricted
+runtime role. UTC wall-clock strings are kept inside PostgreSQL semantics so the proof
 does not accidentally reinterpret timestamp-without-time-zone values through
 the host timezone. Drafts and staged migrations remain byte-identical, and the
 compatible-prefix pins are refreshed. No historical migration, production row,

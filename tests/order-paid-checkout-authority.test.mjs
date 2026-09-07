@@ -9,6 +9,7 @@ const sql = fs.readFileSync(
 );
 const wrapper = fs.readFileSync("src/lib/orderPaidCheckoutAuthority.ts", "utf8");
 const webhookState = fs.readFileSync("src/lib/stripeWebhookState.ts", "utf8");
+const webhookRoute = fs.readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
 
 describe("Order paid-checkout authority contract", () => {
   it("binds the write to an active signed-event generation and retained source", () => {
@@ -32,12 +33,14 @@ describe("Order paid-checkout authority contract", () => {
     assert.match(wrapper, /JSON\.stringify\(input\.provider\)/);
   });
 
-  it("keeps database paid-time acceptance aligned with the signed webhook gate", () => {
+  it("keeps database paid-time acceptance aligned with the bounded signed webhook route", () => {
     assert.match(webhookState, /STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 30 \* 24 \* 60 \* 60/);
     assert.match(webhookState, /STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS = 10 \* 60/);
-    assert.match(sql, /p_paid_at < source_now - interval '30 days'/);
+    assert.match(webhookRoute, /export const maxDuration = 60/);
+    assert.match(sql, /p_paid_at < source_now - interval '30 days 2 minutes'/);
     assert.match(sql, /p_paid_at > source_now \+ interval '10 minutes'/);
     assert.doesNotMatch(sql, /p_paid_at < source_now - interval '8 days'/);
+    assert.doesNotMatch(sql, /p_paid_at < source_now - interval '30 days'/);
     assert.doesNotMatch(sql, /p_paid_at > source_now \+ interval '5 minutes'/);
   });
 

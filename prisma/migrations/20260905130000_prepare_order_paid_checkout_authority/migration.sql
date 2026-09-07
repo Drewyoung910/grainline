@@ -94,9 +94,11 @@ BEGIN
      OR p_paid_at IS NULL
      -- Keep the fixed writer aligned with the signed-envelope gate. Stripe
      -- permits a manually resent event for 30 days, and the route accepts ten
-     -- minutes of positive clock skew. A narrower database window would accept
-     -- the envelope and then strand a paid checkout without an Order.
-     OR p_paid_at < source_now - interval '30 days'
+     -- minutes of positive clock skew. Preserve two minutes beyond the age
+     -- gate for the route's bounded 60-second execution plus clock transit; a
+     -- narrower database window could accept the envelope and then strand a
+     -- paid checkout without an Order.
+     OR p_paid_at < source_now - interval '30 days 2 minutes'
      OR p_paid_at > source_now + interval '10 minutes'
      OR p_provider IS NULL
      OR pg_catalog.jsonb_typeof(p_provider) <> 'object'

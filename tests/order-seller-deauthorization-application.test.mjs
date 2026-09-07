@@ -8,6 +8,7 @@ import {
 const webhook = fs.readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
 const authority = fs.readFileSync("src/lib/orderSellerDeauthorizationAuthority.ts", "utf8");
 const webhookState = fs.readFileSync("src/lib/stripeWebhookState.ts", "utf8");
+const webhookRoute = fs.readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
 const candidate = fs.readFileSync(
   "docs/rls-drafts/order-seller-deauthorization-authority.sql",
   "utf8",
@@ -69,12 +70,14 @@ describe("Order seller deauthorization application authority", () => {
     assert.doesNotMatch(authority, /\$\{input\.eventCreatedAt\}::timestamp/);
   });
 
-  it("matches the signed webhook age and future-skew acceptance window", () => {
+  it("matches the bounded signed webhook age and future-skew acceptance window", () => {
     assert.match(webhookState, /STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 30 \* 24 \* 60 \* 60/);
     assert.match(webhookState, /STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS = 10 \* 60/);
-    assert.match(candidate, /p_event_created_at < source_now - interval '30 days'/);
+    assert.match(webhookRoute, /export const maxDuration = 60/);
+    assert.match(candidate, /p_event_created_at < source_now - interval '30 days 2 minutes'/);
     assert.match(candidate, /p_event_created_at > source_now \+ interval '10 minutes'/);
     assert.doesNotMatch(candidate, /p_event_created_at < source_now - interval '8 days'/);
+    assert.doesNotMatch(candidate, /p_event_created_at < source_now - interval '30 days'/);
     assert.doesNotMatch(candidate, /p_event_created_at > source_now \+ interval '5 minutes'/);
   });
 });

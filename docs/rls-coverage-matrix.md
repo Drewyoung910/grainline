@@ -178,10 +178,11 @@ completed alternative.
 > chooses the earliest legitimate first sale among visible committed Orders.
 > The actual one-time congratulations delivery converges concurrent or
 > signed-time out-of-order initial Orders on one seller-scoped outbox key.
-> The paid and seller-deauthorization writers also accept exactly the shared
-> signed Stripe event window: 30 days old and ten minutes of positive clock
-> skew, closing a candidate-only 8-day/5-minute mismatch without weakening
-> event-generation or source-object authority.
+> The paid and seller-deauthorization writers also preserve the shared signed
+> Stripe event window: 30 days old, a two-minute database allowance around the
+> route's 60-second execution ceiling, and ten minutes of positive clock skew.
+> This closes a candidate-only 8-day/5-minute mismatch without weakening event-
+> generation or source-object authority.
 > The exact-session idempotency read is also converted: PostgreSQL now derives
 > a closed existing/retry/processing decision from the active event generation
 > and uses database time for stale refund-lock recovery instead of exposing raw

@@ -102,15 +102,15 @@ describe("Order paid-checkout authority", () => {
     }
   });
 
-  it("matches the signed webhook age and future-skew acceptance window", async () => {
+  it("preserves the route window plus its bounded execution allowance", async () => {
     const boundaries = rows(await db.query(`
       SELECT
         to_char(
-          (statement_timestamp() AT TIME ZONE 'UTC') - interval '29 days 23 hours',
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 90 seconds',
           'YYYY-MM-DD HH24:MI:SS.MS'
         ) AS accepted_old,
         to_char(
-          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 1 hour',
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 150 seconds',
           'YYYY-MM-DD HH24:MI:SS.MS'
         ) AS rejected_old,
         to_char(
