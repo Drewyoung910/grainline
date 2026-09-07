@@ -42,6 +42,17 @@ export type OrderCheckoutPostpaymentResult =
       projection: OrderCheckoutPostpaymentProjection;
     }>;
 
+/**
+ * The congratulations email is a SellerProfile milestone, not an Order
+ * delivery. Two initial paid events can be processed out of signed-time order,
+ * so an Order-scoped key can enqueue the milestone twice even when PostgreSQL
+ * deterministically identifies the earliest sale among currently visible
+ * Orders.
+ */
+export function firstSaleCongratsDedupKey(sellerProfileId: string) {
+  return `first-sale-congrats:${sellerProfileId}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

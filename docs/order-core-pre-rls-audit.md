@@ -912,3 +912,35 @@ separate-login convergence, pooled application smoke, compatible deployment and
 predecessor drain remain release gates. This correction changes only the
 unapplied candidate and does not establish or alter production credentials,
 grants, rows, migrations, deployments or RLS posture.
+
+### ORD-A18: first-sale congratulations must be a seller milestone
+
+2026-09-07 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected and locally unit-proven in the undeployed application candidate, not
+asserted fixed in production.
+
+The post-payment projection correctly excludes refunded, payment-blocked and
+held-for-review Orders and chooses the earliest legitimate `(paidAt, id)` tuple
+among rows visible to its statement. Its first-sale email idempotency key was
+nevertheless Order-scoped. If a later-signed first Order completed its entire
+side-effect pass before an earlier signed event created its Order, both closed
+projections could truthfully observe no earlier visible Order. They would then
+enqueue different keys and send the one-time congratulations twice.
+
+The correction treats the email as a `SellerProfile` milestone. Every initial
+Order for one seller now converges on `first-sale-congrats:<sellerProfileId>`;
+the unique EmailOutbox key elects one job even when both projections return
+true, while different sellers remain isolated. This preserves retry after
+direct-send or webhook failure because the retained outbox job owns delivery.
+The maximum accepted Stripe event age is 30 days and terminal outbox retention
+is 30 days measured from later delivery/update time, so an accepted earlier
+event cannot arrive after the newer event's milestone row is eligible for
+deletion. After that boundary, retained legitimate Order history makes future
+projections false.
+
+Focused tests pin seller convergence, cross-seller separation and the absence
+of the old Order-scoped key. The PostgreSQL test name now accurately states
+what it proves: earliest selection among visible committed Orders, not an
+atomic durable claim across transactions. This application-only correction
+does not alter the staged SQL bytes, migration order, database state, provider
+state or RLS posture.

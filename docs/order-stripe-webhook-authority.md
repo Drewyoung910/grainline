@@ -72,9 +72,16 @@ paid, non-refunded, non-payment-blocked Order and excludes the blocked-checkout
 review marker. A failed synthetic sale can no longer consume the milestone.
 The post-payment authority also corrects a concurrency defect in the initial
 candidate: `count = 1` could congratulate neither Order when two first sales
-committed before either side-effect pass. PostgreSQL now deterministically
-selects the earliest legitimate `(paidAt, id)` tuple, so exactly one concurrent
-Order owns the milestone.
+committed before either side-effect pass. PostgreSQL deterministically selects
+the earliest legitimate `(paidAt, id)` tuple among the Orders visible to that
+statement. That selection alone is not a durable one-time claim: a later-paid
+Order can finish its side-effect pass before an earlier signed event creates
+its Order, causing both statements to return true. The email outbox key is
+therefore scoped to `SellerProfile`, not Order. Concurrent or signed-time
+out-of-order initial events converge on the same unique outbox row; a different
+seller receives a different key. The accepted Stripe event-age window does not
+outlive that row's retention window, and later sales see the retained Order
+history, so replay cannot re-open the milestone after retention.
 
 ### Listing-page review hint
 
@@ -333,8 +340,10 @@ implemented. The former full Order graph read, separate Listing query and
 seller Order count are gone from the side-effect block. Disposable PostgreSQL
 proves restricted-runtime execution, direct-table denial, forged generation
 and session rejection, blocked-result non-disclosure, low-stock projection and
-deterministic first-sale selection. This remains a draft compatibility
-candidate and must not deploy before the function exists in production.
+deterministic earliest-visible first-sale selection. Application tests prove
+that the final one-time delivery key is seller-scoped rather than Order-scoped.
+This remains a draft compatibility candidate and must not deploy before the
+function exists in production.
 
 ### Seller deauthorization
 

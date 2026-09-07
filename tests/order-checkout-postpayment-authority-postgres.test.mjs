@@ -187,7 +187,7 @@ describe("Order checkout post-payment PostgreSQL authority", () => {
     await db.exec(`UPDATE public."Order" SET "paymentRefundBlocked" = false WHERE id = 'order-1'`);
   });
 
-  it("selects one deterministic first legitimate sale under concurrent orders", async () => {
+  it("selects the earliest legitimate sale among visible committed orders", async () => {
     await db.exec(`
       INSERT INTO public."Order" (
         id, "buyerId", "sellerProfileId", "paidAt", "stripeSessionId",

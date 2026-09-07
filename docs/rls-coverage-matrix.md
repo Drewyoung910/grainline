@@ -175,7 +175,9 @@ completed alternative.
 > now converted on the isolated branch. The latter is bound to the active
 > signed-event generation, returns no PII for blocked/refunded Orders, folds the
 > current low-stock read into one closed projection, and deterministically
-> chooses the earliest legitimate first sale under concurrent payments.
+> chooses the earliest legitimate first sale among visible committed Orders.
+> The actual one-time congratulations delivery converges concurrent or
+> signed-time out-of-order initial Orders on one seller-scoped outbox key.
 > The exact-session idempotency read is also converted: PostgreSQL now derives
 > a closed existing/retry/processing decision from the active event generation
 > and uses database time for stale refund-lock recovery instead of exposing raw

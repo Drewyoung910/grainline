@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
-import { checkoutPostpaymentResultFromRows } from "../src/lib/orderCheckoutPostpaymentState.ts";
+import {
+  checkoutPostpaymentResultFromRows,
+  firstSaleCongratsDedupKey,
+} from "../src/lib/orderCheckoutPostpaymentState.ts";
 
 const sql = fs.readFileSync(
   "docs/rls-drafts/order-checkout-postpayment-authority.sql",
@@ -89,6 +92,25 @@ describe("Order checkout post-payment authority", () => {
     assert.match(sql, /candidate\."sellerRefundId" IS NULL/);
     assert.match(sql, /\(candidate\."paidAt", candidate\.id\) < \(source_order\."paidAt", source_order\.id\)/);
     assert.match(sql, /'isFirstLegitimateSale', is_first_legitimate_sale/);
+  });
+
+  it("deduplicates the first-sale milestone by seller rather than Order", () => {
+    assert.equal(
+      firstSaleCongratsDedupKey("seller-1"),
+      firstSaleCongratsDedupKey("seller-1"),
+    );
+    assert.notEqual(
+      firstSaleCongratsDedupKey("seller-1"),
+      firstSaleCongratsDedupKey("seller-2"),
+    );
+    assert.match(
+      route,
+      /dedupKey: firstSaleCongratsDedupKey\(order\.sellerProfileId\)/,
+    );
+    assert.doesNotMatch(
+      route,
+      /first-sale-congrats:\$\{order\.orderId\}/,
+    );
   });
 
   it("uses the closed result instead of direct Order, OrderItem, or Listing reads", () => {

@@ -76,6 +76,8 @@ describe("Stripe webhook state helpers", () => {
     assert.match(sql, /NOT candidate\."reviewNeeded"/);
     assert.match(sql, /candidate\."reviewNote" IS NULL/);
     assert.match(sql, /Order was held for staff review\./);
+    assert.match(source, /firstSaleCongratsDedupKey\(order\.sellerProfileId\)/);
+    assert.doesNotMatch(source, /first-sale-congrats:\$\{order\.orderId\}/);
   });
 
   it("keeps checkout session shipping-address casting centralized in the webhook", () => {

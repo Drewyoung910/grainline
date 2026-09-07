@@ -43,6 +43,7 @@ import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
 import { createOrderFromPaidCheckout } from "@/lib/orderPaidCheckoutAuthority";
 import { readCheckoutPostpaymentProjection } from "@/lib/orderCheckoutPostpaymentAuthority";
+import { firstSaleCongratsDedupKey } from "@/lib/orderCheckoutPostpaymentState";
 import { readExistingCheckoutOrder } from "@/lib/orderCheckoutExistingAuthority";
 import {
   revalidateFeaturedMakerCaches,
@@ -466,7 +467,7 @@ export async function POST(req: Request) {
           seller: { displayName: sellerName, email: order.sellerEmail },
           order: orderSummary,
         }),
-        dedupKey: `first-sale-congrats:${order.orderId}:${sellerUserId}`,
+        dedupKey: firstSaleCongratsDedupKey(order.sellerProfileId),
         userId: sellerUserId,
         source: "first_sale_congrats",
         extra: { orderId: order.orderId, sellerUserId },
