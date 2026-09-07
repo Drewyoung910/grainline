@@ -853,6 +853,15 @@ three-connection proof. The final sanitized local after log has SHA-256
 `1c05bb35eda5fcef630ddafe5fb1171c8710c49144b0e44f848fab1f3d347f5b`;
 its exact-head remote result remains a release gate.
 
+The first independent remote proof run `34088368605` failed before schema
+setup because PostgreSQL reported its GitHub service-container address
+`172.18.0.2`, even though the client target was the required numeric loopback.
+The proof identity rule now keeps the exact loopback URL, database, owner and
+PostgreSQL-major checks, accepts an RFC1918 server address only under GitHub
+Actions, and rejects public, malformed and non-CI private addresses. This was
+a fail-closed proof-harness portability failure; it did not execute the lock
+schedule or alter the candidate SQL.
+
 Only the undeployed paid-checkout draft, byte-identical staged migration,
 compatible-prefix byte pin, proof harness and documentation change. No applied
 historical migration, production table, deployment or provider state changes.

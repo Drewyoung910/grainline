@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
 import yaml from "js-yaml";
-import { proofConfig } from "../scripts/order-paid-repair-lock-postgres-proof.mjs";
+import {
+  proofConfig,
+  proofServerHostAccepted,
+} from "../scripts/order-paid-repair-lock-postgres-proof.mjs";
 
 const draft = fs.readFileSync(
   "docs/rls-drafts/order-paid-checkout-authority.sql",
@@ -60,6 +63,16 @@ describe("Order paid-checkout/repair lock proof", () => {
         }),
       );
     }
+
+    assert.equal(proofServerHostAccepted("127.0.0.1"), true);
+    assert.equal(proofServerHostAccepted("172.18.0.2"), false);
+    assert.equal(proofServerHostAccepted("172.18.0.2", true), true);
+    assert.equal(proofServerHostAccepted("10.0.0.2", true), true);
+    assert.equal(proofServerHostAccepted("192.168.1.2", true), true);
+    assert.equal(proofServerHostAccepted("172.15.0.2", true), false);
+    assert.equal(proofServerHostAccepted("172.32.0.2", true), false);
+    assert.equal(proofServerHostAccepted("8.8.8.8", true), false);
+    assert.equal(proofServerHostAccepted("172.18.0.999", true), false);
   });
 
   it("pins one event, Session advisory, reservation lock order across real functions", () => {

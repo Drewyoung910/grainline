@@ -23,6 +23,19 @@ export function proofConfig(env = process.env) {
   return { connectionString: value, connectionTimeoutMillis: 5_000 };
 }
 
+export function proofServerHostAccepted(host, githubActions = false) {
+  if (host === "127.0.0.1") return true;
+  if (!githubActions || typeof host !== "string") return false;
+  const octets = host.split(".").map(Number);
+  if (
+    octets.length !== 4
+    || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
+  ) return false;
+  return octets[0] === 10
+    || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+    || (octets[0] === 192 && octets[1] === 168);
+}
+
 function actualFunction(sql, name) {
   const start = sql.indexOf(`CREATE FUNCTION public.${name}(`);
   const tag = `$${name}$;`;
@@ -106,9 +119,21 @@ export async function runProof(config = proofConfig()) {
     [controller] = clients;
     const [, paid, repair] = clients;
     const identity = await controller.query("SELECT current_database() AS db, current_user AS role, host(inet_server_addr()) AS host, current_setting('server_version_num')::int AS version");
-    assert.deepEqual({ ...identity.rows[0], version: Math.floor(identity.rows[0].version / 10000) }, {
-      db: databaseName, role: "paid_lock_owner", host: "127.0.0.1", version: 16,
+    assert.deepEqual({
+      db: identity.rows[0].db,
+      role: identity.rows[0].role,
+      version: Math.floor(identity.rows[0].version / 10000),
+    }, {
+      db: databaseName, role: "paid_lock_owner", version: 16,
     });
+    assert.equal(
+      proofServerHostAccepted(
+        identity.rows[0].host,
+        process.env.GITHUB_ACTIONS === "true",
+      ),
+      true,
+      "proof server is neither local nor a GitHub Actions private service",
+    );
     const existing = await controller.query("SELECT count(*)::int AS count FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'");
     assert.equal(existing.rows[0].count, 0, "proof refuses a nonempty database");
     await controller.query(paidCheckoutFixtureSql());

@@ -208,6 +208,12 @@ while repair finalization used Session -> reservation. A deterministic
 three-connection PostgreSQL 16.14 run with the exact real function bodies
 returned repair SQLSTATE `40P01` before the correction.
 
+Independent CI run `34088368605` then failed closed before schema setup when
+the PostgreSQL service reported its private Docker bridge address rather than
+the client-side loopback address. The corrected identity attestation permits
+that private server address only under GitHub Actions while preserving the
+exact numeric-loopback URL, database, role and PostgreSQL-major requirements.
+
 The member now acquires Session after verifying and locking the signed event,
 but before locking the reservation. This preserves the event-authority gate and
 aligns every involved transition on event -> Session -> reservation. The
