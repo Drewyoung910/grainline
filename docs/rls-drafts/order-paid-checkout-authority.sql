@@ -433,7 +433,8 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
 
-    SELECT listing.id, listing."sellerId", listing.status::text AS status, listing."isPrivate",
+    SELECT listing.id, listing."sellerId", listing.status::text AS status,
+           listing."listingType"::text AS listing_type, listing."stockQuantity", listing."isPrivate",
            listing."reservedForUserId"
       INTO source_current_listing
       FROM public."Listing" AS listing
@@ -442,7 +443,18 @@ BEGIN
       source_listing_invalid_reason := 'Listing could not be verified at payment completion.';
     ELSIF source_current_listing."sellerId" IS DISTINCT FROM source_seller_id THEN
       source_listing_invalid_reason := 'Listing seller changed before payment completion.';
-    ELSIF source_current_listing.status <> 'ACTIVE' THEN
+    -- Inventory was already debited by this exact reservation. Completing a
+    -- different paid reservation may have marked the last units SOLD_OUT;
+    -- availability for new checkouts must not cancel these reserved units.
+    -- Keep every other status/type/source/stock change fail-closed.
+    ELSIF source_current_listing.status <> 'ACTIVE' AND NOT COALESCE(
+      source_current_listing.status = 'SOLD_OUT'
+      AND source_current_listing.listing_type = 'IN_STOCK'
+      AND source_current_listing."stockQuantity" = 0
+      AND source_item#>>'{listing,listingType}' = 'IN_STOCK'
+      AND source_item#>>'{listing,status}' = 'ACTIVE',
+      false
+    ) THEN
       source_listing_invalid_reason := 'Listing was no longer active before payment completion.';
     ELSIF source_current_listing."isPrivate"
           AND source_current_listing."reservedForUserId" IS DISTINCT FROM

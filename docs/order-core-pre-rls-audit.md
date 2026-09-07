@@ -753,3 +753,48 @@ economic-precision limitation and is not being silently redesigned as part of
 RLS. The corrected compatible application is now live at the exact release
 above; authenticated smoke remains required before predecessor drain or Order
 activation.
+
+### ORD-A15: sold-out availability must not invalidate reserved paid units
+
+2026-09-06 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected in the undeployed candidate, not asserted fixed in production.
+
+The signed paid-checkout writer reproduced a two-reservation defect: two buyers
+already hold the final two units, leaving available stock zero. The first
+payment creates its Order and marks the Listing `SOLD_OUT`. The second payment
+then sees a non-ACTIVE Listing and receives an invalid-listing reason, which the
+webhook routes to blocked-checkout refund handling. The old application helper
+`invalidCheckoutListingReason` in `src/lib/stripeWebhookState.ts` has the same
+condition; this is an inherited product defect, not an RLS denial or evidence
+of an observed production incident.
+
+Rule: zero available inventory governs admission of **new** checkouts; it does
+not cancel an existing exact reservation. The corrected paid writer permits
+only an IN_STOCK listing retained as ACTIVE in the validated source snapshot,
+currently IN_STOCK/SOLD_OUT with exactly zero available stock. Its active signed
+event generation, exact Session/reservation binding, source-derived quantity,
+price and seller checks are unchanged. No extra stock is decremented or
+restored, and no new reservation is admitted by this exception. Seller stock
+edits that reach zero likewise do not cancel these existing held units.
+
+HIDDEN, DRAFT, SOLD, PENDING_REVIEW and REJECTED remain invalid; positive/null
+stock or a made-to-order/source-status mismatch does not qualify for the
+exception. Private-recipient changes, seller reassignment, suspension, deletion,
+vacation and stopped-order checks retain their precedence. Withdrawing a listing
+or stopping new orders remains distinct from merely exhausting available stock.
+Released reservations still fail before Order creation.
+
+Proof: the actual candidate function in PGlite, restricted runtime role, two
+different buyers and two pre-existing Session-bound reservations. Before the
+correction the second result was `Listing was no longer active before payment
+completion.` Afterward both create valid Orders with stock still zero. Additional
+negative controls exercise disallowed statuses, inventory/type/source drift,
+private-recipient mismatch, banned seller and released reservation. This local
+proof isolates the writer: reservation completion uses the existing test double;
+full-schema server proofs and authenticated provider smoke remain separate gates.
+
+Only the undeployed paid-checkout draft, identical staged migration and exact
+compatible-prefix byte pin change. The predecessor application/helper and all
+applied historical migrations remain untouched. Release acceptance still needs
+the larger candidate review, exact-head CI and the documented compatibility
+sequence; this finding does not authorize activation or deployment.

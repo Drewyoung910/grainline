@@ -201,6 +201,13 @@ Complete the exact-range review before accepting the production release.
 
 ### Ordered release gates
 
+The paid-checkout candidate also corrects the previously existing reserved-stock
+completion defect recorded under **ORD-A15** in `docs/order-core-pre-rls-audit.md`.
+An exact, still-valid reservation may complete after another payment changes its
+zero-stock IN_STOCK listing from ACTIVE to SOLD_OUT. This does not reopen new
+checkout admission or relax hidden/rejected/private-recipient/seller checks.
+The draft, staged paid-checkout SQL and its byte pin must remain identical.
+
 1. Retain and reverify the accepted comprehensive credential-recovery boundary
    sealed at `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89`; do not reintroduce a
    superseded credential epoch or deployment.

@@ -55,7 +55,7 @@ describe("Stripe cart checkout webhook finalization", () => {
     assert.match(authoritySource, /seller\."acceptingNewOrders"/);
     assert.match(
       authoritySource,
-      /listing\.status::text AS status, listing\."isPrivate",[\s\S]*listing\."reservedForUserId"/,
+      /listing\.status::text AS status,[\s\S]*listing\."listingType"::text AS listing_type, listing\."stockQuantity", listing\."isPrivate",[\s\S]*listing\."reservedForUserId"/,
     );
     assert.match(
       authoritySource,

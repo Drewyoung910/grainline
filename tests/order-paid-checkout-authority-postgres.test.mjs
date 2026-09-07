@@ -343,6 +343,124 @@ describe("Order paid-checkout authority", () => {
     }
   });
 
+  it("preserves two paid reservations after the first payment marks their listing sold out", async () => {
+    await db.exec("BEGIN");
+    try {
+      const snapshot = sourceSnapshot();
+      snapshot.item.listing.id = "listing-two-reservations";
+      await db.exec(`
+        INSERT INTO public."User" (id) VALUES ('buyer-two-reservations');
+        INSERT INTO public."Listing" (
+          id, "sellerId", status, "listingType", "stockQuantity", "isPrivate"
+        ) VALUES ('listing-two-reservations', 'seller-1', 'ACTIVE', 'IN_STOCK', 0, false);
+      `);
+      // Both units are already reserved before either payment completes.
+      // The reservation service decrements inventory during Session creation.
+      for (const [suffix, buyerId] of [["first", "buyer-1"], ["second", "buyer-two-reservations"]]) {
+        await db.query(`
+          INSERT INTO public."StripeWebhookEvent" (
+            id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+          ) VALUES ($1, 'checkout.session.completed', $2, 1, CURRENT_TIMESTAMP)
+        `, [`evt_reserved_${suffix}`, `cs_reserved_${suffix}`]);
+        await db.query(`
+          INSERT INTO public."CheckoutStockReservation" (
+            id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
+          ) VALUES ($1, $2, 'RESERVED', $3, 'seller-1', $4::jsonb)
+        `, [`reserved-${suffix}`, `cs_reserved_${suffix}`, buyerId, JSON.stringify(snapshot)]);
+      }
+      for (const suffix of ["first", "second"]) {
+        const projection = provider({
+          stripePaymentIntentId: `pi_reserved_${suffix}`,
+          stripeChargeId: `ch_reserved_${suffix}`,
+          stripeTransferId: `tr_reserved_${suffix}`,
+          paidItems: [{
+            sourceKey: "single:listing-two-reservations",
+            listingId: "listing-two-reservations", variantKey: "",
+            quantity: 1, unitAmountCents: 500,
+          }],
+        });
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        let result;
+        try {
+          result = await db.query(`
+            SELECT * FROM public.grainline_stripe_checkout_order_create(
+              $1, 1, $2, $3, $4::timestamp, $5::jsonb
+            )
+          `, [`evt_reserved_${suffix}`, `reserved-${suffix}`, `cs_reserved_${suffix}`,
+            paidAt, JSON.stringify(projection)]);
+        } finally {
+          await db.exec("RESET ROLE");
+        }
+        assert.equal(result.rows[0].invalid_reason, null, `${suffix} reserved payment`);
+        assert.equal(result.rows[0].listing_visibility_changed, suffix === "first");
+      }
+      assert.deepEqual((await db.query(`
+        SELECT status::text, "stockQuantity" AS stock
+          FROM public."Listing" WHERE id = 'listing-two-reservations'
+      `)).rows, [{ status: "SOLD_OUT", stock: 0 }]);
+      assert.equal(Number((await db.query(`
+        SELECT count(*) AS count FROM public."Order"
+         WHERE "stripeSessionId" IN ('cs_reserved_first', 'cs_reserved_second')
+      `)).rows[0].count), 2);
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+  });
+
+  it("does not let a sold-out reservation bypass current listing or actor restrictions", async () => {
+    const controls = [
+      ...["DRAFT", "SOLD", "HIDDEN", "PENDING_REVIEW", "REJECTED"].map((status) => ({ status })),
+      { status: "SOLD_OUT", stock: 1 },
+      { status: "SOLD_OUT", stock: null },
+      { status: "SOLD_OUT", listingType: "MADE_TO_ORDER" },
+      { status: "SOLD_OUT", sourceType: "MADE_TO_ORDER" },
+      { status: "SOLD_OUT", sourceStatus: null },
+      { status: "SOLD_OUT", privateRecipient: "someone-else", reason: /reservation changed/ },
+      { status: "SOLD_OUT", sellerBanned: true, reason: /Seller account was suspended/ },
+    ];
+    for (const control of controls) {
+      await db.exec("BEGIN");
+      try {
+        await db.query(`
+          UPDATE public."Listing" SET status = $1::public."ListingStatus",
+                 "stockQuantity" = $2, "listingType" = $3::public."ListingType",
+                 "isPrivate" = $4, "reservedForUserId" = $5
+           WHERE id = 'listing-1'
+        `, [control.status, Object.hasOwn(control, "stock") ? control.stock : 0,
+          control.listingType ?? "IN_STOCK", Boolean(control.privateRecipient),
+          control.privateRecipient ?? null]);
+        const snapshot = sourceSnapshot();
+        if (control.sourceType) snapshot.item.listing.listingType = control.sourceType;
+        if (Object.hasOwn(control, "sourceStatus")) snapshot.item.listing.status = control.sourceStatus;
+        await db.query(`UPDATE public."CheckoutStockReservation" SET "sourceSnapshot" = $1::jsonb
+          WHERE id = 'reservation-1'`, [JSON.stringify(snapshot)]);
+        if (control.sellerBanned) await db.exec(`UPDATE public."User" SET banned = true WHERE id = 'seller-user'`);
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        const result = await apply("evt_paid_order", 1n);
+        assert.match(result[0].invalid_reason, control.reason ?? /Listing was no longer active/,
+          JSON.stringify(control));
+      } finally {
+        await db.exec("RESET ROLE");
+        await db.exec("ROLLBACK");
+      }
+    }
+  });
+
+  it("rejects a released reservation even when the listing is sold out", async () => {
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."Listing" SET status = 'SOLD_OUT' WHERE id = 'listing-1';
+        UPDATE public."CheckoutStockReservation" SET status = 'RELEASED' WHERE id = 'reservation-1';
+        SET LOCAL ROLE grainline_app_runtime;
+      `);
+      await assert.rejects(apply("evt_paid_order", 1n), /reservation authority is invalid/);
+    } finally {
+      await db.exec("ROLLBACK");
+      await db.exec("RESET ROLE");
+    }
+  });
+
   it("creates one source-derived Order and item as restricted runtime", async () => {
     let created;
     await db.exec("SET ROLE grainline_app_runtime");
