@@ -87,3 +87,15 @@ build. Separate paid-repair lock `34163378229`, account-deletion concurrency
 `34163378213` and staff-bootstrap `34163378216` runs also passed. Gate 1 is
 closed for that exact revision. Any further draft/release change still needs
 its own applicable checks; this is not acceptance of an untested successor.
+
+Latest accepted code checkpoint: `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6`,
+full CI `34166065857`. It adds tested receipt/reconciliation input drafts and
+a rollback-only PostgreSQL 16 composition proof for those and the label draft.
+The five reviewed bodies changed exactly; catalog/ACL/table posture and the
+unchanged complete-prefix proof were restored afterward. Full tests and build
+passed, as did account-deletion concurrency `34166065873`, paid-repair locking
+`34166065871` and staff bootstrap `34166065850`. Failed first attempt
+`34165481370` and the narrow identity-reader correction are retained in the
+input-correction runbook. Gate 2 still needs release packaging/actual-runtime
+evidence and the independently released reservation-repair correction;
+code-CI acceptance is not production activation.

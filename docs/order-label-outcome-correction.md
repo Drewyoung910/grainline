@@ -48,16 +48,28 @@ passed, including the full suite and production build. It predates the new
 rollback-only full-schema input-draft composition harness, whose exact-head
 CI acceptance remains pending.
 
+Follow-up checkpoint `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6`, CI
+`34166065857`, passed the rollback-only PostgreSQL 16 full-schema input-draft
+composition step, including both label replacements. The distinct actual
+runtime-login and production acceptance gates remain open; see
+`order-reconciliation-input-corrections.md` for the failed first attempt and
+its corrected identity-reader evidence.
+
+That corrected full CI run completed successfully, including tests and build;
+the earlier pending status above is superseded by this exact-head acceptance.
+
 ## Remaining release gate
 
-This is not a production operator. Full-schema PostgreSQL 16 application,
-complete-candidate catalog composition, exact database/role/ledger scope,
-release wiring and the actual pooled-runtime postflight remain required.
+This is not a production operator. Full-schema PostgreSQL 16 application and
+complete-candidate catalog composition passed in the rollback-only CI proof.
+Exact database/role/ledger scope, release wiring and the actual pooled-runtime
+postflight remain required.
 The historical 18-migration postflight must remain byte-strict; this successor
 belongs in the final candidate's distinct catalog proof. Do not claim the
 live label function changed when this draft test passes.
 
-The remaining receipt-notification and refund-reconciliation input-hardening
-items stay in `order-core-pre-rls-audit.md`. Reservation repair is separately
+The receipt-notification and refund-reconciliation input-hardening drafts and
+their acceptance limits are in `order-reconciliation-input-corrections.md`.
+Reservation repair is separately
 tracked in `checkout-reservation-repair-outcome-correction.md`; do not bundle
 its live-table acceptance into this draft's test result.

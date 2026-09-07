@@ -69,7 +69,7 @@ function bodies change. It compares function metadata/ACLs, relations, columns,
 policies, roles, default ACLs and migration rows before/after. It verifies full
 catalog restoration and reruns the unchanged complete-prefix verifier after
 rollback. Error logs contain only a bounded phase and SQLSTATE, not catalogs
-or connection values. Full-schema CI acceptance of this new harness is pending.
+or connection values. Exact corrected CI acceptance is recorded below.
 
 First full-schema run `34165481370` at `e060c84797b7711c26d8b5cd5fc9aae5559f57eb`
 failed at identity before applying any draft. The new reader used
@@ -79,14 +79,24 @@ IP address. A local engine reproduction proves that representation mismatch.
 The correction uses `host(inet_server_addr())`, matching the existing
 concurrency operators, with a regression that preserves rejection of masked
 strings and non-CI private hosts. No host allowlist, production boundary or
-SQL draft is loosened. The corrected full-schema CI run remains required.
+SQL draft is loosened. The failed run is not counted as acceptance.
+
+Corrected checkpoint `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6`, CI
+`34166065857`: the PostgreSQL 16 input-draft composition step passed, as did
+the historical runtime-login postflight and complete-prefix proof. This accepts
+the five-function draft application, exact catalog comparison and rollback
+under the disposable owner. It does not attest corrected bodies through an
+actual runtime login or production. The full workflow subsequently completed
+successfully, including the full test suite and production build. Companion
+account-deletion concurrency `34166065873`, paid-repair locking `34166065871`
+and staff bootstrap `34166065850` also passed at that exact revision.
 
 The separate reservation repair draft is deliberately excluded: its own
 owner-bound FORCE-table release and runtime proof remain a separate gate.
 
 PGlite role tests are local engine behavior tests, not real pooled-runtime
-production proof. Acceptance of full-schema PostgreSQL 16 composition, exact
-database/role/ledger release binding, final-candidate runtime-login proof, and production
-acceptance remain open. Do not relax a historical function hash to accept
+production proof. Full-schema composition is accepted only as the rollback
+proof above. Exact database/role/ledger release binding, final-candidate
+runtime-login proof, and production acceptance remain open. Do not relax a historical function hash to accept
 these successors. Preserve the distinct reservation-repair and label-outcome
 release gates in their linked runbooks and the ordered completion plan.

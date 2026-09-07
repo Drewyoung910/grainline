@@ -4,6 +4,32 @@ Active worktree: `/private/tmp/grainline-clerk-legal-provenance-20260903`.
 Branch: `agent/order-checkout-retry-clock-20260906`, draft PR #432.
 Leave the old, dirty `/Users/drewyoung/grainline` worktree untouched.
 
+## Current checkpoint — read this first
+
+Latest pushed code: `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6`.
+Main CI `34166065857` has passed its historical runtime-login proof, complete
+Order successor-prefix proof and the new five-function draft-composition/
+rollback proof in PostgreSQL 16. The full CI workflow completed successfully,
+including tests and production build. All three companion concurrency/bootstrap
+runs passed (exact IDs below). This is the current accepted code-CI checkpoint.
+
+Local full suite, lint and TypeScript passed for the correction batch. The
+one-line identity-reader follow-up passed its nine focused checks. The real
+PostgreSQL run now confirms that follow-up and the new composition harness.
+No applied migrations, production workflows, provider state or credentials
+were changed. No new Order RLS posture is claimed.
+
+Next: package the bounded input corrections with
+their distinct actual-runtime and release proofs. The separate reservation
+repair draft still needs its own full-schema/release gate. Do not begin a new
+RLS domain or reinterpret owner-transaction composition as real-runtime proof.
+Continue through `order-rls-completion-plan-20260907.md`; credential-recovery
+acceptance and existing exact production boundaries remain mandatory.
+
+## Earlier checkpoints and preserved failed evidence
+
+The statuses below are historical, superseded by the current checkpoint above.
+
 This is a preservation checkpoint, not a release acceptance. The prior pushed
 commit is `691b91915226a973024c2634e17aa5426f02e780`. Its main CI run
 `34161435943` failed at **Prove Order compatible postflight through the runtime
@@ -66,3 +92,12 @@ the strict plain-IP guard. The bounded follow-up uses PostgreSQL `host()` and
 proves the representation difference without changing the allowlist. Preserve
 the failed evidence; do not report full-schema acceptance until corrected CI
 passes.
+
+Corrected checkpoint `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6` is pushed.
+CI `34166065857` passed the historical runtime-login postflight, complete
+successor prefix and the new PostgreSQL 16 draft-composition/rollback proof.
+Companion account-deletion concurrency `34166065873`, paid-repair locking
+`34166065871` and staff-bootstrap `34166065850` runs passed. The full CI
+workflow subsequently passed tests and build at this same revision. None of
+these results closes the actual runtime-login proof for the corrected drafts,
+the independent reservation repair release or production activation.
