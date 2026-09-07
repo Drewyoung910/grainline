@@ -73,7 +73,7 @@ describe("Order ban review authority", () => {
   it("preserves missing and invalid target policy errors before capability mint", () => {
     assert.match(
       ban,
-      /async function requireBanReviewTarget\([\s\S]*select: \{ role: true, deletedAt: true \}[\s\S]*new BanUserPolicyError\('User not found', 404\)[\s\S]*target\.role === 'ADMIN'/u,
+      /async function requireBanReviewTarget\([\s\S]*select: \{ role: true, deletedAt: true, banned: true, clerkId: true \}[\s\S]*new BanUserPolicyError\('User not found', 404\)[\s\S]*target\.role === 'ADMIN'/u,
     );
     const banFunction = ban.slice(
       ban.indexOf("export async function banUser"),
@@ -89,5 +89,15 @@ describe("Order ban review authority", () => {
         < unbanFunction.indexOf("await mintBanReviewCapability("),
     );
     assert.match(ban, /source-validating authority boundary across concurrent state changes/u);
+  });
+
+  it("keeps already-unbanned Clerk convergence outside the Order capability path", () => {
+    const unbanFunction = ban.slice(ban.indexOf("export async function unbanUser"));
+    assert.match(
+      unbanFunction,
+      /const target = await requireBanReviewTarget\(userId, 'unban'\)[\s\S]*if \(!target\.banned\) \{[\s\S]*await convergeAlreadyUnbannedClerkTarget\([\s\S]*return \{ sellerRestoreWarning: null \}[\s\S]*mintBanReviewCapability\(/u,
+    );
+    assert.match(ban, /idempotentConvergence: true/u);
+    assert.match(ban, /originalActionId: clerkSync\.unbanAuditLogId/u);
   });
 });

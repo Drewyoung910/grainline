@@ -78,6 +78,17 @@ with bounded policy errors. This check is not trusted for authority: the mint
 and consumer still revalidate the target under database locks, so concurrent
 deletion, role promotion or ban-state change fails closed.
 
+The same integration review found a retry-path mismatch. A manual unban commits
+locally before synchronizing Clerk and explicitly tells staff to retry if Clerk
+is temporarily unavailable. On that retry the target is already unbanned, so a
+new restore capability correctly refuses the no-longer-applicable banned-state
+transition. The application now detects that state before minting and performs
+only idempotent Clerk convergence, cache invalidation and a dedicated sync
+audit. It does not replay Order restoration, seller changes or an `UNBAN_USER`
+mutation. First-attempt unbans continue through the capability-bound atomic
+database transaction, and their Clerk sync audit is correlated to the exact
+unban audit row.
+
 The ban, manual unban and audited undo routes also repeat the signed Admin-PIN
 check before minting. Runtime receives `EXECUTE` only on the two capability
 consumers; the isolated staff role receives the mint. This slice grants no

@@ -45,4 +45,17 @@ describe("ban side-effect guardrails", () => {
     assert.match(audit, /source: 'undo_ban_user_clerk_sync_retry'/);
     assert.match(audit, /retry: true/);
   });
+
+  it("lets an already-unbanned user converge Clerk without replaying database restoration", () => {
+    const ban = source("src/lib/ban.ts");
+
+    assert.match(ban, /async function convergeAlreadyUnbannedClerkTarget/);
+    assert.match(ban, /await unbanClerkUser\(clerkId\)/);
+    assert.match(ban, /idempotentConvergence: true/);
+    assert.match(
+      ban,
+      /if \(!target\.banned\) \{[\s\S]*await convergeAlreadyUnbannedClerkTarget\([\s\S]*return \{ sellerRestoreWarning: null \}[\s\S]*const seller = await prisma\.sellerProfile\.findUnique/u,
+    );
+    assert.match(ban, /originalActionId: clerkSync\.unbanAuditLogId/u);
+  });
 });

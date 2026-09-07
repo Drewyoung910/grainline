@@ -5200,3 +5200,16 @@ Open work:
   Focused ban/capability/role/packaging validation passed 21 checks. The final
   frozen-tree suite passed 4,288 tests with 12 skips and zero failures across
   4,300 tests / 536 suites; TypeScript, ESLint and `git diff --check` passed.
+- Continued retry-path review then found a second capability integration
+  regression: when a local unban committed but Clerk synchronization failed,
+  the advertised retry encountered an already-unbanned target and the restore
+  capability correctly refused to replay the banned-state transition before
+  Clerk could be retried. The candidate now sends already-unbanned targets
+  through idempotent Clerk-only convergence with cache invalidation and a
+  dedicated audit, while first-attempt unbans retain the capability-bound
+  transaction. New first-attempt Clerk sync evidence is correlated to the exact
+  `UNBAN_USER` audit id. Classification: `FIX_BEFORE_ACTIVATION`; production is
+  unchanged. Focused ban/capability/role/packaging validation passed 23 checks;
+  the final frozen-tree suite passed 4,290 tests with 12 skips and zero failures
+  across 4,302 tests / 536 suites. TypeScript, ESLint and `git diff --check`
+  passed.

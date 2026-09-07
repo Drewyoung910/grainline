@@ -44,7 +44,7 @@ async function requireBanReviewTarget(
 ) {
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, deletedAt: true },
+    select: { role: true, deletedAt: true, banned: true, clerkId: true },
   })
   if (!target || target.deletedAt) {
     throw new BanUserPolicyError('User not found', 404)
@@ -55,6 +55,7 @@ async function requireBanReviewTarget(
   // This preserves the existing HTTP error contract only. The staff-session
   // capability mint and consumer repeat target validation and remain the
   // source-validating authority boundary across concurrent state changes.
+  return target
 }
 
 async function logClerkSyncResult({
@@ -93,6 +94,43 @@ async function logClerkSyncResult({
       tags: { source: 'ban_clerk_sync_audit' },
       extra: { action, targetId },
     })
+  }
+}
+
+async function convergeAlreadyUnbannedClerkTarget({
+  userId,
+  adminId,
+  clerkId,
+}: {
+  userId: string
+  adminId: string
+  clerkId: string
+}) {
+  await invalidateAccountStateCache(clerkId, 'unban_user_account_state_cache_invalidate')
+  try {
+    await unbanClerkUser(clerkId)
+    await logClerkSyncResult({
+      adminId,
+      action: 'UNBAN_USER_CLERK_SYNC',
+      targetId: userId,
+      metadata: { clerkUserId: clerkId, idempotentConvergence: true },
+    })
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: 'unban_user_clerk_sync' },
+      extra: { userId, adminId, clerkUserId: clerkId, idempotentConvergence: true },
+    })
+    await logClerkSyncResult({
+      adminId,
+      action: 'UNBAN_USER_CLERK_SYNC_FAILED',
+      targetId: userId,
+      metadata: {
+        clerkUserId: clerkId,
+        idempotentConvergence: true,
+        error: sanitizeEmailOutboxError(error),
+      },
+    })
+    throw new BanUserExternalSyncError("User is unbanned locally, but Clerk still could not be updated. Try the unban action again or contact support.")
   }
 }
 
@@ -292,7 +330,15 @@ export async function banUser({ userId, adminId, reason }: {
 export async function unbanUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
-  await requireBanReviewTarget(userId, 'unban')
+  const target = await requireBanReviewTarget(userId, 'unban')
+  if (!target.banned) {
+    await convergeAlreadyUnbannedClerkTarget({
+      userId,
+      adminId,
+      clerkId: target.clerkId,
+    })
+    return { sellerRestoreWarning: null }
+  }
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId }, select: { id: true, stripeAccountId: true }
   })
@@ -367,7 +413,7 @@ export async function unbanUser({ userId, adminId, reason }: {
         }
       })
     }
-    await tx.adminAuditLog.create({
+    const unbanAuditLog = await tx.adminAuditLog.create({
       data: {
         adminId,
         action: 'UNBAN_USER',
@@ -391,7 +437,11 @@ export async function unbanUser({ userId, adminId, reason }: {
         },
       }
     })
-    return { clerkId: previousUser.clerkId, sellerRestoreWarning }
+    return {
+      clerkId: previousUser.clerkId,
+      sellerRestoreWarning,
+      unbanAuditLogId: unbanAuditLog.id,
+    }
   })
 
   await invalidateAccountStateCache(clerkSync.clerkId, 'unban_user_account_state_cache_invalidate')
@@ -403,6 +453,7 @@ export async function unbanUser({ userId, adminId, reason }: {
       adminId,
       action: 'UNBAN_USER_CLERK_SYNC',
       targetId: userId,
+      originalActionId: clerkSync.unbanAuditLogId,
       metadata: { clerkUserId: clerkSync.clerkId },
     })
   } catch (error) {
@@ -414,6 +465,7 @@ export async function unbanUser({ userId, adminId, reason }: {
       adminId,
       action: 'UNBAN_USER_CLERK_SYNC_FAILED',
       targetId: userId,
+      originalActionId: clerkSync.unbanAuditLogId,
       metadata: {
         clerkUserId: clerkSync.clerkId,
         error: sanitizeEmailOutboxError(error),

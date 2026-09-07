@@ -1030,6 +1030,14 @@ before minting. The SQL mint and consumer remain authoritative and repeat the
 locked target validation, preserving denial under concurrent deletion or role
 changes.
 
+Manual unban also retains its documented external-sync retry. Because the local
+unban transaction commits before Clerk synchronization, a retry sees an
+already-unbanned target. The candidate now routes that state to idempotent Clerk
+convergence before capability minting; it does not replay Order review restore,
+seller state or the local unban transaction. A first-attempt unban remains
+capability-bound and atomic, and its external-sync evidence carries the exact
+unban audit-row id.
+
 Focused static and disposable PostgreSQL proof covers the source/control/sink
 chain, direct-table denial, defense-in-depth `SESSION_USER` fence after an
 accidental grant, one-use semantics, rollback safety and payload binding. The
