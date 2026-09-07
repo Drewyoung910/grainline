@@ -1324,3 +1324,21 @@ the account-deletion concurrency correction now have staged implementations,
 but none is accepted in production. Phase A still requires their complete
 prefix evidence, the separate CheckoutStockReservation repair correction, and
 a fresh accepted authenticated route smoke.
+
+### 2026-09-07 CI setup correction after composition checkpoint
+
+CI `34159053890` failed before executing the historical refund proof because
+its new behavior cases read a successor migration while the pipeline had
+intentionally moved that suffix out of the migration tree. The four standalone
+behavior suites now read the identical retained draft; the complete-prefix
+contract still verifies draft/migration bytes before and after isolation, and
+the final PostgreSQL step still applies the complete migration chain.
+
+Concurrency run `34159053735` stopped at its server identity assertion: a client
+connecting to numeric loopback through a published Docker port sees the private
+container address from `inet_server_addr()`. Both local concurrency operators
+now share the existing CI-private-address rule, with strict IPv4 parsing.
+Client URLs still require `127.0.0.1`, an exact disposable database and owner,
+and no connection-option overrides; PostgreSQL 16 and empty-database checks
+remain mandatory. Private server addresses are rejected outside GitHub Actions.
+Neither failed run is accepted concurrency or migration evidence.

@@ -12,7 +12,7 @@ const recordMigration = readFileSync(
   "utf8",
 );
 const compositionCorrection = readFileSync(
-  "prisma/migrations/20260905170000_correct_order_authority_composition/migration.sql",
+  "docs/rls-drafts/order-authority-composition-correction.sql",
   "utf8",
 );
 

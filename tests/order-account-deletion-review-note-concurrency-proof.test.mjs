@@ -15,6 +15,10 @@ const workflowSource = fs.readFileSync(
   ".github/workflows/order-account-deletion-concurrency-proof.yml",
   "utf8",
 );
+const proofSource = fs.readFileSync(
+  "scripts/order-account-deletion-review-note-concurrency-proof.mjs",
+  "utf8",
+);
 
 describe("Order account-deletion review-note concurrency proof", () => {
   it("admits only its exact disposable loopback database identity", () => {
@@ -46,6 +50,7 @@ describe("Order account-deletion review-note concurrency proof", () => {
   });
 
   it("runs the real lock-barrier proof only in an isolated PostgreSQL 16 job", () => {
+    assert.match(proofSource, /proofServerHostAccepted\(identity\.rows\[0\]\.host, process\.env\.GITHUB_ACTIONS === "true"\)/u);
     const workflow = yaml.load(workflowSource);
     assert.deepEqual(workflow.permissions, { contents: "read" });
     assert.doesNotMatch(workflowSource, /workflow_dispatch|secrets\./u);

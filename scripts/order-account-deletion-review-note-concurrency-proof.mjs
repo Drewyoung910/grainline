@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
+import { proofServerHostAccepted } from "./disposable-postgres-proof-host.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const databaseName = "grainline_account_deletion_concurrency_proof";
@@ -183,10 +184,14 @@ export async function runProof(config = proofConfig()) {
       {
         db: identity.rows[0].db,
         role: identity.rows[0].role,
-        host: identity.rows[0].host,
         version: Math.floor(identity.rows[0].version / 10_000),
       },
-      { db: databaseName, role: ownerName, host: "127.0.0.1", version: 16 },
+      { db: databaseName, role: ownerName, version: 16 },
+    );
+    assert.equal(
+      proofServerHostAccepted(identity.rows[0].host, process.env.GITHUB_ACTIONS === "true"),
+      true,
+      "proof server is neither local nor a GitHub Actions private service",
     );
     const existing = await controller.query(`
       SELECT pg_catalog.count(*)::int AS count

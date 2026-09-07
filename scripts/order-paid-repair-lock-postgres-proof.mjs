@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { proofServerHostAccepted } from "./disposable-postgres-proof-host.mjs";
+export { proofServerHostAccepted } from "./disposable-postgres-proof-host.mjs";
 import {
   paidCheckoutFixtureSql,
   provider,
@@ -21,19 +23,6 @@ export function proofConfig(env = process.env) {
   assert.equal(url.username, "paid_lock_owner", "proof requires its disposable owner");
   assert.equal(url.search, "", "proof rejects connection-option overrides");
   return { connectionString: value, connectionTimeoutMillis: 5_000 };
-}
-
-export function proofServerHostAccepted(host, githubActions = false) {
-  if (host === "127.0.0.1") return true;
-  if (!githubActions || typeof host !== "string") return false;
-  const octets = host.split(".").map(Number);
-  if (
-    octets.length !== 4
-    || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
-  ) return false;
-  return octets[0] === 10
-    || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
-    || (octets[0] === 192 && octets[1] === 168);
 }
 
 function actualFunction(sql, name) {
