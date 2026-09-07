@@ -607,7 +607,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(existingOrderBranch, /enqueueOrderPostPaymentSideEffects\(sessionId/);
     assert.match(existingSql, /source_order\."refundClaimId" IS NOT NULL/);
     assert.match(existingSql, /source_order\."refundClaimSourceId" = p_event_id/);
-    assert.match(existingSql, /source_order\."sellerRefundLockedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes'/);
+    assert.match(existingSql, /source_order\."sellerRefundLockedAt" < \(\s*pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'\s*\) - INTERVAL '15 minutes'/);
     assert.ok(
       route.indexOf("readExistingCheckoutOrder({") <
         route.indexOf("stripe.checkout.sessions.retrieve"),

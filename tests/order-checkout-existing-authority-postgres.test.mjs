@@ -144,7 +144,7 @@ describe("Order checkout existing PostgreSQL authority", () => {
     await db.exec(`
       UPDATE public."Order"
          SET "sellerRefundId" = 'pending',
-             "sellerRefundLockedAt" = CURRENT_TIMESTAMP,
+             "sellerRefundLockedAt" = clock_timestamp() AT TIME ZONE 'UTC',
              "refundClaimId" = NULL,
              "refundClaimSource" = NULL,
              "refundClaimSourceId" = NULL
@@ -158,7 +158,7 @@ describe("Order checkout existing PostgreSQL authority", () => {
     }
     await db.exec(`
       UPDATE public."Order"
-         SET "sellerRefundLockedAt" = CURRENT_TIMESTAMP - INTERVAL '16 minutes'
+         SET "sellerRefundLockedAt" = (clock_timestamp() AT TIME ZONE 'UTC') - INTERVAL '16 minutes'
        WHERE id = 'order-1'
     `);
     await db.exec("SET ROLE grainline_app_runtime");
@@ -169,7 +169,7 @@ describe("Order checkout existing PostgreSQL authority", () => {
     }
     await db.exec(`
       UPDATE public."Order"
-         SET "sellerRefundLockedAt" = CURRENT_TIMESTAMP,
+         SET "sellerRefundLockedAt" = clock_timestamp() AT TIME ZONE 'UTC',
              "refundClaimId" = 'claim-1',
              "refundClaimSource" = 'BLOCKED_CHECKOUT',
              "refundClaimSourceId" = 'evt-existing'
@@ -190,6 +190,36 @@ describe("Order checkout existing PostgreSQL authority", () => {
       assert.equal((await classify())[0].outcome, "processing");
     } finally {
       await db.exec("RESET ROLE");
+    }
+  });
+
+  it("classifies UTC-stored legacy locks identically in every session timezone", async () => {
+    const initialTimezone = (await db.query("SHOW TimeZone")).rows[0].TimeZone;
+    try {
+      for (const timezone of ["UTC", "America/Chicago", "Asia/Tokyo"]) {
+        await db.query("SELECT set_config('TimeZone', $1, false)", [timezone]);
+        for (const [ageMinutes, expected] of [[5, "processing"], [16, "retry"]]) {
+          await db.query(`
+            UPDATE public."Order"
+               SET "sellerRefundId" = 'pending',
+                   "sellerRefundLockedAt" = (clock_timestamp() AT TIME ZONE 'UTC')
+                     - $1 * INTERVAL '1 minute',
+                   "refundClaimId" = NULL,
+                   "refundClaimSource" = NULL,
+                   "refundClaimSourceId" = NULL
+             WHERE id = 'order-1'
+          `, [ageMinutes]);
+          await db.exec("SET ROLE grainline_app_runtime");
+          try {
+            assert.equal((await classify())[0].outcome, expected,
+              `${timezone}: UTC-stored ${ageMinutes}-minute lock`);
+          } finally {
+            await db.exec("RESET ROLE");
+          }
+        }
+      }
+    } finally {
+      await db.query("SELECT set_config('TimeZone', $1, false)", [initialTimezone]);
     }
   });
 

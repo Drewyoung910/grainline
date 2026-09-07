@@ -80,7 +80,9 @@ BEGIN
     source_refund_lock_stale := source_order."sellerRefundId" = 'pending'
       AND (
         source_order."sellerRefundLockedAt" IS NULL
-        OR source_order."sellerRefundLockedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes'
+        OR source_order."sellerRefundLockedAt" < (
+          pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+        ) - INTERVAL '15 minutes'
       );
     IF source_order."refundClaimId" IS NOT NULL THEN
       IF source_order."sellerRefundId" = 'pending'

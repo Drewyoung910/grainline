@@ -19,7 +19,8 @@ describe("Order checkout existing authority", () => {
     assert.match(sql, /source_event\."claimGeneration" IS DISTINCT FROM p_claim_generation/);
     assert.match(sql, /WHERE source\."stripeSessionId" = p_session_id/);
     assert.match(sql, /source_order\."refundClaimSourceId" = p_event_id/);
-    assert.match(sql, /CURRENT_TIMESTAMP - INTERVAL '15 minutes'/);
+    assert.match(sql, /pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'/);
+    assert.doesNotMatch(sql, /CURRENT_TIMESTAMP/);
     assert.match(sql, /SECURITY DEFINER/);
     assert.match(sql, /SET search_path = pg_catalog/);
     assert.doesNotMatch(sql, /\bEXECUTE\s+FORMAT\b|\bEXECUTE\s+IMMEDIATE\b/i);

@@ -162,6 +162,45 @@ gates; accepted CI is not evidence that any of them has happened.
 
 ## Sequence after compatible preparation
 
+### Checkout retry clock correction (2026-09-06)
+
+Review of the exact #429 candidate `2958fbb1fd0b2d3bcc70f6ba57d7a3e9358653d6`
+reproduced a correctness defect in `grainline_stripe_checkout_order_existing`:
+`sellerRefundLockedAt` is a UTC-stored timestamp without time zone, but the
+classifier compared it with `CURRENT_TIMESTAMP`. With identical UTC facts,
+a 16-minute-old lock returned `processing` in America/Chicago, and a fresh
+five-minute lock returned `retry` in Asia/Tokyo. UTC controls returned the
+intended `retry` and `processing` respectively. This is a candidate defect,
+not evidence of a production incident or a duplicate refund: downstream
+legacy lock release rechecks staleness with a UTC-normalized clock under its
+own fencing.
+
+The isolated correction normalizes `clock_timestamp()` to UTC, matching that
+release convention. It changes neither the 15-minute threshold nor generation,
+source-object, refund-claim, or processed-lease checks. The undeployed draft and
+staged migration stay identical, and only their compatible-prefix byte pin is
+refreshed. No applied historical migration or historical verifier is changed.
+The PostgreSQL regression exercises both fresh and stale locks under UTC,
+America/Chicago, and Asia/Tokyo through the restricted runtime role; existing
+forged-generation and processed-lease controls remain mandatory.
+
+Validation: the first focused run had 56 passes and one fixture failure:
+older fixture writes implicitly converted local `CURRENT_TIMESTAMP` into the
+UTC-stored lock column. Those three lock fixtures now explicitly store UTC;
+their expected outcomes were not relaxed. The final focused run passed all
+61 checks with no skips. The full local suite passed 4,273 checks with 12
+environment-gated PostgreSQL/service checks skipped and zero failures. These
+local PGlite engine checks do not replace the separate PostgreSQL server/login
+proofs in exact-head CI. Draft/migration byte equality and syntax checks passed.
+
+The wider #429 review is still incomplete. The formal scan inventory helper
+requires `git cat-file -Z`, unsupported by local Apple Git 2.39.5. Ordinary Git
+can read the exact commits; this is a tooling limitation, not lost source.
+Partial manual review and this correction do not certify the full candidate.
+Complete the exact-range review before accepting the production release.
+
+### Ordered release gates
+
 1. Retain and reverify the accepted comprehensive credential-recovery boundary
    sealed at `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89`; do not reintroduce a
    superseded credential epoch or deployment.
