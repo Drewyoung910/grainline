@@ -208,6 +208,16 @@ BEGIN
       USING ERRCODE = 'check_violation';
   END IF;
 
+  -- Match every CheckoutStockReservation transition's Session lock order:
+  -- verified webhook event -> Session advisory lock -> reservation row.
+  -- In particular, repair finalization already takes the Session lock before
+  -- the reservation row; reversing that order here can deadlock a paid
+  -- delivery against its concurrent PAID_OR_COMPLETE repair.
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    913337,
+    pg_catalog.hashtext(p_session_id)
+  );
+
   SELECT reservation.*
     INTO source_reservation
     FROM public."CheckoutStockReservation" AS reservation

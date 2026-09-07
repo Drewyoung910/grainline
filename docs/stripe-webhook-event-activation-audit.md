@@ -238,6 +238,13 @@ defect. Each remaining path is classified:
   exercises the fixed function through its runtime grant, directly inspects
   only synthetic proof rows, and rolls back the complete fixture. It is CI
   proof, not production evidence or an ordinary application table-access path.
+- `scripts/order-paid-repair-lock-postgres-proof.mjs` is a loopback-only
+  disposable PostgreSQL 16 concurrency proof of the paid-checkout and
+  reservation-repair lock order. It uses synthetic rows, separate owner and
+  restricted runtime transactions, and observed `pg_blocking_pids` barriers to
+  exercise both acquisition orders plus paid replay. Its direct table reads
+  only attest synthetic final state and stock conservation; it is CI proof,
+  not production evidence or an ordinary application table-access path.
 - `scripts/buyer-deletion-stripe-replay-postgres-proof.mjs` is a loopback-only
   disposable PostgreSQL proof of the real Prisma interactive-transaction
   rollback behavior. It proves missing-row inserts and stale reclaims roll

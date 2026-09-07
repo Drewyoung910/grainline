@@ -798,3 +798,62 @@ compatible-prefix byte pin change. The predecessor application/helper and all
 applied historical migrations remain untouched. Release acceptance still needs
 the larger candidate review, exact-head CI and the documented compatibility
 sequence; this finding does not authorize activation or deployment.
+
+### ORD-A16: paid completion and repair must share one Session lock order
+
+2026-09-07 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected and locally PostgreSQL-proven in the undeployed candidate, not
+asserted fixed in production.
+
+The paid writer locked the signed `StripeWebhookEvent`, then the
+`CheckoutStockReservation` row, and only near the end called the existing
+reservation-completion function. That function acquires the Session advisory
+lock before the same reservation row. Concurrent repair finalization already
+uses Session advisory lock -> reservation row. A reachable paid delivery and
+`PAID_OR_COMPLETE` repair could therefore form the inverse wait cycle: paid
+owned the reservation and waited for Session while repair owned Session and
+waited for the reservation.
+
+This was reproduced against PostgreSQL 16.14 with the real predecessor
+`grainline_checkout_reservation_complete` and
+`grainline_checkout_reservation_repair_finalize` function bodies plus the
+actual paid-writer candidate. Three separate connections and an independent
+test-only advisory barrier made the ownership order observable through
+`pg_blocking_pids`. The before-fix result was paid `created` and repair SQLSTATE
+`40P01`; PostgreSQL selected repair as the deadlock victim. This is a confirmed
+candidate concurrency defect, not an observed production incident, data-loss
+claim or RLS-policy failure. The sanitized local before log has SHA-256
+`f0bdca9677277a9da1ba1354794b2347ceb788dd7801b1802b102bf4da9acf30`.
+
+The corrected writer keeps the verified webhook-event row first, then acquires
+the established Session advisory lock namespace `913337` before selecting the
+reservation `FOR UPDATE`. It therefore matches completion and repair:
+verified event -> Session -> reservation. The event is still authenticated
+before a caller can consume a Session lock, and all source, actor, inventory,
+payment and replay checks remain inside the same transaction.
+
+Acceptance criteria are explicit:
+
+- the harness must install and catalog-attest the exact real predecessor
+  completion and repair bodies, not substitutes;
+- paid-first must visibly own the reservation before repair begins, while
+  repair-first must visibly own Session before paid begins;
+- neither observed order may return `40P01` or another transaction error;
+- both orders must end with one Order for the Session, stock zero, a
+  `COMPLETED` reservation, a cleared repair claim and exact replay; and
+- the existing forged-authority, restricted-runtime, rollback and source
+  projection controls must continue to pass.
+
+Local post-fix PostgreSQL results satisfy both schedules. Paid-first returns
+paid `created` and repair `superseded`, because completion cleared the repair
+claim before repair obtained the row. Repair-first returns repair `deferred`
+and then paid `created`. Both exact replays return `replayed` without another
+Order or stock effect. A dedicated PostgreSQL 16 CI job now preserves this
+three-connection proof. The final sanitized local after log has SHA-256
+`1c05bb35eda5fcef630ddafe5fb1171c8710c49144b0e44f848fab1f3d347f5b`;
+its exact-head remote result remains a release gate.
+
+Only the undeployed paid-checkout draft, byte-identical staged migration,
+compatible-prefix byte pin, proof harness and documentation change. No applied
+historical migration, production table, deployment or provider state changes.
+The wider candidate review and full compatibility sequence remain mandatory.

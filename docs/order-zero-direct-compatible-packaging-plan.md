@@ -199,10 +199,33 @@ can read the exact commits; this is a tooling limitation, not lost source.
 Partial manual review and this correction do not certify the full candidate.
 Complete the exact-range review before accepting the production release.
 
+### Paid completion/repair lock-order correction (2026-09-07)
+
+The larger candidate review subsequently reproduced **ORD-A16** in the
+undeployed paid-checkout member. The paid writer held the reservation row
+before its nested completion function requested the Session advisory lock,
+while repair finalization used Session -> reservation. A deterministic
+three-connection PostgreSQL 16.14 run with the exact real function bodies
+returned repair SQLSTATE `40P01` before the correction.
+
+The member now acquires Session after verifying and locking the signed event,
+but before locking the reservation. This preserves the event-authority gate and
+aligns every involved transition on event -> Session -> reservation. The
+post-fix local server proof passes both forced schedules, final state and exact
+replay. `docs/order-core-pre-rls-audit.md` records the threat boundary, complete
+acceptance rubric and outcomes. The independent
+`Order Paid Repair Lock Proof` PostgreSQL 16 CI job must pass at the exact head;
+local evidence alone does not admit the compatible release.
+
+Only the unapplied candidate member and its exact byte pin change. Historical
+migrations and production remain untouched. The finding does not collapse any
+of the ordered release gates below.
+
 ### Ordered release gates
 
 The paid-checkout candidate also corrects the previously existing reserved-stock
-completion defect recorded under **ORD-A15** in `docs/order-core-pre-rls-audit.md`.
+completion defect recorded under **ORD-A15** and the paid/repair lock inversion
+recorded under **ORD-A16** in `docs/order-core-pre-rls-audit.md`.
 An exact, still-valid reservation may complete after another payment changes its
 zero-stock IN_STOCK listing from ACTIVE to SOLD_OUT. This does not reopen new
 checkout admission or relax hidden/rejected/private-recipient/seller checks.
