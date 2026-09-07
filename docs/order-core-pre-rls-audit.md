@@ -866,3 +866,49 @@ Only the undeployed paid-checkout draft, byte-identical staged migration,
 compatible-prefix byte pin, proof harness and documentation change. No applied
 historical migration, production table, deployment or provider state changes.
 The wider candidate review and full compatibility sequence remain mandatory.
+
+### ORD-A17: staff mutations require the isolated credential and action PIN
+
+2026-09-07 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected and locally PostgreSQL-proven in the undeployed candidate, not
+asserted fixed in production.
+
+The staff Order queue/detail projections already required exact
+`SESSION_USER = grainline_staff_read_runtime`, because their PII and provider
+state must not be callable by the shared marketplace credential with a forged
+EMPLOYEE/ADMIN ID. The later mark-reviewed, external-label-void and append-note
+functions accidentally violated that same threat boundary: all three were
+granted to `grainline_app_runtime` and relied only on a caller-supplied staff
+row. A holder of the ordinary runtime credential could therefore forge a known
+staff ID and mutate arbitrary Order review, label or note state. The matching
+Server Actions also rechecked Clerk, role and rate limit but relied on the admin
+layout for Admin-PIN gating rather than verifying the signed PIN session at the
+action boundary.
+
+The accepted correction retains the already-reviewed separate role and
+environment names for operational compatibility, but explicitly expands their
+semantic contract from read-only to an exact isolated staff surface:
+
+- two bounded v2 queue/detail projections;
+- three fixed, atomically audited Order mutations; and
+- no table, sequence, schema-create, default or unrelated definer authority.
+
+The three mutation functions now require the exact isolated `SESSION_USER` and
+grant nothing in their migration. Both `PUBLIC` and ordinary runtime are
+revoked. The staff-role converger grants exactly the five operations only after
+the compatible prefix exists. The application mutation helpers require an
+explicit client, all three actions use `getOrderStaffReadClient()`, and the
+action guard verifies the Clerk-session-bound Admin-PIN cookie after the live
+staff-row check. Layout visibility remains defense in depth rather than the
+authorization boundary.
+
+Disposable PostgreSQL proves the three transitions and their audit rows through
+the isolated session while direct Order/audit access stays denied. It proves
+ordinary runtime cannot invoke a mutation with a forged staff ID and that an
+accidental future EXECUTE grant still fails inside the function on
+`SESSION_USER`. Static tests pin explicit-client use, zero ordinary grants,
+three session checks and action-level PIN verification. Exact-head CI, actual
+separate-login convergence, pooled application smoke, compatible deployment and
+predecessor drain remain release gates. This correction changes only the
+unapplied candidate and does not establish or alter production credentials,
+grants, rows, migrations, deployments or RLS posture.

@@ -84,7 +84,7 @@ test(
         [`GRANT grainline_app_runtime TO ${STAFF_ROLE}`, `REVOKE grainline_app_runtime FROM ${STAFF_ROLE}`, /staff role is a member/u],
         ["GRANT EXECUTE ON FUNCTION public.grainline_order_staff_detail_v2(text,text) TO PUBLIC",
           "REVOKE EXECUTE ON FUNCTION public.grainline_order_staff_detail_v2(text,text) FROM PUBLIC",
-          /projection execution authority is not exact/u],
+          /operation execution authority is not exact/u],
       ]) {
         await owner.query(setup);
         try {
@@ -118,6 +118,21 @@ test(
           ) AS detail_execute,
           pg_catalog.has_function_privilege(
             $1,
+            'public.grainline_order_staff_mark_reviewed(text,text)',
+            'EXECUTE'
+          ) AS mark_reviewed_execute,
+          pg_catalog.has_function_privilege(
+            $1,
+            'public.grainline_order_staff_record_label_voided(text,text)',
+            'EXECUTE'
+          ) AS label_voided_execute,
+          pg_catalog.has_function_privilege(
+            $1,
+            'public.grainline_order_staff_append_note(text,text,text)',
+            'EXECUTE'
+          ) AS append_note_execute,
+          pg_catalog.has_function_privilege(
+            $1,
             'public.grainline_order_staff_page(text,text,integer,integer)',
             'EXECUTE'
           ) AS predecessor_execute
@@ -137,6 +152,9 @@ test(
         order_select: false,
         page_execute: true,
         detail_execute: true,
+        mark_reviewed_execute: true,
+        label_voided_execute: true,
+        append_note_execute: true,
         predecessor_execute: false,
       });
 
@@ -156,6 +174,14 @@ test(
             "SELECT * FROM public.grainline_order_staff_detail_v2($1, $2)",
             ["ci-missing-staff", "ci-missing-order"],
           )).rows, [], "unknown staff actor must return no rows without a SQL error",
+        );
+        await assert.rejects(
+          staff.query(
+            "SELECT public.grainline_order_staff_mark_reviewed($1, $2)",
+            ["ci-missing-staff", "ci-missing-order"],
+          ),
+          (error) => error?.code === "P0001" && /requires active staff/u.test(error.message),
+          "the isolated login must pass the session gate and reach live actor validation",
         );
       } finally {
         await staff.end();

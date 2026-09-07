@@ -243,7 +243,8 @@ The draft, staged paid-checkout SQL and its byte pin must remain identical.
 2. Provision and prove the separate authority-free staff-read login and isolate
    its credential. Do not grant the v2 functions before they exist.
 3. Apply the exact compatible prefix while Order RLS remains off, then converge
-   only the two separately reviewed staff-function grants.
+   only the five separately reviewed staff-operation grants: two fixed reads
+   and three fixed, audited mutations.
 4. Run the distinct ordinary pooled-runtime compatibility postflight and the
    dedicated staff-login authority proof.
 5. Deploy the zero-direct application, run the fresh complete authenticated
@@ -269,7 +270,8 @@ execution is:
 
 - apply the complete additive compatible prefix as one reviewed batch;
 - provision the staff-read credential in the same compatibility phase, while
-  keeping its two grants and application deployment correctly ordered;
+  keeping its five exact operation grants and application deployment correctly
+  ordered;
 - remove exact predecessor deployments immediately after the fresh smoke rather
   than waiting through a traffic-drain window with no users;
 - dispatch the already separate ENABLE and FORCE migrations in one controlled

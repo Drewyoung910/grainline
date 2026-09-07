@@ -24,6 +24,10 @@ BEGIN
     RAISE EXCEPTION 'Staff Order mark-reviewed input is invalid'
       USING ERRCODE = 'check_violation';
   END IF;
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Staff Order mutation requires isolated staff session'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
   PERFORM 1 FROM public."User" AS actor
      WHERE actor.id = p_actor_user_id
        AND actor.role::text IN ('EMPLOYEE', 'ADMIN')
@@ -81,6 +85,10 @@ BEGIN
      OR p_order_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
     RAISE EXCEPTION 'Staff Order label-void input is invalid'
       USING ERRCODE = 'check_violation';
+  END IF;
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Staff Order mutation requires isolated staff session'
+      USING ERRCODE = 'insufficient_privilege';
   END IF;
   PERFORM 1 FROM public."User" AS actor
      WHERE actor.id = p_actor_user_id
@@ -158,6 +166,10 @@ BEGIN
     RAISE EXCEPTION 'Staff Order note input is invalid'
       USING ERRCODE = 'check_violation';
   END IF;
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Staff Order mutation requires isolated staff session'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
   PERFORM 1 FROM public."User" AS actor
      WHERE actor.id = p_actor_user_id
        AND actor.role::text IN ('EMPLOYEE', 'ADMIN')
@@ -199,9 +211,3 @@ REVOKE ALL ON FUNCTION public.grainline_order_staff_record_label_voided(text, te
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_order_staff_append_note(text, text, text)
   FROM PUBLIC, grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_order_staff_mark_reviewed(text, text)
-  TO grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_order_staff_record_label_voided(text, text)
-  TO grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_order_staff_append_note(text, text, text)
-  TO grainline_app_runtime;

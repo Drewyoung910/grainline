@@ -76,8 +76,9 @@ function requiredOrderStaffReadDatabaseUrl() {
 function createOrderStaffReadClient() {
   const adapter = new PrismaPg({
     ...runtimeDatabasePoolOptions(requiredOrderStaffReadDatabaseUrl()),
-    // Staff reads are low-volume and must not consume the ordinary runtime's
-    // independently reviewed ten-connection budget.
+    // Staff operations are low-volume and must not consume the ordinary
+    // runtime's independently reviewed ten-connection budget. The env/role
+    // names are retained from the original read-only release for compatibility.
     max: 2,
   });
   return new PrismaClient({

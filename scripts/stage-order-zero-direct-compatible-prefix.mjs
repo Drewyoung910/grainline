@@ -52,7 +52,7 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS = Object.freeze([
   {
     migration: "20260905090000_prepare_order_staff_mutation_authority",
     draft: "order-staff-mutation-authority.sql",
-    sha256: "54469a57437ae93547d091bff47ecfa83336c915624a20bc709f61a1bfaf155e",
+    sha256: "7e55a48ff1cd731201aa1bfd20670a9241dabda42620762eaefab04e4d6ee54a",
   },
   {
     migration: "20260905100000_prepare_order_ban_review_authority",
@@ -130,9 +130,6 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_RUNTIME_FUNCTIONS = Object.freeze([
   ["grainline_order_legacy_refund_lock_prune", "integer"],
   ["grainline_legacy_stock_restore_claim", "text"],
   ["grainline_order_refund_reconciliation_committed", "text, text, bigint"],
-  ["grainline_order_staff_mark_reviewed", "text, text"],
-  ["grainline_order_staff_record_label_voided", "text, text"],
-  ["grainline_order_staff_append_note", "text, text, text"],
   ["grainline_order_flag_banned_seller_open_orders", "text, text"],
   ["grainline_order_restore_banned_seller_reviews", "text, text, jsonb"],
   ["grainline_checkout_reservation_create_cart_snapshot", "text, text, text, text, text, jsonb"],
@@ -146,6 +143,9 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_RUNTIME_FUNCTIONS = Object.freeze([
 
 export const ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS = Object.freeze([
   ["grainline_checkout_reservation_listing_snapshot_witness", "text"],
+  ["grainline_order_staff_mark_reviewed", "text, text"],
+  ["grainline_order_staff_record_label_voided", "text, text"],
+  ["grainline_order_staff_append_note", "text, text, text"],
   ["grainline_seller_deauthorization_application_immutable", ""],
 ].map((entry) => Object.freeze(entry)));
 

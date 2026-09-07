@@ -2,9 +2,15 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import {
+  ADMIN_PIN_COOKIE_NAME,
+  verifyAdminPinCookieValue,
+} from "@/lib/adminPin";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import {
   appendStaffOrderNote,
   markStaffOrderReviewed,
@@ -17,7 +23,7 @@ const ORDER_NOTE_MAX_CHARS = 2_000;
 const ORDER_REVIEW_NOTE_MAX_CHARS = 10_000;
 
 async function requireAdmin() {
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   if (!userId) throw new Error("Unauthorized");
   const { success } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) throw new Error("Rate limited");
@@ -33,13 +39,24 @@ async function requireAdmin() {
   ) {
     throw new Error("Forbidden");
   }
+  const cookieStore = await cookies();
+  const pinVerified = await verifyAdminPinCookieValue(
+    cookieStore.get(ADMIN_PIN_COOKIE_NAME)?.value,
+    userId,
+    sessionId,
+  );
+  if (!pinVerified) throw new Error("Admin PIN required");
   return user;
 }
 
 export async function markReviewed(orderId: string, _prevState?: unknown): Promise<AdminOrderActionState> {
   try {
     const admin = await requireAdmin();
-    const status = await markStaffOrderReviewed(admin.id, orderId);
+    const status = await markStaffOrderReviewed(
+      admin.id,
+      orderId,
+      getOrderStaffReadClient(),
+    );
     if (status === "unchanged") {
       return {
         ok: false,
@@ -62,7 +79,11 @@ export async function markReviewed(orderId: string, _prevState?: unknown): Promi
 export async function recordLabelVoided(orderId: string, _prevState?: unknown): Promise<AdminOrderActionState> {
   try {
     const admin = await requireAdmin();
-    const result = await recordStaffOrderLabelVoided(admin.id, orderId);
+    const result = await recordStaffOrderLabelVoided(
+      admin.id,
+      orderId,
+      getOrderStaffReadClient(),
+    );
 
     if (result === "missing") return { ok: false, error: "Order not found." };
     if (result === "not_purchased") return { ok: false, error: "This order does not have a purchased Grainline label." };
@@ -97,7 +118,12 @@ export async function appendNote(orderId: string, _prevState: unknown, formData:
       return { ok: false, error: `Notes are limited to ${ORDER_NOTE_MAX_CHARS.toLocaleString("en-US")} characters per append.` };
     }
 
-    const result = await appendStaffOrderNote(admin.id, orderId, note);
+    const result = await appendStaffOrderNote(
+      admin.id,
+      orderId,
+      note,
+      getOrderStaffReadClient(),
+    );
 
     if (result === "missing") return { ok: false, error: "Order not found." };
     if (result === "too_long") {

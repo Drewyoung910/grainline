@@ -38,15 +38,20 @@ test("staff-read role convergence requires the restricted login posture", () => 
   assert.match(script, /NOT set_option/u);
 });
 
-test("staff-read role receives exactly the corrected projections and no tables", () => {
-  assert.match(
-    script,
-    /GRANT EXECUTE ON FUNCTION\s+public\.grainline_order_staff_page_v2\(text, text, integer, integer\)/u,
-  );
-  assert.match(
-    script,
-    /GRANT EXECUTE ON FUNCTION\s+public\.grainline_order_staff_detail_v2\(text, text\)/u,
-  );
+test("isolated staff role receives exactly five reviewed operations and no tables", () => {
+  for (const signature of [
+    "grainline_order_staff_page_v2\\(text, text, integer, integer\\)",
+    "grainline_order_staff_detail_v2\\(text, text\\)",
+    "grainline_order_staff_mark_reviewed\\(text, text\\)",
+    "grainline_order_staff_record_label_voided\\(text, text\\)",
+    "grainline_order_staff_append_note\\(text, text, text\\)",
+  ]) {
+    assert.match(
+      script,
+      new RegExp(`GRANT EXECUTE ON FUNCTION\\s+public\\.${signature}`, "u"),
+    );
+  }
+  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 5);
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public/u);

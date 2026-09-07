@@ -1,8 +1,10 @@
--- Grainline Order staff-read least-privilege convergence.
+-- Grainline Order isolated-staff least-privilege convergence.
 --
 -- This script never creates a role or sets a password. The reviewed provider
 -- operator must first create grainline_staff_read_runtime as a separately
--- authenticated LOGIN. Run this only after the corrected v2 projections exist:
+-- authenticated LOGIN. The historical role name is retained, but its authority
+-- is the exact bounded staff read-and-mutation surface below. Run this only
+-- after the corrected v2 projections and staff mutations exist:
 --
 --   psql "$DIRECT_URL" \
 --     -v staff_role=grainline_staff_read_runtime \
@@ -217,7 +219,10 @@ SELECT pg_catalog.format(
 WITH required(function_signature) AS (
   VALUES
     ('public."grainline_order_staff_page_v2"(text, text, integer, integer)'),
-    ('public."grainline_order_staff_detail_v2"(text, text)')
+    ('public."grainline_order_staff_detail_v2"(text, text)'),
+    ('public."grainline_order_staff_mark_reviewed"(text, text)'),
+    ('public."grainline_order_staff_record_label_voided"(text, text)'),
+    ('public."grainline_order_staff_append_note"(text, text, text)')
 ), missing AS (
   SELECT function_signature FROM required
   WHERE pg_catalog.to_regprocedure(function_signature) IS NULL
@@ -226,7 +231,7 @@ WITH required(function_signature) AS (
 )
 SELECT
   EXISTS (SELECT 1 FROM missing) AS grainline_staff_role_failed,
-  COALESCE((SELECT 'missing staff projection: ' || function_signature FROM missing), '')
+  COALESCE((SELECT 'missing staff operation: ' || function_signature FROM missing), '')
     AS grainline_staff_role_failure;
 \gset
 \if :grainline_staff_role_failed
@@ -243,6 +248,15 @@ GRANT EXECUTE ON FUNCTION
   TO :"staff_role";
 GRANT EXECUTE ON FUNCTION
   public.grainline_order_staff_detail_v2(text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_order_staff_mark_reviewed(text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_order_staff_record_label_voided(text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_order_staff_append_note(text, text, text)
   TO :"staff_role";
 
 WITH table_authority AS (
@@ -290,7 +304,10 @@ WITH table_authority AS (
 ), expected(function_signature) AS (
   VALUES
     ('public."grainline_order_staff_page_v2"(text, text, integer, integer)'),
-    ('public."grainline_order_staff_detail_v2"(text, text)')
+    ('public."grainline_order_staff_detail_v2"(text, text)'),
+    ('public."grainline_order_staff_mark_reviewed"(text, text)'),
+    ('public."grainline_order_staff_record_label_voided"(text, text)'),
+    ('public."grainline_order_staff_append_note"(text, text, text)')
 ), expected_authority AS (
   SELECT function_signature,
          pg_catalog.has_function_privilege(
@@ -327,7 +344,7 @@ WITH table_authority AS (
   WHERE EXISTS (SELECT 1 FROM sequence_authority)
   UNION ALL SELECT 'staff role retains default privilege grants'
   WHERE EXISTS (SELECT 1 FROM default_authority)
-  UNION ALL SELECT 'staff projection execution authority is not exact'
+  UNION ALL SELECT 'staff operation execution authority is not exact'
   WHERE EXISTS (
     SELECT 1 FROM expected_authority
     WHERE NOT staff_execute OR runtime_execute OR public_execute

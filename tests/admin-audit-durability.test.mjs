@@ -50,9 +50,9 @@ describe("admin audit durability", () => {
 
     const orderActions = source("src/app/admin/actions.ts");
     const orderAuthority = source("docs/rls-drafts/order-staff-mutation-authority.sql");
-    assert.match(orderActions, /markStaffOrderReviewed\(admin\.id, orderId\)/);
-    assert.match(orderActions, /recordStaffOrderLabelVoided\(admin\.id, orderId\)/);
-    assert.match(orderActions, /appendStaffOrderNote\(admin\.id, orderId, note\)/);
+    assert.match(orderActions, /markStaffOrderReviewed\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?getOrderStaffReadClient\(\)/);
+    assert.match(orderActions, /recordStaffOrderLabelVoided\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?getOrderStaffReadClient\(\)/);
+    assert.match(orderActions, /appendStaffOrderNote\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?note,[\s\S]*?getOrderStaffReadClient\(\)/);
     assert.doesNotMatch(orderActions, /prisma\.order\.(?:update|updateMany)/);
     assert.equal(
       (orderAuthority.match(/INSERT INTO public\."AdminAuditLog"/g) ?? []).length,

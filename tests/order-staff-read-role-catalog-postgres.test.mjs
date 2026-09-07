@@ -25,6 +25,12 @@ test("staff grant final catalog executes in PostgreSQL and rejects PUBLIC leakag
         RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
       CREATE FUNCTION public.grainline_order_staff_detail_v2(text,text)
         RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_order_staff_mark_reviewed(text,text)
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_order_staff_record_label_voided(text,text)
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_order_staff_append_note(text,text,text)
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
       REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
       GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO grainline_staff_read_runtime;
     `);
@@ -35,7 +41,7 @@ test("staff grant final catalog executes in PostgreSQL and rejects PUBLIC leakag
       public.grainline_order_staff_detail_v2(text,text) TO PUBLIC`);
     assert.deepEqual((await database.query(catalog)).rows, [{
       grainline_staff_role_failed: true,
-      grainline_staff_role_failure: "staff projection execution authority is not exact",
+      grainline_staff_role_failure: "staff operation execution authority is not exact",
     }]);
     await database.exec(`REVOKE EXECUTE ON FUNCTION
       public.grainline_order_staff_detail_v2(text,text) FROM PUBLIC;

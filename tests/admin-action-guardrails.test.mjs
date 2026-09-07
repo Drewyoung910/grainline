@@ -125,7 +125,8 @@ describe("admin server action guardrails", () => {
     const page = source("src/app/admin/orders/[id]/page.tsx");
 
     assert.match(actions, /export async function recordLabelVoided/);
-    assert.match(actions, /recordStaffOrderLabelVoided\(admin\.id, orderId\)/);
+    assert.match(actions, /recordStaffOrderLabelVoided\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?getOrderStaffReadClient\(\)/);
+    assert.match(actions, /verifyAdminPinCookieValue/);
     const authority = source("docs/rls-drafts/order-staff-mutation-authority.sql");
     assert.match(authority, /"labelStatus" IS DISTINCT FROM 'PURCHASED'/);
     assert.match(authority, /"labelClawbackStatus" IN \('RETRY_PENDING', 'RETRYING'\)/);

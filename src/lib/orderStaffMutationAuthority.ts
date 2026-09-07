@@ -1,7 +1,7 @@
-import { prisma } from "@/lib/db";
+import type { PrismaClient } from "@prisma/client";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
 
-type StaffMutationClient = Pick<typeof prisma, "$queryRaw">;
+type StaffMutationClient = Pick<PrismaClient, "$queryRaw">;
 
 const ORDER_ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/;
 const ORDER_NOTE_MAX_CHARS = 2_000;
@@ -39,7 +39,7 @@ async function status(
 export function markStaffOrderReviewed(
   actorUserIdInput: string,
   orderIdInput: string,
-  client: StaffMutationClient = prisma,
+  client: StaffMutationClient,
 ) {
   const actorUserId = normalizeDbUserContextUserId(actorUserIdInput);
   const normalizedOrderId = orderId(orderIdInput);
@@ -57,7 +57,7 @@ export function markStaffOrderReviewed(
 export function recordStaffOrderLabelVoided(
   actorUserIdInput: string,
   orderIdInput: string,
-  client: StaffMutationClient = prisma,
+  client: StaffMutationClient,
 ) {
   const actorUserId = normalizeDbUserContextUserId(actorUserIdInput);
   const normalizedOrderId = orderId(orderIdInput);
@@ -82,7 +82,7 @@ export function appendStaffOrderNote(
   actorUserIdInput: string,
   orderIdInput: string,
   noteInput: string,
-  client: StaffMutationClient = prisma,
+  client: StaffMutationClient,
 ) {
   const actorUserId = normalizeDbUserContextUserId(actorUserIdInput);
   const normalizedOrderId = orderId(orderIdInput);

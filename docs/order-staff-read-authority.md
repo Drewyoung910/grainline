@@ -80,7 +80,8 @@ Before application conversion, a separate release must:
    NOBYPASSRLS, membership-free and without table privileges;
 2. install its secret outside the ordinary `DATABASE_URL` and migration-owner
    paths;
-3. grant only the two reviewed functions;
+3. after the compatible prefix exists, grant only the five reviewed staff
+   operations: two corrected projections and three bounded mutations;
 4. prove the ordinary runtime cannot execute either function and the staff
    role cannot read base tables;
 5. bind the PIN-gated pages to a dedicated client with bounded pooling; and
@@ -123,7 +124,8 @@ Stripe webhook service path and account-deletion path; each needs a distinct
 fixed authority rather than access through the staff credential.
 
 The required release sequence remains database first: provision and prove the
-login, grant only the two corrected functions, install the production secret, merge and
+login, apply the compatible prefix, grant only the five corrected operations,
+install the production secret, merge and
 deploy the converted application, exercise both queues and detail through the
 actual pooled session, drain predecessors, then revoke superseded direct
 authority. This local checkpoint does not authorize any of those operations.
@@ -140,9 +142,9 @@ half of the dedicated-role release. It refuses a missing, colliding, inherited,
 privileged or membership-bearing login; permits only Neon's exact non-effective
 `cloud_admin` bootstrap member edge; removes direct table, column, sequence and
 function grants; rejects default-privilege authority; and grants only the two
-corrected `*_v2` projections. It also proves that `PUBLIC` and
-`grainline_app_runtime` cannot execute those projections and that the staff
-role cannot execute any other `SECURITY DEFINER` function.
+corrected `*_v2` projections at that historical checkpoint. It also proves that
+`PUBLIC` and `grainline_app_runtime` cannot execute those projections and that
+the staff role cannot execute any other `SECURITY DEFINER` function.
 
 This script intentionally cannot create the role or set its password. A
 separate restart-safe provider operator must generate the credential, create
@@ -150,7 +152,7 @@ and authenticate the exact `LOGIN NOINHERIT NOBYPASSRLS` role, install only the
 sensitive Production `ORDER_STAFF_READ_DATABASE_URL`, and retain sanitized
 evidence. The projection functions must exist before grant convergence, so the
 production order is: create the authority-free login and install its secret;
-apply the compatible Order prefix; converge the two grants; deploy and smoke
+apply the compatible Order prefix; converge the reviewed grants; deploy and smoke
 the converted application. No action in this checkpoint changes production.
 
 The real-PostgreSQL proof at
@@ -211,10 +213,36 @@ for `/_not-found`. No Preview variable was installed or guard weakened.
 
 The release plan's stale grant-before-function ordering was corrected to match
 the actual dependency: create the authority-free login, apply the compatible
-prefix, then converge the two grants and prove both login boundaries before
+prefix, then converge the reviewed grants and prove both login boundaries before
 application deployment. These recording/ordering edits are documentation-only
 successors to the accepted code head. PR #430 remains draft; neither PR was
 merged, and no production credentials, grants, migrations or deployment changed.
+
+## 2026-09-07 isolated mutation boundary correction
+
+The wider Order candidate audit found that the three staff mutations were still
+granted to ordinary `grainline_app_runtime` and accepted a caller-supplied staff
+ID. A holder of the shared marketplace credential could therefore forge a known
+staff ID to clear review state, append a staff note or record a label as voided.
+The application Server Actions also depended on page/layout Admin-PIN gating
+instead of verifying the signed PIN session at the action boundary.
+
+The unapplied staff-mutation member now requires exact
+`SESSION_USER = grainline_staff_read_runtime`, grants nothing, and revokes both
+ordinary runtime and `PUBLIC`. The application supplies the already-isolated
+client explicitly and repeats Admin-PIN verification before every operation.
+The role provisioner is correspondingly expanded from the historical two-read
+surface to exactly five operations: the two corrected reads and three fixed,
+audited mutations. The legacy role/env names are retained to avoid unnecessary
+credential churn; they no longer mean the role is semantically read-only.
+
+Disposable PostgreSQL coverage proves a genuine isolated staff session can
+co-commit each transition and audit while base tables remain denied. It also
+proves ordinary runtime cannot execute the functions and that even an
+accidentally re-granted function rejects the wrong `SESSION_USER`. This is an
+undeployed candidate correction, not a production incident or production-role
+claim. Exact-head CI, production login/grant convergence, pooled application
+smoke and the remaining Order release sequence are still required.
 
 The next isolated bootstrap core and its explicit remaining production-adapter
 gate are tracked in `docs/order-staff-read-bootstrap-plan.md`. It does not yet
