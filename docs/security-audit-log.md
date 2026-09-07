@@ -5169,3 +5169,17 @@ Open work:
   correction coverage passed 40 tests with one CI-service-only skip, and the
   post-correction complete suite passed 4,287 tests with 12 skips and zero
   failures across 4,299 tests / 536 suites.
+- Replacement exact-head CI run `34134265340` passed the corrected early
+  inventory audit, all paid/repair lock proofs, and the separate staff TLS/login
+  proof, then failed at the later real-login staff convergence assertion. The
+  database function correctly raised SQLSTATE `42501` (`insufficient_privilege`)
+  after its isolated `SESSION_USER` gate and at live actor validation; the test
+  incorrectly required generic PL/pgSQL `P0001`. The correction requires
+  `42501` plus the exact actor-validation message and expands the real-login
+  proof to assert the sixth capability-mint EXECUTE grant, denial of direct
+  `OrderStaffCapability` reads, and successful passage through the capability
+  session gate to active-administrator validation. No application, migration,
+  grant, or provider behavior changed. Focused local authority validation passed
+  14 tests with the one real-login CI test skipped; the final frozen-tree suite
+  passed 4,287 tests with 12 skips and zero failures across 4,299 tests / 536
+  suites. TypeScript, ESLint and `git diff --check` also passed.

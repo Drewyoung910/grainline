@@ -133,6 +133,11 @@ test(
           ) AS append_note_execute,
           pg_catalog.has_function_privilege(
             $1,
+            'public.grainline_order_staff_capability_mint(text,text,text,jsonb)',
+            'EXECUTE'
+          ) AS capability_mint_execute,
+          pg_catalog.has_function_privilege(
+            $1,
             'public.grainline_order_staff_page(text,text,integer,integer)',
             'EXECUTE'
           ) AS predecessor_execute
@@ -155,6 +160,7 @@ test(
         mark_reviewed_execute: true,
         label_voided_execute: true,
         append_note_execute: true,
+        capability_mint_execute: true,
         predecessor_execute: false,
       });
 
@@ -169,6 +175,11 @@ test(
           staff.query('SELECT id FROM public."Order" LIMIT 1'),
           (error) => error?.code === "42501",
         );
+        await assert.rejects(
+          staff.query('SELECT id FROM public."OrderStaffCapability" LIMIT 1'),
+          (error) => error?.code === "42501",
+          "the isolated login must not receive capability-table authority",
+        );
         assert.deepEqual(
           (await staff.query(
             "SELECT * FROM public.grainline_order_staff_detail_v2($1, $2)",
@@ -180,8 +191,17 @@ test(
             "SELECT public.grainline_order_staff_mark_reviewed($1, $2)",
             ["ci-missing-staff", "ci-missing-order"],
           ),
-          (error) => error?.code === "P0001" && /requires active staff/u.test(error.message),
+          (error) => error?.code === "42501" && /requires active staff/u.test(error.message),
           "the isolated login must pass the session gate and reach live actor validation",
+        );
+        await assert.rejects(
+          staff.query(
+            "SELECT public.grainline_order_staff_capability_mint($1, $2, $3, $4)",
+            ["ci-missing-admin", "ci-missing-target", "BAN_REVIEW_FLAG", null],
+          ),
+          (error) => error?.code === "42501"
+            && /requires an active administrator/u.test(error.message),
+          "the isolated login must execute the capability mint and reach administrator validation",
         );
       } finally {
         await staff.end();
