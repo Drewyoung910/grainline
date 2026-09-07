@@ -63,6 +63,17 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
       "v2 account notifications without an account id should fail before lease acquisition",
     );
     assert.match(route, /stripe\.accounts\.retrieve\(sourceObjectId\)/);
+    assert.match(route, /if \(stripeEventType === "v2\.core\.account\.closed"\)/);
+    assert.match(
+      route,
+      /applyStripeSellerDeauthorization\(\{\s*eventId: stripeEventId,\s*claimGeneration,\s*accountId: sourceObjectId,\s*eventCreatedAt: new Date\(eventCreatedSeconds \* 1000\),\s*\}\)/s,
+    );
+    assert.ok(
+      route.indexOf('if (stripeEventType === "v2.core.account.closed")') <
+        route.indexOf("const account = await stripe.accounts.retrieve(sourceObjectId)"),
+      "terminal v2 account closure must not depend on retrieving an already-closed provider account",
+    );
+    assert.match(route, /source: "stripe_v2_account_closed"/);
     assert.match(
       route,
       /mirrorStripeChargesEnabled\(\{\s*accountId: sourceObjectId,\s*chargesEnabled: Boolean\(account\.charges_enabled\),\s*route: "\/api\/stripe\/webhook\/v2",\s*actorType: "webhook",\s*actorId: stripeEventId,\s*\}\)/s,

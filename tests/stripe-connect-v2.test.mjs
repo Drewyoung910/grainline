@@ -214,7 +214,9 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(middleware, /"\/api\/stripe\/webhook\/v2"/);
     assert.match(middleware, /pathname === "\/api\/stripe\/webhook\/v2"/);
 
-    assert.match(webhook, /event\.type === "account\.application\.deauthorized"/);
+    assert.doesNotMatch(webhook, /event\.type === "account\.application\.deauthorized"/);
+    assert.match(v2Webhook, /stripeEventType === "v2\.core\.account\.closed"/);
+    assert.match(v2Webhook, /applyStripeSellerDeauthorization/);
   });
 
   it("runs scheduled Connect account-state reconciliation through the shared mirror helper", () => {

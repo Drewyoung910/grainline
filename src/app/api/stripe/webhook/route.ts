@@ -19,7 +19,6 @@ import {
 import { enqueueEmailOutboxOnce, type QueuedEmail } from "@/lib/emailOutbox";
 import { emailOutboxFailureState } from "@/lib/emailOutboxState";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
-import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -39,7 +38,6 @@ import { isStripeSessionUniqueConstraintError } from "@/lib/stripeWebhookEventSt
 import { releaseBlockedCheckoutLegacyRefundLock } from "@/lib/orderLegacyRefundLockAuthority";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
-import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
 import { createOrderFromPaidCheckout } from "@/lib/orderPaidCheckoutAuthority";
 import { readCheckoutPostpaymentProjection } from "@/lib/orderCheckoutPostpaymentAuthority";
 import { firstSaleCongratsDedupKey } from "@/lib/orderCheckoutPostpaymentState";
@@ -47,7 +45,6 @@ import { readExistingCheckoutOrder } from "@/lib/orderCheckoutExistingAuthority"
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
-  revalidatePublicSellerVisibilityCaches,
 } from "@/lib/searchCache";
 import {
   checkoutItemsSubtotalCents,
@@ -1201,31 +1198,6 @@ export async function POST(req: Request) {
     if (event.type === "payout.failed") {
       return processIdempotentEvent(async () => {
         await processStripePayoutFailedEvent(event, claimGeneration);
-        return NextResponse.json({ received: true });
-      });
-    }
-
-    if (event.type === "account.application.deauthorized") {
-      return processIdempotentEvent(async () => {
-        const deauthAccount = event.data.object as { id: string };
-        if (deauthAccount.id) {
-          const deauthorization = await applyStripeSellerDeauthorization({
-            eventId: event.id,
-            claimGeneration,
-            accountId: deauthAccount.id,
-            eventCreatedAt: signedPaymentTime,
-          });
-          if (deauthorization.publicVisibilityChanged) {
-            revalidatePublicSellerVisibilityCaches();
-          }
-          if (deauthorization.sellerProfileId) {
-            await expireOpenCheckoutSessionsForSeller({
-              sellerId: deauthorization.sellerProfileId,
-              stripeAccountId: deauthAccount.id,
-              source: "stripe_deauthorized",
-            });
-          }
-        }
         return NextResponse.json({ received: true });
       });
     }

@@ -126,16 +126,21 @@ ownership.
     with no direct ordinary-runtime table authority; see
     `docs/seller-payout-event-compatible-authority-release.md`.
 12. `grainline_stripe_seller_deauthorization_apply(...)` is the reviewed draft
-    successor for `account.application.deauthorized`. It requires the active
-    exact webhook event/generation/account tuple, serializes by provider
-    account, derives current or immutable historical seller ownership, clears
-    only the matching current account, and marks every paid pre-event open
-    Order even when another staff hold already exists. Its private immutable
-    `SellerDeauthorizationApplication` ledger makes a retry discoverable after
-    the account ID has been cleared and prevents an older replay from clearing
-    a newly connected account. Dedicated Order columns—not a mutable review-note
-    prefix—become fulfillment and label authority. This draft has real
-    PostgreSQL replay and denial proof but is not yet a migration or grant.
+    terminal Accounts-v2 seller-account closure operation. It accepts only the
+    separately signed, provider-subscribed `v2.core.account.closed` family,
+    requires the active exact webhook event/generation/account tuple,
+    serializes by provider account, derives current or immutable historical
+    seller ownership, clears only the matching current account, and marks every
+    paid pre-event open Order even when another staff hold already exists. The
+    retired classic `account.application.deauthorized` path is rejected: it
+    belonged to the OAuth application surface, ran on the wrong Grainline
+    destination, and exposed the application rather than account as
+    `data.object`. Its private immutable `SellerDeauthorizationApplication`
+    ledger makes a retry discoverable after the account ID has been cleared
+    and prevents an older replay from clearing a newly connected account.
+    Dedicated Order columns—not a mutable review-note prefix—become fulfillment
+    and label authority. This draft has real PostgreSQL replay and denial proof
+    but is not yet a migration or grant.
 
 Participants never execute these writers and never read raw provider rows.
 

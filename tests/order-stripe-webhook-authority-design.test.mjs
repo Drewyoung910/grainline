@@ -31,7 +31,9 @@ describe("Order Stripe webhook authority design", () => {
     assert.match(design, /sellerDeauthorizedAt/);
     assert.match(design, /mark every open Order/);
     assert.match(design, /regardless of an existing\s+review hold/);
-    assert.match(design, /Reauthorization does not silently clear historical Order deauthorization/);
+    assert.match(design, /Connecting a replacement account does not silently clear historical Order\s+deauthorization/);
+    assert.match(design, /v2\.core\.account\.closed/);
+    assert.match(design, /dead\s+classic OAuth branch is removed/);
     assert.match(design, /single generation-bound operation/);
     assert.match(design, /explicitly UTC-normalized/);
     assert.match(design, /deliberately not deployable yet/);

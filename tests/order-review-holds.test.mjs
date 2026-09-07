@@ -38,14 +38,16 @@ describe("order review holds", () => {
   });
 
   it("keeps the legacy note as database compatibility while the webhook uses fixed authority", () => {
-    const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const platformWebhook = source("src/app/api/stripe/webhook/route.ts");
+    const v2Webhook = source("src/app/api/stripe/webhook/v2/route.ts");
     const deauthorizationAuthority = source(
       "docs/rls-drafts/order-seller-deauthorization-authority.sql",
     );
 
-    assert.match(webhook, /applyStripeSellerDeauthorization/);
-    assert.doesNotMatch(webhook, /DEAUTHORIZED_SELLER_REVIEW_NOTE/);
-    assert.doesNotMatch(webhook, /reviewNote: "Seller Stripe account was deauthorized after payment/);
+    assert.match(v2Webhook, /applyStripeSellerDeauthorization/);
+    assert.doesNotMatch(platformWebhook, /applyStripeSellerDeauthorization/);
+    assert.doesNotMatch(v2Webhook, /DEAUTHORIZED_SELLER_REVIEW_NOTE/);
+    assert.doesNotMatch(v2Webhook, /reviewNote: "Seller Stripe account was deauthorized after payment/);
     assert.match(
       deauthorizationAuthority,
       /Seller Stripe account was deauthorized after payment\./,

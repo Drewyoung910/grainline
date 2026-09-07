@@ -114,7 +114,7 @@ The undeployed seller-deauthorization candidate was corrected after an engine
 test proved that a timestamp with a NULL event ID passed its CHECK through SQL
 three-valued logic. The event-present branch now explicitly requires a non-NULL
 event ID. The draft and staged migration remain byte-identical with reviewed
-SHA-256 `990f64e659a989c886e6a4e3b0602443defeca7512afb6a27ae9585be3eb6a8f`.
+SHA-256 `2c710864b4a2249a4bd3d1c40d66bdb26f7a7807576e2341fe5261117b68d7af`.
 The regression rejects both partial witness directions; no applied migration
 was rewritten.
 
@@ -237,17 +237,42 @@ positive clock skew, but both fixed writers still enforced an independent
 age and durable-event reservation, then fail permanently at the state-change
 boundary.
 
-Both members now preserve the shared route window plus a two-minute database
-allowance around its explicit 60-second execution ceiling and clock transit,
-without relaxing active event-generation, source-object, processing-lease or
-business-state checks. Static tests pin the shared constants and route ceiling
-to both SQL predicates, and restricted-runtime engine tests prove accepted and
-rejected boundary witnesses without
+Both members now preserve the shared route window without relaxing active
+event-generation, source-object, processing-lease or business-state checks.
+The platform checkout writer preserves a two-minute database allowance around
+its 60-second route ceiling; the separately signed Accounts-v2 closure writer
+preserves a one-minute allowance around its 30-second route ceiling. Static
+tests pin the shared constants and the applicable route ceiling to each SQL
+predicate, and restricted-runtime engine tests prove accepted and rejected
+boundary witnesses without
 crossing UTC timestamp-without-time-zone values through the host timezone. The
 two draft/migration pairs remain byte-identical and their prefix hashes are
 updated. See **ORD-A22** in `docs/order-core-pre-rls-audit.md`. This is an
 undeployed compatible-candidate correction, not a production migration or an
 activation.
+
+### Accounts-v2 terminal closure delivery (2026-09-07)
+
+The same wider review found that the original seller-deauthorization
+conversion hardened a provider path that Grainline could not actually receive.
+The classic platform route was not subscribed to
+`account.application.deauthorized`; Stripe defines that OAuth event's
+`data.object` as the application while the connected account is top-level
+`event.account`; and Grainline's current sellers are Accounts-v2 Express
+accounts. Treating `data.object.id` as an `acct_...` identity would therefore
+fail the fixed writer even if that event reached the route.
+
+The candidate now retires the dead classic branch and binds the existing
+restart-safe database operation to `v2.core.account.closed` on the separately
+signed Accounts-v2 route. That event is already in the exact provider
+subscription, and its signed `related_object` is the seller account ID already
+used for lease reservation. The closure path runs before provider-account
+retrieval so a terminally closed account cannot make cleanup depend on a
+retrieval that may no longer succeed. Nonterminal Accounts-v2 updates retain
+their existing `charges_enabled` mirror. Static tests prove route and provider
+topology; restricted-runtime engine proof accepts only the terminal v2 event
+and rejects the retired OAuth type. See **ORD-A23** in
+`docs/order-core-pre-rls-audit.md`.
 
 ### Ordered release gates
 

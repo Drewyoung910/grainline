@@ -1062,9 +1062,10 @@ delay the Order table's fixed-authority and RLS boundary.
 corrected and locally engine-proven in the undeployed database-first candidate,
 not asserted fixed in production.
 
-The webhook verifies the Stripe signature and accepts an event timestamp up to
-30 days old with ten minutes of positive clock skew before reserving its durable
-event lease. Both the paid-checkout and seller-deauthorization fixed writers
+The applicable Stripe route verifies the signature and accepts an event
+timestamp up to 30 days old with ten minutes of positive clock skew before
+reserving its durable event lease. Both the paid-checkout and
+seller-deauthorization fixed writers
 receive that same signed timestamp, but their candidate SQL independently
 rejected timestamps older than eight days or more than five minutes ahead. A
 valid manually resent event in the 8-30 day interval, or a valid 5-10 minute
@@ -1078,22 +1079,61 @@ The correction does not widen cryptographic or source authority. Both writers
 still require the active `StripeWebhookEvent` generation, exact source object,
 processing lease, normalized UTC timestamp and all existing source-derived
 business invariants. Their future bound matches the shared ten-minute skew
-constant. Their lower bound preserves the route's 30-day age window plus a
-two-minute database allowance around the route's explicit 60-second execution
-ceiling and clock transit. That small asymmetric allowance prevents an event
-accepted at the route boundary from aging out before the SQL call; it is not an
-extension of the public route or a substitute for its signature check. The
-route remains the signature and age boundary; the database remains the active-
-generation and state-transition boundary.
+constant. Their lower bounds preserve the route's 30-day age window plus
+bounded clock transit: two minutes around the platform checkout route's
+60-second ceiling and one minute around the Accounts-v2 closure route's
+30-second ceiling. Those small asymmetric allowances prevent an event accepted
+at a route boundary from aging out before the SQL call; they are not extensions
+of either public route or substitutes for signature checks. The routes remain
+the signature and age boundaries; the database remains the active-generation
+and state-transition boundary.
 
 Static contract tests bind both SQL members to
 `STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS` and
-`STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS`, the 60-second route ceiling and the SQL
+`STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS`, each applicable route ceiling and SQL
 allowance, and reject recurrence of the old 8-day or 5-minute predicates.
-Disposable engine tests exercise accepted 30-day-plus-90-second/9-minute and
-rejected 30-day-plus-150-second/11-minute witnesses through the restricted
-runtime role. UTC wall-clock strings are kept inside PostgreSQL semantics so the proof
+Disposable engine tests exercise both accepted and rejected old/future
+witnesses through the restricted runtime role. UTC wall-clock strings are kept
+inside PostgreSQL semantics so the proof
 does not accidentally reinterpret timestamp-without-time-zone values through
 the host timezone. Drafts and staged migrations remain byte-identical, and the
 compatible-prefix pins are refreshed. No historical migration, production row,
 grant, deployment, provider state or RLS posture changes in this correction.
+
+### ORD-A23: terminal seller cleanup was wired to an unreachable provider identity
+
+2026-09-07 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected and locally engine-proven in the undeployed database-first candidate,
+not asserted fixed in production.
+
+The original conversion preserved the historical platform-route branch for
+`account.application.deauthorized`. That was not valid authority for
+Grainline's current seller system. Stripe defines the event for an OAuth
+application, its `data.object` is the application, and its connected account is
+the top-level `event.account`. Grainline creates Accounts-v2 Express accounts,
+its platform endpoint is intentionally not subscribed to the OAuth event, and
+its separately signed Accounts-v2 endpoint already subscribes to
+`v2.core.account.closed`. The candidate branch nevertheless read
+`data.object.id` as an account ID. A real event could not satisfy the fixed
+writer's required `acct_...` source identity, while the reachable terminal v2
+closure event only ran the nonterminal charges-enabled mirror.
+
+The correction removes the dead classic branch and invokes the restart-safe
+seller cleanup only for `v2.core.account.closed` on the separately signed
+Accounts-v2 route. The account identity comes from the already validated
+notification `related_object`, the exact same identity reserved in
+`StripeWebhookEvent`; the SQL function accepts only that event type and exact
+active generation. Closure runs before provider retrieval, clears only a
+currently matching account, durably holds eligible paid Orders, and preserves
+replay identity for cache/session side effects. Nonterminal v2 events continue
+through the existing provider-state mirror and do not permanently hold paid
+Orders. A replacement account still cannot clear historical holds without the
+separately audited staff review operation.
+
+Static tests bind the exact provider subscription, v2 route, retired classic
+branch and SQL event type. Disposable engine proof accepts the v2 closure,
+rejects the retired OAuth event, proves complete Order effects, direct-table
+denial, replay after account clearing, replacement-account preservation and
+atomic rollback. The artifact keeps its historical deauthorization names as
+internal compatibility terminology, but no OAuth event is accepted. No
+historical migration or production/provider state changes in this correction.

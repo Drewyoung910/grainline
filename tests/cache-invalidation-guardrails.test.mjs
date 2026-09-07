@@ -36,7 +36,7 @@ describe("public cache invalidation guardrails", () => {
     const ban = source("src/lib/ban.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const mirror = source("src/lib/stripeWebhookMirror.ts");
-    const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const v2Webhook = source("src/app/api/stripe/webhook/v2/route.ts");
     const status = source("src/app/api/stripe/connect/status/route.ts");
     const create = source("src/app/api/stripe/connect/create/route.ts");
     const vacation = source("src/app/api/seller/vacation/route.ts");
@@ -47,7 +47,7 @@ describe("public cache invalidation guardrails", () => {
     assert.match(deletion, /revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(mirror, /revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);
-    assert.match(webhook, /account\.application\.deauthorized[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(v2Webhook, /v2\.core\.account\.closed[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(status, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/stripe\/connect\/status"/);
     assert.match(create, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/stripe\/connect\/create"/);
     assert.match(vacation, /data: \{ vacationMode, vacationReturnDate, vacationMessage \}[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
@@ -123,7 +123,7 @@ describe("public cache invalidation guardrails", () => {
     const stockRestore = source("src/lib/checkoutStockRestore.ts");
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
 
-    assert.match(webhook, /revalidateFeaturedMakerCaches,[\s\S]*revalidateListingSearchCaches,[\s\S]*revalidatePublicSellerVisibilityCaches,/);
+    assert.match(webhook, /revalidateFeaturedMakerCaches,[\s\S]*revalidateListingSearchCaches,/);
     assert.match(paidCheckoutAuthority, /UPDATE public\."Listing" AS listing[\s\S]*SET status = 'SOLD_OUT'/);
     assert.match(paidCheckoutAuthority, /source_listing_visibility_changed := source_listing_visibility_changed OR FOUND/);
     assert.match(webhook, /createdOrder\.listingVisibilityChanged[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);

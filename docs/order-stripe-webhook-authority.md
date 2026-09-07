@@ -28,7 +28,7 @@ The conversion is one compatibility family but five named authorities:
 2. exact checkout-session idempotency lookup;
 3. blocked-checkout review/refund state transitions;
 4. bounded post-payment projections and first-sale classification; and
-5. restart-safe seller deauthorization.
+5. restart-safe terminal Accounts-v2 seller-account closure.
 
 Order activation remains separate from later `OrderItem` and
 `OrderShippingRateQuote` activation. All three direct inventories must be zero
@@ -156,9 +156,9 @@ functions are unchanged. Do not deploy this candidate until the nullable
 column and successor functions exist and have passed a pooled-runtime
 postflight.
 
-## Finding ORD-W02: deauthorization is neither complete nor restart-safe
+## Finding ORD-W02: terminal seller-account loss is neither complete nor restart-safe
 
-The current `account.application.deauthorized` branch first clears
+The historical `account.application.deauthorized` branch first clears
 `SellerProfile.stripeAccountId`, then separately flags only open Orders where
 `reviewNeeded = false`, then expires provider sessions outside the transaction.
 
@@ -195,7 +195,28 @@ completed only afterward. A replay after an application crash can therefore
 resume without guessing from a cleared profile or silently skipping cache
 invalidation.
 
-Reauthorization does not silently clear historical Order deauthorization.
+The wider release review also found that this historical branch is not a
+reachable authority for Grainline's current seller contract. Stripe defines
+`account.application.deauthorized` for an OAuth application and places the
+connected account in the event's top-level `account`; `data.object` is the
+application (see [Stripe Connect webhooks](https://docs.stripe.com/connect/webhooks)
+and the [typed event definition](https://docs.stripe.com/api/events/types#event_types-account.application.deauthorized)).
+Grainline creates Accounts-v2 Express sellers, does not subscribe
+its classic platform endpoint to that event, and already receives the terminal
+`v2.core.account.closed` notification on its separately signed Accounts-v2
+endpoint. The old branch both ran on the wrong destination and treated the
+application ID as an account ID.
+
+Decision: retire that dead classic branch and invoke the fixed operation only
+for `v2.core.account.closed`, using the signed notification's exact
+`related_object` account ID and event time. The operation's historical
+"deauthorization" names are retained as internal database compatibility names;
+its actual accepted provider authority is now the terminal Accounts-v2 closure
+event. Nonterminal Accounts-v2 updates continue through the existing
+`charges_enabled` mirror and do not permanently hold already-paid Orders.
+
+Connecting a replacement account does not silently clear historical Order
+deauthorization.
 Staff must explicitly review affected open Orders; otherwise a later Stripe
 reconnect would make old held Orders fulfillable without a decision.
 The staff mark-reviewed successor may clear those fields only after the seller
@@ -345,17 +366,21 @@ that the final one-time delivery key is seller-scoped rather than Order-scoped.
 This remains a draft compatibility candidate and must not deploy before the
 function exists in production.
 
-### Seller deauthorization
+### Terminal seller-account closure
 
 `grainline_stripe_seller_deauthorization_apply(...)` implements ORD-W02. No
 generic seller disable or Order review writer is granted to ordinary runtime.
 The isolated application candidate now replaces the former split
-`SellerProfile`/`Order` writes with this single generation-bound operation. It
-passes the signature-authenticated event time as an explicitly UTC-normalized
-PostgreSQL value, invalidates public visibility from the database's replayable
-decision, and expires sessions for the database-derived seller before the
-webhook lease can complete. The result parser rejects malformed cardinality,
-outcomes, nullable identities, booleans and counts rather than guessing.
+`SellerProfile`/`Order` writes with this single generation-bound operation on
+the separately signed Accounts-v2 route. It accepts only
+`v2.core.account.closed`, derives the account from the notification's exact
+`related_object`, passes the signature-authenticated event time as an
+explicitly UTC-normalized PostgreSQL value, invalidates public visibility from
+the database's replayable decision, and expires sessions for the
+database-derived seller before the webhook lease can complete. The dead
+classic OAuth branch is removed. The result parser rejects malformed
+cardinality, outcomes, nullable identities, booleans and counts rather than
+guessing.
 
 This candidate is deliberately not deployable yet. The private application
 ledger, fixed operation, dedicated Order columns, fulfillment/label consumers
@@ -369,8 +394,10 @@ Before compatible SQL can enter the migration tree:
 
 - disposable PostgreSQL must prove in-stock, made-to-order and cart snapshot
   persistence, forged-witness rejection and concurrent active-lock behavior;
-- deauthorization proof must cover pre-held Orders, exact replay after the
-  current account ID is cleared, reauthorization non-bypass and rollback;
+- terminal account-closure proof must cover the reachable Accounts-v2 event,
+  reject the retired OAuth event family, cover pre-held Orders, exact replay
+  after the current account ID is cleared, replacement-account non-bypass and
+  rollback;
 - every function must have fixed search path, no dynamic SQL, `PUBLIC` revoked,
   an exact runtime/private ACL classification and bounded output;
 - the direct access inventory must be zero after the matching application
@@ -380,5 +407,5 @@ Before compatible SQL can enter the migration tree:
 
 Production remains a later boundary: read-only inspection, byte-pinned
 compatible migration, pooled-runtime postflight, compatible deployment,
-authenticated paid/blocked/deauthorization smoke, predecessor drain, Phase A,
+authenticated paid/blocked/account-closure smoke, predecessor drain, Phase A,
 then FORCE. No provider proof or RLS activation is implied by the local work.

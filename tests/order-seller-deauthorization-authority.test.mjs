@@ -73,7 +73,7 @@ describe("Order seller deauthorization authority", () => {
       INSERT INTO public."StripeWebhookEvent" (
         id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
       ) VALUES (
-        'evt_test_deauth', 'account.application.deauthorized',
+        'evt_test_deauth', 'v2.core.account.closed',
         'acct_test_deauth', 1, CURRENT_TIMESTAMP
       );
       INSERT INTO public."Order" (
@@ -116,11 +116,11 @@ describe("Order seller deauthorization authority", () => {
     const boundaries = rows(await db.query(`
       SELECT
         to_char(
-          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 90 seconds',
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 45 seconds',
           'YYYY-MM-DD HH24:MI:SS.MS'
         ) AS accepted_old,
         to_char(
-          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 150 seconds',
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 75 seconds',
           'YYYY-MM-DD HH24:MI:SS.MS'
         ) AS rejected_old,
         to_char(
@@ -145,7 +145,7 @@ describe("Order seller deauthorization authority", () => {
         await db.query(`
           INSERT INTO public."StripeWebhookEvent" (
             id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
-          ) VALUES ($1, 'account.application.deauthorized', $2, 1, CURRENT_TIMESTAMP)
+          ) VALUES ($1, 'v2.core.account.closed', $2, 1, CURRENT_TIMESTAMP)
         `, [eventId, accountId]);
         await db.exec("SET LOCAL ROLE grainline_app_runtime");
         const operation = db.query(`
@@ -276,6 +276,38 @@ describe("Order seller deauthorization authority", () => {
     }
   });
 
+  it("rejects the retired OAuth deauthorization event family", async () => {
+    await db.exec(`
+      INSERT INTO public."StripeWebhookEvent" (
+        id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+      ) VALUES (
+        'evt_legacy_oauth_deauth', 'account.application.deauthorized',
+        'acct_legacy_oauth_deauth', 1, CURRENT_TIMESTAMP
+      );
+    `);
+    const eventCreatedAt = rows(await db.query(`
+      SELECT (CURRENT_TIMESTAMP - interval '1 minute')::timestamp AS value
+    `))[0].value;
+    await db.exec("SET ROLE grainline_app_runtime");
+    try {
+      await assert.rejects(
+        db.query(`
+          SELECT * FROM public.grainline_stripe_seller_deauthorization_apply(
+            $1, $2, $3, $4::timestamp
+          )
+        `, [
+          "evt_legacy_oauth_deauth",
+          1n,
+          "acct_legacy_oauth_deauth",
+          eventCreatedAt,
+        ]),
+        /authority is invalid/,
+      );
+    } finally {
+      await db.exec("RESET ROLE").catch(() => {});
+    }
+  });
+
   it("rolls account, order, audit and replay evidence back as one unit", async () => {
     await db.exec(`
       INSERT INTO public."User" (id) VALUES ('rollback-user');
@@ -285,7 +317,7 @@ describe("Order seller deauthorization authority", () => {
       INSERT INTO public."StripeWebhookEvent" (
         id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
       ) VALUES (
-        'evt_test_rollback', 'account.application.deauthorized',
+        'evt_test_rollback', 'v2.core.account.closed',
         'acct_test_rollback', 1, CURRENT_TIMESTAMP
       );
       INSERT INTO public."Order" (

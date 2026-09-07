@@ -118,12 +118,12 @@ BEGIN
      OR pg_catalog.char_length(p_account_id) > 255
      OR p_event_created_at IS NULL
      -- Keep the fixed writer aligned with the signed-envelope gate. Stripe
-     -- permits a manually resent event for 30 days, and the route accepts ten
-     -- minutes of positive clock skew. Preserve two minutes beyond the age
-     -- gate for the route's bounded 60-second execution plus clock transit; a
-     -- narrower database window could accept the envelope and then strand
-     -- seller deauthorization processing.
-     OR p_event_created_at < source_now - interval '30 days 2 minutes'
+     -- permits a manually resent event for 30 days, and the Accounts-v2 route
+     -- accepts ten minutes of positive clock skew. Preserve one minute beyond
+     -- the age gate for that route's bounded 30-second execution plus clock
+     -- transit; a narrower database window could accept the envelope and then
+     -- strand seller-account closure processing.
+     OR p_event_created_at < source_now - interval '30 days 1 minute'
      OR p_event_created_at > source_now + interval '10 minutes' THEN
     RAISE EXCEPTION 'Stripe seller deauthorization input is invalid'
       USING ERRCODE = 'check_violation';
@@ -135,7 +135,7 @@ BEGIN
    WHERE event.id = p_event_id
    FOR UPDATE;
   IF NOT FOUND
-     OR source_event.type <> 'account.application.deauthorized'
+     OR source_event.type <> 'v2.core.account.closed'
      OR source_event."sourceObjectId" IS DISTINCT FROM p_account_id
      OR source_event."claimGeneration" IS DISTINCT FROM p_claim_generation
      OR source_event."processingStartedAt" IS NULL

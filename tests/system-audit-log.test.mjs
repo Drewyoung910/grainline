@@ -87,7 +87,8 @@ describe("system audit logging", () => {
     assert.match(paidCheckoutAuthority, /'checkoutMode', source_mode/);
     assert.match(signedAuthority, /'STRIPE_REFUND_RECORDED'/);
     assert.match(signedAuthority, /'STRIPE_DISPUTE_RECORDED'/);
-    assert.match(webhook, /applyStripeSellerDeauthorization/);
+    assert.doesNotMatch(webhook, /applyStripeSellerDeauthorization/);
+    assert.match(v2Webhook, /applyStripeSellerDeauthorization/);
     assert.match(deauthorizationAuthority, /'webhook', p_event_id, 'STRIPE_ACCOUNT_DEAUTHORIZED'/);
 
     assert.match(mirror, /import \{ logSystemActionOrThrow \} from "@\/lib\/systemAudit"/);
