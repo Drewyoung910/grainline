@@ -1297,9 +1297,12 @@ candidate rather than individual historical files:
   typed, clearable review-hold state is preferable to making the existing
   terminal-account timestamp permanent;
 - receipt-notification `p_type = NULL` can bypass the explicit matrix branch,
-  but the final `Notification.type NOT NULL` constraint aborts the transaction
-  before durable effects. Add an explicit null guard with the next authority
-  correction; this is hardening, not a current authorization bypass;
+  but the receipt source query also requires an exact fulfillment type and
+  returns NULL without inserting. The focused engine reproduction corrects
+  the earlier blanket claim that this receipt case reaches the NOT NULL
+  constraint. An explicit rejection draft and unchanged legitimate-flow tests
+  are in `docs/order-reconciliation-input-corrections.md`; this is hardening,
+  not a current authorization bypass or an accepted production correction;
 - label provider-record `p_outcome = NULL` is a real input-domain defect even
   though success still requires provider evidence. The clawback and ambiguous
   release null cases are contained by their later state/evidence checks.
@@ -1309,8 +1312,10 @@ candidate rather than individual historical files:
   staged; its final-candidate and production release proofs remain open;
 - refund-reconciliation null reason/action/disposition inputs are inconsistent
   validation. The action/disposition paths fail at later non-null constraints;
-  the nullable reason can select the ambiguous branch. Normalize these in the
-  correction tranche without widening target authority;
+  the nullable reason can select the ambiguous branch. Historical and corrected
+  engine tests now cover these paths in the additive draft documented in
+  `docs/order-reconciliation-input-corrections.md`. Release composition and
+  production acceptance remain open; target authority is not widened;
 - the live CheckoutStockReservation repair operation accepts a null outcome
   through a `NOT IN` guard and can classify it as restored. This is a confirmed
   cross-table integrity defect and requires its own additive, independently

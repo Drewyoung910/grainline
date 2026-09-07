@@ -16,7 +16,12 @@ The current decision is **no-go for activation** until the gates below pass.
 2. **Close the bounded activation blockers.** Reconcile the independently
    verified findings in `order-core-pre-rls-audit.md`; finish the separate
    reservation NULL-outcome integrity correction and classify the remaining
-   input-hardening items. Keep unrelated product improvements in the linked
+   input-hardening items. Additive drafts are recorded in
+   `checkout-reservation-repair-outcome-correction.md`,
+   `order-label-outcome-correction.md` and
+   `order-reconciliation-input-corrections.md`; passing their focused tests
+   does not finish their full-schema release and runtime gates.
+   Keep unrelated product improvements in the linked
    deferred backlog. Do not call a candidate fix live before its release.
 3. **Accept the compatible release.** Review the complete final diff, inspect
    the credential-recovery acceptance records first, then production aggregates

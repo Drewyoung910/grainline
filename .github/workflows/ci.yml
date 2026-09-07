@@ -1459,6 +1459,10 @@ jobs:
         run: npm run audit:order-zero-direct-compatible-prefix-postgres
         env:
           ORDER_ZERO_DIRECT_COMPATIBLE_PREFIX_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove input correction drafts without retaining catalog changes
+        run: node scripts/order-input-correction-drafts-postgres-proof.mjs
+        env:
+          ORDER_INPUT_CORRECTION_DRAFTS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test

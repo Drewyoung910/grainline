@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import test, { describe } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import {
+  buildOrderReconciliationInputCorrection,
+  orderReconciliationInputDefinitions,
+} from "../scripts/build-order-reconciliation-input-corrections.mjs";
+
+const inputCorrection = readFileSync("docs/rls-drafts/order-refund-reconciliation-input-correction.sql", "utf8");
 
 const claimMigration = readFileSync(
   "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
@@ -16,7 +22,7 @@ const DIGEST_A = "a".repeat(64);
 const DIGEST_B = "b".repeat(64);
 const DIGEST_C = "c".repeat(64);
 
-async function createDatabase() {
+async function createReconciliationDatabase({ corrected }) {
   const database = new PGlite();
   await database.exec(`
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
@@ -86,6 +92,7 @@ async function createDatabase() {
   `);
   await database.exec(claimMigration);
   await database.exec(reconciliationMigration);
+  if (corrected) await database.exec(inputCorrection);
   await database.exec(`
     INSERT INTO public."User" (id, role) VALUES
       ('seller-user', 'USER'),
@@ -151,6 +158,99 @@ async function reconcile(database, {
     digest,
   ])).rows[0].result;
 }
+
+for (const corrected of [false, true]) {
+describe(`refund reconciliation (${corrected ? "corrected draft" : "historical"})`, () => {
+const createDatabase = (options = {}) => createReconciliationDatabase({ corrected, ...options });
+
+async function state(database) {
+  return (await database.query(`SELECT
+    (SELECT jsonb_agg(o ORDER BY id) FROM public."Order" o) AS orders,
+    (SELECT jsonb_agg(a ORDER BY id) FROM public."AdminAuditLog" a) AS audits,
+    (SELECT jsonb_agg(r ORDER BY id) FROM public."OrderRefundReconciliation" r) AS reconciliations`)).rows;
+}
+
+test("draft changes only the three explicit input guards", () => {
+  assert.equal(inputCorrection.trimEnd(), buildOrderReconciliationInputCorrection("refund").trimEnd());
+  for (const { tag, before, after, guards } of orderReconciliationInputDefinitions("refund")) {
+    let expected = before.split(tag)[1];
+    for (const param of guards) expected = expected.replace(`OR ${param} NOT IN (`,
+      `OR ${param} IS NULL OR ${param} NOT IN (`);
+    assert.equal(after.split(tag)[1], expected);
+  }
+});
+
+if (!corrected) test("historical NULL reason mutates the claim; NULL action and disposition remain constraint-contained", async () => {
+  const database = await createDatabase({ corrected: false });
+  try {
+    const claim = await seedAmbiguousClaim(database, "null-reason");
+    await database.query(`UPDATE public."Order" SET "sellerRefundId" = 'pending' WHERE id = 'null-reason'`);
+    const result = await database.query(`SELECT public.grainline_order_refund_claim_mark_ambiguous($1,$2,NULL) AS result`,
+      [claim.claimId, claim.claimGeneration]);
+    assert.equal(result.rows[0].result.action, "recorded");
+    const before = await state(database);
+    await assert.rejects(reconcile(database, {
+      claim, action: "RETRY_EXISTING_SCOPE", disposition: null, digest: DIGEST_A,
+    }), (error) => error.code === "23502");
+    assert.deepEqual(await state(database), before);
+    await database.query(`UPDATE public."Order" SET "refundClaimProviderAuthorizedAt" =
+      (clock_timestamp() AT TIME ZONE 'UTC') - INTERVAL '26 hours' WHERE id = 'null-reason'`);
+    const aged = await state(database);
+    await assert.rejects(reconcile(database, {
+      claim, action: null, disposition: "TERMINAL_NO_EFFECT", digest: DIGEST_B,
+    }), (error) => error.code === "23502");
+    assert.deepEqual(await state(database), aged);
+  } finally { await database.close(); }
+});
+
+if (corrected) test("refuses drift on either authority before replacing any body", async () => {
+  for (const drift of ["source", "public-execute", "missing-runtime-execute"]) {
+    const database = await createDatabase({ corrected: false });
+    try {
+      const [first, second] = orderReconciliationInputDefinitions("refund");
+      if (drift === "source") await database.exec(second.before.replace(
+        "CREATE FUNCTION", "CREATE OR REPLACE FUNCTION").replace(
+        `AS ${second.tag}`, `AS ${second.tag}\n-- unexpected predecessor`));
+      else await database.exec(`${drift === "public-execute" ? "GRANT" : "REVOKE"} EXECUTE ON FUNCTION
+        public.${second.name}(${second.args}) ${drift === "public-execute" ? "TO PUBLIC" : "FROM grainline_app_runtime"}`);
+      const snapshot = async () => (await database.query(`SELECT prosrc, proacl::text FROM pg_proc
+        WHERE oid IN (to_regprocedure($1), to_regprocedure($2)) ORDER BY proname`,
+        [`public.${first.name}(${first.args})`, `public.${second.name}(${second.args})`])).rows;
+      const before = await snapshot();
+      await assert.rejects(database.exec(inputCorrection), /refund input before authority drifted/);
+      await database.exec("ROLLBACK");
+      assert.deepEqual(await snapshot(), before);
+    } finally { await database.close(); }
+  }
+});
+
+if (corrected) test("runtime rejects malformed reason, action and disposition before any mutation", async () => {
+  const database = await createDatabase();
+  try {
+    const claim = await seedAmbiguousClaim(database, "rejected-inputs");
+    const before = await state(database);
+    for (const reason of [null, "", "seller_provider_ambiguous", "SELLER_PROVIDER_AMBIGUOUS "]) {
+      await database.exec("SET ROLE grainline_app_runtime");
+      try {
+        await assert.rejects(database.query(`SELECT public.grainline_order_refund_claim_mark_ambiguous($1,$2,$3)`,
+          [claim.claimId, claim.claimGeneration, reason]), /ambiguous transition input is invalid/);
+      } finally { await database.exec("RESET ROLE"); }
+      assert.deepEqual(await state(database), before);
+    }
+    for (const field of ["action", "disposition"]) {
+      for (const invalid of [null, "", "unknown", "ABSENT "]) {
+        await database.exec("SET ROLE grainline_app_runtime");
+        try {
+          await assert.rejects(reconcile(database, {
+            claim, action: "RETRY_EXISTING_SCOPE", disposition: "ABSENT", digest: DIGEST_A,
+            [field]: invalid,
+          }), /reconciliation transition input is invalid/);
+        } finally { await database.exec("RESET ROLE"); }
+        assert.deepEqual(await state(database), before);
+      }
+    }
+  } finally { await database.close(); }
+});
 
 test("disposable PostgreSQL proves ADMIN inspection and safe short-window retry", async () => {
   const database = await createDatabase();
@@ -417,3 +517,5 @@ test("disposable PostgreSQL keeps the ledger table private and fixed functions r
     await database.close();
   }
 });
+});
+}

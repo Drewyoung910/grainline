@@ -42,8 +42,11 @@ and audit-collision rollback coverage.
 Local verification: the historical/corrected label suites, release contracts
 and ambiguous-provider operator tests passed 33/33. The neighboring reservation
 repair, authority-composition, review-hold and prefix tests passed 18/18.
-Builder syntax, focused lint and whitespace checks passed. The full CI success
-at `af88c01d` predates this draft and must not be presented as its CI evidence.
+Builder syntax, focused lint and whitespace checks passed. Full CI
+`34164274285` at `0fbe37fdf90c9fe2275c3d607c6fda7722089dd0` subsequently
+passed, including the full suite and production build. It predates the new
+rollback-only full-schema input-draft composition harness, whose exact-head
+CI acceptance remains pending.
 
 ## Remaining release gate
 

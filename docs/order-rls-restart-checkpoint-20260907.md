@@ -43,7 +43,18 @@ postflight, complete successor-prefix PostgreSQL proof, full tests and build.
 All three separate concurrency/staff-bootstrap jobs passed. This accepts that
 exact candidate CI checkpoint, not the newer label draft or production release.
 
-The next bounded input correction is the tested Order label-outcome draft in
+The bounded input corrections include the tested Order label-outcome draft in
 `docs/order-label-outcome-correction.md`. It remains outside migrations and
-production workflows. Receipt and refund-reconciliation NULL hardening and
-the separate reservation repair release remain unresolved.
+production workflows. It is pushed at `0fbe37fdf90c9fe2275c3d607c6fda7722089dd0`;
+its full CI run `34164274285` passed tests and production build. The next
+cohesive draft adds explicit receipt type and refund
+reconciliation input rejection in `docs/order-reconciliation-input-corrections.md`.
+Historical constraints/source filters already contain some of these inputs;
+the runbook distinguishes those from the mutating ambiguous-reason defect.
+The new refund/receipt focused suites passed 26/26 and the full local suite
+and lint passed. A later rollback-only full-schema composition harness is wired
+in ordinary disposable CI after complete-prefix application; its focused
+tests cover rejected targets, exact-body comparison and success/failure
+rollback. Exact-head CI acceptance of that harness and actual runtime proof
+for the correction drafts remain open, as does the separate reservation
+repair release. No production workflow is wired or dispatched by this pass.
