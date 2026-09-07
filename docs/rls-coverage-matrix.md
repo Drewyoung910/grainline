@@ -204,7 +204,7 @@ completed alternative.
 > **Order authority audit correction (2026-09-07):** independent review of the
 > complete candidate confirmed two pre-activation composition defects rather
 > than the broader early-design assessment in the imported review. The staged
-> zero-direct prefix now has 17 generated migrations. Its final additive
+> zero-direct prefix now has 17 migrations (15 generated from drafts). Its final additive
 > successor excludes database-derived conversion-dispute-blocked Orders from
 > review eligibility, verification sales, revenue, conversion and completed
 > sales while retaining actual shipping-performance history; it also requires

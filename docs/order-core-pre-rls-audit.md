@@ -1311,7 +1311,9 @@ candidate rather than individual historical files:
   through a `NOT IN` guard and can classify it as restored. This is a confirmed
   cross-table integrity defect and requires its own additive, independently
   activated CheckoutStockReservation successor before relying on that repair
-  path; and
+  path. A tested draft now rejects NULL before any side effects and preserves
+  all six legitimate outcomes; release wiring and production acceptance remain
+  open in `docs/checkout-reservation-repair-outcome-correction.md`; and
 - StripeWebhookEvent legacy lease retirement, DirectUpload dependency-catalog
   completeness, SavedSearch deterministic ordering, report-admin context
   links and Conversation file-payload shape are valid separately scoped

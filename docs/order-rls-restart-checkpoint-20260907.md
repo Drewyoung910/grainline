@@ -1,0 +1,33 @@
+# Order RLS restart checkpoint — 2026-09-07
+
+Active worktree: `/private/tmp/grainline-clerk-legal-provenance-20260903`.
+Branch: `agent/order-checkout-retry-clock-20260906`, draft PR #432.
+Leave the old, dirty `/Users/drewyoung/grainline` worktree untouched.
+
+This is a preservation checkpoint, not a release acceptance. The prior pushed
+commit is `691b91915226a973024c2634e17aa5426f02e780`. Its main CI run
+`34161435943` failed at **Prove Order compatible postflight through the runtime
+login**: the expected source for
+`grainline_order_review_eligibility_lock(text,text,bigint)` does not match the
+composed candidate. Account-deletion concurrency, paid-repair locking and
+staff-bootstrap proof runs passed in the preceding pass. Full CI is not green.
+
+Resume by tracing the postflight's effective function catalog through the
+byte-pinned Order composition successor. Fix the exact expected-source
+selection and add regression coverage; do not loosen historical pins or accept
+arbitrary function bodies. Rerun focused checks and CI before broadening scope.
+
+The reservation repair NULL-outcome correction is saved separately as a tested
+draft, builder, regression test and runbook in
+`docs/checkout-reservation-repair-outcome-correction.md`. It is not a staged
+migration or production workflow. Preserve it while repairing Order CI.
+
+Order still needs compatibility acceptance, deployment and fresh authenticated
+checkout/shipping proof, predecessor drain, then separate ENABLE and FORCE
+acceptance. Remaining audit findings and release gates live in
+`docs/order-core-pre-rls-audit.md`, `docs/rls-coverage-matrix.md` and
+`docs/deferred-launch-backlog.md`.
+
+No merge, deployment, production SQL, provider mutation, credential change or
+cleanup is part of this app-restart checkpoint. Do not read or print private
+credential files or restart journals when resuming.
