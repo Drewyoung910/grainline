@@ -5154,3 +5154,18 @@ Open work:
   remain unchanged. Exact-head CI, actual separate-login postflights,
   database-first compatibility release, application smoke/drain and Order
   Phase A/FORCE remain distinct later gates.
+- Exact-head CI run `34092842465` then failed at the early global grant audit
+  because CI intentionally isolates the sealed Order suffix while the tip
+  Prisma schema already named `OrderStaffCapability`. The correction mirrors
+  the existing two staged-private-ledger exceptions but remains exact: the
+  table enters the derived inventory only when the named
+  `20260905100000_prepare_order_ban_review_authority` directory exists and the
+  visible migration tree contains its `CREATE TABLE`. A wrong directory,
+  missing migration or absent table body remains excluded at the predecessor
+  audit; after exact restoration, the normal missing-table, FORCE, policy and
+  grant checks apply. The independent paid/repair lock and staff TLS/login
+  jobs in the same run passed; the Vercel Preview failure remained the expected
+  refusal caused by the intentionally absent Preview `DATABASE_URL`. Focused
+  correction coverage passed 40 tests with one CI-service-only skip, and the
+  post-correction complete suite passed 4,287 tests with 12 skips and zero
+  failures across 4,299 tests / 536 suites.

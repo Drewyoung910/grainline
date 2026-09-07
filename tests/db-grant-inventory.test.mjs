@@ -2627,6 +2627,12 @@ describe("database grant inventory guardrails", () => {
     mkdirSync(migrationDirectory, { recursive: true });
     writeFileSync(
       join(migrationDirectory, "migration.sql"),
+      "SELECT 1;",
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
       'CREATE TABLE public."OrderRefundReconciliation" (id text PRIMARY KEY);',
     );
     assert.deepEqual(
@@ -2662,6 +2668,44 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       deriveGrantInventory(root).tables,
       ["SellerDeauthorizationApplication"],
+    );
+  });
+
+  it("does not demand the staged staff capability before its exact migration is restored", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-staff-capability-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model OrderStaffCapability {",
+        "  id String @id",
+        "}",
+      ].join("\n"),
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    const wrongDirectory = join(root, "prisma", "migrations", "0001_wrong");
+    mkdirSync(wrongDirectory, { recursive: true });
+    writeFileSync(
+      join(wrongDirectory, "migration.sql"),
+      'CREATE TABLE public."OrderStaffCapability" (id text PRIMARY KEY);',
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    const migrationDirectory = join(
+      root,
+      "prisma",
+      "migrations",
+      "20260905100000_prepare_order_ban_review_authority",
+    );
+    mkdirSync(migrationDirectory, { recursive: true });
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
+      'CREATE TABLE public."OrderStaffCapability" (id text PRIMARY KEY);',
+    );
+    assert.deepEqual(
+      deriveGrantInventory(root).tables,
+      ["OrderStaffCapability"],
     );
   });
 

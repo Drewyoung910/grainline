@@ -77,6 +77,8 @@ export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
+const ORDER_STAFF_CAPABILITY_MIGRATION =
+  "20260905100000_prepare_order_ban_review_authority";
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -1094,12 +1096,27 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION,
     "migration.sql",
   ));
+  const orderStaffCapabilityMigrationPath = path.join(
+    rootDir,
+    "prisma",
+    "migrations",
+    ORDER_STAFF_CAPABILITY_MIGRATION,
+    "migration.sql",
+  );
+  const orderStaffCapabilityMigrationPresent =
+    existsSync(orderStaffCapabilityMigrationPath)
+    && readFileSync(orderStaffCapabilityMigrationPath, "utf8").includes(
+      'CREATE TABLE public."OrderStaffCapability"',
+    );
   const tables = sortedUnique(schemaTables.filter(
     (tableName) => tableName !== "OrderRefundReconciliation"
       || refundReconciliationMigrationPresent,
   ).filter(
     (tableName) => tableName !== "SellerDeauthorizationApplication"
       || sellerDeauthorizationApplicationMigrationPresent,
+  ).filter(
+    (tableName) => tableName !== "OrderStaffCapability"
+      || orderStaffCapabilityMigrationPresent,
   ));
   const enumBlocks = [...schema.matchAll(/^enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
   const enums = sortedUnique(
