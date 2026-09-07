@@ -42,15 +42,15 @@ afterEach(() => {
 });
 
 describe("Order zero-direct compatible prefix staging", () => {
-  it("generates and verifies exactly fourteen byte-identical draft migrations", () => {
+  it("generates and verifies exactly fifteen byte-identical draft migrations", () => {
     const root = temporaryRoot();
     const result = verifyOrderZeroDirectCompatiblePrefix({ root, write: true });
     assert.deepEqual(result, {
       phase: ORDER_ZERO_DIRECT_COMPATIBLE_PHASE,
-      memberCount: 16,
-      generatedMemberCount: 14,
+      memberCount: 17,
+      generatedMemberCount: 15,
       firstMigration: "20260905010000_correct_order_staff_read_charged_total",
-      lastMigration: "20260905160000_prepare_order_checkout_refund_review_authority",
+      lastMigration: "20260905170000_correct_order_authority_composition",
     });
     for (const member of ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS) {
       if (!member.draft) continue;

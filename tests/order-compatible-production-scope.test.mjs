@@ -61,7 +61,7 @@ test("catalog is ordered, unique, and byte-pinned", () => {
   assert.equal(new Set(names).size, names.length);
   assert.equal(names.length, 18);
   assert.equal(ORDER_COMPATIBLE_PRODUCTION_CHARGED_TOTAL_PREFIX_LENGTH, 17);
-  assert.equal(ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.length, 17);
+  assert.equal(ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.length, 18);
   assert.deepEqual(
     ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.map(({ name }) => name),
     [...ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.map(({ name }) => name)].sort(),

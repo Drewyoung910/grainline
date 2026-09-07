@@ -89,6 +89,11 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS = Object.freeze([
     draft: "order-checkout-refund-review-authority.sql",
     sha256: "86867bcb9f6b89f56fe0a4d0e268c9cd135e72b1d0620498388f00a33bfbd046",
   },
+  {
+    migration: "20260905170000_correct_order_authority_composition",
+    draft: "order-authority-composition-correction.sql",
+    sha256: "00e13c339320584780164cdf0b234f2005d698e8df0fd567480f53d2f8b23cff",
+  },
 ]);
 
 export const ORDER_ZERO_DIRECT_COMPATIBLE_SUCCESSOR_MIGRATIONS =

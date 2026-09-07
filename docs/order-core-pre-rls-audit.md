@@ -1235,3 +1235,92 @@ quote are scrubbed, and an unrelated order is unchanged. Static checks reject
 reintroduction of a materialized review candidate. This correction changes no
 function signature, selected row ownership, table grant, RLS posture, or
 production state.
+
+### ORD-A26: dispute-quality projection is missing from three trust consumers
+
+2026-09-07 independent review of the imported Order-family audit.
+Classification: `FIX_BEFORE_ACTIVATION`; confirmed and corrected in the staged
+`20260905170000_correct_order_authority_composition` migration, not yet applied
+to production.
+
+`Order.paymentConversionDisputeBlocked` is a database-maintained projection of
+the latest signed dispute state. Its trigger and anti-forgery guard correctly
+treat every state except `won` and `warning_closed` as disqualifying for
+conversion quality. The public aggregate authority consumes that projection,
+but the sibling eligibility, seller-analytics and seller-metrics authorities
+do not. Consequently, a chargeback-lost Order can still contribute to seller
+revenue, Guild thresholds and review eligibility even though the canonical
+quality projection excludes it.
+
+This is a consumer-composition defect, not a projection defect. The staged
+successor retains the distinct refund and dispute columns and excludes disputed
+Orders from review eligibility, verification sales, revenue, conversion and
+completed-sales facts. It deliberately preserves fulfilled-order shipping
+performance and the listing archive blocker: a later chargeback does not erase
+what was actually shipped, and an unresolved dispute must not allow archival.
+Focused PostgreSQL covers the corrected consumers; the complete migration-stack
+proof remains required before the Order compatibility stack is accepted.
+
+### ORD-A27: blocked-checkout refund can cross a manual-fulfillment boundary
+
+2026-09-07 independent review of the imported Order-family audit.
+Classification: `FIX_BEFORE_ACTIVATION`; confirmed in narrower form than
+reported and corrected in the staged
+`20260905170000_correct_order_authority_composition` migration, not yet applied
+to production.
+
+The historical blocked-checkout claim does not require a pending fulfillment
+state, and its record function restores in-stock inventory without rechecking
+fulfillment. A signed-event retry can therefore claim and record a refund for
+an Order that has since moved to `SHIPPED`, `READY_FOR_PICKUP`, `DELIVERED` or
+`PICKED_UP`, then make sold inventory available again. The claim and record
+operations both lock the Order, so the correction belongs in both locked
+state checks rather than in application timing.
+
+The imported claim that label purchase is wholly unguarded is stale when the
+complete candidate is composed: the later
+`Order_provider_claim_mutual_exclusion_check` rejects both label-then-refund
+and refund-then-label overlap. That invariant is not yet production-live, so
+it remains a mandatory predecessor. The staged correction also repeats the
+label and active-label-claim rejection at both refund boundaries as
+defense-in-depth, explicitly requires `PENDING` fulfillment at claim and record
+time, and proves the record-time fulfillment race leaves stock sold out.
+
+### 2026-09-07 imported audit disposition
+
+The remaining imported claims were checked against the complete current
+candidate rather than individual historical files:
+
+- the deauthorization hold remains text-coupled technical debt, but the claim
+  that nothing binds the text is false: `tests/order-review-holds.test.mjs`
+  pins the prefix across fulfillment, label and participant detail. A future
+  typed, clearable review-hold state is preferable to making the existing
+  terminal-account timestamp permanent;
+- receipt-notification `p_type = NULL` can bypass the explicit matrix branch,
+  but the final `Notification.type NOT NULL` constraint aborts the transaction
+  before durable effects. Add an explicit null guard with the next authority
+  correction; this is hardening, not a current authorization bypass;
+- label provider-record `p_outcome = NULL` is a real input-domain defect even
+  though success still requires provider evidence. The clawback and ambiguous
+  release null cases are contained by their later state/evidence checks;
+- refund-reconciliation null reason/action/disposition inputs are inconsistent
+  validation. The action/disposition paths fail at later non-null constraints;
+  the nullable reason can select the ambiguous branch. Normalize these in the
+  correction tranche without widening target authority;
+- the live CheckoutStockReservation repair operation accepts a null outcome
+  through a `NOT IN` guard and can classify it as restored. This is a confirmed
+  cross-table integrity defect and requires its own additive, independently
+  activated CheckoutStockReservation successor before relying on that repair
+  path; and
+- StripeWebhookEvent legacy lease retirement, DirectUpload dependency-catalog
+  completeness, SavedSearch deterministic ordering, report-admin context
+  links and Conversation file-payload shape are valid separately scoped
+  follow-ups. They are not evidence that the Order candidate is early-stage or
+  permission to bundle unrelated live-table changes into Order activation.
+
+No production state is changed by this disposition. The Order candidate is a
+late compatibility stack with zero direct source access. ORD-A26, ORD-A27 and
+the account-deletion concurrency correction now have staged implementations,
+but none is accepted in production. Phase A still requires their complete
+prefix evidence, the separate CheckoutStockReservation repair correction, and
+a fresh accepted authenticated route smoke.

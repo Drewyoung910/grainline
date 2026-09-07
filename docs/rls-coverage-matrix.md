@@ -201,6 +201,21 @@ completed alternative.
 > OrderShippingRateQuote remain later separate activation releases. See
 > `docs/order-stripe-webhook-authority.md`.
 
+> **Order authority audit correction (2026-09-07):** independent review of the
+> complete candidate confirmed two pre-activation composition defects rather
+> than the broader early-design assessment in the imported review. The staged
+> zero-direct prefix now has 17 generated migrations. Its final additive
+> successor excludes database-derived conversion-dispute-blocked Orders from
+> review eligibility, verification sales, revenue, conversion and completed
+> sales while retaining actual shipping-performance history; it also requires
+> `PENDING` fulfillment and no purchased/active label claim at both boundaries
+> of blocked-checkout refund processing. Focused PostgreSQL, full repository
+> tests, type checking and lint pass locally. Nothing in this successor is live.
+> A separate live-table correction is still required for the null-outcome
+> CheckoutStockReservation repair path, followed by PostgreSQL 16 prefix proof,
+> the fresh authenticated Order smoke, compatible release/drain, Phase A and
+> FORCE. `OrderItem` and `OrderShippingRateQuote` remain separate releases.
+
 ## Coverage Matrix
 
 | Prisma model | Target | Activation owner/group | Data and actors | Blocking prerequisite or next proof |
