@@ -1047,3 +1047,11 @@ unchanged. Acceptance still requires exact six-function staff-role
 provisioning, byte-pinned compatible migration, separate-login postflights,
 compatible deployment/smoke/drain and the normal Order Phase-A/FORCE gates.
 See `docs/order-ban-review-authority.md`.
+
+Residual cross-provider ordering is tracked separately from this RLS release.
+Ban and unban database transitions are atomic and their Clerk calls are
+retryable, but opposing concurrent staff actions can still complete external
+calls out of commit order. The launch backlog therefore requires a durable
+per-user desired-state generation/outbox and concurrency proof. That
+pre-existing lifecycle hardening is a launch gate, not a reason to broaden or
+delay the Order table's fixed-authority and RLS boundary.
