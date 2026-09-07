@@ -84,6 +84,7 @@ export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseOpenApplication",
   "DirectUploadReference",
   "OrderRefundReconciliation",
+  "OrderStaffCapability",
   "SellerDeauthorizationApplication",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
@@ -93,6 +94,7 @@ export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseOpenApplication",
   "DirectUploadReference",
   "OrderRefundReconciliation",
+  "OrderStaffCapability",
   "SellerDeauthorizationApplication",
 ]);
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];

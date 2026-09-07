@@ -48,8 +48,9 @@ uses that client. Layout/UI gating alone is not treated as action authority.
 2. Create and separately authenticate the authority-free staff login; install
    its isolated application credential without granting functions yet.
 3. Apply the three functions database-first as part of the byte-pinned Order
-   compatible prefix, then converge the isolated role to exactly five
-   operations: two projections and these three mutations.
+   compatible prefix, then converge the isolated role to exactly six
+   operations: two projections, these three mutations and the ban-review
+   capability mint.
 4. Prove ordinary-runtime denial even with a forged staff ID, explicit-grant
    drift denial through the in-function session check, label-clawback fencing,
    length limits, atomic audit, replay behavior and direct-table denial.

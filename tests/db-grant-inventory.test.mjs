@@ -520,6 +520,7 @@ describe("database grant inventory guardrails", () => {
       "CaseOpenApplication",
       "DirectUploadReference",
       "OrderRefundReconciliation",
+      "OrderStaffCapability",
       "SellerDeauthorizationApplication",
     ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
@@ -529,6 +530,7 @@ describe("database grant inventory guardrails", () => {
       "CaseOpenApplication",
       "DirectUploadReference",
       "OrderRefundReconciliation",
+      "OrderStaffCapability",
       "SellerDeauthorizationApplication",
     ]);
     assert.equal(
@@ -662,10 +664,11 @@ describe("database grant inventory guardrails", () => {
         "CaseStripeDisputeApplication",
         "CaseSellerRefundApplication",
         "CaseOpenApplication",
-        "DirectUploadReference",
-        "OrderRefundReconciliation",
-        "SellerDeauthorizationApplication",
-        "DirectUpload",
+      "DirectUploadReference",
+      "OrderRefundReconciliation",
+      "OrderStaffCapability",
+      "SellerDeauthorizationApplication",
+      "DirectUpload",
       ],
     );
     assert.deepEqual(
@@ -675,10 +678,11 @@ describe("database grant inventory guardrails", () => {
         "CaseStripeDisputeApplication",
         "CaseSellerRefundApplication",
         "CaseOpenApplication",
-        "DirectUploadReference",
-        "OrderRefundReconciliation",
-        "SellerDeauthorizationApplication",
-        "DirectUpload",
+      "DirectUploadReference",
+      "OrderRefundReconciliation",
+      "OrderStaffCapability",
+      "SellerDeauthorizationApplication",
+      "DirectUpload",
         "Case",
         "CaseMessage",
         "CaseMessageAttachment",
@@ -1452,7 +1456,7 @@ describe("database grant inventory guardrails", () => {
         (entry) => inventory.functions.includes(entry.name),
       );
 
-    assert.equal(inventory.tables.length, 66);
+    assert.equal(inventory.tables.length, 67);
     assert.equal(inventory.enums.length, 22);
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
@@ -1913,6 +1917,7 @@ describe("database grant inventory guardrails", () => {
         "Notification",
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
+        "OrderStaffCapability",
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
@@ -1937,6 +1942,7 @@ describe("database grant inventory guardrails", () => {
         "Notification",
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
+        "OrderStaffCapability",
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",

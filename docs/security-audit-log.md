@@ -5120,3 +5120,37 @@ Open work:
   through the normal authenticated route. No provider, credential, migration,
   grant, deployment, or RLS state changed. The legal-state gate is closed;
   Clerk webhook signing-secret rotation remains a separate boundary.
+
+## 2026-09-07 Order ban-review isolated staff capability
+
+- The Order pre-RLS candidate review found that the two fixed seller-ban review
+  consumers were executable by ordinary runtime while accepting a caller-
+  supplied active ADMIN ID. Disposable PostgreSQL reproduced the forged-actor
+  call. Route authorization did not make that database boundary source-
+  validating. Classification: `FIX_BEFORE_ACTIVATION`; no production incident
+  is asserted.
+- The corrected database-first candidate adds policyless FORCE-RLS
+  `OrderStaffCapability`, with zero runtime/PUBLIC table authority. Only the
+  direct `grainline_staff_read_runtime` session can mint a five-minute UUID
+  bound to actor, target, operation and canonical restore-payload hash. The
+  existing ordinary transaction atomically consumes it; commit prevents replay
+  and rollback restores it for bounded retry. This retains atomic User,
+  SellerProfile, Commission, AdminAuditLog and Order review changes without
+  trusting a shared-runtime actor ID.
+- Ban, manual unban and audited undo routes now repeat the signed Admin-PIN
+  check. The staff role candidate has exactly six functions: two reads, three
+  mutations and the private capability mint. The staged migration and source
+  draft are byte-identical at SHA-256
+  `7a1da9cd3729167bb4512e56a8bb00f656182084c578841e172a9528e0c5513a`.
+- Focused grant, catalog, route, inventory and disposable PostgreSQL validation
+  passed 56 checks with one CI-service-only test skipped. It proved forged,
+  expired, replayed, cross-target and payload-substituted denial; one-use and
+  rollback semantics; direct-table denial; and the internal `SESSION_USER`
+  fence after an accidental ordinary-runtime mint grant. TypeScript and lint
+  passed. The first complete suite passed 4,286 tests with 12 skips and zero
+  failures across 4,298 tests / 536 suites.
+- This checkpoint changes only the isolated undeployed candidate. Production
+  migrations, grants, roles, credentials, deployments, providers and RLS state
+  remain unchanged. Exact-head CI, actual separate-login postflights,
+  database-first compatibility release, application smoke/drain and Order
+  Phase A/FORCE remain distinct later gates.

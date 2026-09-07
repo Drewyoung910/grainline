@@ -688,8 +688,8 @@ model Order {
 
   // Signed seller deauthorization witness. The raw CHECK constraint requires
   // both fields together and the partial index serves open affected orders.
-  sellerDeauthorizedAt             DateTime?
-  sellerDeauthorizationEventId     String?  @db.VarChar(255)
+  sellerDeauthorizedAt         DateTime?
+  sellerDeauthorizationEventId String?   @db.VarChar(255)
 
   // Shippo label
   shippoShipmentId              String?      @db.VarChar(255)
@@ -827,6 +827,22 @@ model OrderRefundReconciliation {
   @@index([orderId, createdAt(sort: Desc)])
   @@index([claimId, createdAt(sort: Desc)])
   @@index([actorUserId, createdAt(sort: Desc)])
+}
+
+// Short-lived, one-use authorization handoff from the separately
+// authenticated staff session into the atomic ordinary-runtime ban/unban
+// transaction. Policyless FORCE RLS and zero table grants keep the bearer
+// capability private to its fixed mint and consume operations.
+model OrderStaffCapability {
+  id           String   @id @default(uuid())
+  actorUserId  String
+  targetUserId String
+  operation    String   @db.VarChar(32)
+  payloadHash  String?  @db.VarChar(64)
+  expiresAt    DateTime @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([expiresAt])
 }
 
 model SellerPayoutEvent {

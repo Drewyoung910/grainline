@@ -2667,6 +2667,7 @@ WITH order_zero_direct_authority(function_signature) AS (
     ('public."grainline_order_staff_mark_reviewed"(text, text)'),
     ('public."grainline_order_staff_record_label_voided"(text, text)'),
     ('public."grainline_order_staff_append_note"(text, text, text)'),
+    ('public."grainline_order_staff_capability_mint"(text, text, text, jsonb)'),
     ('public."grainline_order_flag_banned_seller_open_orders"(text, text)'),
     ('public."grainline_order_restore_banned_seller_reviews"(text, text, jsonb)'),
     ('public."grainline_checkout_reservation_create_cart_snapshot"(text, text, text, text, text, jsonb)'),

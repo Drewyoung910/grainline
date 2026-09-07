@@ -57,7 +57,7 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS = Object.freeze([
   {
     migration: "20260905100000_prepare_order_ban_review_authority",
     draft: "order-ban-review-authority.sql",
-    sha256: "48555c6985a64d401f92a92a11b8085568de3ba3e7c9f0a2ebaa6e0bb4502279",
+    sha256: "7a1da9cd3729167bb4512e56a8bb00f656182084c578841e172a9528e0c5513a",
   },
   {
     migration: "20260905110000_prepare_order_checkout_source_snapshot",
@@ -110,6 +110,7 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_NEW_FUNCTION_NAMES = Object.freeze([
   "grainline_order_refund_reconciliation_committed",
   "grainline_order_restore_banned_seller_reviews",
   "grainline_order_staff_append_note",
+  "grainline_order_staff_capability_mint",
   "grainline_order_staff_mark_reviewed",
   "grainline_order_staff_record_label_voided",
   "grainline_seller_deauthorization_application_immutable",
@@ -120,7 +121,7 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_NEW_FUNCTION_NAMES = Object.freeze([
   "grainline_stripe_checkout_refund_review",
   "grainline_stripe_seller_deauthorization_apply",
 ]);
-export const ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT = 21;
+export const ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT = 23;
 
 export const ORDER_ZERO_DIRECT_COMPATIBLE_RUNTIME_FUNCTIONS = Object.freeze([
   ["grainline_order_refund_claim_provider_clock", "text, bigint, text, text, bigint, text"],
@@ -146,6 +147,7 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS = Object.freeze([
   ["grainline_order_staff_mark_reviewed", "text, text"],
   ["grainline_order_staff_record_label_voided", "text, text"],
   ["grainline_order_staff_append_note", "text, text, text"],
+  ["grainline_order_staff_capability_mint", "text, text, text, jsonb"],
   ["grainline_seller_deauthorization_application_immutable", ""],
 ].map((entry) => Object.freeze(entry)));
 

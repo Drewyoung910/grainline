@@ -895,7 +895,7 @@ semantic contract from read-only to an exact isolated staff surface:
 
 The three mutation functions now require the exact isolated `SESSION_USER` and
 grant nothing in their migration. Both `PUBLIC` and ordinary runtime are
-revoked. The staff-role converger grants exactly the five operations only after
+revoked. The staff-role converger grants exactly the six operations only after
 the compatible prefix exists. The application mutation helpers require an
 explicit client, all three actions use `getOrderStaffReadClient()`, and the
 action guard verifies the Clerk-session-bound Admin-PIN cookie after the live
@@ -988,3 +988,45 @@ outbox continues to own email retry. Static coverage pins all three throwing
 calls and the existing-order retry path. This application-only correction
 does not alter migrations, database rows, provider state, grants or RLS
 posture.
+
+### ORD-A21: ban review mutations must carry isolated staff authority
+
+2026-09-07 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected and locally PostgreSQL-proven in the undeployed database-first
+candidate, not asserted fixed in production.
+
+The first seller-ban review candidate moved direct Order reads and writes into
+two fixed operations, but both remained callable by ordinary runtime with a
+caller-supplied ADMIN user ID. The database verified that the named actor was
+an active ADMIN; it did not prove that the call came through the separately
+authenticated staff credential. Disposable PostgreSQL reproduced an ordinary-
+runtime call naming `admin-1` and receiving buyer/Order restoration material.
+Route auth was useful defense in depth, not a source-validating database
+boundary.
+
+Granting the Order consumers only to the staff role would require committing
+their updates outside the existing User, SellerProfile, Commission and
+AdminAuditLog transaction. That was rejected because a failure could leave ban
+state and Order review state divergent. Keeping a caller actor ID was rejected
+because it preserved the forged-authority defect.
+
+The accepted candidate adds a private, policyless FORCE-RLS
+`OrderStaffCapability` table. Only a direct `grainline_staff_read_runtime`
+session can call the mint, whose body repeats the exact session fence and
+active ADMIN/target validation. The five-minute UUID is bound to target,
+operation and canonical restore-payload hash. Ordinary runtime has no table or
+mint authority and can only atomically consume one exact capability inside the
+existing transaction. Commit makes it one-use; rollback restores it for a
+bounded retry. Expired, replayed, cross-target, cross-operation, forged and
+payload-substituted calls fail closed. Ban, manual unban and audit undo routes
+also repeat the signed Admin-PIN check before minting.
+
+Focused static and disposable PostgreSQL proof covers the source/control/sink
+chain, direct-table denial, defense-in-depth `SESSION_USER` fence after an
+accidental grant, one-use semantics, rollback safety and payload binding. The
+candidate changes only draft/staged migration bytes, application wiring,
+schema, grant inventories, proofs and documentation. Production remains
+unchanged. Acceptance still requires exact six-function staff-role
+provisioning, byte-pinned compatible migration, separate-login postflights,
+compatible deployment/smoke/drain and the normal Order Phase-A/FORCE gates.
+See `docs/order-ban-review-authority.md`.

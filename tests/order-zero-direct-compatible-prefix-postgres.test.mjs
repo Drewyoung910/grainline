@@ -70,6 +70,13 @@ describe("Order zero-direct compatible real-PostgreSQL proof", () => {
           id integer CONSTRAINT "Order_provider_claim_mutual_exclusion_check" CHECK (id > 0),
           CONSTRAINT "Order_sellerDeauthorization_check" CHECK (id < 10)
         );
+        CREATE TABLE public."OrderStaffCapability" (
+          operation text CONSTRAINT "OrderStaffCapability_operation_check"
+            CHECK (operation IN ('BAN_REVIEW_FLAG', 'BAN_REVIEW_RESTORE')),
+          "payloadHash" text,
+          CONSTRAINT "OrderStaffCapability_payload_check"
+            CHECK ("payloadHash" IS NULL OR length("payloadHash") = 64)
+        );
         CREATE TABLE public."SellerDeauthorizationApplication" (id integer);
         CREATE FUNCTION public.grainline_seller_deauthorization_application_immutable()
         RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RETURN OLD; END';
@@ -115,10 +122,13 @@ describe("Order zero-direct compatible real-PostgreSQL proof", () => {
       await db.exec(`
         CREATE ROLE grainline_app_runtime NOINHERIT NOBYPASSRLS;
         CREATE TABLE public."Order" (id integer);
+        CREATE TABLE public."OrderStaffCapability" (id integer);
         CREATE TABLE public."SellerDeauthorizationApplication" (id integer);
         GRANT SELECT, INSERT, UPDATE, DELETE ON public."Order" TO grainline_app_runtime;
         ALTER TABLE public."SellerDeauthorizationApplication" ENABLE ROW LEVEL SECURITY;
         ALTER TABLE public."SellerDeauthorizationApplication" FORCE ROW LEVEL SECURITY;
+        ALTER TABLE public."OrderStaffCapability" ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public."OrderStaffCapability" FORCE ROW LEVEL SECURITY;
       `);
       for (const [name, types] of [
         ...ORDER_ZERO_DIRECT_COMPATIBLE_RUNTIME_FUNCTIONS,
@@ -156,6 +166,8 @@ describe("Order zero-direct compatible real-PostgreSQL proof", () => {
         'REVOKE UPDATE ON public."Order" FROM grainline_app_runtime',
         'ALTER TABLE public."SellerDeauthorizationApplication" NO FORCE ROW LEVEL SECURITY',
         'GRANT SELECT ON public."SellerDeauthorizationApplication" TO grainline_app_runtime',
+        'ALTER TABLE public."OrderStaffCapability" NO FORCE ROW LEVEL SECURITY',
+        'GRANT SELECT ON public."OrderStaffCapability" TO grainline_app_runtime',
       ]) {
         await db.exec(`BEGIN; ${mutation}`);
         await assert.rejects(() => verifyTablePosture(db), mutation);

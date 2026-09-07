@@ -31,6 +31,8 @@ test("staff grant final catalog executes in PostgreSQL and rejects PUBLIC leakag
         RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
       CREATE FUNCTION public.grainline_order_staff_append_note(text,text,text)
         RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_order_staff_capability_mint(text,text,text,jsonb)
+        RETURNS text LANGUAGE sql SECURITY DEFINER AS 'SELECT ''00000000-0000-4000-8000-000000000000''';
       REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
       GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO grainline_staff_read_runtime;
     `);

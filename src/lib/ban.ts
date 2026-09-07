@@ -11,8 +11,10 @@ import { invalidateAccountStateCache } from './accountStateCache'
 import { readBanAuditMetadata } from './banAuditMetadata'
 import {
   flagBannedSellerOpenOrders,
+  mintBanReviewCapability,
   restoreBannedSellerOrderReviews,
 } from './orderBanReviewAuthority'
+import { getOrderStaffReadClient } from './orderStaffReadDb'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { sanitizeAdminAuditReason } from './audit'
 import * as Sentry from '@sentry/nextjs'
@@ -123,6 +125,13 @@ function revalidateAccountStateSearchCaches(source: string, userId: string) {
 export async function banUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
+  const banReviewCapability = await mintBanReviewCapability(
+    adminId,
+    userId,
+    'BAN_REVIEW_FLAG',
+    null,
+    getOrderStaffReadClient(),
+  )
   const clerkSync = await prisma.$transaction(async (tx) => {
     const target = await tx.user.findUnique({
       where: { id: userId },
@@ -160,7 +169,11 @@ export async function banUser({ userId, adminId, reason }: {
       where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
       data: { status: 'CLOSED' }
     })
-    const flaggedOpenOrders = await flagBannedSellerOpenOrders(adminId, userId, tx)
+    const flaggedOpenOrders = await flagBannedSellerOpenOrders(
+      banReviewCapability,
+      userId,
+      tx,
+    )
     const banAuditLog = await tx.adminAuditLog.create({
       data: {
         adminId,
@@ -283,6 +296,19 @@ export async function unbanUser({ userId, adminId, reason }: {
       })
     }
   }
+  const latestBanForCapability = await prisma.adminAuditLog.findFirst({
+    where: { action: 'BAN_USER', targetType: 'USER', targetId: userId },
+    orderBy: { createdAt: 'desc' },
+    select: { metadata: true },
+  })
+  const capabilityBanMetadata = readBanAuditMetadata(latestBanForCapability?.metadata)
+  const banReviewCapability = await mintBanReviewCapability(
+    adminId,
+    userId,
+    'BAN_REVIEW_RESTORE',
+    capabilityBanMetadata.flaggedOpenOrders,
+    getOrderStaffReadClient(),
+  )
   const clerkSync = await prisma.$transaction(async (tx) => {
     const [previousUser, previousSellerProfile, latestBanLog] = await Promise.all([
       tx.user.findUnique({
@@ -302,7 +328,7 @@ export async function unbanUser({ userId, adminId, reason }: {
     if (!previousUser) throw new BanUserPolicyError("User not found", 404)
     const banMetadata = readBanAuditMetadata(latestBanLog?.metadata)
     const restoredFlaggedOrderReviews = await restoreBannedSellerOrderReviews(
-      adminId,
+      banReviewCapability,
       userId,
       banMetadata.flaggedOpenOrders,
       tx,

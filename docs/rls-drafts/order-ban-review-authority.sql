@@ -1,8 +1,127 @@
 -- Fixed Order review-state authority for seller ban and unban flows.
--- Compatible database-first authority; changes no table RLS or grant posture.
+-- Compatible database-first authority. The private capability table preserves
+-- the surrounding ordinary-runtime transaction without letting that shared
+-- credential forge an administrator identity.
+
+CREATE TABLE public."OrderStaffCapability" (
+  id text PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid()::text,
+  "actorUserId" text NOT NULL,
+  "targetUserId" text NOT NULL,
+  operation character varying(32) NOT NULL,
+  "payloadHash" character varying(64),
+  "expiresAt" timestamp(3) with time zone NOT NULL,
+  "createdAt" timestamp(3) with time zone NOT NULL
+    DEFAULT pg_catalog.clock_timestamp(),
+  CONSTRAINT "OrderStaffCapability_operation_check"
+    CHECK (operation IN ('BAN_REVIEW_FLAG', 'BAN_REVIEW_RESTORE')),
+  CONSTRAINT "OrderStaffCapability_payload_check"
+    CHECK (
+      (operation = 'BAN_REVIEW_FLAG' AND "payloadHash" IS NULL)
+      OR
+      (operation = 'BAN_REVIEW_RESTORE' AND "payloadHash" ~ '^[a-f0-9]{64}$')
+    )
+);
+
+CREATE INDEX "OrderStaffCapability_expiresAt_idx"
+  ON public."OrderStaffCapability" ("expiresAt");
+
+ALTER TABLE public."OrderStaffCapability" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."OrderStaffCapability" FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public."OrderStaffCapability"
+  FROM PUBLIC, grainline_app_runtime;
+
+CREATE OR REPLACE FUNCTION public.grainline_order_staff_capability_mint(
+  p_actor_user_id text,
+  p_target_user_id text,
+  p_operation text,
+  p_payload jsonb
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_order_staff_capability_mint$
+DECLARE
+  capability_id text;
+  payload_hash text;
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Order staff capability requires the isolated staff session'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF p_actor_user_id IS NULL
+     OR p_actor_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_target_user_id IS NULL
+     OR p_target_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_operation NOT IN ('BAN_REVIEW_FLAG', 'BAN_REVIEW_RESTORE') THEN
+    RAISE EXCEPTION 'Order staff capability input is invalid'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  PERFORM 1
+    FROM public."User" AS actor
+   WHERE actor.id = p_actor_user_id
+     AND actor.role::text = 'ADMIN'
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Order staff capability requires an active administrator'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  PERFORM 1
+    FROM public."User" AS target_user
+   WHERE target_user.id = p_target_user_id
+     AND target_user.role::text <> 'ADMIN'
+     AND target_user."deletedAt" IS NULL
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Order staff capability target is invalid'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF p_operation = 'BAN_REVIEW_FLAG' THEN
+    IF p_payload IS NOT NULL THEN
+      RAISE EXCEPTION 'Order staff flag capability payload is invalid'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    payload_hash := NULL;
+  ELSE
+    IF p_payload IS NULL
+       OR pg_catalog.jsonb_typeof(p_payload) <> 'array'
+       OR pg_catalog.jsonb_array_length(p_payload) > 5000 THEN
+      RAISE EXCEPTION 'Order staff restore capability payload is invalid'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    payload_hash := pg_catalog.encode(
+      pg_catalog.sha256(pg_catalog.convert_to(p_payload::text, 'UTF8')),
+      'hex'
+    );
+  END IF;
+
+  DELETE FROM public."OrderStaffCapability"
+   WHERE "expiresAt" < pg_catalog.clock_timestamp();
+
+  INSERT INTO public."OrderStaffCapability" (
+    "actorUserId", "targetUserId", operation, "payloadHash", "expiresAt"
+  ) VALUES (
+    p_actor_user_id,
+    p_target_user_id,
+    p_operation,
+    payload_hash,
+    pg_catalog.clock_timestamp() + INTERVAL '5 minutes'
+  )
+  RETURNING id INTO capability_id;
+
+  RETURN capability_id;
+END
+$grainline_order_staff_capability_mint$;
 
 CREATE OR REPLACE FUNCTION public.grainline_order_flag_banned_seller_open_orders(
-  p_actor_user_id text,
+  p_capability_id text,
   p_target_user_id text
 )
 RETURNS TABLE (
@@ -27,18 +146,31 @@ DECLARE
   prior_note text;
   next_note text;
   flagged_count integer := 0;
+  source_actor_user_id text;
 BEGIN
-  IF p_actor_user_id IS NULL
-     OR p_actor_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+  IF p_capability_id IS NULL
+     OR p_capability_id !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'
      OR p_target_user_id IS NULL
      OR p_target_user_id !~ '^[A-Za-z0-9._:-]{1,128}$' THEN
     RAISE EXCEPTION 'Ban Order review input is invalid'
       USING ERRCODE = 'check_violation';
   END IF;
 
+  DELETE FROM public."OrderStaffCapability" AS capability
+   WHERE capability.id = p_capability_id
+     AND capability."targetUserId" = p_target_user_id
+     AND capability.operation = 'BAN_REVIEW_FLAG'
+     AND capability."payloadHash" IS NULL
+     AND capability."expiresAt" >= pg_catalog.clock_timestamp()
+  RETURNING capability."actorUserId" INTO source_actor_user_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Ban Order authorization capability is invalid or expired'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
   PERFORM 1
     FROM public."User" AS actor
-   WHERE actor.id = p_actor_user_id
+   WHERE actor.id = source_actor_user_id
      AND actor.role::text = 'ADMIN'
      AND actor.banned = false
      AND actor."deletedAt" IS NULL
@@ -125,7 +257,7 @@ END
 $grainline_order_flag_banned_seller_open_orders$;
 
 CREATE OR REPLACE FUNCTION public.grainline_order_restore_banned_seller_reviews(
-  p_actor_user_id text,
+  p_capability_id text,
   p_target_user_id text,
   p_snapshots jsonb
 )
@@ -147,9 +279,11 @@ DECLARE
   prior_note text;
   prior_hash text;
   restored_count integer := 0;
+  source_actor_user_id text;
+  snapshot_hash text;
 BEGIN
-  IF p_actor_user_id IS NULL
-     OR p_actor_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+  IF p_capability_id IS NULL
+     OR p_capability_id !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'
      OR p_target_user_id IS NULL
      OR p_target_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
      OR p_snapshots IS NULL
@@ -159,9 +293,25 @@ BEGIN
       USING ERRCODE = 'check_violation';
   END IF;
 
+  snapshot_hash := pg_catalog.encode(
+    pg_catalog.sha256(pg_catalog.convert_to(p_snapshots::text, 'UTF8')),
+    'hex'
+  );
+  DELETE FROM public."OrderStaffCapability" AS capability
+   WHERE capability.id = p_capability_id
+     AND capability."targetUserId" = p_target_user_id
+     AND capability.operation = 'BAN_REVIEW_RESTORE'
+     AND capability."payloadHash" = snapshot_hash
+     AND capability."expiresAt" >= pg_catalog.clock_timestamp()
+  RETURNING capability."actorUserId" INTO source_actor_user_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Ban Order authorization capability is invalid or expired'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
   PERFORM 1
     FROM public."User" AS actor
-   WHERE actor.id = p_actor_user_id
+   WHERE actor.id = source_actor_user_id
      AND actor.role::text = 'ADMIN'
      AND actor.banned = false
      AND actor."deletedAt" IS NULL
@@ -300,6 +450,8 @@ BEGIN
 END
 $grainline_order_restore_banned_seller_reviews$;
 
+REVOKE ALL ON FUNCTION public.grainline_order_staff_capability_mint(text, text, text, jsonb)
+  FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_order_flag_banned_seller_open_orders(text, text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_order_restore_banned_seller_reviews(text, text, jsonb)

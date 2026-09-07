@@ -222,7 +222,8 @@ WITH required(function_signature) AS (
     ('public."grainline_order_staff_detail_v2"(text, text)'),
     ('public."grainline_order_staff_mark_reviewed"(text, text)'),
     ('public."grainline_order_staff_record_label_voided"(text, text)'),
-    ('public."grainline_order_staff_append_note"(text, text, text)')
+    ('public."grainline_order_staff_append_note"(text, text, text)'),
+    ('public."grainline_order_staff_capability_mint"(text, text, text, jsonb)')
 ), missing AS (
   SELECT function_signature FROM required
   WHERE pg_catalog.to_regprocedure(function_signature) IS NULL
@@ -257,6 +258,9 @@ GRANT EXECUTE ON FUNCTION
   TO :"staff_role";
 GRANT EXECUTE ON FUNCTION
   public.grainline_order_staff_append_note(text, text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_order_staff_capability_mint(text, text, text, jsonb)
   TO :"staff_role";
 
 WITH table_authority AS (
@@ -307,7 +311,8 @@ WITH table_authority AS (
     ('public."grainline_order_staff_detail_v2"(text, text)'),
     ('public."grainline_order_staff_mark_reviewed"(text, text)'),
     ('public."grainline_order_staff_record_label_voided"(text, text)'),
-    ('public."grainline_order_staff_append_note"(text, text, text)')
+    ('public."grainline_order_staff_append_note"(text, text, text)'),
+    ('public."grainline_order_staff_capability_mint"(text, text, text, jsonb)')
 ), expected_authority AS (
   SELECT function_signature,
          pg_catalog.has_function_privilege(

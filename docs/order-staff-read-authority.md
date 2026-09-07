@@ -80,8 +80,9 @@ Before application conversion, a separate release must:
    NOBYPASSRLS, membership-free and without table privileges;
 2. install its secret outside the ordinary `DATABASE_URL` and migration-owner
    paths;
-3. after the compatible prefix exists, grant only the five reviewed staff
-   operations: two corrected projections and three bounded mutations;
+3. after the compatible prefix exists, grant only the six reviewed staff
+   operations: two corrected projections, three bounded mutations and the
+   ban-review capability mint;
 4. prove the ordinary runtime cannot execute either function and the staff
    role cannot read base tables;
 5. bind the PIN-gated pages to a dedicated client with bounded pooling; and
@@ -232,8 +233,9 @@ The unapplied staff-mutation member now requires exact
 ordinary runtime and `PUBLIC`. The application supplies the already-isolated
 client explicitly and repeats Admin-PIN verification before every operation.
 The role provisioner is correspondingly expanded from the historical two-read
-surface to exactly five operations: the two corrected reads and three fixed,
-audited mutations. The legacy role/env names are retained to avoid unnecessary
+surface to exactly six operations: the two corrected reads, three fixed,
+audited mutations and the one-use ban-review capability mint. The legacy
+role/env names are retained to avoid unnecessary
 credential churn; they no longer mean the role is semantically read-only.
 
 Disposable PostgreSQL coverage proves a genuine isolated staff session can

@@ -14,6 +14,7 @@ async function database() {
   const db = new PGlite();
   await db.exec(`
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT NOBYPASSRLS;
+    CREATE ROLE grainline_staff_read_runtime LOGIN NOINHERIT NOBYPASSRLS;
     CREATE TYPE public."FulfillmentStatus" AS ENUM (
       'PENDING', 'READY_FOR_PICKUP', 'SHIPPED', 'DELIVERED', 'PICKED_UP'
     );
@@ -64,21 +65,89 @@ async function database() {
       FROM PUBLIC, grainline_app_runtime;
   `);
   await db.exec(draft);
+  await db.exec(`
+    GRANT EXECUTE ON FUNCTION
+      public.grainline_order_staff_capability_mint(text, text, text, jsonb)
+      TO grainline_staff_read_runtime;
+  `);
   return db;
 }
 
+async function withSession(db, role, callback) {
+  await db.exec(`SET SESSION AUTHORIZATION ${role}`);
+  try {
+    return await callback();
+  } finally {
+    await db.exec("RESET SESSION AUTHORIZATION").catch(() => {});
+  }
+}
+
+async function withRole(db, role, callback) {
+  await db.exec(`SET ROLE ${role}`);
+  try {
+    return await callback();
+  } finally {
+    await db.exec("RESET ROLE").catch(() => {});
+  }
+}
+
+async function mint(
+  db,
+  operation,
+  payload,
+  actor = "admin-1",
+  target = "banned-seller",
+) {
+  const payloadJson = payload === null ? null : JSON.stringify(payload);
+  return (await db.query(`
+    INSERT INTO public."OrderStaffCapability" (
+      "actorUserId", "targetUserId", operation, "payloadHash", "expiresAt"
+    ) VALUES (
+      $1,
+      $2,
+      $3,
+      CASE WHEN $4::jsonb IS NULL THEN NULL ELSE pg_catalog.encode(
+        pg_catalog.sha256(pg_catalog.convert_to(($4::jsonb)::text, 'UTF8')),
+        'hex'
+      ) END,
+      pg_catalog.clock_timestamp() + INTERVAL '5 minutes'
+    )
+    RETURNING id
+  `, [actor, target, operation, payloadJson])).rows[0]?.id;
+}
+
+async function consumeFlag(db, capability, target = "banned-seller") {
+  return withRole(db, "grainline_app_runtime", async () => (
+    await db.query(
+      "SELECT * FROM public.grainline_order_flag_banned_seller_open_orders($1, $2)",
+      [capability, target],
+    )
+  ).rows);
+}
+
 async function flag(db, actor = "admin-1", target = "banned-seller") {
-  return (await db.query(
-    "SELECT * FROM public.grainline_order_flag_banned_seller_open_orders($1, $2)",
-    [actor, target],
-  )).rows;
+  const capability = await mint(db, "BAN_REVIEW_FLAG", null, actor, target);
+  return consumeFlag(db, capability, target);
+}
+
+async function consumeRestore(db, capability, snapshots, target = "banned-seller") {
+  return withRole(db, "grainline_app_runtime", async () => (
+    await db.query(
+      "SELECT public.grainline_order_restore_banned_seller_reviews($1, $2, $3::jsonb) AS restored_count",
+      [capability, target, JSON.stringify(snapshots)],
+    )
+  ).rows[0]?.restored_count);
 }
 
 async function restore(db, snapshots, actor = "admin-1", target = "banned-seller") {
-  return (await db.query(
-    "SELECT public.grainline_order_restore_banned_seller_reviews($1, $2, $3::jsonb) AS restored_count",
-    [actor, target, JSON.stringify(snapshots)],
-  )).rows[0]?.restored_count;
+  const capability = await mint(
+    db,
+    "BAN_REVIEW_RESTORE",
+    snapshots,
+    actor,
+    target,
+  );
+  return consumeRestore(db, capability, snapshots, target);
 }
 
 function restorePayload(rows) {
@@ -194,11 +263,116 @@ describe("Order ban review authority in PostgreSQL", () => {
         /duplicate Orders/i,
       );
 
-      await db.exec("SET ROLE grainline_app_runtime");
       assert.equal((await flag(db, "admin-1")).length, 4);
-      await assert.rejects(db.query('SELECT * FROM public."Order"'), /permission denied/i);
+      await withRole(db, "grainline_app_runtime", async () => {
+        await assert.rejects(db.query('SELECT * FROM public."Order"'), /permission denied/i);
+        await assert.rejects(
+          db.query('SELECT * FROM public."OrderStaffCapability"'),
+          /permission denied/i,
+        );
+        await assert.rejects(
+          db.query(
+            "SELECT public.grainline_order_staff_capability_mint('admin-1', 'banned-seller', 'BAN_REVIEW_FLAG', NULL)",
+          ),
+          /permission denied/i,
+        );
+      });
     } finally {
-      await db.exec("RESET ROLE").catch(() => {});
+      await db.close();
+    }
+  });
+
+  it("makes capabilities one-use, payload-bound, expiring and rollback-safe", async () => {
+    const db = await database();
+    try {
+      const flagCapability = await mint(db, "BAN_REVIEW_FLAG", null);
+      await db.exec("BEGIN");
+      const firstRows = await consumeFlag(db, flagCapability);
+      assert.equal(firstRows.length, 4);
+      await db.exec("ROLLBACK");
+      assert.equal((await consumeFlag(db, flagCapability)).length, 4);
+      await assert.rejects(
+        consumeFlag(db, flagCapability),
+        /capability is invalid or expired/i,
+      );
+
+      const snapshots = [];
+      const restoreCapability = await mint(
+        db,
+        "BAN_REVIEW_RESTORE",
+        snapshots,
+      );
+      const substituted = [{
+        id: "open-empty",
+        previousReviewNeeded: false,
+        previousReviewNoteHash: null,
+        previousReviewNoteLength: 0,
+        addedReviewNote: true,
+      }];
+      await assert.rejects(
+        consumeRestore(db, restoreCapability, substituted),
+        /capability is invalid or expired/i,
+      );
+      assert.equal(
+        await consumeRestore(db, restoreCapability, snapshots),
+        0,
+      );
+
+      const expiredCapability = await mint(db, "BAN_REVIEW_FLAG", null);
+      await db.query(`
+        UPDATE public."OrderStaffCapability"
+           SET "expiresAt" = pg_catalog.clock_timestamp() - INTERVAL '1 second'
+         WHERE id = $1
+      `, [expiredCapability]);
+      await assert.rejects(
+        consumeFlag(db, expiredCapability),
+        /capability is invalid or expired/i,
+      );
+
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("mints only through a directly authenticated isolated staff session", async () => {
+    const db = await database();
+    try {
+      await withSession(db, "grainline_staff_read_runtime", async () => {
+        const capability = (await db.query(
+          "SELECT public.grainline_order_staff_capability_mint('admin-1', 'banned-seller', 'BAN_REVIEW_FLAG', NULL) AS id",
+        )).rows[0]?.id;
+        assert.match(capability, /^[a-f0-9-]{36}$/);
+        await assert.rejects(
+          db.query('SELECT * FROM public."OrderStaffCapability"'),
+          /permission denied/i,
+        );
+        await assert.rejects(
+          db.query(
+            "SELECT public.grainline_order_staff_capability_mint('ordinary-user', 'banned-seller', 'BAN_REVIEW_FLAG', NULL)",
+          ),
+          /requires an active administrator/i,
+        );
+      });
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("retains the in-function session fence after an accidental runtime grant", async () => {
+    const db = await database();
+    try {
+      await db.exec(`GRANT EXECUTE ON FUNCTION
+        public.grainline_order_staff_capability_mint(text, text, text, jsonb)
+        TO grainline_app_runtime`);
+      await withSession(db, "grainline_app_runtime", async () => {
+        await assert.rejects(
+          db.query(
+            "SELECT public.grainline_order_staff_capability_mint('admin-1', 'banned-seller', 'BAN_REVIEW_FLAG', NULL)",
+          ),
+          /requires the isolated staff session/i,
+        );
+      });
+    } finally {
       await db.close();
     }
   });

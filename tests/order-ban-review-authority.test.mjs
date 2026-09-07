@@ -9,13 +9,15 @@ const sql = fs.readFileSync(
 const wrapper = fs.readFileSync("src/lib/orderBanReviewAuthority.ts", "utf8");
 const ban = fs.readFileSync("src/lib/ban.ts", "utf8");
 const audit = fs.readFileSync("src/lib/audit.ts", "utf8");
+const banRoute = fs.readFileSync("src/app/api/admin/users/[id]/ban/route.ts", "utf8");
+const undoRoute = fs.readFileSync("src/app/api/admin/audit/[id]/undo/route.ts", "utf8");
 
 describe("Order ban review authority", () => {
   it("derives the seller and exact eligible Orders under deterministic locks", () => {
-    assert.equal((sql.match(/CREATE OR REPLACE FUNCTION/gu) ?? []).length, 2);
-    assert.equal((sql.match(/SECURITY DEFINER/gu) ?? []).length, 2);
-    assert.equal((sql.match(/SET search_path = pg_catalog/gu) ?? []).length, 2);
-    assert.equal((sql.match(/actor\.role::text = 'ADMIN'/gu) ?? []).length, 2);
+    assert.equal((sql.match(/CREATE OR REPLACE FUNCTION/gu) ?? []).length, 3);
+    assert.equal((sql.match(/SECURITY DEFINER/gu) ?? []).length, 3);
+    assert.equal((sql.match(/SET search_path = pg_catalog/gu) ?? []).length, 3);
+    assert.equal((sql.match(/actor\.role::text = 'ADMIN'/gu) ?? []).length, 3);
     assert.equal((sql.match(/target_user\.banned = true/gu) ?? []).length, 2);
     assert.match(sql, /seller\."userId" = p_target_user_id/);
     assert.match(sql, /source_order\."sellerProfileId" = source_seller_profile_id/);
@@ -41,12 +43,30 @@ describe("Order ban review authority", () => {
   it("moves both application paths off direct Order authority", () => {
     assert.match(wrapper, /MAX_BAN_ORDER_SNAPSHOTS = 5_000/);
     assert.match(wrapper, /normalizedRows\(rows\)/);
-    assert.match(ban, /flagBannedSellerOpenOrders\(adminId, userId, tx\)/);
+    assert.match(wrapper, /mintBanReviewCapability/);
+    assert.doesNotMatch(wrapper, /client: BanReviewClient = prisma/);
+    assert.match(ban, /flagBannedSellerOpenOrders\(\s*banReviewCapability,\s*userId,\s*tx/);
     assert.match(ban, /restoreBannedSellerOrderReviews\(/);
     assert.match(audit, /restoreBannedSellerOrderReviews\(/);
     assert.doesNotMatch(ban, /(?:prisma|tx)\.order\./);
     assert.doesNotMatch(audit, /(?:prisma|tx)\.order\./);
     assert.equal((sql.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 2);
-    assert.doesNotMatch(sql, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)|CREATE POLICY|ENABLE ROW LEVEL SECURITY/);
+    assert.match(sql, /OrderStaffCapability[\s\S]*ENABLE ROW LEVEL SECURITY/);
+    assert.match(sql, /OrderStaffCapability[\s\S]*FORCE ROW LEVEL SECURITY/);
+    assert.doesNotMatch(sql, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)/);
+  });
+
+  it("requires an isolated one-use capability and route-level Admin PIN", () => {
+    assert.match(sql, /SESSION_USER <> 'grainline_staff_read_runtime'/);
+    assert.match(sql, /operation = 'BAN_REVIEW_FLAG'/);
+    assert.match(sql, /operation = 'BAN_REVIEW_RESTORE'/);
+    assert.match(sql, /capability\."payloadHash" = snapshot_hash/);
+    assert.match(sql, /capability\."expiresAt" >= pg_catalog\.clock_timestamp\(\)/);
+    assert.equal((sql.match(/DELETE FROM public\."OrderStaffCapability" AS capability/gu) ?? []).length, 2);
+    assert.match(ban, /mintBanReviewCapability\([\s\S]*'BAN_REVIEW_FLAG'/);
+    assert.match(ban, /mintBanReviewCapability\([\s\S]*'BAN_REVIEW_RESTORE'/);
+    assert.match(audit, /mintBanReviewCapability\([\s\S]*'BAN_REVIEW_RESTORE'/);
+    assert.equal((banRoute.match(/requireStaffAdminPinForApi\(/gu) ?? []).length, 2);
+    assert.equal((undoRoute.match(/requireStaffAdminPinForApi\(/gu) ?? []).length, 1);
   });
 });

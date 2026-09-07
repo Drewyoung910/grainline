@@ -24,10 +24,10 @@ describe("ban side-effect guardrails", () => {
 
     assert.match(ban, /const BANNED_BUYER_COMMISSION_STATUSES = \['OPEN', 'IN_PROGRESS'\] as const/);
     assert.match(ban, /status: \{ in: \[\.\.\.BANNED_BUYER_COMMISSION_STATUSES\] \}/);
-    assert.match(ban, /flagBannedSellerOpenOrders\(adminId, userId, tx\)/);
+    assert.match(ban, /flagBannedSellerOpenOrders\(\s*banReviewCapability,\s*userId,\s*tx/s);
     assert.match(ban, /openOrderSnapshots: flaggedOpenOrders/);
-    assert.match(ban, /restoreBannedSellerOrderReviews\(\s*adminId,\s*userId,\s*banMetadata\.flaggedOpenOrders,\s*tx/s);
-    assert.match(audit, /restoreBannedSellerOrderReviews\(\s*adminId,\s*log\.targetId,\s*banMetadata\?\.flaggedOpenOrders \?\? \[\],\s*tx/s);
+    assert.match(ban, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*userId,\s*banMetadata\.flaggedOpenOrders,\s*tx/s);
+    assert.match(audit, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*log\.targetId,\s*banMetadata\?\.flaggedOpenOrders \?\? \[\],\s*tx/s);
     assert.match(authority, /grainline_order_flag_banned_seller_open_orders/);
     assert.match(authority, /grainline_order_restore_banned_seller_reviews/);
     assert.doesNotMatch(ban, /(?:prisma|tx)\.order\./);

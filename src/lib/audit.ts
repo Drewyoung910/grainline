@@ -4,7 +4,11 @@ import { prisma } from './db'
 import { adminUndoActorBlockReason, adminUndoWindowBlockReason } from './adminAuditUndoState'
 import { listingUndoCurrentStatusWhere, listingUndoDataFromMetadata } from './adminListingUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
-import { restoreBannedSellerOrderReviews } from './orderBanReviewAuthority'
+import {
+  mintBanReviewCapability,
+  restoreBannedSellerOrderReviews,
+} from './orderBanReviewAuthority'
+import { getOrderStaffReadClient } from './orderStaffReadDb'
 import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
@@ -298,6 +302,15 @@ export async function undoAdminAction({
         select: { clerkId: true },
       })
     : null
+  const banReviewCapability = log.action === 'BAN_USER'
+    ? await mintBanReviewCapability(
+        adminId,
+        log.targetId,
+        'BAN_REVIEW_RESTORE',
+        banMetadata?.flaggedOpenOrders ?? [],
+        getOrderStaffReadClient(),
+      )
+    : null
 
   await prisma.$transaction(async (tx) => {
     // Atomic lock: only one undo can succeed, and the flag rolls back if the
@@ -310,8 +323,11 @@ export async function undoAdminAction({
 
     switch (log.action) {
       case 'BAN_USER': {
+        if (!banReviewCapability) {
+          throw new Error('Ban review authorization capability is missing')
+        }
         await restoreBannedSellerOrderReviews(
-          adminId,
+          banReviewCapability,
           log.targetId,
           banMetadata?.flaggedOpenOrders ?? [],
           tx,

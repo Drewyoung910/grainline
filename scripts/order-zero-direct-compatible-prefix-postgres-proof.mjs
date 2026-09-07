@@ -133,7 +133,11 @@ export async function verifyTablePosture(client) {
       AND class.relname = ANY($2::text[])
       AND class.relkind = 'r'
     ORDER BY class.relname
-  `, [RUNTIME_ROLE, ["Order", "SellerDeauthorizationApplication"]]);
+  `, [RUNTIME_ROLE, [
+    "Order",
+    "OrderStaffCapability",
+    "SellerDeauthorizationApplication",
+  ]]);
   assert.deepEqual(result.rows, [
     {
       table_name: "Order",
@@ -144,6 +148,16 @@ export async function verifyTablePosture(client) {
       runtime_insert: true,
       runtime_update: true,
       runtime_delete: true,
+    },
+    {
+      table_name: "OrderStaffCapability",
+      rls_enabled: true,
+      rls_forced: true,
+      policy_count: 0,
+      runtime_select: false,
+      runtime_insert: false,
+      runtime_update: false,
+      runtime_delete: false,
     },
     {
       table_name: "SellerDeauthorizationApplication",
@@ -241,11 +255,19 @@ export async function verifyConstraintsAndTrigger(client) {
     WHERE namespace.nspname = 'public'
     ORDER BY class.relname, catalog_constraint.conname
   `, [
-    ["CheckoutStockReservation", "Order", "Order"],
+    [
+      "CheckoutStockReservation",
+      "Order",
+      "Order",
+      "OrderStaffCapability",
+      "OrderStaffCapability",
+    ],
     [
       "CheckoutStockReservation_sourceSnapshot_check",
       "Order_provider_claim_mutual_exclusion_check",
       "Order_sellerDeauthorization_check",
+      "OrderStaffCapability_operation_check",
+      "OrderStaffCapability_payload_check",
     ],
   ]);
   assert.deepEqual(constraints.rows, [
@@ -264,6 +286,18 @@ export async function verifyConstraintsAndTrigger(client) {
     {
       table_name: "Order",
       conname: "Order_sellerDeauthorization_check",
+      convalidated: true,
+      constraint_type: "c",
+    },
+    {
+      table_name: "OrderStaffCapability",
+      conname: "OrderStaffCapability_operation_check",
+      convalidated: true,
+      constraint_type: "c",
+    },
+    {
+      table_name: "OrderStaffCapability",
+      conname: "OrderStaffCapability_payload_check",
       convalidated: true,
       constraint_type: "c",
     },
