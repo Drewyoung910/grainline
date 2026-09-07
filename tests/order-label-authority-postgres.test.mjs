@@ -2,13 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import {
+  buildOrderLabelOutcomeCorrection,
+  orderLabelOutcomeDefinitions,
+} from "../scripts/build-order-label-outcome-correction.mjs";
+
+const outcomeCorrection = readFileSync("docs/rls-drafts/order-label-outcome-correction.sql", "utf8");
 
 const migration = readFileSync(
   "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
   "utf8",
 );
 
-async function createDatabase() {
+async function createLabelDatabase({ corrected }) {
   const database = new PGlite();
   await database.exec(`
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
@@ -141,16 +147,111 @@ async function createDatabase() {
       ('item-2', 'order-2', 'listing-1', 1, NULL);
   `);
   await database.exec(migration);
+  if (corrected) await database.exec(outcomeCorrection);
   return database;
 }
 
-async function asRuntime(database, sql) {
+async function asRuntime(database, sql, params = []) {
   await database.exec("SET ROLE grainline_app_runtime");
-  try { return await database.query(sql); }
+  try { return await database.query(sql, params); }
   finally { await database.exec("RESET ROLE"); }
 }
 
-describe("Order label fixed authority in PostgreSQL", () => {
+for (const corrected of [false, true]) {
+describe(`Order label fixed authority in PostgreSQL (${corrected ? "corrected draft" : "historical"})`, () => {
+  const createDatabase = (options = {}) => createLabelDatabase({ corrected, ...options });
+  it("pins a draft changing only the two NULL outcome guards", () => {
+    assert.equal(outcomeCorrection.trimEnd(), buildOrderLabelOutcomeCorrection().trimEnd());
+    for (const { tag, before, after } of orderLabelOutcomeDefinitions()) {
+      assert.equal(after.split(tag)[1], before.split(tag)[1]
+        .replace("OR p_outcome NOT IN (", "OR p_outcome IS NULL OR p_outcome NOT IN ("));
+    }
+  });
+
+  async function prepareClaim(database) {
+    await asRuntime(database, `SELECT public.grainline_order_seller_label_quote_replace(
+      'seller-user-1', 'order-1', 'shipment-1',
+      '[{"objectId":"rate-1","amountCents":725,"currency":"usd","label":"UPS Ground","carrier":"UPS","service":"Ground"}]'::jsonb)`);
+    return (await asRuntime(database, `SELECT public.grainline_order_seller_label_claim(
+      'seller-user-1', 'order-1', 'rate-1') AS result`)).rows[0].result;
+  }
+
+  function recordOutcome(database, claim, outcome) {
+    return asRuntime(database, `SELECT public.grainline_order_seller_label_provider_record(
+      'seller-user-1', 'order-1', $1, $2, $3, 'txn-outcome',
+      'https://labels.example.test/label.pdf', 'rate-1', 725, 'usd',
+      'UPS', '1Z999AA10123456784', NULL) AS result`,
+    [claim.claimId, claim.claimGeneration, outcome]);
+  }
+
+  function finalizeOutcome(database, claim, generation, outcome) {
+    return asRuntime(database, `SELECT public.grainline_order_label_clawback_finalize(
+      'order-1', $1, $2, $3, $4, NULL, NULL) AS result`,
+    [claim.claimId, claim.claimGeneration, generation, outcome]);
+  }
+
+  async function snapshot(database) {
+    return (await database.query(`SELECT
+      (SELECT to_jsonb(o) FROM public."Order" o WHERE id = 'order-1') AS order_state,
+      (SELECT jsonb_agg(a ORDER BY id) FROM public."SystemAuditLog" a) AS audits,
+      (SELECT jsonb_agg(n ORDER BY id) FROM public."Notification" n) AS notifications`)).rows;
+  }
+
+  it("reproduces historical NULL success fallthrough and clawback failure mutation", async () => {
+    const database = await createDatabase({ corrected: false });
+    try {
+      const claim = await prepareClaim(database);
+      const recorded = (await recordOutcome(database, claim, null)).rows[0].result;
+      assert.equal(recorded.outcome, "recorded");
+      const failed = (await finalizeOutcome(database, claim, recorded.clawbackGeneration, null)).rows[0].result;
+      assert.equal(failed.outcome, "recorded_failure");
+    } finally { await database.close(); }
+  });
+
+  if (corrected) it("rejects malformed outcomes without any Order, audit or Notification mutation", async () => {
+    const database = await createDatabase();
+    try {
+      const claim = await prepareClaim(database);
+      const before = await snapshot(database);
+      for (const outcome of [null, "", "success", "SUCCESS ", "FAILED"]) {
+        await assert.rejects(recordOutcome(database, claim, outcome),
+          /Order label provider result input is invalid/);
+        assert.deepEqual(await snapshot(database), before);
+      }
+      const recorded = (await recordOutcome(database, claim, "SUCCESS")).rows[0].result;
+      assert.equal(recorded.outcome, "recorded");
+      const afterSuccess = await snapshot(database);
+      for (const outcome of [null, "", "failed", "FAILED ", "AMBIGUOUS"]) {
+        await assert.rejects(finalizeOutcome(database, claim, recorded.clawbackGeneration, outcome),
+          /Order label clawback result input is invalid/);
+        assert.deepEqual(await snapshot(database), afterSuccess);
+      }
+      assert.equal((await finalizeOutcome(database, claim, recorded.clawbackGeneration, "FAILED"))
+        .rows[0].result.outcome, "recorded_failure");
+    } finally { await database.close(); }
+  });
+
+  it("refuses source or public execution drift atomically before replacing either function", async () => {
+    for (const drift of ["source", "acl"]) {
+      const database = await createDatabase({ corrected: false });
+      try {
+        const [first, second] = orderLabelOutcomeDefinitions();
+        if (drift === "source") {
+          await database.exec(second.before.replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION")
+            .replace(`AS ${second.tag}`, `AS ${second.tag}\n-- unexpected source`));
+        } else {
+          await database.exec(`GRANT EXECUTE ON FUNCTION public.${second.name}(${second.args}) TO PUBLIC`);
+        }
+        const before = await database.query(`SELECT prosrc FROM pg_catalog.pg_proc
+          WHERE oid = $1::regprocedure`, [`public.${first.name}(${first.args})`]);
+        await assert.rejects(database.exec(outcomeCorrection), /Order label outcome before authority drifted/);
+        await database.exec("ROLLBACK");
+        assert.deepEqual(await database.query(`SELECT prosrc FROM pg_catalog.pg_proc
+          WHERE oid = $1::regprocedure`, [`public.${first.name}(${first.args})`]), before);
+      } finally { await database.close(); }
+    }
+  });
+
   it("rejects incomplete legacy packages and replaces rather than accumulates quotes", async () => {
     const database = await createDatabase();
     try {
@@ -618,3 +719,4 @@ describe("Order label fixed authority in PostgreSQL", () => {
     } finally { await database.close(); }
   });
 });
+}

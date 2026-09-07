@@ -36,3 +36,14 @@ Restart follow-up: the ordered exit gates and current CI failure disposition
 are now recorded in `docs/order-rls-completion-plan-20260907.md`. The source
 mismatch was traced to a historical postflight running after successor
 application; preserve its strict reader and correct the CI stage order.
+
+The sequencing correction is pushed at `af88c01d0388d16487853976d68e21c324d0ad17`.
+CI `34163378239` completed successfully, including the historical runtime
+postflight, complete successor-prefix PostgreSQL proof, full tests and build.
+All three separate concurrency/staff-bootstrap jobs passed. This accepts that
+exact candidate CI checkpoint, not the newer label draft or production release.
+
+The next bounded input correction is the tested Order label-outcome draft in
+`docs/order-label-outcome-correction.md`. It remains outside migrations and
+production workflows. Receipt and refund-reconciliation NULL hardening and
+the separate reservation repair release remain unresolved.

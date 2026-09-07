@@ -1302,7 +1302,11 @@ candidate rather than individual historical files:
   correction; this is hardening, not a current authorization bypass;
 - label provider-record `p_outcome = NULL` is a real input-domain defect even
   though success still requires provider evidence. The clawback and ambiguous
-  release null cases are contained by their later state/evidence checks;
+  release null cases are contained by their later state/evidence checks.
+  The provider-record and clawback outcome guards now have a tested additive
+  draft with historical reproductions and unchanged-state rejection tests in
+  `docs/order-label-outcome-correction.md`. No label successor is applied or
+  staged; its final-candidate and production release proofs remain open;
 - refund-reconciliation null reason/action/disposition inputs are inconsistent
   validation. The action/disposition paths fail at later non-null constraints;
   the nullable reason can select the ambiguous branch. Normalize these in the

@@ -75,3 +75,10 @@ proof before restoration of Case and Order successors. The later complete
 prefix application, catalog/constraint checks and functional suites remain.
 The historical production reader and all sealed migrations stay unchanged.
 This is a CI sequencing correction, not new production acceptance.
+
+Accepted CI checkpoint: `af88c01d0388d16487853976d68e21c324d0ad17`,
+run `34163378239`, passed the full workflow including tests and production
+build. Separate paid-repair lock `34163378229`, account-deletion concurrency
+`34163378213` and staff-bootstrap `34163378216` runs also passed. Gate 1 is
+closed for that exact revision. Any further draft/release change still needs
+its own applicable checks; this is not acceptance of an untested successor.
