@@ -67,12 +67,12 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS = Object.freeze([
   {
     migration: "20260905120000_prepare_order_seller_deauthorization_authority",
     draft: "order-seller-deauthorization-authority.sql",
-    sha256: "1c1ea888e503ba8572c563a16aa18187b70ebb34c016feabec33340a89345467",
+    sha256: "810feab417aaa6757d0b7add78542b109cd668ca491c070ad6ff1b8ccd8307c0",
   },
   {
     migration: "20260905130000_prepare_order_paid_checkout_authority",
     draft: "order-paid-checkout-authority.sql",
-    sha256: "e427b1d367fde1fd99e701666b31f236dd9f5e6b22d3e7c320e75db6a07a5948",
+    sha256: "d652f8ed52f0b11fb8cf0a3c70fb16456b27bf0ef7ecc657490d618c17936976",
   },
   {
     migration: "20260905140000_prepare_order_checkout_existing_authority",

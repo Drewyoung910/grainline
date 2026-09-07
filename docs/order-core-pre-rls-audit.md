@@ -1055,3 +1055,40 @@ calls out of commit order. The launch backlog therefore requires a durable
 per-user desired-state generation/outbox and concurrency proof. That
 pre-existing lifecycle hardening is a launch gate, not a reason to broaden or
 delay the Order table's fixed-authority and RLS boundary.
+
+### ORD-A22: fixed writers must accept the signed Stripe event window
+
+2026-09-07 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected and locally engine-proven in the undeployed database-first candidate,
+not asserted fixed in production.
+
+The webhook verifies the Stripe signature and accepts an event timestamp up to
+30 days old with ten minutes of positive clock skew before reserving its durable
+event lease. Both the paid-checkout and seller-deauthorization fixed writers
+receive that same signed timestamp, but their candidate SQL independently
+rejected timestamps older than eight days or more than five minutes ahead. A
+valid manually resent event in the 8-30 day interval, or a valid 5-10 minute
+skew interval, could therefore pass the shared signed-envelope boundary and
+then fail every database application attempt. Paid checkout would not create
+its Order; seller deauthorization would not clear the account or mark affected
+Orders. The webhook lease would remain retryable, but the narrower fixed writer
+could never succeed before the shared route itself aged the event out.
+
+The correction does not widen cryptographic or source authority. Both writers
+still require the active `StripeWebhookEvent` generation, exact source object,
+processing lease, normalized UTC timestamp and all existing source-derived
+business invariants. Their input windows now match the single shared constants:
+30 days old and ten minutes future skew. The route remains the signature and
+age boundary; the database remains the event-generation and state-transition
+boundary.
+
+Static contract tests bind both SQL members to
+`STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS` and
+`STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS` and reject recurrence of the old 8-day or
+5-minute predicates. Disposable engine tests exercise accepted 29-day/9-minute
+and rejected 30-day-plus/11-minute witnesses through the restricted runtime
+role. UTC wall-clock strings are kept inside PostgreSQL semantics so the proof
+does not accidentally reinterpret timestamp-without-time-zone values through
+the host timezone. Drafts and staged migrations remain byte-identical, and the
+compatible-prefix pins are refreshed. No historical migration, production row,
+grant, deployment, provider state or RLS posture changes in this correction.

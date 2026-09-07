@@ -75,6 +75,9 @@ describe("Order zero-direct compatible packaging plan", () => {
     assert.match(plan, /Order policyless ENABLE plus direct-grant revocation/);
     assert.match(plan, /package FORCE as a\s+separate posture-only release/);
     assert.match(plan, /`OrderItem`, then `OrderShippingRateQuote`, separately/);
+    assert.match(plan, /Signed Stripe event-window alignment/);
+    assert.match(plan, /30 days old with ten minutes of\s+positive clock skew/);
+    assert.match(plan, /ORD-A22/);
     assert.match(
       plan,
       /six separately reviewed staff-operation grants: two fixed reads,\s+three fixed, audited mutations and one short-lived capability mint/u,

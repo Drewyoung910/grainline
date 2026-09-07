@@ -63,6 +63,9 @@ describe("core Order pre-RLS audit", () => {
     assert.match(audit, /candidate direct Order\s+inventory from 1 to 0/);
     assert.match(audit, /without a Stripe Checkout Session, PaymentIntent, Charge, payment-event/);
     assert.match(audit, /nullable seller keys are not the final invariant/);
+    assert.match(audit, /ORD-A22: fixed writers must accept the signed Stripe event window/);
+    assert.match(audit, /30 days old with ten minutes of positive clock skew/);
+    assert.match(audit, /narrower fixed writer\s+could never succeed before the shared route itself aged the event out/);
   });
 
   it("pins the compatibility and activation gates", () => {

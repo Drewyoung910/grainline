@@ -92,8 +92,12 @@ BEGIN
      OR p_session_id !~ '^cs_[A-Za-z0-9_]+$'
      OR pg_catalog.char_length(p_session_id) > 255
      OR p_paid_at IS NULL
-     OR p_paid_at < source_now - interval '8 days'
-     OR p_paid_at > source_now + interval '5 minutes'
+     -- Keep the fixed writer aligned with the signed-envelope gate. Stripe
+     -- permits a manually resent event for 30 days, and the route accepts ten
+     -- minutes of positive clock skew. A narrower database window would accept
+     -- the envelope and then strand a paid checkout without an Order.
+     OR p_paid_at < source_now - interval '30 days'
+     OR p_paid_at > source_now + interval '10 minutes'
      OR p_provider IS NULL
      OR pg_catalog.jsonb_typeof(p_provider) <> 'object'
      OR pg_catalog.pg_column_size(p_provider) > 524288 THEN

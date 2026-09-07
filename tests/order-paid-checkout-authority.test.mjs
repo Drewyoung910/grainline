@@ -8,6 +8,7 @@ const sql = fs.readFileSync(
   "utf8",
 );
 const wrapper = fs.readFileSync("src/lib/orderPaidCheckoutAuthority.ts", "utf8");
+const webhookState = fs.readFileSync("src/lib/stripeWebhookState.ts", "utf8");
 
 describe("Order paid-checkout authority contract", () => {
   it("binds the write to an active signed-event generation and retained source", () => {
@@ -29,6 +30,15 @@ describe("Order paid-checkout authority contract", () => {
     assert.match(wrapper, /grainline_stripe_checkout_order_create/);
     assert.match(wrapper, /AT TIME ZONE 'UTC'/);
     assert.match(wrapper, /JSON\.stringify\(input\.provider\)/);
+  });
+
+  it("keeps database paid-time acceptance aligned with the signed webhook gate", () => {
+    assert.match(webhookState, /STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 30 \* 24 \* 60 \* 60/);
+    assert.match(webhookState, /STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS = 10 \* 60/);
+    assert.match(sql, /p_paid_at < source_now - interval '30 days'/);
+    assert.match(sql, /p_paid_at > source_now \+ interval '10 minutes'/);
+    assert.doesNotMatch(sql, /p_paid_at < source_now - interval '8 days'/);
+    assert.doesNotMatch(sql, /p_paid_at > source_now \+ interval '5 minutes'/);
   });
 
   it("derives protected order/item state and retains complete checkout history", () => {

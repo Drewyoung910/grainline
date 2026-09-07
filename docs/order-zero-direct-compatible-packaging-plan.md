@@ -114,7 +114,7 @@ The undeployed seller-deauthorization candidate was corrected after an engine
 test proved that a timestamp with a NULL event ID passed its CHECK through SQL
 three-valued logic. The event-present branch now explicitly requires a non-NULL
 event ID. The draft and staged migration remain byte-identical with reviewed
-SHA-256 `1c1ea888e503ba8572c563a16aa18187b70ebb34c016feabec33340a89345467`.
+SHA-256 `810feab417aaa6757d0b7add78542b109cd668ca491c070ad6ff1b8ccd8307c0`.
 The regression rejects both partial witness directions; no applied migration
 was rewritten.
 
@@ -227,11 +227,33 @@ Only the unapplied candidate member and its exact byte pin change. Historical
 migrations and production remain untouched. The finding does not collapse any
 of the ordered release gates below.
 
+### Signed Stripe event-window alignment (2026-09-07)
+
+The wider candidate review found one repeated route/database contract defect in
+the undeployed seller-deauthorization and paid-checkout members. The signed
+webhook route accepts Stripe events up to 30 days old with ten minutes of
+positive clock skew, but both fixed writers still enforced an independent
+8-day/5-minute window. An otherwise valid manual resend could pass signature,
+age and durable-event reservation, then fail permanently at the state-change
+boundary.
+
+Both members now use the shared route window without relaxing their active
+event-generation, source-object, processing-lease or business-state checks.
+Static tests pin the shared constants to both SQL predicates, and restricted-
+runtime engine tests prove accepted and rejected boundary witnesses without
+crossing UTC timestamp-without-time-zone values through the host timezone. The
+two draft/migration pairs remain byte-identical and their prefix hashes are
+updated. See **ORD-A22** in `docs/order-core-pre-rls-audit.md`. This is an
+undeployed compatible-candidate correction, not a production migration or an
+activation.
+
 ### Ordered release gates
 
 The paid-checkout candidate also corrects the previously existing reserved-stock
 completion defect recorded under **ORD-A15** and the paid/repair lock inversion
-recorded under **ORD-A16** in `docs/order-core-pre-rls-audit.md`.
+recorded under **ORD-A16**, while the paid and deauthorization writers share the
+signed-event window corrected under **ORD-A22** in
+`docs/order-core-pre-rls-audit.md`.
 An exact, still-valid reservation may complete after another payment changes its
 zero-stock IN_STOCK listing from ACTIVE to SOLD_OUT. This does not reopen new
 checkout admission or relax hidden/rejected/private-recipient/seller checks.

@@ -16,14 +16,14 @@ let dataDirectory;
 let paidAt;
 
 
-async function apply(eventId, generation, projection = provider()) {
+async function apply(eventId, generation, projection = provider(), paidAtInput = paidAt) {
   return rows(await db.query(`
     SELECT * FROM public.grainline_stripe_checkout_order_create(
       $1, $2, 'reservation-1', 'cs_test_proof',
       $3::timestamp,
       $4::jsonb
     )
-  `, [eventId, generation, paidAt, JSON.stringify(projection)]));
+  `, [eventId, generation, paidAtInput, JSON.stringify(projection)]));
 }
 
 describe("Order paid-checkout authority", () => {
@@ -99,6 +99,59 @@ describe("Order paid-checkout authority", () => {
       );
     } finally {
       await db.exec("ROLLBACK").catch(() => {});
+    }
+  });
+
+  it("matches the signed webhook age and future-skew acceptance window", async () => {
+    const boundaries = rows(await db.query(`
+      SELECT
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '29 days 23 hours',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS accepted_old,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 1 hour',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS rejected_old,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') + interval '9 minutes',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS accepted_future,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') + interval '11 minutes',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS rejected_future
+    `))[0];
+
+    for (const [label, timestamp] of [
+      ["accepted old", boundaries.accepted_old],
+      ["accepted future", boundaries.accepted_future],
+    ]) {
+      await db.exec("BEGIN");
+      try {
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        const result = await apply("evt_paid_order", 1n, provider(), timestamp);
+        assert.equal(result[0].outcome, "created", label);
+      } finally {
+        await db.exec("ROLLBACK");
+      }
+    }
+
+    for (const [label, timestamp] of [
+      ["rejected old", boundaries.rejected_old],
+      ["rejected future", boundaries.rejected_future],
+    ]) {
+      await db.exec("BEGIN");
+      try {
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        await assert.rejects(
+          apply("evt_paid_order", 1n, provider(), timestamp),
+          /Paid checkout authority input is invalid/,
+          label,
+        );
+      } finally {
+        await db.exec("ROLLBACK");
+      }
     }
   });
 

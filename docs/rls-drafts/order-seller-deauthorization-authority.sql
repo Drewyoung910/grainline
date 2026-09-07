@@ -117,8 +117,12 @@ BEGIN
      OR p_account_id !~ '^acct_[A-Za-z0-9_]+$'
      OR pg_catalog.char_length(p_account_id) > 255
      OR p_event_created_at IS NULL
-     OR p_event_created_at < source_now - interval '8 days'
-     OR p_event_created_at > source_now + interval '5 minutes' THEN
+     -- Keep the fixed writer aligned with the signed-envelope gate. Stripe
+     -- permits a manually resent event for 30 days, and the route accepts ten
+     -- minutes of positive clock skew. A narrower database window would accept
+     -- the envelope and then strand seller deauthorization processing.
+     OR p_event_created_at < source_now - interval '30 days'
+     OR p_event_created_at > source_now + interval '10 minutes' THEN
     RAISE EXCEPTION 'Stripe seller deauthorization input is invalid'
       USING ERRCODE = 'check_violation';
   END IF;

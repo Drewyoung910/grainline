@@ -112,6 +112,63 @@ describe("Order seller deauthorization authority", () => {
     }
   });
 
+  it("accepts exactly the signed webhook age and future-skew window", async () => {
+    const boundaries = rows(await db.query(`
+      SELECT
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '29 days 23 hours',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS accepted_old,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 1 hour',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS rejected_old,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') + interval '9 minutes',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS accepted_future,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') + interval '11 minutes',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS rejected_future
+    `))[0];
+    const cases = [
+      ["evt_deauth_accepted_old", "acct_deauth_accepted_old", boundaries.accepted_old, true],
+      ["evt_deauth_rejected_old", "acct_deauth_rejected_old", boundaries.rejected_old, false],
+      ["evt_deauth_accepted_future", "acct_deauth_accepted_future", boundaries.accepted_future, true],
+      ["evt_deauth_rejected_future", "acct_deauth_rejected_future", boundaries.rejected_future, false],
+    ];
+
+    for (const [eventId, accountId, eventCreatedAt, accepted] of cases) {
+      await db.exec("BEGIN");
+      try {
+        await db.query(`
+          INSERT INTO public."StripeWebhookEvent" (
+            id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+          ) VALUES ($1, 'account.application.deauthorized', $2, 1, CURRENT_TIMESTAMP)
+        `, [eventId, accountId]);
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        const operation = db.query(`
+          SELECT * FROM public.grainline_stripe_seller_deauthorization_apply(
+            $1, 1, $2, $3::timestamp
+          )
+        `, [eventId, accountId, eventCreatedAt]);
+        if (accepted) {
+          assert.deepEqual(rows(await operation), [{
+            outcome: "absent",
+            seller_profile_id: null,
+            public_visibility_changed: false,
+            affected_order_count: 0,
+          }]);
+        } else {
+          await assert.rejects(operation, /Stripe seller deauthorization input is invalid/);
+        }
+      } finally {
+        await db.exec("ROLLBACK");
+      }
+    }
+  });
+
   it("atomically clears the account and marks every eligible pre-event order", async () => {
     const eventCreatedAt = rows(await db.query(`
       SELECT (CURRENT_TIMESTAMP - interval '1 minute')::timestamp AS value
