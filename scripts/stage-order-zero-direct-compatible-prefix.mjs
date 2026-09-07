@@ -17,7 +17,7 @@ export const ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS = Object.freeze([
   },
   {
     migration: "20260905020000_prepare_order_account_deletion_authority",
-    sha256: "42847973d67ce2fbc5b8ad449403c96cf46ed1b29fae0cff5004e4390fd17a7f",
+    sha256: "b81a18e4119bc4394ee1253b95139e92bef5d058d4ea1f5e79c9f2cc230588ef",
   },
   {
     migration: "20260905030000_prepare_order_provider_claim_exclusion",

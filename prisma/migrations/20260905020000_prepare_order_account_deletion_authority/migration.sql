@@ -238,29 +238,23 @@ BEGIN
      ORDER BY normalized.value
   ) INTO sensitive_values;
 
-  WITH review_candidates AS MATERIALIZED (
-    SELECT
-      target_order.id,
-      public.grainline_account_deletion_redact_text_core(
-        target_order."reviewNote",
-        sensitive_values
-      ) AS redacted_review_note
-      FROM public."Order" AS target_order
-     WHERE target_order."reviewNote" IS NOT NULL
-       AND (
-         target_order."buyerId" = locked_actor.id
-         OR (
-           source_seller_profile_id IS NOT NULL
-           AND target_order."sellerProfileId" = source_seller_profile_id
-         )
-       )
-  )
   UPDATE public."Order" AS target_order
-     SET "reviewNote" = review_candidates.redacted_review_note
-    FROM review_candidates
-   WHERE target_order.id = review_candidates.id
-     AND review_candidates.redacted_review_note
-       IS DISTINCT FROM target_order."reviewNote";
+     SET "reviewNote" = public.grainline_account_deletion_redact_text_core(
+       target_order."reviewNote",
+       sensitive_values
+     )
+   WHERE target_order."reviewNote" IS NOT NULL
+     AND (
+       target_order."buyerId" = locked_actor.id
+       OR (
+         source_seller_profile_id IS NOT NULL
+         AND target_order."sellerProfileId" = source_seller_profile_id
+       )
+     )
+     AND public.grainline_account_deletion_redact_text_core(
+       target_order."reviewNote",
+       sensitive_values
+     ) IS DISTINCT FROM target_order."reviewNote";
   GET DIAGNOSTICS review_notes_redacted = ROW_COUNT;
 
   UPDATE public."Order" AS target_order

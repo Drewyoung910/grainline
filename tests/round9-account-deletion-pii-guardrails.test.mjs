@@ -168,7 +168,11 @@ describe("Round 9 account deletion PII guardrails", () => {
       "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
     );
 
-    assert.match(authority, /WITH review_candidates AS MATERIALIZED/);
+    assert.match(
+      authority,
+      /SET "reviewNote" = public\.grainline_account_deletion_redact_text_core\([\s\S]*target_order\."reviewNote",[\s\S]*sensitive_values/,
+    );
+    assert.doesNotMatch(authority, /review_candidates|MATERIALIZED/);
     assert.match(authority, /grainline_account_deletion_redact_text_core/);
     assert.match(authority, /target_order\."buyerId" = locked_actor\.id/);
     assert.match(authority, /target_order\."sellerProfileId" = source_seller_profile_id/);

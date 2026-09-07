@@ -1206,3 +1206,32 @@ closure and v2 route set passes 24/24. Full candidate suite: 4,310 passed,
 `git diff --check` pass. Preceding checkpoint `aadc09fb` CI `34145262838`
 also succeeded. These are local/candidate proofs, not a live provider smoke or
 permission to merge, deploy or activate Order RLS.
+
+### ORD-A25: account deletion could overwrite a concurrent staff review note
+
+2026-09-07 review of the complete Order compatibility stack. Classification:
+`FIX_BEFORE_ACTIVATION`; corrected and locally engine-proven in the isolated
+candidate. Production behavior is not claimed changed.
+
+The staged account-deletion function previously materialized redacted
+`reviewNote` values before acquiring each Order row lock. Under the
+application's normal read-committed transaction, a staff append could hold the
+Order lock while deletion read the preceding note. After the staff transaction
+committed, deletion resumed and wrote its stale materialized value, silently
+discarding the authorized note. The deleting User lock does not serialize this
+path because staff authority locks the staff actor and the target Order, not
+the deleting participant's User row.
+
+A synthetic PostgreSQL 16 two-connection reproducer observed the deletion
+backend blocked behind the staff backend and then confirmed the new staff text
+was absent. The correction removes the materialized candidate and applies the
+redactor directly to the target tuple. PostgreSQL's read-committed update
+recheck now evaluates the expression against the current committed row.
+
+The permanent PostgreSQL 16 proof applies the real staged migration, enters
+the exact lock interleaving, and verifies that the actor's sensitive text is
+redacted, the concurrent staff note remains, the actor's other Order PII and
+quote are scrubbed, and an unrelated order is unchanged. Static checks reject
+reintroduction of a materialized review candidate. This correction changes no
+function signature, selected row ownership, table grant, RLS posture, or
+production state.

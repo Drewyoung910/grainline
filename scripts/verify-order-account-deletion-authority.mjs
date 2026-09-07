@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 export const ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION =
   "20260905020000_prepare_order_account_deletion_authority";
 export const ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION_SHA256 =
-  "42847973d67ce2fbc5b8ad449403c96cf46ed1b29fae0cff5004e4390fd17a7f";
+  "b81a18e4119bc4394ee1253b95139e92bef5d058d4ea1f5e79c9f2cc230588ef";
 export const ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_account_deletion_blockers(text)",
   "grainline_order_account_deletion_scrub(text, text[])",
@@ -55,7 +55,11 @@ export function verifyOrderAccountDeletionAuthority(root = process.cwd()) {
   assert.match(migration, /source_order\."chargedTotalCents"/u);
   assert.match(migration, /source_order\."sellerRefundId" <> 'pending'/u);
   assert.match(migration, /FOR UPDATE OF actor/u);
-  assert.match(migration, /WITH review_candidates AS MATERIALIZED/u);
+  assert.match(
+    migration,
+    /SET "reviewNote" = public\.grainline_account_deletion_redact_text_core\([\s\S]*target_order\."reviewNote",[\s\S]*sensitive_values/u,
+  );
+  assert.doesNotMatch(migration, /review_candidates|MATERIALIZED/u);
   assert.doesNotMatch(migration, /JOIN public\."(?:OrderItem|Listing)"/u);
   assert.doesNotMatch(migration, /pg_catalog\.(?:coalesce|greatest|nullif)/iu);
   assert.doesNotMatch(migration, /ALTER TABLE|CREATE POLICY|DROP POLICY/iu);

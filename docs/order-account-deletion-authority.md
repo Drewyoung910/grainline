@@ -67,6 +67,15 @@ and fail the checkout actor-state validation.
 The Redis route lock prevents duplicate deletion jobs but is not treated as a
 database serialization primitive. The User-row lock is the durable boundary.
 
+Review-note redaction operates directly on the current locked `Order` tuple.
+It must not precompute replacement text in a materialized CTE: at read
+committed isolation, a concurrent staff-note transaction can commit while the
+deletion update waits for the Order lock. PostgreSQL then rechecks the direct
+target-row expression against that committed tuple, preserving the staff note
+while removing the deleted account's values. A dedicated two-connection
+PostgreSQL 16 proof observes that lock barrier and verifies both preservation
+of the concurrent note and isolation of an unrelated order.
+
 ## Proof and release gates
 
 Local proof covers:
@@ -76,13 +85,14 @@ Local proof covers:
 - durable buyer and seller ownership without Listing reconstruction;
 - signed-total full-refund behavior and legacy fallback;
 - blocker recheck atomicity;
+- concurrent staff-note preservation during review-note redaction;
 - actor-only note/PII/quote scrubbing and other-user preservation; and
 - the repository-wide PostgreSQL special-form qualification guard.
 
 Before any production use:
 
 The local release candidate is byte-pinned at SHA-256
-`42847973d67ce2fbc5b8ad449403c96cf46ed1b29fae0cff5004e4390fd17a7f`.
+`b81a18e4119bc4394ee1253b95139e92bef5d058d4ea1f5e79c9f2cc230588ef`.
 It follows the staff-read charged-total correction in every historical Order
 release verifier. CI isolates it until that predecessor is restored, applies
 it to disposable PostgreSQL, converges the two exact runtime grants, runs the

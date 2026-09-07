@@ -117,6 +117,7 @@ jobs:
           tests/order-account-deletion-authority.test.mjs
           tests/order-account-deletion-authority-release.test.mjs
           tests/order-account-deletion-authority-postgres.test.mjs
+          tests/order-account-deletion-review-note-concurrency-proof.test.mjs
       - name: Isolate Order account-deletion authority until its predecessors pass
         run: >-
           mv
@@ -1459,6 +1460,7 @@ jobs:
           tests/order-account-deletion-authority.test.mjs
           tests/order-account-deletion-authority-release.test.mjs
           tests/order-account-deletion-authority-postgres.test.mjs
+          tests/order-account-deletion-review-note-concurrency-proof.test.mjs
           tests/order-participant-export-authority-postgres.test.mjs
           tests/order-participant-export-authority-contract.test.mjs
           tests/order-participant-export-authority-release.test.mjs
