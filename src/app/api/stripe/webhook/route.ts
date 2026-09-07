@@ -6,7 +6,6 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import {
-  createNotification,
   createNotificationOrThrow,
   shouldSendEmail,
 } from "@/lib/notifications";
@@ -355,7 +354,7 @@ export async function POST(req: Request) {
     const buyerDisplayName = order.buyerName ?? "A buyer";
 
     await Promise.all([
-      createNotification({
+      createNotificationOrThrow({
         userId: order.buyerId,
         type: "NEW_ORDER",
         title: "Order confirmed!",
@@ -365,7 +364,7 @@ export async function POST(req: Request) {
         sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_CHECKOUT,
         sourceId: order.orderId,
       }),
-      createNotification({
+      createNotificationOrThrow({
         userId: sellerUserId,
         type: "NEW_ORDER",
         title: "New sale! Congrats!",
@@ -400,7 +399,7 @@ export async function POST(req: Request) {
       }
     }
     for (const sourceItem of inStockItems.values()) {
-      await createNotification({
+      await createNotificationOrThrow({
         userId: sellerUserId,
         type: "LOW_STOCK",
         title: `${sourceItem.title} is running low`,

@@ -965,3 +965,26 @@ for reconciliation. A source contract isolates the final success response and
 rejects either identifier field while preserving the amount used by the UI.
 This application-only correction does not alter migrations, database rows,
 provider state, grants or RLS posture.
+
+### ORD-A20: checkout notifications must participate in signed-event retry
+
+2026-09-07 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected and locally contract-tested in the undeployed application candidate,
+not asserted fixed in production.
+
+The checkout post-payment path used the best-effort Notification helper for
+buyer confirmation, seller sale and low-stock alerts. That helper records a
+failure but intentionally does not throw. A transient Notification database
+failure could therefore be followed by a successful email pass and Stripe
+event completion, permanently losing the in-app alert even though the signed
+event and exact source identity were still available.
+
+These three provider-backed notifications now use the throwing helper. A
+failed write keeps the signed Stripe event retryable. On retry, the exact
+Session lookup reaches the same post-payment path, while Notification source
+deduplication and EmailOutbox keys make already-completed side effects safe to
+replay. This does not make email delivery synchronous: the existing durable
+outbox continues to own email retry. Static coverage pins all three throwing
+calls and the existing-order retry path. This application-only correction
+does not alter migrations, database rows, provider state, grants or RLS
+posture.

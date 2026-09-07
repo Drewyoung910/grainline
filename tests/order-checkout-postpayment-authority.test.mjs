@@ -128,6 +128,20 @@ describe("Order checkout post-payment authority", () => {
     assert.match(block, /item\.currentStockQuantity/);
   });
 
+  it("retries signed delivery rather than silently losing checkout notifications", () => {
+    const block = route.slice(
+      route.indexOf("async function enqueueOrderPostPaymentSideEffects"),
+      route.indexOf("async function sendOrderTransactionalEmailWithFallback"),
+    );
+
+    assert.equal(
+      (block.match(/createNotificationOrThrow\(\{/g) ?? []).length,
+      3,
+    );
+    assert.doesNotMatch(block, /\bcreateNotification\(\{/);
+    assert.match(route, /if \(existingOrder\.outcome !== "absent"\)[\s\S]*enqueueOrderPostPaymentSideEffects\(sessionId/);
+  });
+
   it("strictly parses ready and blocked results", () => {
     const ready = checkoutPostpaymentResultFromRows([{
       outcome: "ready",
