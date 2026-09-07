@@ -56,6 +56,16 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 ### Security posture
 
+- Terminal Stripe seller-account closure uses the account-specific throwing
+  `expireCheckoutSessionsForClosedAccount` adapter, not the best-effort
+  vacation/listing sweeps. Both Checkout families write `sellerStripeAccountId`
+  metadata from their actual transfer destination. Closure must match seller
+  and account, reconcile ambiguous expiry before stock restoration, and keep
+  unresolved provider/database failures retryable. Bounded scan completion is
+  not a claim that all historical or future sessions are gone; legacy-session
+  handling and the scale trigger are recorded under ORD-A24 in
+  `docs/order-core-pre-rls-audit.md` and `docs/deferred-launch-backlog.md`.
+
 - Avoid false-confidence language. Say "verified in code", "covered by test", "manual dashboard check required", or "not proven" as appropriate.
 - Prefer defense-in-depth changes that reduce blast radius without creating launch risk: ownership checks, idempotency, bounded inputs, retention, privacy-safe logs, webhook replay handling, and explicit tests.
 - RLS is a separate architecture project, not a drive-by patch. If pursued, design it table-by-table with Prisma behavior tests and rollback instructions.

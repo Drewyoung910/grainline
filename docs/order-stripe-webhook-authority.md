@@ -191,11 +191,12 @@ whether public visibility changed. Provider Checkout Session expiry and
 public-cache invalidation remain application side effects, but the immutable
 row retains and replays the exact seller/account tuple and whether public
 visibility changed until those side effects succeed. The webhook lease is
-intended to complete only afterward. Cache invalidation can replay from the
-retained decision, but the session-expiry helper currently swallows failures
-and does not enforce account-specific selection. **ORD-A24** in
-`docs/order-core-pre-rls-audit.md` remains open; the database replay proof does
-not establish provider-side completion or replacement-account isolation.
+completed only after cache invalidation and the strict account-specific sweep
+return. **ORD-A24** in `docs/order-core-pre-rls-audit.md` records the correction:
+the sweep checks server-written seller/destination metadata, propagates
+unresolved failures, and revisits expired sessions for stock retry. Native
+Session expiry and the reservation repair worker cover work outside the
+bounded two-hour scan; database replay alone is not a provider-completion proof.
 
 The wider release review also found that this historical branch is not a
 reachable authority for Grainline's current seller contract. Stripe defines
@@ -379,8 +380,8 @@ the separately signed Accounts-v2 route. It accepts only
 `related_object`, passes the signature-authenticated event time as an
 explicitly UTC-normalized PostgreSQL value, invalidates public visibility from
 the database's replayable decision, and attempts session expiry for the
-database-derived seller. ORD-A24 tracks the incomplete provider-side replay
-and account-isolation contract before candidate acceptance. The dead
+database-derived seller and exact closed account. ORD-A24 defines the tested
+provider retry, legacy-session and bounded-scan contract. The dead
 classic OAuth branch is removed. The result parser rejects malformed
 cardinality, outcomes, nullable identities, booleans and counts rather than
 guessing.

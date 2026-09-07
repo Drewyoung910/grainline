@@ -1141,10 +1141,11 @@ historical migration or production/provider state changes in this correction.
 ### ORD-A24: closure session side effects are not fully fenced or retry-proven
 
 2026-09-07 follow-through review after `4d0fae83`. Classification:
-`FIX_BEFORE_ACTIVATION`; open in the isolated candidate.
+`FIX_BEFORE_ACTIVATION`; corrected with executable orchestration tests in the
+isolated candidate. Production behavior is not claimed changed.
 
-The database closure operation preserves exact account identity on replay, but
-its application side effect calls `expireOpenCheckoutSessionsForSeller`.
+Before this correction, the database closure operation preserved exact account
+identity on replay, but its side effect called `expireOpenCheckoutSessionsForSeller`.
 That helper matches sessions by seller identity; its `stripeAccountId` input
 is telemetry only. A delayed closure replay after a replacement account is
 linked can therefore expire a new checkout for that same seller. The SQL
@@ -1152,16 +1153,56 @@ replacement-account proof does not cover this provider side effect.
 
 The same helper catches list/expiry failures, caps scans at ten pages, and
 swallows stock-restoration errors. A successful return is not evidence of
-complete expiry, and the v2 route currently marks the lease processed anyway.
+complete expiry, and the previous v2 route marked the lease processed anyway.
 Earlier claims that awaiting this helper made every expiry retryable were too
 strong. New checkout sessions expire after 31 minutes, and the paid-checkout
 writer independently rejects disabled/disconnected or changed seller accounts
 into the blocked-payment flow; these are backstops, not proof of precise cleanup.
 
-Close this finding with account-bound session selection and executable
-orchestration tests for old-account replay after replacement, provider listing
-failure, partial expiry, pagination exhaustion, and stock-restoration failure.
-Specify which side effects must retry through the signed lease and which rely
-on the existing reservation repair worker. Do not widen runtime table grants
-or claim provider completion from a best-effort result. The candidate remains
-draft until the closure side-effect contract and its tests are complete.
+The correction writes `sellerStripeAccountId` into both checkout families'
+server-created Session metadata from the exact `payment_intent_data` destination.
+The terminal closure route calls a separate strict adapter requiring both that
+account and the database-derived seller. The ordinary vacation/listing sweeps
+retain their existing behavior. No table grant, SQL signature, migration or
+provider configuration changes are needed.
+
+The strict sweep includes expired as well as open sessions within the existing
+two-hour created-time window. List, expiry, ambiguous-response retrieval and
+stock-restoration failures propagate to the route's failed-lease path. An
+ambiguous expiry retrieves only that exact Session: confirmed expiry permits
+idempotent stock restoration; completed checkout leaves payment processing to
+the signed payment flow; an unresolved open session remains retryable. A retry
+can therefore repair a session expired before the previous database failure.
+Provider-returned account/seller/session drift fails before stock restoration.
+
+An unbound payable predecessor session is never guessed to belong to the closed
+account: it is left untouched and keeps the closure delivery retryable until
+it completes or reaches its 31-minute expiry. Unbound expired sessions and
+restoration delayed beyond the two-hour scan window remain owned by the existing
+signed expiry/repair-worker paths. New sessions appearing after a scan retain
+the same native expiry and paid-checkout account revalidation backstops. A
+successful sweep means completion of its bounded provider scan, not a durable
+claim that no future or historical session exists.
+
+Executable tests cover replacement-account and other-seller isolation,
+partial success/retry, list/expiry/retrieval failures, expired-session stock
+retry, payment races, identity drift, legacy ambiguity, invalid inputs and
+pagination exhaustion. The ten-page/1,000-session bound now throws instead of
+silently claiming exhaustion. Provider throughput and the 30-second handler
+limit remain a measured rollout concern; the durable-work-queue follow-up is
+tracked in `docs/deferred-launch-backlog.md`. Fresh signed route smoke remains
+required before production acceptance.
+
+Provider contract references: Stripe's [Session listing API](https://docs.stripe.com/api/checkout/sessions/list)
+supports created-time/cursor pagination without an open-only filter; the
+[Session expiry API](https://docs.stripe.com/api/checkout/sessions/expire)
+accepts only open sessions and can reject an already-terminal session. That is
+why a failed expiry is followed by an exact retrieval rather than treated as
+either guaranteed failure or proof that stock is safe to restore.
+
+2026-09-07 validation: all 14 new executable/adapter tests pass; the focused
+closure and v2 route set passes 24/24. Full candidate suite: 4,310 passed,
+12 skipped, zero failed (4,322 tests, 536 suites). TypeScript, ESLint and
+`git diff --check` pass. Preceding checkpoint `aadc09fb` CI `34145262838`
+also succeeded. These are local/candidate proofs, not a live provider smoke or
+permission to merge, deploy or activate Order RLS.

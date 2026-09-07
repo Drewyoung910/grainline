@@ -595,6 +595,7 @@ export async function POST(req: Request) {
       cartId: cart.id,
       buyerId: me.id,
       sellerId,
+      sellerStripeAccountId: destination,
       taxRetainedAtCreation: "true",
       selectedRateObjectId: body.selectedRate.objectId,
       quotedToName: shippingAddress.name,

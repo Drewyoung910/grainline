@@ -141,8 +141,9 @@ ownership.
     Dedicated Order columns—not a mutable review-note prefix—become fulfillment
     and label authority. This draft has real PostgreSQL replay and denial proof
     but is not yet a migration or grant in production. ORD-A24 in the Order domain
-    audit remains open for account-specific provider session expiry and honest
-    completion/retry semantics; SQL replay alone does not prove that side effect.
+    audit records the strict account-specific session-expiry adapter, executable
+    replay/failure tests, and bounded-scan/repair-worker completion contract;
+    SQL replay alone does not prove that provider side effect.
 
 Participants never execute these writers and never read raw provider rows.
 

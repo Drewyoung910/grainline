@@ -547,6 +547,7 @@ export async function POST(req: Request) {
     const checkoutMetadata: Record<string, string> = {
       listingId: body.listingId,
       sellerId: listing.sellerId,
+      sellerStripeAccountId,
       quantity: String(body.quantity),
       priceCents: String(unitPriceCents),
       priceVersion: String(listing.priceVersion),

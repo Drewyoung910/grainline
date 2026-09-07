@@ -1,6 +1,19 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-07-22
+Last updated: 2026-09-07
+
+## 2026-09-07 — Order closure side-effect candidate checkpoint
+
+- **ORD-A24: verified real, corrected on the isolated Order candidate; not
+  deployed.** Terminal account closure previously selected Checkout Sessions
+  by seller alone and swallowed expiry/stock failures. The separate strict
+  adapter now requires the server-written destination-account witness, handles
+  ambiguous expiry and already-expired stock retries, and rejects incomplete
+  scans. See `docs/order-core-pre-rls-audit.md` for executable coverage and
+  bounded completion semantics. Fresh signed route smoke remains required;
+  the scale-triggered durable worker is tracked in
+  `docs/deferred-launch-backlog.md`. This pass verified/fixed one real finding,
+  closed no false positives, and did not retriage the historical raw backlog.
 
 ## 2026-07-22 — Notification RLS route-smoke findings
 

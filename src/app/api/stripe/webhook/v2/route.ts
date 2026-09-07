@@ -20,7 +20,7 @@ import { isStaleStripeEvent } from "@/lib/stripeWebhookState";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
-import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
+import { expireCheckoutSessionsForClosedAccount } from "@/lib/checkoutSessionExpiry";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 
 export const runtime = "nodejs";
@@ -214,10 +214,9 @@ export async function POST(req: Request) {
           revalidatePublicSellerVisibilityCaches();
         }
         if (deauthorization.sellerProfileId) {
-          await expireOpenCheckoutSessionsForSeller({
+          await expireCheckoutSessionsForClosedAccount({
             sellerId: deauthorization.sellerProfileId,
             stripeAccountId: sourceObjectId,
-            source: "stripe_v2_account_closed",
           });
         }
         return NextResponse.json({ received: true });

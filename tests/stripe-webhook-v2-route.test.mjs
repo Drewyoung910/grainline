@@ -73,7 +73,7 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
         route.indexOf("const account = await stripe.accounts.retrieve(sourceObjectId)"),
       "terminal v2 account closure must not depend on retrieving an already-closed provider account",
     );
-    assert.match(route, /source: "stripe_v2_account_closed"/);
+    assert.match(route, /expireCheckoutSessionsForClosedAccount\(\{[\s\S]*stripeAccountId: sourceObjectId/);
     assert.match(
       route,
       /mirrorStripeChargesEnabled\(\{\s*accountId: sourceObjectId,\s*chargesEnabled: Boolean\(account\.charges_enabled\),\s*route: "\/api\/stripe\/webhook\/v2",\s*actorType: "webhook",\s*actorId: stripeEventId,\s*\}\)/s,

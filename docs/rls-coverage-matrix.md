@@ -187,6 +187,10 @@ completed alternative.
 > provider-subscribed `v2.core.account.closed` notification on the separately
 > signed Accounts-v2 route. The dead classic OAuth branch—which treated an
 > application ID as an account ID—is removed and rejected by the fixed writer.
+> Its closure-only Session sweep requires the server-written destination account
+> as well as seller identity, revisits expired sessions after stock failures,
+> and propagates unresolved failures for signed-event retry. Legacy ambiguity
+> and the bounded scan/repair-worker contract are recorded under ORD-A24.
 > The exact-session idempotency read is also converted: PostgreSQL now derives
 > a closed existing/retry/processing decision from the active event generation
 > and uses database time for stale refund-lock recovery instead of exposing raw

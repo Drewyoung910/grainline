@@ -62,8 +62,8 @@ describe("Order seller deauthorization application authority", () => {
     assert.match(providerCutover, /"v2\.core\.account\.closed"/);
     assert.match(branch, /applyStripeSellerDeauthorization\(\{[\s\S]*eventId: stripeEventId[\s\S]*claimGeneration[\s\S]*accountId: sourceObjectId[\s\S]*eventCreatedAt: new Date\(eventCreatedSeconds \* 1000\)/);
     assert.match(branch, /deauthorization\.publicVisibilityChanged[\s\S]*revalidatePublicSellerVisibilityCaches/);
-    assert.match(branch, /deauthorization\.sellerProfileId[\s\S]*expireOpenCheckoutSessionsForSeller/);
-    assert.match(branch, /source: "stripe_v2_account_closed"/);
+    assert.match(branch, /deauthorization\.sellerProfileId[\s\S]*expireCheckoutSessionsForClosedAccount/);
+    assert.match(branch, /stripeAccountId: sourceObjectId/);
     assert.doesNotMatch(branch, /prisma\.(?:sellerProfile|order)\./);
     assert.doesNotMatch(branch, /DEAUTHORIZED_SELLER_REVIEW_NOTE|updateMany|findMany/);
     assert.doesNotMatch(platformWebhook, /account\.application\.deauthorized/);

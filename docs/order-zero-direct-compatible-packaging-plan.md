@@ -276,10 +276,14 @@ and rejects the retired OAuth type. See **ORD-A23** in
 
 ### Ordered release gates
 
-The follow-through review in **ORD-A24** remains open: the closure route's
-seller-wide session-expiry helper does not enforce its account argument and
-does not propagate every failure. Resolve account-specific replay and side-effect
-completion semantics with executable tests before accepting this candidate.
+The **ORD-A24** correction adds a server-written destination-account witness to
+both checkout Session metadata payloads and uses a strict closure-only sweep.
+Replacement accounts are excluded; expired sessions are revisited for stock
+retry; unresolved provider/stock failures keep the signed lease retryable.
+Unbound payable predecessor sessions remain untouched until their native expiry
+or completion. Include these cases in the fresh route smoke and retain the
+documented two-hour scan/repair-worker boundary. No SQL byte pins change for
+this application-only correction.
 
 The paid-checkout candidate also corrects the previously existing reserved-stock
 completion defect recorded under **ORD-A15** and the paid/repair lock inversion

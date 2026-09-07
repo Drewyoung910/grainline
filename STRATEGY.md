@@ -2697,6 +2697,16 @@ the prerequisite to predecessor drain and Order direct-authority retirement;
 neither the partial first attempt nor its successful cleanup is Order RLS
 evidence.
 
+### Terminal seller-account closure and checkout repair
+
+The 2026-09-07 Order follow-through review also requires a precise terminal
+seller-account closure path (ORD-A24). The isolated candidate uses a server-written
+destination-account witness and strict bounded Session expiry, retaining native
+expiry and the existing reservation worker for historical/late repair. Keep the
+durable account-bound work queue as a scale-triggered follow-up in
+`docs/deferred-launch-backlog.md`; do not treat a bounded synchronous sweep as
+proof of unlimited provider throughput. Fresh route smoke remains a release gate.
+
 ### 2026-09-02 credential incident temporarily precedes Order RLS
 
 A local key-inventory diagnostic printed secret-bearing ignored environment
