@@ -191,9 +191,11 @@ whether public visibility changed. Provider Checkout Session expiry and
 public-cache invalidation remain application side effects, but the immutable
 row retains and replays the exact seller/account tuple and whether public
 visibility changed until those side effects succeed. The webhook lease is
-completed only afterward. A replay after an application crash can therefore
-resume without guessing from a cleared profile or silently skipping cache
-invalidation.
+intended to complete only afterward. Cache invalidation can replay from the
+retained decision, but the session-expiry helper currently swallows failures
+and does not enforce account-specific selection. **ORD-A24** in
+`docs/order-core-pre-rls-audit.md` remains open; the database replay proof does
+not establish provider-side completion or replacement-account isolation.
 
 The wider release review also found that this historical branch is not a
 reachable authority for Grainline's current seller contract. Stripe defines
@@ -376,8 +378,9 @@ the separately signed Accounts-v2 route. It accepts only
 `v2.core.account.closed`, derives the account from the notification's exact
 `related_object`, passes the signature-authenticated event time as an
 explicitly UTC-normalized PostgreSQL value, invalidates public visibility from
-the database's replayable decision, and expires sessions for the
-database-derived seller before the webhook lease can complete. The dead
+the database's replayable decision, and attempts session expiry for the
+database-derived seller. ORD-A24 tracks the incomplete provider-side replay
+and account-isolation contract before candidate acceptance. The dead
 classic OAuth branch is removed. The result parser rejects malformed
 cardinality, outcomes, nullable identities, booleans and counts rather than
 guessing.

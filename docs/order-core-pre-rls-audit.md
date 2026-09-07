@@ -1137,3 +1137,31 @@ denial, replay after account clearing, replacement-account preservation and
 atomic rollback. The artifact keeps its historical deauthorization names as
 internal compatibility terminology, but no OAuth event is accepted. No
 historical migration or production/provider state changes in this correction.
+
+### ORD-A24: closure session side effects are not fully fenced or retry-proven
+
+2026-09-07 follow-through review after `4d0fae83`. Classification:
+`FIX_BEFORE_ACTIVATION`; open in the isolated candidate.
+
+The database closure operation preserves exact account identity on replay, but
+its application side effect calls `expireOpenCheckoutSessionsForSeller`.
+That helper matches sessions by seller identity; its `stripeAccountId` input
+is telemetry only. A delayed closure replay after a replacement account is
+linked can therefore expire a new checkout for that same seller. The SQL
+replacement-account proof does not cover this provider side effect.
+
+The same helper catches list/expiry failures, caps scans at ten pages, and
+swallows stock-restoration errors. A successful return is not evidence of
+complete expiry, and the v2 route currently marks the lease processed anyway.
+Earlier claims that awaiting this helper made every expiry retryable were too
+strong. New checkout sessions expire after 31 minutes, and the paid-checkout
+writer independently rejects disabled/disconnected or changed seller accounts
+into the blocked-payment flow; these are backstops, not proof of precise cleanup.
+
+Close this finding with account-bound session selection and executable
+orchestration tests for old-account replay after replacement, provider listing
+failure, partial expiry, pagination exhaustion, and stock-restoration failure.
+Specify which side effects must retry through the signed lease and which rely
+on the existing reservation repair worker. Do not widen runtime table grants
+or claim provider completion from a best-effort result. The candidate remains
+draft until the closure side-effect contract and its tests are complete.
