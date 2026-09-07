@@ -58,3 +58,11 @@ tests cover rejected targets, exact-body comparison and success/failure
 rollback. Exact-head CI acceptance of that harness and actual runtime proof
 for the correction drafts remain open, as does the separate reservation
 repair release. No production workflow is wired or dispatched by this pass.
+
+The correction bundle is saved/pushed at `e060c84797b7711c26d8b5cd5fc9aae5559f57eb`.
+Its CI `34165481370` stopped at the new disposable proof's identity check,
+before draft application: the reader supplied inet text with a `/32` mask to
+the strict plain-IP guard. The bounded follow-up uses PostgreSQL `host()` and
+proves the representation difference without changing the allowlist. Preserve
+the failed evidence; do not report full-schema acceptance until corrected CI
+passes.

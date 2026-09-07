@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { proofServerHostAccepted } from "../scripts/disposable-postgres-proof-host.mjs";
 import {
   parseInputDraftProofConfig, inputDraftBundle, assertOnlyInputBodiesChanged,
   proveInputDraftTransaction,
@@ -32,6 +33,23 @@ test("exact draft payloads omit outer commit and remain behind full-prefix CI", 
   assert.ok(workflow.indexOf("Prove input correction drafts without retaining catalog changes")
     > workflow.indexOf("Prove complete Order zero-direct prefix in disposable PostgreSQL"));
   assert.match(workflow, /ORDER_INPUT_CORRECTION_DRAFTS_PROOF_DATABASE_URL: \$\{\{ env.DIRECT_URL \}\}/u);
+});
+
+test("PostgreSQL server identity uses the address, not inet text with a mask", async () => {
+  const db = new PGlite();
+  try {
+    const { rows: [identity] } = await db.query(`SELECT
+      inet '172.18.0.2'::text AS masked,
+      pg_catalog.host(inet '172.18.0.2') AS address`);
+    assert.equal(identity.masked, "172.18.0.2/32");
+    assert.equal(identity.address, "172.18.0.2");
+    assert.equal(proofServerHostAccepted(identity.masked, true), false);
+    assert.equal(proofServerHostAccepted(identity.address, true), true);
+    assert.equal(proofServerHostAccepted(identity.address, false), false);
+    const source = readFileSync("scripts/order-input-correction-drafts-postgres-proof.mjs", "utf8");
+    assert.match(source, /pg_catalog\.host\(pg_catalog\.inet_server_addr\(\)\)/u);
+    assert.doesNotMatch(source, /inet_server_addr\(\)::text/u);
+  } finally { await db.close(); }
 });
 
 test("catalog comparator rejects metadata, grant, overload and unrelated source changes", () => {

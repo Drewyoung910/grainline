@@ -109,7 +109,7 @@ export async function runInputDraftProof(env = process.env, onPhase = () => {}) 
     const { rows: [identity] } = await client.query(`SELECT current_database() AS db,
       CURRENT_USER AS actor, SESSION_USER AS login,
       current_setting('server_version_num')::integer AS version,
-      inet_server_addr()::text AS host`);
+      pg_catalog.host(pg_catalog.inet_server_addr()) AS host`);
     assert.equal(identity.db, "grainline_ci");
     assert.equal(identity.actor, "ci");
     assert.equal(identity.login, "ci");

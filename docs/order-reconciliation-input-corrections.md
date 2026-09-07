@@ -71,6 +71,16 @@ catalog restoration and reruns the unchanged complete-prefix verifier after
 rollback. Error logs contain only a bounded phase and SQLSTATE, not catalogs
 or connection values. Full-schema CI acceptance of this new harness is pending.
 
+First full-schema run `34165481370` at `e060c84797b7711c26d8b5cd5fc9aae5559f57eb`
+failed at identity before applying any draft. The new reader used
+`inet_server_addr()::text`, whose PostgreSQL representation includes `/32`,
+but the existing private-service guard intentionally accepts only a literal
+IP address. A local engine reproduction proves that representation mismatch.
+The correction uses `host(inet_server_addr())`, matching the existing
+concurrency operators, with a regression that preserves rejection of masked
+strings and non-CI private hosts. No host allowlist, production boundary or
+SQL draft is loosened. The corrected full-schema CI run remains required.
+
 The separate reservation repair draft is deliberately excluded: its own
 owner-bound FORCE-table release and runtime proof remain a separate gate.
 
