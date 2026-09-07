@@ -68,6 +68,16 @@ transaction was rejected because it would make ban state and Order review
 state diverge on either-side failure. The short-lived capability crosses the
 credential boundary without crossing the transaction boundary.
 
+Capability minting necessarily precedes the ordinary-runtime transaction. A
+candidate integration pass found that this reordered the predecessor's missing
+target check: a missing or already-deleted account could reach the SQL target
+guard first and surface as an internal error instead of the established 404.
+The application now performs a response-contract-only target preflight before
+minting for ban and unban. It rejects missing/deleted users and ADMIN targets
+with bounded policy errors. This check is not trusted for authority: the mint
+and consumer still revalidate the target under database locks, so concurrent
+deletion, role promotion or ban-state change fails closed.
+
 The ban, manual unban and audited undo routes also repeat the signed Admin-PIN
 check before minting. Runtime receives `EXECUTE` only on the two capability
 consumers; the isolated staff role receives the mint. This slice grants no

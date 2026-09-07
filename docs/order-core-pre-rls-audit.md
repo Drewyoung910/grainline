@@ -1021,6 +1021,15 @@ bounded retry. Expired, replayed, cross-target, cross-operation, forged and
 payload-substituted calls fail closed. Ban, manual unban and audit undo routes
 also repeat the signed Admin-PIN check before minting.
 
+The application integration review also caught a fail-closed response
+regression introduced by the new ordering: capability minting preceded the
+old transactional missing-target check, so a missing/deleted account could
+surface as an internal SQL error instead of the established bounded policy
+response. Ban and unban now perform a response-contract-only target preflight
+before minting. The SQL mint and consumer remain authoritative and repeat the
+locked target validation, preserving denial under concurrent deletion or role
+changes.
+
 Focused static and disposable PostgreSQL proof covers the source/control/sink
 chain, direct-table denial, defense-in-depth `SESSION_USER` fence after an
 accidental grant, one-use semantics, rollback safety and payload binding. The

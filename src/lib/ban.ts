@@ -38,6 +38,25 @@ export class BanUserExternalSyncError extends BanUserPolicyError {
   }
 }
 
+async function requireBanReviewTarget(
+  userId: string,
+  operation: 'ban' | 'unban',
+) {
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, deletedAt: true },
+  })
+  if (!target || target.deletedAt) {
+    throw new BanUserPolicyError('User not found', 404)
+  }
+  if (target.role === 'ADMIN') {
+    throw new BanUserPolicyError(`Cannot ${operation} admin accounts`)
+  }
+  // This preserves the existing HTTP error contract only. The staff-session
+  // capability mint and consumer repeat target validation and remain the
+  // source-validating authority boundary across concurrent state changes.
+}
+
 async function logClerkSyncResult({
   adminId,
   action,
@@ -125,6 +144,7 @@ function revalidateAccountStateSearchCaches(source: string, userId: string) {
 export async function banUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
+  await requireBanReviewTarget(userId, 'ban')
   const banReviewCapability = await mintBanReviewCapability(
     adminId,
     userId,
@@ -272,6 +292,7 @@ export async function banUser({ userId, adminId, reason }: {
 export async function unbanUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
+  await requireBanReviewTarget(userId, 'unban')
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId }, select: { id: true, stripeAccountId: true }
   })

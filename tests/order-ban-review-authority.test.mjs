@@ -69,4 +69,25 @@ describe("Order ban review authority", () => {
     assert.equal((banRoute.match(/requireStaffAdminPinForApi\(/gu) ?? []).length, 2);
     assert.equal((undoRoute.match(/requireStaffAdminPinForApi\(/gu) ?? []).length, 1);
   });
+
+  it("preserves missing and invalid target policy errors before capability mint", () => {
+    assert.match(
+      ban,
+      /async function requireBanReviewTarget\([\s\S]*select: \{ role: true, deletedAt: true \}[\s\S]*new BanUserPolicyError\('User not found', 404\)[\s\S]*target\.role === 'ADMIN'/u,
+    );
+    const banFunction = ban.slice(
+      ban.indexOf("export async function banUser"),
+      ban.indexOf("export async function unbanUser"),
+    );
+    const unbanFunction = ban.slice(ban.indexOf("export async function unbanUser"));
+    assert.ok(
+      banFunction.indexOf("await requireBanReviewTarget(userId, 'ban')")
+        < banFunction.indexOf("await mintBanReviewCapability("),
+    );
+    assert.ok(
+      unbanFunction.indexOf("await requireBanReviewTarget(userId, 'unban')")
+        < unbanFunction.indexOf("await mintBanReviewCapability("),
+    );
+    assert.match(ban, /source-validating authority boundary across concurrent state changes/u);
+  });
 });

@@ -5183,3 +5183,20 @@ Open work:
   14 tests with the one real-login CI test skipped; the final frozen-tree suite
   passed 4,287 tests with 12 skips and zero failures across 4,299 tests / 536
   suites. TypeScript, ESLint and `git diff --check` also passed.
+- Exact-head CI `34135311230` then passed all 399 ordered steps in 13m37s,
+  including the corrected real staff login, full 4,299-test suite, dependency
+  audit and production build. Independent paid/repair lock run `34135311385`
+  and staff bootstrap run `34135311334` passed. Vercel Preview alone failed at
+  the intentionally absent Preview `DATABASE_URL`; no production deployment
+  was attempted.
+- Continued application-path review found that capability minting now preceded
+  the predecessor transaction's missing-target check. SQL correctly failed
+  closed, but missing or deleted ban/unban targets could surface as an internal
+  error instead of the established 404/bounded policy response. The candidate
+  now performs an application preflight for missing/deleted and ADMIN targets
+  before minting, while explicitly retaining the mint and consumer's repeated
+  database validation as the authority boundary against concurrent changes.
+  Classification: `FIX_BEFORE_ACTIVATION`; production remains unchanged.
+  Focused ban/capability/role/packaging validation passed 21 checks. The final
+  frozen-tree suite passed 4,288 tests with 12 skips and zero failures across
+  4,300 tests / 536 suites; TypeScript, ESLint and `git diff --check` passed.

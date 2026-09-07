@@ -75,5 +75,10 @@ describe("Order zero-direct compatible packaging plan", () => {
     assert.match(plan, /Order policyless ENABLE plus direct-grant revocation/);
     assert.match(plan, /package FORCE as a\s+separate posture-only release/);
     assert.match(plan, /`OrderItem`, then `OrderShippingRateQuote`, separately/);
+    assert.match(
+      plan,
+      /six separately reviewed staff-operation grants: two fixed reads,\s+three fixed, audited mutations and one short-lived capability mint/u,
+    );
+    assert.doesNotMatch(plan, /five (?:separately reviewed|exact) operation grants/u);
   });
 });
