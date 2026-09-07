@@ -251,8 +251,6 @@ export async function POST(
     }
     return privateJson({
       ok: true,
-      refundId: refundId!,
-      refundIds,
       refundAmountCents,
     });
   } catch (err) {

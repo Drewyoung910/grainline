@@ -944,3 +944,24 @@ what it proves: earliest selection among visible committed Orders, not an
 atomic durable claim across transactions. This application-only correction
 does not alter the staged SQL bytes, migration order, database state, provider
 state or RLS posture.
+
+### ORD-A19: seller refund responses must not expose provider identifiers
+
+2026-09-07 candidate review. Classification: `FIX_BEFORE_ACTIVATION`;
+corrected and locally contract-tested in the undeployed application candidate,
+not asserted fixed in production.
+
+The participant detail projection and seller UI already replaced raw Stripe
+refund identity with a derived refund state and amount. The seller refund API
+success response still returned both the primary Stripe refund ID and the full
+refund-ID list even though the client consumed only `refundAmountCents`. Those
+identifiers are reconciliation metadata rather than participant receipt data,
+so returning them widened the participant boundary without a product need and
+contradicted ORD-A12.
+
+The response now contains only `ok` and the refunded amount. Server-side
+finalization, retry and restricted telemetry retain the identifiers required
+for reconciliation. A source contract isolates the final success response and
+rejects either identifier field while preserving the amount used by the UI.
+This application-only correction does not alter migrations, database rows,
+provider state, grants or RLS posture.

@@ -9,6 +9,10 @@ const migration = readFileSync(
 const authority = readFileSync("src/lib/orderParticipantDetailAuthority.ts", "utf8");
 const state = readFileSync("src/lib/orderParticipantDetailState.ts", "utf8");
 const panel = readFileSync("src/components/SellerRefundPanel.tsx", "utf8");
+const sellerRefundRoute = readFileSync(
+  "src/app/api/orders/[id]/refund/route.ts",
+  "utf8",
+);
 const sellerPage = readFileSync("src/app/dashboard/sales/[orderId]/page.tsx", "utf8");
 const record = readFileSync("docs/order-participant-detail-authority.md", "utf8");
 
@@ -61,6 +65,21 @@ describe("Order participant detail authority contract", () => {
     assert.doesNotMatch(panel, /Stripe refund ID|alreadyRefundedId/);
     assert.match(sellerPage, /const sellerRefundState = order\.sellerRefundState/);
     assert.doesNotMatch(sellerPage, /alreadyRefundedId=|sellerRefundId/);
+  });
+
+  it("keeps provider refund identifiers out of seller-facing API responses", () => {
+    const successStart = sellerRefundRoute.indexOf(
+      "return privateJson({\n      ok: true",
+    );
+    assert.ok(successStart >= 0, "seller refund success response is missing");
+    const successResponse = sellerRefundRoute.slice(
+      successStart,
+      sellerRefundRoute.indexOf("\n    });", successStart) + "\n    });".length,
+    );
+
+    assert.match(successResponse, /ok: true/);
+    assert.match(successResponse, /refundAmountCents/);
+    assert.doesNotMatch(successResponse, /refundId|refundIds/);
   });
 
   it("records the honest compatibility and residual boundaries", () => {
