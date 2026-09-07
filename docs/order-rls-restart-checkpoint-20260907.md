@@ -31,3 +31,8 @@ acceptance. Remaining audit findings and release gates live in
 No merge, deployment, production SQL, provider mutation, credential change or
 cleanup is part of this app-restart checkpoint. Do not read or print private
 credential files or restart journals when resuming.
+
+Restart follow-up: the ordered exit gates and current CI failure disposition
+are now recorded in `docs/order-rls-completion-plan-20260907.md`. The source
+mismatch was traced to a historical postflight running after successor
+application; preserve its strict reader and correct the CI stage order.

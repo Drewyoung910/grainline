@@ -4,6 +4,17 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Finish the bounded Order release (2026-09-07)
+
+The active non-production work is the Order candidate, not another RLS domain
+or a general refactor. Follow `docs/order-rls-completion-plan-20260907.md` for
+ordered exit gates: reliable historical/candidate CI, closure of verified
+activation blockers, credential-recovery acceptance, compatible release and
+authenticated product proof, predecessor drain, then separate ENABLE/FORCE.
+The current candidate is not activation-ready. Keep unrelated improvements
+tracked with closure criteria, and do not waive incident or production gates
+to meet a timeline. This sequencing note does not authorize production actions.
+
 ### Comprehensive credential containment before Order RLS resumes (2026-09-02)
 
 The comprehensive credential incident pauses new Order RLS mutations until

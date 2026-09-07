@@ -1347,6 +1347,21 @@ jobs:
           mv
           "$RUNNER_TEMP/order-participant-list-projection-correction"
           prisma/migrations/20260901155000_correct_order_participant_list_projection
+      # This postflight seals the historical 18-migration catalog, not the
+      # later source-replacing corrections. Keep both release stages proved.
+      - name: Apply historical Order compatibility prefix before successors
+        run: npx prisma migrate deploy
+      - name: Converge historical Order compatibility runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Prove Order compatible postflight through the runtime login
+        run: npm run audit:rls-order-compatible-runtime-postflight
+        env:
+          ORDER_COMPATIBLE_RUNTIME_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Restore additive Case and Order correctness release
         run: >-
           mv
@@ -1513,10 +1528,6 @@ jobs:
         run: node --test tests/order-compatible-production-scope-postgres.test.mjs
         env:
           ORDER_COMPATIBLE_PRODUCTION_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Prove Order compatible postflight through the runtime login
-        run: npm run audit:rls-order-compatible-runtime-postflight
-        env:
-          ORDER_COMPATIBLE_RUNTIME_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove staff read login grants in disposable local PostgreSQL
         run: node --test tests/order-staff-read-role-provision-postgres.test.mjs
         env:

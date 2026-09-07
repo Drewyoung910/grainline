@@ -1344,3 +1344,16 @@ Client URLs still require `127.0.0.1`, an exact disposable database and owner,
 and no connection-option overrides; PostgreSQL 16 and empty-database checks
 remain mandatory. Private server addresses are rejected outside GitHub Actions.
 Neither failed run is accepted concurrency or migration evidence.
+
+### 2026-09-07 historical postflight stage correction
+
+Run `34161435943` failed because the historical 18-migration runtime postflight
+ran after source-replacing successors. Its pinned review-eligibility body was
+correct for the historical release but not the complete candidate. The CI
+correction applies/provisions/proves that historical state before restoring
+the successors, then retains full-prefix application and subsequent proofs.
+No historical reader, source pin or migration is weakened. The new ordering
+regression failed before the workflow correction and passed afterward.
+Exact-head PostgreSQL CI remains required; this local result is not production
+acceptance. See `docs/order-rls-completion-plan-20260907.md` for the bounded
+completion plan, including the distinct final-candidate runtime proof gate.
