@@ -26,6 +26,12 @@ open unless individually verified and closed; financial/security release blocker
 must not be silently treated as post-launch deferrals. Full evidence is preserved
 outside the temporary candidate at the explicit paths in that record.
 
+Stock consistency implementation and its browser-recovery/retention limitations
+are recorded in [the F02/F03 runbook](listing-stock-consistency-correction.md).
+These defects remain activation blockers until release acceptance, not post-launch
+deferrals. Future support receipt lookup and retention need explicit designs that
+preserve in-window receipts and reconcile lost identities without fresh-ID retries.
+
 - Finish one cohesive section before opening a broad new security/audit slice,
   unless CI is red, Drew redirects the work, or a blocker in that section needs
   external evidence.

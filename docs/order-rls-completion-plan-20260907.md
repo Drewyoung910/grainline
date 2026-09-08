@@ -119,3 +119,9 @@ follow-up is recorded in `order-label-clawback-replay-correction.md`, including
 the unapplied clock draft, bounded replay and remaining provider/release gates.
 The remaining stock and affected Case blockers retain their triage dispositions.
 Do not restart a broad audit or begin another RLS family.
+
+Label replay's exact checkpoint `00c570b826dc421b6a349936ade97623cb5c65fe`
+passed full CI `34183133619` and its companion proofs. Stock consistency is now
+the cohesive local follow-up in `listing-stock-consistency-correction.md`;
+Case lifecycle blockers follow after its exact-head checks. Code candidates
+remain distinct from compatible release and authenticated/provider acceptance.

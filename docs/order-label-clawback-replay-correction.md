@@ -101,3 +101,12 @@ proof is broadened. Production workflow wiring is absent.
 
 The audit remains a bounded report, not a whole-codebase or legal certification.
 Stock-update and other affected Order blockers stay in the resume triage.
+
+## Exact-head CI acceptance (supersedes local pending-CI snapshot above)
+
+`00c570b826dc421b6a349936ade97623cb5c65fe` passed full CI `34183133619`,
+including native label-clock composition/rollback, tests and production build.
+Companion account-deletion `34183133624`, staff-bootstrap `34183133651` and
+paid-repair `34183133615` also passed. This closes the native CI gate only;
+actual-runtime clock, authenticated/provider behavior and production release
+acceptance remain outstanding. No real provider request was added by this record.

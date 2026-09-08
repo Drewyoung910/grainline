@@ -6,6 +6,24 @@ Leave the old, dirty `/Users/drewyoung/grainline` worktree untouched.
 
 ## Current checkpoint — read this first
 
+The label candidate is saved/pushed at `00c570b826dc421b6a349936ade97623cb5c65fe`.
+Full CI `34183133619`, account-deletion `34183133624`, staff-bootstrap
+`34183133651` and paid-repair `34183133615` passed. This includes native
+label-clock rollback proof, tests and production build, not provider acceptance.
+
+Current isolated work: LISTING-F02/F03, documented in
+`listing-stock-consistency-correction.md`. The actual-handler lost-response and
+post-commit failure regressions and stale content-writer regression reproduced
+before the correction. Shared explicit stock controls, co-committed replay
+receipts and versioned transport are implemented. Focused regressions, TypeScript,
+lint and the final full suite passed: 4,414 passing, 13 skipped, zero failures.
+The first full run's delegated-route inventory failure and its exact correction
+are retained in the runbook. Finish exact-head CI/native concurrency proof before
+broadening. No merge, deployment or production mutation is part of this pass.
+After acceptance, continue the affected Case blockers from the triage.
+
+### Earlier accepted staff and label preparation snapshots
+
 The staff PIN candidate is saved/pushed at `1dc274a5b3990536e0c38aa9998733676d5cc2d3`.
 Full CI `34179627726`, account-deletion `34179627723`, staff-bootstrap
 `34179627749` and paid-repair `34179627806` passed. Browser/release acceptance is

@@ -57,7 +57,7 @@ export default async function InventoryPage() {
         ) : (
           <ul className="divide-y divide-neutral-100 card-section">
             {active.map((l) => (
-              <InventoryRow key={l.id} listing={l} />
+              <InventoryRow key={l.id} listing={l} actorScope={userId} />
             ))}
           </ul>
         )}
@@ -74,7 +74,7 @@ export default async function InventoryPage() {
         ) : (
           <ul className="divide-y divide-neutral-100 card-section">
             {outOfStock.map((l) => (
-              <InventoryRow key={l.id} listing={l} />
+              <InventoryRow key={l.id} listing={l} actorScope={userId} />
             ))}
           </ul>
         )}

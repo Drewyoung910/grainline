@@ -56,6 +56,15 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 ### Security posture
 
+- Manual stock saves use `listingStockMutation.ts`: lock the owned Listing,
+  co-commit its exact request receipt in SystemAuditLog, and return saved results
+  on retry without repeating the delta. Never replace uncertain requests with
+  fresh IDs or remove in-window receipts. Existing in-stock quantity is saved
+  separately from listing content; only explicitly identified type conversion
+  may initialize/clear stock in that form. Preserve the versioned transport,
+  client restart state and retention bounds in
+  `docs/listing-stock-consistency-correction.md` when changing either table.
+
 - Label-cost reversal requests use the same `labelClawbackProvider.ts` boundary
   in the purchase route, retry worker and ambiguous-label operator. Never change
   metadata or mint a new key to evade Stripe idempotency conflicts. Automatic

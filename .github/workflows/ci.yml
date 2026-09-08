@@ -1471,6 +1471,10 @@ jobs:
         run: node scripts/order-label-clawback-clock-postgres-proof.mjs
         env:
           ORDER_LABEL_CLAWBACK_CLOCK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove stock adjustment retry and checkout lock schedules
+        run: node --experimental-strip-types scripts/listing-stock-mutation-postgres-proof.mjs
+        env:
+          LISTING_STOCK_MUTATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test

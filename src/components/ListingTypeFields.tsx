@@ -9,6 +9,7 @@ export default function ListingTypeFields({
   minDays,
   maxDays,
   stockQuantity,
+  stockQuantityEditor,
   shipsWithinDays,
   category,
   onListingTypeChange,
@@ -17,6 +18,7 @@ export default function ListingTypeFields({
   minDays?: number | null;
   maxDays?: number | null;
   stockQuantity?: number | null;
+  stockQuantityEditor?: React.ReactNode;
   shipsWithinDays?: number | null;
   category?: string | null;
   onListingTypeChange?: (type: "MADE_TO_ORDER" | "IN_STOCK") => void;
@@ -156,7 +158,11 @@ export default function ListingTypeFields({
       {type === "IN_STOCK" && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm">
+            {stockQuantityEditor ? <div className="text-sm">
+              <div className="mb-1 text-neutral-700">Quantity in stock</div>
+              {stockQuantityEditor}
+              <p className="mt-1 text-xs text-neutral-500">Save stock separately. Saving listing details does not change inventory.</p>
+            </div> : <label className="text-sm">
               <div className="mb-1 text-neutral-700">Quantity in stock</div>
               <input
                 name="stockQuantity"
@@ -169,7 +175,7 @@ export default function ListingTypeFields({
                 defaultValue={stockQuantity ?? 1}
                 className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
               />
-            </label>
+            </label>}
             <label className="text-sm">
               <div className="mb-1 text-neutral-700">Ships within (days)</div>
               <input

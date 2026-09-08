@@ -87,3 +87,12 @@ The next FIN-01/JOB-01 implementation and its remaining provider/release gates a
 recorded in [label-cost reversal replay](order-label-clawback-replay-correction.md).
 It retains manual reconciliation outside the proven idempotency window; historical
 Order/amount metadata cannot safely identify a replacement label's reversal.
+
+Label checkpoint `00c570b826dc421b6a349936ade97623cb5c65fe` passed full CI
+`34183133619`, including native clock rollback and build, plus all three companion
+proofs. Provider/runtime/release acceptance remains separate.
+LISTING-F02/F03 were reproduced and their isolated implementation is recorded in
+[stock consistency](listing-stock-consistency-correction.md). It preserves delta
+semantics and existing stock editing through an explicit action; full exact-head
+CI and release acceptance are still required before closure. The Case findings
+and other rows above remain open with their original dispositions.

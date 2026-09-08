@@ -9,14 +9,18 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 After the bounded broad audit, Drew resumed solo implementation (no agents).
 Follow `docs/order-audit-resume-triage-20260907.md` for the newly recorded stock,
 label retry, staff step-up, Case and scale obligations. Runtime-proof and staff
-candidate CI have passed; label replay is the active isolated correction in
-`docs/order-label-clawback-replay-correction.md`. Keep unrelated product fixes in cohesive packages; audit findings
+candidate CI have passed; label replay also passed CI at `00c570b8` / `34183133619`.
+Stock consistency is the active isolated correction in
+`docs/listing-stock-consistency-correction.md`: separate content/stock saves and
+atomically retain retry receipts rather than undo checkout decrements. Keep unrelated product fixes in cohesive packages; audit findings
 are not fixed merely because they were documented.
 
 Late label-deduction automation is deliberately not inferred from historical
 Order/amount metadata. Preserve exact replay within the safe window and manual
 reconciliation afterward. A future long-lived provider-intent design must bind
 the exact label and prove legacy compatibility; do not mint fresh retry keys.
+Future audit retention and support tooling must preserve in-window stock receipts
+and reconcile lost browser identity; session storage is not a cross-device backup.
 
 The active non-production work is the Order candidate, not another RLS domain
 or a general refactor. Follow `docs/order-rls-completion-plan-20260907.md` for
