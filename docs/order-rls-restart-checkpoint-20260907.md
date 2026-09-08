@@ -27,10 +27,20 @@ exact teardown. The SQL draft remains outside migrations and unchanged on disk;
 the only owner-name mapping is inside the CI proof. Finish its exact-head CI
 before proceeding. No production workflow is staged or dispatched.
 
-Final local checks for this follow-up passed: 24 focused; 4,445 full-suite
-passes, 13 skips, zero failures; lint, TypeScript, syntax and diff checks.
-This is not yet the native CI/runtime-login acceptance. Preserve the separate
-production release boundary even when that disposable proof passes.
+Proof checkpoint `a07dafbdc679db37aee55d72c96beb669ec7c1f2` is saved/pushed.
+Its local checks passed: 24 focused; 4,445 full-suite passes, 13 skips, zero
+failures; lint, TypeScript, syntax and diff checks. Native runtime-login proof
+passed in both attempts of CI `34193291438`, but both later cancelled during
+Tests with no reported failed assertion or established runner/OOM cause.
+Account-deletion `34193291564`, staff bootstrap `34193291532`, and paid-repair
+lock `34193291519` passed. Full CI remains unaccepted; do not blindly rerun.
+
+Active mitigation: serialize full-suite test files, retain every assertion and
+log nonsecret CI CPU/memory capacity. The offline proof independently passed
+seven tests in 34.07 seconds and peaked at about 1.52 GiB locally. This motivates
+limiting overlapping fixture memory; it does not prove the cancellation cause.
+Revalidate the final scheduling change locally and in exact-head CI. Preserve
+the separate production release boundary even after disposable proof acceptance.
 
 `order-release-readiness-20260908.md` consolidates the remaining release order
 and evidence boundaries. Continue that bounded plan, not a new domain or broad

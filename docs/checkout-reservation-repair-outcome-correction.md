@@ -2,7 +2,8 @@
 
 Status, 2026-09-08: reproduced in disposable PostgreSQL and corrected in a
 tested SQL draft. The full-schema/runtime-login proof is now implemented in
-ordinary CI; exact-head native acceptance is pending. No migration is staged,
+ordinary CI; native proof passed twice at `a07dafbd`, but full CI was cancelled
+during Tests on both attempts and is not accepted. No migration is staged,
 no production workflow is wired, and production acceptance remains outstanding.
 
 ## Confirmed boundary
@@ -132,6 +133,36 @@ than relying only on missing-row denials. Provider truth still belongs to the
 reviewed application/provider boundary, not an asserted SQL outcome string.
 
 ## Remaining release work
+
+### September 8 full-suite cancellation follow-up
+
+CI `34193291438`, attempts 1 and 2, both passed the native real-login proof at
+`a07dafbdc679db37aee55d72c96beb669ec7c1f2`, including cleanup and unchanged-parent
+verification. Both later failed with Tests marked cancelled. Attempt 2's job
+`101958634776` ran Tests from `06:30:20Z` to `06:31:42Z`; both logs ended after
+the six small repair-proof tests. GitHub's only annotation was `The operation
+was canceled.` There was no failed assertion or established OOM/runner cause.
+Security audit and production build did not run. Do not count either full run
+as passed or blindly rerun the same cancelled configuration again.
+
+The local full suite had passed with two test workers, unlike CI's automatic
+Node worker count. The new offline full-schema proof independently passed all
+seven tests in 34.07 seconds; `/usr/bin/time -l` measured maximum resident set
+size 1,632,518,144 bytes (about 1.52 GiB). Its first sandboxed resource-profile
+command passed the tests but failed the macOS sysctl measurement, so only the
+successful second measurement is used. This establishes a substantial fixture
+memory cost, not the cause of GitHub's cancellation.
+
+The narrow mitigation fixes `npm test` at one test-file worker and prints only
+CI CPU/memory capacity and that worker count. All test files/assertions remain
+enabled; no skip, timeout increase, SQL or application change is introduced.
+Explicit multi-connection concurrency proofs remain unchanged. The scheduling
+contract is tested in `test-runner-resource-boundary.test.mjs`. This intentionally
+trades file-level parallelism for bounded fixture memory, not production
+throughput or weaker acceptance thresholds. Require full local and exact-head
+CI, audit and build acceptance before closing this verification checkpoint.
+
+### Production boundary
 
 Promote this as a separate CheckoutStockReservation integrity release. Before
 production execution, give the migration its own immutable byte pin, compose

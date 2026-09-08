@@ -1592,7 +1592,9 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Tests
-        run: npm test
+        run: |
+          node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
+          npm test
       - name: Security audit
         run: npm run audit:dependencies
       - name: Production build
