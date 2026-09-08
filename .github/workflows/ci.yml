@@ -1483,6 +1483,10 @@ jobs:
         run: node scripts/checkout-repair-outcome-runtime-postgres-proof.mjs
         env:
           CHECKOUT_REPAIR_OUTCOME_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove exact Order Case reservation correction composition and rollback
+        run: node scripts/order-correction-composition-postgres-proof.mjs
+        env:
+          ORDER_CORRECTION_COMPOSITION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test

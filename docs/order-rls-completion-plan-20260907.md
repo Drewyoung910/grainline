@@ -9,8 +9,10 @@ The current decision is **no-go for activation** until the gates below pass.
 
 The September 8 consolidation in `order-release-readiness-20260908.md` separates
 accepted code proofs from unapplied SQL and release evidence. Case code/native
-CI is accepted at `1f29f630` / `34190781473`. The next bounded step is the
-independent reservation-repair full-schema/runtime proof, not another Case pass.
+CI is accepted at `1f29f630` / `34190781473`; reservation full-schema/runtime CI
+is accepted at `58e8a2ad` / `34198555971`. The active bounded follow-up is the
+six-draft composition manifest/proof in `order-correction-composition-proof.md`,
+not another Case/reservation fix or production activation.
 
 The broad audit is finished as a bounded review and Drew has resumed solo
 implementation. Its financial/security blockers, product decisions and evidence

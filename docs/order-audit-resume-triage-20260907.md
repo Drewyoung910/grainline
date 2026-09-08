@@ -107,6 +107,8 @@ separate policy/legal timing findings are not closed by this package.
 
 Case code/native CI subsequently passed at `1f29f630` / `34190781473`, with
 all 17 scenarios and all three companion proofs. The full-schema/login gap for
-the independently released reservation NULL-outcome fix is the next active
-work package. See `order-release-readiness-20260908.md`; do not reset previously
+the independently released reservation NULL-outcome fix subsequently passed
+full/native CI `34198555971` at `58e8a2ad`. The active follow-up is the six-draft
+composition in `order-correction-composition-proof.md`.
+See `order-release-readiness-20260908.md`; do not reset previously
 accepted code findings to unimplemented or mark their release gates closed.

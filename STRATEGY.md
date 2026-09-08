@@ -22,8 +22,11 @@ refund guards or messaging restrictions. Existing no-objection expiry and the
 separate legal deadline-alignment decisions remain explicit, not silently revised.
 
 Case code/native proof is now accepted at `1f29f630` / CI `34190781473`.
-The bounded next package is the independent reservation-repair NULL-outcome
-full-schema/runtime-login proof. `docs/order-release-readiness-20260908.md`
+Reservation-repair full-schema/runtime-login CI is accepted at `58e8a2ad` /
+`34198555971`. The active bounded package is the proof-only final composition
+manifest in `docs/order-correction-composition-proof.md`; all six existing
+drafts must coexist without authority/schema drift, while their production
+release boundaries remain separate. `docs/order-release-readiness-20260908.md`
 maps accepted code, unapplied drafts and remaining release gates; do not repeat
 closed Case/stock implementation or treat a CI proof as production acceptance.
 

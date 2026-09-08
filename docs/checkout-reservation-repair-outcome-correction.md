@@ -194,6 +194,18 @@ comparator callers are disposable input/runtime, Case and reservation proofs;
 their full catalog checks and database behavior remain unchanged. Preserve the
 worker bound and require new complete local/exact-head CI acceptance.
 
+### Accepted proof checkpoint
+
+Exact head `58e8a2adc6fcaf6151aa7ff0eccf77c7f3948bee` passed full CI/build
+`34198555971`, native actual-runtime proof and companions `34198556006`,
+`34198556021`, `34198556051`. Local: 4,446 passed / 13 skipped; CI: 4,450 passed /
+9 skipped; zero failed. Native output confirms the historical NULL reproduction,
+20 invalid cases, 12 legitimate outcomes, session mismatch and paid-order
+protection, six direct denials, owned child removal and unchanged parent. The
+SQL remains an unapplied candidate. The next proof-only composition is tracked
+in `order-correction-composition-proof.md`; do not repeat completed verification
+or call the integrity release applied.
+
 ### Production boundary
 
 Promote this as a separate CheckoutStockReservation integrity release. Before

@@ -11,6 +11,26 @@ earlier July-root description is no longer current.
 
 ## Current checkpoint — read this first
 
+Reservation-proof checkpoint `58e8a2adc6fcaf6151aa7ff0eccf77c7f3948bee` is saved,
+pushed and accepted by full CI/build `34198555971`. Account-deletion `34198556006`,
+staff bootstrap `34198556021` and paid-repair `34198556051` also passed. Full local:
+4,446 passed / 13 skipped; CI: 4,450 passed / 9 skipped; zero failures. Native proof
+confirmed actual runtime login, old NULL reproduction, 20 invalid/12 legitimate
+outcomes, paid-order protection and exact child/password/parent cleanup. The
+failed/scheduling/diagnostic records below are historical; that gate is closed.
+
+Active bounded follow-up: `order-correction-composition-proof.md`. Its proof-only
+manifest seals six existing drafts/nine distinct functions against the strict
+17-member prefix, and its rollback-only composition checks shared input, Case,
+label-clock/finalizer and reservation behavior with exact catalog/row restoration.
+Forty-four focused tests passed; full local: 4,450 passed / 13 skipped, zero
+failures; lint and TypeScript passed. Finish new exact-head native CI before
+acceptance. No SQL bytes, application, production workflow or production/provider
+state is changed. Keep separate actual-runtime/release/staff/credential gates.
+No new domain, merge/readify, production execution or worktree reconciliation.
+
+### Previous reservation proof checkpoints and preserved failure history
+
 Case checkpoint `1f29f630679d46b2fdc1f33dc6e1a1e3b0914749` is saved/pushed
 and accepted by full CI/build `34190781473`, including all 17 native Case
 scenarios and catalog rollback. Companion account-deletion `34190781539`,
