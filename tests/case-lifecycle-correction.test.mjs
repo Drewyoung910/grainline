@@ -51,6 +51,13 @@ before(async () => {
     CREATE TABLE "SystemAuditLog" (id text PRIMARY KEY,"actorType" text,"actorId" text,action text,
       "targetType" text,"targetId" text,reason text,metadata jsonb,"createdAt" timestamp);
   `);
+  // Execute the actual five Case row checks too. A permissive miniature table
+  // must not let impossible fixture clocks hide from the native schema proof.
+  const invariants = readFileSync("prisma/migrations/20260730010000_enforce_case_message_invariants/migration.sql", "utf8");
+  const start = invariants.indexOf('ALTER TABLE public."Case"\n  ADD CONSTRAINT "Case_distinct_participants_check"');
+  const end = invariants.indexOf('ALTER TABLE public."CaseMessage"', start);
+  assert.ok(start > 0 && end > start);
+  await db.exec(invariants.slice(start, end));
   for (const { before, name, args } of caseLifecycleDefinitions()) {
     await db.exec(before);
     await db.exec(`REVOKE ALL ON FUNCTION public.${name}(${args}) FROM PUBLIC;

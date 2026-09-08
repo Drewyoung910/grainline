@@ -11,6 +11,13 @@ earlier July-root description is no longer current.
 
 ## Current checkpoint — read this first
 
+Pushed Case checkpoint `2f34459c` failed native CI `34189974861` at the new
+scenario 9. Adding actual Case row checks locally reproduced the fixture's clock
+ordering error. The bounded follow-up corrects only aged fixture construction,
+imports all five real row checks into the local harness and records the failure
+in `case-lifecycle-correction.md`; 58 focused tests pass again. Application and
+draft SQL bytes remain unchanged. Finish corrected exact-head CI before broadening.
+
 At the September 8 midnight boundary, baseline files and the `.git` pointer
 disappeared from the temporary checkout during full tests/lint. Cause unproven;
 free disk remained 6.6 GiB. All 22 files changed in this pass survived and were

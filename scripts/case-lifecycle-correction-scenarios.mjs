@@ -52,17 +52,23 @@ export async function openLifecycleCase(client, ids, actor = ids.buyer, reason =
   return rows[0].result;
 }
 export async function pendingLifecycleCase(client, ids, markedBy = "seller") {
-  // Use the actual opening authority, including its durable application/message.
-  await client.query(`UPDATE public."Order" SET "estimatedDeliveryDate"=timezone('UTC',now())-interval '1 day'
-    WHERE id=$1`, [ids.order]);
-  const opened = await openLifecycleCase(client, ids);
-  await client.query(`UPDATE public."Case" SET status='IN_DISCUSSION',
-    "discussionStartedAt"=timezone('UTC',now()), "escalateUnlocksAt"=timezone('UTC',now())+interval '2 days'
-    WHERE id=$1`, [opened.caseId]);
-  await client.query(`UPDATE public."Case" SET status='PENDING_CLOSE',
-    "buyerMarkedResolved"=$2, "sellerMarkedResolved"=$3 WHERE id=$1`,
-  [opened.caseId, markedBy === "buyer", markedBy === "seller"]);
-  return opened.caseId;
+  // Seed an already-aged, internally consistent Case with real opening-message
+  // evidence. Backdating only updatedAt or the unlock clock on a freshly opened
+  // Case violates Case_clock_order_check; never relax that check for a proof.
+  // Opening-operation scenarios separately execute the actual opening authority.
+  const caseId = `case-lifecycle-${randomUUID()}`;
+  await client.query(`INSERT INTO public."Case" (id,"orderId","buyerId","sellerId",reason,description,
+    status,"sellerRespondBy","discussionStartedAt","escalateUnlocksAt",
+    "buyerMarkedResolved","sellerMarkedResolved","createdAt","updatedAt")
+    VALUES ($1,$2,$3,$4,'DAMAGED','Disposable aged Case lifecycle evidence.',
+      'PENDING_CLOSE',timezone('UTC',now())-interval '8 days',
+      timezone('UTC',now())-interval '8 days',timezone('UTC',now())+interval '2 days',
+      $5,$6,timezone('UTC',now())-interval '10 days',timezone('UTC',now()))`,
+  [caseId, ids.order, ids.buyer, ids.seller, markedBy === "buyer", markedBy === "seller"]);
+  await client.query(`INSERT INTO public."CaseMessage" (id,"caseId","authorId","authorKind",body,"createdAt")
+    SELECT $2,id,"buyerId",'BUYER','Disposable opening message for the aged Case proof.',"createdAt"
+    FROM public."Case" WHERE id=$1`, [caseId, `${caseId}-opening`]);
+  return caseId;
 }
 export async function escalateLifecycleCase(client, ids, caseId, actor = ids.buyer) {
   const { rows } = await caseLifecycleRuntime(client,

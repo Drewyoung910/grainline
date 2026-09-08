@@ -128,3 +128,26 @@ Tally: two confirmed lifecycle defects implemented as unreleased candidates;
 zero false-positive closures; no new legal/financial incident claim. Continue
 through `order-rls-completion-plan-20260907.md`; other financial/provider, legal,
 scale and credential-recovery obligations remain linked, not waived.
+
+### First native run and fixture-fidelity correction
+
+Checkpoint `2f34459c688c40988e0d53604977fcad43a6db14` is pushed. CI
+`34189974861` failed in the new proof at `scenario-9 [23514]`, after the preceding
+historical/prefix proofs. Companion account-deletion `34189974842`, staff bootstrap
+`34189974845` and paid-repair lock `34189974872` passed.
+
+The small fixture lacked the real Case row checks. Adding the exact five checks
+from the immutable invariant migration reproduced `Case_clock_order_check` locally
+at the same scenario. Its pending-case helper mixed a fresh `clock_timestamp()`
+opening with the earlier transaction `now()` for discussion, then tried to age
+activity/unlock timestamps before creation. Those are invalid test states, not
+evidence that the application correction should bypass a constraint.
+
+The corrected pending-close fixture seeds an already-aged Case with a real opening
+message and internally ordered timestamps, matching the existing native proof's
+historical-fixture method. Opening-specific scenarios still exercise the actual
+opening authority. The local harness now executes the exact five Case checks,
+so the bad fixture cannot pass locally again. All 58 focused tests pass after
+this correction. Application code, the generated two-body SQL draft, historical
+bytes, grants and constraints are unchanged. Full final-revision validation and
+corrected native CI remain required; the first failed run is not accepted.
