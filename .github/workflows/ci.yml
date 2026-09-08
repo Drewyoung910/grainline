@@ -1487,6 +1487,11 @@ jobs:
         run: node scripts/order-correction-composition-postgres-proof.mjs
         env:
           ORDER_CORRECTION_COMPOSITION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+
+      - name: Prove correction release ledger and body restart states
+        run: node scripts/order-correction-release-package-postgres-proof.mjs
+        env:
+          ORDER_CORRECTION_RELEASE_PACKAGE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test

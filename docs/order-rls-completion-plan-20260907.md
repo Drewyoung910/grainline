@@ -14,6 +14,13 @@ is accepted at `58e8a2ad` / `34198555971`. The active bounded follow-up is the
 six-draft composition manifest/proof in `order-correction-composition-proof.md`,
 not another Case/reservation fix or production activation.
 
+That combined proof is now accepted at `99f6e8cb` / full/native CI `34203109385`
+and all three companion workflows. Continue source-only release packaging in
+`order-correction-release-package.md`: fixed complete predecessor catalog,
+independent boundaries and exact ledger/body restart classification. This does
+not itself stage migrations, provide a production executor or close the
+credential/runtime/authenticated gates.
+
 The broad audit is finished as a bounded review and Drew has resumed solo
 implementation. Its financial/security blockers, product decisions and evidence
 locations are linked in `order-audit-resume-triage-20260907.md`. The input runtime

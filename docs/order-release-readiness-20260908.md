@@ -16,7 +16,8 @@ the root's local audit packets. Worktree reconciliation is separate.
 | LISTING-F02/F03 stock consistency | Full CI/native lock schedules `34186946233` at `d4d51324` | Matching app/versioned-route deployment, authenticated retry/stock acceptance and receipt-retention limits |
 | CASE-04/05 lifecycle | Full CI `34190781473` at `1f29f630`, 17 native scenarios; account-deletion `34190781539`, staff `34190781519`, paid-repair `34190781452` | Compatible result readers before new SQL results; actual-runtime/authenticated objection and overlap acceptance; separate deadline/legal alignment is not silently changed |
 | CheckoutStockReservation NULL-outcome repair | Full CI `34198555971` at `58e8a2ad`, full-schema clone and actual-login proof, 20 invalid/12 legitimate outcomes, all companion proofs | Independently packaged integrity successor and final runtime/production acceptance; do not replay its old RLS activation |
-| Combined six-draft/nine-function candidate | Proof-only fixed manifest and local composition/scenario/rollback coverage in `order-correction-composition-proof.md` | Exact-head full/native CI, then actual production packaging and composed runtime acceptance; this is not activation |
+| Combined six-draft/nine-function candidate | Full/native CI `34203109385` at `99f6e8cb`, all companion proofs, exact catalog/data rollback | Actual production packaging and composed runtime acceptance; this is not activation |
+| Correction release package | Source-only 251-predecessor/six-successor manifest and ledger/target-body restart checks in `order-correction-release-package.md` | Final local/native CI, complete production scope/runner, credential and deployed-source gates; nothing is staged for execution |
 
 These are isolated candidates, not newly deployed fixes. Source references:
 `order-input-correction-runtime-proof.md`, `admin-page-pin-boundary-fix.md`,
@@ -38,6 +39,10 @@ These are isolated candidates, not newly deployed fixes. Source references:
    correction retains its separate release boundary even if proofs share CI.
    The active proof-only composition is `order-correction-composition-proof.md`;
    it does not stage production migrations or replace the actual-runtime gate.
+   Its full/native CI is now accepted at `99f6e8cb` / `34203109385`. The active
+   successor `order-correction-release-package.md` pins full predecessor and
+   proposed successor identities and rejects ledger/body mismatch; it is still
+   a source-only component, not the complete production scope or executor.
 3. Resolve the umbrella credential-recovery acceptance from sanitized evidence.
    `comprehensive-credential-exposure-recovery-20260902.md` remains the incident
    gate; individual accepted families are not blanket incident closure. This

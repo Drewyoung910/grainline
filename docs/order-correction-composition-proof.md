@@ -118,6 +118,13 @@ commit, not a separate docs-only CI chain.
 
 ## Next gates
 
+Post-push acceptance: exact `99f6e8cb` passed full/native CI `34203109385`,
+4,454 tests passed/nine skipped/zero failed or cancelled, plus build and all
+companion workflows. Draft PR #432 and the durable acceptance checkpoint retain
+the result. The next cohesive source-only package is
+`order-correction-release-package.md`; do not rerun this accepted proof as an
+unimplemented prerequisite.
+
 Follow `order-release-readiness-20260908.md`: precise production compatibility
 packaging and the separate reservation integrity successor; umbrella credential
 incident and actual runtime/staff boundary acceptance; matching application and

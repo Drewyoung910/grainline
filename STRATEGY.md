@@ -30,6 +30,15 @@ release boundaries remain separate. `docs/order-release-readiness-20260908.md`
 maps accepted code, unapplied drafts and remaining release gates; do not repeat
 closed Case/stock implementation or treat a CI proof as production acceptance.
 
+The final composition passed full/native CI `34203109385` at `99f6e8cb`.
+Continue the source-only package in `docs/order-correction-release-package.md`:
+251 exact predecessors, six proposed successors, three separate release
+boundaries and ledger/body restart checks. Keep Case reader-first and label
+DB-first sequencing explicit. No migration staging/execution is inferred from
+this packaging component; complete scope, credential and runtime/provider gates
+remain before activation. Update status in cohesive commits, not docs-only CI
+loops, and do not reopen the accepted composition work without new evidence.
+
 Late label-deduction automation is deliberately not inferred from historical
 Order/amount metadata. Preserve exact replay within the safe window and manual
 reconciliation afterward. A future long-lived provider-intent design must bind

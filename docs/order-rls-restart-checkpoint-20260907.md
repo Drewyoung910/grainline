@@ -11,6 +11,23 @@ earlier July-root description is no longer current.
 
 ## Current checkpoint — read this first
 
+Combined correction checkpoint `99f6e8cb9057d0daad5a7968765de2dc2e770c8f`
+is pushed and accepted by full CI `34203109385`: 4,454 passed / nine skipped /
+zero failures, plus native composition, TypeScript, lint, audit, build and all
+three companion workflows (`34203109383`, `34203109421`, `34203109405`).
+The six-draft/nine-function candidate-verification gate is complete. Do not
+repeat the historical pending descriptions below as current work.
+
+Active follow-up: `order-correction-release-package.md`, source-only exact
+251-predecessor/six-successor packaging, independent release boundaries and
+ledger/body restart checks. Final full local/native CI acceptance remains to be
+recorded for this new component. No migration is staged or executed, no
+production workflow is wired, and no merge/readify/provider action is authorized
+by this checkpoint. Complete full production scope and credential/runtime/
+authenticated acceptance before any Order activation. Preserve the root files.
+
+### Previously accepted reservation/composition preparation
+
 Reservation-proof checkpoint `58e8a2adc6fcaf6151aa7ff0eccf77c7f3948bee` is saved,
 pushed and accepted by full CI/build `34198555971`. Account-deletion `34198556006`,
 staff bootstrap `34198556021` and paid-repair `34198556051` also passed. Full local:
