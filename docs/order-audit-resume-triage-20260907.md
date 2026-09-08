@@ -94,5 +94,13 @@ proofs. Provider/runtime/release acceptance remains separate.
 LISTING-F02/F03 were reproduced and their isolated implementation is recorded in
 [stock consistency](listing-stock-consistency-correction.md). It preserves delta
 semantics and existing stock editing through an explicit action; full exact-head
-CI and release acceptance are still required before closure. The Case findings
-and other rows above remain open with their original dispositions.
+CI and release acceptance are still required before closure. Its full exact-head
+CI/build and native stock schedules subsequently passed at `d4d51324`, run
+`34186946233`; authenticated release acceptance remains separate.
+
+CASE-04/05 are now reproduced and implemented as isolated candidates in
+[the Case lifecycle correction](case-lifecycle-correction.md). The draft preserves
+existing deadlines, refund/authority locks and unavailable-recipient restrictions,
+while fixing opening/objection access and response/UI parity. Native full-schema,
+actual-runtime and release acceptance remain distinct. The other rows and the
+separate policy/legal timing findings are not closed by this package.

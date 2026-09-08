@@ -6,7 +6,7 @@ export type CaseEscalationResult = {
   actorUserId: string;
   buyerUserId: string | null;
   sellerUserId: string;
-  previousStatus: "OPEN" | "IN_DISCUSSION";
+  previousStatus: "OPEN" | "IN_DISCUSSION" | "PENDING_CLOSE";
   status: "UNDER_REVIEW";
   auditLogId: string;
   actorKind: "user" | "staff";
@@ -113,7 +113,7 @@ export function validateCaseEscalationResult(
     ),
     previousStatus: requireOneOf(
       row.previousStatus,
-      ["OPEN", "IN_DISCUSSION"] as const,
+      ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE"] as const,
       "Case-escalation previous status",
     ),
     status: requireOneOf(

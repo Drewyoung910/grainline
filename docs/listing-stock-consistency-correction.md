@@ -87,7 +87,11 @@ zero failures (4,427 total), using the same `tests/*.test.mjs` inventory with
 `--test-concurrency=2` to reduce local memory pressure. Full lint passed after
 the harness rename, and the final auth-inventory/handler edits passed focused
 lint and their 18-test rerun. `git diff --check` passed. The final local disk
-guard reported 5.6 GiB free. Exact-head native CI remains the next gate.
+guard reported 5.6 GiB free. Exact-head CI/build `34186946233` subsequently
+passed at `d4d51324025ae05e9e074fa836c6882adb1af4ea`, including the five native
+row-lock schedules and teardown. Staff bootstrap `34186946203`, account deletion
+`34186946202` and paid-repair lock `34186946216` also passed. This is candidate
+code-CI acceptance, not release/provider or authenticated browser acceptance.
 
 The first full run found one auth-inventory contract failure: its source scan
 did not follow the versioned route's authenticated PATCH re-export. The correction

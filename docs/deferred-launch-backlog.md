@@ -32,6 +32,12 @@ These defects remain activation blockers until release acceptance, not post-laun
 deferrals. Future support receipt lookup and retention need explicit designs that
 preserve in-window receipts and reconcile lost identities without fresh-ID retries.
 
+CASE-04/05 implementation, remaining proof gates and deadline boundaries are in
+[the Case lifecycle runbook](case-lifecycle-correction.md). A committed objection
+must escape auto-close; silence still follows the existing seven-day policy.
+Separate deadline/terms/legal alignment remains a launch decision, not a waived
+finding or an implicit change to automatic dismissal behavior.
+
 - Finish one cohesive section before opening a broad new security/audit slice,
   unless CI is red, Drew redirects the work, or a blocker in that section needs
   external evidence.

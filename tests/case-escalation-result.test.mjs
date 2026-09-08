@@ -74,4 +74,13 @@ describe("Case-escalation result validation", () => {
       );
     }
   });
+
+  it("accepts the exact pending-close objection result and its replay", () => {
+    for (const action of ["updated", "replay"]) {
+      assert.equal(validateCaseEscalationResult(
+        result({ previousStatus: "PENDING_CLOSE", action }),
+        { actorUserId: "buyer_1", caseId: "case_1" },
+      ).previousStatus, "PENDING_CLOSE");
+    }
+  });
 });

@@ -10,10 +10,16 @@ After the bounded broad audit, Drew resumed solo implementation (no agents).
 Follow `docs/order-audit-resume-triage-20260907.md` for the newly recorded stock,
 label retry, staff step-up, Case and scale obligations. Runtime-proof and staff
 candidate CI have passed; label replay also passed CI at `00c570b8` / `34183133619`.
-Stock consistency is the active isolated correction in
+Stock consistency is implemented as an isolated candidate in
 `docs/listing-stock-consistency-correction.md`: separate content/stock saves and
 atomically retain retry receipts rather than undo checkout decrements. Keep unrelated product fixes in cohesive packages; audit findings
 are not fixed merely because they were documented.
+
+Stock candidate CI/native schedules passed at `d4d51324` / `34186946233`.
+The active follow-up is CASE-04/05 in `docs/case-lifecycle-correction.md`: preserve
+early-receipt complaint access and pending-close objections without weakening
+refund guards or messaging restrictions. Existing no-objection expiry and the
+separate legal deadline-alignment decisions remain explicit, not silently revised.
 
 Late label-deduction automation is deliberately not inferred from historical
 Order/amount metadata. Preserve exact replay within the safe window and manual

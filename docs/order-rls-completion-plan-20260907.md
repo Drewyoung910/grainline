@@ -125,3 +125,8 @@ passed full CI `34183133619` and its companion proofs. Stock consistency is now
 the cohesive local follow-up in `listing-stock-consistency-correction.md`;
 Case lifecycle blockers follow after its exact-head checks. Code candidates
 remain distinct from compatible release and authenticated/provider acceptance.
+
+Stock checkpoint `d4d51324` passed full CI/build `34186946233` and native
+concurrency schedules. The current CASE-04/05 follow-up is tracked in
+`case-lifecycle-correction.md`, including exact draft composition, UI/result
+parity, unchanged objection deadlines and its outstanding release evidence.

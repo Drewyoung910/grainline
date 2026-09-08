@@ -1475,6 +1475,10 @@ jobs:
         run: node --experimental-strip-types scripts/listing-stock-mutation-postgres-proof.mjs
         env:
           LISTING_STOCK_MUTATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case lifecycle corrections and unchanged catalog after rollback
+        run: node scripts/case-lifecycle-correction-postgres-proof.mjs
+        env:
+          CASE_LIFECYCLE_CORRECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test

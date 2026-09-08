@@ -1,10 +1,42 @@
 # Order RLS restart checkpoint — 2026-09-07
 
-Active worktree: `/private/tmp/grainline-clerk-legal-provenance-20260903`.
-Branch: `agent/order-checkout-retry-clock-20260906`, draft PR #432.
-Leave the old, dirty `/Users/drewyoung/grainline` worktree untouched.
+Active recovered worktree (September 8):
+`/Users/drewyoung/grainline/.worktrees/order-case-lifecycle-20260908`.
+Local recovery branch: `agent/order-case-lifecycle-recovery-20260908`, based on
+`d4d51324`; remote candidate is
+`agent/order-checkout-retry-clock-20260906`, draft PR #432.
+Leave `/Users/drewyoung/grainline` and unrelated worktrees untouched. The root
+was rechecked on main at `d450b76e`, with local audit packets untracked; the
+earlier July-root description is no longer current.
 
 ## Current checkpoint — read this first
+
+At the September 8 midnight boundary, baseline files and the `.git` pointer
+disappeared from the temporary checkout during full tests/lint. Cause unproven;
+free disk remained 6.6 GiB. All 22 files changed in this pass survived and were
+copied to `recovery-checkpoints/case-lifecycle-20260908` under the root workspace,
+SHA-256 verified, and restored onto the exact pushed base in the persistent
+worktree above. A separate recovery manifest retains each source hash. No worktree
+was pruned or other local data deleted. This establishes recovery of this pass
+and its Git base, not the survival of every unrelated temporary file. Restart
+full validation; ENOENT failures are not accepted as code-test results.
+
+Stock consistency is saved/pushed at `d4d51324025ae05e9e074fa836c6882adb1af4ea`.
+Full CI/build `34186946233`, native stock row-lock schedules, staff bootstrap
+`34186946203`, account deletion `34186946202` and paid-repair lock
+`34186946216` passed. Read-only PR verification confirmed this exact head and
+green GitHub checks before continuing. It is not deployed.
+
+The current isolated follow-up is CASE-04/05 in
+`case-lifecycle-correction.md`: reproduced early-handoff rejection and missing
+pending-close objection, additive two-function draft, response-reader/UI parity,
+engine regressions and rollback-only full-schema CI proof. Final local checks
+passed in the recovered worktree: 58 focused, 4,438 full-suite passes, 13 skips,
+zero failures, lint and TypeScript. Exact-head native CI/build remains next.
+Do not merge or mutate production. The seven-day
+no-objection auto-close and separate legal timing review are not silently changed.
+
+### Earlier stock preparation snapshot
 
 The label candidate is saved/pushed at `00c570b826dc421b6a349936ade97623cb5c65fe`.
 Full CI `34183133619`, account-deletion `34183133624`, staff-bootstrap
