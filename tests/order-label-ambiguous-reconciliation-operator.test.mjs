@@ -4,6 +4,7 @@ import { lstatSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { settleLabelClawback } from "../src/lib/labelClawbackProvider.ts";
 import {
   ORDER_LABEL_AMBIGUOUS_RECONCILIATION_CONFIRMATION,
   assertOrderLabelAmbiguousReconciliationGitState,
@@ -120,13 +121,7 @@ function appDependencies(recorded, events) {
       events.push({ input, type: "provider" });
       return recorded;
     },
-    labelClawbackErrorMessage(error) {
-      return error instanceof Error ? error.message : String(error);
-    },
-    labelClawbackIdempotencyKey(input) {
-      events.push({ input, type: "idempotency" });
-      return "label-cost:fixed";
-    },
+    settleLabelClawback,
   };
 }
 
@@ -386,9 +381,12 @@ describe("Order label ambiguous reconciliation operator", () => {
       ownerClient: fakeOwnerClient(claim(), []),
       stripeClient: {
         transfers: {
-          async createReversal(_transfer, _input, options) {
-            assert.equal(options.idempotencyKey, "label-cost:fixed");
-            return { id: "reversal-1" };
+          async listReversals() { return { data: [], has_more: false }; },
+          async createReversal(transfer, input, options) {
+            assert.equal(options.idempotencyKey, "label-cost:order-1:shippo-transaction-1:475");
+            assert.equal(input.metadata.reason, "label_cost_deduction");
+            return { id: "trr_one", amount: input.amount, currency: "usd", transfer,
+              metadata: input.metadata, created: Math.floor(Date.now() / 1000), source_refund: null };
           },
         },
       },
@@ -408,7 +406,10 @@ describe("Order label ambiguous reconciliation operator", () => {
       }),
       ownerClient: fakeOwnerClient(claim(), []),
       stripeClient: {
-        transfers: { async createReversal() { throw new Error("bounded Stripe failure"); } },
+        transfers: {
+          async listReversals() { return { data: [], has_more: false }; },
+          async createReversal() { throw new Error("bounded Stripe failure"); },
+        },
       },
     });
     assert.equal(deferred.outcome.status, "recorded-with-clawback-follow-up");

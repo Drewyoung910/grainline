@@ -6,6 +6,22 @@ Leave the old, dirty `/Users/drewyoung/grainline` worktree untouched.
 
 ## Current checkpoint — read this first
 
+The staff PIN candidate is saved/pushed at `1dc274a5b3990536e0c38aa9998733676d5cc2d3`.
+Full CI `34179627726`, account-deletion `34179627723`, staff-bootstrap
+`34179627749` and paid-repair `34179627806` passed. Browser/release acceptance is
+still separate; it is not deployed.
+
+The active isolated follow-up is `order-label-clawback-replay-correction.md`:
+one canonical bounded Stripe replay/acknowledgement boundary in all three callers,
+plus a one-body UTC purchase-clock draft, engine tests and native CI-only rollback
+proof. It is not a production migration or provider operator execution. Do not
+restart the broader audit or begin stock edits until this candidate's checks pass.
+Final local checks passed: 4,393 tests, 13 skipped, zero failures, plus lint,
+TypeScript and diff checks. Native exact-head CI remains the next acceptance
+gate; verify its result on draft PR #432 before broadening this candidate.
+
+### Earlier input-proof and staff implementation state
+
 The corrected input-runtime proof passed complete CI, including native PostgreSQL
 and the production build, in
 `34178233977` at pushed checkpoint `4574786557c5ac196267b1bbb5ba82e3a6aede76`.

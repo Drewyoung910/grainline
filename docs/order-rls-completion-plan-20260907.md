@@ -112,8 +112,10 @@ passed at `4574786557c5ac196267b1bbb5ba82e3a6aede76`.
 Its missing-source controls are intentionally narrower than the fresh
 authenticated route/provider smoke required by gate 4.
 
-The next isolated application follow-up is the fourteen-page staff PIN boundary
-in `admin-page-pin-boundary-fix.md`. Its focused checks pass; final application
-CI/build and authenticated release verification must be recorded separately.
-The remaining stock, financial retry and affected Case blockers retain their
-triage dispositions. Do not restart a broad audit or begin another RLS family.
+The fourteen-page staff PIN boundary in `admin-page-pin-boundary-fix.md` passed
+full CI/build `34179627726` at `1dc274a5b3990536e0c38aa9998733676d5cc2d3`;
+authenticated release verification remains separate. The current financial retry
+follow-up is recorded in `order-label-clawback-replay-correction.md`, including
+the unapplied clock draft, bounded replay and remaining provider/release gates.
+The remaining stock and affected Case blockers retain their triage dispositions.
+Do not restart a broad audit or begin another RLS family.

@@ -79,3 +79,8 @@ The first full run rejected an explanatory-only middleware comment edit because
 historical production artifact verifiers seal that file. The comment was restored
 without changing any historical pin or verifier. The full rerun passed as recorded
 above; no failed evidence was treated as acceptance.
+
+Exact candidate `1dc274a5b3990536e0c38aa9998733676d5cc2d3` passed full CI/build
+`34179627726`; companion account-deletion `34179627723`, staff-bootstrap
+`34179627749` and paid-repair `34179627806` also passed. The authenticated browser
+and production release gates remain open. No canonical scan finding was closed.

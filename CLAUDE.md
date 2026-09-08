@@ -56,6 +56,15 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 ### Security posture
 
+- Label-cost reversal requests use the same `labelClawbackProvider.ts` boundary
+  in the purchase route, retry worker and ambiguous-label operator. Never change
+  metadata or mint a new key to evade Stripe idempotency conflicts. Automatic
+  replay requires an immutable purchase clock inside the 23-hour window; unknown
+  or late attempts retain manual reconciliation. Do not infer exact label identity
+  from historical Order/amount metadata. A failed local success acknowledgement
+  must not be written as provider failure. The isolated clock draft and pending
+  release proofs are recorded in `docs/order-label-clawback-replay-correction.md`.
+
 - Terminal Stripe seller-account closure uses the account-specific throwing
   `expireCheckoutSessionsForClosedAccount` adapter, not the best-effort
   vacation/listing sweeps. Both Checkout families write `sellerStripeAccountId`

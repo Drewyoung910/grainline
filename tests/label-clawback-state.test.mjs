@@ -113,7 +113,7 @@ describe("label clawback reconciliation state", () => {
       "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
     );
 
-    assert.match(retry, /claimLabelClawbackBatch\(take\)/);
+    assert.match(retry, /claimLabelClawbackBatch\(1\)/);
     assert.match(authority, /"labelClawbackRetryCount" = target_order\."labelClawbackRetryCount" \+ 1/);
     assert.match(authority, /FOR UPDATE OF source_order SKIP LOCKED/);
   });
@@ -124,8 +124,10 @@ describe("label clawback reconciliation state", () => {
       "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
     );
 
-    assert.match(route, /idempotencyKey: labelClawbackIdempotencyKey/);
-    assert.match(route, /finalizeLabelClawback\(\{[\s\S]*outcome: "SUCCESS"/);
+    assert.match(route, /settleLabelClawback\(/);
+    const boundary = source("src/lib/labelClawbackProvider.ts");
+    assert.match(boundary, /idempotencyKey: request\.idempotencyKey/);
+    assert.match(boundary, /finalize\(\{ \.\.\.identity, outcome: "SUCCESS"/);
     assert.match(authority, /"labelClawbackReversalId" = p_reversal_id/);
     assert.match(authority, /"labelClaimStatus" = 'FINALIZED'/);
     assert.match(authority, /'outcome', 'conflict', 'reason', 'stale_claim'/);

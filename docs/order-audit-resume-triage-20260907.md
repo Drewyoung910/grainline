@@ -80,3 +80,10 @@ The next isolated application candidate enforces session-bound PIN verification
 on all fourteen sensitive staff pages; see
 [its reproduction, implementation and verification record](admin-page-pin-boundary-fix.md).
 This is not a deployed fix or closure of the other financial/security findings.
+
+The staff candidate subsequently passed full CI `34179627726` at
+`1dc274a5b3990536e0c38aa9998733676d5cc2d3`, plus all three companion proofs.
+The next FIN-01/JOB-01 implementation and its remaining provider/release gates are
+recorded in [label-cost reversal replay](order-label-clawback-replay-correction.md).
+It retains manual reconciliation outside the proven idempotency window; historical
+Order/amount metadata cannot safely identify a replacement label's reversal.

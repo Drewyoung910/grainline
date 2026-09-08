@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { buildOrderLabelClawbackClock, orderLabelClawbackClockDefinition } from "../scripts/build-order-label-clawback-clock.mjs";
 import {
   buildOrderLabelOutcomeCorrection,
   orderLabelOutcomeDefinitions,
@@ -196,6 +197,59 @@ describe(`Order label fixed authority in PostgreSQL (${corrected ? "corrected dr
       (SELECT jsonb_agg(a ORDER BY id) FROM public."SystemAuditLog" a) AS audits,
       (SELECT jsonb_agg(n ORDER BY id) FROM public."Notification" n) AS notifications`)).rows;
   }
+
+  it("adds only an immutable zone-explicit replay clock and preserves claim fencing", async () => {
+    const database = await createDatabase();
+    const draft = readFileSync("docs/rls-drafts/order-label-clawback-clock.sql", "utf8");
+    assert.equal(draft.trimEnd(), buildOrderLabelClawbackClock().trimEnd());
+    const { before, after, tag } = orderLabelClawbackClockDefinition();
+    assert.equal(after.split(tag)[1], before.split(tag)[1].replace(
+      "    'attemptCount', updated.\"labelClawbackRetryCount\"",
+      "    'attemptCount', updated.\"labelClawbackRetryCount\",\n    'labelPurchasedAt', updated.\"labelPurchasedAt\" AT TIME ZONE 'UTC'"));
+    const catalog = () => database.query(`SELECT prosrc, proacl, proowner, proconfig FROM pg_proc
+      WHERE oid = 'public.grainline_order_label_clawback_claim_batch(integer)'::regprocedure`);
+    try {
+      const claim = await prepareClaim(database);
+      await recordOutcome(database, claim, "SUCCESS");
+      const previous = await catalog();
+      await database.exec("BEGIN");
+      await database.exec(draft.replace(/^BEGIN;$/m, "").replace(/^COMMIT;$/m, ""));
+      const current = await catalog();
+      assert.deepEqual({ ...current.rows[0], prosrc: null }, { ...previous.rows[0], prosrc: null });
+      for (const zone of ["America/Los_Angeles", "Asia/Tokyo"]) {
+        await database.exec(`SET TIME ZONE '${zone}';
+          UPDATE public."Order" SET "labelPurchasedAt" = '2026-09-07T11:00:00'::timestamp,
+            "labelClawbackStatus" = 'RETRY_PENDING',
+            "labelClawbackNextAttemptAt" = (clock_timestamp() AT TIME ZONE 'UTC') - interval '1 minute'
+          WHERE id = 'order-1'`);
+        const rows = await asRuntime(database, `SELECT public.grainline_order_label_clawback_claim_batch(1) AS result`);
+        assert.equal(rows.rows[0].result.length, 1);
+        assert.equal(new Date(rows.rows[0].result[0].labelPurchasedAt).toISOString(), "2026-09-07T11:00:00.000Z");
+        const empty = await asRuntime(database, `SELECT public.grainline_order_label_clawback_claim_batch(1) AS result`);
+        assert.deepEqual(empty.rows[0].result, []);
+      }
+      await database.exec("ROLLBACK");
+      assert.deepEqual((await catalog()).rows, previous.rows);
+      await assert.rejects(asRuntime(database, `SELECT public.grainline_order_label_clawback_claim_batch(0)`), /limit is invalid/);
+      await database.exec(`GRANT EXECUTE ON FUNCTION public.grainline_order_label_clawback_claim_batch(integer) TO PUBLIC`);
+      await assert.rejects(database.exec(draft), /before authority drifted/);
+      await database.exec("ROLLBACK");
+    } finally { await database.close(); }
+  });
+
+  it("rejects changed predecessor bodies without replacing them", async () => {
+    const database = await createDatabase();
+    try {
+      const { before } = orderLabelClawbackClockDefinition();
+      await database.exec(before.replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION")
+        .replace("DECLARE", "-- unexpected source\nDECLARE"));
+      await assert.rejects(database.exec(buildOrderLabelClawbackClock()), /before authority drifted/);
+      await database.exec("ROLLBACK");
+      const unchanged = await database.query(`SELECT prosrc FROM pg_proc
+        WHERE oid = 'public.grainline_order_label_clawback_claim_batch(integer)'::regprocedure`);
+      assert.match(unchanged.rows[0].prosrc, /unexpected source/);
+    } finally { await database.close(); }
+  });
 
   it("reproduces historical NULL success fallthrough and clawback failure mutation", async () => {
     const database = await createDatabase({ corrected: false });

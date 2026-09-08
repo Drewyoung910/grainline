@@ -4,20 +4,7 @@ import {
   claimLabelClawbackBatch,
   finalizeLabelClawback,
 } from "@/lib/orderLabelAuthority";
-import {
-  labelClawbackErrorMessage,
-  labelClawbackIdempotencyKey,
-} from "@/lib/labelClawbackState";
-
-type StripeTransferReversalClient = {
-  transfers: {
-    createReversal: (
-      transferId: string,
-      params: { amount: number; metadata: Record<string, string> },
-      options: { idempotencyKey: string },
-    ) => Promise<{ id?: string | null }>;
-  };
-};
+import { settleLabelClawback, type LabelClawbackStripeClient } from "@/lib/labelClawbackProvider";
 
 /**
  * Claims retry work through the fixed SKIP LOCKED operation and finalizes only
@@ -26,14 +13,17 @@ type StripeTransferReversalClient = {
  */
 export async function processLabelClawbackRetryBatch(opts: {
   take?: number;
-  stripeClient?: StripeTransferReversalClient;
+  stripeClient?: LabelClawbackStripeClient;
+  now?: () => number;
 } = {}) {
   const take = Math.max(1, Math.min(opts.take ?? 10, 50));
+  if (!Number.isSafeInteger(take)) throw new TypeError("Label clawback batch limit is invalid");
   const stripeClient = opts.stripeClient ?? defaultStripe;
-  const claims = await claimLabelClawbackBatch(take);
+  const now = opts.now ?? Date.now;
+  const deadline = now() + 45_000;
   const result = {
     ok: true,
-    scanned: claims.length,
+    scanned: 0,
     attempted: 0,
     reversed: 0,
     failed: 0,
@@ -41,50 +31,27 @@ export async function processLabelClawbackRetryBatch(opts: {
     skipped: 0,
   };
 
-  for (const claim of claims) {
+  // Claim near execution. Do not strand ten rows behind one slow provider call.
+  // Reserve 10s for a bounded POST and local acknowledgement.
+  while (result.scanned < take && now() + 10_000 <= deadline) {
+    const [claim] = await claimLabelClawbackBatch(1);
+    if (!claim) break;
+    result.scanned += 1;
     result.attempted += 1;
-    try {
-      const reversal = await stripeClient.transfers.createReversal(
-        claim.stripeTransferId,
-        {
-          amount: claim.amountCents,
-          metadata: { orderId: claim.orderId, reason: "label_cost_deduction_retry" },
-        },
-        {
-          idempotencyKey: labelClawbackIdempotencyKey({
-            orderId: claim.orderId,
-            shippoTransactionId: claim.transactionId,
-            shippoRateObjectId: claim.rateObjectId,
-            amountCents: claim.amountCents,
-          }),
-        },
-      );
-      const finalized = await finalizeLabelClawback({
-        orderId: claim.orderId,
-        claimId: claim.claimId,
-        claimGeneration: claim.claimGeneration,
-        clawbackGeneration: claim.clawbackGeneration,
-        outcome: "SUCCESS",
-        reversalId: reversal.id ?? null,
-      });
+    const { finalized, providerFailed, providerError } = await settleLabelClawback(
+      claim, stripeClient, finalizeLabelClawback, { now, deadline },
+    );
+    if (!providerFailed) {
       if (finalized.outcome === "finalized") result.reversed += 1;
       else result.skipped += 1;
-    } catch (error) {
-      const finalized = await finalizeLabelClawback({
-        orderId: claim.orderId,
-        claimId: claim.claimId,
-        claimGeneration: claim.claimGeneration,
-        clawbackGeneration: claim.clawbackGeneration,
-        outcome: "FAILED",
-        errorSummary: labelClawbackErrorMessage(error),
-      });
+    } else {
       if (finalized.outcome === "recorded_failure") {
         result.failed += 1;
         if (finalized.clawbackStatus === "MANUAL_REVIEW") result.manualReview += 1;
       } else {
         result.skipped += 1;
       }
-      Sentry.captureException(error, {
+      Sentry.captureException(providerError, {
         tags: { source: "label_cost_clawback_retry" },
         extra: {
           orderId: claim.orderId,

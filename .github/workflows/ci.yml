@@ -1467,6 +1467,10 @@ jobs:
         run: node scripts/order-input-correction-runtime-postgres-proof.mjs
         env:
           ORDER_INPUT_CORRECTION_RUNTIME_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove label clawback clock without retaining catalog changes
+        run: node scripts/order-label-clawback-clock-postgres-proof.mjs
+        env:
+          ORDER_LABEL_CLAWBACK_CLOCK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test

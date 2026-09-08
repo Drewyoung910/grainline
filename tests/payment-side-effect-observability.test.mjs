@@ -840,7 +840,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(route, /Shippo label purchase failed: \$\{msgs/);
     assert.doesNotMatch(route, /labelUrl:\s*recorded|order:\s*updated|prisma\.order/);
     assert.match(route, /sellerLabelDownload/);
-    assert.match(labelClawback, /claimLabelClawbackBatch\(take\)/);
+    assert.match(labelClawback, /claimLabelClawbackBatch\(1\)/);
     assert.match(labelClawback, /finalizeLabelClawback/);
   });
 
