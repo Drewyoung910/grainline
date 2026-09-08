@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import pg from "pg";
 import { proofServerHostAccepted } from "./disposable-postgres-proof-host.mjs";
 import {
@@ -73,7 +74,10 @@ export function assertOnlyInputBodiesChanged(before, after, definitions) {
     assert.equal(matches[0].prosrc, original.split(tag)[1], `${name} predecessor drifted`);
     matches[0].prosrc = corrected.split(tag)[1];
   }
-  assert.deepEqual(after, expected, "draft changed more than the exact reviewed function bodies");
+  // Keep complete strict equality, but do not format/retain a full-schema diff
+  // when rejecting drift. Intentional negative proofs can otherwise spend
+  // seconds and large transient allocations constructing assertion diagnostics.
+  assert.ok(isDeepStrictEqual(after, expected), "draft changed more than the exact reviewed function bodies");
 }
 
 export async function proveInputDraftTransaction(client, bundle = inputDraftBundle(), onPhase = () => {}) {

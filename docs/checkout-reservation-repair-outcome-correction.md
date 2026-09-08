@@ -2,8 +2,9 @@
 
 Status, 2026-09-08: reproduced in disposable PostgreSQL and corrected in a
 tested SQL draft. The full-schema/runtime-login proof is now implemented in
-ordinary CI; native proof passed twice at `a07dafbd`, but full CI was cancelled
-during Tests on both attempts and is not accepted. No migration is staged,
+ordinary CI; native proof passed at `a07dafbd` and `82852815`, but full CI was
+cancelled during Tests and is not accepted. Bounded catalog diagnostics are now
+under final verification. No migration is staged,
 no production workflow is wired, and production acceptance remains outstanding.
 
 ## Confirmed boundary
@@ -161,6 +162,37 @@ contract is tested in `test-runner-resource-boundary.test.mjs`. This intentional
 trades file-level parallelism for bounded fixture memory, not production
 throughput or weaker acceptance thresholds. Require full local and exact-head
 CI, audit and build acceptance before closing this verification checkpoint.
+
+The one-worker follow-up `8285281542abddf736d3a8054e2e0b6160394e75` passed
+13 focused checks, lint and the complete local suite (4,446 passes, 13 skips,
+zero failures, 457.115 seconds). CI `34196397168` still cancelled during Tests:
+job `101964972994` now reported the offline repair test exited with `SIGKILL`
+after 38.764 seconds, followed by the generic cancellation annotation. Capacity
+telemetry showed 4 available CPUs, 15,989 MiB total memory and one test-file
+worker. Native proof, TypeScript and lint passed; audit/build did not run.
+Serialization did not resolve this failure. SIGKILL is established; the sender
+and any kernel/cgroup out-of-memory event are not established.
+
+The unchanged offline test also passed under UTC/CI environment flags. A
+read-only local profiler then isolated a reproducible harness cost: the six
+intentional catalog-drift assertions spent 27.404 seconds of a 31.510-second
+run formatting full-schema assertion diffs. Successful catalog comparisons
+took 5–11 milliseconds. The shared CI-only comparator now uses
+`isDeepStrictEqual` over the complete unchanged catalog and asserts its boolean
+result, retaining the exact rejection message without retaining/rendering the
+catalog in the exception. It does not ignore, normalize, hash away or omit any
+field, change the expected function-body delta, or modify historical verifiers.
+
+Both small metadata/ACL/overload/source controls and the complete-schema six-
+field drift matrix require bounded boolean assertion metadata. The small
+regression failed on the original comparator (`actual` was an object) and
+passed after correction. The identical seven-test engine proof then passed in
+4.14 seconds with maximum RSS 1,183,252,480 bytes (about 1.10 GiB), versus
+34.07 seconds / 1,632,518,144 bytes before. This proves removal of the expensive
+diagnostic path, not the cause of the earlier external SIGKILL. All direct
+comparator callers are disposable input/runtime, Case and reservation proofs;
+their full catalog checks and database behavior remain unchanged. Preserve the
+worker bound and require new complete local/exact-head CI acceptance.
 
 ### Production boundary
 

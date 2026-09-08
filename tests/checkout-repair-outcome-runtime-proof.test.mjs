@@ -158,7 +158,14 @@ test("real repair functions reproduce NULL restoration then preserve all legitim
     assertOnlyInputBodiesChanged(before, after, [repairOutcomeDefinition()]);
     for (const key of ["constraints", "triggers", "indexes", "memberships", "namespaces", "migrations"]) {
       const drifted = structuredClone(after); drifted[key] = [{ unexpected: true }];
-      assert.throws(() => assertOnlyInputBodiesChanged(before, drifted, [repairOutcomeDefinition()]));
+      assert.throws(() => assertOnlyInputBodiesChanged(before, drifted, [repairOutcomeDefinition()]), (error) => {
+        assert.equal(error.code, "ERR_ASSERTION");
+        assert.equal(typeof error.actual, "boolean", "full-schema drift diagnostics must remain bounded");
+        assert.equal(error.actual, false);
+        assert.equal(error.expected, true);
+        assert.equal(error.message, "draft changed more than the exact reviewed function bodies");
+        return true;
+      });
     }
     // A second application or a failed attestation must not silently accept a
     // different catalog. Roll back the aborted transaction and retain the fix.

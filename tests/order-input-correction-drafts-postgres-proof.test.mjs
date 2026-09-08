@@ -66,7 +66,14 @@ test("catalog comparator rejects metadata, grant, overload and unrelated source 
     (s) => { s.functions.push({ proname: "target", prosrc: "new" }); },
   ]) {
     const drifted = structuredClone(after); mutate(drifted);
-    assert.throws(() => assertOnlyInputBodiesChanged(before, drifted, definitions));
+    assert.throws(() => assertOnlyInputBodiesChanged(before, drifted, definitions), (error) => {
+      assert.equal(error.code, "ERR_ASSERTION");
+      assert.equal(typeof error.actual, "boolean", "catalog rejection must not retain or format the complete catalog");
+      assert.equal(error.actual, false);
+      assert.equal(error.expected, true);
+      assert.equal(error.message, "draft changed more than the exact reviewed function bodies");
+      return true;
+    });
   }
 });
 

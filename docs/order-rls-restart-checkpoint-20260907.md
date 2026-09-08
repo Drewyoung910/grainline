@@ -35,12 +35,22 @@ Tests with no reported failed assertion or established runner/OOM cause.
 Account-deletion `34193291564`, staff bootstrap `34193291532`, and paid-repair
 lock `34193291519` passed. Full CI remains unaccepted; do not blindly rerun.
 
-Active mitigation: serialize full-suite test files, retain every assertion and
-log nonsecret CI CPU/memory capacity. The offline proof independently passed
-seven tests in 34.07 seconds and peaked at about 1.52 GiB locally. This motivates
-limiting overlapping fixture memory; it does not prove the cancellation cause.
-Revalidate the final scheduling change locally and in exact-head CI. Preserve
-the separate production release boundary even after disposable proof acceptance.
+Scheduling checkpoint `8285281542abddf736d3a8054e2e0b6160394e75` is pushed,
+with one test-file worker and nonsecret CI capacity telemetry. Local full suite
+passed 4,446 tests with 13 skips, zero failures. Its native and three companion
+proofs passed, but CI `34196397168` still cancelled during Tests, now reporting
+the offline repair test received SIGKILL. The sender/OOM cause is unproven.
+
+Current narrow correction: preserve exact full-catalog strict equality while
+returning bounded boolean assertion diagnostics instead of formatting giant
+diffs for intentional drift tests. Profiling reproduced 27.404 seconds spent
+in those negative assertions. The unchanged seven-test engine proof improved
+from 34.07 to 4.14 seconds and peak RSS from 1.52 to 1.10 GiB. The new bounded-
+diagnostic regression failed before and passed after; all rejection fields,
+legitimate outcomes, SQL, app and historical production checks stay unchanged.
+Finish final focused/full local and new exact-head CI before proceeding; no
+blind rerun or production action. Detailed failed evidence and measurements
+are in `checkout-reservation-repair-outcome-correction.md` and draft PR #432.
 
 `order-release-readiness-20260908.md` consolidates the remaining release order
 and evidence boundaries. Continue that bounded plan, not a new domain or broad
