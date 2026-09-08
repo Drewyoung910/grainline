@@ -30,7 +30,9 @@ corrected source hashes and runs:
 - malformed NULL/empty/unknown/whitespace input rejection for label outcomes,
   ambiguous refund reason, reconciliation action and provider disposition;
 - NULL notification type rejection through the real commerce wrapper;
-- denial of direct private Notification-core execution and Notification reads;
+- denial of direct private Notification-core execution and non-read-column
+  updates, plus the unchanged SELECT/UPDATE(read) privilege and FORCE-RLS
+  posture and zero visible rows without recipient context;
 - five valid-domain absence controls: missing seller/claim/receipt source and
   retained ADMIN-only reconciliation behavior.
 
@@ -85,3 +87,37 @@ first resumed full suite passed 4,368 tests with 13 skips and no failures.
 The final expanded candidate repeated that result (4,381 total, 4,368 passing,
 13 skipped, zero failed); lint, TypeScript and whitespace checks also passed.
 Native CI acceptance still requires a new exact-head run.
+
+## Failed first native run and corrected read contract
+
+Run `34177187482` at `0e737b000bd0b0909bf88d16b3a5a0dd21ecaf02`
+passed actual runtime login/source checks, then failed at `runtime-input-boundaries`.
+The proof incorrectly expected a direct Notification SELECT to raise `42501`.
+Notification deliberately retains SELECT plus column-only UPDATE(read), with
+recipient filtering and FORCE RLS. Its original activation SQL, current grant
+provisioning and production postflight already agree on that contract. The local
+fixture had omitted those grants, so its passing result did not catch the mismatch.
+The coarse failure stage does not distinguish every call; exact corrected native
+acceptance is still required before saying all runtime controls passed.
+
+The correction changes no migration, policy, table/function grant or application
+behavior. It checks a genuine forbidden title update, attests unchanged read
+privileges and active FORCE RLS, and requires zero rows without recipient context.
+The local engine fixture now reuses the real migration's policy/grant section and
+contains a foreign recipient row. It reproduces the old incorrect expectation,
+passes the corrected boundary, and fails when a permissive policy exposes that
+row. Unit checks additionally reject every posture/context drift. The separate
+source-only/rollback proof remains unchanged. Sanitized per-call phase names make
+any subsequent failure attributable without logging database rows or secrets.
+
+The focused combined proof suite passed 12/12. The corrected full suite passed
+4,369 tests with 13 skips and zero failures (4,382 total); lint, TypeScript,
+syntax and whitespace checks passed. The preserved staff-page RED draft initially
+hit Next's lint rule for a local variable named `module`; it was renamed and lint
+rerun, without changing the reproduction or enabling any application fix.
+Native exact-head CI remains the acceptance gate.
+
+At the failed native checkpoint, companion account-deletion concurrency
+`34177187441`, paid-repair locking `34177187449` and staff-bootstrap
+`34177187464` all passed. They do not override the failed main CI or attest the
+later corrected input-proof revision.

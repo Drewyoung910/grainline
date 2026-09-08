@@ -5,6 +5,7 @@ import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import {
   parseInputRuntimeProofConfig, verifyInputRuntimeIdentity, cleanupInputRuntimeProof, proveInputRuntimeCalls,
+  proveInputNotificationReadBoundary,
 } from "../scripts/order-input-correction-runtime-postgres-proof.mjs";
 import { inputDraftBundle } from "../scripts/order-input-correction-drafts-postgres-proof.mjs";
 
@@ -98,6 +99,20 @@ test("teardown does not drop a preexisting child or reset an untouched password"
   assert.deepEqual(calls, ["verify", "end"]);
 });
 
+test("Notification read control fails closed on posture, context or visible-row drift", async () => {
+  const expected = { enabled: true, forced: true, active: true, can_select: true,
+    can_insert: false, can_delete: false, can_update_table: false, can_update_read: true,
+    can_update_title: false, recipient: "" };
+  const run = (row, visible = []) => proveInputNotificationReadBoundary({ query: async (sql) => ({
+    rows: sql.includes("pg_catalog.pg_class") ? [row] : visible,
+  }) });
+  await run(expected);
+  for (const key of Object.keys(expected)) {
+    await assert.rejects(run({ ...expected, [key]: key === "recipient" ? "unexpected-user" : !expected[key] }));
+  }
+  await assert.rejects(run(expected, [{ id: "unexpected-visible-row" }]));
+});
+
 test("runtime call matrix fails on historical guards and passes corrected engine functions", async () => {
   // Offline schema-to-SQL conversion only: never use --from-config-datasource
   // or a migration deploy. This fixture is not full migration/trigger proof.
@@ -111,6 +126,18 @@ test("runtime call matrix fails on historical guards and passes corrected engine
   try {
     await db.exec(schema);
     await db.exec("CREATE ROLE grainline_app_runtime LOGIN NOINHERIT NOBYPASSRLS");
+    // Reuse the real recipient policies/grants, not an artificial no-SELECT
+    // fixture. Reads are RLS-filtered; only non-read-column writes are denied.
+    const activation = readFileSync("prisma/migrations/20260722052000_enable_notification_rls/migration.sql", "utf8");
+    const policyStart = activation.indexOf('ALTER TABLE public."Notification" ENABLE ROW LEVEL SECURITY;');
+    const policyEnd = activation.indexOf("DO $grainline_notification_activation_postflight$", policyStart);
+    assert.ok(policyStart >= 0 && policyEnd > policyStart);
+    await db.exec(activation.slice(policyStart, policyEnd));
+    await db.exec('ALTER TABLE public."Notification" FORCE ROW LEVEL SECURITY;');
+    await db.exec(`INSERT INTO public."User" (id, "clerkId", email, "updatedAt")
+      VALUES ('notification-foreign-user', 'notification-foreign-clerk', 'foreign@example.invalid', now());
+      INSERT INTO public."Notification" (id, "userId", type, title, body)
+      VALUES ('notification-foreign-row', 'notification-foreign-user', 'ORDER_DELIVERED', 'Private', 'Private');`);
     const bundle = inputDraftBundle();
     for (const { name, args, before, runtimeExecute } of bundle.flatMap((d) => d.definitions)) {
       await db.exec(before);
@@ -126,10 +153,22 @@ test("runtime call matrix fails on historical guards and passes corrected engine
     await db.exec(`REVOKE ALL ON FUNCTION public.${wrapper}(text,text,public."NotificationType",text,text,text) FROM PUBLIC;
       GRANT EXECUTE ON FUNCTION public.${wrapper}(text,text,public."NotificationType",text,text,text) TO grainline_app_runtime;
       SET ROLE grainline_app_runtime`);
+    // Reproduce the failed CI assumption with real recipient policy/grants:
+    // SELECT is allowed but the foreign row is invisible, rather than 42501.
+    await assert.rejects(async () => {
+      await assert.rejects(db.query('SELECT * FROM public."Notification" LIMIT 1'), { code: "42501" });
+    }, /Missing expected rejection/u);
+    await proveInputNotificationReadBoundary(db);
     await assert.rejects(proveInputRuntimeCalls(db), /Missing expected rejection/);
     await db.exec("RESET ROLE");
     for (const { payload } of bundle) await db.exec(payload);
     await db.exec("SET ROLE grainline_app_runtime");
-    assert.deepEqual(await proveInputRuntimeCalls(db), { denials: 25, absenceControls: 5 });
+    assert.deepEqual(await proveInputRuntimeCalls(db), {
+      denials: 25, absenceControls: 5, notificationReadPostureChecked: true,
+    });
+    await db.exec(`RESET ROLE;
+      ALTER POLICY grainline_notification_recipient_select ON public."Notification" USING (true);
+      SET ROLE grainline_app_runtime;`);
+    await assert.rejects(proveInputNotificationReadBoundary(db), /observed Notification rows/u);
   } finally { await db.close(); }
 });

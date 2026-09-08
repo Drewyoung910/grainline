@@ -6,6 +6,17 @@ Leave the old, dirty `/Users/drewyoung/grainline` worktree untouched.
 
 ## Current checkpoint — read this first
 
+Runtime-proof checkpoint `0e737b000bd0b0909bf88d16b3a5a0dd21ecaf02` is pushed
+to draft PR #432. Native CI `34177187482` failed after actual runtime login at
+the input-boundary matrix; the old proof mistook Notification's RLS-filtered
+SELECT for a table-privilege denial. The local correction and real-policy fixture
+are recorded in `order-input-correction-runtime-proof.md`. Its corrected local
+suite passed 4,369 tests with 13 skips; focused tests, lint and TypeScript passed.
+Finish exact-head native CI before broadening implementation. No production change occurred.
+The staff PIN reproduction is preserved separately in
+`docs/security-drafts/admin-page-pin-boundary.test.mjs`; it is intentionally RED,
+not part of the passing test suite or a claim that the security issue is fixed.
+
 Solo implementation resumed after the bounded audit. Preserve its findings via
 `order-audit-resume-triage-20260907.md`, linked from the completion plan, strategy
 and deferred backlog. The pending input runtime proof is the current cohesive

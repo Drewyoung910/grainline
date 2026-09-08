@@ -68,12 +68,32 @@ async function correctedSources(client, definitions) {
   }
 }
 
-export async function proveInputRuntimeCalls(runtime) {
+export async function proveInputNotificationReadBoundary(runtime) {
+  const { rows } = await runtime.query(`SELECT
+    c.relrowsecurity AS enabled, c.relforcerowsecurity AS forced,
+    pg_catalog.row_security_active(c.oid) AS active,
+    pg_catalog.has_table_privilege(CURRENT_USER, c.oid, 'SELECT') AS can_select,
+    pg_catalog.has_table_privilege(CURRENT_USER, c.oid, 'INSERT') AS can_insert,
+    pg_catalog.has_table_privilege(CURRENT_USER, c.oid, 'DELETE') AS can_delete,
+    pg_catalog.has_table_privilege(CURRENT_USER, c.oid, 'UPDATE') AS can_update_table,
+    pg_catalog.has_column_privilege(CURRENT_USER, c.oid, 'read', 'UPDATE') AS can_update_read,
+    pg_catalog.has_column_privilege(CURRENT_USER, c.oid, 'title', 'UPDATE') AS can_update_title,
+    COALESCE(pg_catalog.current_setting('app.user_id', true), '') AS recipient
+    FROM pg_catalog.pg_class c WHERE c.oid = 'public."Notification"'::regclass`);
+  assert.deepEqual(rows, [{ enabled: true, forced: true, active: true, can_select: true,
+    can_insert: false, can_delete: false, can_update_table: false, can_update_read: true,
+    can_update_title: false, recipient: "" }], "Notification read posture or recipient context drifted");
+  assert.deepEqual((await runtime.query('SELECT * FROM public."Notification" LIMIT 1')).rows, [],
+    "runtime without recipient context observed Notification rows");
+}
+
+export async function proveInputRuntimeCalls(runtime, onCase = () => {}) {
   let denials = 0;
   let controls = 0;
   let sequence = 0;
   const denied = async (sql, values, code, message) => {
     const point = `input_denial_${++sequence}`;
+    onCase(point);
     await runtime.query(`SAVEPOINT ${point}`);
     try {
       await assert.rejects(runtime.query(sql, values), (error) => {
@@ -112,18 +132,23 @@ export async function proveInputRuntimeCalls(runtime) {
     await denied(`SELECT public.grainline_notification_create_core(
       '11111111-1111-4111-8111-111111111111',$1,'ORDER_DELIVERED','order_fulfillment',$1,NULL)`,
     [MISSING], "42501", "permission denied for function");
-    await denied('SELECT * FROM public."Notification" LIMIT 1', [], "42501", "permission denied");
+    await denied('UPDATE public."Notification" SET title = title WHERE false', [], "42501", "permission denied");
+    onCase("notification-no-context-read");
+    await proveInputNotificationReadBoundary(runtime);
 
     // Valid domains still reach the historical missing-source/stale-claim
     // behavior. These are absence controls, not successful provider effects.
+    onCase("valid-label-absence");
     assert.deepEqual((await runtime.query(label, [MISSING, MISSING, LABEL_CLAIM, "REJECTED"])).rows, [{ result: null }]); controls++;
+    onCase("valid-clawback-absence");
     assert.deepEqual((await runtime.query(clawback, [MISSING, LABEL_CLAIM, "FAILED"])).rows,
       [{ result: { outcome: "conflict", reason: "stale_claim" } }]); controls++;
     await denied(ambiguous, [REFUND_CLAIM, "SELLER_PROVIDER_AMBIGUOUS"], "40001", "not active for ambiguous transition"); controls++;
     await denied(reconcile, [MISSING, REFUND_CLAIM, "RETRY_EXISTING_SCOPE", "ABSENT", "a".repeat(64)], "42501", "requires a current ADMIN"); controls++;
+    onCase("valid-notification-absence");
     assert.deepEqual((await runtime.query(notification, [MISSING, "ORDER_DELIVERED", RELATED])).rows, [{ result: null }]); controls++;
   } finally { await runtime.query("ROLLBACK"); }
-  return { denials, absenceControls: controls };
+  return { denials, absenceControls: controls, notificationReadPostureChecked: true };
 }
 
 export async function cleanupInputRuntimeProof({ controller, runtime, owner, childCreated, passwordTouched, verifyPrefix }) {
@@ -190,7 +215,7 @@ export async function runInputRuntimeProof(env = process.env, phase = () => {}) 
     await runtimeRole(runtime, false);
     await correctedSources(runtime, bundle.flatMap((d) => d.definitions));
     phase("runtime-input-boundaries");
-    const result = await proveInputRuntimeCalls(runtime);
+    const result = await proveInputRuntimeCalls(runtime, (name) => phase(`runtime-input-${name}`));
     assertOnlyInputBodiesChanged(before, await inputDraftCatalog(owner), bundle.flatMap((d) => d.definitions));
     return { status: "passed", actualRuntimeLogin: true, correctedFunctionCount: 5, ...result,
       providerEffectsProved: false, productionChanged: false };
