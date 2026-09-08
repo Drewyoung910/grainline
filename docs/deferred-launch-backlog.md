@@ -19,6 +19,13 @@ leaving it in this file.
 
 ## Working Rules
 
+September 7 broad-review additions and the resumed Order sequence are indexed in
+[Order audit resume triage](order-audit-resume-triage-20260907.md). The older
+per-finding totals above do not include these new packets. Their findings remain
+open unless individually verified and closed; financial/security release blockers
+must not be silently treated as post-launch deferrals. Full evidence is preserved
+outside the temporary candidate at the explicit paths in that record.
+
 - Finish one cohesive section before opening a broad new security/audit slice,
   unless CI is red, Drew redirects the work, or a blocker in that section needs
   external evidence.

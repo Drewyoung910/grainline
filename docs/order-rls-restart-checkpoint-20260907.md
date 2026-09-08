@@ -6,7 +6,14 @@ Leave the old, dirty `/Users/drewyoung/grainline` worktree untouched.
 
 ## Current checkpoint — read this first
 
-Latest pushed code: `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6`.
+Solo implementation resumed after the bounded audit. Preserve its findings via
+`order-audit-resume-triage-20260907.md`, linked from the completion plan, strategy
+and deferred backlog. The pending input runtime proof is the current cohesive
+work package; no new domain, agent work or production action is authorized by
+the resumption. Expanded teardown/target tests pass locally. A new exact-head
+native CI result is still required before recording runtime proof acceptance.
+
+Accepted pre-audit code checkpoint: `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6`.
 Main CI `34166065857` has passed its historical runtime-login proof, complete
 Order successor-prefix proof and the new five-function draft-composition/
 rollback proof in PostgreSQL 16. The full CI workflow completed successfully,
@@ -25,6 +32,13 @@ repair draft still needs its own full-schema/release gate. Do not begin a new
 RLS domain or reinterpret owner-transaction composition as real-runtime proof.
 Continue through `order-rls-completion-plan-20260907.md`; credential-recovery
 acceptance and existing exact production boundaries remain mandatory.
+
+Current isolated follow-up: `order-input-correction-runtime-proof.md` records
+the new native-login proof. It clones only the disposable CI database, commits
+drafts only in that copy, checks the actual runtime login/input boundaries,
+then removes its copy and restores the CI role password to NULL. Local tests
+pass; exact-head native CI acceptance is still pending. No production release
+packaging or migration dispatch has happened during this proof preparation.
 
 ## Earlier checkpoints and preserved failed evidence
 

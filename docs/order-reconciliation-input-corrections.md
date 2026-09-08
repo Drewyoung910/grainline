@@ -100,3 +100,9 @@ proof above. Exact database/role/ledger release binding, final-candidate
 runtime-login proof, and production acceptance remain open. Do not relax a historical function hash to accept
 these successors. Preserve the distinct reservation-repair and label-outcome
 release gates in their linked runbooks and the ordered completion plan.
+
+The next isolated login proof is now implemented in
+`order-input-correction-runtime-proof.md`. It uses a committed disposable clone
+and a separate restricted-runtime connection, with bounded input/absence
+controls and verified teardown. Native CI acceptance is pending; neither its
+local fixture tests nor its source existence close the login gate.

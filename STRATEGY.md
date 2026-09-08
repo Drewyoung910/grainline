@@ -6,6 +6,12 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ### Finish the bounded Order release (2026-09-07)
 
+After the bounded broad audit, Drew resumed solo implementation (no agents).
+Follow `docs/order-audit-resume-triage-20260907.md` for the newly recorded stock,
+label retry, staff step-up, Case and scale obligations. Finish the paused runtime
+proof first and keep unrelated product fixes in cohesive packages; audit findings
+are not fixed merely because they were documented.
+
 The active non-production work is the Order candidate, not another RLS domain
 or a general refactor. Follow `docs/order-rls-completion-plan-20260907.md` for
 ordered exit gates: reliable historical/candidate CI, closure of verified

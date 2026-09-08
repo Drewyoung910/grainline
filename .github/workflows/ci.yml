@@ -1463,6 +1463,10 @@ jobs:
         run: node scripts/order-input-correction-drafts-postgres-proof.mjs
         env:
           ORDER_INPUT_CORRECTION_DRAFTS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove corrected input boundaries through an actual runtime login
+        run: node scripts/order-input-correction-runtime-postgres-proof.mjs
+        env:
+          ORDER_INPUT_CORRECTION_RUNTIME_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test

@@ -7,6 +7,12 @@ candidate has a zero-direct-access inventory, but Order production ENABLE and
 FORCE acceptance remain outstanding. A saved checkpoint is not release proof.
 The current decision is **no-go for activation** until the gates below pass.
 
+The broad audit is finished as a bounded review and Drew has resumed solo
+implementation. Its financial/security blockers, product decisions and evidence
+locations are linked in `order-audit-resume-triage-20260907.md`. Complete the
+pending input runtime proof first, then close affected-domain blockers; do not
+equate resuming work with accepting the audit or authorizing production changes.
+
 ## Ordered exit gates
 
 1. **Restore reliable CI.** Prove the historical 18-migration Order catalog
@@ -99,3 +105,8 @@ passed, as did account-deletion concurrency `34166065873`, paid-repair locking
 input-correction runbook. Gate 2 still needs release packaging/actual-runtime
 evidence and the independently released reservation-repair correction;
 code-CI acceptance is not production activation.
+
+The distinct disposable actual-runtime input proof is implemented and tracked
+in `order-input-correction-runtime-proof.md`; native CI acceptance is pending.
+Its missing-source controls are intentionally narrower than the fresh
+authenticated route/provider smoke required by gate 4.
