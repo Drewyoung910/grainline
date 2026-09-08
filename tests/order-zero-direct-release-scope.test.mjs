@@ -6,6 +6,9 @@ import { createOrderZeroDirectReleaseScope } from "../scripts/order-zero-direct-
 import { createCorrectionReleasePackage, CORRECTION_RELEASE_LEDGER_QUERY } from "../scripts/order-correction-release-package.mjs";
 import { correctionProofAppliedRow, correctionProofHistoricalLedger } from "../scripts/order-correction-release-package-postgres-proof.mjs";
 import { parseZeroDirectScopeProofConfig } from "../scripts/order-zero-direct-release-scope-postgres-proof.mjs";
+import { expectedZeroDirectSchema } from "../scripts/order-zero-direct-release-schema.mjs";
+import { createZeroDirectSchemaBase, applyZeroDirectSchemaMember } from "./helpers/order-zero-direct-schema-fixture.mjs";
+import { zeroDirectRoleFixture } from "./helpers/order-zero-direct-role-fixture.mjs";
 
 const scope = createOrderZeroDirectReleaseScope();
 const correction = createCorrectionReleasePackage();
@@ -19,13 +22,18 @@ function snapshot(n = 17) {
   return {
     identity: { database: "neondb", actor: "neondb_owner", login: "neondb_owner", read_only: "on", isolation: "repeatable read" },
     ledgerRows: ledger(n),
+    schema: expectedZeroDirectSchema(n),
+    roles: zeroDirectRoleFixture(),
     functions: scope.manifest.states[n].map(d => ({ name: d.name, identity_matches: true, owner: "neondb_owner",
       body: d.definition.split(/\nAS \$[A-Za-z0-9_]*\$/u)[1].replace(/\$[A-Za-z0-9_]*\$;$/u, ""),
       language: d.language, security_definer: d.securityDefiner, configuration: d.configuration,
       kind: "f", leakproof: false, strict: false, volatility: d.volatility, parallel_safety: d.parallelSafety,
       return_type: d.returnType, returns_set: d.returnsSet, arg_names: d.argNames, arg_modes: d.argModes,
       argument_defaults: 0, variadic: false, runtime_execute: d.runtimeExecute, staff_execute: false, invalid_acl_count: 0 })),
-    tables: [ { name: "Order", kind: "r", owner: "neondb_owner", rls: false, force: false, policies: 0,
+    tables: [ { name: "CheckoutStockReservation", kind: "r", owner: "neondb_owner", rls: true, force: true, policies: 0,
+      runtime_privileges: [], invalid_acl_count: 0,
+      invalid_column_acl_count: 0, runtime_column_extras: 0, staff_access: false },
+    { name: "Order", kind: "r", owner: "neondb_owner", rls: false, force: false, policies: 0,
       runtime_privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"], invalid_acl_count: 0,
       invalid_column_acl_count: 0, runtime_column_extras: 0, staff_access: false },
     ...[["OrderStaffCapability", 10], ["SellerDeauthorizationApplication", 12]].filter(([, i]) => n >= i).map(([name]) => ({
@@ -113,9 +121,9 @@ test("Order retains exact CRUD and private relations cannot appear early or acqu
     for (const patch of [{ kind: "p" }, { rls: true }, { force: true }, { policies: 1 }, { staff_access: true },
       { runtime_column_extras: 1 }, { invalid_acl_count: 1 }, { invalid_column_acl_count: 1 }, { runtime_privileges: ["SELECT"] },
       { runtime_privileges: ["DELETE", "INSERT", "SELECT", "TRUNCATE", "UPDATE"] }]) {
-      const drift = structuredClone(s); Object.assign(drift.tables[0], patch); assert.throws(() => scope.assertSnapshot(drift, "restart"));
+      const drift = structuredClone(s); Object.assign(drift.tables[1], patch); assert.throws(() => scope.assertSnapshot(drift, "restart"));
     }
-    for (let i = 1; i < s.tables.length; i += 1) for (const patch of [{ rls: false }, { force: false },
+    for (const i of [0, ...s.tables.map((_, i) => i).filter(i => i >= 2)]) for (const patch of [{ rls: false }, { force: false },
       { policies: 1 }, { runtime_privileges: ["SELECT"] }, { staff_access: true }]) {
       const drift = structuredClone(s); Object.assign(drift.tables[i], patch); assert.throws(() => scope.assertSnapshot(drift, "restart"));
     }
@@ -152,26 +160,25 @@ test("native proof accepts only the disposable loopback owner and does not wire 
 test("real offline catalog decoding covers every state; schemas and identity are explicitly modeled", async () => {
   const db = new PGlite();
   try {
-    await db.exec(`CREATE ROLE ci SUPERUSER; CREATE ROLE grainline_app_runtime LOGIN NOINHERIT NOBYPASSRLS;
+    await db.exec(`CREATE ROLE ci SUPERUSER LOGIN CREATEDB CREATEROLE REPLICATION BYPASSRLS;
+      CREATE ROLE grainline_app_runtime LOGIN NOINHERIT NOBYPASSRLS;
+      CREATE ROLE grainline_direct_upload_cleanup_v2 LOGIN NOINHERIT NOBYPASSRLS;
       CREATE ROLE grainline_staff_read_runtime LOGIN NOINHERIT NOBYPASSRLS;
-      SET SESSION AUTHORIZATION ci; SET check_function_bodies=off;
-      CREATE TABLE public."Order"(id text); GRANT SELECT,INSERT,UPDATE,DELETE ON public."Order" TO grainline_app_runtime;`);
+      SET SESSION AUTHORIZATION ci; SET check_function_bodies=off;`);
+    await createZeroDirectSchemaBase(db);
     let previous = [];
     for (let n = 0; n <= 17; n += 1) {
-      for (const d of previous) await db.exec(`DROP FUNCTION ${d.identity}`);
+      await applyZeroDirectSchemaMember(db, n);
+      for (const d of previous) if (d.name !== "grainline_seller_deauthorization_application_immutable")
+        await db.exec(`DROP FUNCTION ${d.identity}`);
       for (const d of scope.manifest.states[n]) {
         // Catalog-only fixture: referenced app tables are intentionally absent.
         // Native CI separately inspects the fully migrated real function tree.
-        await db.exec(d.definition);
+        if (d.name !== "grainline_seller_deauthorization_application_immutable") await db.exec(d.definition);
         await db.exec(`REVOKE ALL ON FUNCTION ${d.identity} FROM PUBLIC`);
         if (d.runtimeExecute) await db.exec(`GRANT EXECUTE ON FUNCTION ${d.identity} TO grainline_app_runtime`);
       }
       previous = scope.manifest.states[n];
-      if (n === 10 || n === 12) {
-        const name = n === 10 ? "OrderStaffCapability" : "SellerDeauthorizationApplication";
-        await db.exec(`CREATE TABLE public."${name}"(id text); ALTER TABLE public."${name}" ENABLE ROW LEVEL SECURITY;
-          ALTER TABLE public."${name}" FORCE ROW LEVEL SECURITY;`);
-      }
       const owner = { query: async (sql, args) => {
         if (sql === CORRECTION_RELEASE_LEDGER_QUERY) return { rows: ledger(n) };
         const r = await db.query(sql, args);

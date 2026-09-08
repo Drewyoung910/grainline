@@ -18,7 +18,7 @@ the root's local audit packets. Worktree reconciliation is separate.
 | CheckoutStockReservation NULL-outcome repair | Full CI `34198555971` at `58e8a2ad`, full-schema clone and actual-login proof, 20 invalid/12 legitimate outcomes, all companion proofs | Independently packaged integrity successor and final runtime/production acceptance; do not replay its old RLS activation |
 | Combined six-draft/nine-function candidate | Full/native CI `34203109385` at `99f6e8cb`, all companion proofs, exact catalog/data rollback | Actual production packaging and composed runtime acceptance; this is not activation |
 | Correction release package | Accepted `f00eac52` / native CI `34247688283`; 251-predecessor/six-successor manifest, seven native catalog states, 12 mismatch denials, unchanged ledger and rollback; all companion workflows passed | Complete production scope/runner, credential and deployed-source gates; nothing is staged for execution |
-| Seventeen-member zero-direct prefix scope | Dormant source component in `order-zero-direct-release-scope.md`, 18 restart states and 36 affected functions | Exact-head checks; complete schema/global-authority and serialized execution composition; no production entrypoint |
+| Seventeen-member zero-direct prefix scope | `67e4135e` / full native CI `34261034420` accepted the 18-state, 36-function reader; the isolated structural successor adds 38 schema records, four table postures and restricted-role graph checks | New exact-head native/full checks; global authority/role configuration and serialized execution composition; no production entrypoint |
 
 These are isolated candidates, not newly deployed fixes. Source references:
 `order-input-correction-runtime-proof.md`, `admin-page-pin-boundary-fix.md`,

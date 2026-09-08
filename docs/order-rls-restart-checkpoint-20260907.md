@@ -1,6 +1,13 @@
 # Order RLS restart checkpoint — 2026-09-07
 
-September 8 continuation: accepted correction package `f00eac52` / CI
+Latest September 8 continuation: prefix reader `67e4135e` / CI `34261034420`
+is accepted (4,470 passed / nine skipped in CI; all three companion proofs
+passed). Current cohesive successor adds schema and restricted-role graph
+verification to the same read-only scope, plus disposable negative proofs.
+Finish its own exact-head checks; do not repeat the accepted reader or six-draft
+audits. Global authority/configuration and execution fencing remain next.
+
+Earlier September 8 continuation: accepted correction package `f00eac52` / CI
 `34247688283` is preserved, including the driver-decoding failure and correction
 record in the local recovery checkpoint. Current isolated work is
 `order-zero-direct-release-scope.md`: the exact 17-member prerequisite prefix,

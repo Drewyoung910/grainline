@@ -1463,6 +1463,10 @@ jobs:
         run: node scripts/order-zero-direct-release-scope-postgres-proof.mjs
         env:
           ORDER_ZERO_DIRECT_RELEASE_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove zero-direct schema and role drift rejection with exact rollback
+        run: node scripts/order-zero-direct-release-structure-postgres-proof.mjs
+        env:
+          ORDER_ZERO_DIRECT_RELEASE_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove input correction drafts without retaining catalog changes
         run: node scripts/order-input-correction-drafts-postgres-proof.mjs
         env:

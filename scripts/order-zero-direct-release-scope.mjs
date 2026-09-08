@@ -8,6 +8,8 @@ import { createCorrectionReleasePackage, CORRECTION_RELEASE_LEDGER_QUERY } from 
 import { readOrderPaymentEventForceMigrationCatalog } from "./verify-order-payment-event-force-production-scope.mjs";
 import { assertSellerPayoutEventForceReviewedSuccessorScope } from "./verify-seller-payout-event-force-production-scope.mjs";
 import { ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS, ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS } from "./stage-order-zero-direct-compatible-prefix.mjs";
+import { assertZeroDirectSchema, readZeroDirectSchema } from "./order-zero-direct-release-schema.mjs";
+import { assertZeroDirectRoles, readZeroDirectRoles } from "./order-zero-direct-release-roles.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 const exact = (actual, expected, label) => assert.ok(isDeepStrictEqual(actual, expected), label);
@@ -142,6 +144,7 @@ export function createOrderZeroDirectReleaseScope() {
     const result = classify(snapshot?.ledgerRows, stage);
     exact(snapshot.identity, { database: expected.database, actor: expected.owner,
       login: expected.owner, read_only: "on", isolation: "repeatable read" }, "scope identity or transaction drifted");
+    assertZeroDirectRoles(snapshot.roles, mode);
     const defs = manifest.states[result.prefixLength];
     assert.ok(Array.isArray(snapshot.functions) && snapshot.functions.length === defs.length, "prefix function count drifted");
     for (const def of defs) {
@@ -158,7 +161,10 @@ export function createOrderZeroDirectReleaseScope() {
         runtime_execute: def.runtimeExecute, staff_execute: false, invalid_acl_count: 0 },
       "prefix function authority drifted");
     }
-    const expectedTables = [{ name: "Order", kind: "r", owner: expected.owner, rls: false, force: false,
+    const expectedTables = [{ name: "CheckoutStockReservation", kind: "r", owner: expected.owner, rls: true, force: true,
+      policies: 0, runtime_privileges: [], invalid_acl_count: 0,
+      invalid_column_acl_count: 0, runtime_column_extras: 0, staff_access: false },
+    { name: "Order", kind: "r", owner: expected.owner, rls: false, force: false,
       policies: 0, runtime_privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"], invalid_acl_count: 0,
       invalid_column_acl_count: 0, runtime_column_extras: 0, staff_access: false }];
     for (const [name, introduced] of [["OrderStaffCapability", 10], ["SellerDeauthorizationApplication", 12]]) {
@@ -167,6 +173,7 @@ export function createOrderZeroDirectReleaseScope() {
         runtime_column_extras: 0, staff_access: false });
     }
     exact(snapshot.tables, expectedTables, "prefix table posture or authority drifted");
+    assertZeroDirectSchema(snapshot.schema, result.prefixLength);
     return freeze({ ...result, mode, targetFunctions: defs.length,
       orderRlsEnabled: false, predecessorCrudRetained: true, staffFunctionsDormant: true,
       completeProductionScope: false, productionExecutionAuthorized: false });
@@ -185,6 +192,8 @@ export function createOrderZeroDirectReleaseScope() {
       const expected = MODES[mode];
       exact(identity, { database: expected.database, actor: expected.owner, login: expected.owner,
         read_only: "on", isolation: "repeatable read" }, "scope identity or transaction drifted");
+      const roles = await readZeroDirectRoles(client, expected.owner);
+      assertZeroDirectRoles(roles, mode);
       const ledgerRows = (await client.query(CORRECTION_RELEASE_LEDGER_QUERY)).rows;
       const state = classify(ledgerRows, stage);
       const defs = manifest.states[state.prefixLength];
@@ -229,8 +238,9 @@ export function createOrderZeroDirectReleaseScope() {
           OR COALESCE(pg_catalog.has_any_column_privilege((SELECT oid FROM pg_catalog.pg_roles WHERE rolname='grainline_staff_read_runtime'),c.oid,
           'SELECT,INSERT,UPDATE,REFERENCES'),false) AS staff_access
         FROM pg_catalog.pg_class c WHERE c.relnamespace='public'::regnamespace
-          AND c.relname=ANY($1::text[]) ORDER BY c.relname`, [["Order", "OrderStaffCapability", "SellerDeauthorizationApplication"]])).rows;
-      const snapshot = { identity, ledgerRows, functions, tables };
+          AND c.relname=ANY($1::text[]) ORDER BY c.relname`, [["CheckoutStockReservation", "Order", "OrderStaffCapability", "SellerDeauthorizationApplication"]])).rows;
+      const schema = await readZeroDirectSchema(client, expected.owner);
+      const snapshot = { identity, ledgerRows, functions, tables, schema, roles };
       assertSnapshot(snapshot, stage, mode);
       return snapshot;
     } finally { await client.query("ROLLBACK"); }
@@ -242,8 +252,8 @@ export function createOrderZeroDirectReleaseScope() {
       steps: [...(state.prefixLength < 17 ? ["apply-only-remaining-prefix"] : []),
         "reinspect-exact-complete-prefix", "converge-reviewed-runtime-grants", "migration-status",
         "global-grant-and-RLS-audit", "final-read-only-prefix-scope"],
-      pendingExternalGates: ["exact-main-CI-and-loaded-source", "credential-incident-acceptance", "owner-and-restricted-role-graph",
-        "complete-schema-invariants-and-global-authority", "serialized-fresh-scope-and-selected-files", "actual-runtime-and-staff-proof"],
+      pendingExternalGates: ["exact-main-CI-and-loaded-source", "credential-incident-acceptance",
+        "global-authority-and-role-configuration", "serialized-fresh-scope-and-selected-files", "actual-runtime-and-staff-proof"],
       productionExecutionAuthorized: false });
   }
   return Object.freeze({ manifest, classify, assertSnapshot, readSnapshot, plan });

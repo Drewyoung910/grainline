@@ -33,7 +33,8 @@ export async function proveZeroDirectReleaseScope(client) {
   assert.equal(plan.remainingMigrations.length, 0);
   assert.equal(plan.steps.includes("apply-only-remaining-prefix"), false);
   return { status: "passed", prefixLength: 17, targetFunctions: snapshot.functions.length,
-    checkedTables: snapshot.tables.length, migrationLedgerMutated: false, historicalLedgerModeled: true,
+    checkedTables: snapshot.tables.length, checkedSchemaRecords: snapshot.schema.length,
+    migrationLedgerMutated: false, historicalLedgerModeled: true,
     ownerIdentityModeled: false, engineReadOnly: true, rolledBack: true,
     actualRuntimeLoginProven: false, completeProductionScope: false,
     productionExecutionAuthorized: false, productionChanged: false };
