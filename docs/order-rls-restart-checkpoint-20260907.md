@@ -11,6 +11,33 @@ earlier July-root description is no longer current.
 
 ## Current checkpoint — read this first
 
+Case checkpoint `1f29f630679d46b2fdc1f33dc6e1a1e3b0914749` is saved/pushed
+and accepted by full CI/build `34190781473`, including all 17 native Case
+scenarios and catalog rollback. Companion account-deletion `34190781539`,
+staff bootstrap `34190781519` and paid-repair lock `34190781452` also passed.
+Final local tests: 4,438 passed, 13 skipped, zero failed; focused 58/58.
+No merge, deployment or production change occurred. The failed/pending records
+below are historical, not instructions to repeat completed Case work.
+
+The active September 8 follow-up closes the separate reservation-repair
+verification gap in `checkout-reservation-repair-outcome-correction.md`:
+full-schema disposable clone, real runtime login, original NULL reproduction,
+all six outcomes for both CRON/ACCOUNT callers, unchanged schema/authority and
+exact teardown. The SQL draft remains outside migrations and unchanged on disk;
+the only owner-name mapping is inside the CI proof. Finish its exact-head CI
+before proceeding. No production workflow is staged or dispatched.
+
+Final local checks for this follow-up passed: 24 focused; 4,445 full-suite
+passes, 13 skips, zero failures; lint, TypeScript, syntax and diff checks.
+This is not yet the native CI/runtime-login acceptance. Preserve the separate
+production release boundary even when that disposable proof passes.
+
+`order-release-readiness-20260908.md` consolidates the remaining release order
+and evidence boundaries. Continue that bounded plan, not a new domain or broad
+audit. Production and credential recovery remain separate unresolved boundaries.
+
+### Previous Case implementation and recovery record
+
 Pushed Case checkpoint `2f34459c` failed native CI `34189974861` at the new
 scenario 9. Adding actual Case row checks locally reproduced the fixture's clock
 ordering error. The bounded follow-up corrects only aged fixture construction,

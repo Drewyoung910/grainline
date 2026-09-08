@@ -5,6 +5,13 @@ Scope: CASE-04/05, independently traced from the September 7 audit against
 inspection, migration, deployment, grant/provider change or broad audit is part
 of this pass. The two replacement bodies remain a draft outside migrations.
 
+Exact code acceptance: `1f29f630679d46b2fdc1f33dc6e1a1e3b0914749`, full
+CI/build `34190781473`, all 17 native scenarios and rollback checks passed.
+Companion account-deletion `34190781539`, staff bootstrap `34190781519` and
+paid-repair lock `34190781452` passed at the same head. Final local suite:
+4,438 passed, 13 skipped, zero failed; focused 58/58. This supersedes only
+pending-CI notes below, not the distinct runtime/authenticated/release gates.
+
 ## Reproduction and intended behavior
 
 - CASE-04: the buyer page offers Open Case after confirmed DELIVERED/PICKED_UP,

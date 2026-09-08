@@ -7,6 +7,11 @@ candidate has a zero-direct-access inventory, but Order production ENABLE and
 FORCE acceptance remain outstanding. A saved checkpoint is not release proof.
 The current decision is **no-go for activation** until the gates below pass.
 
+The September 8 consolidation in `order-release-readiness-20260908.md` separates
+accepted code proofs from unapplied SQL and release evidence. Case code/native
+CI is accepted at `1f29f630` / `34190781473`. The next bounded step is the
+independent reservation-repair full-schema/runtime proof, not another Case pass.
+
 The broad audit is finished as a bounded review and Drew has resumed solo
 implementation. Its financial/security blockers, product decisions and evidence
 locations are linked in `order-audit-resume-triage-20260907.md`. The input runtime
@@ -70,7 +75,7 @@ Existing exact-commit production boundaries remain in force.
   current checkpoint identifying what is saved, tested, pushed and live.
 - Defer only with closure criteria in `deferred-launch-backlog.md` or a linked
   runbook. Preserve exact failed evidence and unresolved release gates.
-- Keep the old dirty root worktree and reconciliation task separate. Commit
+- Keep the root's untracked audit packets and reconciliation task separate. Commit
   and push checkpoints so active work is not dependent on temporary storage.
 
 ## Historical CI failure disposition and current acceptance

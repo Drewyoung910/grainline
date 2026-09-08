@@ -21,6 +21,15 @@ export function repairPredecessorDefinition(root = process.cwd()) {
   return definition;
 }
 
+export function repairOutcomeDefinition(root = process.cwd()) {
+  const before = repairPredecessorDefinition(root);
+  const guard = "OR p_outcome NOT IN (";
+  assert.equal(before.split(guard).length, 2);
+  const after = before.replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION")
+    .replace(guard, "OR p_outcome IS NULL OR p_outcome NOT IN (");
+  return { name, args: "text,bigint,text", tag, before, after };
+}
+
 function attestation(sourceMd5, phase) {
   return `DO $repair_${phase}$
 BEGIN
@@ -67,12 +76,7 @@ $repair_${phase}$;`;
 }
 
 export function buildCheckoutReservationRepairOutcomeCorrection(root = process.cwd()) {
-  const predecessor = repairPredecessorDefinition(root);
-  const oldGuard = "OR p_outcome NOT IN (";
-  assert.equal(predecessor.split(oldGuard).length, 2);
-  const corrected = predecessor
-    .replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION")
-    .replace(oldGuard, "OR p_outcome IS NULL OR p_outcome NOT IN (");
+  const { before: predecessor, after: corrected } = repairOutcomeDefinition(root);
   const md5 = (definition) => createHash("md5").update(definition.split(tag)[1]).digest("hex");
   return `-- DRAFT: independently released CheckoutStockReservation integrity correction.
 -- Reject NULL before any repair lookup, lease update, or stock restoration.

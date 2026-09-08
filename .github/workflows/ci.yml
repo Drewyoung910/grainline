@@ -1479,6 +1479,10 @@ jobs:
         run: node scripts/case-lifecycle-correction-postgres-proof.mjs
         env:
           CASE_LIFECYCLE_CORRECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove reservation repair correction through an actual runtime login
+        run: node scripts/checkout-repair-outcome-runtime-postgres-proof.mjs
+        env:
+          CHECKOUT_REPAIR_OUTCOME_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test

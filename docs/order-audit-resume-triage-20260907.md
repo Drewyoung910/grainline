@@ -104,3 +104,9 @@ existing deadlines, refund/authority locks and unavailable-recipient restriction
 while fixing opening/objection access and response/UI parity. Native full-schema,
 actual-runtime and release acceptance remain distinct. The other rows and the
 separate policy/legal timing findings are not closed by this package.
+
+Case code/native CI subsequently passed at `1f29f630` / `34190781473`, with
+all 17 scenarios and all three companion proofs. The full-schema/login gap for
+the independently released reservation NULL-outcome fix is the next active
+work package. See `order-release-readiness-20260908.md`; do not reset previously
+accepted code findings to unimplemented or mark their release gates closed.

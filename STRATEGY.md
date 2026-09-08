@@ -21,6 +21,12 @@ early-receipt complaint access and pending-close objections without weakening
 refund guards or messaging restrictions. Existing no-objection expiry and the
 separate legal deadline-alignment decisions remain explicit, not silently revised.
 
+Case code/native proof is now accepted at `1f29f630` / CI `34190781473`.
+The bounded next package is the independent reservation-repair NULL-outcome
+full-schema/runtime-login proof. `docs/order-release-readiness-20260908.md`
+maps accepted code, unapplied drafts and remaining release gates; do not repeat
+closed Case/stock implementation or treat a CI proof as production acceptance.
+
 Late label-deduction automation is deliberately not inferred from historical
 Order/amount metadata. Preserve exact replay within the safe window and manual
 reconciliation afterward. A future long-lived provider-intent design must bind
