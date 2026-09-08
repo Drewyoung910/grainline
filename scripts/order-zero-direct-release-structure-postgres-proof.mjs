@@ -8,6 +8,8 @@ import { assertZeroDirectSchema, readZeroDirectSchema } from "./order-zero-direc
 import { assertZeroDirectRoles, readZeroDirectRoles } from "./order-zero-direct-release-roles.mjs";
 import { verifyInputRuntimeIdentity } from "./order-input-correction-runtime-postgres-proof.mjs";
 import { verifyRepairProofRole } from "./checkout-repair-outcome-runtime-postgres-proof.mjs";
+import { readZeroDirectConfiguration } from "./order-zero-direct-release-authority.mjs";
+import { auditLiveDatabase, deriveGrantInventory } from "./audit-runtime-db-grants.mjs";
 
 export async function runZeroDirectStructureProof(env = process.env) {
   const { databaseUrl } = parseZeroDirectScopeProofConfig(env);
@@ -32,13 +34,28 @@ export async function runZeroDirectStructureProof(env = process.env) {
       ['ALTER ROLE grainline_direct_upload_cleanup_v2 INHERIT', "roles"],
       ['GRANT pg_read_all_data TO grainline_app_runtime WITH INHERIT FALSE, SET FALSE', "roles"],
       ['GRANT grainline_app_runtime TO grainline_direct_upload_cleanup_v2 WITH INHERIT FALSE, SET FALSE', "roles"],
+      ['GRANT TRUNCATE ON public."User" TO grainline_app_runtime', "global"],
+      ["CREATE FUNCTION public.grainline_unexpected_authority_probe() RETURNS integer LANGUAGE sql AS 'SELECT 1'", "global"],
+      ['ALTER DEFAULT PRIVILEGES FOR ROLE ci IN SCHEMA public GRANT SELECT ON TABLES TO PUBLIC', "global"],
+      ["ALTER ROLE grainline_app_runtime SET application_name='disposable-override'", "configuration"],
+      ["ALTER ROLE grainline_direct_upload_cleanup_v2 SET application_name='disposable-override'", "configuration"],
+      ["ALTER DATABASE grainline_ci SET application_name='disposable-override'", "configuration"],
     ];
     let denials = 0;
     for (const [sql, kind] of changes) {
       await client.query("BEGIN");
       try {
         await client.query(sql);
-        if (kind === "roles") {
+        if (kind === "configuration") {
+          const drift = await readZeroDirectConfiguration(client, "ci");
+          assert.equal(drift.override_rows, 1);
+          denials += 1;
+        } else if (kind === "global") {
+          const issues = await auditLiveDatabase({ client, runtimeRole: "grainline_app_runtime",
+            migrationRole: "ci", inventory: deriveGrantInventory() });
+          assert.ok(issues.length > 0, "global drift escaped existing authority audit");
+          denials += 1;
+        } else if (kind === "roles") {
           const drift = await readZeroDirectRoles(client, "ci");
           assert.throws(() => assertZeroDirectRoles(drift, "disposable"));
           denials += 1;

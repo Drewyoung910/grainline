@@ -27,14 +27,17 @@ export async function proveZeroDirectReleaseScope(client) {
     reads += 1;
     return { ...result, rows: correctionProofHistoricalLedger(result.rows, correction.manifest) };
   } };
-  const snapshot = await scope.readSnapshot(owner, "after", "disposable");
+  const snapshot = await scope.readAuditedSnapshot(owner, "after", "disposable");
   assert.equal(reads, 1);
+  scope.assertAuditedSnapshot(snapshot, "after", "disposable");
   const plan = scope.plan(snapshot, "disposable");
   assert.equal(plan.remainingMigrations.length, 0);
   assert.equal(plan.steps.includes("apply-only-remaining-prefix"), false);
   return { status: "passed", prefixLength: 17, targetFunctions: snapshot.functions.length,
     checkedTables: snapshot.tables.length, checkedSchemaRecords: snapshot.schema.length,
-    migrationLedgerMutated: false, historicalLedgerModeled: true,
+    globalAuthorityIssues: snapshot.globalAuthority.issueCount,
+    globalInventorySha256: snapshot.globalAuthority.inventorySha256,
+    roleConfigurationVerified: true, migrationLedgerMutated: false, historicalLedgerModeled: true,
     ownerIdentityModeled: false, engineReadOnly: true, rolledBack: true,
     actualRuntimeLoginProven: false, completeProductionScope: false,
     productionExecutionAuthorized: false, productionChanged: false };

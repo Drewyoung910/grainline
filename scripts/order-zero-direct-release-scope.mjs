@@ -10,6 +10,7 @@ import { assertSellerPayoutEventForceReviewedSuccessorScope } from "./verify-sel
 import { ORDER_ZERO_DIRECT_COMPATIBLE_MEMBERS, ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS } from "./stage-order-zero-direct-compatible-prefix.mjs";
 import { assertZeroDirectSchema, readZeroDirectSchema } from "./order-zero-direct-release-schema.mjs";
 import { assertZeroDirectRoles, readZeroDirectRoles } from "./order-zero-direct-release-roles.mjs";
+import { createZeroDirectAuthorityInventory, auditZeroDirectAuthority, assertZeroDirectConfiguration } from "./order-zero-direct-release-authority.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 const exact = (actual, expected, label) => assert.ok(isDeepStrictEqual(actual, expected), label);
@@ -179,7 +180,7 @@ export function createOrderZeroDirectReleaseScope() {
       completeProductionScope: false, productionExecutionAuthorized: false });
   }
 
-  async function readSnapshot(client, stage, mode = "production") {
+  async function readScope(client, stage, mode, withGlobalAudit) {
     // The caller owns a dedicated, freshly connected client with no active
     // transaction. This component must not be nested inside a caller's work.
     assert.ok(Object.hasOwn(MODES, mode), "unknown scope identity mode");
@@ -242,19 +243,43 @@ export function createOrderZeroDirectReleaseScope() {
       const schema = await readZeroDirectSchema(client, expected.owner);
       const snapshot = { identity, ledgerRows, functions, tables, schema, roles };
       assertSnapshot(snapshot, stage, mode);
+      if (withGlobalAudit) {
+        const inventories = createZeroDirectAuthorityInventory(manifest);
+        snapshot.globalAuthority = await auditZeroDirectAuthority(client, inventories[state.prefixLength], expected.owner);
+      }
       return snapshot;
     } finally { await client.query("ROLLBACK"); }
   }
 
+  function readSnapshot(client, stage, mode = "production") {
+    return readScope(client, stage, mode, false);
+  }
+
+  function readAuditedSnapshot(client, stage, mode = "production") {
+    return readScope(client, stage, mode, true);
+  }
+
+  function assertAuditedSnapshot(snapshot, stage, mode = "production") {
+    const state = assertSnapshot(snapshot, stage, mode);
+    const inventoryState = createZeroDirectAuthorityInventory(manifest)[state.prefixLength];
+    assertZeroDirectConfiguration(snapshot.globalAuthority?.configuration);
+    exact(snapshot.globalAuthority, { prefixLength: state.prefixLength, inventorySha256: inventoryState.sha256,
+      issueCount: 0, configuration: snapshot.globalAuthority.configuration, productionExecutionAuthorized: false },
+    "global authority attestation disagrees with the exact prefix");
+    return freeze({ ...state, globalAuthorityVerified: true, roleConfigurationVerified: true });
+  }
+
   function plan(snapshot, mode = "production") {
-    const state = assertSnapshot(snapshot, "restart", mode);
+    const state = Object.hasOwn(snapshot ?? {}, "globalAuthority")
+      ? assertAuditedSnapshot(snapshot, "restart", mode) : assertSnapshot(snapshot, "restart", mode);
     return freeze({ ...state, selectedBoundary: "order-zero-direct-compatible-prefix",
       steps: [...(state.prefixLength < 17 ? ["apply-only-remaining-prefix"] : []),
         "reinspect-exact-complete-prefix", "converge-reviewed-runtime-grants", "migration-status",
         "global-grant-and-RLS-audit", "final-read-only-prefix-scope"],
       pendingExternalGates: ["exact-main-CI-and-loaded-source", "credential-incident-acceptance",
-        "global-authority-and-role-configuration", "serialized-fresh-scope-and-selected-files", "actual-runtime-and-staff-proof"],
+        ...(!state.globalAuthorityVerified ? ["global-authority-and-role-configuration"] : []),
+        "serialized-fresh-scope-and-selected-files", "actual-runtime-and-staff-proof"],
       productionExecutionAuthorized: false });
   }
-  return Object.freeze({ manifest, classify, assertSnapshot, readSnapshot, plan });
+  return Object.freeze({ manifest, classify, assertSnapshot, assertAuditedSnapshot, readSnapshot, readAuditedSnapshot, plan });
 }

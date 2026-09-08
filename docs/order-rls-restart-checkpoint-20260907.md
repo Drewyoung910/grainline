@@ -1,6 +1,12 @@
 # Order RLS restart checkpoint — 2026-09-07
 
-Latest September 8 continuation: prefix reader `67e4135e` / CI `34261034420`
+Latest September 8 continuation: structural reader `d750b6eb` / CI `34276777170`
+is accepted, including all native proofs and companion workflows. The current
+successor composes the unchanged global grant audit with exact stage-specific
+inventories and secret-free configuration checks. Finish its own exact-head
+checks, then execution fencing; no production action or activation is authorized.
+
+Earlier September 8 continuation: prefix reader `67e4135e` / CI `34261034420`
 is accepted (4,470 passed / nine skipped in CI; all three companion proofs
 passed). Current cohesive successor adds schema and restricted-role graph
 verification to the same read-only scope, plus disposable negative proofs.

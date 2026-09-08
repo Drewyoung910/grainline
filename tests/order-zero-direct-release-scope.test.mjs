@@ -9,6 +9,7 @@ import { parseZeroDirectScopeProofConfig } from "../scripts/order-zero-direct-re
 import { expectedZeroDirectSchema } from "../scripts/order-zero-direct-release-schema.mjs";
 import { createZeroDirectSchemaBase, applyZeroDirectSchemaMember } from "./helpers/order-zero-direct-schema-fixture.mjs";
 import { zeroDirectRoleFixture } from "./helpers/order-zero-direct-role-fixture.mjs";
+import { createZeroDirectAuthorityInventory } from "../scripts/order-zero-direct-release-authority.mjs";
 
 const scope = createOrderZeroDirectReleaseScope();
 const correction = createCorrectionReleasePackage();
@@ -62,6 +63,26 @@ test("exact 234 predecessors and 17 members produce all 18 bounded restart plans
   assert.throws(() => scope.assertSnapshot(snapshot(16), "after"));
   assert.throws(() => scope.assertSnapshot(snapshot(), "apply"));
   assert.throws(() => scope.assertSnapshot(snapshot(), "restart", "bypass"));
+});
+
+test("audited attestations bind the inventory, prefix, configuration and zero issue count", () => {
+  const inventories = createZeroDirectAuthorityInventory(scope.manifest);
+  for (let n = 0; n <= 17; n += 1) {
+    const s = snapshot(n);
+    assert.throws(() => scope.assertAuditedSnapshot(s, "restart"));
+    s.globalAuthority = { prefixLength: n, inventorySha256: inventories[n].sha256, issueCount: 0,
+      configuration: { override_rows: 0, row_security_on: true, origin_replication: true,
+        safe_search_path: true, standard_strings: true, read_only: true, repeatable_read: true },
+      productionExecutionAuthorized: false };
+    assert.equal(scope.assertAuditedSnapshot(s, "restart").globalAuthorityVerified, true);
+    assert.equal(scope.assertAuditedSnapshot(s, "restart").productionExecutionAuthorized, false);
+    assert.equal(scope.plan(s).pendingExternalGates.includes("global-authority-and-role-configuration"), false);
+    for (const patch of [{ prefixLength: n + 1 }, { inventorySha256: "0".repeat(64) }, { issueCount: 1 },
+      { productionExecutionAuthorized: true }, { configuration: {} }, { extra: true }]) {
+      const drift = structuredClone(s); Object.assign(drift.globalAuthority, patch);
+      assert.throws(() => scope.assertAuditedSnapshot(drift, "restart"));
+    }
+  }
 });
 
 test("every predecessor and selected member rejects missing, duplicate, checksum and status drift", () => {

@@ -16,6 +16,12 @@ missing, duplicate, failed, rolled-back or checksum-drifted rows are rejected,
 except those exact historical exceptions. The six later correction candidates
 are excluded, not opportunistically admitted.
 
+The schema/role successor is accepted at `d750b6eb` / CI `34276777170`:
+4,476 CI tests passed, nine skipped, no failures; all three companion workflows
+passed. Its native proofs confirmed 38 schema records and ten drift denials.
+Do not repeat that accepted block as pending. The next isolated successor below
+adds global-audit composition; it needs its own exact-head acceptance.
+
 Each of the 18 states binds the exact current subset of 36 affected functions:
 typed OID identity, body SHA-256, owner, language, SECURITY DEFINER, search path,
 return/argument metadata, volatility/parallel safety, runtime execution and
@@ -65,6 +71,51 @@ connection constructor, CLI, migration writer or provider calls. The returned
 plan is data: completed members are not replayed, and final convergence, migration
 status and global audits remain required even at prefix length 17.
 
+## Global authority composition successor
+
+`readAuditedSnapshot` adds the existing `auditLiveDatabase` to the **same**
+engine-read-only snapshot after the exact ledger/function/schema/role checks.
+`readSnapshot` remains the narrower historical component; it cannot establish
+the new `assertAuditedSnapshot` contract without a valid global attestation.
+The latter binds the exact prefix, expected inventory SHA-256, zero issue count
+and configuration result. Neither authorizes execution or removes the final
+post-convergence global audit.
+
+The adapter derives 18 stage-specific inventories from fixed source: only the
+not-yet-created affected functions and two named private tables are removed.
+Every unaffected table, enum, function and RLS disposition stays in scope. The
+complete prefix is exactly the legacy audit's unmodified full inventory: 67
+tables and 265 functions. Independent tests reconstruct each source prefix in
+an owned disposable directory and compare the legacy-derived expectations;
+the complete source's REVOKE diagnostic text is retained, while its actual
+default-privilege requirements must equal each staged source's requirements.
+No general missing-object suppression is added to the historical audit.
+
+Configuration checks read only aggregate counts for applicable owner/runtime/
+cleanup/staff and database-wide overrides. No such overrides are declared by
+the reviewed provisioning scripts. Any existing override, including benign
+timeouts, therefore needs separate inspection and an explicit reviewed contract;
+the checker does not clear it or silently learn it from production. Raw GUC
+values may be secrets and are not returned. Effective catalog search order must
+be pg_catalog then public, standard-conforming strings and row security must be
+on, replication mode must be origin, and the transaction must remain
+repeatable-read/read-only. Credential/session authenticity and application
+identity proofs remain separate.
+
+Native CI uses the audited reader after the real 251-migration tree, plus
+rollback-only negative global grants, an unexpected function, default ACL and
+configuration overrides. Earlier inventories are source-tree tested, not claimed
+as 18 fully replayed native production catalogs. Ordinary-runtime global audit
+coverage is inherited unchanged; this is not blanket credential-incident,
+provider, staff-login or arbitrary historical-schema acceptance.
+
+Local successor validation: 19 focused tests passed; full suite 4,477 passed,
+13 environment-dependent skips, zero failures or cancellations (4,490 total).
+TypeScript, repository lint, and explicit lint of the changed scripts/tests
+passed. The emitted lint dependency warning did not fail the command. Native
+PostgreSQL acceptance remains pending this successor's exact-head CI; record
+that outcome on the draft PR and recovery checkpoint without a docs-only CI loop.
+
 ## Evidence and limits
 
 Focused tests cover every restart state and every predecessor's deletion,
@@ -87,8 +138,9 @@ or an actual ordinary-runtime/staff login proof. Exact-head acceptance belongs
 on draft PR #432 and the local recovery checkpoint after checks finish.
 
 The separate disposable-only structure proof applies ten negative schema/role
-changes, each in its own rolled-back transaction, with exact catalog restoration
-and a final engine-read-only complete-prefix check. An extra unrelated Order
+changes plus six global-authority/configuration changes (16 expected denials),
+each in its own rolled-back transaction, with exact catalog restoration
+and a final engine-read-only audited complete-prefix check. An extra unrelated Order
 column is a deliberate out-of-scope control, not falsely reported as covered.
 No application rows, credential values or ledger rows are changed. This negative
 fixture proof is distinct from the mutation-free release reader. Native
@@ -105,7 +157,7 @@ DDL instead of treating regenerated equivalent SQL as the original catalog.
 This is **not the complete production validator or runner**. Every verdict says
 `completeProductionScope=false` and `productionExecutionAuthorized=false`.
 
-The next implementation must compose global authority/role-configuration checks,
+The next implementation must finish
 serialized fresh-scope and selected-file execution fencing, exact-main CI and
 loaded-source binding, and the existing final global audit. Credential-incident
 acceptance remains a separate gate. Do not dispatch the historical 18-member
