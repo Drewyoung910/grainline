@@ -28,12 +28,13 @@ const draftMembers = [
   "order-checkout-existing-authority.sql",
   "order-checkout-postpayment-authority.sql",
   "order-checkout-refund-review-authority.sql",
+  "order-authority-composition-correction.sql",
 ];
 
 describe("Order zero-direct compatible packaging plan", () => {
-  it("pins the complete sixteen-member compatible prefix", () => {
+  it("pins the complete seventeen-member compatible prefix", () => {
     assert.equal(migrationMembers.length, 2);
-    assert.equal(draftMembers.length, 14);
+    assert.equal(draftMembers.length, 15);
     for (const migration of migrationMembers) {
       assert.equal(
         fs.existsSync(path.join("prisma/migrations", migration, "migration.sql")),
@@ -64,7 +65,7 @@ describe("Order zero-direct compatible packaging plan", () => {
     }
     assert.match(plan, /RLS and FORCE off/);
     assert.match(plan, /predecessor ordinary-runtime CRUD still present/);
-    assert.match(plan, /policyless FORCE\s+`SellerDeauthorizationApplication`/);
+    assert.match(plan, /policyless FORCE\s+`OrderStaffCapability` and\s+`SellerDeauthorizationApplication`/);
   });
 
   it("keeps credentials, activation, and successor tables separate", () => {
