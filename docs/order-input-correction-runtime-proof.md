@@ -1,7 +1,8 @@
 # Order input corrections — disposable runtime-login proof
 
-Status, 2026-09-07: isolated CI proof implementation; native PostgreSQL CI
-acceptance pending. No production workflow, migration, deployment, credential
+Status, 2026-09-07: isolated runtime proof accepted by complete native CI
+`34178233977` at `4574786557c5ac196267b1bbb5ba82e3a6aede76`.
+No production workflow, migration, deployment, credential
 or provider change is authorized or performed by this work.
 
 ## Boundary being proved
@@ -121,3 +122,11 @@ At the failed native checkpoint, companion account-deletion concurrency
 `34177187441`, paid-repair locking `34177187449` and staff-bootstrap
 `34177187464` all passed. They do not override the failed main CI or attest the
 later corrected input-proof revision.
+
+The corrected native runtime-login step passed in CI `34178233977` at exact
+checkpoint `4574786557c5ac196267b1bbb5ba82e3a6aede76`. This attests the actual
+runtime login, five corrected bodies, input/read controls and successful teardown
+in disposable PostgreSQL 16. The complete workflow subsequently finished
+successfully, including tests and production build. This is not a production
+postflight or an authenticated provider smoke. Earlier pending/failed entries
+above are historical evidence, superseded by this exact acceptance.

@@ -34,14 +34,8 @@ describe("admin server action guardrails", () => {
     }
   });
 
-  it("blocks suspended or deleted staff accounts inside admin pages and APIs", () => {
+  it("blocks suspended or deleted staff accounts inside admin APIs", () => {
     for (const path of [
-      "src/app/admin/audit/page.tsx",
-      "src/app/admin/support/page.tsx",
-      "src/app/admin/review/page.tsx",
-      "src/app/admin/users/page.tsx",
-      "src/app/admin/reports/page.tsx",
-      "src/app/admin/reviews/page.tsx",
       "src/app/api/admin/listings/[id]/route.ts",
       "src/app/api/admin/listings/[id]/review/route.ts",
       "src/app/api/admin/users/[id]/ban/route.ts",
@@ -77,6 +71,9 @@ describe("admin server action guardrails", () => {
     assert.match(helper, /deletedAt:\s*true/);
     assert.match(helper, /user\.banned\s*\|\|\s*user\.deletedAt/);
     assert.match(helper, /user\.role !== "EMPLOYEE" && user\.role !== "ADMIN"/);
+    assert.match(helper, /verifyAdminPinCookieValue\(/);
+    assert.match(helper, /cookieStore\.get\(ADMIN_PIN_COOKIE_NAME\)/);
+    assert.match(helper, /sessionId/);
 
     for (const [path, queryNeedle] of [
       ["src/app/admin/orders/page.tsx", "readStaffOrderPage("],
@@ -87,16 +84,27 @@ describe("admin server action guardrails", () => {
       ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
       ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
       ["src/app/admin/verification/page.tsx", "prisma.makerVerification.findMany"],
+      ["src/app/admin/audit/page.tsx", "prisma.adminAuditLog.count"],
+      ["src/app/admin/users/page.tsx", "prisma.user.count"],
+      ["src/app/admin/reviews/page.tsx", "prisma.review.count"],
+      ["src/app/admin/review/page.tsx", "prisma.listing.count"],
+      ["src/app/admin/reports/page.tsx", "prisma.userReport.findMany"],
+      ["src/app/admin/support/page.tsx", "prisma.supportRequest."],
     ]) {
       const text = source(path);
       const pageStart = text.indexOf("export default async function");
       const pageText = text.slice(pageStart);
       assert.match(text, /requireAdminPageAccess/, `${path} must import/call the admin page guard`);
+      const accessCall = /\/admin\/(?:audit|users)\//.test(path)
+        ? 'await requireAdminPageAccess("ADMIN")' : "await requireAdminPageAccess()";
       assert.ok(
-        pageText.indexOf("await requireAdminPageAccess()") >= 0 &&
-          pageText.indexOf("await requireAdminPageAccess()") < pageText.indexOf(queryNeedle),
+        pageText.indexOf(accessCall) >= 0 &&
+          pageText.indexOf(accessCall) < pageText.indexOf(queryNeedle),
         `${path} must guard admin page access before sensitive data queries`,
       );
+      const challenge = pageText.indexOf("if (!staff) return <AdminPinGate />;");
+      assert.ok(challenge > pageText.indexOf(accessCall) && challenge < pageText.indexOf(queryNeedle),
+        `${path} must withhold data and retain the PIN challenge`);
     }
   });
 

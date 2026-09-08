@@ -1,7 +1,5 @@
-// Preserved RED reproduction. Restore to tests/ with the page/helper fix;
-// implementation is held while the earlier Order runtime CI gate is corrected.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import {
@@ -94,6 +92,10 @@ const pages = [
 
 test("every sensitive admin page returns the existing challenge before its data queries", async () => {
   const PinGate = () => null;
+  const inventory = readdirSync("src/app/admin", { recursive: true })
+    .filter((path) => path === "page.tsx" || path.endsWith("/page.tsx")).sort();
+  assert.deepEqual(inventory, ["page.tsx", ...pages.map(([path]) => path)].sort(),
+    "new admin pages must have an explicitly classified data/PIN boundary");
   for (const [relative, query] of pages) {
     const path = `src/app/admin/${relative}`;
     const source = readFileSync(path, "utf8");

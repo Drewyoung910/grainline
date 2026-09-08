@@ -9,8 +9,8 @@ The current decision is **no-go for activation** until the gates below pass.
 
 The broad audit is finished as a bounded review and Drew has resumed solo
 implementation. Its financial/security blockers, product decisions and evidence
-locations are linked in `order-audit-resume-triage-20260907.md`. Complete the
-pending input runtime proof first, then close affected-domain blockers; do not
+locations are linked in `order-audit-resume-triage-20260907.md`. The input runtime
+proof is now accepted in CI; close affected-domain blockers next. Do not
 equate resuming work with accepting the audit or authorizing production changes.
 
 ## Ordered exit gates
@@ -73,7 +73,7 @@ Existing exact-commit production boundaries remain in force.
 - Keep the old dirty root worktree and reconciliation task separate. Commit
   and push checkpoints so active work is not dependent on temporary storage.
 
-## Current CI failure disposition
+## Historical CI failure disposition and current acceptance
 
 Run `34161435943` at `691b91915226a973024c2634e17aa5426f02e780`
 failed at the historical runtime catalog: review eligibility expected source
@@ -94,7 +94,7 @@ build. Separate paid-repair lock `34163378229`, account-deletion concurrency
 closed for that exact revision. Any further draft/release change still needs
 its own applicable checks; this is not acceptance of an untested successor.
 
-Latest accepted code checkpoint: `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6`,
+Earlier accepted code checkpoint: `be0eedf0f0a5ca8eeefd59c66d3d78023664d0f6`,
 full CI `34166065857`. It adds tested receipt/reconciliation input drafts and
 a rollback-only PostgreSQL 16 composition proof for those and the label draft.
 The five reviewed bodies changed exactly; catalog/ACL/table posture and the
@@ -107,6 +107,13 @@ evidence and the independently released reservation-repair correction;
 code-CI acceptance is not production activation.
 
 The distinct disposable actual-runtime input proof is implemented and tracked
-in `order-input-correction-runtime-proof.md`; native CI acceptance is pending.
+in `order-input-correction-runtime-proof.md`; full native CI/build `34178233977`
+passed at `4574786557c5ac196267b1bbb5ba82e3a6aede76`.
 Its missing-source controls are intentionally narrower than the fresh
 authenticated route/provider smoke required by gate 4.
+
+The next isolated application follow-up is the fourteen-page staff PIN boundary
+in `admin-page-pin-boundary-fix.md`. Its focused checks pass; final application
+CI/build and authenticated release verification must be recorded separately.
+The remaining stock, financial retry and affected Case blockers retain their
+triage dispositions. Do not restart a broad audit or begin another RLS family.

@@ -6,6 +6,22 @@ Leave the old, dirty `/Users/drewyoung/grainline` worktree untouched.
 
 ## Current checkpoint — read this first
 
+The corrected input-runtime proof passed complete CI, including native PostgreSQL
+and the production build, in
+`34178233977` at pushed checkpoint `4574786557c5ac196267b1bbb5ba82e3a6aede76`.
+The active local follow-up implements the staff-page PIN boundary, documented in
+`admin-page-pin-boundary-fix.md`; its 34 focused tests pass, as do the full local
+suite (4,373 passing, 13 skipped, zero failed), lint and TypeScript. The preserved RED
+draft is now the executable regression at `tests/admin-page-pin-boundary.test.mjs`.
+Finish exact-head CI/build and authenticated checks for this application change before release;
+no merge, deployment or production state change has occurred.
+
+## Earlier checkpoints and preserved failed evidence
+
+The statuses below are historical, superseded by the current checkpoint above.
+The intentionally RED staff test mentioned below was moved to the executable
+test suite with the subsequent implementation; it is no longer a draft file.
+
 Runtime-proof checkpoint `0e737b000bd0b0909bf88d16b3a5a0dd21ecaf02` is pushed
 to draft PR #432. Native CI `34177187482` failed after actual runtime login at
 the input-boundary matrix; the old proof mistook Notification's RLS-filtered
@@ -50,10 +66,6 @@ drafts only in that copy, checks the actual runtime login/input boundaries,
 then removes its copy and restores the CI role password to NULL. Local tests
 pass; exact-head native CI acceptance is still pending. No production release
 packaging or migration dispatch has happened during this proof preparation.
-
-## Earlier checkpoints and preserved failed evidence
-
-The statuses below are historical, superseded by the current checkpoint above.
 
 This is a preservation checkpoint, not a release acceptance. The prior pushed
 commit is `691b91915226a973024c2634e17aa5426f02e780`. Its main CI run

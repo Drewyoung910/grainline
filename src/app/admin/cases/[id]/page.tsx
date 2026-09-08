@@ -10,6 +10,7 @@ import LocalDate from "@/components/LocalDate";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { refundMayRestoreStock } from "@/lib/refundRouteState";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import type { CaseStatus } from "@prisma/client";
@@ -94,6 +95,7 @@ export default async function AdminCaseDetailPage({
   searchParams: Promise<{ caseBefore?: string | string[] }>;
 }) {
   const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
   const [{ id }, { caseBefore }] = await Promise.all([params, searchParams]);
 
   const visibleCase = await getVisibleCaseById({

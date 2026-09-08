@@ -35,6 +35,7 @@ import {
 } from "@/lib/guildVerificationState";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { readOrderSellerMetricsFacts } from "@/lib/orderSellerMetricsAuthority";
 import { formatCurrencyCents } from "@/lib/money";
@@ -938,7 +939,8 @@ async function unfeatureMaker(sellerProfileId: string) {
 
 // ── Page ────────────────────────────────────────────────────────────────────
 export default async function AdminVerificationPage() {
-  await requireAdminPageAccess();
+  const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
   const [memberPending, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
     prisma.makerVerification.findMany({
       where: { status: "PENDING" },

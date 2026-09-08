@@ -12,6 +12,7 @@ import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
 import { sellerBroadcastEmailSubject } from "@/lib/email";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteSellerBroadcastNotificationServiceRows } from "@/lib/notificationServiceAccess";
 
@@ -75,7 +76,8 @@ export default async function AdminBroadcastsPage({
 }: {
   searchParams: Promise<{ page?: string; q?: string }>;
 }) {
-  await requireAdminPageAccess();
+  const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
   const sp = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   const q = truncateText((sp.q ?? "").trim(), 200);

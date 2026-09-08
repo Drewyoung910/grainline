@@ -6,6 +6,7 @@ import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { caseResolutionLabel } from "@/lib/caseLabels";
 import { orderPaymentEventTypeLabel } from "@/lib/orderPaymentEventLabels";
@@ -53,6 +54,7 @@ export default async function AdminOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
   const { id } = await params;
 
   const order = await readStaffOrderDetail(

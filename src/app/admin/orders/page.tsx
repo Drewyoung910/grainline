@@ -3,6 +3,7 @@ import Link from "next/link";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { readStaffOrderPage } from "@/lib/orderStaffReadAuthority";
@@ -21,6 +22,7 @@ export default async function AllOrdersPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
   const { page: pageParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 

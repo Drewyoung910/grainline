@@ -11,6 +11,7 @@ import { logAdminActionOrThrow } from "@/lib/audit";
 import { truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteBlogCommentNotificationServiceRows } from "@/lib/notificationServiceAccess";
@@ -135,7 +136,8 @@ async function deleteComment(commentId: string) {
 }
 
 export default async function AdminBlogPage() {
-  await requireAdminPageAccess();
+  const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
   const posts = await prisma.blogPost.findMany({
     orderBy: { updatedAt: "desc" },
     take: 50,

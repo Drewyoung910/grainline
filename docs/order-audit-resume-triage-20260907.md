@@ -71,3 +71,12 @@ deferred-work records so compaction does not silently discard their obligations.
 The existing comprehensive credential incident remains a separate production
 release gate. Neither a successful isolated test nor this prioritization closes it.
 No new table family starts while the current Order exit gates remain unresolved.
+
+## Implementation follow-up
+
+The five-body input-runtime proof completed native PostgreSQL and full CI/build
+at `4574786557c5ac196267b1bbb5ba82e3a6aede76`, run `34178233977`.
+The next isolated application candidate enforces session-bound PIN verification
+on all fourteen sensitive staff pages; see
+[its reproduction, implementation and verification record](admin-page-pin-boundary-fix.md).
+This is not a deployed fix or closure of the other financial/security findings.
