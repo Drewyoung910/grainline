@@ -446,8 +446,8 @@ bootstrap connection adapter explicitly rejects the other overrides; that local
 hardening is not a claim about unrelated historical operators.
 
 Release order remains: authority-free login and isolated secret; compatible
-Order prefix; exact five-operation grant convergence (two reads and three
-mutations); separate-login proofs;
+Order prefix; exact six-operation grant convergence (two reads, three
+mutations and the session/PIN-bound capability mint); separate-login proofs;
 application deployment and authenticated smoke; exact predecessor drain; then
 the separately verified RLS activation. See
 `order-zero-direct-compatible-packaging-plan.md` and `order-staff-read-authority.md`.

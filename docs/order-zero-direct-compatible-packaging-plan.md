@@ -1,9 +1,10 @@
 # Order zero-direct compatible packaging plan
 
-Status: isolated compatible-prefix candidate. All sixteen byte-pinned migration
-members are staged locally and none has been applied, no application candidate
-has been deployed, and `Order` RLS plus predecessor runtime CRUD remain
-unchanged.
+Status: isolated compatible-prefix candidate, updated September 8. All seventeen
+byte-pinned migration members are staged in source, including the composition
+successor. This document is not a current production inspection or permission
+to apply them. The release must retain predecessor Order CRUD with RLS/FORCE off.
+Current dormant scope preparation is `order-zero-direct-release-scope.md`.
 
 Prepared: 2026-09-05 from isolated branch
 `agent/order-staff-read-app-20260905` after zero-direct checkpoint `9ebd9293`.
@@ -17,8 +18,8 @@ and source columns that production does not yet contain, so the next release is
 database-first compatible preparation.
 
 Package the compatible database work as one exact byte-pinned migration prefix
-and one guarded production workflow, not as sixteen independently approved
-production deployments. Every member is additive and preserves predecessor
+and one guarded production workflow, not as seventeen independently approved
+production deployments. The package preserves predecessor
 Order CRUD for old/new coexistence. The runner must still verify each member's
 individual bytes, ordering, function identity and ACL; a partial run may resume
 only from an exact applied prefix.
@@ -30,13 +31,13 @@ credential.
 
 ## Exact compatible prefix
 
-The exact sixteen-member candidate is staged on the isolated branch. The first
+The exact seventeen-member candidate is staged on the isolated branch. The first
 two members were already migrations:
 
 1. `20260905010000_correct_order_staff_read_charged_total`;
 2. `20260905020000_prepare_order_account_deletion_authority`.
 
-The remaining fourteen audited SQL sources are staged byte-identically as
+The remaining fifteen audited SQL sources are staged byte-identically as
 immutable migration candidates in this dependency order:
 
 3. `order-provider-claim-exclusion.sql`;
@@ -52,7 +53,8 @@ immutable migration candidates in this dependency order:
 13. `order-paid-checkout-authority.sql`;
 14. `order-checkout-existing-authority.sql`;
 15. `order-checkout-postpayment-authority.sql`;
-16. `order-checkout-refund-review-authority.sql`.
+16. `order-checkout-refund-review-authority.sql`;
+17. `order-authority-composition-correction.sql`.
 
 Source snapshot precedes paid creation because the latter derives all protected
 Order/OrderItem facts from the retained reservation witness. The three smaller
@@ -70,9 +72,9 @@ Before any runner can apply the prefix, it must prove:
 - the already-live FORCE posture and direct-table denial remain unchanged for
   `CheckoutStockReservation`, `StripeWebhookEvent`, `OrderPaymentEvent`,
   `OrderRefundReconciliation`, Case and Notification;
-- the only new table is the policyless FORCE
-  `SellerDeauthorizationApplication` ledger with zero PUBLIC/runtime table
-  authority and immutable-update/delete enforcement;
+- the only new tables are the policyless FORCE `OrderStaffCapability` and
+  `SellerDeauthorizationApplication`, with zero PUBLIC/runtime table authority;
+  the deauthorization ledger retains immutable-update/delete enforcement;
 - every new runtime function is SECURITY DEFINER, has fixed
   `search_path=pg_catalog`, is owned outside restricted roles, exposes only its
   reviewed signature and grants EXECUTE only to its intended role;
@@ -88,11 +90,11 @@ must run migration status, the global grant/RLS audit and an exact read-only
 post-application scope proof. A distinct actual pooled-runtime postflight is
 still required.
 
-The isolated CI candidate now removes all fourteen suffix migrations before
+The isolated CI candidate now removes all fifteen suffix migrations before
 any predecessor deployment, restores them only after the two leading members,
 and applies the complete prefix to the disposable PostgreSQL 16 service. Its
-engine-read-only proof pins all sixteen migration-ledger rows and checks the
-retained Order posture, private SellerDeauthorizationApplication posture,
+engine-read-only proof pins all seventeen migration-ledger rows and checks the
+retained Order posture, both private table postures,
 function identities/ACLs, constraints and immutable trigger. This is CI proof
 only; it is not production evidence or an actual pooled-runtime postflight.
 
@@ -295,9 +297,11 @@ zero-stock IN_STOCK listing from ACTIVE to SOLD_OUT. This does not reopen new
 checkout admission or relax hidden/rejected/private-recipient/seller checks.
 The draft, staged paid-checkout SQL and its byte pin must remain identical.
 
-1. Retain and reverify the accepted comprehensive credential-recovery boundary
-   sealed at `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89`; do not reintroduce a
-   superseded credential epoch or deployment.
+1. Retain the family-specific recovery evidence sealed at
+   `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89`, but separately establish umbrella
+   acceptance against `comprehensive-credential-exposure-recovery-20260902.md`.
+   Its remaining open families are not closed by historical family acceptance.
+   Do not reintroduce a superseded credential epoch or deployment.
 2. Provision and prove the separate authority-free staff-read login and isolate
    its credential. Do not grant the v2 functions before they exist.
 3. Apply the exact compatible prefix while Order RLS remains off, then converge

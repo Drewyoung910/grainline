@@ -1,5 +1,14 @@
 # Order RLS restart checkpoint — 2026-09-07
 
+September 8 continuation: accepted correction package `f00eac52` / CI
+`34247688283` is preserved, including the driver-decoding failure and correction
+record in the local recovery checkpoint. Current isolated work is
+`order-zero-direct-release-scope.md`: the exact 17-member prerequisite prefix,
+18 restart states and 36 function catalog/authority bindings. It remains a
+dormant component, not the complete production validator or executable runner.
+Use `order-release-readiness-20260908.md` for current sequencing; historical
+acceptance/pending statements below retain their original checkpoint context.
+
 Active recovered worktree (September 8):
 `/Users/drewyoung/grainline/.worktrees/order-case-lifecycle-20260908`.
 Local recovery branch: `agent/order-case-lifecycle-recovery-20260908`, based on

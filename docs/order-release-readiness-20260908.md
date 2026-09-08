@@ -17,7 +17,8 @@ the root's local audit packets. Worktree reconciliation is separate.
 | CASE-04/05 lifecycle | Full CI `34190781473` at `1f29f630`, 17 native scenarios; account-deletion `34190781539`, staff `34190781519`, paid-repair `34190781452` | Compatible result readers before new SQL results; actual-runtime/authenticated objection and overlap acceptance; separate deadline/legal alignment is not silently changed |
 | CheckoutStockReservation NULL-outcome repair | Full CI `34198555971` at `58e8a2ad`, full-schema clone and actual-login proof, 20 invalid/12 legitimate outcomes, all companion proofs | Independently packaged integrity successor and final runtime/production acceptance; do not replay its old RLS activation |
 | Combined six-draft/nine-function candidate | Full/native CI `34203109385` at `99f6e8cb`, all companion proofs, exact catalog/data rollback | Actual production packaging and composed runtime acceptance; this is not activation |
-| Correction release package | Source-only 251-predecessor/six-successor manifest and ledger/target-body restart checks in `order-correction-release-package.md` | Final local/native CI, complete production scope/runner, credential and deployed-source gates; nothing is staged for execution |
+| Correction release package | Accepted `f00eac52` / native CI `34247688283`; 251-predecessor/six-successor manifest, seven native catalog states, 12 mismatch denials, unchanged ledger and rollback; all companion workflows passed | Complete production scope/runner, credential and deployed-source gates; nothing is staged for execution |
+| Seventeen-member zero-direct prefix scope | Dormant source component in `order-zero-direct-release-scope.md`, 18 restart states and 36 affected functions | Exact-head checks; complete schema/global-authority and serialized execution composition; no production entrypoint |
 
 These are isolated candidates, not newly deployed fixes. Source references:
 `order-input-correction-runtime-proof.md`, `admin-page-pin-boundary-fix.md`,
@@ -43,6 +44,10 @@ These are isolated candidates, not newly deployed fixes. Source references:
    successor `order-correction-release-package.md` pins full predecessor and
    proposed successor identities and rejects ledger/body mismatch; it is still
    a source-only component, not the complete production scope or executor.
+   Its native driver correction is accepted at `f00eac52` / `34247688283`;
+   preserve failed `34246140990` as the internal-array decoding failure, not a
+   production defect. Current work is the 17-member prefix scope beneath its
+   required 251 predecessors, described in `order-zero-direct-release-scope.md`.
 3. Resolve the umbrella credential-recovery acceptance from sanitized evidence.
    `comprehensive-credential-exposure-recovery-20260902.md` remains the incident
    gate; individual accepted families are not blanket incident closure. This
