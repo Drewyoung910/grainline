@@ -45,9 +45,12 @@ export function parseCorrectionReleaseProofConfig(env = process.env) {
 }
 
 export async function proveCorrectionReleasePackage(client, phase = () => {}) {
+  phase("source-package");
   const release = createCorrectionReleasePackage();
+  phase("predecessor-ledger");
   const rawLedger = (await client.query(CORRECTION_RELEASE_LEDGER_QUERY)).rows;
   const modeledLedger = correctionProofHistoricalLedger(rawLedger, release.manifest);
+  phase("before-fingerprints");
   const before = await repairProofCatalog(client);
   const beforeRows = await compositionRowFingerprint(client);
   await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
@@ -62,6 +65,7 @@ export async function proveCorrectionReleasePackage(client, phase = () => {}) {
       return rows.map((r) => ({ ...r, owner_name: "neondb_owner" }));
     };
     let checkedStates = 0; let mismatchDenials = 0;
+    phase("before-target-snapshot");
     let functions = await read();
     release.assertSnapshot({ ledgerRows: modeledLedger, functionRows: functions }, request("order-compatible"));
     checkedStates += 1;
@@ -80,10 +84,12 @@ export async function proveCorrectionReleasePackage(client, phase = () => {}) {
       release.assertSnapshot({ ledgerRows: modeledLedger, functionRows: functions }, request(pkg.boundary));
       checkedStates += 1;
     }
+    phase("complete-boundary-snapshots");
     for (const boundary of Object.keys(counts)) {
       const result = release.assertSnapshot({ ledgerRows: modeledLedger, functionRows: functions }, { ...request(boundary), stage: "after" });
       assert.equal(result.remainingMigrations.length, 0);
     }
+    phase("unchanged-migration-ledger");
     assert.deepEqual((await client.query(CORRECTION_RELEASE_LEDGER_QUERY)).rows, rawLedger);
     return { status: "passed", checkedStates, mismatchDenials, migrationLedgerMutated: false,
       historicalLedgerModeled: true, ownerIdentityModeled: true, actualRuntimeLoginProven: false,
@@ -103,7 +109,9 @@ export async function runCorrectionReleaseProof(env = process.env, phase = () =>
     statement_timeout: 30000, query_timeout: 35000, application_name: "correction-release-package-proof" });
   await client.connect();
   try {
+    phase("disposable-owner-identity");
     await verifyInputRuntimeIdentity(client, "grainline_ci", "ci", env.GITHUB_ACTIONS === "true");
+    phase("disposable-runtime-posture");
     await verifyRepairProofRole(client, true);
     return await proveCorrectionReleasePackage(client, phase);
   } finally { await client.end(); }

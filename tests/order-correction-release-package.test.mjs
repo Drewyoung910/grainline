@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import pg from "pg";
 import { createCorrectionReleasePackage, CORRECTION_RELEASE_BOUNDARIES, CORRECTION_RELEASE_MIGRATIONS } from "../scripts/order-correction-release-package.mjs";
 import { correctionCompositionBundle } from "../scripts/order-correction-composition-manifest.mjs";
 import { correctionProofAppliedRow, correctionProofHistoricalLedger, parseCorrectionReleaseProofConfig,
@@ -132,6 +133,13 @@ test("disposable proof refuses every non-CI target and production execution rema
   assert.ok(workflow.indexOf("Prove correction release ledger and body restart states") > workflow.indexOf("Prove exact Order Case reservation correction composition and rollback"));
 });
 
+test("node-postgres catalog array decoding requires an explicit text-array result", () => {
+  // pg_catalog.\"char\"[] (OID 1002) has no default node-postgres array parser.
+  // PGlite decodes it as an array, so offline engine checks alone miss this seam.
+  assert.equal(pg.types.getTypeParser(1002, "text")("{i,i,t}"), "{i,i,t}");
+  assert.deepEqual(pg.types.getTypeParser(1009, "text")("{i,i,t}"), ["i", "i", "t"]);
+});
+
 test("real catalog reader and all seven sequential states pass with explicit offline ledger modeling", async () => {
   const db = await offlineCompositionFixture();
   try {
@@ -141,7 +149,19 @@ test("real catalog reader and all seven sequential states pass with explicit off
     await db.query(`INSERT INTO public._prisma_migrations(id,migration_name,checksum,finished_at,rolled_back_at,applied_steps_count)
       SELECT migration_name,migration_name,checksum,finished_at,rolled_back_at,applied_steps_count
       FROM jsonb_to_recordset($1::jsonb) AS r(migration_name text,checksum text,finished_at timestamptz,rolled_back_at timestamptz,applied_steps_count integer)`, [JSON.stringify(plainLedger)]);
-    const owner = { query: (sql, params) => params === undefined && sql.includes("\n") && sql.includes("DO $") ? db.exec(sql) : db.query(sql, params) };
+    const owner = { query: async (sql, params) => {
+      if (params === undefined && sql.includes("\n") && sql.includes("DO $")) return db.exec(sql);
+      const result = await db.query(sql, params);
+      const field = result.fields.find((f) => f.name === "arg_modes");
+      if (!field) return result;
+      // Exercise the installed production driver's decoder with the real SQL
+      // result OID. This models only transport decoding, not a native PG login.
+      return { ...result, rows: result.rows.map((row) => {
+        if (row.arg_modes === null) return row;
+        assert.ok(row.arg_modes.every((mode) => /^[iobvt]$/u.test(mode)));
+        return { ...row, arg_modes: pg.types.getTypeParser(field.dataTypeID, "text")(`{${row.arg_modes.join(",")}}`) };
+      }) };
+    } };
     let phase;
     let result;
     try { result = await proveCorrectionReleasePackage(owner, (value) => { phase = value; }); }

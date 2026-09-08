@@ -126,6 +126,27 @@ historical bytes/validators remained unchanged. The first 11 focused tests then
 passed, including real engine composition and restart checks. Final validation
 and exact-head native CI must be recorded before accepting this new component.
 
+The first pushed package (`1f6d224b8ff51edec0a263836a55fb573caf1145`) failed
+native CI `34246140990` in the new release-check step, after the earlier combined
+composition proof passed. The diagnostic only reported
+`configuration-or-connection [ASSERTION_OR_CONNECTION]`; it did not identify
+which early assertion failed. A local reproduction through the installed `pg`
+decoder found a concrete transport mismatch: catalog `proargmodes` is internal
+`"char"[]` (OID 1002), which PGlite returns as an array but node-postgres returns
+as a string. The unchanged strict snapshot assertion correctly rejects that
+string. This is a checker portability defect, not an application or SQL-authority
+failure, and the original run is not accepted evidence.
+
+The reader now selects `proargmodes::text[]`, preserving exact modes, order and
+NULL while using the driver's supported text-array decoder. The regression
+passes real offline result OIDs through the installed `pg` decoder: it failed on
+the old reader before the correction and must pass all seven states afterward.
+The proof also marks bounded early phases (source, ledger, fingerprints,
+identity, role and target snapshot) without printing catalog values or arbitrary
+errors. No body, byte pin, grant, permission or denial assertion is weakened.
+Native CI on the corrected exact head remains required to confirm that this
+was the sole native failure; offline decoding is not native server acceptance.
+
 ## Remaining work — no activation inferred
 
 1. Finish the predecessor-prefix and correction production scope/runner package:

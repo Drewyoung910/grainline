@@ -184,7 +184,7 @@ export function createCorrectionReleasePackage() {
         p.prokind AS kind, p.prosecdef AS security_definer, p.proleakproof AS leakproof,
         p.proisstrict AS strict, p.provolatile AS volatility, p.proparallel AS parallel_safety,
         p.proconfig AS configuration, pg_catalog.pg_get_function_result(p.oid) AS return_type,
-        p.proretset AS returns_set, p.proargnames AS arg_names, p.proargmodes AS arg_modes,
+        p.proretset AS returns_set, p.proargnames AS arg_names, p.proargmodes::text[] AS arg_modes,
         p.pronargdefaults::integer AS argument_defaults, p.provariadic<>0 AS variadic,
         pg_catalog.has_function_privilege('grainline_app_runtime',p.oid,'EXECUTE') AS runtime_execute,
         (SELECT count(*)::integer FROM pg_catalog.aclexplode(COALESCE(p.proacl,
