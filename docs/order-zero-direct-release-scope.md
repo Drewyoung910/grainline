@@ -194,6 +194,31 @@ read-only mode requirement was not relaxed.
 
 ## Still required before production execution
 
+### Dormant tracked-source boundary
+
+`order-zero-direct-release-source.mjs` reads a canonical checkout using a fixed
+Git executable and isolated Git environment. It binds an explicitly supplied
+reviewed commit, exact Grainline origin, clean index/worktree, and every tracked
+regular file to its committed Git blob and a SHA-256 catalog. It rejects
+index-hidden entries, configured Git filters before status can execute them,
+unsupported symlinks/submodules, executable-mode drift,
+hardlinks, ancestor aliases and byte changes. Reads have per-file/total bounds
+and before/after descriptor checks. `verify(handle)` repeats the observation;
+handles cannot be forged or transferred between instances. The component
+imports only Node built-ins and invokes only read-only Git commands.
+
+This is disk-source identity, not loaded-process identity. Ignored files,
+including installed dependencies, are deliberately not attested. Local origin
+metadata is not authenticated remote-main/CI evidence. Capturing hashes after
+another module was imported cannot prove its cached bytes. Sequential reads
+are not an atomic filesystem snapshot or protection against a hostile same-user
+process. A future fresh-process bootstrap must bind the actual loaded source,
+installed toolchain and independently authenticated exact-main CI, and repeat
+checks immediately before execution under serialization. Consequently this
+component explicitly returns false for loaded source, installed toolchain,
+authenticated CI, complete production scope and execution authority. It neither
+loads credentials nor executes release code, Prisma or provider operations.
+
 This is **not the complete production validator or runner**. Every verdict says
 `completeProductionScope=false` and `productionExecutionAuthorized=false`.
 
