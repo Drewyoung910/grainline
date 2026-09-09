@@ -15,12 +15,15 @@ const {
 
 describe("refund lock state", () => {
   it("never reclaims a pending sentinel held by a durable Case claim", () => {
-    const cleanup = readFileSync("src/lib/refundLocks.ts", "utf8");
-
-    assert.match(
-      cleanup,
-      /sellerRefundId: REFUND_LOCK_SENTINEL,[\s\S]*caseResolutionClaimId: null,[\s\S]*refundClaimId: null,[\s\S]*sellerRefundLockedAt/,
+    const cleanup = readFileSync(
+      "docs/rls-drafts/order-legacy-refund-lock-authority.sql",
+      "utf8",
     );
+
+    assert.match(cleanup, /"sellerRefundId" = 'pending'/);
+    assert.match(cleanup, /"caseResolutionClaimId" IS NULL/);
+    assert.match(cleanup, /"refundClaimId" IS NULL/);
+    assert.match(cleanup, /"sellerRefundLockedAt" <[\s\S]*interval '15 minutes'/);
   });
 
   it("timestamps contended refund reservations after the database lock wait", () => {

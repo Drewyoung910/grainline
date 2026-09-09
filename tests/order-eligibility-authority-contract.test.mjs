@@ -20,6 +20,7 @@ describe("Order eligibility authority contract", () => {
       "src/app/api/verification/apply/route.ts",
       "src/app/dashboard/verification/page.tsx",
       "src/lib/listingSoftDelete.ts",
+      "src/components/ReviewsSection.tsx",
     ];
     for (const path of converted) {
       const text = source(path);

@@ -8,7 +8,7 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import BlockReportButton from "@/components/BlockReportButton";
 import { publicListingPath } from "@/lib/publicPaths";
 import { avatarInitials } from "@/lib/avatarInitials";
-import { paidStripeOrderWhere } from "@/lib/orderTrust";
+import { lockReviewEligibleOrderItem } from "@/lib/orderEligibilityAuthority";
 
 const LISTING_REVIEW_DISPLAY_LIMIT = 100;
 
@@ -133,21 +133,15 @@ export default async function ReviewsSection({
   const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   let canCreate = false;
   if (meId && !mine) {
-    const paidOrder = await prisma.orderItem.findFirst({
-      where: {
-        listingId,
-        order: {
-          ...paidStripeOrderWhere(),
-          buyerId: meId,
-          createdAt: { gte: since90 },
-          fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
-          sellerRefundId: null,
-          paymentRefundBlocked: false,
-        },
-      },
-      select: { id: true },
-    });
-    canCreate = !!paidOrder;
+    // Keep the friendly composer hint on the same actor-bound database rule
+    // that the POST route rechecks under the parent Order lock. This call's
+    // implicit statement transaction releases its lock before rendering; the
+    // write route remains the authoritative race-safe decision.
+    canCreate = Boolean(await lockReviewEligibleOrderItem({
+      actorUserId: meId,
+      listingId,
+      since: since90,
+    }));
   }
 
   // Other visible reviews, bounded and ordered in the database.

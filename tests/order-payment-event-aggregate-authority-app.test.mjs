@@ -8,7 +8,6 @@ const aggregateConsumers = [
   "src/app/api/seller/analytics/recent-sales/route.ts",
   "src/app/api/seller/analytics/route.ts",
   "src/components/ReviewsSection.tsx",
-  "src/lib/ban.ts",
   "src/lib/homepageStats.ts",
   "src/lib/metrics.ts",
   "src/lib/publicSellerStats.ts",
@@ -22,7 +21,7 @@ function source(file) {
 
 describe("OrderPaymentEvent aggregate-authority application conversion", () => {
   it("keeps remaining aggregate consumers on fixed projections", () => {
-    assert.equal(aggregateConsumers.length, 11);
+    assert.equal(aggregateConsumers.length, 10);
     const publicAggregateConsumers = new Set([
       "src/lib/homepageStats.ts",
       "src/lib/publicSellerStats.ts",
@@ -34,7 +33,10 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
       "src/app/api/seller/analytics/recent-sales/route.ts",
       "src/app/api/seller/analytics/route.ts",
     ]);
-    const sellerMetricsConsumers = new Set(["src/lib/metrics.ts"]);
+    const sellerMetricsConsumers = new Set([
+      "src/app/admin/verification/page.tsx",
+      "src/lib/metrics.ts",
+    ]);
     for (const file of aggregateConsumers) {
       const value = source(file);
       assert.match(
@@ -45,7 +47,7 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
             ? /orderSellerAnalyticsAuthority|readSeller|countSellerCompletedOrders/
           : sellerMetricsConsumers.has(file)
             ? /orderSellerMetricsAuthority|readOrderSellerMetricsFacts/
-          : /paymentRefundBlocked|paymentConversionDisputeBlocked/,
+          : /lockReviewEligibleOrderItem/,
         `${file} lost its fixed payment eligibility projection`,
       );
       assert.doesNotMatch(
@@ -101,11 +103,14 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
     const eligibility = source(
       "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
     );
-    const ban = source("src/lib/ban.ts");
+    const banOrderAuthority = source(
+      "docs/rls-drafts/order-ban-review-authority.sql",
+    );
     assert.match(softDelete, /getListingOrderArchiveBlocked/u);
     assert.match(eligibility, /source_order\."paymentRefundBlocked" = false/u);
     assert.match(softDelete, /TransactionIsolationLevel\.Serializable/u);
-    assert.match(ban, /paymentRefundBlocked: false/u);
-    assert.match(ban, /reviewNeeded: true/u);
+    assert.match(banOrderAuthority, /source_order\."paymentRefundBlocked" = false/u);
+    assert.match(banOrderAuthority, /SET "reviewNeeded" = true/u);
+    assert.match(banOrderAuthority, /FOR UPDATE/u);
   });
 });

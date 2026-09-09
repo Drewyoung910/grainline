@@ -1,7 +1,6 @@
 // src/app/admin/cases/[id]/page.tsx
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import CaseResolutionPanel from "@/components/CaseResolutionPanel";
 import CaseReplyBox from "@/components/CaseReplyBox";
 import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
@@ -18,6 +17,8 @@ import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
 import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 import CaseMessageAttachments from "@/components/CaseMessageAttachments";
 import { getVisibleCaseById } from "@/lib/caseReadAuthority";
+import { readStaffOrderDetail } from "@/lib/orderStaffReadAuthority";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -102,51 +103,23 @@ export default async function AdminCaseDetailPage({
 
   if (!visibleCase) notFound();
 
-  const [order, buyer, seller] = await Promise.all([
-    prisma.order.findUnique({
-      where: { id: visibleCase.orderId },
-      select: {
-        id: true,
-        currency: true,
-        itemsSubtotalCents: true,
-        shippingAmountCents: true,
-        giftWrappingPriceCents: true,
-        taxAmountCents: true,
-        fulfillmentStatus: true,
-        items: {
-          select: {
-            listingId: true,
-            quantity: true,
-            priceCents: true,
-            listing: {
-              select: {
-                title: true,
-                listingType: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-    visibleCase.buyerId
-      ? prisma.user.findUnique({
-          where: { id: visibleCase.buyerId },
-          select: { id: true, name: true, email: true },
-        })
-      : null,
-    prisma.user.findUnique({
-      where: { id: visibleCase.sellerId },
-      select: { id: true, name: true, email: true },
-    }),
-  ]);
+  const order = await readStaffOrderDetail(
+    staff.id,
+    visibleCase.orderId,
+    getOrderStaffReadClient(),
+  );
 
-  if (!order || !seller) notFound();
+  if (!order) notFound();
+  if (
+    order.buyerId !== visibleCase.buyerId
+    || order.sellerUserId !== visibleCase.sellerId
+  ) {
+    throw new Error("Case and Order participant relationship drifted");
+  }
 
   const caseRecord = {
     ...visibleCase,
     order,
-    buyer,
-    seller,
   };
   const caseMessageHistory = await findCaseMessageHistoryPage(
     staff.id,
@@ -159,11 +132,11 @@ export default async function AdminCaseDetailPage({
     caseRecord.status !== "RESOLVED" && caseRecord.status !== "CLOSED";
   const restorableRefundItems = Array.from(
     caseRecord.order.items.reduce((items, item) => {
-      if (item.listing.listingType !== "IN_STOCK" || item.quantity <= 0) return items;
+      if (item.currentListingType !== "IN_STOCK" || item.quantity <= 0) return items;
       const existing = items.get(item.listingId);
       items.set(item.listingId, {
         listingId: item.listingId,
-        title: item.listing.title,
+        title: item.snapshot.title,
         quantity: (existing?.quantity ?? 0) + item.quantity,
       });
       return items;
@@ -202,15 +175,15 @@ export default async function AdminCaseDetailPage({
       <div className="grid grid-cols-3 gap-4">
         <Section title="Buyer">
           <dl className="space-y-3">
-            <Field label="Name" value={caseRecord.buyer?.name ?? "Deleted buyer"} />
-            <Field label="Email" value={caseRecord.buyer?.email ?? "Unavailable"} />
+            <Field label="Name" value={caseRecord.order.buyerName ?? "Deleted buyer"} />
+            <Field label="Email" value={caseRecord.order.buyerEmail ?? "Unavailable"} />
           </dl>
         </Section>
 
         <Section title="Seller">
           <dl className="space-y-3">
-            <Field label="Name" value={caseRecord.seller.name} />
-            <Field label="Email" value={caseRecord.seller.email} />
+            <Field label="Name" value={caseRecord.order.sellerUserName ?? "Deleted seller"} />
+            <Field label="Email" value={caseRecord.order.sellerUserEmail ?? "Unavailable"} />
           </dl>
         </Section>
 
