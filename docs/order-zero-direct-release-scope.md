@@ -254,6 +254,36 @@ acceptance remains a separate gate. Do not dispatch the historical 18-member
 Order workflow, remove its latest-migration guard, or reuse this partial result
 as approval to execute.
 
+### Fresh-process source probe, not a migration worker
+
+`order-zero-direct-fresh-source-probe.mjs` launches a new Node process using only
+a fixed bootstrap and the reviewed commit, source catalog, source-fence hash,
+Node version and Node-binary hash. Pins must come from reviewed release/toolchain
+evidence; computing them from an arbitrary current installation is not production
+acceptance. The parent and child check the runtime binding. Before importing any
+repository module, the child checks the fixed source-fence file against its pin;
+it then captures and reverifies the complete tracked checkout. No arbitrary
+entrypoint, shell command, database credential, npm dependency or migration
+module is accepted or loaded by this probe.
+
+The child gets only fixed PATH, UTC and C locale settings, not the parent's
+credentials, proxy, NODE_PATH or NODE_OPTIONS. On macOS the OS-added
+`__CF_USER_TEXT_ENCODING` entry is allowed only in its hexadecimal descriptor
+shape. An initial native test rejected that OS-added entry; the exception does
+not permit preload or credential variables. Child execution has a timeout and
+bounded output; errors are sanitized. Real child tests prove distinct processes,
+preload/credential exclusion, changed-file rejection before import, incorrect
+pins and dirty-source denial.
+
+The returned probe is not a worker session or reusable execution capability.
+It proves only this fresh source-fence import and checkout check; it deliberately
+leaves `loadedReleaseGraphProven`, `installedToolchainProven`, complete scope and
+production authority false. It does not load the 78-module release graph, `pg`,
+TypeScript, Prisma or generated engines. A subsequent process cannot inherit
+this process's loaded-code claim. The trusted-host assumption remains explicit:
+these checks do not protect against a hostile same-user process racing files
+or an already-compromised parent/runtime. No production entrypoint is wired.
+
 The prefix reader accepts only completed migration-prefix states. It does not
 infer that every migration is atomic: member 10 has no enclosing SQL BEGIN.
 An interrupted or partially applied member must fail closed for separate
