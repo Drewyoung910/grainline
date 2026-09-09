@@ -54,10 +54,10 @@ describe("dependency hygiene guardrails", () => {
       .filter(([path]) => path === "node_modules/postcss" || path.endsWith("/node_modules/postcss"))
       .map(([path, entry]) => [path, entry.version]);
 
-    assert.equal(pkg.dependencies?.next, "^16.2.12");
-    assert.equal(lock.packages?.["node_modules/next"]?.version, "16.2.12");
-    assert.equal(pkg.devDependencies?.["eslint-config-next"], "^16.2.12");
-    assert.equal(lock.packages?.["node_modules/eslint-config-next"]?.version, "16.2.12");
+    assert.equal(pkg.dependencies?.next, "^16.3.3");
+    assert.equal(lock.packages?.["node_modules/next"]?.version, "16.3.3");
+    assert.equal(pkg.devDependencies?.["eslint-config-next"], "^16.3.3");
+    assert.equal(lock.packages?.["node_modules/eslint-config-next"]?.version, "16.3.3");
 
     assert.equal(pkg.devDependencies?.postcss, "8.5.23");
     assert.equal(pkg.overrides?.postcss, "8.5.23");
@@ -110,7 +110,7 @@ describe("dependency hygiene guardrails", () => {
     );
     assert.equal(
       lock.packages?.["node_modules/js-yaml"]?.version,
-      "4.3.1",
+      "4.3.2",
     );
   });
 
@@ -129,10 +129,10 @@ describe("dependency hygiene guardrails", () => {
       .filter(([path]) => path === "node_modules/sharp" || path.endsWith("/node_modules/sharp"))
       .map(([path, entry]) => [path, entry.version]);
 
-    assert.equal(pkg.devDependencies?.sharp, "^0.35.3");
+    assert.equal(pkg.devDependencies?.sharp, "^0.35.4");
     assert.equal(pkg.overrides?.sharp, "$sharp");
-    assert.equal(lock.packages?.[""]?.devDependencies?.sharp, "^0.35.3");
-    assert.deepEqual(sharpInstalls, [["node_modules/sharp", "0.35.3"]]);
+    assert.equal(lock.packages?.[""]?.devDependencies?.sharp, "^0.35.4");
+    assert.deepEqual(sharpInstalls, [["node_modules/sharp", "0.35.4"]]);
   });
 
   it("does not reintroduce stale marked ambient types", () => {
@@ -150,7 +150,7 @@ describe("dependency hygiene guardrails", () => {
     const docs = source("CLAUDE.md");
 
     assert.match(workflow, /npm ci --ignore-scripts/);
-    assert.equal(pkg.scripts?.build, "prisma generate && next build");
+    assert.equal(pkg.scripts?.build, "prisma generate && node scripts/prepare-maplibre-assets.mjs && next build");
     assert.match(docs, /CI installs with `npm ci --ignore-scripts`/);
     assert.match(docs, /Vercel production installs use normal npm lifecycle behavior/);
   });

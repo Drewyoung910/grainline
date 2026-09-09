@@ -38,6 +38,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Generated from the locked MapLibre package during dev/build
+/public/vendor/maplibre/
+/.local-proofs/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

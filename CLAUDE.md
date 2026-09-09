@@ -178,7 +178,7 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 ## Tech Stack
 
-- **Framework**: Next.js 16.2.12 (App Router), React 19.2.5, TypeScript
+- **Framework**: Next.js 16.3.3 (App Router), React 19.2.5, TypeScript
 - **Styling**: Tailwind CSS 4
 - **Database**: PostgreSQL via Prisma ORM
 - **Auth**: Clerk (`@clerk/nextjs`)
@@ -3202,6 +3202,13 @@ Full-codebase audit across 79 API routes, 8 parallel audit passes. 44 findings i
 - **No stock check at checkout** — Neither checkout route validated `stockQuantity >= requested quantity` for IN_STOCK items. Added guards to both `checkout-seller` and `checkout/single`. Buyers now get 400 "Not enough stock" instead of a Stripe session for unavailable items.
 - **Private listings on seller profile** — `src/app/seller/[id]/page.tsx` listing query had no `isPrivate: false` filter. Custom order listings reserved for specific buyers appeared publicly. Fixed.
 - **Attachment URL phishing** — `sendMessage` accepted arbitrary URLs in message attachments with no domain validation. New writes now validate first-party media URLs through the shared URL-validation helpers, and read-time message attachment parsing defaults to R2/current first-party media validation with sanitized/capped metadata. Non-first-party URLs are silently skipped or fail closed. Files: `src/app/messages/[id]/page.tsx`, `src/lib/messageBodies.ts`, and `src/lib/urlValidation.ts`.
+
+### Map dependency compatibility (2026-09-08)
+
+For MapLibre 6, all map components use `src/lib/maplibreClient.ts` and the
+versioned same-origin worker assets prepared by `npm run dev` / `npm run build`.
+Preserve the WebGL 2 fallback and privacy-radius behavior. See
+`docs/dependency-security-20260908.md` for packaging and verification gates.
 
 ### High fixes
 - **checkout-seller: vacationMode** — Route was missing vacation check (checkout/single had it). Added guard after chargesEnabled check.
