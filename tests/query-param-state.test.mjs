@@ -104,9 +104,9 @@ describe("query parameter parsing helpers", () => {
       assert.doesNotMatch(source, /prisma\.order|skip:/);
     }
 
-    assert.match(adminOrders, /const total = await prisma\.order\.count\(\)/);
-    assert.match(adminOrders, /const safePage = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(adminOrders, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+    assert.match(adminOrders, /readStaffOrderPage\([\s\S]*"ALL"[\s\S]*requestedPage/);
+    assert.match(adminOrders, /totalCount: total, safePage, orders/);
+    assert.doesNotMatch(adminOrders, /prisma\.order|skip:/);
 
     assert.match(
       adminCases,
@@ -115,10 +115,9 @@ describe("query parameter parsing helpers", () => {
     assert.match(adminCases, /const safePage = queue\.safePage/);
     assert.doesNotMatch(adminCases, /prisma\.case|skip:/);
 
-    assert.match(adminFlagged, /const total = await prisma\.order\.count\(\{ where \}\)/);
-    assert.match(adminFlagged, /const safePage = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(adminFlagged, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(adminFlagged, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+    assert.match(adminFlagged, /readStaffOrderPage\([\s\S]*"REVIEW_NEEDED"[\s\S]*requestedPage/);
+    assert.match(adminFlagged, /totalCount: total, safePage, orders/);
+    assert.doesNotMatch(adminFlagged, /prisma\.order|skip:/);
 
     assert.match(notifications, /ownerNotificationPageData\(me\.id, \{/);
     assert.match(notifications, /requestedPage,\s*pageSize: PAGE_SIZE/);

@@ -95,6 +95,7 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
   "label_purchased_missing_reference_privacy_redacted_count",
   "label_purchased_missing_reference_unexplained_count",
   "label_clawback_state_coherence_count",
+  "label_refund_provider_claim_overlap_count",
   "label_duplicate_shippo_transaction_identity_count",
   "label_checkout_snapshot_package_candidate_count",
   "label_legacy_live_package_candidate_count",
@@ -464,6 +465,7 @@ export function reservationAuthorityInspectionDecision(counts) {
 }
 
 export const ORDER_LABEL_AUTHORITY_REQUIRED_ZERO_FIELDS = Object.freeze([
+  "label_refund_provider_claim_overlap_count",
   "label_duplicate_shippo_transaction_identity_count",
   "label_unresolvable_package_candidate_count",
   "label_invalid_address_candidate_count",
@@ -1079,6 +1081,22 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
           )
         )
     ) AS label_clawback_state_coherence_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."Order"
+      WHERE (
+        "labelStatus"::text = 'PURCHASED'
+        OR "labelClaimStatus" IN (
+          'PROVIDER_PENDING',
+          'PROVIDER_AMBIGUOUS',
+          'PROVIDER_RECORDED'
+        )
+      )
+        AND (
+          "sellerRefundId" IS NOT NULL
+          OR "refundClaimId" IS NOT NULL
+        )
+    ) AS label_refund_provider_claim_overlap_count,
     (
       SELECT pg_catalog.count(*)
       FROM (

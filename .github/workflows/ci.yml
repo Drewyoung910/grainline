@@ -81,6 +81,57 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify complete Order zero-direct compatible prefix
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test
+          tests/order-zero-direct-compatible-prefix.test.mjs
+          tests/order-zero-direct-compatible-prefix-postgres.test.mjs
+      - name: Isolate Order zero-direct suffix until every predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/order-zero-direct-compatible-suffix"
+          mkdir "$destination"
+          for migration in \
+            20260905030000_prepare_order_provider_claim_exclusion \
+            20260905040000_prepare_order_refund_claim_clock_authority \
+            20260905050000_prepare_order_seller_refund_preflight_authority \
+            20260905060000_prepare_order_legacy_refund_lock_authority \
+            20260905070000_prepare_order_legacy_stock_restore_fence \
+            20260905080000_prepare_order_refund_reconciliation_commit_proof \
+            20260905090000_prepare_order_staff_mutation_authority \
+            20260905100000_prepare_order_ban_review_authority \
+            20260905110000_prepare_order_checkout_source_snapshot \
+            20260905120000_prepare_order_seller_deauthorization_authority \
+            20260905130000_prepare_order_paid_checkout_authority \
+            20260905140000_prepare_order_checkout_existing_authority \
+            20260905150000_prepare_order_checkout_postpayment_authority \
+            20260905160000_prepare_order_checkout_refund_review_authority
+          do
+            mv "prisma/migrations/$migration" "$destination/$migration"
+          done
+      - name: Verify compatible Order account-deletion authority
+        run: >-
+          node --test
+          tests/order-account-deletion-authority.test.mjs
+          tests/order-account-deletion-authority-release.test.mjs
+          tests/order-account-deletion-authority-postgres.test.mjs
+      - name: Isolate Order account-deletion authority until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260905020000_prepare_order_account_deletion_authority
+          "$RUNNER_TEMP/order-account-deletion-authority"
+      - name: Verify dormant Order staff charged-total correction
+        run: >-
+          node --test
+          tests/order-staff-read-charged-total-correction.test.mjs
+          tests/order-staff-read-authority-postgres.test.mjs
+      - name: Isolate Order staff charged-total correction until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260905010000_correct_order_staff_read_charged_total
+          "$RUNNER_TEMP/order-staff-read-charged-total-correction"
       - name: Verify Shippo test-token credential recovery
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -1203,10 +1254,6 @@ jobs:
           ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Re-audit restored OrderPaymentEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Prove Order/payment/shipping legacy inspection SQL at the reviewed production prefix
-        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
-        env:
-          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Restore compatible Order participant list authority release
         run: >-
           mv
@@ -1297,6 +1344,47 @@ jobs:
           mv
           "$RUNNER_TEMP/order-participant-list-projection-correction"
           prisma/migrations/20260901155000_correct_order_participant_list_projection
+      - name: Restore additive Case and Order correctness release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-order-correctness-release"
+          prisma/migrations/20260901160000_correct_case_order_invariants
+      - name: Restore Order staff charged-total correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-staff-read-charged-total-correction"
+          prisma/migrations/20260905010000_correct_order_staff_read_charged_total
+      - name: Restore compatible Order account-deletion authority
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-account-deletion-authority"
+          prisma/migrations/20260905020000_prepare_order_account_deletion_authority
+      - name: Restore complete Order zero-direct compatible suffix
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/order-zero-direct-compatible-suffix"
+          for migration in \
+            20260905030000_prepare_order_provider_claim_exclusion \
+            20260905040000_prepare_order_refund_claim_clock_authority \
+            20260905050000_prepare_order_seller_refund_preflight_authority \
+            20260905060000_prepare_order_legacy_refund_lock_authority \
+            20260905070000_prepare_order_legacy_stock_restore_fence \
+            20260905080000_prepare_order_refund_reconciliation_commit_proof \
+            20260905090000_prepare_order_staff_mutation_authority \
+            20260905100000_prepare_order_ban_review_authority \
+            20260905110000_prepare_order_checkout_source_snapshot \
+            20260905120000_prepare_order_seller_deauthorization_authority \
+            20260905130000_prepare_order_paid_checkout_authority \
+            20260905140000_prepare_order_checkout_existing_authority \
+            20260905150000_prepare_order_checkout_postpayment_authority \
+            20260905160000_prepare_order_checkout_refund_review_authority
+          do
+            mv "$source/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$source"
+      - name: Re-verify complete Order zero-direct compatible prefix
+        run: npm run audit:order-zero-direct-compatible-prefix
       - name: Re-verify compatible Order participant list authority release
         run: npm run audit:order-participant-list-authority-release
       - name: Re-verify compatible Order participant detail authority release
@@ -1331,6 +1419,8 @@ jobs:
         run: npm run audit:order-charged-total-compatibility
       - name: Re-verify Order participant list projection correction
         run: npm run audit:order-participant-list-projection-correction
+      - name: Re-verify compatible Order account-deletion authority
+        run: npm run audit:order-account-deletion-authority
       - name: Apply compatible Order participant authority
         run: npx prisma migrate deploy
       - name: Converge Order participant runtime grants
@@ -1342,6 +1432,14 @@ jobs:
           --file=scripts/provision-runtime-db-role.sql
       - name: Audit Order participant grants and retained Order posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove Order/payment/shipping legacy inspection SQL after label claim preparation
+        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
+        env:
+          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove complete Order zero-direct prefix in disposable PostgreSQL
+        run: npm run audit:order-zero-direct-compatible-prefix-postgres
+        env:
+          ORDER_ZERO_DIRECT_COMPATIBLE_PREFIX_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order participant authority
         run: >-
           node --test
@@ -1356,7 +1454,11 @@ jobs:
           tests/order-staff-read-authority-postgres.test.mjs
           tests/order-staff-read-authority-contract.test.mjs
           tests/order-staff-read-authority-release.test.mjs
+          tests/order-staff-read-charged-total-correction.test.mjs
           tests/order-staff-read-state.test.mjs
+          tests/order-account-deletion-authority.test.mjs
+          tests/order-account-deletion-authority-release.test.mjs
+          tests/order-account-deletion-authority-postgres.test.mjs
           tests/order-participant-export-authority-postgres.test.mjs
           tests/order-participant-export-authority-contract.test.mjs
           tests/order-participant-export-authority-release.test.mjs
@@ -1410,13 +1512,6 @@ jobs:
         run: npm run audit:rls-order-compatible-runtime-postflight
         env:
           ORDER_COMPATIBLE_RUNTIME_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Restore additive Case and Order correctness release
-        run: >-
-          mv
-          "$RUNNER_TEMP/case-order-correctness-release"
-          prisma/migrations/20260901160000_correct_case_order_invariants
-      - name: Apply additive Case and Order correctness release
-        run: npx prisma migrate deploy
       - name: Verify Case and Order correctness migration status
         run: npx prisma migrate status
       - name: Audit corrected Case grants and retained RLS posture

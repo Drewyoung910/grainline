@@ -78,7 +78,10 @@ describe("Case account-deletion application authority", () => {
       "src/lib/accountDeletion.ts",
       "utf8",
     );
-    assert.match(deletion, /getCaseAccountDeletionBlockerCount\(userId\)/);
+    assert.match(
+      deletion,
+      /getCaseAccountDeletionBlockerCount\(userId, tx\)/,
+    );
     assert.match(
       deletion,
       /redactCaseDataForAccountDeletion\([\s\S]*sideEffectId: localAnonymizeSideEffectId[\s\S]*userId: user\.id/,

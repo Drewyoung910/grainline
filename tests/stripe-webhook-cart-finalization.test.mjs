@@ -3,112 +3,67 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const webhookSource = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+const authoritySource = readFileSync(
+  "docs/rls-drafts/order-paid-checkout-authority.sql",
+  "utf8",
+);
 
 describe("Stripe cart checkout webhook finalization", () => {
-  it("creates cart order items from Stripe paid line items, not mutable live cart rows", () => {
-    assert.match(
-      webhookSource,
-      /async function listAllCheckoutSessionLineItems\(sessionId: string\)/,
-      "webhook must fetch the complete paginated Checkout line item list",
-    );
+  it("creates OrderItems from complete Stripe paid lines plus retained checkout source", () => {
+    assert.match(webhookSource, /async function listAllCheckoutSessionLineItems\(sessionId: string\)/);
     assert.match(
       webhookSource,
       /stripe\.checkout\.sessions\.listLineItems\(sessionId, \{[\s\S]*limit: 100,[\s\S]*expand: \["data\.price\.product"\]/,
-      "complete line item fetch must expand product metadata for listing/cart item ids",
     );
     assert.match(
       webhookSource,
       /const checkoutLineItems: CheckoutLineItem\[\] = await listAllCheckoutSessionLineItems\(sessionId\);/,
-      "checkout completion must not rely on the truncated retrieve expansion",
+    );
+    assert.match(webhookSource, /const paidItems = checkoutLineItems\.flatMap/);
+    assert.match(webhookSource, /createOrderFromPaidCheckout\(\{[\s\S]*paidItems,/);
+    assert.match(authoritySource, /source_items := source_snapshot->'items'/);
+    assert.match(authoritySource, /paid->>'sourceKey' = source_item_key/);
+    assert.doesNotMatch(webhookSource, /(?:prisma|tx)\.orderItem\.create/);
+    assert.doesNotMatch(webhookSource, /for \(const it of cart\.items\)/);
+  });
+
+  it("removes only retained Stripe-paid cart rows after atomic order creation", () => {
+    assert.match(
+      authoritySource,
+      /IF source_mode = 'cart' THEN[\s\S]*DELETE FROM public\."CartItem" AS cart_item/,
     );
     assert.match(
-      webhookSource,
-      /const paidItems: PaidItem\[\] = \[\];/,
-      "cart finalization must build an immutable paid-items list from Stripe line_items",
+      authoritySource,
+      /cart_item\.id IN \([\s\S]*retained\.item->>'cartItemId'/,
+    );
+    assert.doesNotMatch(webhookSource, /(?:prisma|tx)\.cartItem\.deleteMany/);
+  });
+
+  it("stores source-derived prices only after exact Stripe-paid price agreement", () => {
+    assert.match(webhookSource, /unitAmountCents: unitAmountCents as number/);
+    assert.match(
+      authoritySource,
+      /\(provider_item->>'unitAmountCents'\)::integer IS DISTINCT FROM source_unit_price_cents/,
+    );
+    assert.match(authoritySource, /'priceCents', source_unit_price_cents/);
+    assert.match(authoritySource, /source_unit_price_cents, source_listing_snapshot/);
+  });
+
+  it("revalidates buyer, seller and listing eligibility under database locks", () => {
+    assert.match(authoritySource, /FROM public\."User" AS actor[\s\S]*FOR UPDATE/);
+    assert.match(authoritySource, /seller\."vacationMode"/);
+    assert.match(authoritySource, /seller\."acceptingNewOrders"/);
+    assert.match(
+      authoritySource,
+      /listing\.status::text AS status, listing\."isPrivate",[\s\S]*listing\."reservedForUserId"/,
     );
     assert.match(
-      webhookSource,
-      /for \(const checkoutItem of checkoutItems\)/,
-      "order item creation must iterate normalized Stripe-paid checkout items",
-    );
-    assert.doesNotMatch(
-      webhookSource,
-      /for \(const it of cart\.items\)/,
-      "order item creation must not loop over live cart rows after payment",
-    );
-    assert.doesNotMatch(
-      webhookSource,
-      /if \(!cart \|\| cart\.items\.length === 0\)/,
-      "a missing or emptied cart must not cause a paid checkout to be silently acknowledged without an order",
+      authoritySource,
+      /source_current_listing\."reservedForUserId" IS DISTINCT FROM[\s\S]*source_buyer_id/,
     );
   });
 
-  it("removes only Stripe-paid cart rows after cart checkout finalization", () => {
-    assert.match(
-      webhookSource,
-      /const paidCartItemIds = \[\.\.\.usedCartItemIds\];/,
-      "cart cleanup must derive paid cart item ids from resolved Stripe line item metadata",
-    );
-    assert.match(
-      webhookSource,
-      /where: \{ cartId, id: \{ in: paidCartItemIds \} \}/,
-      "cart cleanup must delete paid cart items by id",
-    );
-    assert.doesNotMatch(
-      webhookSource,
-      /where: sellerIdFromMeta\s*\?\s*\{ cartId, listing: \{ sellerId: sellerIdFromMeta \} \ }\s*:\s*\{ cartId \}/,
-      "cart cleanup must not delete every current cart row for the seller",
-    );
-  });
-
-  it("stores paid unit prices in order snapshots instead of mutable listing prices", () => {
-    assert.match(
-      webhookSource,
-      /priceCents: orderPriceCents,\s+listingSnapshot: \{[\s\S]*?priceCents: orderPriceCents,/,
-      "cart item snapshots must preserve the Stripe-paid unit price",
-    );
-    assert.match(
-      webhookSource,
-      /const singleOrderPriceCents = singlePaidLine\?\.price\?\.unit_amount \?\? price;/,
-      "single-listing checkout must prefer the Stripe-paid unit price",
-    );
-    assert.match(
-      webhookSource,
-      /priceCents: singleOrderPriceCents,\s+listingSnapshot: \{[\s\S]*?priceCents: singleOrderPriceCents,/,
-      "single-listing snapshots must preserve the charged unit price",
-    );
-  });
-
-  it("revalidates seller and listing eligibility inside the checkout transaction", () => {
-    assert.match(
-      webhookSource,
-      /vacationMode: true,\s+acceptingNewOrders: true,/,
-      "transaction seller revalidation must include vacationMode and acceptingNewOrders",
-    );
-    assert.match(
-      webhookSource,
-      /select: \{ id: true, status: true, isPrivate: true, reservedForUserId: true \}/,
-      "transaction listing revalidation must include public/active/reservation state",
-    );
-    assert.match(
-      webhookSource,
-      /listings: cartListingIds\.map\(\(listingId\) => transactionListingById\.get\(listingId\)\)/,
-      "cart finalization must pass transaction-fresh listings into checkoutInvalidReasonState",
-    );
-    assert.match(
-      webhookSource,
-      /listings: \[transactionListing\]/,
-      "single-listing finalization must pass transaction-fresh listing state into checkoutInvalidReasonState",
-    );
-  });
-
-  it("minimizes buyer PII on buyer-invalid checkout replay orders", () => {
-    const helperStart = webhookSource.indexOf("function checkoutBuyerPiiOrderData");
-    const helperEnd = webhookSource.indexOf("type CheckoutSessionShippingDetails", helperStart);
-    const helper = webhookSource.slice(helperStart, helperEnd);
-
-    assert.ok(helperStart >= 0 && helperEnd > helperStart, "webhook must centralize buyer PII order data");
-    assert.match(helper, /if \(input\.buyerInvalidReason\)/);
+  it("minimizes PII when a paid checkout's buyer is no longer valid", () => {
     for (const field of [
       "buyerEmail",
       "buyerName",
@@ -128,51 +83,32 @@ describe("Stripe cart checkout webhook finalization", () => {
       "shippoRateObjectId",
       "giftNote",
     ]) {
-      assert.match(helper, new RegExp(`${field}: null`), `buyer-invalid checkout must null ${field}`);
+      assert.match(
+        authoritySource,
+        new RegExp(`CASE WHEN source_buyer_invalid_reason IS NULL THEN p_provider->>'${field}' ELSE NULL END`),
+        `buyer-invalid checkout must null ${field}`,
+      );
     }
-    assert.match(helper, /buyerDataPurgedAt: new Date\(\)/);
     assert.match(
-      webhookSource,
-      /buyerInvalidReason: cartInvalidState\.buyerInvalidReason,[\s\S]*?buyerEmail: cartBuyerPii\.buyerEmail,[\s\S]*?shippoShipmentId: cartBuyerPii\.shippoShipmentId,[\s\S]*?giftNote: cartBuyerPii\.giftNote,[\s\S]*?buyerDataPurgedAt: cartBuyerPii\.buyerDataPurgedAt,/,
-      "cart checkout order creation must use the buyer PII helper",
-    );
-    assert.match(
-      webhookSource,
-      /buyerInvalidReason: singleInvalidState\.buyerInvalidReason,[\s\S]*?buyerEmail: singleBuyerPii\.buyerEmail,[\s\S]*?shippoShipmentId: singleBuyerPii\.shippoShipmentId,[\s\S]*?giftNote: singleBuyerPii\.giftNote,[\s\S]*?buyerDataPurgedAt: singleBuyerPii\.buyerDataPurgedAt,/,
-      "single-listing checkout order creation must use the buyer PII helper",
+      authoritySource,
+      /CASE WHEN source_buyer_invalid_reason IS NULL THEN NULL ELSE source_now END/,
     );
   });
 
-  it("stores deleted-buyer checkout replays as blocked review orders, not normal buyer orders", () => {
-    const cartCreateStart = webhookSource.indexOf("const order = await tx.order.create({");
-    const cartCreateEnd = webhookSource.indexOf("for (const checkoutItem of checkoutItems)", cartCreateStart);
-    const cartCreate = webhookSource.slice(cartCreateStart, cartCreateEnd);
-    const singleCreateStart = webhookSource.indexOf("const order = await tx.order.create({", cartCreateEnd);
-    const singleCreateEnd = webhookSource.indexOf("// Stock was already decremented at checkout time", singleCreateStart);
-    const singleCreate = webhookSource.slice(singleCreateStart, singleCreateEnd);
-
-    assert.ok(cartCreateStart >= 0 && cartCreateEnd > cartCreateStart, "cart order creation block must be present");
-    assert.ok(singleCreateStart >= 0 && singleCreateEnd > singleCreateStart, "single order creation block must be present");
-
-    for (const [label, block, invalidStateName, buyerPiiName] of [
-      ["cart", cartCreate, "cartInvalidState", "cartBuyerPii"],
-      ["single", singleCreate, "singleInvalidState", "singleBuyerPii"],
-    ]) {
-      assert.match(block, new RegExp(`buyerId: ${invalidStateName}\\.buyerUserId`), `${label} order buyerId must come from transaction invalid state`);
-      assert.match(block, new RegExp(`reviewNeeded: reviewNeeded \\|\\| !!${invalidStateName}\\.reason`), `${label} deleted-buyer replay must be held for review`);
-      assert.match(block, new RegExp(`reviewNote: ${invalidStateName}\\.reason[\\s\\S]*blockedCheckoutReviewPrefix\\(${invalidStateName}\\.reason\\)`), `${label} blocked checkout must record the invalid reason`);
-      assert.match(block, new RegExp(`buyerDataPurgedAt: ${buyerPiiName}\\.buyerDataPurgedAt`), `${label} blocked checkout must stamp buyer PII purge time`);
-    }
-
+  it("stores invalid paid checkouts as review orders and triggers bounded refund handling", () => {
     assert.match(
-      webhookSource,
-      /reason: cartInvalidState\.reason \?\? null,[\s\S]*invalidReason: cartInvalidState\.reason \?\? null,/,
-      "cart checkout audit row must preserve the invalid buyer reason",
+      authoritySource,
+      /CASE WHEN source_buyer_invalid_reason IS NULL THEN source_buyer_id ELSE NULL END/,
     );
+    assert.match(authoritySource, /source_review_needed := source_invalid_reason <> ''/);
+    assert.match(
+      authoritySource,
+      /source_invalid_reason \|\| ' Order was held for staff review\.'/,
+    );
+    assert.match(authoritySource, /'invalidReason', NULLIF\(source_invalid_reason, ''\)/);
     assert.match(
       webhookSource,
-      /reason: singleInvalidState\.reason \?\? null,[\s\S]*invalidReason: singleInvalidState\.reason \?\? null,/,
-      "single checkout audit row must preserve the invalid buyer reason",
+      /if \(createdOrder\.invalidReason\) \{[\s\S]*await refundBlockedCheckout\(\{/,
     );
   });
 });

@@ -12,12 +12,12 @@ test("Order fixed-operation catalog separates live service ledgers from designs"
   assert.match(catalog, /StripeWebhookEvent operations 1-3 and\s+34-36 are live/);
   assert.match(
     catalog,
-    /SellerPayoutEvent operation 11 plus its latest\/export projections are live\s+as compatible preparation/,
+    /SellerPayoutEvent operation 11 plus its latest\/export projections are live\s+behind policyless FORCE RLS/,
   );
-  assert.match(catalog, /application conversion remains isolated and undeployed/);
+  assert.match(catalog, /OrderPaymentEvent is also live behind policyless\s+FORCE RLS/);
   assert.match(
     catalog,
-    /Remaining Order,\s+OrderItem, shipping-quote and\s+payment families are design contracts only/,
+    /Remaining Order,\s+OrderItem and shipping-quote families are design contracts only/,
   );
   assert.match(catalog, /does not authorize SQL, a migration,\s+an EXECUTE grant/);
   assert.match(catalog, /policyless ENABLE\/FORCE RLS/);
@@ -29,6 +29,29 @@ test("reservation creation catalog names the source-consistent live successors",
   assert.match(catalog, /grainline_checkout_reservation_create_single_consistent/);
   assert.match(catalog, /application witness only as a rejection condition/);
   assert.match(catalog, /predecessor deployment coexistence/);
+  assert.match(catalog, /grainline_checkout_reservation_create_cart_snapshot/);
+  assert.match(catalog, /made-to-order checkout/);
+  assert.match(catalog, /not migrations or\s+runtime authority/);
+});
+
+test("seller deauthorization is explicit, replayable, and still draft-only", () => {
+  assert.match(catalog, /grainline_stripe_seller_deauthorization_apply/);
+  assert.match(catalog, /SellerDeauthorizationApplication/);
+  assert.match(catalog, /already exists/);
+  assert.match(catalog, /not yet a migration or grant/);
+});
+
+test("paid checkout keeps creation, replay, post-payment, and review authority separate", () => {
+  for (const marker of [
+    "grainline_stripe_checkout_order_create",
+    "grainline_stripe_checkout_order_existing",
+    "grainline_stripe_checkout_postpayment",
+    "grainline_stripe_checkout_refund_review",
+  ]) assert.match(catalog, new RegExp(marker), marker);
+  assert.match(catalog, /closed\s+idempotency outcome/);
+  assert.match(catalog, /first-legitimate-sale classification/);
+  assert.match(catalog, /accepts no caller review text/);
+  assert.match(catalog, /database-first compatible\s+migration/);
 });
 
 test("catalog pins every numbered operation family from 1 through 41", () => {

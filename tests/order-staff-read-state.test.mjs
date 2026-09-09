@@ -12,6 +12,7 @@ function detailRow() {
     created_at_epoch_millis: 1_700_000_000_000,
     paid_at_epoch_millis: null,
     currency: "USD",
+    charged_total_cents: 701,
     items_subtotal_cents: 500,
     shipping_title: null,
     shipping_amount_cents: 0,
@@ -51,6 +52,9 @@ function detailRow() {
     quoted_use_calculated_shipping: null,
     seller_profile_id: "seller-1",
     seller_display_name: "Maker",
+    seller_user_id: "seller-user-1",
+    seller_user_name: "Seller",
+    seller_user_email: "seller@example.test",
     seller_refund_state: "NONE",
     seller_refund_id: null,
     seller_refund_amount_cents: null,
@@ -79,6 +83,7 @@ describe("Order staff read state", () => {
         id: "order-1",
         createdAtEpochMillis: 1_700_000_000_000,
         currency: "USD",
+        chargedTotalCents: 701,
         itemsSubtotalCents: 500,
         shippingAmountCents: 0,
         taxAmountCents: 0,
@@ -96,9 +101,12 @@ describe("Order staff read state", () => {
       }],
     }]);
     assert.equal(page?.orders[0].currency, "usd");
+    assert.equal(page?.orders[0].chargedTotalCents, 701);
 
     const detail = staffOrderDetailFromRows([detailRow()]);
     assert.equal(detail?.items[0].snapshot.title, "Purchased item");
+    assert.equal(detail?.chargedTotalCents, 701);
+    assert.equal(detail?.sellerUserId, "seller-user-1");
     assert.equal(detail?.items[0].currentListingType, "IN_STOCK");
   });
 

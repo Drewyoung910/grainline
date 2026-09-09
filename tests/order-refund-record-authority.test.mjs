@@ -82,6 +82,10 @@ test("adds three pinned runtime entrypoints and one owner-private record core wi
 });
 
 test("resumes only the same blocked-checkout claim under an active later signed lease", () => {
+  const existingAuthority = readFileSync(
+    "docs/rls-drafts/order-checkout-existing-authority.sql",
+    "utf8",
+  );
   assert.match(
     migration,
     /locked_event\."claimGeneration" IS DISTINCT FROM p_event_claim_generation/,
@@ -113,22 +117,15 @@ test("resumes only the same blocked-checkout claim under an active later signed 
     /SELECT public\.grainline_blocked_checkout_refund_claim_resume\(/,
   );
   const existingOrderBranch = webhookRoute.slice(
-    webhookRoute.indexOf("const already = await prisma.order.findFirst"),
+    webhookRoute.indexOf("const existingOrder = await readExistingCheckoutOrder"),
     webhookRoute.indexOf("// Retrieve with expansions"),
   );
-  assert.match(existingOrderBranch, /refundClaimSource: true/);
-  assert.match(existingOrderBranch, /refundClaimSourceId: true/);
+  assert.match(existingOrderBranch, /existingOrder\.outcome === "retry"/);
+  assert.match(existingOrderBranch, /existingOrder\.retryReason/);
+  assert.match(existingOrderBranch, /existingOrder\.sellerUserIds/);
   assert.match(
-    existingOrderBranch,
-    /blockedCheckoutRefundRetryReason\(already, event\.id\)/,
-  );
-  const retryClassifier = webhookRoute.slice(
-    webhookRoute.indexOf("function blockedCheckoutRefundRetryReason"),
-    webhookRoute.indexOf("function blockedCheckoutRefundStillInProgress"),
-  );
-  assert.match(
-    retryClassifier,
-    /order\.sellerRefundId === REFUND_LOCK_SENTINEL[\s\S]*order\.refundClaimSource === "BLOCKED_CHECKOUT"[\s\S]*order\.refundClaimSourceId === eventId/,
+    existingAuthority,
+    /source_order\."sellerRefundId" = 'pending'[\s\S]*source_order\."refundClaimSource" = 'BLOCKED_CHECKOUT'[\s\S]*source_order\."refundClaimSourceId" = p_event_id/,
   );
 });
 

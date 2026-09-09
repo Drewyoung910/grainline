@@ -1,8 +1,9 @@
 # Order staff read authority
 
-Status: isolated dormant compatibility candidate. It has not been merged,
-applied, granted to a login role, deployed or used by application pages.
-`Order` RLS remains off.
+Status: isolated database-first application-conversion candidate. It has not been merged,
+applied, granted to a login role or deployed. `Order` RLS remains off. The
+converted pages intentionally cannot run until the separately proven credential
+boundary is installed.
 
 Prepared: 2026-08-31
 
@@ -32,6 +33,15 @@ controls. The dedicated database role is an additional credential boundary:
 ordinary marketplace queries and SQL mistakes using `DATABASE_URL` cannot call
 staff projections. Arbitrary code execution that can exfiltrate every
 application secret remains outside what database RLS alone can solve.
+
+The original functions predate the later nullable, signed
+`Order.chargedTotalCents` witness. Migration
+`20260905010000_correct_order_staff_read_charged_total` adds dormant `*_v2`
+wrappers which preserve the original fixed projections and include that exact
+witness. The wrappers grant nothing; the original variants remain revoked and
+are not application entry points. This avoids editing a previously applied
+migration while preventing staff pages from silently falling back to a
+component reconstruction when provider evidence exists.
 
 ## Fixed exposure boundary
 
@@ -75,6 +85,48 @@ Before application conversion, a separate release must:
    role cannot read base tables;
 5. bind the PIN-gated pages to a dedicated client with bounded pooling; and
 6. rotate/revoke and remove that credential if the isolated proof aborts.
+
+## 2026-09-05 application conversion checkpoint
+
+The all-Orders queue, review-needed queue and staff Order detail page now call
+the corrected `*_v2` fixed projections through a lazy, server-only Prisma client
+backed only by `ORDER_STAFF_READ_DATABASE_URL`. The client requires a direct
+`grainline_staff_read_runtime` login on the same pooled database as the
+ordinary runtime and has an independent two-connection cap. It has no fallback
+to `DATABASE_URL`; missing or malformed credential state fails closed.
+
+The Vercel database isolation guard now treats this one exact additional URL as
+reviewed only when it is pooled, authenticates as the dedicated role and maps
+to the same reviewed endpoint, region and database as `DATABASE_URL`.
+Production builds require it. Every other PostgreSQL URL-shaped variable and
+all owner/migration variables remain rejected.
+
+This conversion also makes the two queues consistent: both render title and
+seller identity from the immutable checkout snapshot. Previously the flagged
+queue joined mutable current Listings while the ordinary admin queue used the
+snapshot. Detail links are offered only when the current Listing is still
+active, while historical display data remains snapshot-backed.
+
+The conversion preserves exact payment display semantics: both queues and the
+detail screen prefer the signed nullable `chargedTotalCents` witness and use
+the legacy component reconstruction only when that witness is absent. This was
+caught during the pre-RLS functionality audit before the converted application
+was committed or deployed.
+
+The three ordinary staff Order screens reduce the candidate direct `Order`
+source inventory from six to three. The staff Case detail now composes the
+already-protected Case read with the same corrected staff Order detail, checks
+the buyer/seller relationship across both results, and uses immutable item
+titles plus current inventory type only for restoration eligibility. That
+reduces the inventory again from three to two. The remaining sources are the
+Stripe webhook service path and account-deletion path; each needs a distinct
+fixed authority rather than access through the staff credential.
+
+The required release sequence remains database first: provision and prove the
+login, grant only the two corrected functions, install the production secret, merge and
+deploy the converted application, exercise both queues and detail through the
+actual pooled session, drain predecessors, then revoke superseded direct
+authority. This local checkpoint does not authorize any of those operations.
 
 State-changing admin actions, refund reconciliation, participant export,
 eligibility and aggregate operations remain separate O2/O3 families. This

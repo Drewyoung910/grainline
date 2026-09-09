@@ -3,9 +3,13 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { logServerError } from "@/lib/serverErrorLogger";
+import {
+  appendStaffOrderNote,
+  markStaffOrderReviewed,
+  recordStaffOrderLabelVoided,
+} from "@/lib/orderStaffMutationAuthority";
 
 export type AdminOrderActionState = { ok: boolean; error?: string };
 
@@ -35,26 +39,8 @@ async function requireAdmin() {
 export async function markReviewed(orderId: string, _prevState?: unknown): Promise<AdminOrderActionState> {
   try {
     const admin = await requireAdmin();
-    const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.order.updateMany({
-        where: {
-          id: orderId,
-          reviewNeeded: true,
-          NOT: { labelClawbackStatus: { in: ["RETRY_PENDING", "RETRYING"] } },
-        },
-        data: { reviewNeeded: false },
-      });
-      if (result.count === 0) return result;
-      await logAdminActionOrThrow({
-        client: tx,
-        adminId: admin.id,
-        action: "MARK_ORDER_REVIEWED",
-        targetType: "ORDER",
-        targetId: orderId,
-      });
-      return result;
-    });
-    if (updated.count === 0) {
+    const status = await markStaffOrderReviewed(admin.id, orderId);
+    if (status === "unchanged") {
       return {
         ok: false,
         error: "Order is already reviewed, no longer exists, or still has active label-cost reconciliation.",
@@ -76,64 +62,19 @@ export async function markReviewed(orderId: string, _prevState?: unknown): Promi
 export async function recordLabelVoided(orderId: string, _prevState?: unknown): Promise<AdminOrderActionState> {
   try {
     const admin = await requireAdmin();
-    const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
-    const note = `[${timestamp}]\nStaff recorded the purchased shipping label as voided or externally reconciled. Refund actions may proceed if other refund guards pass.`;
+    const result = await recordStaffOrderLabelVoided(admin.id, orderId);
 
-    const result = await prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        select: { labelStatus: true, labelClawbackStatus: true, reviewNote: true },
-      });
-      if (!order) return { status: "missing" as const };
-      if (order.labelStatus !== "PURCHASED") return { status: "not_purchased" as const };
-      if (order.labelClawbackStatus === "RETRY_PENDING" || order.labelClawbackStatus === "RETRYING") {
-        return { status: "active_clawback" as const };
-      }
-
-      const existing = order.reviewNote ?? "";
-      const reviewNote = existing ? `${existing}\n\n${note}` : note;
-      if (reviewNote.length > ORDER_REVIEW_NOTE_MAX_CHARS) {
-        return { status: "too_long" as const };
-      }
-
-      const updated = await tx.order.updateMany({
-        where: {
-          id: orderId,
-          labelStatus: "PURCHASED",
-          NOT: { labelClawbackStatus: { in: ["RETRY_PENDING", "RETRYING"] } },
-        },
-        data: {
-          labelStatus: "VOIDED",
-          reviewNeeded: true,
-          reviewNote,
-        },
-      });
-      if (updated.count !== 1) return { status: "stale" as const };
-
-      await logAdminActionOrThrow({
-        client: tx,
-        adminId: admin.id,
-        action: "RECORD_LABEL_VOIDED",
-        targetType: "ORDER",
-        targetId: orderId,
-        metadata: { previousLabelStatus: "PURCHASED", nextLabelStatus: "VOIDED" },
-      });
-      return { status: "updated" as const };
-    });
-
-    if (result.status === "missing") return { ok: false, error: "Order not found." };
-    if (result.status === "not_purchased") return { ok: false, error: "This order does not have a purchased Grainline label." };
-    if (result.status === "active_clawback") {
+    if (result === "missing") return { ok: false, error: "Order not found." };
+    if (result === "not_purchased") return { ok: false, error: "This order does not have a purchased Grainline label." };
+    if (result === "active_clawback") {
       return { ok: false, error: "Resolve active label-cost reconciliation before voiding the label status." };
     }
-    if (result.status === "too_long") {
+    if (result === "too_long") {
       return {
         ok: false,
         error: `This order already has too many review notes. Keep total notes under ${ORDER_REVIEW_NOTE_MAX_CHARS.toLocaleString("en-US")} characters.`,
       };
     }
-    if (result.status === "stale") return { ok: false, error: "Order label state changed. Refresh and try again." };
-
     revalidatePath(`/admin/orders/${orderId}`);
     revalidatePath("/admin/flagged");
     revalidatePath("/admin/orders");
@@ -156,43 +97,15 @@ export async function appendNote(orderId: string, _prevState: unknown, formData:
       return { ok: false, error: `Notes are limited to ${ORDER_NOTE_MAX_CHARS.toLocaleString("en-US")} characters per append.` };
     }
 
-    const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
-    const result = await prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        select: { reviewNote: true },
-      });
-      if (!order) return { status: "missing" as const };
+    const result = await appendStaffOrderNote(admin.id, orderId, note);
 
-      const existing = order.reviewNote ?? "";
-      const updated = existing ? `${existing}\n\n[${timestamp}]\n${note}` : `[${timestamp}]\n${note}`;
-      if (updated.length > ORDER_REVIEW_NOTE_MAX_CHARS) {
-        return { status: "too_long" as const };
-      }
-
-      const updatedOrder = await tx.order.updateMany({
-        where: { id: orderId, reviewNote: order.reviewNote },
-        data: { reviewNote: updated },
-      });
-      if (updatedOrder.count === 0) return { status: "stale" as const };
-      await logAdminActionOrThrow({
-        client: tx,
-        adminId: admin.id,
-        action: "APPEND_ORDER_NOTE",
-        targetType: "ORDER",
-        targetId: orderId,
-      });
-      return { status: "updated" as const };
-    });
-
-    if (result.status === "missing") return { ok: false, error: "Order not found." };
-    if (result.status === "too_long") {
+    if (result === "missing") return { ok: false, error: "Order not found." };
+    if (result === "too_long") {
       return {
         ok: false,
         error: `This order already has too many review notes. Keep total notes under ${ORDER_REVIEW_NOTE_MAX_CHARS.toLocaleString("en-US")} characters.`,
       };
     }
-    if (result.status === "stale") return { ok: false, error: "Order notes changed; refresh and try again." };
     revalidatePath(`/admin/orders/${orderId}`);
     return { ok: true };
   } catch (error) {

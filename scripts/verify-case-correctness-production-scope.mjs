@@ -21,6 +21,7 @@ import {
 } from "./order-compatible-production-catalog.mjs";
 import {
   assertOrderCompatibleProductionLedger,
+  ORDER_COMPATIBLE_REVIEWED_SUCCESSORS,
 } from "./verify-order-compatible-production-scope.mjs";
 
 const { Client } = pg;
@@ -174,9 +175,10 @@ export async function readCaseCorrectnessProductionSnapshot(
       "SELECT pg_catalog.current_setting('transaction_read_only') AS value",
     )).rows[0]?.value;
     if (readOnly !== "on") throw new Error("scope transaction is not read-only");
-    const orderNames = new Set(ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(
-      (entry) => entry.name,
-    ));
+    const orderNames = new Set([
+      ...ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS,
+      ...ORDER_COMPATIBLE_REVIEWED_SUCCESSORS,
+    ].map((entry) => entry.name));
     const releaseLedgerRows = (await client.query(
       `SELECT migration_name, checksum, finished_at, rolled_back_at,
               applied_steps_count

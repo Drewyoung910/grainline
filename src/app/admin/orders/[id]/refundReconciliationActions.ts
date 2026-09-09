@@ -14,6 +14,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import {
   chooseOrderRefundReconciliationAction,
   markOrderRefundClaimAmbiguous,
+  orderRefundReconciliationCommitted,
   prepareOrderRefundReconciliation,
   reconcileOrderRefundClaim,
 } from "@/lib/orderRefundReconciliationAuthority";
@@ -198,13 +199,10 @@ export async function reconcileAmbiguousOrderRefund(
           reason: "ADMIN_RECONCILIATION_INTERRUPTED",
         });
       } catch (markError) {
-        const completed = await prisma.order.findFirst({
-          where: {
-            id: orderId,
-            refundClaimId: null,
-            sellerRefundId: { startsWith: "re_" },
-          },
-          select: { id: true },
+        const completed = await orderRefundReconciliationCommitted({
+          orderId,
+          claimId: preparedClaim.claimId,
+          claimGeneration: preparedClaim.claimGeneration,
         });
         if (completed) {
           revalidatePath(`/admin/orders/${orderId}`);

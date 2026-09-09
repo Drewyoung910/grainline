@@ -160,6 +160,35 @@ a distinct FORCE release. Do not create broad buyer/seller Order policies, a
 generic caller-directed update function, or a generic repository wrapper that
 merely hides broad runtime CRUD.
 
+The 2026-09-05 focused security pass found one additional pre-activation
+correctness gate: a Shippo label claim could already be provider-pending when
+the seller refund family acquired a Stripe refund claim. The isolated additive
+draft intended for successor
+`20260905010000_enforce_order_provider_claim_exclusion` places the mutual
+exclusion on the shared Order row, covers seller/Case/blocked-checkout refund
+writers, preserves predecessor grants/RLS, and fails closed on legacy overlap.
+It stays outside the Prisma migration tree until a separate byte-pinned release
+can preserve every historical seal. Complete its local proof, aggregate-only
+production inspection and compatible application/migration release before
+Order Phase A; do not let the new gate expand into a redesign of either
+provider workflow.
+
+The same pass began the zero-direct-access conversion without widening that
+fix: refund-provider replay needs only the provider-authorized clock for one
+exact active claim. The isolated fixed projection in
+`docs/order-refund-claim-clock-authority.md` reduces the executable inventory
+from 16 to 15 files and returns no Order, actor, money or provider identifiers.
+Its database function must be released and runtime-proven before the stacked
+application change is eligible to deploy.
+
+The next stacked conversion removes the seller refund route's redundant broad
+Order reads and seller-directed stale-lock update. The actor-bound preflight in
+`docs/order-seller-refund-preflight-authority.md` preserves the User, durable
+SellerProfile and Order lock order, returns only a closed decision, and never
+ages out Case or generation-fenced claims. The existing claim remains the sole
+provider-authority transition. This reduces the candidate inventory from 15 to
+14, again with a mandatory database-first release.
+
 ### OrderPaymentEvent FORCE acceptance (2026-08-31)
 
 OrderPaymentEvent is accepted in production as policyless ENABLE plus FORCE,

@@ -43,8 +43,10 @@ describe("order refund presentation integration", () => {
 
   it("persists the exact paid Checkout total in both Order creation paths", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = source("docs/rls-drafts/order-paid-checkout-authority.sql");
     assert.match(webhook, /requireCheckoutChargedTotalCents\(s\.amount_total\)/);
-    assert.equal((webhook.match(/\n\s+chargedTotalCents,\n\s+itemsSubtotalCents,/g) ?? []).length, 4);
+    assert.equal((webhook.match(/\n\s+chargedTotalCents,\n\s+itemsSubtotalCents,/g) ?? []).length, 1);
+    assert.match(paidCheckoutAuthority, /"chargedTotalCents"[\s\S]*\(p_provider->>'chargedTotalCents'\)::integer/);
     assert.doesNotMatch(
       webhook,
       /refundAmountCents\s*=\s*s\.amount_total\s*\?\?/,
