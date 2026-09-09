@@ -29,6 +29,8 @@ const eslintConfig = [
     ignores: [
       "node_modules/**",
       ".next/**",
+      ".local-proofs/**",
+      "public/vendor/maplibre/**",
       ".claude/**",
       "out/**",
       "build/**",

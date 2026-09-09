@@ -1,7 +1,7 @@
 "use client";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState, useMemo } from "react";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "@/lib/maplibreClient";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";

@@ -6,5 +6,7 @@
 .claude/**
 .next
 node_modules
+.local-proofs
+.local-proofs/**
 coverage
 *.tsbuildinfo
