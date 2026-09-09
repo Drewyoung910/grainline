@@ -26,12 +26,12 @@ import {
 import {
   abortCheckoutStockReservation,
   bindCheckoutStockReservationSession,
-  createConsistentSingleCheckoutStockReservation,
+  createSnapshotSingleCheckoutStockReservation,
   isCheckoutReservationSourceChangedDatabaseError,
   isCheckoutStockUnavailableDatabaseError,
 } from "@/lib/checkoutStockReservationAuthority";
 import {
-  singleCheckoutReservationSourceWitness,
+  singleCheckoutReservationSnapshotWitness,
 } from "@/lib/checkoutReservationSourceState";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
@@ -425,7 +425,7 @@ export async function POST(req: Request) {
         }]
       : [];
     checkoutReservationItemCount = reservableItems.length;
-    const pricedSourceWitness = singleCheckoutReservationSourceWitness(
+    const pricedSourceWitness = singleCheckoutReservationSnapshotWitness(
       me.id,
       listing,
       body.quantity,
@@ -438,9 +438,9 @@ export async function POST(req: Request) {
         { status: HTTP_STATUS.CONFLICT },
       );
     }
-    let reservation: Awaited<ReturnType<typeof createConsistentSingleCheckoutStockReservation>>;
+    let reservation: Awaited<ReturnType<typeof createSnapshotSingleCheckoutStockReservation>>;
     try {
-      reservation = await createConsistentSingleCheckoutStockReservation({
+      reservation = await createSnapshotSingleCheckoutStockReservation({
         listingId: listing.id,
         quantity: body.quantity,
         selectedVariantOptionIds: body.selectedVariantOptionIds,
@@ -448,10 +448,10 @@ export async function POST(req: Request) {
         buyerId: me.id,
         sourceWitness: pricedSourceWitness,
       });
-      if (Boolean(reservation) !== (listing.listingType === "IN_STOCK")) {
-        throw new Error("Consistent single reservation returned an invalid reservation state");
+      if (!reservation) {
+        throw new Error("Snapshot single reservation returned no reservation");
       }
-      checkoutReservationId = reservation?.id ?? null;
+      checkoutReservationId = reservation.id;
     } catch (reservationError) {
       await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
       if (isCheckoutReservationSourceChangedDatabaseError(reservationError)) {

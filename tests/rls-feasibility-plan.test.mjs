@@ -999,11 +999,6 @@ describe("RLS feasibility plan guardrails", () => {
       /\b[A-Za-z_$][\w$]*\.(?:cart|cartItem)\.(?:aggregate|count|create|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
     const allowedDirectCalls = {
       "src/app/api/admin/listings/[id]/route.ts": ["tx.cartItem.deleteMany"],
-      "src/app/api/stripe/webhook/route.ts": [
-        "prisma.cart.findUnique",
-        "tx.cartItem.deleteMany",
-        "tx.cartItem.deleteMany",
-      ],
       "src/lib/accountDeletion.ts": ["tx.cart.deleteMany"],
       "src/lib/checkoutStockRestore.ts": ["tx.cartItem.findMany"],
       "src/lib/listingSoftDelete.ts": ["tx.cartItem.deleteMany"],

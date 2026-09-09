@@ -5,10 +5,6 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 import {
-  databaseClockTimestamp,
-  lockOrderForCaseLifecycle,
-} from "../src/lib/caseLifecycleLocks.ts";
-import {
   canCreateCaseMessageForStatus,
   caseMessageStatusTransition,
 } from "../src/lib/caseMessagingState.ts";
@@ -26,6 +22,43 @@ const ids = Object.freeze({
   order: "case-lifecycle-proof-order",
   orderItem: "case-lifecycle-proof-order-item",
 });
+
+function requireSingleOrderLockRow(rows, orderId) {
+  if (rows.length > 1) {
+    throw new Error("Order lock returned invalid cardinality");
+  }
+  if (rows.length === 1 && rows[0].id !== orderId) {
+    throw new Error("Order lock returned the wrong row");
+  }
+  return rows.length === 1;
+}
+
+// These raw operations intentionally model the retired predecessor lock
+// protocol in a disposable PostgreSQL race proof. They are not application
+// authority and must never move back under src/.
+async function lockOrderForCaseLifecycle(tx, orderId) {
+  const rows = await tx.$queryRaw`
+    SELECT id
+    FROM "Order"
+    WHERE id = ${orderId}
+    FOR UPDATE
+  `;
+  return requireSingleOrderLockRow(rows, orderId);
+}
+
+async function databaseClockTimestamp(tx) {
+  const rows = await tx.$queryRaw`
+    SELECT clock_timestamp() AS now
+  `;
+  if (
+    rows.length !== 1
+    || !(rows[0].now instanceof Date)
+    || Number.isNaN(rows[0].now.getTime())
+  ) {
+    throw new Error("database clock returned an invalid timestamp");
+  }
+  return rows[0].now;
+}
 
 function safeError(error) {
   const message = error instanceof Error ? error.message : String(error);

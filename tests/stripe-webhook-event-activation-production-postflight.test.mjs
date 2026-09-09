@@ -138,9 +138,12 @@ test("activation pins all six current migration function sources", () => {
     "prisma/migrations/20260805060000_enable_stripe_webhook_event_rls/migration.sql",
     "utf8",
   ).replace(/\s+/g, " ");
-  const sources = stripeWebhookEventFunctionSources();
-  const md5 = stripeWebhookEventFunctionSourceMd5();
-  const sha256 = stripeWebhookEventFunctionSourceSha256();
+  const sourceOptions = {
+    throughMigration: "20260805060000_enable_stripe_webhook_event_rls",
+  };
+  const sources = stripeWebhookEventFunctionSources(undefined, sourceOptions);
+  const md5 = stripeWebhookEventFunctionSourceMd5(undefined, sourceOptions);
+  const sha256 = stripeWebhookEventFunctionSourceSha256(undefined, sourceOptions);
   assert.equal(Object.keys(sources).length, 6);
   assert.equal(Object.keys(md5).length, 6);
   assert.equal(Object.keys(sha256).length, 6);

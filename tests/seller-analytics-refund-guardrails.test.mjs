@@ -29,7 +29,7 @@ describe("seller analytics refund guardrails", () => {
     );
 
     const adminVerification = source("src/app/admin/verification/page.tsx");
-    assert.match(adminVerification, /paymentRefundBlocked/);
+    assert.match(adminVerification, /readOrderSellerMetricsFacts/);
     assert.doesNotMatch(
       adminVerification,
       /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
@@ -122,11 +122,13 @@ describe("seller analytics refund guardrails", () => {
       /'amountCents', locked_claim\."refundAmountCents"/,
     );
 
-    for (const text of [adminVerification]) {
-      assert.match(text, /o\."sellerRefundId" IS NULL/);
-      assert.match(text, /o\."paymentRefundBlocked" = false/);
-      assert.doesNotMatch(text, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
-    }
+    const sellerMetricsAuthority = source(
+      "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
+    );
+    assert.match(adminVerification, /readOrderSellerMetricsFacts/);
+    assert.match(sellerMetricsAuthority, /source_order\."sellerRefundId" IS NULL/);
+    assert.match(sellerMetricsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.doesNotMatch(adminVerification, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
     for (const text of [verificationApplyRoute, dashboardVerification]) {
       assert.match(text, /getSellerVerificationOrderSales/);
       assert.doesNotMatch(text, /(?:FROM|JOIN)\s+"Order"/);
@@ -140,10 +142,19 @@ describe("seller analytics refund guardrails", () => {
 
   it("orders seller refund and blocked-checkout dispute guards by Stripe event time", () => {
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const sellerRefundPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
     const stripeWebhook = source("src/app/api/stripe/webhook/route.ts");
+    const blockedCheckoutReview = source(
+      "docs/rls-drafts/order-checkout-refund-review-authority.sql",
+    );
 
-    assert.match(sellerRefundRoute, /order\.paymentOpenDisputeBlocked/);
-    assert.match(stripeWebhook, /currentOrder\.paymentOpenDisputeBlocked/);
+    assert.match(sellerRefundRoute, /sellerRefundPreflight/);
+    assert.match(sellerRefundPreflight, /locked_order\."paymentOpenDisputeBlocked"/);
+    assert.match(stripeWebhook, /recordCheckoutRefundReview/);
+    assert.match(blockedCheckoutReview, /source_order\."paymentOpenDisputeBlocked"/);
+    assert.match(blockedCheckoutReview, /latest_dispute/);
     assert.doesNotMatch(sellerRefundRoute, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
     assert.doesNotMatch(stripeWebhook, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
   });

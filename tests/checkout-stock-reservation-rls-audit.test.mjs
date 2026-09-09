@@ -27,10 +27,10 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.deepEqual(directAccessSources, []);
 
     const semanticSources = {
-      "src/app/api/cart/checkout/single/route.ts": /createConsistentSingleCheckoutStockReservation/,
-      "src/app/api/cart/checkout-seller/route.ts": /createConsistentCartCheckoutStockReservation/,
+      "src/app/api/cart/checkout/single/route.ts": /createSnapshotSingleCheckoutStockReservation/,
+      "src/app/api/cart/checkout-seller/route.ts": /createSnapshotCartCheckoutStockReservation/,
       "src/app/api/cart/checkout/rollback/route.ts": /restoreBuyerExpiredCheckoutStockOnce/,
-      "src/app/api/stripe/webhook/route.ts": /markCheckoutStockReservationCompleted[\s\S]*restoreUnorderedCheckoutStockOnce/,
+      "src/app/api/stripe/webhook/route.ts": /createOrderFromPaidCheckout[\s\S]*restoreUnorderedCheckoutStockOnce/,
       "src/lib/checkoutSessionExpiry.ts": /restoreSellerExpiredCheckoutStockOnce/,
       "src/lib/checkoutStockRestore.ts": /claimStaleCheckoutStockReservations[\s\S]*pruneCheckoutStockReservationBatch/,
       "src/lib/accountDeletion.ts": /claimAccountCheckoutStockReservations[\s\S]*scrubCheckoutStockReservationsForAccount/,

@@ -29,24 +29,28 @@ const ORDER_PII_FIELDS = [
 describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs retained order address, tracking, label, and seller-note PII on delete and retention prune", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const deletionAuthority = source(
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+    );
     const retention = source(
       "prisma/migrations/20260729057000_prepare_case_order_active_authority/migration.sql",
     );
 
     for (const field of ORDER_PII_FIELDS) {
-      assert.match(deletion, new RegExp(`${field}: null`), `account deletion must clear ${field}`);
+      assert.match(deletionAuthority, new RegExp(`"${field}" = NULL`), `account deletion must clear ${field}`);
       assert.match(retention, new RegExp(`"${field}" = NULL`), `retention prune must clear ${field}`);
       assert.match(retention, new RegExp(`"${field}" IS NOT NULL`), `retention prune must detect ${field}`);
     }
 
-    assert.match(deletion, /buyerDataPurgedAt: now/);
+    assert.match(deletionAuthority, /"buyerDataPurgedAt" = COALESCE/);
     assert.match(
       retention,
       /"buyerDataPurgedAt" =\s*pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'/,
     );
-    assert.match(deletion, /tx\.orderShippingRateQuote\.deleteMany\(\{/);
-    assert.match(deletion, /order: \{ buyerId: user\.id \}/);
-    assert.match(deletion, /order: \{\s*sellerProfileId: user\.sellerProfile\.id,?\s*\}/s);
+    assert.match(deletion, /scrubOrderDataForAccountDeletion/);
+    assert.match(deletionAuthority, /DELETE FROM public\."OrderShippingRateQuote" AS quote/);
+    assert.match(deletionAuthority, /source_order\."buyerId" = locked_actor\.id/);
+    assert.match(deletionAuthority, /source_order\."sellerProfileId" = source_seller_profile_id/);
     assert.match(
       retention,
       /EXISTS \(\s*SELECT 1\s*FROM public\."OrderShippingRateQuote" AS quote/s,
@@ -82,16 +86,16 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs seller-owned retained order fulfillment artifacts on seller deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const sellerOrderStart = deletion.indexOf(
-      "await tx.order.updateMany({",
-      deletion.indexOf("await tx.sellerFaq.deleteMany"),
+    const authority = source(
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
     );
-    const sellerOrderEnd = deletion.indexOf("await tx.sellerProfile.update", sellerOrderStart);
-    const sellerOrderUpdate = deletion.slice(sellerOrderStart, sellerOrderEnd);
+    const sellerOrderStart = authority.indexOf("IF source_seller_profile_id IS NULL THEN");
+    const sellerOrderEnd = authority.indexOf("WITH deleted_quotes AS", sellerOrderStart);
+    const sellerOrderUpdate = authority.slice(sellerOrderStart, sellerOrderEnd);
 
-    assert.ok(sellerOrderStart > -1, "seller deletion must update seller-owned retained orders");
-    assert.match(sellerOrderUpdate, /where: \{ sellerProfileId: user\.sellerProfile\.id \}/);
-    assert.doesNotMatch(sellerOrderUpdate, /listing:\s*\{\s*sellerId:/);
+    assert.match(deletion, /scrubOrderDataForAccountDeletion/);
+    assert.match(sellerOrderUpdate, /target_order\."sellerProfileId" = source_seller_profile_id/);
+    assert.doesNotMatch(sellerOrderUpdate, /Listing|OrderItem/);
     for (const field of [
       "trackingCarrier",
       "trackingNumber",
@@ -103,7 +107,7 @@ describe("Round 9 account deletion PII guardrails", () => {
       "labelCarrier",
       "labelTrackingNumber",
     ]) {
-      assert.match(sellerOrderUpdate, new RegExp(`${field}: null`), `seller deletion must clear ${field}`);
+      assert.match(sellerOrderUpdate, new RegExp(`"${field}" = NULL`), `seller deletion must clear ${field}`);
     }
   });
 
@@ -160,15 +164,17 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("redacts deleted-account values from retained order review notes", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source(
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+    );
 
-    assert.match(deletion, /async function redactOrderReviewNotesForDeletedAccount/);
-    assert.match(deletion, /reviewNote: \{ not: null \}/);
-    assert.match(deletion, /\{ buyerId: deletedUserId \}/);
-    assert.match(deletion, /\{ sellerProfileId \}/);
-    assert.doesNotMatch(deletion, /items: \{ some: \{ listing: \{ sellerId: sellerProfileId \} \} \}/);
-    assert.match(deletion, /redactAccountDeletionText\(order\.reviewNote, sensitiveValues\)/);
-    assert.match(deletion, /data: \{ reviewNote: reviewNote\.text \}/);
-    assert.match(deletion, /redactOrderReviewNotesForDeletedAccount\(\s*tx,\s*user\.id,\s*user\.sellerProfile\?\.id \?\? null,\s*accountSensitiveValues,\s*\)/s);
+    assert.match(authority, /WITH review_candidates AS MATERIALIZED/);
+    assert.match(authority, /grainline_account_deletion_redact_text_core/);
+    assert.match(authority, /target_order\."buyerId" = locked_actor\.id/);
+    assert.match(authority, /target_order\."sellerProfileId" = source_seller_profile_id/);
+    assert.doesNotMatch(authority, /JOIN public\."(?:OrderItem|Listing)"/);
+    assert.match(deletion, /scrubOrderDataForAccountDeletion\([\s\S]*accountSensitiveValues/);
+    assert.doesNotMatch(deletion, /redactOrderReviewNotesForDeletedAccount/);
   });
 
   it("preserves conversations without deleted-account email fallbacks", () => {

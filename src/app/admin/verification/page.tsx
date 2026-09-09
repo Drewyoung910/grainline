@@ -13,7 +13,12 @@ import {
   sendVerificationApproved,
   sendVerificationRejected,
 } from "@/lib/email";
-import { meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
+import {
+  GUILD_MASTER_REQUIREMENTS,
+  meetsGuildMasterRequirements,
+  metricsPeriodStart,
+  type SellerMetricsResult,
+} from "@/lib/metrics";
 import { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
 import { logAdminAction, logAdminActionOrThrow } from "@/lib/audit";
@@ -31,7 +36,7 @@ import {
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
-import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
+import { readOrderSellerMetricsFacts } from "@/lib/orderSellerMetricsAuthority";
 import { formatCurrencyCents } from "@/lib/money";
 import {
   getCaseGuildUnresolvedGuard,
@@ -196,21 +201,14 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
   }
 
-  const [activeListings, salesRows, longCaseCount] = await Promise.all([
+  const [activeListings, orderFacts, longCaseCount] = await Promise.all([
     prisma.listing.count({
       where: { sellerId: verification.sellerProfileId, status: "ACTIVE", isPrivate: false },
     }),
-    prisma.$queryRaw<Array<{ total: bigint | null }>>`
-      SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS total
-      FROM "OrderItem" oi
-      INNER JOIN "Order" o ON o.id = oi."orderId"
-      INNER JOIN "Listing" l ON l.id = oi."listingId"
-      WHERE l."sellerId" = ${verification.sellerProfileId}
-        ${PAID_STRIPE_ORDER_SQL}
-        AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
-        AND o."sellerRefundId" IS NULL
-        AND o."paymentRefundBlocked" = false
-    `,
+    readOrderSellerMetricsFacts(
+      verification.sellerProfileId,
+      metricsPeriodStart(new Date(), 3),
+    ),
     getCaseSellerVerificationEligibility({
       actorUserId: me.id,
       sellerProfileId: verification.sellerProfileId,
@@ -221,7 +219,10 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
       return result.agedUnresolvedCount;
     }),
   ]);
-  const totalSalesCents = Number(salesRows[0]?.total ?? 0);
+  if (!orderFacts || orderFacts.sellerProfileId !== verification.sellerProfileId) {
+    throw new Error("Guild Member Order metrics authority returned no matching seller");
+  }
+  const totalSalesCents = orderFacts.totalSalesCents;
   const accountAgeDays = Math.floor(
     (Date.now() - new Date(verification.sellerProfile.user.createdAt).getTime()) / (1000 * 60 * 60 * 24),
   );
