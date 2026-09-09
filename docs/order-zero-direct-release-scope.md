@@ -152,6 +152,46 @@ re-parsing `pg_get_constraintdef` can move array casts in the expression tree.
 The verifier was not loosened. Negative tests roll back to the original source
 DDL instead of treating regenerated equivalent SQL as the original catalog.
 
+## Dormant selected-file fence
+
+`scripts/order-zero-direct-release-files.mjs` is the filesystem component, not
+a migration runner. It derives its allowlist from the existing fixed release
+catalog, classifies the supplied ledger using the unchanged completed-prefix
+rules, and stages only 251 exact migration files plus the pinned PostgreSQL
+lock file. All historical and already-applied files are retained for Prisma
+status/history consistency; `remainingMigrations` identifies only the unapplied
+contiguous suffix. At prefix 17 it is empty, not permission to skip final audits.
+The six later correction candidates cannot enter this artifact.
+
+The source and staged trees require exact directory/file inventories and byte
+hashes. Canonical paths, no-follow descriptor reads, regular-file/single-link
+checks, bounded reads and descriptor/path identity checks reject links, aliases,
+missing/extra files and detected changes during reading. Staging creates a fresh
+directory in a caller-owned mode-0700 parent outside the source tree; it never
+overwrites or deletes existing artifacts. Files become mode 0400 and directories
+0500. Errors preserve any private partial artifact for inspection. This is not
+a crash-durable journal or a guarantee against a hostile same-user/privileged
+host process; filesystem modes do not establish an execution trust boundary.
+
+Artifact handles are immutable and private to their creating fence instance.
+`verify(handle)` rereads the source and staged trees and checks the private
+parent before use; copied, forged or cross-instance handles are rejected.
+It performs no database access and cannot attest that supplied ledger rows were
+fresh or authentic. The future serialized controller must obtain the actual
+audited snapshot after lock admission, bind the complete loaded source/toolchain
+and exact-main CI, and revalidate selected files immediately before execution.
+This component deliberately returns false for fresh database scope, loaded
+source/CI proof, complete production scope and production execution authority.
+It contains no credential loader, child-process command or production CLI.
+
+Focused filesystem tests exercise all 18 restart states, exact file-byte
+preservation, suffix selection, partial member-10 rejection, source/staged
+drift, symlink and hard-link substitutions, unsafe parent permissions, isolated
+handles and separate artifacts. An initial macOS fixture could not rename a
+read-only directory; the negative test now explicitly changes only its owned
+fixture directory permissions before simulating substitution. The verifier's
+read-only mode requirement was not relaxed.
+
 ## Still required before production execution
 
 This is **not the complete production validator or runner**. Every verdict says
