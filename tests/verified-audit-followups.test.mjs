@@ -146,10 +146,10 @@ describe("verified audit follow-up guardrails", () => {
   it("keeps runtime security docs aligned with current Next and header config", () => {
     const lock = JSON.parse(source("package-lock.json"));
     const resolvedNext = lock.packages?.["node_modules/next"]?.version;
-    assert.equal(resolvedNext, "16.2.12");
-    assert.match(source("package.json"), /"next": "\^16\.2\.12"/);
-    assert.match(lock.packages?.[""]?.dependencies?.next ?? "", /^\^16\.2\.12$/);
-    assert.match(source("CLAUDE.md"), /Next\.js 16\.2\.12/);
+    assert.equal(resolvedNext, "16.3.3");
+    assert.match(source("package.json"), /"next": "\^16\.3\.3"/);
+    assert.match(lock.packages?.[""]?.dependencies?.next ?? "", /^\^16\.3\.3$/);
+    assert.match(source("CLAUDE.md"), /Next\.js 16\.3\.3/);
     assert.doesNotMatch(source("CLAUDE.md"), /Next\.js 16\.2\.4/);
 
     assert.match(source("next.config.ts"), /Cross-Origin-Opener-Policy", value: "same-origin-allow-popups"/);
