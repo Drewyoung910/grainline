@@ -222,6 +222,31 @@ loads credentials nor executes release code, Prisma or provider operations.
 This is **not the complete production validator or runner**. Every verdict says
 `completeProductionScope=false` and `productionExecutionAuthorized=false`.
 
+### Dormant exact-main CI collector
+
+`order-zero-direct-release-ci.mjs` binds a separately reviewed commit, source
+catalog digest, CI run ID and run attempt. It captures the tracked-source fence,
+reads the exact Grainline GitHub main ref and CI run twice, and reverifies the
+checkout before returning. Both reads must show the same reviewed main commit
+and completed successful push/main `.github/workflows/ci.yml` run from the same
+repository, including head repository and exact run attempt. Changed main,
+reruns, mismatched workflows, unsuccessful results and checkout drift fail.
+
+The collector accepts an already-held token but never loads one. Requests are
+fixed-origin GET-only, reject redirects and alternate TLS/proxy configuration,
+use bounded JSON reads and timeouts, and return only sanitized binding fields.
+It has no CLI, dispatch, database or release-execution path. Tests use real
+temporary Git checkouts and mocked HTTP responses; they are not live GitHub
+attestation or production evidence. Local origin metadata alone is not used as
+remote acceptance. Returned observations are not a transferable authorization
+capability and must not be accepted from an arbitrary caller by a future runner.
+
+This check is time-bounded evidence, not a lock on GitHub main or CI: either can
+change after the last read. Fresh collection remains required at admission and
+before execution. Loaded module bytes, installed dependencies, fresh database
+scope and serialization remain separate unproven boundaries, with execution
+authority still explicitly false. No production collector was run in this pass.
+
 The next implementation must finish
 serialized fresh-scope and selected-file execution fencing, exact-main CI and
 loaded-source binding, and the existing final global audit. Credential-incident
