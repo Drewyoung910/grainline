@@ -1,5 +1,98 @@
 # Order compatibility prefix: dormant release scope
 
+## Persistent worker successor — September 9
+
+`order-zero-direct-release-worker.mjs` now owns a persistent child with one
+canonical checkout/cwd. Its inline bootstrap verifies the reviewed Node 22
+binary/version and fixed source-fence bytes before any repository import,
+then verifies the complete tracked checkout. The parent retains only a bounded
+IPC transport; release modules, connections, scope observations and opaque
+artifact handles stay in that child. The worker has no CLI or mutation command.
+
+The protocol deliberately separates four steps:
+
+1. `prepare()` accepts no credentials. It refuses an existing dependency tree,
+   ignored files (including local environment files), or project npm config;
+   exclusively claims the dedicated checkout; runs the 1 GiB disk guard; and
+   performs `npm ci --ignore-scripts --include=dev` with private home/cache/temp
+   directories and separate empty user/global npm configs. Explicit Prisma
+   engine download and client generation follow, with engine version and
+   generated-client presence checks. No release graph is loaded at this stage.
+2. `load({ci, githubToken})` takes an already-held token after preparation has
+   finished, runs the existing exact-main CI collector, reverifies source and
+   installed identities, and imports the actual release graph in this process.
+   Node resolution hooks reject ancestor `node_modules` fallback for preparation
+   tools and the loaded graph. Clearing NODE_PATH alone would not prevent it.
+3. `inspect(...)` reobserves a running exact manual main workflow/job under the
+   existing shared `production-database-migrations` concurrency group and
+   `cancel-in-progress: false`. An exclusive per-run/attempt host claim prevents
+   competing workers within the same admitted run. Fresh source/CI checks precede
+   a new dedicated owner connection with default read-only transactions and the
+   existing engine-enforced audited reader. Admission is checked again after
+   asynchronous reads, then the existing file fence stages the exact prefix.
+4. `revalidate(...)` uses fresh admission, CI and a new audited connection again;
+   rejects a changed prefix; and rereads source, installed identities and the
+   retained artifact. It returns bounded observations, never the client,
+   credentials, raw catalog or transferable artifact handle.
+
+All environment settings are deliberately supplied. Parent credentials, Node
+preloads, module paths, proxies, custom trust roots and Prisma engine/mirror/
+checksum overrides are excluded. Node and npm CLI/version pins must be supplied
+from a reviewed toolchain artifact; local proof-derived pins are not production
+approval. The external npm distribution and host remain trusted. A clean
+lockfile installation establishes package provenance; an in-process filesystem
+identity snapshot detects subsequent installed-tree drift. This is not a new
+portable directory attestation, nor protection against a compromised runtime or
+hostile same-user process. Engine/client generation is explicitly checked rather
+than inferred from package-lock metadata.
+
+An exit, timeout, protocol error, stale scope, source/dependency drift or lost
+admission fails closed. Checkout and admission claims are never automatically
+stolen or reclaimed. Private bounded status checkpoints and partial artifacts
+are retained for inspection; a new worker needs a new clean checkout and fresh
+admission. These preparation records are not a crash-recovery migration journal.
+The parent kills the worker process group on close/failure so installation
+children cannot outlive a discarded worker. Idle workers expire after ten minutes.
+
+GitHub observations are not an independent cryptographic lease: actual global
+serialization is supplied by the reviewed workflow's concurrency contract and
+trusted job lifecycle. The worker checks its continuing validity on each scope
+operation; no serialized success object can resume a dead worker. This code does
+not wire or dispatch a workflow, and the historical workflow is still unsuitable
+for executing this prefix. A future invocation must run inside its separately
+reviewed successor job, with current operational authorization.
+
+Protocol tests use real child processes and temporary Git checkouts, with
+explicit fixture installers/engines/graph and mocked GitHub reads. They exercise
+ordering, same-process state, worker exit/restart, competing preparations and
+admissions, missing engines/client, changed source/dependencies/artifacts,
+ancestor resolution, lost admission, stale scope, unknown/partial prefixes and
+the complete-prefix final obligations. These fixture scenarios do not repeat or
+replace the accepted native SQL proofs. Real clean-install preparation is a
+separate local check recorded in the private checkpoint.
+That integration check also loaded the actual release graph with real installed
+packages in the same persistent worker, using an explicit in-memory GitHub
+transport fixture. It passed installation, generation, graph loading and repeat
+verification. It is not a live exact-main/CI observation or a database proof.
+
+During that real preparation check, npm rejected using `/dev/null` for both
+config files; they are now distinct empty private files. The installed Prisma
+fetch-engine package also does not expose `download` as a Node synthetic named
+export; explicit default CommonJS imports now match the real package. Neither
+failure changed historical verifiers, package versions or migration bytes.
+
+**Remaining executable boundary:** bounded prefix application, reviewed grant
+convergence, migration status and final global/read-only scope must still be
+composed into a separately reviewed mutation path and proven in disposable
+PostgreSQL. This worker exposes no `execute`, `migrate`, grant-write or failed-row
+resolve operation. Even prefix 17 retains all final convergence/audit steps.
+Every response preserves `completeProductionScope=false` and
+`productionExecutionAuthorized=false`. Exact-head CI, credential-incident
+acceptance and all deployment, runtime/staff, provider, overlap, ENABLE and FORCE
+gates remain distinct.
+
+The sections below retain the accepted predecessor component history.
+
 September 8, 2026. Source-only successor to the accepted correction release
 package at `f00eac52611bed629d741157839cc31e3e710b61`, CI `34247688283`.
 That package requires 251 predecessor migrations. This component covers the
