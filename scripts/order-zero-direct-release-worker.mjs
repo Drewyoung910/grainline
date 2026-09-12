@@ -90,7 +90,7 @@ export async function startOrderZeroDirectWorker({ directory, reviewed: input })
       if (closed || pending) return Promise.reject(new Error(FAILURE));
       return new Promise((resolve, reject) => {
         const id = ++sequence;
-        const timer = setTimeout(invalidate, command === "prepare" ? 600000 : 180000);
+        const timer = setTimeout(invalidate, ["prepare", "execute-disposable"].includes(command) ? 600000 : 180000);
         pending = { id, resolve, reject, timer };
         child.send({ id, command, payload }, error => { if (error) invalidate(); });
       });
@@ -103,6 +103,7 @@ export async function startOrderZeroDirectWorker({ directory, reviewed: input })
       load: payload => request("load", payload),
       inspect: payload => request("inspect", payload),
       revalidate: payload => request("revalidate", payload),
+      executeDisposable: payload => request("execute-disposable", payload),
       close: async () => { invalidate(); await exited; },
     });
   } catch { child?.kill("SIGKILL"); throw new Error(FAILURE); }

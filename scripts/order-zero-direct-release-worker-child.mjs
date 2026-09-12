@@ -267,6 +267,23 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
     graph.files.verify(artifact); toolchainCheck();
     return { ...summary(), prefixLength: plan.prefixLength, freshDatabaseScopeObserved: true };
   }
+  async function executeDisposable(payload) {
+    assert.equal(state, "prepared");
+    assert.deepEqual(Object.keys(payload).sort(), ["databaseUrl", "githubActions"]);
+    assert.equal(typeof payload.githubActions, "boolean");
+    toolchainCheck();
+    // There is deliberately no production execute command. The adapter admits
+    // only numeric loopback ci/grainline_ci/PostgreSQL 16 and verifies the server
+    // before writing. Its credentials never reach preparation children.
+    const { runDisposableOrderExecution } = await import(pathToFileURL(path.join(root, "scripts/order-zero-direct-execution-disposable.mjs")).href);
+    state = "executing-disposable"; checkpoint();
+    const result = await runDisposableOrderExecution({ sourceRoot: root, scope: graph.scope, files: graph.files,
+      binding: { releaseCommit: reviewed.releaseCommit, sourceCatalogSha256: reviewed.sourceCatalogSha256 },
+      parent: path.join(session, "artifacts"), databaseUrl: payload.databaseUrl, githubActions: payload.githubActions,
+      guard: async () => { toolchainCheck(); } });
+    state = "disposable-complete"; checkpoint();
+    return { ...summary(), execution: result };
+  }
   function fail() {
     state = "failed"; activeAdmission = undefined; artifact = undefined; lastScope = undefined;
     try { checkpoint(); } catch { /* Existing recovery records survive. */ }
@@ -290,7 +307,8 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
       else if (message.command === "status") { if (installed) toolchainCheck(); else sourceCheck(); result = summary(); }
       else if (message.command === "inspect") result = await inspect(message.payload);
       else if (message.command === "revalidate") result = await revalidate(message.payload);
-      else throw new Error(FAILURE); // In particular: no execute/migrate/resolve.
+      else if (message.command === "execute-disposable") result = await executeDisposable(message.payload);
+      else throw new Error(FAILURE); // No production execute/migrate/resolve.
       process.send({ id: message.id, ok: true, result }); busy = false;
     } catch { fail(); }
   });

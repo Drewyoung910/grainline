@@ -386,3 +386,47 @@ Then retain the separate correction boundaries, Case readers-before-SQL and
 label-clock-before-retry dependencies, staff credential/grant/login acceptance,
 matching app deployment and authenticated provider smoke, predecessor drain,
 and Order ENABLE/FORCE postflights. No production workflow is wired by this pass.
+# Disposable bounded execution candidate
+
+The persistent worker now has an `executeDisposable` command, available only
+after its clean installation and graph load. It admits numeric loopback,
+`ci` / `grainline_ci`, PostgreSQL 16 and a verified disposable superuser. There
+is still no production execution command or production workflow wiring.
+
+The shared executor stages only the 251 reviewed history/prefix migrations,
+records durable intent before Prisma deploy, then reinspects the complete
+prefix. It converges exactly the 36 reviewed function identities, runs Prisma
+status against the same selected artifact, repeats the unchanged global audit,
+and obtains final read-only scope. Entry at prefix 17 skips only deployment.
+Prisma receives a private fixed config and scrubbed environment; module
+resolution stays inside the checkout except for that exact config and builtins.
+
+The private execution journal uses exclusive mode-0600 files, file/directory
+fsync and atomic state replacement. An uncertain command, failed grant
+transaction, lost guard or process exit preserves the last intent and claim.
+Do not delete that claim, overwrite its state, automatically retry, run
+`migrate resolve`, or mark a partial member complete. Inspect the retained
+artifact/journal and obtain a fresh audited ledger in a separately reviewed
+attempt. Failed or partial member 10 remains inadmissible. These records
+contain binding digests and stages, never connection strings or database rows.
+
+The CI proof prepares a real persistent worker in a separate clean checkout,
+with fresh dependencies and explicit test pins. Only the GitHub CI transport is
+replaced by an identified local fixture for the successful attempt. An earlier
+separate fixture injects SIGKILL after durable apply intent and before spawning
+Prisma; its retained journal/claim must survive. A new fixture worker performs
+a fresh native prefix-zero inspection and applies all 17 members to
+the disposable PostgreSQL baseline using the same executor and adapter; the
+harness then exercises already-complete entry. Its
+historical ledger normalization models only the three sealed exceptions;
+padding rows are removed before classification. This CI harness uses local
+source observations, not reviewed production pins or production admission.
+Unit tests isolate orchestration and failure injection; PGlite checks the exact
+function-grant partition. Native CI acceptance must be recorded separately.
+This pre-command crash does not prove recovery from an in-flight database
+command or a partially executed member 10; those native drills remain separate.
+
+Production execution still requires the completed live admission/worker
+composition and operational authorization. Credential incident acceptance,
+matching application deployment, staff/provider/runtime evidence, predecessor
+drain, Order ENABLE and Order FORCE remain separate gates.

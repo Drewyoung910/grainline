@@ -68,6 +68,12 @@ export async function observeOrderReleaseAdmission(){log({event:'admission'});as
 export function parseProductionMigrationEnvironment(env){log({event:'owner-validation'});assert.equal(env.DIRECT_URL,'postgresql://fixture.invalid/never-connect');return {directUrl:env.DIRECT_URL};}
 `);
   write("scripts/postgres-url-safety.mjs", "export const postgresChannelBindingClientOptions=()=>({});\n");
+  write("scripts/order-zero-direct-execution-disposable.mjs", `${helper}
+export async function runDisposableOrderExecution(options){
+assert.equal(options.databaseUrl,'postgresql://ci:ci@127.0.0.1:5432/grainline_ci');
+assert.equal(options.githubActions,false);await options.guard();
+log({event:'disposable-execution',pid:process.pid});return {productionExecutionAuthorized:false,fixtureOnly:true};
+}\n`);
   const fakePg = `${helper}
 export default {Client:class {
 constructor(options){assert.equal(options.options,'-c default_transaction_read_only=on');}
@@ -154,6 +160,25 @@ test("inspection and revalidation obtain new connections and post-admission scop
   assert.equal(events.filter(row => row.sql === "ROLLBACK").length, 2);
   assert.ok(events.findIndex(row => row.event === "ci") < events.findIndex(row => row.event === "connect"));
   assert.ok(!JSON.stringify(inspected).includes("fixture-token"));
+});
+
+test("disposable dispatch stays in the prepared process and cannot be replayed", async t => {
+  const f = fixture(t), worker = await f.start(); await worker.prepare();
+  const payload = { databaseUrl: "postgresql://ci:ci@127.0.0.1:5432/grainline_ci", githubActions: false };
+  const result = await worker.executeDisposable(payload);
+  assert.equal(result.state, "disposable-complete"); assert.equal(result.workerPid, worker.pid);
+  assert.equal(result.execution.fixtureOnly, true); assert.equal(result.productionExecutionAuthorized, false);
+  assert.deepEqual(f.events().filter(row => row.event === "disposable-execution"), [{ event: "disposable-execution", pid: worker.pid }]);
+  await assert.rejects(worker.executeDisposable(payload));
+});
+
+test("disposable dispatch rejects credentials before preparation or unsupported production fields", async t => {
+  for (const prepared of [false, true]) {
+    const f = fixture(t), worker = await f.start(); if (prepared) await worker.prepare();
+    await assert.rejects(worker.executeDisposable({ databaseUrl: "postgresql://ci:ci@127.0.0.1:5432/grainline_ci", githubActions: false,
+      ...(prepared ? { ownerUrl: "forbidden" } : {}) }));
+    assert.ok(!f.events().some(row => row.event === "disposable-execution"));
+  }
 });
 
 test("completed prefix 17 retains all final convergence and audit obligations", async t => {

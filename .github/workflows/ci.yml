@@ -1367,6 +1367,8 @@ jobs:
           mv
           "$RUNNER_TEMP/case-order-correctness-release"
           prisma/migrations/20260901160000_correct_case_order_invariants
+      - name: Apply exact Case predecessor before bounded Order executor
+        run: npx prisma migrate deploy
       - name: Restore Order staff charged-total correction
         run: >-
           mv
@@ -1441,7 +1443,11 @@ jobs:
       - name: Re-verify compatible Order account-deletion authority
         run: npm run audit:order-account-deletion-authority
       - name: Apply compatible Order participant authority
-        run: npx prisma migrate deploy
+        run: |
+          npm run guard:local-disk-space
+          node scripts/order-zero-direct-execution-postgres-proof.mjs
+        env:
+          ORDER_ZERO_DIRECT_EXECUTION_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci?sslmode=disable
       - name: Converge Order participant runtime grants
         run: >-
           psql "$DIRECT_URL"
