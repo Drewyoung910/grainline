@@ -94,30 +94,14 @@ describe("Order, payment, and shipping compatible application conversion", () =>
 
   it("writes the locked seller key on both checkout Order shapes and every OrderItem", () => {
     const legacy = source("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = source("docs/rls-drafts/order-paid-checkout-authority.sql");
 
-    assert.match(
-      legacy,
-      /const cartSellerProfileId = requireSingleOrderSellerProfileId\(cartSellerIds\)/,
-    );
-    assert.match(
-      legacy,
-      /buyerId: cartInvalidState\.buyerUserId,\s+sellerProfileId: cartSellerProfileId/,
-    );
-    assert.match(
-      legacy,
-      /orderId: order\.id,\s+sellerProfileId: cartSellerProfileId,\s+listingId: paid\.listingId/,
-    );
-    assert.match(
-      legacy,
-      /const singleSellerProfileId = requireSingleOrderSellerProfileId\(\[\s*transactionListing\?\.seller\?\.id,\s*\]\)/,
-    );
-    assert.match(
-      legacy,
-      /buyerId: singleInvalidState\.buyerUserId,\s+sellerProfileId: singleSellerProfileId/,
-    );
-    assert.match(
-      legacy,
-      /create: \[\{\s+listingId,\s+sellerProfileId: singleSellerProfileId/,
-    );
+    assert.match(legacy, /createOrderFromPaidCheckout\(/);
+    assert.doesNotMatch(legacy, /(?:prisma|tx)\.orderItem\.create/);
+    assert.match(paidCheckoutAuthority, /source_seller_id := source_reservation\."sellerId"/);
+    assert.match(paidCheckoutAuthority, /source_snapshot#>>'\{seller,id\}' IS DISTINCT FROM source_seller_id/);
+    assert.match(paidCheckoutAuthority, /source_item#>>'\{listing,sellerId\}' IS DISTINCT FROM source_seller_id/);
+    assert.match(paidCheckoutAuthority, /source_seller_id, source_now, p_paid_at, p_session_id/);
+    assert.match(paidCheckoutAuthority, /source_order_id, source_listing_id,[\s\S]*source_seller_id/);
   });
 });

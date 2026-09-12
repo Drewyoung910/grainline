@@ -10,10 +10,13 @@ describe("Notification inventory authority", () => {
   const webhook = source("src/app/api/stripe/webhook/route.ts");
   const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
   const sql = source("docs/rls-drafts/notification-service-authority.sql");
+  const postpaymentSql = source("docs/rls-drafts/order-checkout-postpayment-authority.sql");
   const plan = source("docs/rls-bucket-b-notification-plan.md");
 
   it("binds webhook low-stock to one deterministic paid order item source", () => {
-    assert.match(webhook, /items: \{\s*select: \{\s*id: true,/);
+    assert.match(postpaymentSql, /'id', item\.id,[\s\S]*'listingId', item\."listingId"/);
+    assert.match(postpaymentSql, /'currentStockQuantity', listing\."stockQuantity"/);
+    assert.match(webhook, /const inStockItems = new Map/);
     assert.match(webhook, /item\.id < current\.orderItemId/);
     assert.match(
       webhook,

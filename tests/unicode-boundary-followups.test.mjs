@@ -27,15 +27,14 @@ describe("unicode boundary follow-ups", () => {
     assert.match(savedSearch, /truncateText\(sanitizeText\(q\)\.replace\(\/\\s\+\/g, " "\), 200\)/);
   });
 
-  it("defensively sanitizes durable Stripe order snapshot strings", () => {
+  it("binds durable order snapshot strings to the database-verified checkout source", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
-    assert.match(webhook, /function snapshotText\(value: string \| null \| undefined, maxLength: number\)/);
-    assert.match(webhook, /function snapshotSellerName\(value: string \| null \| undefined\)/);
-    assert.match(webhook, /title: snapshotText\(listing\.title, 200\)/);
-    assert.match(webhook, /description: snapshotText\(listing\.description, 5000\)/);
-    assert.match(webhook, /sellerName: snapshotSellerName\(listing\.seller\?\.displayName\)/);
-    assert.match(webhook, /title: snapshotText\(listingData\?\.title, 200\)/);
-    assert.match(webhook, /sellerName: snapshotSellerName\(listingData\?\.seller\?\.displayName\)/);
+    const authority = source("docs/rls-drafts/order-paid-checkout-authority.sql");
+    assert.doesNotMatch(webhook, /(?:prisma|tx)\.orderItem\.create/);
+    assert.match(authority, /'title', source_item#>>'\{listing,title\}'/);
+    assert.match(authority, /'description', source_item#>>'\{listing,description\}'/);
+    assert.match(authority, /'sellerName', source_snapshot#>>'\{seller,displayName\}'/);
+    assert.match(authority, /source_listing_snapshot := pg_catalog\.jsonb_build_object/);
   });
 
   it("uses bounded short-name redaction without broad Notification text authority", () => {

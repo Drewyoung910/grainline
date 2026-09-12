@@ -154,7 +154,7 @@ describe("currency formatting drift guardrails", () => {
     assert.match(state, /import \{ DEFAULT_CURRENCY, formatCurrencyCents \} from "\.\/money\.ts"/);
     assert.match(state, /formatCurrencyCents\(cents, currency\)/);
     assert.doesNotMatch(state, /cents \/ 100|toFixed\(2\)/);
-    assert.match(retry, /claimLabelClawbackBatch\(take\)/);
+    assert.match(retry, /claimLabelClawbackBatch\(1\)/);
     assert.match(route, /currency: normalizedCurrency/);
     assert.match(authority, /pg_catalog\.upper\(currency\)/);
   });

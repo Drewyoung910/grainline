@@ -1,5 +1,5 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { prisma } from "@/lib/db";
 import { UndoActionButton } from "@/components/UndoActionButton";
 import { isUndoableAdminAction } from "@/lib/audit";
@@ -29,14 +29,8 @@ export default async function AdminAuditPage({
 }: {
   searchParams: Promise<{ page?: string; action?: string }>;
 }) {
-  const { userId } = await auth();
-  if (!userId) redirect("/");
-
-  const admin = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { role: true, banned: true, deletedAt: true },
-  });
-  if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") redirect("/");
+  const staff = await requireAdminPageAccess("ADMIN");
+  if (!staff) return <AdminPinGate />;
 
   const { page: pageStr, action: actionParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);

@@ -607,10 +607,10 @@ export default async function BuyerOrderDetailPage({
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {activeCase.status !== "OPEN" && <CaseMarkResolvedButton caseId={activeCase.id} />}
-                  {escalateAvailable && (
-                    <CaseEscalateButton caseId={activeCase.id} />
-                  )}
                 </div>
+              )}
+              {escalateAvailable && (
+                <CaseEscalateButton caseId={activeCase.id} />
               )}
             </div>
           )}

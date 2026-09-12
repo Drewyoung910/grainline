@@ -20,16 +20,18 @@ describe("ban side-effect guardrails", () => {
   it("closes active buyer commissions and restores ban-added order review markers on unban", () => {
     const ban = source("src/lib/ban.ts");
     const audit = source("src/lib/audit.ts");
+    const authority = source("src/lib/orderBanReviewAuthority.ts");
 
     assert.match(ban, /const BANNED_BUYER_COMMISSION_STATUSES = \['OPEN', 'IN_PROGRESS'\] as const/);
     assert.match(ban, /status: \{ in: \[\.\.\.BANNED_BUYER_COMMISSION_STATUSES\] \}/);
-    assert.match(ban, /addedReviewNote: reviewNoteState\.addedReviewNote/);
-    assert.match(ban, /flagBannedSellerOpenOrders\(tx, flaggedOpenOrders\)/);
-    assert.match(ban, /Prisma\.join\(rows\)/);
-    assert.match(ban, /o\."reviewNote" IS NOT DISTINCT FROM data\."previousReviewNote"/);
-    assert.doesNotMatch(ban, /for \(const order of flaggedOpenOrders\) \{\s*await tx\.order\.update/s);
-    assert.match(ban, /restoreBannedSellerOrderReviewState\(\s*tx,\s*banMetadata\.flaggedOpenOrders/s);
-    assert.match(audit, /restoreBannedSellerOrderReviewState\(tx, banMetadata\.flaggedOpenOrders\)/);
+    assert.match(ban, /flagBannedSellerOpenOrders\(\s*banReviewCapability,\s*userId,\s*tx/s);
+    assert.match(ban, /openOrderSnapshots: flaggedOpenOrders/);
+    assert.match(ban, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*userId,\s*banMetadata\.flaggedOpenOrders,\s*tx/s);
+    assert.match(audit, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*log\.targetId,\s*banMetadata\?\.flaggedOpenOrders \?\? \[\],\s*tx/s);
+    assert.match(authority, /grainline_order_flag_banned_seller_open_orders/);
+    assert.match(authority, /grainline_order_restore_banned_seller_reviews/);
+    assert.doesNotMatch(ban, /(?:prisma|tx)\.order\./);
+    assert.doesNotMatch(audit, /(?:prisma|tx)\.order\./);
   });
 
   it("lets an already-undone ban retry only the failed Clerk unban sync", () => {
@@ -42,5 +44,18 @@ describe("ban side-effect guardrails", () => {
     assert.match(audit, /banned: true,\s+deletedAt: null,\s+\.\.\.\(appliedBannedAt \? \{ bannedAt: appliedBannedAt \} : \{\}\)/s);
     assert.match(audit, /source: 'undo_ban_user_clerk_sync_retry'/);
     assert.match(audit, /retry: true/);
+  });
+
+  it("lets an already-unbanned user converge Clerk without replaying database restoration", () => {
+    const ban = source("src/lib/ban.ts");
+
+    assert.match(ban, /async function convergeAlreadyUnbannedClerkTarget/);
+    assert.match(ban, /await unbanClerkUser\(clerkId\)/);
+    assert.match(ban, /idempotentConvergence: true/);
+    assert.match(
+      ban,
+      /if \(!target\.banned\) \{[\s\S]*await convergeAlreadyUnbannedClerkTarget\([\s\S]*return \{ sellerRestoreWarning: null \}[\s\S]*const seller = await prisma\.sellerProfile\.findUnique/u,
+    );
+    assert.match(ban, /originalActionId: clerkSync\.unbanAuditLogId/u);
   });
 });

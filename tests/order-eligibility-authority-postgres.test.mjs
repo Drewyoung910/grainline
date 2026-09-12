@@ -7,6 +7,18 @@ const migration = readFileSync(
   "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
   "utf8",
 );
+const compositionCorrection = readFileSync(
+  "docs/rls-drafts/order-authority-composition-correction.sql",
+  "utf8",
+);
+
+function correctedFunction(name) {
+  const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const endMarker = `$${name}$;`;
+  const end = compositionCorrection.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
+  return compositionCorrection.slice(start, end + endMarker.length);
+}
 
 async function createDatabase() {
   const database = new PGlite();
@@ -36,6 +48,7 @@ async function createDatabase() {
       "fulfillmentStatus" public."FulfillmentStatus" NOT NULL,
       "sellerRefundId" text,
       "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
+      "paymentConversionDisputeBlocked" boolean NOT NULL DEFAULT false,
       "stripeSessionId" text,
       "stripePaymentIntentId" text,
       "stripeChargeId" text,
@@ -71,6 +84,14 @@ async function createDatabase() {
       ('order-refunded', 'buyer-1', 'seller-1', '2026-08-26 12:00:00', '2026-08-26 12:01:00', 'DELIVERED', 're_1', false, 'cs_2', '2026-08-27', NULL),
       ('order-active', 'buyer-1', 'seller-1', '2026-08-27 12:00:00', '2026-08-27 12:01:00', 'SHIPPED', NULL, false, 'cs_3', NULL, NULL),
       ('order-foreign', 'buyer-2', 'seller-2', '2026-08-25 12:00:00', '2026-08-25 12:01:00', 'PICKED_UP', NULL, false, 'cs_4', NULL, '2026-08-26');
+    INSERT INTO public."Order" (
+      id, "buyerId", "sellerProfileId", "createdAt", "paidAt",
+      "fulfillmentStatus", "paymentConversionDisputeBlocked",
+      "stripeSessionId", "deliveredAt"
+    ) VALUES (
+      'order-disputed', 'buyer-1', 'seller-1', '2026-08-28 12:00:00',
+      '2026-08-28 12:01:00', 'DELIVERED', true, 'cs_disputed', '2026-08-29'
+    );
     INSERT INTO public."OrderItem" (
       id, "orderId", "listingId", "sellerProfileId", "priceCents", quantity
     ) VALUES
@@ -78,8 +99,15 @@ async function createDatabase() {
       ('item-refunded', 'order-refunded', 'listing-1', 'seller-1', 700, 1),
       ('item-active', 'order-active', 'listing-1', 'seller-1', 300, 1),
       ('item-foreign', 'order-foreign', 'listing-2', 'seller-2', 900, 1);
+    INSERT INTO public."OrderItem" (
+      id, "orderId", "listingId", "sellerProfileId", "priceCents", quantity
+    ) VALUES (
+      'item-disputed', 'order-disputed', 'listing-1', 'seller-1', 1000, 1
+    );
   `);
   await database.exec(migration);
+  await database.exec(correctedFunction("grainline_order_review_eligibility_lock"));
+  await database.exec(correctedFunction("grainline_order_seller_verification_sales"));
   return database;
 }
 

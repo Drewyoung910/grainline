@@ -1,0 +1,44 @@
+name: Order Paid Repair Lock Proof
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# This independent service starts with no cluster-global application roles, so
+# the proof exercises the exact production functions rather than inheriting
+# role or schema state from the larger migration job.
+permissions:
+  contents: read
+
+jobs:
+  postgres-lock-order:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: paid_lock_owner
+          POSTGRES_PASSWORD: ci-paid-lock-proof
+          POSTGRES_DB: grainline_paid_lock_proof
+          POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paid_lock_owner -d grainline_paid_lock_proof"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify paid-checkout lock proof boundary
+        run: node --test tests/order-paid-repair-lock-proof.test.mjs
+      - name: Prove both paid-checkout and repair lock orders in PostgreSQL 16
+        env:
+          ORDER_PAID_REPAIR_PROOF_DATABASE_URL: postgresql://paid_lock_owner:ci-paid-lock-proof@127.0.0.1:5432/grainline_paid_lock_proof
+        run: npm run audit:order-paid-repair-lock-postgres

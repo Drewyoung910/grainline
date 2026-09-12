@@ -611,13 +611,12 @@ export async function loadOrderLabelApplicationDependencies(root = process.cwd()
   const [{ finalizeSellerLabelProviderResult }, authority, clawback] = await Promise.all([
     jiti.import(path.join(root, "src/lib/orderLabelFinalization.ts")),
     jiti.import(path.join(root, "src/lib/orderLabelAuthority.ts")),
-    jiti.import(path.join(root, "src/lib/labelClawbackState.ts")),
+    jiti.import(path.join(root, "src/lib/labelClawbackProvider.ts")),
   ]);
   return Object.freeze({
     finalizeLabelClawback: authority.finalizeLabelClawback,
     finalizeSellerLabelProviderResult,
-    labelClawbackErrorMessage: clawback.labelClawbackErrorMessage,
-    labelClawbackIdempotencyKey: clawback.labelClawbackIdempotencyKey,
+    settleLabelClawback: clawback.settleLabelClawback,
   });
 }
 
@@ -783,47 +782,19 @@ export async function runOrderLabelAmbiguousReconciliation(
     }
     let clawbackStatus = recorded.clawbackStatus;
     if (recorded.clawbackStatus === "RETRYING" && recorded.stripeTransferId) {
-      try {
-        const reversal = await stripeClient.transfers.createReversal(
-          recorded.stripeTransferId,
-          {
-            amount: recorded.amountCents,
-            metadata: { orderId: recorded.orderId, reason: "label_cost_deduction" },
-          },
-          {
-            idempotencyKey: appDependencies.labelClawbackIdempotencyKey({
-              amountCents: recorded.amountCents,
-              orderId: recorded.orderId,
-              shippoRateObjectId: recorded.rateObjectId,
-              shippoTransactionId: recorded.transactionId,
-            }),
-          },
-        );
-        const finalized = await appDependencies.finalizeLabelClawback({
-          claimGeneration: recorded.claimGeneration,
-          claimId: recorded.claimId,
-          clawbackGeneration: recorded.clawbackGeneration,
-          orderId: recorded.orderId,
-          outcome: "SUCCESS",
-          reversalId: reversal.id,
-        });
+      const { finalized, providerFailed } = await appDependencies.settleLabelClawback(
+        recorded, stripeClient, appDependencies.finalizeLabelClawback,
+      );
+      if (!providerFailed) {
         if (finalized.outcome !== "finalized") {
           throw new Error("Order label clawback finalizer rejected the exact reversal");
         }
         clawbackStatus = "REVERSED";
-      } catch (error) {
-        const failed = await appDependencies.finalizeLabelClawback({
-          claimGeneration: recorded.claimGeneration,
-          claimId: recorded.claimId,
-          clawbackGeneration: recorded.clawbackGeneration,
-          errorSummary: appDependencies.labelClawbackErrorMessage(error),
-          orderId: recorded.orderId,
-          outcome: "FAILED",
-        });
-        if (failed.outcome !== "recorded_failure") {
+      } else {
+        if (finalized.outcome !== "recorded_failure") {
           throw new Error("Order label clawback failure was not durably recorded");
         }
-        clawbackStatus = failed.clawbackStatus;
+        clawbackStatus = finalized.clawbackStatus;
       }
     }
     outcome = {

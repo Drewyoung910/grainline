@@ -116,6 +116,7 @@ export type LabelClawbackClaim = {
   amountCents: number;
   currency: string;
   attemptCount: number;
+  labelPurchasedAt: string | null;
 };
 
 export type SellerLabelDownloadResult =
@@ -432,6 +433,7 @@ export async function claimLabelClawbackBatch(
       amountCents: money(row.amountCents, "Order label amount"),
       currency: currency(row.currency, "Order label currency"),
       attemptCount: integer(row.attemptCount, "Order label attempt count", 1, 1000),
+      labelPurchasedAt: nullableString(row.labelPurchasedAt, "Order label purchased at", 64),
     };
   });
 }

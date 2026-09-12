@@ -1,5 +1,5 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { prisma } from "@/lib/db";
 import { ReviewListingButtons } from "@/components/ReviewListingButtons";
 import { DeleteListingButton } from "@/components/admin/DeleteListingButton";
@@ -13,14 +13,8 @@ export const metadata: Metadata = { title: "Review Queue — Admin" };
 const REVIEW_QUEUE_LIMIT = 100;
 
 export default async function AdminReviewPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/");
-
-  const admin = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { role: true, banned: true, deletedAt: true },
-  });
-  if (!admin || admin.banned || admin.deletedAt || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) redirect("/");
+  const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
 
   const [totalPending, listings] = await Promise.all([
     prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),

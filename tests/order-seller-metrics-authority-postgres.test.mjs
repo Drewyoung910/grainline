@@ -7,6 +7,18 @@ const migration = readFileSync(
   "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
   "utf8",
 );
+const compositionCorrection = readFileSync(
+  "docs/rls-drafts/order-authority-composition-correction.sql",
+  "utf8",
+);
+
+function correctedFunction(name) {
+  const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const endMarker = `$${name}$;`;
+  const end = compositionCorrection.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
+  return compositionCorrection.slice(start, end + endMarker.length);
+}
 
 async function createDatabase() {
   const database = new PGlite();
@@ -31,6 +43,7 @@ async function createDatabase() {
       "fulfillmentStatus" public."FulfillmentStatus" NOT NULL,
       "sellerRefundId" text,
       "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
+      "paymentConversionDisputeBlocked" boolean NOT NULL DEFAULT false,
       "stripeSessionId" text,
       "stripePaymentIntentId" text,
       "stripeChargeId" text
@@ -74,6 +87,14 @@ async function createDatabase() {
       ('seller-two-order', 'seller-2', CURRENT_TIMESTAMP - INTERVAL '10 days',
        CURRENT_TIMESTAMP - INTERVAL '9 days', CURRENT_TIMESTAMP - INTERVAL '8 days',
        'DELIVERED', NULL, false, 'cs_two', NULL);
+    INSERT INTO public."Order" (
+      id, "sellerProfileId", "paidAt", "shippedAt", "processingDeadline",
+      "fulfillmentStatus", "paymentConversionDisputeBlocked", "stripeSessionId"
+    ) VALUES (
+      'disputed-on-time', 'seller-1', CURRENT_TIMESTAMP - INTERVAL '12 days',
+      CURRENT_TIMESTAMP - INTERVAL '11 days', CURRENT_TIMESTAMP - INTERVAL '10 days',
+      'DELIVERED', true, 'cs_disputed'
+    );
     INSERT INTO public."OrderItem" (
       id, "orderId", "listingId", "sellerProfileId", quantity, "priceCents"
     ) VALUES
@@ -84,8 +105,14 @@ async function createDatabase() {
       ('item-unpaid', 'unpaid', 'listing-reassigned', 'seller-1', 1, 700),
       ('item-old', 'old-shipment', 'listing-reassigned', 'seller-1', 1, 200),
       ('item-two', 'seller-two-order', 'listing-two', 'seller-2', 1, 7000);
+    INSERT INTO public."OrderItem" (
+      id, "orderId", "listingId", "sellerProfileId", quantity, "priceCents"
+    ) VALUES (
+      'item-disputed', 'disputed-on-time', 'listing-reassigned', 'seller-1', 1, 400
+    );
   `);
   await database.exec(migration);
+  await database.exec(correctedFunction("grainline_order_seller_metrics_facts"));
   return database;
 }
 
@@ -104,8 +131,8 @@ describe("Order seller metrics authority PostgreSQL proof", () => {
         seller_profile_id: "seller-1",
         completed_order_count: 3,
         total_sales_cents: 1300,
-        shipped_count: 2,
-        on_time_count: 1,
+        shipped_count: 3,
+        on_time_count: 2,
       }]);
 
       const reassignedListingOwner = await database.query(`

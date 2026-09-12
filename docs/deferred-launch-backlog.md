@@ -19,6 +19,25 @@ leaving it in this file.
 
 ## Working Rules
 
+September 7 broad-review additions and the resumed Order sequence are indexed in
+[Order audit resume triage](order-audit-resume-triage-20260907.md). The older
+per-finding totals above do not include these new packets. Their findings remain
+open unless individually verified and closed; financial/security release blockers
+must not be silently treated as post-launch deferrals. Full evidence is preserved
+outside the temporary candidate at the explicit paths in that record.
+
+Stock consistency implementation and its browser-recovery/retention limitations
+are recorded in [the F02/F03 runbook](listing-stock-consistency-correction.md).
+These defects remain activation blockers until release acceptance, not post-launch
+deferrals. Future support receipt lookup and retention need explicit designs that
+preserve in-window receipts and reconcile lost identities without fresh-ID retries.
+
+CASE-04/05 implementation, remaining proof gates and deadline boundaries are in
+[the Case lifecycle runbook](case-lifecycle-correction.md). A committed objection
+must escape auto-close; silence still follows the existing seven-day policy.
+Separate deadline/terms/legal alignment remains a launch decision, not a waived
+finding or an implicit change to automatic dismissal behavior.
+
 - Finish one cohesive section before opening a broad new security/audit slice,
   unless CI is red, Drew redirects the work, or a blocker in that section needs
   external evidence.
@@ -55,6 +74,7 @@ leaving it in this file.
 | Stale remote branches | Post-launch hardening | Explicit review/prune of stale remote branches, especially old feature branches that should not be merged as-is. | Branch list reviewed; stale branches deleted or documented; any reusable diff is rebased/cherry-picked onto current `main` and re-audited. |
 | Round 10 cache/state-machine designs | Decision required | Product designs that require behavior choices rather than more source guardrails. | Each remaining design is accepted, rejected, or converted into a concrete implementation issue with tests. |
 | Runtime query plans | Post-launch hardening | EXPLAIN-dependent validation beyond current source indexes and query-shape guardrails. | Production-like seed/cardinality run records EXPLAIN plans for public discovery, seller pages, search suggestions, admin queues, and other high-traffic queries; indexes or query changes added if needed. |
+| Account-closure checkout sweep scale | Conditional blocker | The isolated ORD-A24 closure adapter scans at most ten pages/1,000 Sessions from two hours and throws on unfinished pagination. Large expiry/restoration batches may exceed the v2 route's 30-second limit; repeated inline scans are not a high-volume work queue. | Before sustained volume approaches that bound or route latency threatens the deadline, move exact account-bound session work to a durable cursor/job with generation fencing; prove progress across deadlines, provider ambiguity, replacement accounts and stock-repair handoff. The prelaunch route smoke must exercise the bounded adapter and report timeouts honestly. This is not a new table-grant requirement for core Order activation. |
 | Provider-side privacy erasure | Launch blocker | Clerk/Stripe/Resend/R2/provider-held copy handling for account deletion and legal requests. | Live or staging privacy-request runbook evidence shows what is deleted, retained, retried, or manually requested from providers; legal retention exceptions are recorded. |
 | Cross-seller AI duplicate detection | Decision required | Product/privacy design for AI duplicate-detection across sellers. | Decide whether to ship, defer, or remove the feature; if shipped, document data scope, retention, abuse handling, and owner-visible effects. |
 | Durable checkout-group semantics | Decision required | Product semantics beyond current grouped ready-lock/reservation resume and completed-session filtering. | Decide whether one buyer-facing cart checkout should remain per-seller orders/receipts or gain a durable checkout-group model; implement before changing receipt/refund semantics. |
@@ -65,6 +85,8 @@ leaving it in this file.
 | Continuous production RLS posture canary | Launch blocker | Ops health continuously checks SavedSearch only; other accepted RLS tables have release-time postflights but no recurring production posture/grant drift signal. | One sanitized aggregate canary verifies every matrix row marked live still has expected ENABLE/FORCE posture and ordinary-runtime authority class, without retaining row contents or identifiers; alerting and failure evidence are proved. |
 | SellerProfile projection guard | Conditional blocker | Public code currently uses narrow projections, but no recursive static guard prevents a future broad SellerProfile select from exposing ship-from, Stripe or reconciliation fields. | Add an exact sensitive-field inventory, recursive broad-select/source guard and allowlisted public/staff/service projections before SellerProfile RLS or launch. |
 | Clerk staff/security controls | Launch blocker | Staff/admin MFA, breached-password, multi-account/spam dashboard evidence. | Active Clerk plan settings captured; unavailable controls get documented exceptions; staff/admin MFA or enforcement plan is retained. |
+| Ban/unban Clerk desired-state convergence | Launch blocker | Database ban/unban commits and Clerk synchronization are retryable, but concurrent opposing staff actions can still finish provider calls out of order. Existing admin rate limits and the ban-side-effect repair cron reduce operational exposure without proving last-database-state convergence. | Introduce one durable per-user lifecycle generation or desired-state outbox consumed by an idempotent worker; prove concurrent ban/unban/retry ordering, crash recovery, exact audit correlation, session revocation, and final Clerk state matching the latest committed database state. Keep this separate from Order RLS activation. |
+| Imported authority-audit follow-ups | Conditional blocker | The 2026-09-07 independent triage confirmed separately scoped standing-authority and correctness debt: retire the unbound two-argument Stripe webhook lease, include cross-prefix DirectUpload writers in dependency/source attestation, add deterministic SavedSearch tie-breaking, add missing report-admin context links, require `kind = file` for Conversation file payloads, and replace the Order deauthorization free-text sentinel with a typed clearable hold when its lifecycle is designed. | Each item gets its own component audit, additive migration when an applied function changes, focused regression proof, and release record. Do not bundle these unrelated live-table changes into Order activation. The CheckoutStockReservation null-outcome repair defect is not deferred here; it is a separately activated integrity correction tracked in the Order pre-RLS audit. |
 | Buyer-deletion Stripe replay proof | Launch blocker | Live Stripe replay proof after source-side buyer deletion/minimization hardening. | `npm run audit:buyer-deletion-replay` passes after a real Stripe test-mode checkout completion/replay whose source buyer was deleted, suspended, or missing before webhook processing; the retained sanitized artifact verifies blocked review state, purged buyer PII fields, exact Stripe-bound event through the rollback-only fixed lease, automatic refund ledger, and audit evidence without direct webhook-table SELECT. |
 | Founding Maker concurrency | Conditional blocker | Live DB concurrency proof for Founding Maker permanence and cap behavior. | `npm run audit:founding-maker` passes against a staging/local database with production migrations applied and a retained sanitized artifact covers concurrent approvals, durable grant-ledger non-reuse after synthetic hard delete, cap fail-closed behavior, and cleanup. Do not run this proof against production because it creates and deletes synthetic rows. |
 | Sentry cron alerting | Launch blocker | Provider/runtime evidence for Sentry cron monitors and alert routing. | `npm run audit:sentry-crons` passes with live read-only Sentry credentials and a retained sanitized artifact showing every `vercel.json` cron has a matching monitor plus alert-routing configuration for `cron_ops_health`, `AccountDeletionSideEffect`, direct-upload cleanup, webhook failure spikes, and CSP; dashboard screenshots or exported evidence show actual notification delivery/routing. |

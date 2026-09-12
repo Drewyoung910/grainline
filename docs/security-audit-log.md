@@ -5120,3 +5120,96 @@ Open work:
   through the normal authenticated route. No provider, credential, migration,
   grant, deployment, or RLS state changed. The legal-state gate is closed;
   Clerk webhook signing-secret rotation remains a separate boundary.
+
+## 2026-09-07 Order ban-review isolated staff capability
+
+- The Order pre-RLS candidate review found that the two fixed seller-ban review
+  consumers were executable by ordinary runtime while accepting a caller-
+  supplied active ADMIN ID. Disposable PostgreSQL reproduced the forged-actor
+  call. Route authorization did not make that database boundary source-
+  validating. Classification: `FIX_BEFORE_ACTIVATION`; no production incident
+  is asserted.
+- The corrected database-first candidate adds policyless FORCE-RLS
+  `OrderStaffCapability`, with zero runtime/PUBLIC table authority. Only the
+  direct `grainline_staff_read_runtime` session can mint a five-minute UUID
+  bound to actor, target, operation and canonical restore-payload hash. The
+  existing ordinary transaction atomically consumes it; commit prevents replay
+  and rollback restores it for bounded retry. This retains atomic User,
+  SellerProfile, Commission, AdminAuditLog and Order review changes without
+  trusting a shared-runtime actor ID.
+- Ban, manual unban and audited undo routes now repeat the signed Admin-PIN
+  check. The staff role candidate has exactly six functions: two reads, three
+  mutations and the private capability mint. The staged migration and source
+  draft are byte-identical at SHA-256
+  `7a1da9cd3729167bb4512e56a8bb00f656182084c578841e172a9528e0c5513a`.
+- Focused grant, catalog, route, inventory and disposable PostgreSQL validation
+  passed 56 checks with one CI-service-only test skipped. It proved forged,
+  expired, replayed, cross-target and payload-substituted denial; one-use and
+  rollback semantics; direct-table denial; and the internal `SESSION_USER`
+  fence after an accidental ordinary-runtime mint grant. TypeScript and lint
+  passed. The first complete suite passed 4,286 tests with 12 skips and zero
+  failures across 4,298 tests / 536 suites.
+- This checkpoint changes only the isolated undeployed candidate. Production
+  migrations, grants, roles, credentials, deployments, providers and RLS state
+  remain unchanged. Exact-head CI, actual separate-login postflights,
+  database-first compatibility release, application smoke/drain and Order
+  Phase A/FORCE remain distinct later gates.
+- Exact-head CI run `34092842465` then failed at the early global grant audit
+  because CI intentionally isolates the sealed Order suffix while the tip
+  Prisma schema already named `OrderStaffCapability`. The correction mirrors
+  the existing two staged-private-ledger exceptions but remains exact: the
+  table enters the derived inventory only when the named
+  `20260905100000_prepare_order_ban_review_authority` directory exists and the
+  visible migration tree contains its `CREATE TABLE`. A wrong directory,
+  missing migration or absent table body remains excluded at the predecessor
+  audit; after exact restoration, the normal missing-table, FORCE, policy and
+  grant checks apply. The independent paid/repair lock and staff TLS/login
+  jobs in the same run passed; the Vercel Preview failure remained the expected
+  refusal caused by the intentionally absent Preview `DATABASE_URL`. Focused
+  correction coverage passed 40 tests with one CI-service-only skip, and the
+  post-correction complete suite passed 4,287 tests with 12 skips and zero
+  failures across 4,299 tests / 536 suites.
+- Replacement exact-head CI run `34134265340` passed the corrected early
+  inventory audit, all paid/repair lock proofs, and the separate staff TLS/login
+  proof, then failed at the later real-login staff convergence assertion. The
+  database function correctly raised SQLSTATE `42501` (`insufficient_privilege`)
+  after its isolated `SESSION_USER` gate and at live actor validation; the test
+  incorrectly required generic PL/pgSQL `P0001`. The correction requires
+  `42501` plus the exact actor-validation message and expands the real-login
+  proof to assert the sixth capability-mint EXECUTE grant, denial of direct
+  `OrderStaffCapability` reads, and successful passage through the capability
+  session gate to active-administrator validation. No application, migration,
+  grant, or provider behavior changed. Focused local authority validation passed
+  14 tests with the one real-login CI test skipped; the final frozen-tree suite
+  passed 4,287 tests with 12 skips and zero failures across 4,299 tests / 536
+  suites. TypeScript, ESLint and `git diff --check` also passed.
+- Exact-head CI `34135311230` then passed all 399 ordered steps in 13m37s,
+  including the corrected real staff login, full 4,299-test suite, dependency
+  audit and production build. Independent paid/repair lock run `34135311385`
+  and staff bootstrap run `34135311334` passed. Vercel Preview alone failed at
+  the intentionally absent Preview `DATABASE_URL`; no production deployment
+  was attempted.
+- Continued application-path review found that capability minting now preceded
+  the predecessor transaction's missing-target check. SQL correctly failed
+  closed, but missing or deleted ban/unban targets could surface as an internal
+  error instead of the established 404/bounded policy response. The candidate
+  now performs an application preflight for missing/deleted and ADMIN targets
+  before minting, while explicitly retaining the mint and consumer's repeated
+  database validation as the authority boundary against concurrent changes.
+  Classification: `FIX_BEFORE_ACTIVATION`; production remains unchanged.
+  Focused ban/capability/role/packaging validation passed 21 checks. The final
+  frozen-tree suite passed 4,288 tests with 12 skips and zero failures across
+  4,300 tests / 536 suites; TypeScript, ESLint and `git diff --check` passed.
+- Continued retry-path review then found a second capability integration
+  regression: when a local unban committed but Clerk synchronization failed,
+  the advertised retry encountered an already-unbanned target and the restore
+  capability correctly refused to replay the banned-state transition before
+  Clerk could be retried. The candidate now sends already-unbanned targets
+  through idempotent Clerk-only convergence with cache invalidation and a
+  dedicated audit, while first-attempt unbans retain the capability-bound
+  transaction. New first-attempt Clerk sync evidence is correlated to the exact
+  `UNBAN_USER` audit id. Classification: `FIX_BEFORE_ACTIVATION`; production is
+  unchanged. Focused ban/capability/role/packaging validation passed 23 checks;
+  the final frozen-tree suite passed 4,290 tests with 12 skips and zero failures
+  across 4,302 tests / 536 suites. TypeScript, ESLint and `git diff --check`
+  passed.

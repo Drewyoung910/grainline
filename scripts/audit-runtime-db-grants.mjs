@@ -53,6 +53,9 @@ import {
 import {
   ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
 } from "./order-label-authority-catalog.mjs";
+import {
+  ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS,
+} from "./stage-order-zero-direct-compatible-prefix.mjs";
 
 const { Client } = pg;
 
@@ -72,6 +75,10 @@ export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
+const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
+  "20260905120000_prepare_order_seller_deauthorization_authority";
+const ORDER_STAFF_CAPABILITY_MIGRATION =
+  "20260905100000_prepare_order_ban_review_authority";
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -79,6 +86,8 @@ export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseOpenApplication",
   "DirectUploadReference",
   "OrderRefundReconciliation",
+  "OrderStaffCapability",
+  "SellerDeauthorizationApplication",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseResolutionClaim",
@@ -87,6 +96,8 @@ export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseOpenApplication",
   "DirectUploadReference",
   "OrderRefundReconciliation",
+  "OrderStaffCapability",
+  "SellerDeauthorizationApplication",
 ]);
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
@@ -238,6 +249,11 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   ...ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_FUNCTIONS,
   ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
   ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
+  ...ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS.map(([name]) => name),
+  // These projections belong only to the separately authenticated bounded
+  // staff-read login. Ordinary application runtime must never inherit them.
+  "grainline_order_staff_detail_v2",
+  "grainline_order_staff_page_v2",
 ]);
 
 const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);
@@ -1071,9 +1087,36 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
     "migration.sql",
   ));
+  const sellerDeauthorizationApplicationMigrationPresent = migrationSql.includes(
+    'CREATE TABLE public."SellerDeauthorizationApplication"',
+  ) && existsSync(path.join(
+    rootDir,
+    "prisma",
+    "migrations",
+    SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION,
+    "migration.sql",
+  ));
+  const orderStaffCapabilityMigrationPath = path.join(
+    rootDir,
+    "prisma",
+    "migrations",
+    ORDER_STAFF_CAPABILITY_MIGRATION,
+    "migration.sql",
+  );
+  const orderStaffCapabilityMigrationPresent =
+    existsSync(orderStaffCapabilityMigrationPath)
+    && readFileSync(orderStaffCapabilityMigrationPath, "utf8").includes(
+      'CREATE TABLE public."OrderStaffCapability"',
+    );
   const tables = sortedUnique(schemaTables.filter(
     (tableName) => tableName !== "OrderRefundReconciliation"
       || refundReconciliationMigrationPresent,
+  ).filter(
+    (tableName) => tableName !== "SellerDeauthorizationApplication"
+      || sellerDeauthorizationApplicationMigrationPresent,
+  ).filter(
+    (tableName) => tableName !== "OrderStaffCapability"
+      || orderStaffCapabilityMigrationPresent,
   ));
   const enumBlocks = [...schema.matchAll(/^enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
   const enums = sortedUnique(

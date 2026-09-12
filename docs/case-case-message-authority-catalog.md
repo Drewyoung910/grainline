@@ -61,6 +61,13 @@ operation. The executable catalog deep-compares every current source and
 operation count with the live scanner. A source cannot disappear, appear,
 retire or claim conversion without changing a test.
 
+The remaining Order lock and database-clock helpers in that same file were
+also proof-only: no application source imported them after the fixed Case and
+Order operations landed. They now live inside the disposable lifecycle race
+harness, leaving `caseLifecycleLocks.ts` as a tracked inert marker. This does
+not alter the historical 80-reference protected Case baseline because neither
+helper referenced `Case`.
+
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication`,
 `CaseSellerRefundApplication` and `CaseOpenApplication` are separate immutable

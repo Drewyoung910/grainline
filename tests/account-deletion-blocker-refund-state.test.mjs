@@ -9,29 +9,20 @@ function source(path) {
 describe("account deletion blocker refund state", () => {
   it("waives order deletion blockers only for recorded full refunds", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const blockersStart = deletion.indexOf("export async function getAccountDeletionBlockers");
-    const blockersEnd = deletion.indexOf("function messageAttachmentUrl", blockersStart);
-    const blockerQuery = deletion.slice(blockersStart, blockersEnd);
+    const authority = source(
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+    );
 
-    assert.match(deletion, /import \{ REFUND_LOCK_SENTINEL \} from "@\/lib\/refundLockState"/);
-    assert.match(deletion, /const ACCOUNT_DELETION_FULL_REFUND_SQL = Prisma\.sql`/);
-    assert.match(deletion, /o\."sellerRefundId" <> \$\{REFUND_LOCK_SENTINEL\}/);
-    assert.match(deletion, /COALESCE\(o\."sellerRefundAmountCents", 0\) > 0/);
-    assert.match(deletion, /COALESCE\(o\."sellerRefundAmountCents", 0\) >= \(/);
-    for (const field of [
-      "itemsSubtotalCents",
-      "shippingAmountCents",
-      "giftWrappingPriceCents",
-      "taxAmountCents",
-    ]) {
-      assert.match(deletion, new RegExp(`COALESCE\\(o\\."${field}", 0\\)`));
+    assert.match(authority, /"sellerRefundId" <> 'pending'/);
+    assert.match(authority, /COALESCE\(source_order\."sellerRefundAmountCents", 0\) > 0/);
+    assert.match(authority, /COALESCE\(source_order\."sellerRefundAmountCents", 0\) >=/);
+    assert.match(authority, /COALESCE\(\s*source_order\."chargedTotalCents"/s);
+    for (const field of ["itemsSubtotalCents", "shippingAmountCents", "giftWrappingPriceCents", "taxAmountCents"]) {
+      assert.match(authority, new RegExp(`COALESCE\\(source_order\\.\"${field}\", 0\\)`));
     }
-    assert.match(deletion, /AND NOT \(\$\{ACCOUNT_DELETION_FULL_REFUND_SQL\}\)/);
-    assert.match(blockerQuery, /prisma\.\$queryRaw/);
-    assert.match(blockerQuery, /SELECT COUNT\(\*\) AS count/);
-    assert.match(blockerQuery, /SELECT COUNT\(DISTINCT o\.id\) AS count/);
-    assert.doesNotMatch(blockerQuery, /sellerRefundId: null/);
-    assert.doesNotMatch(blockerQuery, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
+    assert.match(deletion, /getOrderAccountDeletionBlockerCounts/);
+    assert.doesNotMatch(deletion, /ACCOUNT_DELETION_FULL_REFUND_SQL/);
+    assert.doesNotMatch(deletion, /FROM\s+(?:public\.)?"Order"/);
   });
 
   it("defers provider-deleted anonymization when Grainline blockers remain", () => {

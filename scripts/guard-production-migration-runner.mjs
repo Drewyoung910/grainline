@@ -6,6 +6,7 @@ import pg from "pg";
 import {
   parseVercelRuntimeDatabaseIdentity,
   REVIEWED_PRODUCTION_RUNTIME_IDENTITY,
+  REVIEWED_PRODUCTION_STAFF_READ_IDENTITY,
 } from "./guard-runtime-db-env.mjs";
 import {
   assertDeterministicPostgresEnvironment,
@@ -39,12 +40,25 @@ const REVIEWED_OWNER_MEMBERSHIP_OPTIONS = Object.freeze([
     setOption: false,
   }),
   Object.freeze({
+    role: REVIEWED_PRODUCTION_STAFF_READ_IDENTITY.role,
+    adminOption: true,
+    inheritOption: false,
+    setOption: false,
+  }),
+  Object.freeze({
     role: "neon_superuser",
     adminOption: false,
     inheritOption: true,
     setOption: true,
   }),
 ]);
+
+function reviewedOwnerMembershipOptions(staffReadRolePresent) {
+  return REVIEWED_OWNER_MEMBERSHIP_OPTIONS.filter((entry) =>
+    staffReadRolePresent
+    || entry.role !== REVIEWED_PRODUCTION_STAFF_READ_IDENTITY.role
+  );
+}
 
 function required(env, key) {
   const value = env?.[key];
@@ -139,7 +153,12 @@ function exactMembershipOptions(actual, expected) {
 export function assertProductionMigrationDatabaseState(state) {
   const owner = state?.ownerRole;
   const runtime = state?.runtimeRole;
+  const staffRead = state?.staffReadRole ?? null;
   const savedSearch = state?.savedSearch;
+  const staffReadRolePresent = staffRead !== null;
+  const expectedOwnerMemberships = reviewedOwnerMembershipOptions(
+    staffReadRolePresent,
+  );
   if (
     state?.identity?.database_name !== REVIEWED_PRODUCTION_RUNTIME_IDENTITY.databaseName
     || state.identity.current_user_name !== REVIEWED_MIGRATION_ROLE
@@ -153,12 +172,8 @@ export function assertProductionMigrationDatabaseState(state) {
     || owner.rolreplication !== true
     || owner.rolbypassrls !== true
     || JSON.stringify(sortedMemberships(owner))
-      !== JSON.stringify([
-        REVIEWED_RUNTIME_ROLE,
-        DIRECT_UPLOAD_CLEANUP_ROLE,
-        "neon_superuser",
-      ])
-    || !exactMembershipOptions(owner.membership_options, REVIEWED_OWNER_MEMBERSHIP_OPTIONS)
+      !== JSON.stringify(expectedOwnerMemberships.map((entry) => entry.role))
+    || !exactMembershipOptions(owner.membership_options, expectedOwnerMemberships)
     || runtime?.rolname !== REVIEWED_RUNTIME_ROLE
     || runtime.rolsuper !== false
     || runtime.rolcreatedb !== false
@@ -170,6 +185,19 @@ export function assertProductionMigrationDatabaseState(state) {
     || sortedMemberships(runtime).length !== 0
     || !Array.isArray(runtime.membership_options)
     || runtime.membership_options.length !== 0
+    || (staffReadRolePresent && (
+      staffRead.rolname !== REVIEWED_PRODUCTION_STAFF_READ_IDENTITY.role
+      || staffRead.rolsuper !== false
+      || staffRead.rolcreatedb !== false
+      || staffRead.rolcreaterole !== false
+      || staffRead.rolinherit !== false
+      || staffRead.rolcanlogin !== true
+      || staffRead.rolreplication !== false
+      || staffRead.rolbypassrls !== false
+      || sortedMemberships(staffRead).length !== 0
+      || !Array.isArray(staffRead.membership_options)
+      || staffRead.membership_options.length !== 0
+    ))
     || savedSearch?.rls_enabled !== true
     || savedSearch.rls_forced !== true
     || savedSearch.owner_name !== REVIEWED_MIGRATION_ROLE
@@ -182,6 +210,7 @@ export function assertProductionMigrationDatabaseState(state) {
     databaseName: state.identity.database_name,
     ownerRole: owner.rolname,
     runtimeRole: runtime.rolname,
+    staffReadRolePresent,
     savedSearchRlsEnabled: savedSearch.rls_enabled,
     savedSearchRlsForced: savedSearch.rls_forced,
     savedSearchPolicyCount: Number(savedSearch.policy_count),
@@ -255,6 +284,10 @@ export async function readProductionMigrationDatabaseState(connectionString) {
     `)).rows[0];
     const ownerRole = await readRole(client, REVIEWED_MIGRATION_ROLE);
     const runtimeRole = await readRole(client, REVIEWED_RUNTIME_ROLE);
+    const staffReadRole = await readRole(
+      client,
+      REVIEWED_PRODUCTION_STAFF_READ_IDENTITY.role,
+    );
     const savedSearch = (await client.query(`
       SELECT c.relrowsecurity AS rls_enabled,
              c.relforcerowsecurity AS rls_forced,
@@ -272,7 +305,14 @@ export async function readProductionMigrationDatabaseState(connectionString) {
         FROM public._prisma_migrations
        WHERE finished_at IS NULL AND rolled_back_at IS NULL
     `)).rows[0]?.count);
-    return { identity, ownerRole, runtimeRole, savedSearch, incompleteMigrationCount };
+    return {
+      identity,
+      ownerRole,
+      runtimeRole,
+      staffReadRole,
+      savedSearch,
+      incompleteMigrationCount,
+    };
   } finally {
     await client.end();
   }

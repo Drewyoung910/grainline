@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { restoreSellerExpiredCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
+import { expireClosedSellerAccountSessions } from "@/lib/orderSellerClosureSessions";
 export { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
 
 export type ExpireOpenCheckoutSessionsResult = {
@@ -11,6 +12,28 @@ export type ExpireOpenCheckoutSessionsResult = {
   expired: number;
   failed: number;
 };
+
+// Unlike the best-effort seller/listing sweeps below, signed terminal account
+// closure must preserve account identity and propagate unresolved failures.
+export async function expireCheckoutSessionsForClosedAccount(input: {
+  sellerId: string;
+  stripeAccountId: string;
+}) {
+  return expireClosedSellerAccountSessions<Stripe.Checkout.Session>({
+    sellerId: input.sellerId,
+    accountId: input.stripeAccountId,
+    nowSeconds: Math.floor(Date.now() / 1000),
+  }, {
+    list: async (params) => stripe.checkout.sessions.list(params),
+    expire: async (id) => stripe.checkout.sessions.expire(id),
+    retrieve: async (id) => stripe.checkout.sessions.retrieve(id),
+    restore: async (session) => restoreSellerExpiredCheckoutStockOnce({
+      sellerProfileId: input.sellerId,
+      sessionId: session.id,
+      metadata: session.metadata ?? {},
+    }),
+  });
+}
 
 async function checkoutSessionBelongsToSeller(session: Stripe.Checkout.Session, sellerId: string) {
   const metadata = session.metadata ?? {};

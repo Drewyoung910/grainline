@@ -19,6 +19,9 @@ import {
 import { isStaleStripeEvent } from "@/lib/stripeWebhookState";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
+import { expireCheckoutSessionsForClosedAccount } from "@/lib/checkoutSessionExpiry";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -105,7 +108,7 @@ export async function POST(req: Request) {
       ? notification.created
       : undefined,
   );
-  if (isStaleStripeEvent(eventCreatedSeconds)) {
+  if (eventCreatedSeconds == null || isStaleStripeEvent(eventCreatedSeconds)) {
     Sentry.captureMessage("Stripe v2 webhook event is too old", {
       level: "warning",
       tags: { source: "stripe_v2_webhook_stale_event" },
@@ -195,6 +198,30 @@ export async function POST(req: Request) {
 
   try {
     return await processIdempotentEvent(async () => {
+      // Grainline sellers use Accounts v2 with an Express dashboard. The
+      // terminal account.closed notification is therefore the reachable,
+      // separately signed authority for disconnecting a seller. The classic
+      // account.application.deauthorized event belongs to OAuth applications
+      // and is not part of Grainline's provider subscription.
+      if (stripeEventType === "v2.core.account.closed") {
+        const deauthorization = await applyStripeSellerDeauthorization({
+          eventId: stripeEventId,
+          claimGeneration,
+          accountId: sourceObjectId,
+          eventCreatedAt: new Date(eventCreatedSeconds * 1000),
+        });
+        if (deauthorization.publicVisibilityChanged) {
+          revalidatePublicSellerVisibilityCaches();
+        }
+        if (deauthorization.sellerProfileId) {
+          await expireCheckoutSessionsForClosedAccount({
+            sellerId: deauthorization.sellerProfileId,
+            stripeAccountId: sourceObjectId,
+          });
+        }
+        return NextResponse.json({ received: true });
+      }
+
       const account = await stripe.accounts.retrieve(sourceObjectId);
       await mirrorStripeChargesEnabled({
         accountId: sourceObjectId,

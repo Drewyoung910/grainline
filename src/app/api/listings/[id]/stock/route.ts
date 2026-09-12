@@ -29,10 +29,24 @@ import {
 import { logServerError } from "@/lib/serverErrorLogger";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import { z } from "zod";
+import {
+  prepareListingStockMutation, recordListingStockMutation, StockMutationConflict, StockMutationExpired,
+} from "@/lib/listingStockMutation";
 
 const StockPatchSchema = z.object({
   quantity: z.number().int().min(0).max(MAX_MANUAL_STOCK_QUANTITY),
   expectedQuantity: z.number().int().min(0).max(MAX_MANUAL_STOCK_QUANTITY).optional().nullable(),
+  mutationId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+  issuedAt: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+});
+
+const StockReceiptResult = z.object({
+  updated: z.object({
+    id: z.string(), title: z.string(), stockQuantity: z.number().int().nullable(),
+    status: z.string(), previousStockQuantity: z.number().int().nullable(), previousStatus: z.string(),
+  }),
+  lowStockAuthoritySourceId: z.string().nullable(),
+  backInStockAuthoritySourceId: z.string().nullable(),
 });
 
 export const runtime = "nodejs";
@@ -100,6 +114,18 @@ export async function PATCH(
       lowStockAuthoritySourceId,
       backInStockAuthoritySourceId,
     } = await prisma.$transaction(async (tx) => {
+      const mutation = await prepareListingStockMutation(tx, {
+        listingId: id, sellerId: listing.seller.id, actorId: me.id,
+      }, stockParsed, { kind: "inventory", quantity, expectedQuantity });
+      if (!mutation) return { updated: null, lowStockAuthoritySourceId: null, backInStockAuthoritySourceId: null };
+      if (mutation.replayed) {
+        const saved = StockReceiptResult.parse(mutation.result);
+        if (saved.updated.id !== id) throw new StockMutationConflict("Saved stock result does not match this listing.");
+        return saved;
+      }
+      if (mutation.listing.listingType !== "IN_STOCK") {
+        throw new StockMutationConflict("Listing type changed. Refresh inventory before adjusting stock.");
+      }
       const updatedRows = await tx.$queryRaw<Array<{
         id: string;
         title: string;
@@ -197,11 +223,13 @@ export async function PATCH(
             },
           })
         : null;
-      return {
+      const result = {
         updated: committed,
         lowStockAuthoritySourceId: authoritySourceId,
         backInStockAuthoritySourceId: restockAuthoritySourceId,
       };
+      await recordListingStockMutation(tx, mutation, result);
+      return result;
     });
     if (!updated) return privateJson({ error: "Not found" }, { status: 404 });
 
@@ -350,8 +378,13 @@ export async function PATCH(
       });
     }
 
-    return privateJson(updated);
+    return privateJson({ ...updated, mutationId: stockParsed.mutationId });
   } catch (err) {
+    if (err instanceof StockMutationExpired) return privateJson({
+      error: err.message, mutationNotApplied: true, mutationId: err.mutationId,
+      stockQuantity: err.stockQuantity ?? 0,
+    }, { status: 409 });
+    if (err instanceof StockMutationConflict) return privateJson({ error: err.message }, { status: 409 });
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 

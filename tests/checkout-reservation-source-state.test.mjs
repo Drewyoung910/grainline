@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  cartCheckoutReservationSnapshotWitness,
   cartCheckoutReservationSourceSignature,
   cartCheckoutReservationSourceWitness,
   checkoutReservationInventorySourceMatches,
   CheckoutReservationSourceChangedError,
+  singleCheckoutReservationSnapshotWitness,
   singleCheckoutReservationSourceSignature,
   singleCheckoutReservationSourceWitness,
 } from "../src/lib/checkoutReservationSourceState.ts";
@@ -37,11 +39,17 @@ function listing(id, overrides = {}) {
     id,
     sellerId: "seller-a",
     title: `Listing ${id}`,
+    description: `Description ${id}`,
     priceCents: 10_000,
     priceVersion: 3,
     currency: "USD",
     status: "ACTIVE",
     listingType: "IN_STOCK",
+    processingTimeMinDays: 2,
+    processingTimeMaxDays: 5,
+    shipsWithinDays: 2,
+    category: "HOME_DECOR",
+    tags: ["wood", "handmade"],
     isPrivate: false,
     reservedForUserId: null,
     packagedWeightGrams: 900,
@@ -129,6 +137,39 @@ describe("checkout reservation source state", () => {
     );
   });
 
+  it("binds every mutable field copied into retained OrderItem history", () => {
+    const source = cartItem("cart-a", "listing-a");
+    const baseline = cartCheckoutReservationSnapshotWitness("buyer", "seller-a", [source]);
+    assert.ok(baseline);
+    for (const listingChange of [
+      { description: "Changed description" },
+      { category: "ART" },
+      { tags: ["changed"] },
+      { photos: [...source.listing.photos, { url: "https://cdn.example/second.jpg" }] },
+      { processingTimeMinDays: 3 },
+      { processingTimeMaxDays: 7 },
+      { shipsWithinDays: 4 },
+    ]) {
+      assert.notEqual(
+        cartCheckoutReservationSnapshotWitness("buyer", "seller-a", [{
+          ...source,
+          listing: { ...source.listing, ...listingChange },
+        }]),
+        baseline,
+      );
+    }
+
+    assert.match(
+      singleCheckoutReservationSnapshotWitness(
+        "buyer",
+        source.listing,
+        1,
+        ["listing-a-walnut"],
+      ),
+      /"description":"Description listing-a"/,
+    );
+  });
+
   it("keeps the legitimate 50-item maximum below the bounded database witness size", () => {
     const fixedId = (prefix, index) => `${prefix}-${index}`.padEnd(191, "x");
     const items = Array.from({ length: 50 }, (_, itemIndex) => {
@@ -148,7 +189,11 @@ describe("checkout reservation source state", () => {
       });
       const sourceListing = listing(listingId, {
         title: "T".repeat(150),
-        photos: [{ url: `https://cdn.example/${"p".repeat(2028)}` }],
+        description: "D".repeat(5000),
+        tags: Array.from({ length: 10 }, (_, tagIndex) => `tag-${tagIndex}`.padEnd(24, "t")),
+        photos: Array.from({ length: 10 }, (_, photoIndex) => ({
+          url: `https://cdn.example/${photoIndex}/${"p".repeat(2025)}`,
+        })),
         variantGroups: groups,
       });
       return {
@@ -162,10 +207,15 @@ describe("checkout reservation source state", () => {
       };
     });
     const witness = cartCheckoutReservationSourceWitness("buyer", "seller-a", items);
+    const snapshotWitness = cartCheckoutReservationSnapshotWitness("buyer", "seller-a", items);
     assert.ok(witness);
+    assert.ok(snapshotWitness);
     const bytes = Buffer.byteLength(witness, "utf8");
+    const snapshotBytes = Buffer.byteLength(snapshotWitness, "utf8");
     assert.ok(bytes > 262_144, "the old 256 KiB bound must remain recognized as too small");
     assert.ok(bytes < 1_048_576, "the maximum legitimate cart must fit the 1 MiB bound");
+    assert.ok(snapshotBytes > 1_048_576, "the full history snapshot needs more than the pricing bound");
+    assert.ok(snapshotBytes < 4_194_304, "the maximum legitimate history snapshot must fit 4 MiB");
   });
 
   it("binds price, version, variant, quantity, currency, media and shipping source", () => {

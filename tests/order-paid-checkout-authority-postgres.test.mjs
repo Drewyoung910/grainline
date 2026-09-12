@@ -1,0 +1,492 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { after, before, describe, it } from "node:test";
+import { PGlite } from "@electric-sql/pglite";
+import { sourceSnapshot, provider, paidCheckoutFixtureSql } from "./helpers/order-paid-checkout-fixture.mjs";
+
+const candidate = fs.readFileSync(
+  "docs/rls-drafts/order-paid-checkout-authority.sql",
+  "utf8",
+);
+const rows = (result) => result.rows;
+let db;
+let dataDirectory;
+let paidAt;
+
+
+async function apply(eventId, generation, projection = provider(), paidAtInput = paidAt) {
+  return rows(await db.query(`
+    SELECT * FROM public.grainline_stripe_checkout_order_create(
+      $1, $2, 'reservation-1', 'cs_test_proof',
+      $3::timestamp,
+      $4::jsonb
+    )
+  `, [eventId, generation, paidAtInput, JSON.stringify(projection)]));
+}
+
+describe("Order paid-checkout authority", () => {
+  before(async () => {
+    dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "grainline-paid-order-"));
+    db = new PGlite({ dataDir: dataDirectory });
+    await db.exec(paidCheckoutFixtureSql()).catch((error) => {
+      error.message = `proof schema setup failed: ${error.message}`;
+      throw error;
+    });
+    await db.exec(candidate).catch((error) => {
+      error.message = `paid-checkout candidate failed to install: ${error.message}; position=${error.position ?? "unknown"}; where=${error.where ?? "unknown"}`;
+      throw error;
+    });
+    paidAt = rows(await db.query(`
+      SELECT (CURRENT_TIMESTAMP - interval '1 minute')::timestamp AS paid_at
+    `))[0].paid_at;
+  });
+
+  after(async () => {
+    await db?.close();
+    if (dataDirectory) fs.rmSync(dataDirectory, { recursive: true, force: true });
+  });
+
+  it("rejects forged provider and retained-source projections before writing", async () => {
+    await db.exec("SET ROLE grainline_app_runtime");
+    try {
+      await assert.rejects(
+        apply("evt_paid_order", 1n, { ...provider(), unexpected: true }),
+        /provider projection is invalid/,
+      );
+      await assert.rejects(
+        apply("evt_paid_order", 1n, provider({ chargedTotalCents: 651 })),
+        /amount projection is invalid/,
+      );
+      await assert.rejects(
+        apply("evt_paid_order", 1n, provider({
+          paidItems: [{
+            ...provider().paidItems[0],
+            unitAmountCents: 499,
+          }],
+        })),
+        /provider price is invalid/,
+      );
+      await assert.rejects(
+        apply("evt_paid_order", 1n, provider({ currency: "cad" })),
+        /retained item is invalid/,
+      );
+      await assert.rejects(
+        apply("evt_paid_order", 1n, provider({ shipToLine1: null })),
+        /fulfillment projection is invalid/,
+      );
+    } finally {
+      await db.exec("RESET ROLE").catch(() => {});
+    }
+    assert.equal(Number(rows(await db.query(`
+      SELECT pg_catalog.count(*) AS count FROM public."Order"
+    `))[0].count), 0);
+
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."CheckoutStockReservation"
+           SET "sourceSnapshot" = pg_catalog.jsonb_set(
+             "sourceSnapshot", '{item,listing,sellerId}', '"other-seller"'::jsonb
+           )
+         WHERE id = 'reservation-1';
+        SET LOCAL ROLE grainline_app_runtime;
+      `);
+      await assert.rejects(
+        apply("evt_paid_order", 1n),
+        /retained item is invalid/,
+      );
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
+  });
+
+  it("preserves the route window plus its bounded execution allowance", async () => {
+    const boundaries = rows(await db.query(`
+      SELECT
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 90 seconds',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS accepted_old,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') - interval '30 days 150 seconds',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS rejected_old,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') + interval '9 minutes',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS accepted_future,
+        to_char(
+          (statement_timestamp() AT TIME ZONE 'UTC') + interval '11 minutes',
+          'YYYY-MM-DD HH24:MI:SS.MS'
+        ) AS rejected_future
+    `))[0];
+
+    for (const [label, timestamp] of [
+      ["accepted old", boundaries.accepted_old],
+      ["accepted future", boundaries.accepted_future],
+    ]) {
+      await db.exec("BEGIN");
+      try {
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        const result = await apply("evt_paid_order", 1n, provider(), timestamp);
+        assert.equal(result[0].outcome, "created", label);
+      } finally {
+        await db.exec("ROLLBACK");
+      }
+    }
+
+    for (const [label, timestamp] of [
+      ["rejected old", boundaries.rejected_old],
+      ["rejected future", boundaries.rejected_future],
+    ]) {
+      await db.exec("BEGIN");
+      try {
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        await assert.rejects(
+          apply("evt_paid_order", 1n, provider(), timestamp),
+          /Paid checkout authority input is invalid/,
+          label,
+        );
+      } finally {
+        await db.exec("ROLLBACK");
+      }
+    }
+  });
+
+  it("preserves two paid reservations after the first payment marks their listing sold out", async () => {
+    await db.exec("BEGIN");
+    try {
+      const snapshot = sourceSnapshot();
+      snapshot.item.listing.id = "listing-two-reservations";
+      await db.exec(`
+        INSERT INTO public."User" (id) VALUES ('buyer-two-reservations');
+        INSERT INTO public."Listing" (
+          id, "sellerId", status, "listingType", "stockQuantity", "isPrivate"
+        ) VALUES ('listing-two-reservations', 'seller-1', 'ACTIVE', 'IN_STOCK', 0, false);
+      `);
+      // Both units are already reserved before either payment completes.
+      // The reservation service decrements inventory during Session creation.
+      for (const [suffix, buyerId] of [["first", "buyer-1"], ["second", "buyer-two-reservations"]]) {
+        await db.query(`
+          INSERT INTO public."StripeWebhookEvent" (
+            id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+          ) VALUES ($1, 'checkout.session.completed', $2, 1, CURRENT_TIMESTAMP)
+        `, [`evt_reserved_${suffix}`, `cs_reserved_${suffix}`]);
+        await db.query(`
+          INSERT INTO public."CheckoutStockReservation" (
+            id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
+          ) VALUES ($1, $2, 'RESERVED', $3, 'seller-1', $4::jsonb)
+        `, [`reserved-${suffix}`, `cs_reserved_${suffix}`, buyerId, JSON.stringify(snapshot)]);
+      }
+      for (const suffix of ["first", "second"]) {
+        const projection = provider({
+          stripePaymentIntentId: `pi_reserved_${suffix}`,
+          stripeChargeId: `ch_reserved_${suffix}`,
+          stripeTransferId: `tr_reserved_${suffix}`,
+          paidItems: [{
+            sourceKey: "single:listing-two-reservations",
+            listingId: "listing-two-reservations", variantKey: "",
+            quantity: 1, unitAmountCents: 500,
+          }],
+        });
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        let result;
+        try {
+          result = await db.query(`
+            SELECT * FROM public.grainline_stripe_checkout_order_create(
+              $1, 1, $2, $3, $4::timestamp, $5::jsonb
+            )
+          `, [`evt_reserved_${suffix}`, `reserved-${suffix}`, `cs_reserved_${suffix}`,
+            paidAt, JSON.stringify(projection)]);
+        } finally {
+          await db.exec("RESET ROLE");
+        }
+        assert.equal(result.rows[0].invalid_reason, null, `${suffix} reserved payment`);
+        assert.equal(result.rows[0].listing_visibility_changed, suffix === "first");
+      }
+      assert.deepEqual((await db.query(`
+        SELECT status::text, "stockQuantity" AS stock
+          FROM public."Listing" WHERE id = 'listing-two-reservations'
+      `)).rows, [{ status: "SOLD_OUT", stock: 0 }]);
+      assert.equal(Number((await db.query(`
+        SELECT count(*) AS count FROM public."Order"
+         WHERE "stripeSessionId" IN ('cs_reserved_first', 'cs_reserved_second')
+      `)).rows[0].count), 2);
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+  });
+
+  it("does not let a sold-out reservation bypass current listing or actor restrictions", async () => {
+    const controls = [
+      ...["DRAFT", "SOLD", "HIDDEN", "PENDING_REVIEW", "REJECTED"].map((status) => ({ status })),
+      { status: "SOLD_OUT", stock: 1 },
+      { status: "SOLD_OUT", stock: null },
+      { status: "SOLD_OUT", listingType: "MADE_TO_ORDER" },
+      { status: "SOLD_OUT", sourceType: "MADE_TO_ORDER" },
+      { status: "SOLD_OUT", sourceStatus: null },
+      { status: "SOLD_OUT", privateRecipient: "someone-else", reason: /reservation changed/ },
+      { status: "SOLD_OUT", sellerBanned: true, reason: /Seller account was suspended/ },
+    ];
+    for (const control of controls) {
+      await db.exec("BEGIN");
+      try {
+        await db.query(`
+          UPDATE public."Listing" SET status = $1::public."ListingStatus",
+                 "stockQuantity" = $2, "listingType" = $3::public."ListingType",
+                 "isPrivate" = $4, "reservedForUserId" = $5
+           WHERE id = 'listing-1'
+        `, [control.status, Object.hasOwn(control, "stock") ? control.stock : 0,
+          control.listingType ?? "IN_STOCK", Boolean(control.privateRecipient),
+          control.privateRecipient ?? null]);
+        const snapshot = sourceSnapshot();
+        if (control.sourceType) snapshot.item.listing.listingType = control.sourceType;
+        if (Object.hasOwn(control, "sourceStatus")) snapshot.item.listing.status = control.sourceStatus;
+        await db.query(`UPDATE public."CheckoutStockReservation" SET "sourceSnapshot" = $1::jsonb
+          WHERE id = 'reservation-1'`, [JSON.stringify(snapshot)]);
+        if (control.sellerBanned) await db.exec(`UPDATE public."User" SET banned = true WHERE id = 'seller-user'`);
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        const result = await apply("evt_paid_order", 1n);
+        assert.match(result[0].invalid_reason, control.reason ?? /Listing was no longer active/,
+          JSON.stringify(control));
+      } finally {
+        await db.exec("RESET ROLE");
+        await db.exec("ROLLBACK");
+      }
+    }
+  });
+
+  it("rejects a released reservation even when the listing is sold out", async () => {
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."Listing" SET status = 'SOLD_OUT' WHERE id = 'listing-1';
+        UPDATE public."CheckoutStockReservation" SET status = 'RELEASED' WHERE id = 'reservation-1';
+        SET LOCAL ROLE grainline_app_runtime;
+      `);
+      await assert.rejects(apply("evt_paid_order", 1n), /reservation authority is invalid/);
+    } finally {
+      await db.exec("ROLLBACK");
+      await db.exec("RESET ROLE");
+    }
+  });
+
+  it("creates one source-derived Order and item as restricted runtime", async () => {
+    let created;
+    await db.exec("SET ROLE grainline_app_runtime");
+    try {
+      created = await apply("evt_paid_order", 1n);
+    } finally {
+      await db.exec("RESET ROLE");
+    }
+    assert.equal(created.length, 1);
+    assert.equal(created[0].outcome, "created");
+    assert.equal(created[0].invalid_reason, null);
+    assert.equal(created[0].listing_visibility_changed, true);
+
+    const order = rows(await db.query(`
+      SELECT "buyerId" AS buyer_id, "sellerProfileId" AS seller_id,
+             "quotedToLine1" AS quoted_line_1, "reviewNeeded" AS review_needed,
+             "stripeTransferId" AS transfer_id
+        FROM public."Order"
+    `))[0];
+    assert.deepEqual(order, {
+      buyer_id: "buyer-1",
+      seller_id: "seller-1",
+      quoted_line_1: "1 Main St",
+      review_needed: false,
+      transfer_id: "tr_proof",
+    });
+    const item = rows(await db.query(`
+      SELECT "priceCents" AS price_cents,
+             "listingSnapshot"->>'description' AS description,
+             "listingSnapshot"->'imageUrls' AS image_urls,
+             "listingSnapshot"->'tags' AS tags,
+             "listingSnapshot"->>'capturedAt' AS captured_at
+        FROM public."OrderItem"
+    `))[0];
+    assert.equal(item.price_cents, 500);
+    assert.equal(item.description, "Checkout description");
+    assert.deepEqual(item.image_urls, ["https://cdn.example/proof.jpg"]);
+    assert.deepEqual(item.tags, ["proof"]);
+    assert.match(item.captured_at, /Z$/);
+    assert.equal(rows(await db.query(`
+      SELECT status FROM public."CheckoutStockReservation"
+    `))[0].status, "COMPLETED");
+    assert.equal(rows(await db.query(`SELECT status FROM public."Listing"`))[0].status, "SOLD_OUT");
+  });
+
+  it("replays the exact tuple and rejects drift without duplicate rows", async () => {
+    await db.exec("SET ROLE grainline_app_runtime");
+    try {
+      const replay = await apply("evt_paid_order", 1n);
+      assert.equal(replay[0].outcome, "replayed");
+      await assert.rejects(
+        apply("evt_paid_order", 1n, provider({
+          chargedTotalCents: 651,
+          taxAmountCents: 51,
+        })),
+        /Paid checkout replay drifted|Paid checkout source subtotal is invalid/,
+      );
+    } finally {
+      await db.exec("RESET ROLE").catch(() => {});
+    }
+    assert.equal(Number(rows(await db.query(`SELECT pg_catalog.count(*) AS count FROM public."Order"`))[0].count), 1);
+    assert.equal(Number(rows(await db.query(`SELECT pg_catalog.count(*) AS count FROM public."OrderItem"`))[0].count), 1);
+  });
+
+  it("keeps direct tables closed and rejects a forged event generation", async () => {
+    const privileges = rows(await db.query(`
+      SELECT pg_catalog.has_table_privilege('grainline_app_runtime', 'public."Order"', 'INSERT') AS can_insert,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)',
+               'EXECUTE'
+             ) AS can_execute
+    `))[0];
+    assert.deepEqual(privileges, { can_insert: false, can_execute: true });
+    await db.exec("SET ROLE grainline_app_runtime");
+    try {
+      await assert.rejects(apply("evt_paid_order", 2n), /event authority is invalid/);
+    } finally {
+      await db.exec("RESET ROLE").catch(() => {});
+    }
+  });
+
+  it("rolls every derived write back when reservation completion fails", async () => {
+    const snapshot = structuredClone(sourceSnapshot());
+    snapshot.item.listing.id = "listing-rollback";
+    await db.exec(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", status, "listingType", "stockQuantity", "isPrivate"
+      ) VALUES ('listing-rollback', 'seller-1', 'ACTIVE', 'IN_STOCK', 0, false);
+      INSERT INTO public."StripeWebhookEvent" (
+        id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+      ) VALUES (
+        'evt_paid_rollback', 'checkout.session.completed', 'cs_test_rollback', 1,
+        CURRENT_TIMESTAMP
+      )
+    `);
+    await db.query(`
+      INSERT INTO public."CheckoutStockReservation" (
+        id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
+      ) VALUES (
+        'reservation-rollback', 'cs_test_rollback', 'RESERVED',
+        'buyer-1', 'seller-1', $1::jsonb
+      )
+    `, [JSON.stringify(snapshot)]);
+    const rollbackProvider = provider({
+      paidItems: [{
+        ...provider().paidItems[0],
+        sourceKey: "single:listing-rollback",
+        listingId: "listing-rollback",
+      }],
+    });
+    await db.exec("SET ROLE grainline_app_runtime");
+    try {
+      await assert.rejects(db.query(`
+        SELECT * FROM public.grainline_stripe_checkout_order_create(
+          'evt_paid_rollback', 1, 'reservation-rollback', 'cs_test_rollback',
+          $1::timestamp, $2::jsonb
+        )
+      `, [paidAt, JSON.stringify(rollbackProvider)]), /reservation completion failed/);
+    } finally {
+      await db.exec("RESET ROLE").catch(() => {});
+    }
+    assert.equal(Number(rows(await db.query(`
+      SELECT pg_catalog.count(*) AS count
+        FROM public."Order" WHERE "stripeSessionId" = 'cs_test_rollback'
+    `))[0].count), 0);
+    assert.equal(rows(await db.query(`
+      SELECT status FROM public."CheckoutStockReservation"
+       WHERE id = 'reservation-rollback'
+    `))[0].status, "RESERVED");
+    assert.equal(rows(await db.query(`
+      SELECT status FROM public."Listing" WHERE id = 'listing-rollback'
+    `))[0].status, "ACTIVE");
+  });
+
+  it("creates a complete cart order and deletes only retained source cart items", async () => {
+    const first = structuredClone(sourceSnapshot().item);
+    const second = structuredClone(sourceSnapshot().item);
+    first.listing.id = "listing-cart-a";
+    second.listing.id = "listing-cart-b";
+    const snapshot = {
+      seller: sourceSnapshot().seller,
+      items: [
+        {
+          cartItemId: "cart-item-a",
+          listingId: "listing-cart-a",
+          storedPriceCents: 500,
+          storedPriceVersion: 1,
+          ...first,
+        },
+        {
+          cartItemId: "cart-item-b",
+          listingId: "listing-cart-b",
+          storedPriceCents: 500,
+          storedPriceVersion: 1,
+          ...second,
+        },
+      ],
+    };
+    await db.exec(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", status, "listingType", "stockQuantity", "isPrivate"
+      ) VALUES
+        ('listing-cart-a', 'seller-1', 'ACTIVE', 'IN_STOCK', 0, false),
+        ('listing-cart-b', 'seller-1', 'ACTIVE', 'IN_STOCK', 0, false);
+      INSERT INTO public."CartItem" (id) VALUES ('cart-item-a'), ('cart-item-b');
+      INSERT INTO public."StripeWebhookEvent" (
+        id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+      ) VALUES (
+        'evt_paid_cart', 'checkout.session.async_payment_succeeded',
+        'cs_test_cart', 4, CURRENT_TIMESTAMP
+      )
+    `);
+    await db.query(`
+      INSERT INTO public."CheckoutStockReservation" (
+        id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
+      ) VALUES (
+        'reservation-cart', 'cs_test_cart', 'RESERVED',
+        'buyer-1', 'seller-1', $1::jsonb
+      )
+    `, [JSON.stringify(snapshot)]);
+    const cartProvider = provider({
+      chargedTotalCents: 1150,
+      itemsSubtotalCents: 1000,
+      paidItems: [
+        {
+          sourceKey: "cart-item-a", listingId: "listing-cart-a",
+          variantKey: "", quantity: 1, unitAmountCents: 500,
+        },
+        {
+          sourceKey: "cart-item-b", listingId: "listing-cart-b",
+          variantKey: "", quantity: 1, unitAmountCents: 500,
+        },
+      ],
+    });
+    let created;
+    await db.exec("SET ROLE grainline_app_runtime");
+    try {
+      created = rows(await db.query(`
+        SELECT * FROM public.grainline_stripe_checkout_order_create(
+          'evt_paid_cart', 4, 'reservation-cart', 'cs_test_cart',
+          $1::timestamp, $2::jsonb
+        )
+      `, [paidAt, JSON.stringify(cartProvider)]));
+    } finally {
+      await db.exec("RESET ROLE").catch(() => {});
+    }
+    assert.equal(created[0].outcome, "created");
+    assert.equal(Number(rows(await db.query(`
+      SELECT pg_catalog.count(*) AS count FROM public."OrderItem"
+       WHERE "orderId" = $1
+    `, [created[0].order_id]))[0].count), 2);
+    assert.deepEqual(rows(await db.query(`
+      SELECT id FROM public."CartItem" ORDER BY id
+    `)), [{ id: "unrelated-cart-item" }]);
+  });
+});
