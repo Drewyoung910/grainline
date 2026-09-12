@@ -430,3 +430,37 @@ Production execution still requires the completed live admission/worker
 composition and operational authorization. Credential incident acceptance,
 matching application deployment, staff/provider/runtime evidence, predecessor
 drain, Order ENABLE and Order FORCE remain separate gates.
+
+## Native interrupted-migration recovery candidate
+
+The recovery harness adds a separately pinned fixture that installs a private
+event trigger after initial native scope and durable apply intent. It pauses
+member 10 at `CREATE TABLE OrderStaffCapability`; an independent controller
+binds the waiting backend's PID, start time and query digest before terminating
+that connection. The reviewed migration files are unchanged. A real incomplete
+Prisma ledger row must remain and the worker's apply intent must survive.
+
+PostgreSQL fires `ddl_command_end` before commit, so termination can roll the
+DDL back. The proof records whether native partial DDL remained. If none did,
+it explicitly models one committed first statement in the failed database,
+leaving the actual failed ledger unchanged. A newly prepared worker must then
+refuse that incomplete ledger/catalog before creating a migration artifact or
+execution journal. This is not automatic `migrate resolve` or replay.
+The exact native failed database is copied to
+`grainline_order_executor_interrupted` before that additional fixture mutation.
+See [PostgreSQL event-trigger behavior](https://www.postgresql.org/docs/16/event-trigger-definition.html).
+
+Before failure, the CI-only controller clones the verified `grainline_ci`
+baseline. After refusal, it verifies both database OIDs/ownership and absence
+of active sessions, then transactionally renames the failed original to
+`grainline_order_executor_failed` and the baseline copy to `grainline_ci`.
+The failed database, ledger and private intent records are preserved. There is
+no database DROP or database/owner identity translation in the scope reader.
+The normal fresh native application must still validate restored prefix zero.
+
+A separate complete-prefix attempt loses its source-guard callback during the
+actual grant transaction. An independent monitor verifies PostgreSQL reports
+that transaction as aborted and its journal remains at grant intent. The
+callback failure is modeled; this does not establish live GitHub admission
+loss or production workflow serialization during mutation. Native CI acceptance
+for these new drills must be recorded separately from the previous checkpoint.
