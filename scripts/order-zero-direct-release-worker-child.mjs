@@ -59,7 +59,7 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
   assert.ok(process.send && process.connected);
   let state = "unprepared", preparationStage = "none", busy = false, expectedId = 1, session, installed, graph;
   const sourceHandle = source;
-  let artifact, activeAdmission, lastScope, client, timer, admissionClaim;
+  let artifact, activeAdmission, lastScope, client, timer, admissionClaim, pendingAdmission;
   const sessionId = randomUUID();
   const summary = () => ({ workerPid: process.pid, sessionId, state,
     loadedReleaseGraphProven: Boolean(graph), installedToolchainProven: Boolean(installed), ...FLAGS });
@@ -188,16 +188,45 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
     const admissionModule = await load("scripts/order-zero-direct-release-admission.mjs");
     const environmentModule = await load("scripts/guard-production-migration-runner.mjs");
     const postgresModule = await load("scripts/postgres-url-safety.mjs");
+    const executionModule = await load("scripts/order-zero-direct-execution-admitted.mjs");
+    const prismaModule = await load("scripts/order-zero-direct-execution-prisma.mjs");
+    const ownerModule = await load("scripts/order-zero-direct-execution-owner.mjs");
     const { default: pg } = await import(pathToFileURL(path.join(root, "node_modules/pg/lib/index.js")).href);
     graph = { scope: scopeModule.createOrderZeroDirectReleaseScope(), files: filesModule.createOrderZeroDirectFileFence(),
       ci: ciModule.collectOrderZeroDirectCiBinding, admission: admissionModule.observeOrderReleaseAdmission,
       parseEnvironment: environmentModule.parseProductionMigrationEnvironment,
       channelBinding: postgresModule.postgresChannelBindingClientOptions, Client: pg.Client };
+    const execute = executionModule.createOrderAdmittedExecutor({ sourceRoot: root, scope: graph.scope, files: graph.files,
+      binding: { releaseCommit: reviewed.releaseCommit, sourceCatalogSha256: reviewed.sourceCatalogSha256 },
+      parent: path.join(session, "artifacts"), admit: freshAdmission, readAudited: snapshot, onLost: fail,
+      connect: async bound => ownerModule.connectOrderGrantOwner({ Client: graph.Client,
+        databaseUrl: await freshAdmission(bound), channelBinding: graph.channelBinding,
+        guard: () => freshAdmission(bound), onLost: fail }),
+      prisma: async (bound, args, verify) => prismaModule.runOrderPrefixPrisma({ sourceRoot: root,
+        parent: path.join(session, "artifacts"), databaseUrl: await freshAdmission(bound), args, checkpoint: verify }),
+    });
+    // Private dormant capability only: no production IPC command or workflow
+    // can reach it. Source fixtures may exercise this closure explicitly.
+    graph.executeAdmitted = async bound => {
+      assert.equal(state, "prepared"); state = "executing-admitted"; checkpoint();
+      const result = await execute(bound);
+      state = "admitted-complete"; checkpoint(); return { ...summary(), execution: result };
+    };
     toolchainCheck(); state = "prepared"; checkpoint();
     return summary();
   }
 
-  async function freshAdmission(payload) {
+  function freshAdmission(payload) {
+    // Scope/owner reads and the lifetime watch can overlap. Join only the same
+    // bound context, so one observation owns claim creation and validation.
+    const key = JSON.stringify(payload);
+    if (pendingAdmission) {
+      assert.equal(pendingAdmission.key, key); return pendingAdmission.promise;
+    }
+    const promise = observeAdmission(payload).finally(() => { pendingAdmission = undefined; });
+    pendingAdmission = { key, promise }; return promise;
+  }
+  async function observeAdmission(payload) {
     assert.ok(graph);
     assert.deepEqual(Object.keys(payload).sort(), ["admission", "ci", "githubToken", "ownerUrl", "ownerUrlSha256"]);
     toolchainCheck();

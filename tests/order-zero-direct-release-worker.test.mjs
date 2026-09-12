@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { createOrderZeroDirectSourceFence } from "../scripts/order-zero-direct-release-source.mjs";
 import { startOrderZeroDirectWorker } from "../scripts/order-zero-direct-release-worker.mjs";
 
@@ -74,11 +75,43 @@ assert.equal(options.databaseUrl,'postgresql://ci:ci@127.0.0.1:5432/grainline_ci
 assert.equal(options.githubActions,false);await options.guard();
 log({event:'disposable-execution',pid:process.pid});return {productionExecutionAuthorized:false,fixtureOnly:true};
 }\n`);
+  write("scripts/order-zero-direct-execution-admitted.mjs", `${helper}
+import {createOrderExecutionWatch} from './order-zero-direct-execution-watch.mjs';
+export function createOrderAdmittedExecutor(capabilities){return async bound=>{
+const watch=createOrderExecutionWatch({verify:()=>capabilities.admit(bound),onLost:capabilities.onLost});
+try {
+await capabilities.admit(bound); await capabilities.readAudited(bound);
+const client=await capabilities.connect(bound); await client.end();
+await capabilities.prisma(bound,['migrate','status','--config','fixture-config'],()=>capabilities.admit(bound));
+log({event:'admitted-fixture',pid:process.pid});return {fixtureOnly:true,productionExecutionAuthorized:false};
+} finally {await watch.close();}
+};}
+`);
+  write("scripts/order-zero-direct-execution-watch.mjs", fs.readFileSync("scripts/order-zero-direct-execution-watch.mjs", "utf8"));
+  write("scripts/order-zero-direct-execution-owner.mjs", fs.readFileSync("scripts/order-zero-direct-execution-owner.mjs", "utf8"));
+  write("scripts/order-zero-direct-execution-prisma.mjs", `${helper}
+import {spawn} from 'node:child_process';
+export async function runOrderPrefixPrisma(options){
+assert.equal(options.databaseUrl,'postgresql://fixture.invalid/never-connect');
+assert.deepEqual(options.args,['migrate','status','--config','fixture-config']);
+await options.checkpoint();log({event:'prisma-fixture',pid:process.pid});
+if(state().holdCommand){const child=spawn(process.execPath,['--eval','setInterval(()=>{},1000)'],{stdio:'ignore',env:{PATH:'/usr/bin:/bin'}});
+log({event:'pending-command',pid:child.pid});await new Promise(()=>{});}
+}
+`);
+  // Test-only transport: no corresponding method/command exists in the actual
+  // worker. The fixture source and its commit are captured after this edit.
+  if (options.admitted || options.unknownProductionCommand) {
+    write("scripts/order-zero-direct-release-worker.mjs", fs.readFileSync("scripts/order-zero-direct-release-worker.mjs", "utf8")
+      .replace('prepare: () => request("prepare"),', 'executeAdmittedFixture: payload => request("execute-admitted-fixture", payload), prepare: () => request("prepare"),'));
+    if (options.admitted) write("scripts/order-zero-direct-release-worker-child.mjs", fs.readFileSync("scripts/order-zero-direct-release-worker-child.mjs", "utf8")
+      .replace('else throw new Error(FAILURE); // No production execute/migrate/resolve.', 'else if (message.command === "execute-admitted-fixture") result = await graph.executeAdmitted(message.payload); else throw new Error(FAILURE);'));
+  }
   const fakePg = `${helper}
 export default {Client:class {
-constructor(options){assert.equal(options.options,'-c default_transaction_read_only=on');}
+constructor(options){this.mutator=options.application_name==='grainline-order-prefix-grants';assert.equal(options.options,this.mutator?undefined:'-c default_transaction_read_only=on');log({event:'client-kind',mutator:this.mutator});}
 on(){} async connect(){log({event:'connect',pid:process.pid});}
-async query(sql){log({event:'query',sql});return {rows:[]};} async end(){log({event:'disconnect'});}
+async query(sql){log({event:'query',sql});return {rows:this.mutator?[{database:'neondb',actor:state().wrongOwner?'grainline_app_runtime':'neondb_owner',login:'neondb_owner',read_only:'off'}]:[]};} async end(){log({event:'disconnect'});}
 }};
 `;
   const npmRoot = path.join(parent, "npm"), npmCli = path.join(npmRoot, "bin/npm-cli.js");
@@ -121,7 +154,10 @@ for(const [name,content] of Object.entries(${JSON.stringify(installed)})){const 
   });
   return { directory, reviewed, payload,
     start: async (overrides = {}) => {
-      const worker = await startOrderZeroDirectWorker({ directory, reviewed, ...overrides }); workers.push(worker);
+      const start = options.admitted || options.unknownProductionCommand
+        ? (await import(pathToFileURL(path.join(directory, "scripts/order-zero-direct-release-worker.mjs")).href)).startOrderZeroDirectWorker
+        : startOrderZeroDirectWorker;
+      const worker = await start({ directory, reviewed, ...overrides }); workers.push(worker);
       return Object.freeze({ ...worker, installOnly: worker.prepare,
         prepare: async () => { await worker.prepare(); return worker.load({ ci: payload.ci, githubToken: payload.githubToken }); } });
     },
@@ -147,6 +183,44 @@ test("one persistent worker prepares before graph import and excludes ambient cr
   assert.deepEqual(f.events().map(row => row.event), ["install", "ci", "graph-import"]);
   assert.equal(f.events()[2].pid, worker.pid);
   assert.ok(!JSON.stringify(f.events()).includes("secret-fixture"));
+});
+
+test("dormant internal worker composition binds fresh admission to separate scope and owner clients", async t => {
+  const f = fixture(t, { admitted: true }), worker = await f.start(); await worker.prepare();
+  const result = await worker.executeAdmittedFixture(f.payload);
+  assert.equal(result.state, "admitted-complete"); assert.equal(result.productionExecutionAuthorized, false);
+  assert.equal(result.execution.fixtureOnly, true);
+  assert.deepEqual(f.events().filter(e => e.event === "client-kind").map(e => e.mutator), [false, true]);
+  assert.ok(f.events().some(e => e.event === "prisma-fixture" && e.pid === worker.pid));
+  await assert.rejects(worker.executeAdmittedFixture(f.payload));
+});
+test("dormant composition refuses a runtime owner substitute before the command adapter", async t => {
+  const f = fixture(t, { admitted: true }), worker = await f.start(); await worker.prepare(); f.change({ wrongOwner: true });
+  await assert.rejects(worker.executeAdmittedFixture(f.payload));
+  assert.ok(!f.events().some(e => e.event === "prisma-fixture"));
+});
+test("the actual dispatcher rejects production execution even with a fixture parent requesting it", async t => {
+  const f = fixture(t, { unknownProductionCommand: true }), worker = await f.start(); await worker.prepare();
+  await assert.rejects(worker.executeAdmittedFixture(f.payload));
+  assert.ok(!f.events().some(e => e.event === "owner-validation" || e.event === "connect" || e.event === "admitted-fixture"));
+});
+test("lifetime admission, CI and host-claim loss terminate a waiting worker and its child process", async t => {
+  for (const reason of ["admission", "ci", "claim"]) {
+    const f = fixture(t, { admitted: true }), worker = await f.start(); await worker.prepare(); f.change({ holdCommand: true });
+    const running = assert.rejects(worker.executeAdmittedFixture(f.payload));
+    let pending;
+    const deadline = Date.now() + 15000;
+    while (!(pending = f.events().find(e => e.event === "pending-command")) && Date.now() < deadline) await new Promise(r => setTimeout(r, 20));
+    assert.ok(pending, "fixture reached its pending subprocess");
+    f.change(reason === "claim" ? { removeClaim: f.claim } : { [reason]: false });
+    await running; await worker.close();
+    // Some hosts briefly retain an orphaned zombie after the group is killed.
+    // Neither a missing process nor a zombie can execute the command further.
+    let status = "";
+    try { status = execFileSync("/bin/ps", ["-o", "stat=", "-p", String(pending.pid)], { encoding: "utf8" }).trim(); } catch { /* Exited and reaped. */ }
+    assert.ok(status === "" || status.startsWith("Z"));
+    assert.ok(!f.events().some(e => e.event === "admitted-fixture"));
+  }
 });
 
 test("inspection and revalidation obtain new connections and post-admission scopes in the same process", async t => {

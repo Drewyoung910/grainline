@@ -1,5 +1,8 @@
 # Order compatibility prefix: dormant release scope
 
+Current source behavior is recorded in [Dormant admitted execution composition](#dormant-admitted-execution-composition--september-12).
+The earlier dated sections retain component history and superseded remaining-work notes.
+
 ## Persistent worker successor — September 9
 
 `order-zero-direct-release-worker.mjs` now owns a persistent child with one
@@ -464,3 +467,54 @@ that transaction as aborted and its journal remains at grant intent. The
 callback failure is modeled; this does not establish live GitHub admission
 loss or production workflow serialization during mutation. Native CI acceptance
 for these new drills must be recorded separately from the previous checkpoint.
+
+## Dormant admitted execution composition — September 12
+
+The prepared worker now constructs a private one-attempt executor from its
+loaded scope/file graph and live admission, CI, source and installed-toolchain
+checks. There is no production IPC command, CLI, credential loader or workflow
+wiring. The public protocol still exposes only disposable execution. A new
+attempt clones and freezes its admission, CI and credential context before any
+await; a caller cannot substitute a different run, attempt or URL midway.
+
+A lifetime watch observes admission at least once per one-second scheduling
+interval while asynchronous work is pending and imposes a 30-second deadline
+on each observation. Concurrent checks of the same bound context join one
+observation, including scope/owner reads, so claim creation cannot race itself.
+Checks of a different context cannot join. A failure poisons the lifetime and
+terminates the worker process group, including its command children. Closing
+the watch joins an outstanding observation; late failure cannot be discarded
+as success. These are bounded observations on a trusted host, not an atomic
+distributed lease; synchronous work and OS scheduling can delay timers.
+
+Fresh engine-read-only snapshots govern staging and every subsequent scope
+check. Grant convergence opens a separate bounded connection and verifies
+`neondb` / `neondb_owner` for both current and session identity, with writable
+transactions observed without changing role/default settings. Every grant
+query has checks before and after its await. Rollback and disconnect remain
+available after admission loss. A failure after COMMIT is ambiguous and retains
+grant intent; it must never be described as a proven rollback or automatically
+replayed. The fixed Prisma adapter is shared with the disposable native proof,
+retaining its scrubbed environment, exact-config import exception, command/
+output limits and joined heartbeat. The unchanged executor still requires
+selected-prefix deployment, all 36 grant identities, status, global audit and
+final scope; prefix 17 skips only deployment.
+
+Tests use the real manifest, staged files, journal and executor with explicitly
+modeled admission/catalog/command observations. Fresh-process fixtures exercise
+the worker's private capability through a fixture-only dispatcher, reject a
+runtime-owner substitution and prove admission, CI and actual host-claim loss
+kill a waiting worker and its child. The actual dispatcher rejects that test
+command. Separate real-subprocess tests check Prisma environment isolation,
+external module rejection, cancellation and late-check joining with a fake CLI.
+None of these fixtures establishes live production GitHub admission, a native
+production-owner login, or operational authority. Native CI must separately
+accept the shared adapter change on the exact candidate; earlier native recovery
+acceptance and its modeled historical/partial-DDL limits remain preserved.
+
+After source acceptance, the next boundary is a concrete reviewed invocation
+contract and separately authorized production workflow/operator integration,
+including credential-incident acceptance. Core Order is finished only after
+the compatible release and correction/staff/application sequence, authenticated
+checks, predecessor drain, ENABLE/direct-grant revocation, and FORCE with owner
+and runtime evidence. OrderItem and OrderShippingRateQuote remain separate.
