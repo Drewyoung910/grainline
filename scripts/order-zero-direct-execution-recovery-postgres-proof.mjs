@@ -76,6 +76,7 @@ export function firstMemberTenStatement(manifest) {
 }
 
 export async function createOrderRecoveryFixture({ databaseUrl, githubActions, parent, manifest }) {
+  process.stdout.write("Disposable recovery: controller identity.\n");
   const controller = await connect(databaseUrl, githubActions, "postgres");
   let original, baseline, nativeSnapshot, savedLedger, interrupted = false, failureInspected = false, rotated = false;
   const databases = async () => (await controller.query(`SELECT oid,datname,pg_catalog.pg_get_userbyid(datdba) AS owner,
@@ -89,19 +90,27 @@ export async function createOrderRecoveryFixture({ databaseUrl, githubActions, p
     try { return (await owner.query(CORRECTION_RELEASE_LEDGER_QUERY)).rows; } finally { await owner.end(); }
   }
   try {
+    process.stdout.write("Disposable recovery: baseline database identity.\n");
     const rows = await databases(); assert.equal(rows.length, 1); original = rows[0].oid; sameDatabase(rows[0], original, "grainline_ci");
+    process.stdout.write("Disposable recovery: baseline ledger.\n");
     savedLedger = await ledger(); assert.equal(savedLedger.length, 234);
     for (const row of manifest.base) assert.ok(savedLedger.some(r => r.migration_name === row.migration_name
       && r.checksum === row.checksum && r.finished_at !== null && r.rolled_back_at === null && r.applied_steps_count === 1));
+    process.stdout.write("Disposable recovery: baseline session isolation.\n");
     await quiet();
     privateRecord(parent, "recovery-baseline-intent.json", { original, baselineName: BASELINE, failedName: FAILED, productionChanged: false });
+    process.stdout.write("Disposable recovery: create baseline template.\n");
     await controller.query(`CREATE DATABASE ${BASELINE} WITH TEMPLATE grainline_ci OWNER ci`);
     const created = await databases(); assert.equal(created.length, 2);
     sameDatabase(created.find(r => r.datname === "grainline_ci"), original, "grainline_ci");
     baseline = created.find(r => r.datname === BASELINE).oid; assert.notEqual(baseline, original);
     sameDatabase(created.find(r => r.datname === BASELINE), baseline, BASELINE);
     privateRecord(parent, "recovery-baseline-created.json", { original, baseline, ledgerSha256: hash(JSON.stringify(savedLedger)), productionChanged: false });
-  } catch { await controller.end(); throw new Error("native recovery snapshot refused; preserve fixture"); }
+  } catch (error) {
+    const code = /^[A-Z0-9]{5}$/u.test(error?.code ?? "") ? error.code : "ASSERTION_OR_IO";
+    process.stderr.write(`Disposable recovery snapshot rejected [${code}].\n`);
+    await controller.end(); throw new Error("native recovery snapshot refused; preserve fixture");
+  }
 
   return Object.freeze({
     async interrupt(execute, closeWorker) {

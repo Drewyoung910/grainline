@@ -102,6 +102,7 @@ export async function proveOrderExecution(env = process.env) {
   const crashParent = fs.mkdtempSync(path.join(parent, "crash-attempt-")); fs.chmodSync(crashParent, 0o700);
   const crashed = await applyThroughWorker(sourceRoot, crashParent, env, "pre-command-crash");
   assert.equal(crashed.crashBeforeDeployPreserved, true); source.verify(handle);
+  process.stdout.write("Disposable recovery: pre-command crash accepted.\n");
   const recoveryParent = fs.mkdtempSync(path.join(parent, "recovery-")); fs.chmodSync(recoveryParent, 0o700);
   const recovery = await createOrderRecoveryFixture({ ...options, parent: recoveryParent, manifest: scope.manifest });
   let incomplete;
@@ -109,10 +110,12 @@ export async function proveOrderExecution(env = process.env) {
     const failedParent = fs.mkdtempSync(path.join(parent, "inflight-attempt-")); fs.chmodSync(failedParent, 0o700);
     const failed = await applyThroughWorker(sourceRoot, failedParent, env, "in-flight", recovery);
     assert.equal(failed.inFlightIntentPreserved, true);
+    process.stdout.write("Disposable recovery: in-flight worker stopped; inspect native failure.\n");
     incomplete = await recovery.inspectFailure();
     const refusedParent = fs.mkdtempSync(path.join(parent, "refused-attempt-")); fs.chmodSync(refusedParent, 0o700);
     const refused = await applyThroughWorker(sourceRoot, refusedParent, env, "refuse-incomplete");
     assert.equal(refused.incompleteStateRefusedBeforeStaging, true);
+    process.stdout.write("Disposable recovery: fresh worker refused; restore verified baseline.\n");
     await recovery.restoreBaseline(); source.verify(handle);
   } finally { await recovery.close(); }
   // A distinct fixture attempt performs its own fresh native prefix-zero
