@@ -3,7 +3,8 @@
   "buildCommand": "npm run guard:runtime-db-env && npm run build",
   "git": {
     "deploymentEnabled": {
-      "main": false
+      "main": false,
+      "proof/order-hosted-preparation-20260913": false
     }
   },
   "regions": ["sfo1"],
