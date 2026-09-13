@@ -1,0 +1,1595 @@
+# Case, CaseMessage, and CaseMessageAttachment RLS Plan
+
+Opened 2026-07-26. Current phase: policyless ENABLE is live and pooled-runtime
+accepted after a clean Phase 2 production inspection, completed Phase 3 proof,
+live Phase 4 compatible database/application conversion, live invariant/read-mode
+convergence, accepted DirectUpload activation, and zero ordinary direct
+Case-family access. The separate posture-only FORCE release for `Case`,
+`CaseMessage` and `CaseMessageAttachment` is now byte-pinned and staged on an
+isolated branch, merged through PR `#154` at exact main
+`5c1564a8e6994497987fe62e28b61db03737285c`, but is not applied. Case evidence
+remains disabled.
+
+The exact candidate, predecessor evidence, CI ordering and later boundaries
+are recorded in `docs/case-force-production-release.md`. Production must not be
+called FORCE-complete until the guarded migration and a fresh exact-release
+pooled-runtime read-only postflight both pass.
+
+The pre-merge authority review caught one provider-specific incompatibility:
+the historical draft required a completely membership-free runtime role, but
+production retains Neon's already-proven non-inheriting, non-settable bootstrap
+admin edge from `grainline_app_runtime` to `neondb_owner`. The promoted release
+keeps the historical draft immutable and applies a separately byte-pinned
+correction that accepts only that exact edge and recursively rejects every
+other membership.
+
+The behavior findings, 80-reference conversion baseline and current
+52-reference countdown live in
+`docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
+It contains no approved policy or function SQL.
+
+## Policyless ENABLE production acceptance (2026-08-04)
+
+Exact main `a9abaec057ab80a455a81503080bcd3b9027c4be` passed CI run
+`30937766824`. Protected migration run `30939836526` applied only
+`20260804160000_enable_case_rls` and passed migration status plus the global
+grant/RLS audit. The real pooled `grainline_app_runtime` postflight then proved
+all three Case-family tables RLS-enabled without FORCE, with zero policies,
+zero direct runtime table/column authority, 27 reviewed runtime functions,
+three private helpers, direct-read `42501` denials and fail-closed invalid-actor
+reads in an engine-attested read-only transaction.
+
+Sanitized mode-`0600` evidence SHA-256 is
+`117590a50316ff0efb783c490e95aa31014221a4b93e4372f5f6995c5a15ee15`.
+No application deployment, Case-evidence enablement, FORCE, cleanup scheduling,
+token revocation or provider change was included.
+
+## Scope boundary
+
+Case, CaseMessage and CaseMessageAttachment must activate together because
+both child visibility and write authority depend on the parent. They must not
+activate with Order,
+OrderItem, payment events, shipping quotes, SellerProfile, Notification or
+audit tables.
+
+Fixed Case operations may validate those durable source tables. That does not
+move the source table into this activation or authorize broad writes to it.
+The missing seller decision notice reuses the existing live, already-proven
+staff-`CaseMessage` Notification source family. No Notification function,
+policy, or grant change is needed.
+
+The older feasibility sequence placed Case after Order because of these joins.
+The current program deliberately audits Case first: it is a narrower private
+dispute boundary, Conversation/Message is complete, and owner-backed fixed
+Case functions can validate an unprotected Order without requiring Order RLS.
+Order/payment/shipping still receives its own later audit and release.
+
+The Case private-object review exposed a separate, already-live messaging
+storage boundary: ordinary Message rows and attachment references are protected
+by FORCE RLS, but their current R2 objects use public bearer URLs. This is
+recorded as CM-A20 in `docs/conversation-message-pre-rls-audit.md`. It does not
+change the accepted Conversation/Message database catalog or move ordinary
+Message into the Case activation. Finish the current Case lifecycle proof
+checkpoint, then give ordinary-message private-object compatibility and legacy
+classification their own reviewed pass before Case policy activation. Shared
+private-bucket primitives may be reused, but authority routes, object prefixes,
+legacy handling and proof evidence remain separately scoped.
+
+## Phase 0: audit checkpoint at High
+
+- Pin all direct Prisma, nested relation and raw SQL references.
+- Confirm application actor checks, cross-origin guards, rate limits and
+  current state transitions.
+- Record integrity, lifecycle, concurrency, retention/export and scale gaps.
+- Correct stale architecture, strategy and coverage records.
+- Make no production, database, provider or policy change.
+
+Exit: the audit baseline is committed, tests pass, and every open defect has a
+specific pre-policy disposition.
+
+## Phase 1A: compatible product work at High
+
+This phase remains compatible with the current broad runtime grants and RLS-off
+tables.
+
+1. Add stable `(caseId, createdAt, id)` history order/index and bounded older
+   history for buyer, seller and staff. Keep the separate account export
+   complete through its dedicated participant projection rather than
+   truncating legal export data.
+2. Align the scheduled non-response transition with the chosen 48-hour public
+   contract.
+3. Carry the accepted private processed-photo Case evidence requirement into
+   the reviewed compatible schema design. Keep PDFs out until malware scanning
+   and quarantine are designed.
+
+Exit: focused product tests, TypeScript, lint and the full unit suite are green.
+No RLS behavior has changed.
+
+## Extra-High switch boundary
+
+Switch back to Extra High before Phase 1B. These are load-bearing database
+integrity, transaction-locking and already-live Notification authority changes,
+even though Case/CaseMessage RLS remains off. Stay on Extra High through the
+authority catalog and PostgreSQL proof.
+
+## Phase 1B: compatible integrity work at Extra High
+
+1. Add durable CaseMessage author kind and render it instead of mutable current
+   User role.
+2. Add the exact `(caseId, createdAt, id)` history index and the private-object
+   `CaseMessageAttachment` image model with parent visibility, verified upload
+   ownership, authenticated retrieval, export, deletion and retention
+   behavior. Do not persist a public evidence URL.
+3. Deliver staff Case decisions to the seller with source-derived seller copy
+   through the existing fixed Notification boundary. Implemented on the
+   isolated branch: resolution creates a fixed-copy staff `CaseMessage` and
+   `AdminAuditLog` in the same transaction as the Case transition, then the
+   existing case-message family validates and derives the seller notification.
+   The permanent Notification callsite gate intentionally moved from 54/54 to
+   55/55.
+4. Make Case creation, participant escalation and staff resolution audit
+   evidence atomic with the database state transition. Implemented on the
+   isolated branch with strict transactional human-audit writes; a failed audit
+   rolls the local transition back, while existing Stripe orphan handling still
+   records provider-side refunds that crossed the database boundary.
+5. Establish the shared Order-lock protocol for Case creation and conflicting
+   label/fulfillment/refund transitions. Implemented compatibly: Case creation
+   locks and re-reads the exact Order; label, fulfillment, buyer delivery
+   confirmation and seller-refund reservations take that same Order lock before
+   their fresh conflict checks. The exact-head two-session PostgreSQL proof
+   described below accepted both winner orderings.
+6. Serialize replies on the Case row and use a post-lock timestamp.
+   Implemented compatibly: different-body replies now take the same parent
+   Case lock, re-read Case/actor authority, and use one PostgreSQL
+   `clock_timestamp()` for Case `updatedAt`, discussion clocks, upload claims
+   and CaseMessage `createdAt`. The duplicate advisory lock remains a separate
+   replay guard. The exact-head two-session proof described below accepted the
+   reply/cron, reply/staff and resolution-mark races.
+
+Disposable proof boundary (2026-07-26): the isolated branch includes
+`scripts/case-lifecycle-postgres-proof.mjs` and a branch-scoped PostgreSQL 16
+workflow. It refuses non-loopback targets and any database other than
+`grainline_ci`, uses separate named clients, requires an observed PostgreSQL
+`Lock` wait and cleans every synthetic row. After review found that the real
+mark-resolved, cron and staff-resolution routes were not fully represented by
+the first proof, the candidate now exercises 21 winner orderings: Case versus
+label/fulfillment/delivery-confirmation/refund, different-body and seller-first
+replies, pending-close reply versus resolution mark, seller/discussion reply
+versus cron, reply versus staff dismissal, resolution mark versus staff
+dismissal, and resolution mark versus refund reservation. The expanded harness
+and its static contracts are green locally.
+
+Accepted disposable database proof: exact branch head
+`00c175fbae1421f69f39d78fb9a22fec071916f5`, GitHub Actions run
+`30216625774`, applied the complete guarded migration tree to PostgreSQL
+16.14, converged the production-style runtime grants, passed migration status
+and the final grant/RLS catalog audit, then completed all 14 two-session
+orderings. Every check observed a PostgreSQL `transactionid` lock wait; the
+harness reported `status=passed`, `persistentStagingChanged=false` and
+`productionChanged=false`, and the service container was destroyed. The first
+accepted run remains valid evidence for its 14 modeled orderings, but it is not
+the acceptance gate for the expanded 21-ordering candidate after the CC-A15
+fidelity finding. Exact code head
+`9f4079fe2f6667f14e63943f9a9eee22f350f46b` superseded it in successful
+GitHub Actions run `30217588001`: PostgreSQL 16.14 applied the full 163-migration
+tree, converged production-style runtime grants, passed migration status and
+the final grant/RLS catalog audit, then passed all 21 orderings with a real
+`transactionid` wait observed for each. The bounded result reported
+`status=passed`, `persistentStagingChanged=false` and
+`productionChanged=false`; the service container and network were destroyed.
+The migration bytes then changed during the final authority review, so that
+run was not reused as acceptance for the current tree. Exact hardening head
+`4dc57266c18abf7ee4d4a8a700bcd2a52d0f3185` passed dedicated GitHub Actions
+run `30218521286`: the complete migration tree applied to disposable
+PostgreSQL, production-style runtime grants converged, migration status and
+the final grant/RLS catalog audit passed, and all 21 winner orderings again
+observed real PostgreSQL lock waits. Exact-head general CI run `30218522907`
+also passed the compatibility-tree guards, ephemeral database proofs,
+TypeScript, lint, 2,089-test suite, high-severity dependency audit and
+production build. These runs changed no persistent staging or production
+database.
+The earlier failed run, `30215504361`, is
+retained evidence: Prisma rejected the mixed
+three-statement concurrent-index migration with PostgreSQL `25001` before the
+race harness ran. Commit `4ede31b7` repaired the unapplied branch-only tree by
+keeping `CREATE INDEX CONCURRENTLY` alone and moving the two ordinary drops to
+`20260726183600_drop_legacy_case_message_history_indexes`; it did not weaken or
+skip migration deployment.
+
+Private evidence contract:
+
+- Only processed JPEG, PNG and WebP images are accepted, with metadata stripped
+  and a four-image/8 MiB-per-image message bound. PDFs remain prohibited.
+- Objects live in `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME`, which must have no
+  public/custom domain. Database rows retain only an opaque key and verified
+  content metadata; no public URL is persisted.
+- Upload ownership is recorded in `DirectUpload`, then claimed atomically with
+  the parent `CaseMessage`. Unclaimed objects use the existing retryable
+  lifecycle cleanup, selecting the private bucket by stored storage class. An
+  already-claimed upload cannot be rebound to a different record type or
+  record id, and the database requires public uploads to have a public URL
+  while private uploads must not have one.
+- Buyer, seller and PIN-verified staff retrieve evidence only through the exact
+  parent Case route, which returns a 60-second signed read with no-store and
+  no-referrer headers. Foreign users receive no object URL, and Case-message
+  creation/retry responses return attachment metadata without the private
+  object key.
+- Interactive history and account export include bounded attachment metadata.
+  Binary evidence remains available through the authenticated Case route and
+  is retained with the dispute/order record; it is not erased merely because a
+  participant account is anonymized. Account deletion therefore removes
+  lifecycle rows only for public uploads; retaining the private lifecycle row
+  is required for authenticated evidence reads. Any future Case retention purge must
+  enqueue private-object deletion before deleting attachment rows.
+- The private bucket/env/grant/signed-read/foreign-denial smoke is a deployment
+  prerequisite. Code presence is not evidence that the bucket is private.
+- `CASE_EVIDENCE_ATTACHMENTS_ENABLED` remains absent or exactly `false` for the
+  compatibility deployment. The API and UI fail closed until DirectUpload
+  activation/postflight and the private-bucket/authenticated-route smoke pass;
+  only then may the exact lowercase value `true` be promoted.
+
+The fixed-operation pattern does not authenticate a human caller by itself.
+`grainline_app_runtime` can supply transaction context or function actor
+arguments, so possession of that credential must be treated as authority to
+impersonate a valid application actor within each granted function. Clerk
+authentication, server-side actor resolution and route authorization remain
+load-bearing. Case functions still derive targets, roles, timestamps, links and
+event identity from locked rows so a normal application caller cannot choose
+them independently.
+
+Test contracts should be behavior-oriented for replaceable application
+implementation details, but exact for security artifacts: function signatures,
+security mode, pinned `search_path`, ACLs, table grants, policies, source-derived
+authority fields and lock ordering remain strict structural tripwires.
+
+Exit: focused product/security tests, TypeScript, lint and the full unit suite
+are green. No RLS behavior has changed.
+
+Release order remains migration first, application second. Automatic Vercel
+production deployment from `main` is disabled; verify that invariant, apply the
+guarded nullable/additive compatibility migrations, run the production
+postflight, then deliberately promote the application that selects/writes the
+new fields. Never deploy the application ahead of its schema.
+
+Final Extra-High compatibility review (2026-07-26) also closed six defects
+before release packaging:
+
+- claimed uploads are now immutable to another source type/id, including the
+  concurrent link race;
+- private object keys are stripped from every new, duplicate and retry
+  Case-message response;
+- locked Case and actor reads are sequential inside the interactive
+  transaction;
+- a staff user who is also a Case party receives participant semantics on both
+  upload and message paths;
+- contended staff/webhook refund reservations use database
+  `clock_timestamp()` after the Order-lock wait rather than a stale
+  request-time JavaScript timestamp; and
+- account anonymization preserves claimed private-evidence lifecycle rows
+  while continuing to delete public-media lifecycle rows and expire unclaimed
+  private uploads through normal cleanup.
+
+The Git-integrated Vercel Preview for documentation head `9f8b0f26` created
+deployment `dpl_EM6Sr1c1BV1LZrXE43tKPamaszDG` and failed before compilation at
+the existing runtime database isolation guard with `DATABASE_URL_SHAPE`. That
+is the expected fail-closed result for the inherited, unreviewed shared
+Preview database configuration. The guard was not weakened, no migration ran,
+and the red Preview is not a production or Case-proof failure. A later
+authenticated private-bucket smoke must use a deliberately isolated reviewed
+Preview/database pairing; this branch does not authorize or claim that
+provider proof.
+
+## Phase 2: legacy inspection and invariant preparation
+
+- Build a manual-main, owner-only, aggregate-only production inspector using
+  the protected migration environment.
+- Pin exact endpoint, owner/runtime roles, main commit, protected URL digest,
+  clean checkout and a fresh mode-0600 runner evidence path.
+- Count party/Order mismatches, self-party Cases, invalid message authors,
+  author-kind backfill classes, lifecycle contradictions, timestamp
+  anomalies, duplicate/tied message order and unbounded-history size.
+- Stop after inspection. Any cleanup/backfill is a separate reviewed mutation
+  with backup and rollback evidence.
+- Add new-row party/Order, author and lifecycle invariants only after legacy
+  state is exactly classified.
+
+Exit: zero unclassified anomalies and a passed production invariant postflight.
+
+Phase 2 scaffold checkpoint (2026-07-28): the isolated candidate adds
+`scripts/case-case-message-legacy-inspect.mjs` plus a manual-main protected
+workflow. It pins the exact production endpoint, owner/runtime roles, protected
+URL digest, dispatched main commit, clean checkout and a fresh mode-0600
+evidence path. The one repeatable-read, engine-attested read-only transaction
+returns only fixed aggregate counts and bounded enum distributions; it does not
+export Case ids, message text, participant ids or private object keys.
+
+The exact aggregate SQL also runs after the complete migration tree in the
+PostgreSQL 16 CI service through
+`scripts/case-case-message-legacy-inspection-postgres-proof.mjs`. That proof is
+hard-limited to loopback `grainline_ci`, executes the production query rather
+than merely matching its text, validates the exact result schema and rolls
+back. This scaffold does **not** claim a production inspection, classified
+legacy state, cleanup, invariant, policy, grant or RLS change.
+
+The production inspection must run before the separately staged DirectUpload
+compatibility-key retirement: it deliberately asserts the compatible
+pre-retirement `CaseMessageAttachment.objectKey` column and DirectUpload
+RLS-off posture. The cleanup-only R2 credential proof remains an independent
+gate for DirectUpload activation and private Case evidence; it does not block
+this read-only Case classification work. Stop after reporting production
+counts. Any backfill, repair or constraint is a later evidence-driven mutation
+with its own backup and rollback boundary.
+
+First production dispatch record (2026-07-28): protected workflow run
+`30412359026` at exact main commit
+`7767ae3ae7380ff91a74db0e8a1830f17c8d8b84` failed closed before connecting or
+executing the aggregate query. The PostgreSQL channel-binding helper received
+the guarded identity summary instead of a parsed `URL` and raised
+`parsed must be a URL`. No transaction ran, no evidence artifact was uploaded,
+and no production data, catalog, grant or RLS state changed. The corrective
+checkpoint constructs the actual PostgreSQL client options from the already
+validated `directUrl` and exercises that construction in the focused test so a
+config-only test cannot mask this boundary again.
+
+Fresh production inspection record (2026-07-28): protected run `30413133843`
+(job `90453636790`) passed at exact main
+`de9ad52ff6c7dfb58a44773ec9e14e44a103f0a4` after PR #83 and fresh merged-main
+CI run `30412936579`. PostgreSQL attested the repeatable-read transaction as
+read-only. The inspection found zero Cases, zero CaseMessages and zero
+CaseMessageAttachments. Every relationship, lifecycle, author-kind, timestamp,
+attachment, DirectUpload/reference and blocking count was zero; every bounded
+distribution was empty. No cleanup or backfill is required.
+
+The mode-0600 sanitized off-worktree artifact is
+`case-case-message-legacy-inspection-de9ad52ff6c7dfb58a44773ec9e14e44a103f0a4.json`;
+its SHA-256 is
+`dd4194a39e83e7c4363e9b251d495e66534df3d83c5f3ac2ab521a15dbae8654`.
+It contains fixed aggregate counts, bounded enum distributions and reviewed
+target/source metadata only—no row ids, message text, participant ids, object
+keys or credentials. Production retained Case/CaseMessage/attachment RLS off,
+DirectUpload RLS off, DirectUploadReference FORCE with zero policies, and the
+runtime role as `NOBYPASSRLS`. Phase 2 is complete; Phase 3 may design new-row
+invariants and the fixed Case authority catalog without a legacy mutation.
+
+## Phase 3: authority catalog design at Extra High
+
+Every function must have fixed schema-qualified objects, pinned `search_path`,
+no dynamic SQL, no PUBLIC execute, runtime-only execute where intended and no
+generic caller-selected write target.
+
+Candidate operation families to review:
+
+- participant/staff Case detail and bounded CaseMessage history projections;
+- staff queue/count projections;
+- participant account export projection;
+- participant open, reply, mark-resolved and eligible escalation;
+- staff reply, escalation and resolution/finalization;
+- Stripe dispute Case create/reopen;
+- seller-refund active-Case resolution;
+- cron claim/close/escalate batches plus per-row audited transition;
+- account-deletion blocker/redaction;
+- Order active-Case predicate for fulfillment/label/delivery/retention;
+- seller-quality aggregate/existence checks.
+
+User-authored Case text is valid caller input after size/sanitization. Buyer,
+seller, target Case, author kind, status transition, timestamps, audit source,
+notification recipient/link and replay identity are derived from locked durable
+state. Staff resolution choice and bounded refund amount/stock restoration are
+authorized staff decisions, not ordinary participant input.
+
+Phase 3 catalog checkpoint (2026-07-28): the isolated candidate adds
+`scripts/case-case-message-authority-catalog.mjs`, its exact inventory-drift
+test and `docs/case-case-message-authority-catalog.md`. It maps the initial 80
+Phase 4 references across 29 sources to 26 fixed operations. The boundary explicitly
+includes CaseMessageAttachment rather than treating private evidence as an
+independent activation.
+
+The review rejected route-provided `staffPinWasVerified` booleans because
+PostgreSQL cannot attest a session-bound PIN. Staff functions revalidate the
+current database role while the PIN remains an authenticated-route
+precondition. Refund finalization binds to a database-generated resolution
+claim and exact durable local payment evidence instead of accepting a generic
+provider result. Account-deletion redaction derives its User from a locked
+`LOCAL_ANONYMIZE` side-effect row rather than taking a free mutation target.
+Cron target selection and transition are one bounded
+`FOR UPDATE SKIP LOCKED` database operation with per-row audit evidence, not a
+caller-selected claim/transition pair.
+
+The Phase 3 review also found that the current Stripe dispute helper can reopen
+a terminal Case while leaving `refundAmountCents` and `stripeRefundId` behind.
+The fixed dispute operation clears the complete Case-level terminal snapshot
+while retaining the durable Order payment/audit history. A webhook-created
+Case records its exact source in `Case.openedByPaymentEventId` and may begin
+without a falsely buyer-authored opening message; the ordinary buyer-open
+operation still creates its first message atomically.
+
+Extra-High review of the first compatible operation found two authority gaps
+before merge. `SystemAuditLog` still has broad runtime CRUD and therefore
+cannot be the immutable replay boundary. Stripe delivery is also unordered, so
+a valid but superseded `charge.dispute.created` source cannot be accepted only
+because its signature was verified earlier. The corrected candidate uses a
+separate zero-policy, zero-table-grant
+`CaseStripeDisputeApplication` replay ledger, and the function rejects an
+older event or an open event superseded at the same provider timestamp by a
+terminal dispute event. `SystemAuditLog` remains co-committed observability,
+not authority.
+
+The catalog also records honest cross-group limits: PostgreSQL validates local
+payment evidence but does not independently attest Stripe, and
+Order/OrderPaymentEvent/AccountDeletionSideEffect direct-write hardening
+remains in later groups. New Case/message/audit identities must be generated
+inside PostgreSQL (UUID text is compatible with the opaque String ids); Prisma
+`cuid()` is a client default, not a database default.
+
+Phase 3 invariant hard-review checkpoint (2026-07-28): the draft-only
+Case/CaseMessage/attachment and private resolution-claim SQL remains outside
+the migration tree and is exercised only inside the disposable PostgreSQL
+proof. The first engine pass caught quoted trigger table-name dispatch and was
+corrected to exact `TG_RELID`/`regclass` identity. The subsequent authority
+review strengthened mutable source locks to `FOR SHARE`, fixes the canonical
+authority order as actor User, then Order when applicable, then parent Case for
+the compatible app and later functions, locks the complete retained
+Order/seller relationship,
+and prevents a claim from carrying payment evidence while still
+`PROVIDER_PENDING`. Once linked, provider evidence is immutable; terminal
+clocks cannot precede provider evidence or exceed the claim update clock.
+The invariant layer deliberately does not claim that a terminal
+Case-to-`UNDER_REVIEW` transition itself proves Stripe provenance: that
+transition remains a compatibility shape until direct runtime writes are
+replaced by the source-bound `case_stripe_dispute_apply` operation.
+
+External staff refunds use a private `CaseResolutionClaim` service ledger,
+created FORCE-protected with zero policies and zero runtime/PUBLIC table
+privileges. Prepare, explicit bounded Stripe-evidence recording and finalize
+are separate fixed operations. A provider-pending claim is never released by
+timeout; retry/reconciliation reuses the exact claim-derived Stripe
+idempotency scope. Only a PIN-verified current ADMIN can make the explicitly
+audited human decision that Stripe has no provider effect and advance it to
+the distinct terminal `RELEASED_NO_PROVIDER_EFFECT` state. That state does not
+pretend the Case or provider action was finalized.
+
+Staff-resolution authority review (2026-07-29) closed an ambiguous-provider
+gap before SQL implementation. The fixed provider-record operation accepts
+only `RECORDED` or `AMBIGUOUS`. `RECORDED` requires bounded Stripe evidence and
+is the only branch allowed to create `OrderPaymentEvent` authority.
+`AMBIGUOUS` requires all asserted provider-evidence fields to be absent,
+creates no payment event and moves the claim plus Order refund sentinel into
+reconciliation. A later retry reuses the same idempotency scope; only the
+separate ADMIN reconciliation decision may attest no provider effect and
+release the lease.
+
+Seller verification, seller metrics and guild-revocation predicates are three
+separate fixed operations. The review rejected one generic arbitrary-seller
+quality function because it exposed a broader dispute-count/timestamp oracle
+than any source requires.
+
+Exit: ephemeral PostgreSQL proves own/foreign/staff/no-context reads, direct
+DML denial, every write family, role drift, transition invariants, all race
+orderings, account deletion, cron/webhook/refund behavior and rollback.
+
+## Phase 4: compatible application conversion
+
+- First add the nullable exact Stripe-dispute source and private
+  `CaseResolutionClaim` ledger in one coexistence-safe preparation migration.
+  The new ledger is born ENABLE plus FORCE with zero policies and zero
+  runtime/PUBLIC table privileges; the migration does not add strict
+  Case/CaseMessage triggers, participant policies or callable resolution
+  operations.
+- Add each reviewed fixed operation while retaining old direct grants. The
+  Stripe-dispute operation also adds its own private immutable replay ledger;
+  it is not bundled with Case participant policies or direct-grant revocation.
+- Convert every protected reference to its explicit destination (80 at the
+  fixed Phase 4 baseline; 64 remain after the first five compatible app
+  conversions, while earlier Phase 1B counts remain historical evidence
+  rather than an activation target).
+- Keep an exact zero-direct-access inventory gate.
+- Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,
+  deletion, retention and metrics paths on the compatible database.
+- Run authenticated route smoke without enabling RLS.
+
+Exit: old and new app deployments can coexist with the preparation catalog.
+
+Phase 4 compatible-schema checkpoint (2026-07-28): the candidate migration
+adds `Case.openedByPaymentEventId`, exact same-Order composite foreign keys,
+the nullable `Order.caseResolutionClaimId` lease and the private
+`CaseResolutionClaim` provider-handshake ledger. Its enum is removed from
+PUBLIC and granted only the runtime USAGE needed for later typed fixed
+functions; the table and invariant trigger functions remain runtime-private.
+The strict Case/CaseMessage invariant draft now consumes this prepared shape
+instead of attempting to recreate it. This checkpoint is code-only:
+production migrations, Case RLS and app deployment remain unchanged.
+
+Phase 4 Stripe-dispute authority checkpoint (2026-07-28): the isolated,
+unmerged candidate accepts only one exact same-Order `OrderPaymentEvent`,
+locks Order, payment source, complete seller graph and Case in canonical
+order, derives all participants/linkage inside PostgreSQL, and clears the
+complete terminal Case snapshot on a legitimate reopen. Replay identity is
+held in private `CaseStripeDisputeApplication` rather than caller-writable
+`SystemAuditLog`. The function rejects malformed, wrong-charge, terminal and
+superseded sources. The migration does not enable participant RLS, revoke
+legacy Case grants, deploy application conversion or authorize production
+migration.
+
+Implementation checkpoint `3416516e29ea92868c7746c741030f0f0324f850`
+is pushed in draft PR `#88`. The PR is temporarily based on `main` so the
+repository's pull-request-only CI can run the full PostgreSQL 16 migration and
+rollback-only authority proof; it includes the exact PR `#87` schema
+prerequisite until that predecessor merges. This is a CI/review arrangement,
+not production migration or deployment authorization.
+
+Phase 4 Stripe-dispute application-conversion checkpoint (2026-07-28): the
+isolated successor removes two direct Case writes and one nested Case read from
+the signed webhook, reducing the exact current inventory from 80 to 77. The
+route records the durable payment event, resolves its local id, invokes only
+`grainline_case_stripe_dispute_apply`, verifies the one exact returned
+Order/payment relationship and uses database-derived buyer/seller identities.
+It keeps the Stripe event id separate for the already-live Notification
+`order_payment` source contract. The old JavaScript Case transition helper is
+removed, and the catalog retains all three replaced references in a
+machine-checked converted-source ledger. This is compatible application work:
+the fixed-function migration must precede its deployment; no production
+migration, deployment, direct-grant revocation or Case RLS activation is
+authorized here.
+
+Phase 4 seller-refund authority checkpoint (2026-07-28): the isolated
+successor adds one compatible fixed operation and private immutable
+`CaseSellerRefundApplication` ledger. The runtime may execute
+`grainline_case_seller_refund_apply(actorUserId, orderPaymentEventId)` but has
+no direct ledger access. PostgreSQL locks and validates the active actor,
+Order, exact local refund event, complete one-seller graph and Case; derives
+the full/partial resolution, amount, provider id, timestamp and audit; and
+makes an already-applied source a non-mutating replay. NULL or malformed
+metadata, forged actor/source, mismatched amount/currency/provider id and
+direct ledger access fail closed. The private ledger is born ENABLE plus FORCE
+with zero policies and no PUBLIC/runtime table grants. The fixed authority
+checkpoint does not by itself enable participant RLS, revoke legacy Case
+grants, authorize production migration or deploy.
+
+The compatible application conversion preserves the shared lock order: the
+seller-refund finalization transaction locks the authenticated seller User,
+then completes the Order, records and resolves the exact local payment event,
+and invokes the fixed function, which locks Case only after Order. It accepts
+only one complete relationship-consistent result and preserves the existing
+staff-reconciliation warning for a terminal Case. The route now has zero
+direct protected Case-table references, reducing the current inventory from
+77 to 75 and the remaining source files from 28 to 27. `Order` and
+`OrderPaymentEvent` still have broad runtime DML until their separate
+order/payment group; this remains an explicit threat-model dependency rather
+than a protection claim.
+
+Implementation checkpoint `e2c3620343e76cac291accba31ffbfcaa2af1d4f` is
+pushed in draft PR `#91`. It is temporarily based on `main` only because the
+repository runs pull-request CI for that base; the intended stack remains the
+seller-refund authority PR `#90`, which must precede this application
+conversion. This CI arrangement authorizes no merge or production change.
+
+The first exact-head CI run (`30422640445`) is retained as failed evidence. It
+applied the full migration tree and converged production-style runtime grants,
+then PostgreSQL rejected the new rollback-only proof fixture with `42P08`
+because parameter `$4` was inferred as both `varchar(255)` and `text` inside
+one prepared INSERT. No migration, grant or production state changed. The
+fixture now gives every `$4` reference the exact `varchar(255)` source-column
+type, and a focused static guard prevents another mixed-type edit. This run
+does not count as seller-refund authority proof; a fresh exact-head PostgreSQL
+CI pass is mandatory before application conversion.
+
+Fresh exact-head CI run `30422832630` for authority head
+`bc87c7b8b5d6d8adb41a49c32c97bb90784854c4` subsequently passed in full. It
+applied the migration tree, converged production-style runtime grants, passed
+the 29-check rollback-only PostgreSQL Case authority proof, final grant audit,
+typecheck, lint, 2,288-test suite, security audit and production build. That
+result permits this compatible application conversion; it is not production
+migration, deployment, participant RLS or activation evidence.
+
+Phase 4 staff-resolution authority checkpoint (2026-07-29): the isolated
+`agent/case-staff-resolution-authority-20260729` successor adds the compatible
+`20260729045000_prepare_case_staff_resolution_authority` migration. Four
+runtime-executable, pinned `SECURITY DEFINER` operations stage staff resolution:
+prepare, provider record, finalize and ADMIN reconciliation. Finalization takes
+only actor plus claim id; Case, Order, resolution, refund amount, payment
+event, stock targets, message identity and audit identity are derived from the
+locked private claim and exact durable sources.
+
+The hard review found and closed four issues before PostgreSQL CI:
+
+- an ambiguous Stripe response had no fixed claim transition, so provider
+  record now accepts only `RECORDED` or `AMBIGUOUS`; `AMBIGUOUS` forbids all
+  asserted provider evidence and creates no payment event;
+- final stock validation now locks the complete current OrderItem/Listing
+  source graph, not only the target Listing rows, before revalidating and
+  restoring the immutable claim plan;
+- an ADMIN retry is valid only from `RECONCILIATION_REQUIRED`, keeps the exact
+  idempotency scope and writes an immutable audit; ordinary
+  `PROVIDER_PENDING` request replay does not masquerade as reconciliation.
+- PostgreSQL three-valued logic would let a null provider outcome or null
+  reconciliation action skip a bare `NOT IN` check, so both fixed
+  discriminators now reject null explicitly and the engine proof exercises
+  both denials.
+
+The rollback-only PostgreSQL proof is extended from 29 to 43 checks covering
+dismissal prepare/finalize/replay, forged staff/provider actors, full-refund
+payment and stock evidence, ambiguous evidence denial, ambiguous replay,
+admin-only retry with the same scope, provider recording after retry,
+no-provider-effect release, zero release payment events and terminal lease
+cleanup. Static authority, special-form, grant-inventory and deploy-guard tests
+pass locally, as do the complete repository test suite, TypeScript and lint.
+The local Next production build compiled and completed its TypeScript phase,
+then correctly stopped at page-data collection because this disposable
+worktree has no `DATABASE_URL`; the protected CI run supplies only its
+loopback PostgreSQL service URL. At that checkpoint the engine migration/proof
+still required a fresh exact-head PostgreSQL 16 CI run, and production
+migrations, app conversion, direct-grant revocation, Case RLS, merge and
+deployment remained unauthorized and unchanged.
+
+Exact-head CI run `30426358816` subsequently passed for authority head
+`c5f649abae36e8a7200fb5e92316dccf0ed77de0`. PostgreSQL 16 applied the complete
+sealed migration tree, converged production-style runtime grants, and passed
+the 43-check rollback-only Case authority proof plus migration status, final
+grant/catalog audit, TypeScript, lint, complete repository tests, dependency
+audit and production build. This proves the compatible database authority
+candidate in isolated CI only; it does not authorize a production migration,
+application conversion, merge, direct-grant revocation or Case RLS
+activation.
+
+Phase 4 staff-resolution application-conversion candidate (2026-07-29): the
+PIN-gated route now uses the fixed prepare, provider-record/ambiguous and
+finalize functions. PostgreSQL derives the claim, parties, amount, payment
+intent, transfer posture, idempotency scope, stock plan, terminal message,
+audit and response identities. The application supplies only the reviewed
+staff decision and Stripe's bounded response, validates every returned
+identity, and performs notifications/email only after finalization.
+
+Hard review found that the generic stale-refund cleanup and
+`charge.refunded` recovery could steal a `pending` sentinel from a durable
+Case claim. Both now treat `caseResolutionClaimId` as a non-expiring lease.
+The same review found that the route's friendly refund prechecks would block
+its own crash-recovery replay after prepare or provider record. Those
+heuristics now apply only when no claim exists; the fixed prepare function
+locks and verifies any exact existing claim before returning its replay state.
+The route retains no direct Case/CaseMessage write. The exact inventory is 71
+remaining references and nine converted references; production remains
+unchanged and the application candidate still requires exact-head CI before
+any merge, migration or deployment decision.
+
+The application conversion is preserved in commit `1cc1d468` on draft PR
+`#93`. The draft is temporarily eligible for `main`-targeted CI only; its
+intended stacked base remains the unmerged staff-resolution authority branch.
+Neither the checkpoint nor CI targeting authorizes a merge, migration,
+deployment, grant change or Case-family RLS activation.
+
+Exact candidate head `c57bfdac` passed GitHub Actions run `30428708830`,
+including migration application to disposable PostgreSQL, runtime-grant audit,
+rollback-only Case proofs, TypeScript, lint, the full test suite, dependency
+audit and production build. The Vercel preview remains intentionally blocked
+by the runtime database environment guard and is not release evidence.
+
+Phase 4 participant mark-resolved authority candidate (2026-07-29): one
+compatible pinned `SECURITY DEFINER` function accepts only actor plus Case,
+locks active User then Order then Case, and derives participant side,
+pending-close or mutual-dismissal state, post-lock UTC clock and deterministic
+audit/replay identity. It keeps the existing Notification source contract
+without accepting recipient, link, status, time or audit id from the caller.
+
+The authority review found that the legacy route checked only
+`sellerRefundId`. A staged staff dismissal uses
+`caseResolutionClaimId` without a refund sentinel, leaving a race between
+staff prepare/finalize and a participant resolution mark. The fixed operation
+fences both lease columns under the Order lock. Nullable retained buyer ids are
+normalized to strict booleans, and replay validation explicitly rejects a
+missing status rather than allowing SQL `NULL` through `NOT IN`. The dedicated
+loopback PostgreSQL proof must pass foreign denial, sequential/replay
+semantics, both lease fences, nullable-buyer behavior, malformed replay,
+two-session lock waiting, rollback and complete cleanup before the route is
+converted. This checkpoint authorizes no production migration, deployment,
+direct-grant revocation or Case-family RLS activation.
+
+Implementation checkpoint
+`4419669bc2bbb75352da68125be20bc1181d3985` is pushed in draft PR `#94`.
+The draft is temporarily based on `main` only to trigger the repository's
+pull-request PostgreSQL 16 workflow; its intended stacked base remains
+`agent/case-staff-resolution-app-20260729`. This CI arrangement authorizes no
+merge, production migration, deployment, provider change or Case-family RLS
+activation.
+
+Exact candidate head `99a57368ec184b5e9db4c653f0a533a523a9920c` passed
+GitHub Actions run `30431012342`. PostgreSQL 16 applied the sealed migration
+tree, converged production-style runtime grants, passed the 12-check
+participant-resolution authority proof (including real two-session lock
+waiting and zero residue), and passed the broader Case, migration, grant and
+RLS catalog proofs. TypeScript, lint, the complete test suite, dependency
+audit and production build also passed. This is disposable CI evidence only;
+production migrations, deployment, direct-grant revocation and Case-family
+RLS remain unchanged and unauthorized.
+
+Phase 4 participant mark-resolved application-conversion candidate
+(2026-07-29): the route retains the origin, authentication, account-state and
+rate-limit boundaries, then invokes only the fixed authority. It performs no
+direct Case/CaseMessage read or write and creates no application-side audit.
+The application accepts exactly one ten-key result whose actor, Case,
+participant side, deterministic audit identity and state are validated
+fail-closed. Counterparty notification and the response use database-returned
+identities; the already-live Notification authority independently derives
+recipient, link and copy from the strict audit source.
+
+This conversion moves the route's two direct reads and one raw update into the
+converted-source ledger. The exact current inventory is 68 remaining
+references across 26 source files and twelve converted references. The
+candidate remains stacked on the participant-authority draft; it does not
+authorize a merge, migration, deployment, provider change, direct-grant
+revocation or Case-family RLS activation.
+
+Implementation checkpoint
+`ed4f2840409134fa6cd9dc6baf9582e06ce3b646` is pushed in draft PR `#95`.
+Its intended base is the unmerged participant-resolution authority PR `#94`;
+the draft is temporarily targeted at `main` only to trigger the repository's
+pull-request PostgreSQL workflow. Local TypeScript, lint, the focused authority
+contracts and the complete 2,336-test suite passed (2,333 pass, zero fail,
+three intentional skips).
+
+A direct `npm audit --audit-level=high` invocation is retained as expected
+failed evidence for the 2026-07-23 high-severity `brace-expansion` advisory in
+the ESLint development chain. It is not the repository's reviewed gate. The
+repo gate, `npm run audit:dependencies`, separately blocks every high/critical
+production advisory and every unrecognized development advisory while
+allowlisting only this exact development-only GHSA and package path. The
+patched v5 package changes the CommonJS API required by current minimatch v3
+consumers, so neither a forced ESLint 10 upgrade nor an unsafe transitive
+override is mixed into this Case candidate.
+
+Exact candidate head `23a251f50a80bb55c47bb0c41b138d278222748a`
+subsequently passed GitHub Actions run `30433050043` in full. PostgreSQL 16
+applied the sealed migration tree, converged production-style runtime grants,
+passed the dedicated participant-resolution authority proof and every broader
+database proof. TypeScript, lint, all 2,336 tests, the reviewed dependency
+audit and the production build also passed. This is isolated CI evidence only;
+the intended stacked PR base must still be restored, and no merge, production
+migration, deployment, grant change or Case-family RLS activation is
+authorized.
+
+Phase 4 buyer Case-open authority candidate (2026-07-29): review of the next
+remaining write found that the legacy route does not require `Order.paidAt`.
+The compatible fixed operation corrects that integrity gap before conversion,
+then derives the buyer and one exact seller from locked source rows; fences
+refund, staff-claim, label and delivery-window conflicts; and atomically writes
+the Case, initial buyer message, strict audit and private replay ledger.
+
+The new `CaseOpenApplication` ledger is supporting authority, not a fourth
+participant table. It is ENABLE+FORCE with zero policies and no runtime/PUBLIC
+table privileges. Its exact Order/Case/buyer/seller/message/audit bindings and
+description hash let retries validate durable source state without trusting a
+caller-provided Case id, seller, replay key, clock or audit. The compatible
+migration leaves Case, CaseMessage and CaseMessageAttachment RLS and legacy
+grants unchanged. Authority commit
+`f7aa25a50191f84b6ec09be3709fe0abad25cc0e` passed GitHub Actions run
+`30436133437`; final documentation head
+`a2fe4a562681da1e42757934144024d0ec8846c9` passed exact-head run
+`30436469169`. Both runs applied the migration to disposable PostgreSQL 16,
+converged production-style grants, passed paid creation/replay, unpaid and
+forged denial, lifecycle fences, runtime ledger denial, a real two-session
+Order lock wait, rollback and zero residue, then passed the full repository
+gate. Draft PR #96 is restored to its intended stacked base. This is isolated
+CI evidence only and authorizes no production action.
+
+Phase 4 buyer Case-open application-conversion candidate (2026-07-29): the
+browser route preserves the existing origin, Clerk, local-account,
+user-scoped rate-limit, bounded-body and sanitization boundaries, then calls
+only `grainline_case_open`. The fail-closed validator requires one exact
+nine-key result whose Order, buyer and reason match the request; whose seller
+is distinct; whose generated Case/message/audit identities have the fixed
+shape; and whose state is exactly `OPEN` with a reviewed create/replay action.
+A replay returns the existing 409 before Notification or email side effects.
+The Notification source, seller lookup, observability and response use only
+database-returned identities.
+
+This conversion moves one direct Case create, one nested Case read and two
+nested CaseMessage references into the converted ledger. The exact current
+inventory is 64 remaining references across 25 source files and sixteen
+converted references. It remains stacked on the unmerged buyer Case-open
+authority draft; no merge, production migration, deployment, grant change or
+Case-family RLS activation is authorized.
+
+Implementation commit `1ecab9eed5b4587757de8c2cb45dd2a74b351e16`
+passed GitHub Actions run `30437725318`. Disposable PostgreSQL 16 applied the
+sealed authority migration tree, converged production-style runtime grants,
+passed the buyer Case-open authority and broader Case/grant/RLS proofs, then
+passed TypeScript, lint, the complete repository suite, the reviewed
+dependency audit and production build. This is exact-head isolated CI evidence
+for draft PR #97 only; it is not merge, production migration, deployment,
+grant-revocation or Case-family activation evidence.
+
+Phase 4 Case-reply authority candidate (2026-07-29): the compatible
+`grainline_case_reply` operation accepts the active actor, exact Case,
+sanitized body and at most four DirectUpload ids. PostgreSQL locks the actor
+before the parent Case, rederives party/staff authority and status, then
+derives author kind, transition effects, UTC clock, ids, attachment metadata
+and replay identity. Party precedence prevents an employee/admin who is also
+a participant from bypassing participant lifecycle rules.
+
+Attachment authority is tied to the existing private DirectUpload lifecycle:
+the upload must belong to the actor, be verified and private, use the
+`caseEvidenceImage` endpoint and key scope for the locked Case, and meet the
+accepted image/size bounds. The existing deferred trigger creates the
+exclusive lifecycle reference in the same transaction. PostgreSQL does not
+replace the route's R2 byte/signature verification, which remains an external
+precondition before the fixed write.
+
+Identical retries serialize on a database-derived advisory key and must match
+the exact recent body plus complete sorted attachment set. Every reply also
+serializes on the parent Case, preserving the already-reviewed different-body,
+seller-first and pending-close transition ordering. The sealed migration-tree
+phase, grant convergence, static SQL contract and a loopback-only PostgreSQL
+proof are included in the isolated candidate. Exact-head run `30440635790`
+passed at `ac4f6955db4cbdaaf3785d8de9fd6849546f80a0`: forged actor, status,
+recipient and upload-source denials; transition, replay and real lock-wait
+behavior; rollback and zero residue; grant/RLS audits; TypeScript; lint; the
+complete repository suite; reviewed dependency audit; and production build.
+Earlier run `30440456425` is retained as a proof-fixture failure: one
+DirectUpload seed parameter was inferred as both `varchar` and `text` before
+the authority function executed. The follow-up adds an explicit `text` cast
+and a static regression marker. Before application conversion, the proof also
+pins the claim/retry transition that the route depends on: first create changes
+the upload to `CLAIMED`, exact replay succeeds, and changed-body reuse fails
+without residue. Exact head `904745864275c3899f91263137400113189d1e95`
+passed the extended 20-check PostgreSQL proof and every repository gate in run
+`30465487551`. This closes the authority proof gate but does not close the
+separate application conversion. Case-family RLS and production remain
+unchanged.
+
+Phase 4 Case-reply application conversion candidate (2026-07-29): the route
+keeps one direct Case preflight for later `case_message_preflight` conversion
+and moves its other ten protected references to `grainline_case_reply`. It
+retains the existing request, actor, participant/staff PIN, recipient and R2
+verification gates. External object verification accepts VERIFIED or CLAIMED
+only so an exact retry can re-check R2 bytes and signature; the fixed database
+operation remains final authority for exact replay versus fresh VERIFIED-only
+creation. The application accepts one strict database result, returns replay
+before Notification/email and uses only returned identities afterward. The
+countdown is 54 remaining references across 25 files and twenty-six converted
+references.
+
+This application checkpoint also updates the still-disposable DirectUpload
+compatibility-key retirement generator. Because the compatible reply function
+dual-writes `CaseMessageAttachment.objectKey`, dropping that column without
+replacing the function would break replies. The generated retirement now
+recreates the fixed function without that column in the same transaction,
+preserves its ACL, and postflights owner, SECURITY DEFINER mode, pinned
+`search_path`, runtime grant, PUBLIC denial and source retirement. This does
+not stage or apply retirement, activation, RLS, grants or production changes.
+
+The Case-reply application and retirement-compatibility checkpoint passed
+exact-head normal CI run `30467976149` and dedicated DirectUpload PostgreSQL
+run `30467974830` at
+`4870908a8ff8df69a05acb52e4a7e2fffdfe91df`. The latter engine-executed the
+generated retirement candidate, including the rebuilt reply function, rather
+than treating regex coverage as database proof. Draft PR #99 is back on its
+intended stacked authority base. Production remains unchanged.
+
+Phase 4 Case-message preflight authority candidate (2026-07-29): add one
+coexistence-safe
+`grainline_case_message_preflight(actorUserId, caseId)` function shared by
+the reply and private-evidence upload routes. The fixed result contains only
+Case id, Order id, buyer/seller ids, status, source-derived author kind,
+non-party-staff mode, messageable state and the counterparty's fixed
+missing/deleted/suspended reason. Disabled, missing or unauthorized actors
+receive no row. The caller cannot assert role, recipient, author kind, status
+or availability.
+
+Hard review changed the planned function from INVOKER to a narrow SECURITY
+DEFINER source-bound read. INVOKER would couple Case messaging to broad runtime
+visibility of the counterparty User row and would break under later self-only
+User RLS. The DEFINER version validates the active actor and exact
+participant/current-staff relationship internally, exposes no User profile or
+contact field, pins `search_path`, denies PUBLIC and grants only the exact
+runtime signature. Clerk authentication, active-account resolution and the
+session-bound staff PIN remain outside PostgreSQL and load-bearing. The final
+reply function continues to lock and revalidate after preflight, so Case/status
+or counterparty races fail closed at the write boundary. This function-only
+checkpoint leaves the application inventory at 54 references and leaves all
+Case-family policies, grants and production state unchanged.
+
+Exact function-only head `67b899c714c5248c1a87df209bb01ca0e29c64b5`
+passed full GitHub Actions run `30470489003` (job `90639134941`), including
+disposable PostgreSQL migration/application, runtime-role authority and cleanup
+proof, grant/RLS audit, repository tests, dependency audit and production
+build. Draft PR #100 is back on its intended stacked base; nothing was applied
+or deployed to production.
+
+Phase 4 Case-message preflight application conversion candidate (2026-07-29):
+replace the reply and private-evidence upload routes' remaining direct Case
+lookups with one typed `grainline_case_message_preflight` wrapper. No row and
+invalid ids return the same non-enumerating 404. One exact result must pass a
+strict shape, identity, actor/party, staff-mode, lifecycle/messageable and
+recipient-state validator before either route proceeds. Both routes retain
+origin, Clerk/local-account, rate-limit and staff-PIN gates; the reply route
+also retains bounded/sanitized input, R2 byte verification and the final locked
+`grainline_case_reply` authority. The conversion moves two references to the
+durable converted ledger, leaving 52 remaining references across 23 files and
+twenty-eight converted references. It does not apply migrations, enable
+evidence, deploy or change Case-family RLS.
+
+Phase 4 bounded Case-message page authority candidate (2026-07-29): hard
+review corrected the original all-recipient-reads-are-INVOKER catalog rule.
+The interactive history page crosses Case, CaseMessage and attachment rows for
+both parties and staff. An INVOKER implementation would therefore require
+broad runtime visibility and would break as the later Case-family/User RLS
+boundaries narrow direct reads.
+
+The compatible
+`grainline_case_message_page(actorUserId, caseId, cursorCreatedAt, cursorId,
+limit)` operation is one source-validating SECURITY DEFINER projection. It
+validates an active actor, exact Case participation or current staff role,
+complete cursor pairs, a hard maximum of 51 rows and at most four attachments
+per message; orders by the existing `(createdAt,id)` keyset; and returns only
+message id, author id, durable or relationship-derived author kind, body,
+timestamp and bounded attachment metadata. It exposes no email, Clerk id, User
+profile field, DirectUpload id,
+public URL or private object key. The redundant per-message author name is
+removed from the later app conversion; the Case header and durable
+Buyer/Seller/Grainline Staff labels remain.
+
+Legacy null author kind is derived only when the author id equals the Case
+buyer or seller. An unknown non-party legacy author remains unlabeled rather
+than being promoted to staff from mutable current `User.role`. The function
+pins `search_path`, denies PUBLIC, grants only its exact runtime signature and
+changes no Case-family policy, RLS posture or table grant. Its disposable
+PostgreSQL proof covers buyer/seller/staff equivalence, foreign/disabled/missing
+denial, page bound and tie-stable cursor behavior, minimal attachment output,
+legacy author derivation, transaction-local context, read-only state and zero
+residue.
+
+Phase 4 bounded Case-message page application conversion candidate
+(2026-07-29): the buyer, seller and staff detail pages pass their authenticated
+local actor id to one typed `grainline_case_message_page` wrapper. The wrapper
+pins the exact fixed projection and rejects extra or malformed fields,
+timezone-less attachment timestamps, more than 51 messages, more than four
+attachments per message, duplicate ids and unstable message or attachment
+ordering. The pages no longer join mutable User profile data to label message
+authors; they display only durable Buyer, Seller or Grainline Staff labels and
+leave an unknown legacy author unlabeled. The conversion moves the direct
+message read and nested attachment relation to the durable converted ledger,
+leaving 50 current protected references across 22 files and thirty converted
+references. This is compatible app preparation only: no production migration,
+deployment, Case-family policy or RLS state changes.
+
+Phase 4 grouped Case recipient-read authority candidate (2026-07-29): add
+three coexistence-safe SECURITY INVOKER operations for one visible Case by id,
+one visible Case by Order id and the current staff active-Case count. Each
+operation validates the active database actor, sets transaction-local
+`app.user_id`, derives participant/current-staff visibility, returns a fixed
+minimal shape and grants only the exact runtime signature. The Case projection
+contains lifecycle fields required by buyer/seller/staff detail surfaces but
+no User PII, Order detail, payment-event provenance, attachment identifier,
+private object key or raw Stripe refund id. Every timestamp is converted from
+the database's UTC `timestamp without time zone` convention to `timestamptz`
+at the SQL boundary.
+
+The same review reclassifies the later PII-bearing staff queue as a narrow
+source-validating SECURITY DEFINER operation. It cannot remain INVOKER because
+future self-only User RLS would correctly hide the buyer/seller contact fields
+that PIN-verified staff need. That queue stays a separate later checkpoint;
+this grouped migration implements only the PII-free Case projections and
+count. No application reference moves in this authority-only checkpoint, so
+the inventory remains 50 current references across 22 files with thirty in
+the converted ledger. No RLS, table grant, deployment or production state is
+changed.
+
+Phase 4 grouped Case recipient-read application conversion candidate
+(2026-07-29): the buyer and seller Order detail pages, staff Case and Order
+detail pages, and PIN-gated staff active count now use the fixed typed
+recipient projections. Participant message-recipient availability comes from
+the already-proven source-bound preflight instead of a Case-to-User join.
+Staff Case detail resolves its Order and minimal party contact records only
+after the Case projection proves visibility. Shared pages no longer use or
+display the raw Stripe refund object id; durable refund resolution is the
+state signal, and provider evidence remains on the staff payment-event ledger.
+The conversion moves five protected references to the retained ledger,
+leaving 45 current references across 17 files and thirty-five converted
+references. It is coexistence-safe preparation only and does not activate
+Case-family RLS, change grants, migrate production or deploy application code.
+
+Phase 4 PIN-gated staff queue authority and application candidate
+(2026-07-29): one narrow SECURITY DEFINER function replaces the staff queue's
+direct Case count, paginated Case read and nested message count. It accepts
+only the already-resolved local actor id, an optional fixed Case status, a
+bounded page and a bounded page size. PostgreSQL revalidates active
+EMPLOYEE/ADMIN authority, derives count plus clamped page from one statement
+snapshot, preserves the current resolved-last stable order, and emits only the
+minimal labels and Case metadata the queue renders. The explicit UTC timestamp
+and message count are database-derived; no User ids, Clerk ids, narrative,
+payment/refund evidence or private-object identifiers cross the boundary.
+
+The strict typed wrapper is the only Case-family call in the queue page and
+the existing `requireAdminPageAccess` plus session-bound staff PIN remain
+mandatory. The migration is coexistence-safe function preparation with an
+exact runtime EXECUTE grant only. This moves three more protected references,
+leaving 42 current references across 16 files and thirty-eight converted
+references. Production and Case-family RLS remain unchanged. Exact ephemeral
+PostgreSQL proof must still demonstrate staff/admin equivalence, foreign and
+disabled actor denial, forced-RLS isolation across Case/User/CaseMessage,
+filtering, page clamping, stable order, minimal contact fallback,
+transaction-local context, zero mutation and zero fixture residue before the
+checkpoint can be promoted.
+
+Phase 4 Case-aware Order authority candidate (2026-07-29): do not implement
+the catalog's earlier generic `orderId -> active Case` predicate. The shared
+runtime credential would gain an unnecessary arbitrary-Order dispute-state
+oracle. Use separate
+`grainline_case_order_active_for_buyer(actorUserId, orderId)` and
+`grainline_case_order_active_for_seller(actorUserId, orderId)` operations.
+The first derives active buyer ownership; the second derives an active seller
+and requires at least one Order item with no item owned by a different seller.
+Both return `NULL` for missing/unauthorized targets and otherwise only one
+boolean. They do not set or replace `app.user_id`; the PostgreSQL proof must
+seed a caller context and prove it is unchanged after the fixed predicate.
+
+Delivery confirmation, seller fulfillment and label purchase retain their
+existing Clerk/account/origin/rate/refund/state checks. They call the fixed
+predicate for user-facing feedback, then lock the exact Order and call it again
+inside the transaction before changing delivery, fulfillment or label state.
+Case creation also locks the Order first, so this makes the database check
+authoritative against Case-open/transition races without leaving direct Case
+relations or raw SQL in those routes.
+
+The retention source needs a distinct lifecycle operation, not either
+participant predicate. `grainline_order_buyer_pii_prune_batch(batchSize)`
+derives the fixed 90-day cutoff from the PostgreSQL UTC clock and selects only
+old delivered/picked-up, non-review, PII-bearing Orders. It excludes active
+Cases while acquiring each Order lock with `FOR UPDATE SKIP LOCKED`, then
+deletes only same-Order rate quotes and clears the already-reviewed PII field
+set. The runtime cannot supply Order ids or a cutoff. A retention-policy change
+therefore requires migration review rather than a caller argument. The
+application keeps its bounded time loop and strictly validates count and
+database cutoff results.
+
+This compatible candidate adds no policy, RLS posture or table grant. It moves
+eight references to the durable conversion ledger, leaving 34 current
+references across 12 files and forty-six converted references. Before it can
+be accepted, disposable PostgreSQL 16 must prove buyer/seller/foreign/disabled
+behavior, exact grants, FORCE isolation, locked Case races, fixed retention
+eligibility, rollback and zero residue. The Order/OrderShippingRateQuote
+mutation is an explicit dependency to re-review in their later RLS group.
+
+Failed proof evidence is not discarded: exact-head run `30487848128` applied
+the tree and passed all predecessor Case proofs, then a raw fixture omitted
+the required `SellerProfile.updatedAt` value and stopped before authority
+assertions. The corrected harness explicitly timestamps all raw-seeded
+`@updatedAt` models and pins that fixture/schema boundary in tests.
+
+Corrected run `30488100064` (job `90698760535`) accepted the candidate engine
+behavior: all 13 Case-aware Order checks and the complete repository CI gate
+passed against disposable PostgreSQL. This is preparation evidence only; it
+does not authorize merging the stacked chain, applying production migrations
+or activating Case-family RLS.
+
+Phase 4 seller-aggregate authority candidate (2026-07-29): seller metrics,
+Guild eligibility and Guild revocation/reinstatement need three distinct
+purpose-bound operations rather than one generic seller-to-Case aggregate.
+`grainline_case_seller_active_count` resolves one current active seller
+profile and returns only its active unresolved count. The verification
+operation binds the actor to that seller or a current staff user, derives the
+fixed 60-day cutoff from the PostgreSQL UTC clock and returns only the aged
+unresolved count. The Guild guard accepts one seller profile only when its
+current Guild or reinstatement state is eligible, derives the fixed 90-day
+cutoff from the database clock and locks the exact oldest blocking Case in
+stable `(createdAt,id)` order before returning one boolean.
+
+No cutoff timestamp, Case id, participant id, narrative or lifecycle row is
+caller-supplied or returned. This also avoids exporting
+`timestamp without time zone` evidence for application parsing. The admin
+verification server actions now repeat the session-bound staff PIN check
+inside the action before using staff authority; the admin layout is not
+treated as sufficient server-action authorization.
+
+The Guild cron and staff reinstatement paths re-run the fixed guard inside
+their mutation transaction. Direct Case relation filters are removed from the
+SellerProfile update so future Case RLS cannot silently hide the guard; the
+function's blocking Case row lock is the database authority boundary. The
+candidate adds no policy, RLS posture, table grant, production migration
+authorization or deployment. It moves six references to the retained ledger,
+leaving 28 current references across 7 files and fifty-two converted
+references. Its loopback PostgreSQL proof covers grants, forced-RLS source
+isolation, seller/staff/foreign behavior, Guild state binding, the real
+blocking-row lock, context preservation and zero residue.
+
+Exact authority head
+`b029f0ab9fec927317ffca60b0f5d09a6e70e6f0` passed GitHub Actions run
+`30490356203` (job `90706405419`). PostgreSQL 16 applied the sealed migration,
+converged production-style grants and passed all 13 seller-aggregate checks,
+including the real blocking-row lock and forced-RLS source isolation. Every
+predecessor RLS proof, migration status, final grant audit, TypeScript, lint,
+full tests, dependency audit and production build also passed. This is
+preparation evidence only; it does not authorize merging the stacked chain,
+applying production migrations or activating Case-family RLS.
+
+The first full local suite after this conversion failed only in three
+repository contracts that still pinned the prior 42-reference inventory and
+Case-aware Order review phase. The scanner itself reported the expected
+17 direct, 3 relation and 8 raw references. The contracts were advanced to
+the seller-aggregate phase without weakening the production-workflow boundary;
+focused tests, the complete local suite, TypeScript, lint and the sealed
+release-artifact guard then passed. The PostgreSQL proof is intentionally not
+claimed as a local result because no loopback `grainline_ci` service is
+available in this worktree; exact-head CI subsequently executed it as recorded
+above.
+
+Phase 4 account-export and private-evidence read candidate (2026-07-29):
+account export must remain complete without asking PostgreSQL for every Case,
+message and attachment in one unbounded nested query. The participant-only
+`grainline_case_export_page` uses a stable `(createdAt,id)` keyset and a fixed
+25-row maximum. The application walks every Case page and reuses the existing
+51-row Case-message authority, retaining complete history and the existing
+four-attachment invariant while sorting each Case's messages back into the
+export's historical ascending order. No Case, message or attachment is
+silently capped; database work is bounded per statement.
+
+The private-evidence download route does not need a second new bypass. It uses
+the already-proven `grainline_case_get` result to distinguish participant
+access from staff access, repeats the session-bound staff PIN when
+`actsAsStaff` is true, then calls the existing source-bound DirectUpload
+attachment reader. That preserves the exact attachment/Case/source lifecycle
+validation while removing the route's direct Case lookup.
+
+This conversion moves four references to the retained ledger, leaving 24
+current references across 5 files and fifty-six converted references. It adds
+no policy, RLS posture, table grant, production migration authorization,
+provider resource or deployment. The account export still materializes the
+complete multi-model JSON response in application memory, as it did before.
+If real account histories make that response materially large, replace the
+route-level payload builder with a streaming archive as a separate
+cross-model scalability project; do not truncate a user's legal/privacy
+export to solve memory pressure.
+
+The first complete local suite after the conversion found two stale
+private-evidence source contracts: they still required the removed inline
+participant comparison and the removed nested Prisma attachment select. The
+application behavior was not failing. The contracts now assert the fixed
+Case projection, staff-PIN branch, participant export wrapper, bounded
+Case-message paging and attachment metadata validator instead. The focused
+suite and all 2,522 repository tests then passed locally; the disposable
+PostgreSQL execution remains an exact-head CI gate because no loopback
+`grainline_ci` service is available in this worktree.
+
+The local production build compiled and completed its TypeScript pass, then
+stopped during page-data collection because this disposable worktree
+intentionally has no `DATABASE_URL`. No application/build defect was inferred
+from that environment-only stop; the exact-head CI build supplies its
+loopback runtime database and remains the accepted build result.
+
+Exact authority head
+`ae34610711885862b4cca5b30a94345fba7448a9` passed GitHub Actions run
+`30492571639` (job `90713758178`). PostgreSQL 16 applied the complete sealed
+migration tree, converged production-style grants and passed all 11
+account-export checks: exact catalog/ACLs, forced participant policies,
+tie-stable keyset pages, buyer/seller equivalence, outsider/disabled/missing
+denial, invalid-input denial, unset-context direct-read denial,
+transaction-local context, read-only state and zero residue. Every predecessor
+RLS proof, migration status, final grant audit, TypeScript, lint, all tests,
+dependency audit and production build also passed. This remains preparation
+evidence only; it does not authorize merging the stacked chain, applying
+production migrations, deploying application code or activating Case-family
+RLS.
+The durable evidence-record head
+`985777a4d08dcc458e72dfb95e2089ea606835c2` then passed exact-head run
+`30492856829` (job `90714705449`) with the same complete gate. Temporary CI
+carrier PR #114 was closed unmerged after that success.
+
+Phase 4 staff-resolution application completion (2026-07-29): the route's
+remaining friendly preflight duplicated security-relevant Case, Order,
+payment-event, label and stock reads that
+`grainline_case_staff_resolution_prepare` already repeats under the reviewed
+actor-to-Order-to-Case lock protocol. Keeping those reads would both fail
+after narrow Case grants and retain a race-prone application snapshot that is
+not authoritative for the Stripe decision.
+
+The route now sends only the bounded, schema-validated resolution inputs to
+the fixed prepare operation. PostgreSQL derives and locks the parties, Order
+total, refund/dispute/label eligibility, existing resolution claim,
+fulfillment state and exact available stock; it canonicalizes the partial
+stock plan from locked OrderItem/Listing rows. Exact durable claims still
+replay before new-work refund guards. Provider work and finalization continue
+to use only the strictly validated function results and claim-bound
+idempotency scope.
+
+The admin client never consumed the successful Case graph: it only checked
+the status and returned to the queue. The route therefore returns a bounded
+success acknowledgement from the already-validated finalization result rather
+than re-reading Case with nested messages and Order after the transaction.
+This removes two direct Case reads and one nested CaseMessage reference,
+leaving 21 current references across 4 files and fifty-nine converted
+references. It changes no migration, policy, grant, RLS posture, provider
+resource, production data or deployment.
+
+The first complete local suite after this change found one stale
+source-ordering contract that still required the removed
+`prisma.case.findUnique` marker. The origin guard itself remained first in the
+route. The test now pins the guard before authentication, staff PIN, stale-lock
+cleanup, bounded parsing, fixed prepare and Stripe work without requiring a
+forbidden protected-table read. The focused authority/inventory/payment tests,
+TypeScript, lint and all 2,522 repository tests pass locally (2,516 pass and
+6 PostgreSQL-environment skips).
+
+Exact staff-resolution application head
+`d2b30d765af3c8b55a68949073c489c72ac192bb` passed GitHub Actions run
+`30493654183` (job `90717324313`). The temporary validation PR #115 was
+closed unmerged after that exact-head success. This is compatible preparation
+evidence only; production Case-family RLS remains off.
+
+Phase 4 escalation and scheduled-transition candidate (2026-07-29): the
+interactive route no longer accepts `CRON_SECRET` as authority for an
+arbitrary caller-selected Case or retains the unused `id="all"` bulk surface.
+It requires an authenticated local actor; non-party staff still pass the
+session-bound PIN before the fixed operation. PostgreSQL revalidates the
+current participant or staff role, counterparty availability, eligibility,
+refund/resolution fences and replay evidence under the shared
+User -> Order -> Case lock order. It derives the transition clock, audit
+target, metadata and deterministic retry identity.
+
+The scheduled job invokes one bounded function for each exact family:
+`PENDING_CLOSE_EXPIRED`, `OPEN_RESPONSE_DUE` and `STALE_DISCUSSION`. The
+caller supplies no Case id, cutoff, target state, recipient, audit identity or
+notification payload. PostgreSQL selects stable due rows, locks users then
+each Order and Case with `SKIP LOCKED`, rechecks the lifecycle predicates,
+co-commits the Case transition and strict system audit, and creates both
+source-validated notifications in the same transaction. The application
+retains its six notification calls only as deduplicated post-commit recovery
+replays, so delivery no longer depends on volatile in-memory transition rows.
+Three partial due-row indexes and index-friendly fixed `UNION ALL` branches
+bound the pending-close, open-response and stale-discussion scans as terminal
+Case history grows.
+
+This conversion moves nine protected references to the retained ledger,
+leaving 12 current references across 2 files and sixty-eight converted
+references. The remaining application surface is the account-deletion
+lifecycle conversion; the final raw reference is the private Case lock core,
+which is not a runtime-executable operation. This candidate adds no Case
+policy, table-grant revocation or production authorization. Acceptance still
+requires the exact-head PostgreSQL catalog, forced direct-denial, atomic
+audit/notification, replay, lock-skip, concurrent-worker, reply-race,
+rollback and zero-residue proof.
+
+The first complete local suite after this conversion found two stale
+repository contracts rather than application failures. The cron schedule
+guard assumed `withSentryCronMonitor` stayed on one source line, and the
+derived grant inventory still pinned the prior function count. The schedule
+matcher now tolerates formatting-only whitespace and the grant inventory
+explicitly includes both new functions and PUBLIC revocations. The corrected
+complete suite passes all 2,538 tests locally (2,531 pass and 7
+PostgreSQL-environment skips), together with focused authority contracts,
+TypeScript, lint and the exact sealed migration-tree guard.
+
+Exact escalation/cron head
+`7132093163faefaec646d92f08d3bd5a966205f7` then passed GitHub Actions run
+`30496775294` (job `90727343830`). PostgreSQL 16 applied the complete stacked
+migration tree, converged production-style runtime grants and passed the new
+authority, replay, atomic audit/notification, concurrent-worker, lock-race,
+rollback and zero-residue proof. Every predecessor RLS proof, migration
+status, final grant/RLS audit, TypeScript, lint, complete repository suite,
+reviewed dependency audit and production build also passed. Draft PR #116 is
+validation-only; this evidence does not authorize merge, production
+migration, deployment, direct-grant revocation or Case-family RLS activation.
+
+Final ordinary-application conversion candidate (2026-07-29): account
+deletion now obtains the active participant-Case count through
+`grainline_case_account_deletion_blockers` and passes only the exact retained
+`LOCAL_ANONYMIZE` side-effect id to
+`grainline_case_account_deletion_redact`. The write function discovers the
+User, takes the established User lock, re-locks and validates the side effect,
+then rechecks active Cases to close the preflight-to-anonymization race. It
+derives all sensitive values, participant Cases and message targets and uses
+the existing private Conversation/Message redaction core; callers cannot
+choose redaction needles, rows or replacement text.
+
+This moves the final eleven ordinary account-deletion references into the
+retained ledger. The scanner now finds zero direct, relation or raw
+protected-table references in ordinary application code. The 80-reference
+baseline is therefore 79 converted references plus one historical reference
+from the unused `lockCaseForLifecycle` helper, which is removed from
+production source and retained in a separate retired-source ledger. The older
+disposable lifecycle proof keeps its equivalent lock local to the harness.
+This remains compatible preparation: the two new functions do not enable RLS,
+revoke table grants or authorize a production migration or deployment. A
+fresh exact-head PostgreSQL proof is required before Phase 4 can close.
+
+The proof harness is saved as
+`scripts/case-account-deletion-authority-postgres-proof.mjs`. It refuses
+non-loopback targets and databases other than `grainline_ci`; checks the exact
+function modes and ACLs; forces zero-policy RLS on disposable Case and
+CaseMessage fixtures; proves direct runtime reads/writes cannot reach those
+rows while the two fixed functions still work; rejects active Cases, forged
+side-effect sources and the wrong isolation level; demonstrates transaction
+rollback and the shared User-lock serialization; preserves a historical Gmail
+alias claimed by another active account; proves source-derived redaction and
+idempotent replay; then restores pre-RLS posture and requires zero fixture
+residue. The buyer-description fixed replacement and seller-description
+quoted-value redaction are deliberately disjoint so a sensitive value cannot
+cause a second pass to alter the fixed deletion placeholder.
+
+The complete local suite after this final conversion exposed seven stale
+repository contracts, not application failures. Two helper-boundary tests
+still used the removed `collectCaseMessagesBySensitiveText` function as the
+end marker for `cleanupDeletedSellerFanoutRows`; they now end at the next
+surviving helper, `redactOrderReviewNotesForDeletedAccount`, and continue to
+assert sequential database work and exact fanout cleanup. Three predecessor
+migration tests still expected the escalation/cron phase to be the CI tree
+head; they now require this account-deletion phase while keeping the
+production workflow pinned to its older authorized boundary. One older
+Conversation/Message CI-ordering contract also named the prior Case guard
+step; it now identifies the current Case guard while retaining all of its
+before/after ordering assertions. The Unicode redaction contract still
+expected the removed application body scanner; it
+now pins the database-derived two-code-point threshold and existing private
+redaction core. Local TypeScript and lint were already green. The live-engine
+proof remains an exact-head CI gate because this workstation has no loopback
+PostgreSQL server or client; static or PGlite execution is not accepted as a
+substitute for PostgreSQL role, RLS, ACL and row-lock behavior.
+
+## Phase 5: ENABLE activation
+
+Release package prepared 2026-08-04: migration
+`20260804160000_enable_case_rls` promotes the already-proven activation draft
+without changing its SQL body. Exact hashes, predecessor evidence, workflow
+ordering, rollback boundary and production non-authorization are recorded in
+`docs/case-activation-production-release.md`. The package is not a live-state
+claim; production remains at the accepted RLS-off predecessor until an exact
+merged commit passes CI and a separate guarded migration run succeeds.
+
+The activation package also prepares the separate pooled-runtime acceptance
+operator `ops:case-activation-postflight`. After the exact migration run, it
+must bind the exact clean main release, its successful main CI run and the
+successful migration run, then prove the policyless ENABLE catalog and direct
+read denial inside a PostgreSQL-attested read-only transaction. FORCE remains
+a later release even after that acceptance passes.
+
+- Inspect/backup legacy rows and confirm no cleanup is pending.
+- Converge the four remaining bounded `SECURITY INVOKER` projections to
+  `SECURITY DEFINER` in a compatible pre-activation migration. Their bodies
+  already revalidate the exact active actor and return only the reviewed
+  bounded projection; changing the execution mode adds no caller input or
+  output.
+- Activate `Case`, `CaseMessage` and `CaseMessageAttachment` as policyless
+  service tables: ENABLE RLS, keep FORCE off, create zero policies, and revoke
+  every runtime/PUBLIC table and column privilege. The completed zero-direct-
+  access inventory means retaining a participant or staff table policy would
+  widen authority solely to support code paths that no longer exist.
+- Keep FORCE off for the first activation.
+- Run exact catalog/grant audit, direct runtime denial, authenticated
+  buyer/seller/staff smoke, cron/webhook-safe proof and rollback proof.
+
+Exit: initial Case/CaseMessage/CaseMessageAttachment RLS is accepted in
+production with sanitized evidence and complete fixture/session/cache cleanup.
+
+## Phase 6: FORCE hardening
+
+- Use a separate FORCE-only migration that changes no row, policy, grant,
+  function or app code.
+- Fail closed unless exact accepted ENABLE catalog, table ownership,
+  runtime/owner role posture, migration checksum and owner-session drain hold.
+- Apply through the protected manual-main production migration workflow.
+- Re-run actual pooled-runtime denial and authenticated route postflight.
+
+Exit: Case, CaseMessage and CaseMessageAttachment are FORCE-hardened with
+retained rollback and postflight evidence. Only then begin the next sensitive
+group.
+
+### Shared redaction-length correction (2026-07-29)
+
+The first exact-head account-deletion run `30499316513` (job
+`90735221125`) at `4bf6b5b5` completed all 15 database checks and the entire
+CI suite, but a deliberate post-proof source review found a boundary the
+fixtures had not covered. The private shared redaction core can expand a
+5,000-character value when a two-character source-derived needle is replaced
+by `[deleted account]`, causing the destination `varchar(5000)` update to fail.
+Because the same core serves the already-live Conversation/Message deletion
+function, accepting the Case proof without fixing the shared invariant would
+leave both deletion paths vulnerable to valid retained data.
+
+The candidate now redefines that existing private core in the forward Case
+account-deletion migration, retaining its immutable/parallel-safe
+SECURITY DEFINER shape, pinned search path and zero runtime/PUBLIC execute
+authority. It performs all redactions before capping the result to the
+original character length. The revised proof seeds a true 5,000-character
+CaseMessage with repeated, word-bounded `CA` tokens derived from the deleting
+User's shipping state. Readiness requires 16 checks, including successful
+redaction, exact bounded length, no surviving token, forced-RLS direct denial,
+rollback, locking, idempotency and zero residue. The migration-tree hash and
+exact-head CI evidence must be refreshed; the earlier run is retained as
+superseded evidence rather than relabeled.
+
+The revised migration SHA-256 is
+`5c23eadcf394917aae69527befa16462300e5c1182fef378c772c3b2f4f07a59`;
+the exact reviewed migration-tree fingerprint is
+`6554a1c4ad4d78fae5ff052a2c4c4786d203d2397aacb87084dcf600e1a23826`.
+Locally, the sealed-tree guard, complete test suite, TypeScript and lint pass.
+The sandboxed build reached successful compilation and TypeScript before
+correctly stopping because no production `DATABASE_URL` was supplied; the
+local dependency audit was also unable to reach the npm registry. The fresh
+exact-head CI run must therefore supply the final real PostgreSQL, dependency
+audit and production-build evidence rather than weakening either gate or
+connecting this workstation build to production.
+
+Exact revised account-deletion head
+`743cd957850fb0ecf57d2f9e8130b624c84a3517` passed GitHub Actions run
+`30500124919` (job `90737739979`). PostgreSQL applied the complete sealed
+migration tree and the 16-check Case deletion proof accepted the private
+shared-core ACL, maximum-length/two-character redaction boundary, source and
+active-Case denials, forced-RLS direct denial, rollback, User-lock
+serialization, derived redaction, idempotency and zero residue. Every
+predecessor database proof, migration status, final runtime grant/RLS audit,
+TypeScript, lint, complete repository suite, dependency audit and production
+build passed in the same run. This supersedes the 15-check evidence for
+readiness but remains isolated compatible-preparation proof; production and
+persistent staging were unchanged.
+
+### Invariant draft re-audit correction (2026-07-29)
+
+The prior 43-check invariant proof installed the draft before seeding its
+fixtures. That proved post-install trigger and constraint behavior, but it also
+meant the migration's legacy preflight saw empty Case tables and never
+demonstrated that preexisting trigger-only anomalies would stop promotion.
+The draft also ran unlocked preflight reads, leaving an old compatible writer
+able to commit an anomaly before trigger creation, and its direct
+`openedByPaymentEventId` trigger validated less provider provenance than the
+already-reviewed fixed Stripe-dispute operation.
+
+The corrected unapplied draft now takes the rollout advisory lock, applies
+bounded lock/statement timeouts, and write-freezes Case, CaseMessage and
+CaseMessageAttachment before inspection. It rechecks existing
+Order/buyer/seller binding, webhook opening provenance, message author-kind
+and clocks, attachment author/clock binding and opening evidence. New helper
+functions use `CREATE FUNCTION`, not `CREATE OR REPLACE`, so an unexpected
+catalog collision fails rather than silently overwriting code. The dispute
+trigger now also pins nonblank event/object ids, the exact retained Order
+charge, numeric provider time, live dispute status and lowercase currency.
+The message-author trigger takes the parent Case `FOR UPDATE`, not `FOR SHARE`,
+because its paired after-insert trigger advances the thread clock. Two direct
+inserts that both held a shared parent lock and then upgraded to update could
+deadlock; the stronger parent lock serializes that boundary and is already
+held by the fixed reply operation.
+The deferred opening-evidence trigger also locks the parent Case before
+counting remaining messages. Without that lock, two concurrent deletes of the
+last two messages could each see the other's uncommitted row and commit an
+empty human-opened Case. A cascading parent deletion is allowed because no
+Case row remains to protect.
+The attachment-parent trigger likewise takes the parent CaseMessage
+`FOR UPDATE`, matching the existing deferred DirectUpload reference trigger
+that later updates/locks the same source graph and preventing a shared-lock
+upgrade race for concurrent attachment inserts.
+
+The rollback-only proof now first seeds invalid legacy Case and CaseMessage
+rows before attempting the draft and requires both preflights to reject. Its
+normal post-install phase additionally rejects a same-Order dispute event with
+a forged charge. The resulting 46-check candidate is still draft-only and
+must pass exact PostgreSQL CI before any invariant migration is promoted.
+
+Exact invariant re-audit head
+`7543d84cd041b89580c988666b0522cddee73dad` passed GitHub Actions run
+`30500866299` (job `90740015271`). The run applied the complete migration tree,
+converged production-style grants and passed the revised 46-check invariant
+proof, including legacy-row rejection before trigger installation, exact
+opening-source provenance, lock-order/race coverage, rollback and zero
+residue. Every predecessor PostgreSQL proof, migration status, final grant/RLS
+audit, TypeScript, lint, complete repository suite, dependency audit and
+production build passed in the same run. Production and persistent staging
+were unchanged.
+
+The subsequent activation-authority review rejects a broad staff-visible
+`Case` SELECT policy. PostgreSQL cannot attest the session-bound staff PIN, so
+such a policy would let any future direct query running with a real staff
+actor context bypass the PIN-gated route boundary. Because all 79 ordinary
+Case-family references are converted and the one unused historical helper is
+retired, the live scanner is empty. The least-privilege destination is
+therefore policyless ENABLE RLS plus zero runtime/PUBLIC table grants on all
+three tables. Four originally INVOKER projections must first become bounded
+SECURITY DEFINER operations so they do not require retaining a direct SELECT
+grant. Draft-only read-mode, ENABLE, rollback and FORCE SQL are retained under
+`docs/rls-drafts/`; none is a migration or production authorization.
+
+The first exact policyless-activation engine attempt at
+`4e92fc489f6728f73b5c81201dc49f3b370a398f` failed closed in GitHub Actions
+run `30502489130` (job `90744973040`) before any activation statement. Its
+preflight incorrectly required all eight invariant trigger functions to be
+`SECURITY DEFINER`; PostgreSQL reported the actual intentional count of five.
+The three row-local immutable/status validators read no protected table and
+are intentionally `SECURITY INVOKER`, so promoting them would add privilege
+without need. The corrected candidate pins the exact five DEFINER and three
+INVOKER names, modes, owner, volatility, parallel safety, search path and
+PUBLIC/runtime denial in both ENABLE and later FORCE preflights. The failed
+run is retained as superseded evidence; a fresh complete PostgreSQL run is
+required before this draft can be accepted.
+
+The corrected invariant-mode head
+`8fae985db8ef88ad8858307d4508cdcd4e40f320` passed the five-DEFINER /
+three-INVOKER gate in GitHub Actions run `30502852059` (job
+`90746114712`), then failed closed before activation because the next
+preflight expected 28 fixed functions. PostgreSQL correctly found 27:
+`grainline_case_lock_core` was a planning-catalog entry, not an installed
+database function. The similarly named TypeScript lock helper had no
+application caller and was imported only by an older disposable race proof.
+The correction removes it from production source, keeps the equivalent lock
+local to that harness, and accounts for the historical reference in a
+retired-source ledger. It does not create new owner authority merely to
+satisfy a mistaken count. Production and persistent staging were unchanged; a
+fresh exact-head run is required.
+
+Exact corrected-catalog head
+`04b546350cf0fbec34fc9294f188d1160c95e999` passed every preceding Case
+authority proof and reached the policyless activation body in GitHub Actions
+run `30503586032` (job `90748394722`). The disposable transaction then failed
+in activation postflight because PostgreSQL does not treat `PUBLIC` as a role
+name for `has_table_privilege` or `has_any_column_privilege`; PUBLIC is the
+ACL pseudo-grantee with OID zero. The corrected activation, rollback and FORCE
+drafts use `aclexplode(...).grantee = 0` for direct PUBLIC table/column grants.
+They also test all four required predecessor/rollback CRUD privileges
+individually, avoiding comma-list “any privilege” semantics. The proof
+transaction rolled back and production/persistent staging were unchanged. A
+fresh exact-head run is required.
+
+Exact ACL-corrected head
+`32c68acca6a3ab7af38025c50ede2322ddb5a245` passed the activation body,
+policyless postflight, direct runtime denials and fixed-function access in
+GitHub Actions run `30503946659` (job `90749525114`). It then failed before
+the later FORCE body because the rollback-only proof keeps both release
+transactions inside one outer transaction and still had pending deferred
+invariant-trigger events. PostgreSQL refuses `ALTER TABLE` while those events
+are pending. Real FORCE is a separately committed later migration; the harness
+now executes `SET CONSTRAINTS ALL IMMEDIATE` before its FORCE savepoint to
+model that boundary without weakening the draft. The run rolled back and
+production/persistent staging were unchanged.
+
+Exact boundary-corrected head
+`b9f2e40c530c06787afee1cb776010f853f5f7d4` passed GitHub Actions run
+`30504119117` (job `90750043124`). PostgreSQL 16 passed the complete 54-check
+invariant, policyless ENABLE, direct-denial, fixed-function, FORCE and rollback
+sequence with zero persistent residue. Every predecessor Case authority proof,
+migration status check, final grant/RLS audit, TypeScript, lint, all 2,569
+repository tests, dependency audit and production build passed. The draft
+authority/invariant gate is complete; the next work is compatible release
+packaging. No production migration, deployment or activation is authorized by
+this evidence.
+
+### Compatible production boundary and invariant promotion (2026-07-29)
+
+The compatible database preparation is live at exact main
+`4728f673fdf0a11d38aaac384f3d9afe2cf86117`; protected Production Migrations
+run `30511805499` applied only the 16 reviewed preparation migrations. The
+pooled-runtime read-only postflight retained mode-0600 evidence with SHA-256
+`3003f96d3b74a3805ecbb0b82671f0cc52134d84ba326ce92ac5a1a0f628ff64`.
+The compatible application subsequently merged as
+`f2f6861b177a47d22ed304714372584b79a0a0b0`, passed exact-main CI run
+`30512956823` (job `90776727905`), and was deployed to production as
+`dpl_Gvsge8MWYW8DfDRSom34YPwsY8rH`. Case evidence remains disabled because
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED` is absent. Case-family RLS remains off,
+with zero policies and predecessor direct CRUD retained only for this
+compatibility window.
+
+The next isolated candidate promotes only
+`20260730010000_enforce_case_message_invariants`. Its SQL is mechanically
+derived from the byte-pinned accepted draft, with migration SHA-256
+`4557c044740a6cee0d30b78ebe1d9bb300b43613cf979fba01d2571e3c4d1fa1`
+and reviewed tree SHA-256
+`91815465852a6ce8aafbd05ac3a6775925da5303284360b71d6f84f3a20f3b64`.
+It contains six validated constraints, eight runtime-private trigger
+functions and nine triggers. It contains no RLS, policy, table/column grant,
+application or provider change. The production guard advances only to
+`case-invariant-reviewed`; read-mode, ENABLE and FORCE remain rejected as
+later releases. The operator and exact evidence contract are recorded in
+`docs/case-invariant-production-release.md`.
+
+### Compatible read-mode convergence (2026-07-30)
+
+The invariant-only production migration and pooled-runtime proof are accepted.
+The compatible read-mode convergence is also live and postflighted from exact
+main commit `eadfe234e6543790953d1737bb78b4cdfc366d5a`: protected migration run
+`30559726020` applied only
+`20260730020000_converge_case_read_modes`, and pooled-runtime evidence SHA-256
+`a61462f355c46b161932261ed75031875c8022f20a490e50f32166a870267d9a`
+proved the exact catalog in a read-only transaction. It mechanically derives
+from the accepted read-mode draft and changes exactly four bounded Case
+projections from INVOKER to DEFINER. It changes no body, RLS flag, policy,
+table grant or row. The reviewed migration-tree fingerprint is
+`e0dfa816c70aa0aee6ccf3e6aa72e6412dc0e9f3d20413152caa236744dd6e4c`.
+Case-family RLS remains off, FORCE remains off, zero policies exist, and
+predecessor CRUD remains temporarily compatible. Policyless ENABLE and FORCE
+remain separate later releases. Exact scope, threat limit, proof and evidence
+are in
+`docs/case-read-mode-production-release.md`.

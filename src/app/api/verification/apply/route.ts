@@ -1,0 +1,168 @@
+// src/app/api/verification/apply/route.ts
+import { ensureSeller } from "@/lib/ensureSeller";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { prisma } from "@/lib/db";
+import { rateLimitResponse, safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import { guildMemberApplicationBlockReason } from "@/lib/guildApplicationState";
+import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
+import { logServerError } from "@/lib/serverErrorLogger";
+import { formatCurrencyCents } from "@/lib/money";
+import { z } from "zod";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
+import { getSellerVerificationOrderSales } from "@/lib/orderEligibilityAuthority";
+
+export const runtime = "nodejs";
+
+const REQUIRED_LISTINGS = 5;
+const REQUIRED_SALES_CENTS = 25000; // $250
+const REQUIRED_ACCOUNT_DAYS = 30;
+const VERIFICATION_APPLY_BODY_MAX_BYTES = 24 * 1024;
+
+const VerificationApplySchema = z.object({
+  craftDescription: z.string().min(1).max(500),
+  yearsExperience: z.number().int().min(0).max(100),
+  portfolioUrl: z.string().max(500).optional().nullable(),
+});
+
+export async function POST(req: Request) {
+  try {
+    const { me, seller } = await ensureSeller();
+    const { success: rlOk, reset } = await safeRateLimit(verificationApplyRatelimit, me.id);
+    if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many verification applications."));
+
+    let verParsed;
+    try {
+      verParsed = VerificationApplySchema.parse(await readBoundedJson(req, VERIFICATION_APPLY_BODY_MAX_BYTES));
+    } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return privateJson({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return privateJson({ error: "Invalid JSON" }, { status: 400 });
+      }
+      if (e instanceof z.ZodError) {
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      throw e;
+    }
+
+    const craftDescription = truncateText(sanitizeText(verParsed.craftDescription), 500);
+    const yearsExperience = Math.max(0, Math.floor(verParsed.yearsExperience));
+    const portfolioUrl = normalizePublicHttpsUrl(verParsed.portfolioUrl);
+    if (verParsed.portfolioUrl?.trim() && !portfolioUrl) {
+      return privateJson({ error: "Portfolio URL must be a valid https:// URL." }, { status: 400 });
+    }
+
+    // ── Server-side eligibility check ─────────────────────────────────────
+    const sellerData = await prisma.sellerProfile.findUnique({
+      where: { id: seller.id },
+      select: {
+        userId: true,
+        guildLevel: true,
+        makerVerification: { select: { status: true, reviewedAt: true } },
+        user: { select: { createdAt: true } },
+      },
+    });
+
+    if (!sellerData) {
+      return privateJson({ error: "Seller profile not found" }, { status: 404 });
+    }
+    const applicationBlockReason = guildMemberApplicationBlockReason({
+      guildLevel: sellerData.guildLevel,
+      verificationStatus: sellerData.makerVerification?.status,
+      reviewedAt: sellerData.makerVerification?.reviewedAt,
+    });
+    if (applicationBlockReason) {
+      return privateJson({ error: applicationBlockReason }, { status: 409 });
+    }
+
+    const [activeListings, totalSalesCents, longCaseCount] = await Promise.all([
+      prisma.listing.count({ where: { sellerId: seller.id, status: "ACTIVE", isPrivate: false } }),
+      getSellerVerificationOrderSales({
+        actorUserId: me.id,
+        sellerProfileId: seller.id,
+      }).then((result) => {
+        if (result == null) {
+          throw new Error("Order seller verification authority denied seller access");
+        }
+        return result;
+      }),
+      getCaseSellerVerificationEligibility({
+        actorUserId: me.id,
+        sellerProfileId: seller.id,
+      }).then((result) => {
+        if (!result) {
+          throw new Error("Case seller verification authority denied seller access");
+        }
+        return result.agedUnresolvedCount;
+      }),
+    ]);
+
+    const accountAgeDays = sellerData.user?.createdAt
+      ? Math.floor((Date.now() - new Date(sellerData.user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    if (activeListings < REQUIRED_LISTINGS) {
+      return privateJson(
+        { error: `You need at least ${REQUIRED_LISTINGS} active listings. You currently have ${activeListings}.` },
+        { status: 400 }
+      );
+    }
+    if (totalSalesCents < REQUIRED_SALES_CENTS) {
+      const needed = formatCurrencyCents(REQUIRED_SALES_CENTS - totalSalesCents);
+      return privateJson(
+        { error: `You need $250 in completed sales. You need ${needed} more.` },
+        { status: 400 }
+      );
+    }
+    if (accountAgeDays < REQUIRED_ACCOUNT_DAYS) {
+      const remaining = REQUIRED_ACCOUNT_DAYS - accountAgeDays;
+      return privateJson(
+        { error: `Your account must be at least ${REQUIRED_ACCOUNT_DAYS} days old. ${remaining} days remaining.` },
+        { status: 400 }
+      );
+    }
+    if (longCaseCount > 0) {
+      return privateJson(
+        { error: `You have ${longCaseCount} unresolved case${longCaseCount !== 1 ? "s" : ""} open longer than 60 days. Resolve them before applying.` },
+        { status: 400 }
+      );
+    }
+
+    const record = await prisma.makerVerification.upsert({
+      where: { sellerProfileId: seller.id },
+      create: {
+        sellerProfileId: seller.id,
+        craftDescription,
+        yearsExperience,
+        portfolioUrl,
+        status: "PENDING",
+      },
+      update: {
+        craftDescription,
+        yearsExperience,
+        portfolioUrl,
+        status: "PENDING",
+        reviewedById: null,
+        reviewNotes: null,
+        reviewedAt: null,
+        appliedAt: new Date(),
+      },
+    });
+
+    return privateJson(record, { status: 201 });
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
+    logServerError(err, { source: "verification_apply_route" });
+    return privateJson({ error: "Server error" }, { status: 500 });
+  }
+}

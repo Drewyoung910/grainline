@@ -1,0 +1,400 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+const ORDER_PII_FIELDS = [
+  "shipToCity",
+  "shipToState",
+  "shipToPostalCode",
+  "shipToCountry",
+  "quotedToCity",
+  "quotedToState",
+  "quotedToPostalCode",
+  "quotedToCountry",
+  "trackingCarrier",
+  "trackingNumber",
+  "sellerNotes",
+  "shippoShipmentId",
+  "shippoRateObjectId",
+  "shippoTransactionId",
+  "labelUrl",
+  "labelCarrier",
+  "labelTrackingNumber",
+];
+
+describe("Round 9 account deletion PII guardrails", () => {
+  it("scrubs retained order address, tracking, label, and seller-note PII on delete and retention prune", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const deletionAuthority = source(
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+    );
+    const retention = source(
+      "prisma/migrations/20260729057000_prepare_case_order_active_authority/migration.sql",
+    );
+
+    for (const field of ORDER_PII_FIELDS) {
+      assert.match(deletionAuthority, new RegExp(`"${field}" = NULL`), `account deletion must clear ${field}`);
+      assert.match(retention, new RegExp(`"${field}" = NULL`), `retention prune must clear ${field}`);
+      assert.match(retention, new RegExp(`"${field}" IS NOT NULL`), `retention prune must detect ${field}`);
+    }
+
+    assert.match(deletionAuthority, /"buyerDataPurgedAt" = COALESCE/);
+    assert.match(
+      retention,
+      /"buyerDataPurgedAt" =\s*pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'/,
+    );
+    assert.match(deletion, /scrubOrderDataForAccountDeletion/);
+    assert.match(deletionAuthority, /DELETE FROM public\."OrderShippingRateQuote" AS quote/);
+    assert.match(deletionAuthority, /source_order\."buyerId" = locked_actor\.id/);
+    assert.match(deletionAuthority, /source_order\."sellerProfileId" = source_seller_profile_id/);
+    assert.match(
+      retention,
+      /EXISTS \(\s*SELECT 1\s*FROM public\."OrderShippingRateQuote" AS quote/s,
+    );
+    assert.match(
+      retention,
+      /DELETE FROM public\."OrderShippingRateQuote" AS quote/s,
+    );
+    assert.match(retention, /WHERE quote\."orderId" = pii_candidates\.id/);
+  });
+
+  it("prevents seller notes from reintroducing retained order PII after prune", () => {
+    const retention = source("src/lib/orderPiiRetention.ts");
+    const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
+    const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
+
+    assert.doesNotMatch(retention, /WHERE "buyerDataPurgedAt" IS NULL/);
+    assert.match(fulfillment, /truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null/);
+    assert.match(fulfillment, /updateSellerOrderNotes\(\{/);
+    assert.match(
+      authority,
+      /p_seller_notes IS NOT NULL AND locked_order\."buyerDataPurgedAt" IS NOT NULL/,
+    );
+    assert.match(authority, /'reason', 'buyer_data_purged'/);
+    assert.ok(
+      salesPage.indexOf("order.buyerDataPurgedAt ?") < salesPage.indexOf("<SellerNotesForm"),
+      "seller notes form should only render before buyer data is purged",
+    );
+  });
+
+  it("scrubs seller-owned retained order fulfillment artifacts on seller deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source(
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+    );
+    const sellerOrderStart = authority.indexOf("IF source_seller_profile_id IS NULL THEN");
+    const sellerOrderEnd = authority.indexOf("WITH deleted_quotes AS", sellerOrderStart);
+    const sellerOrderUpdate = authority.slice(sellerOrderStart, sellerOrderEnd);
+
+    assert.match(deletion, /scrubOrderDataForAccountDeletion/);
+    assert.match(sellerOrderUpdate, /target_order\."sellerProfileId" = source_seller_profile_id/);
+    assert.doesNotMatch(sellerOrderUpdate, /Listing|OrderItem/);
+    for (const field of [
+      "trackingCarrier",
+      "trackingNumber",
+      "sellerNotes",
+      "shippoShipmentId",
+      "shippoRateObjectId",
+      "shippoTransactionId",
+      "labelUrl",
+      "labelCarrier",
+      "labelTrackingNumber",
+    ]) {
+      assert.match(sellerOrderUpdate, new RegExp(`"${field}" = NULL`), `seller deletion must clear ${field}`);
+    }
+  });
+
+  it("removes only deleted-user-created blocks and keeps media cleanup scoped to the deleted sender", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /tx\.block\.deleteMany\(\{\s*where: \{ blockerId: user\.id \} \}\)/);
+    assert.doesNotMatch(deletion, /blockedId: user\.id/);
+    assert.match(deletion, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
+    assert.doesNotMatch(deletion, /db\.message\./);
+    assert.doesNotMatch(deletion, /where: \{ OR: \[\{ senderId: userId \}, \{ recipientId: userId \}\] \}/);
+  });
+
+  it("redacts other-party message and case-message bodies that quote deleted-account values", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const caseDeletionMigration = source(
+      "prisma/migrations/20260729061000_prepare_case_account_deletion_authority/migration.sql",
+    );
+    const messageRedactionFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_redact_for_account_deletion"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_seller_message_response_metrics"),
+    );
+
+    assert.match(authority, /public\.grainline_message_redact_for_account_deletion/);
+    assert.match(messageRedactionFunction, /UPDATE public\."Message" AS message\s*SET body = '\[Message deleted\]'/);
+    assert.match(messageRedactionFunction, /message\."senderId" <> p_actor_id\s*AND message\."recipientId" = p_actor_id/);
+    assert.match(messageRedactionFunction, /grainline_account_deletion_redact_text_core/);
+    assert.match(
+      caseDeletionMigration,
+      /UPDATE public\."CaseMessage" AS message[\s\S]*message\."authorId" = locked_user\.id/,
+    );
+    assert.match(
+      caseDeletionMigration,
+      /message\."authorId" IS DISTINCT FROM locked_user\.id[\s\S]*FROM public\."Case" AS parent_case[\s\S]*parent_case\."buyerId" = locked_user\.id[\s\S]*OR parent_case\."sellerId" = locked_user\.id/,
+    );
+    assert.match(
+      caseDeletionMigration,
+      /UPDATE public\."Case" AS case_row[\s\S]*case_row\."buyerId" = locked_user\.id/,
+    );
+    assert.match(
+      caseDeletionMigration,
+      /grainline_account_deletion_redact_text_core\([\s\S]*case_row\.description,[\s\S]*sensitive_values/,
+    );
+    assert.match(deletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
+    assert.doesNotMatch(deletion, /FROM "Message"|tx\.message\./);
+    assert.match(deletion, /redactCaseDataForAccountDeletion\(/);
+    assert.doesNotMatch(
+      deletion,
+      /FROM "(?:Case|CaseMessage)"|tx\.(?:case|caseMessage)\./,
+    );
+  });
+
+  it("redacts deleted-account values from retained order review notes", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source(
+      "prisma/migrations/20260905020000_prepare_order_account_deletion_authority/migration.sql",
+    );
+
+    assert.match(
+      authority,
+      /SET "reviewNote" = public\.grainline_account_deletion_redact_text_core\([\s\S]*target_order\."reviewNote",[\s\S]*sensitive_values/,
+    );
+    assert.doesNotMatch(authority, /review_candidates|MATERIALIZED/);
+    assert.match(authority, /grainline_account_deletion_redact_text_core/);
+    assert.match(authority, /target_order\."buyerId" = locked_actor\.id/);
+    assert.match(authority, /target_order\."sellerProfileId" = source_seller_profile_id/);
+    assert.doesNotMatch(authority, /JOIN public\."(?:OrderItem|Listing)"/);
+    assert.match(deletion, /scrubOrderDataForAccountDeletion\([\s\S]*accountSensitiveValues/);
+    assert.doesNotMatch(deletion, /redactOrderReviewNotesForDeletedAccount/);
+  });
+
+  it("preserves conversations without deleted-account email fallbacks", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+    const inboxPage = source("src/app/messages/page.tsx");
+    const threadRenderQueryStart = threadPage.indexOf("const conversation = await getActorConversation(me.id, id)");
+    const threadRenderQueryEnd = threadPage.indexOf("  // --- Server actions", threadRenderQueryStart);
+    assert.ok(threadRenderQueryStart > -1, "thread page must keep an actor-scoped conversation render projection");
+    assert.ok(threadRenderQueryEnd > threadRenderQueryStart, "thread render query must stay bounded before side effects");
+    const threadRenderQuery = threadPage.slice(
+      threadRenderQueryStart,
+      threadRenderQueryEnd,
+    );
+
+    assert.doesNotMatch(deletion, /conversation\.deleteMany/);
+    assert.match(deletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
+    assert.doesNotMatch(threadRenderQuery, /email: true/);
+    assert.doesNotMatch(inboxPage, /select: \{[^}]*email: true/s);
+    assert.doesNotMatch(inboxPage, /email:\s*\{\s*contains:\s*q/);
+    assert.match(threadPage, /otherSellerProfile\?\.displayName \|\| other\?\.name \|\| "User"/);
+    assert.match(inboxPage, /seller\?\.displayName \|\| other\?\.name \|\| "User"/);
+  });
+
+  it("uses saved shipping fields as deletion redaction needles", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    for (const field of [
+      "shippingName",
+      "shippingLine1",
+      "shippingLine2",
+      "shippingCity",
+      "shippingState",
+      "shippingPostalCode",
+      "shippingPhone",
+    ]) {
+      assert.match(deletion, new RegExp(`user\\.${field}`), `sensitive values must include ${field}`);
+    }
+  });
+
+  it("uses seller contact, address, and profile URLs as deletion redaction needles", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const userSelectStart = deletion.indexOf("const user = await tx.user.findUnique");
+    const userSelectEnd = deletion.indexOf("if (!user) return", userSelectStart);
+    const userSelect = deletion.slice(userSelectStart, userSelectEnd);
+    const sensitiveStart = deletion.indexOf("const accountSensitiveValues = normalizedSensitiveValues");
+    const sensitiveEnd = deletion.indexOf("]);", sensitiveStart);
+    const sensitiveBlock = deletion.slice(sensitiveStart, sensitiveEnd);
+
+    for (const field of [
+      "shipFromName",
+      "shipFromLine1",
+      "shipFromLine2",
+      "shipFromCity",
+      "shipFromState",
+      "shipFromPostal",
+      "instagramUrl",
+      "facebookUrl",
+      "pinterestUrl",
+      "tiktokUrl",
+      "websiteUrl",
+    ]) {
+      assert.match(userSelect, new RegExp(`${field}: true`), `seller profile select must include ${field}`);
+      assert.match(sensitiveBlock, new RegExp(`user\\.sellerProfile\\?\\.${field}`), `sensitive values must include ${field}`);
+    }
+  });
+
+  it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /const accountEmailState = await userAccountEmailAddressState\(tx, \{/);
+    assert.match(deletion, /const accountEmails = await accountEmailFallbackEmailsForUser\(tx, \{/);
+    assert.match(deletion, /emails: accountEmailState\.emails/);
+    assert.match(deletion, /\.\.\.accountEmails/);
+    assert.match(deletion, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
+    assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);
+    assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);
+    assert.doesNotMatch(deletion, /normalizeEmailSuppressionAddress\(user\.email\)/);
+    assert.match(deletion, /galleryImageUrls: \[\]/);
+    assert.match(deletion, /galleryAltTexts: \[\]/);
+    assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);
+    assert.match(deletion, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: suppressionEmailMatches \} \}\]/);
+    assert.match(deletion, /sentAt: null/);
+    assert.match(deletion, /status: \{ in: \["PENDING", "PROCESSING", "FAILED", "DEAD"\] \}/);
+    assert.match(deletion, /status: "SKIPPED"/);
+    assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
+    assert.match(deletion, /recipientEmail: "deleted-account@deleted\.thegrainline\.local"/);
+    assert.match(deletion, /subject: "Email removed after account deletion"/);
+    assert.match(deletion, /tx\.emailFailureCount\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
+    assert.match(deletion, /tx\.newsletterSubscriber\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
+    assert.match(deletion, /tx\.userEmailAddress\.deleteMany\(\{\s*where: \{ userId: user\.id \},\s*\}\)/s);
+    assert.match(
+      deletion,
+      /await releaseDirectUploadsForAccount\(\{\s*client: tx,\s*userId: user\.id,\s*\}\)/s,
+    );
+    assert.doesNotMatch(deletion, /tx\.directUpload\./);
+  });
+
+  it("scrubs account-linked support and data-request contact fields on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /import \{[^}]*supportRequestAccountExportWhere[^}]*\} from "@\/lib\/supportRequest"/);
+    assert.match(deletion, /const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted\.thegrainline\.local"/);
+    assert.match(deletion, /const DELETED_SUPPORT_REQUEST_MESSAGE = "\[Support request removed after account deletion\]"/);
+    assert.match(deletion, /async function redactSupportRequestsForDeletedAccount/);
+    assert.match(deletion, /supportRequestAccountExportWhere\(deletedUserId, accountEmails\)/);
+    assert.match(deletion, /tx\.supportRequest\.findMany\(\{/);
+    assert.match(deletion, /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues\)\.text/);
+    assert.match(deletion, /redactAccountDeletionText\(request\.emailLastError, sensitiveValues\)\.text/);
+    assert.match(deletion, /userId: null/);
+    assert.match(deletion, /name: null/);
+    assert.match(deletion, /email: DELETED_SUPPORT_REQUEST_EMAIL/);
+    assert.match(deletion, /orderId: null/);
+    assert.match(deletion, /listingId: null/);
+    assert.match(deletion, /message: DELETED_SUPPORT_REQUEST_MESSAGE/);
+    assert.match(deletion, /redactSupportRequestsForDeletedAccount\(tx, user\.id, accountEmails, accountSensitiveValues\)/);
+  });
+
+  it("does not let one hard provider suppression block account-deletion suppressions for other aliases", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /const providerHardSuppressionEmails = new Set\(/);
+    assert.match(deletion, /suppressionEmailMatches\.filter\(\s*\(email\) => !providerHardSuppressionEmails\.has\(email\),\s*\)/s);
+    assert.match(deletion, /email: \{ in: manualSuppressionEmails \}/);
+    assert.doesNotMatch(deletion, /const hasProviderHardSuppression/);
+    assert.doesNotMatch(deletion, /if \(!hasProviderHardSuppression\)/);
+  });
+
+  it("scrubs authored blog comments on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /tx\.blogComment\.updateMany\(\{\s*where: \{ authorId: user\.id \},\s*data: \{ body: "\[Comment deleted\]", approved: false \},\s*\}\)/s);
+  });
+
+  it("scrubs seller listing title and body fields on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({");
+    const listingUpdateEnd = deletion.indexOf("await tx.makerVerification.updateMany", listingUpdateStart);
+    const listingUpdate = deletion.slice(listingUpdateStart, listingUpdateEnd);
+
+    assert.ok(listingUpdateStart > -1, "account deletion must update seller listings");
+    assert.match(listingUpdate, /title: "Deleted listing"/);
+    assert.match(listingUpdate, /status: "HIDDEN"/);
+    assert.match(listingUpdate, /isPrivate: true/);
+    assert.match(listingUpdate, /description: "\[Listing removed\]"/);
+    assert.match(listingUpdate, /tags: \[\]/);
+    assert.match(listingUpdate, /metaDescription: null/);
+    assert.match(listingUpdate, /materials: \[\]/);
+  });
+
+  it("removes retained seller-defined listing variant text on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    const variantDeleteStart = deletion.indexOf("await tx.listingVariantGroup.deleteMany({");
+    const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({", variantDeleteStart);
+    const variantDelete = deletion.slice(variantDeleteStart, listingUpdateStart);
+
+    assert.ok(variantDeleteStart > -1, "account deletion must remove seller variant groups");
+    assert.ok(
+      listingUpdateStart > variantDeleteStart,
+      "variant text should be removed before retained listing rows are scrubbed",
+    );
+    assert.match(variantDelete, /where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+  });
+
+  it("scrubs maker verification personal details and reviewer linkage", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    const verificationUpdateStart = deletion.indexOf("await tx.makerVerification.updateMany({");
+    const verificationUpdateEnd = deletion.indexOf("await tx.follow.deleteMany", verificationUpdateStart);
+    const verificationUpdate = deletion.slice(verificationUpdateStart, verificationUpdateEnd);
+
+    assert.ok(verificationUpdateStart > -1, "account deletion must update maker verification rows");
+    assert.match(verificationUpdate, /craftDescription: "\[Deleted\]"/);
+    assert.match(verificationUpdate, /guildMasterCraftBusiness: null/);
+    assert.match(verificationUpdate, /yearsExperience: 0/);
+    assert.match(verificationUpdate, /portfolioUrl: null/);
+    assert.match(verificationUpdate, /status: "REJECTED"/);
+    assert.match(verificationUpdate, /reviewedById: null/);
+    assert.match(verificationUpdate, /reviewNotes: null/);
+    assert.match(verificationUpdate, /appliedAt: now/);
+    assert.match(verificationUpdate, /reviewedAt: null/);
+  });
+
+  it("redacts account identifiers from admin audit reasons as well as metadata", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /COALESCE\(reason, ''\)/);
+    assert.match(deletion, /redactAccountDeletionText\(candidate\.reason, sensitiveValues\)/);
+    assert.match(deletion, /reason\.changed && reason\.text !== null \? \{ reason: reason\.text \} : \{\}/);
+  });
+
+  it("resets retained deleted-account role while keeping deleted accounts blocked", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    const userUpdateStart = deletion.indexOf("await tx.user.update({");
+    const userUpdate = deletion.slice(userUpdateStart, deletion.indexOf("return {", userUpdateStart));
+
+    assert.ok(userUpdateStart > -1, "account deletion must anonymize the retained user row");
+    assert.match(userUpdate, /role: "USER"/);
+    assert.match(userUpdate, /banned: true/);
+    assert.match(userUpdate, /deletedAt: now/);
+  });
+
+  it("allocates collision-safe deleted-account blog archive slugs", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const exportRoute = source("src/app/api/account/export/route.ts");
+
+    assert.match(deletion, /function deletedAccountBlogSlug\(postId: string, collisionIndex = 0\)/);
+    assert.match(deletion, /`deleted-\$\{postId\}-\$\{collisionIndex\}`/);
+    assert.match(deletion, /async function deletedAccountAvailableBlogSlug\(postId: string\)/);
+    assert.match(deletion, /tx\.blogPost\.findUnique\(\{\s*where: \{ slug \}/s);
+    assert.match(deletion, /const archivedSlug = await deletedAccountAvailableBlogSlug\(post\.id\)/);
+    assert.match(deletion, /materialDisclosure: null/);
+    assert.match(exportRoute, /materialDisclosure: true/);
+    assert.doesNotMatch(deletion, /slug: `deleted-\$\{post\.id\}`/);
+  });
+});

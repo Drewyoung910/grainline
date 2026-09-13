@@ -1,0 +1,190 @@
+// src/app/api/blog/search/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/db";
+import { BlogPostType, Prisma } from "@prisma/client";
+import { getIP, rateLimitResponse, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { truncateText } from "@/lib/sanitize";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { getBlockedIdsFor } from "@/lib/blocks";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { normalizeTags } from "@/lib/tags";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+
+const POST_SELECT = {
+  id: true,
+  slug: true,
+  title: true,
+  excerpt: true,
+  coverImageUrl: true,
+  type: true,
+  tags: true,
+  publishedAt: true,
+  readingTimeMinutes: true,
+  author: { select: { name: true, imageUrl: true } },
+  sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
+} as const;
+
+type PostRow = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  coverImageUrl: string | null;
+  type: BlogPostType;
+  tags: string[];
+  publishedAt: Date | null;
+  readingTimeMinutes: number | null;
+  author: { name: string | null; imageUrl: string | null };
+  sellerProfile: { displayName: string; avatarImageUrl: string | null } | null;
+};
+
+export async function GET(req: NextRequest) {
+  const rl = await safeRateLimit(searchRatelimit, getIP(req));
+  if (!rl.success) return rateLimitResponse(rl.reset, "Too many blog searches.");
+
+  const url = new URL(req.url);
+  const q = truncateText(url.searchParams.get("bq")?.trim() ?? "", 200);
+  const type = url.searchParams.get("type")?.trim() ?? "";
+  const tagsParam = url.searchParams.get("tags") ?? "";
+  const tags = tagsParam ? normalizeTags(tagsParam.split(","), 20) : [];
+  const sort = url.searchParams.get("sort") ?? (q ? "relevant" : "newest");
+  const page = parseBoundedPositiveIntParam(url.searchParams.get("page"), 1, 1000);
+  const limit = parseBoundedPositiveIntParam(url.searchParams.get("limit"), 12, 50);
+
+  const typeValid = type && (Object.values(BlogPostType) as string[]).includes(type);
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    try {
+      const me = await ensureUserByClerkId(userId);
+      meDbId = me.id;
+    } catch (err) {
+      const accountResponse = accountAccessErrorResponse(err);
+      if (accountResponse) return accountResponse;
+      throw err;
+    }
+  }
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
+  const blockedUserIdList = [...blockedUserIds];
+  const blockFilters: Prisma.BlogPostWhereInput[] = [
+    ...(blockedUserIdList.length > 0 ? [{ authorId: { notIn: blockedUserIdList } }] : []),
+    ...(blockedSellerIds.length > 0
+      ? [{ OR: [{ sellerProfileId: null }, { sellerProfileId: { notIn: blockedSellerIds } }] }]
+      : []),
+  ];
+  if (q && sort === "relevant") {
+    // GIN full-text search — get IDs ranked by ts_rank
+    type RankedRow = { id: string };
+    const typeSql = typeValid ? Prisma.sql`AND bp.type = ${type}::"BlogPostType"` : Prisma.empty;
+    const tagsSql = tags.length > 0
+      ? Prisma.sql`AND bp.tags && ARRAY[${Prisma.join(tags)}]::text[]`
+      : Prisma.empty;
+    const blockedAuthorSql = blockedUserIdList.length > 0
+      ? Prisma.sql`AND bp."authorId" != ALL(${blockedUserIdList})`
+      : Prisma.empty;
+    const blockedSellerSql = blockedSellerIds.length > 0
+      ? Prisma.sql`AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))`
+      : Prisma.empty;
+    const rankedRows = await prisma.$queryRaw<RankedRow[]>`
+      SELECT bp.id
+      FROM "BlogPost" bp
+      JOIN "User" author_user ON author_user.id = bp."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+      WHERE bp.status = 'PUBLISHED'
+        AND bp."publishedAt" IS NOT NULL
+        AND bp."publishedAt" <= NOW()
+        AND author_user.banned = false
+        AND author_user."deletedAt" IS NULL
+        AND (
+          bp."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND sp."vacationMode" = false
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
+        ${typeSql}
+        ${tagsSql}
+        ${blockedAuthorSql}
+        ${blockedSellerSql}
+        AND to_tsvector('english',
+          coalesce(bp.title, '') || ' ' ||
+          coalesce(bp.excerpt, '') || ' ' ||
+          coalesce(bp.body, '')
+        ) @@ plainto_tsquery('english', ${q})
+      ORDER BY ts_rank(
+        to_tsvector('english',
+          coalesce(bp.title, '') || ' ' ||
+          coalesce(bp.excerpt, '') || ' ' ||
+          coalesce(bp.body, '')
+        ),
+        plainto_tsquery('english', ${q})
+      ) DESC,
+      bp."publishedAt" DESC,
+      bp.id DESC
+      LIMIT 500
+    `;
+
+    const rankedIds = rankedRows.map((r) => r.id);
+
+    if (rankedIds.length === 0) {
+      return NextResponse.json({ posts: [], total: 0, page, totalPages: 0, relatedTags: [] });
+    }
+
+    // Fetch full records, applying type + tag filter
+    const allPosts = await prisma.blogPost.findMany({
+      where: publicBlogPostWhere({
+        id: { in: rankedIds },
+        ...(typeValid ? { type: type as BlogPostType } : {}),
+        ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),
+        ...(blockFilters.length > 0 ? { AND: blockFilters } : {}),
+      }),
+      select: POST_SELECT,
+    });
+
+    // Re-order to match ranked order
+    const byId = new Map(allPosts.map((p) => [p.id, p as PostRow]));
+    const ordered = rankedIds.map((id) => byId.get(id)).filter((p): p is PostRow => !!p);
+    const total = ordered.length;
+    const totalPages = Math.ceil(total / limit);
+    const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
+    const skip = (clampedPage - 1) * limit;
+    const posts = ordered.slice(skip, skip + limit);
+
+    return NextResponse.json({ posts, total, page: clampedPage, totalPages, relatedTags: [] });
+  }
+
+  // Standard Prisma query (newest or alpha sort)
+  const where = publicBlogPostWhere({
+    AND: [
+      ...(q
+        ? [{
+            OR: [
+              { title: { contains: q, mode: "insensitive" as const } },
+              { excerpt: { contains: q, mode: "insensitive" as const } },
+              { tags: { hasSome: [q.toLowerCase()] } },
+            ],
+          }]
+        : []),
+      ...blockFilters,
+    ],
+    ...(typeValid ? { type: type as BlogPostType } : {}),
+    ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),
+  });
+
+  const orderBy: Prisma.BlogPostOrderByWithRelationInput[] =
+    sort === "alpha" ? [{ title: "asc" }, { publishedAt: "desc" }, { id: "desc" }] : [{ publishedAt: "desc" }, { id: "desc" }];
+
+  const total = await prisma.blogPost.count({ where });
+  const totalPages = Math.ceil(total / limit);
+  const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
+  const skip = (clampedPage - 1) * limit;
+  const posts = await prisma.blogPost.findMany({ where, orderBy, skip, take: limit, select: POST_SELECT });
+
+  return NextResponse.json({ posts, total, page: clampedPage, totalPages, relatedTags: [] });
+}

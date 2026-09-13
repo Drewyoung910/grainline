@@ -1,0 +1,76 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run guard:runtime-db-env && npm run build",
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  },
+  "regions": ["sfo1"],
+  "crons": [
+    {
+      "path": "/api/cron/guild-metrics",
+      "schedule": "40 15 1 * *"
+    },
+    {
+      "path": "/api/cron/guild-member-check",
+      "schedule": "10 14 * * *"
+    },
+    {
+      "path": "/api/cron/quality-score",
+      "schedule": "10 5 * * *"
+    },
+    {
+      "path": "/api/cron/site-metrics-snapshot",
+      "schedule": "40 6 * * *"
+    },
+    {
+      "path": "/api/cron/ops-health",
+      "schedule": "20 * * * *"
+    },
+    {
+      "path": "/api/cron/case-auto-close",
+      "schedule": "10 8 * * *"
+    },
+    {
+      "path": "/api/cron/commission-expire",
+      "schedule": "40 9 * * *"
+    },
+    {
+      "path": "/api/cron/notification-prune",
+      "schedule": "10 11 * * *"
+    },
+    {
+      "path": "/api/cron/email-outbox",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/checkout-stock-reservations",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/account-deletion-side-effects",
+      "schedule": "10,40 * * * *"
+    },
+    {
+      "path": "/api/cron/ban-side-effects",
+      "schedule": "20,50 * * * *"
+    },
+    {
+      "path": "/api/cron/label-clawback-retry",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/stripe-connect-reconcile",
+      "schedule": "17 */6 * * *"
+    },
+    {
+      "path": "/api/cron/founding-maker-repair",
+      "schedule": "10 17 * * *"
+    },
+    {
+      "path": "/api/cron/order-pii-prune",
+      "schedule": "40 12 * * *"
+    }
+  ]
+}

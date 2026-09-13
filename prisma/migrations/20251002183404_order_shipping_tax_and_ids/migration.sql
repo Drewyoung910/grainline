@@ -1,0 +1,18 @@
+-- AlterTable
+ALTER TABLE "public"."Order" ADD COLUMN     "buyerEmail" TEXT,
+ADD COLUMN     "buyerName" TEXT,
+ADD COLUMN     "currency" TEXT NOT NULL DEFAULT 'usd',
+ADD COLUMN     "itemsSubtotalCents" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "shipToCity" TEXT,
+ADD COLUMN     "shipToCountry" TEXT,
+ADD COLUMN     "shipToLine1" TEXT,
+ADD COLUMN     "shipToLine2" TEXT,
+ADD COLUMN     "shipToPostalCode" TEXT,
+ADD COLUMN     "shipToState" TEXT,
+ADD COLUMN     "shippingAmountCents" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "shippingTitle" TEXT,
+ADD COLUMN     "stripeApplicationFeeId" TEXT,
+ADD COLUMN     "stripeChargeId" TEXT,
+ADD COLUMN     "stripePaymentIntentId" TEXT,
+ADD COLUMN     "stripeTransferId" TEXT,
+ADD COLUMN     "taxAmountCents" INTEGER NOT NULL DEFAULT 0;

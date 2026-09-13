@@ -1,0 +1,295 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
+import { STATE_CODES, US_STATES } from "@/lib/usStates";
+import type { ShippingAddress } from "@/types/checkout";
+
+export type { ShippingAddress };
+
+type Props = {
+  onConfirm: (address: ShippingAddress) => void;
+  onBack?: () => void;
+  isSignedIn: boolean;
+};
+
+type FieldErrors = Partial<Record<keyof ShippingAddress, string>>;
+
+export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: Props) {
+  const [name, setName] = useState("");
+  const [line1, setLine1] = useState("");
+  const [line2, setLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [phone, setPhone] = useState("");
+  const [saveAddress, setSaveAddress] = useState(true);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(isSignedIn);
+  const [saving, setSaving] = useState(false);
+
+  const loadSavedAddress = useCallback(async (signal: AbortSignal) => {
+    try {
+      const res = await fetch("/api/account/shipping-address", { cache: "no-store", signal });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (signal.aborted) return;
+      if (data.name) setName(data.name);
+      if (data.line1) setLine1(data.line1);
+      if (data.line2) setLine2(data.line2);
+      if (data.city) setCity(data.city);
+      if (data.state) setState(data.state);
+      if (data.postalCode) setPostalCode(data.postalCode);
+      if (data.phone) setPhone(data.phone);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      // silent — form starts empty
+    } finally {
+      if (!signal.aborted) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    void loadSavedAddress(controller.signal);
+    return () => controller.abort();
+  }, [isSignedIn, loadSavedAddress]);
+
+  function validate(): FieldErrors {
+    const e: FieldErrors = {};
+    if (!name.trim()) e.name = "Full name is required";
+    if (!line1.trim()) e.line1 = "Address is required";
+    if (!city.trim()) e.city = "City is required";
+    if (!state || !STATE_CODES.has(state as typeof US_STATES[number]["code"])) e.state = "Select a state";
+    if (!/^\d{5}(-\d{4})?$/.test(postalCode)) e.postalCode = "Enter a valid ZIP code";
+    return e;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const fieldErrors = validate();
+    setErrors(fieldErrors);
+    setSaveError(null);
+    if (Object.keys(fieldErrors).length > 0) return;
+
+    const address: ShippingAddress = {
+      name: name.trim(),
+      line1: line1.trim(),
+      line2: line2.trim(),
+      city: city.trim(),
+      state,
+      postalCode,
+      phone: phone.trim(),
+    };
+
+    if (isSignedIn && saveAddress) {
+      setSaving(true);
+      try {
+        const res = await fetch("/api/account/shipping-address", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(address),
+        });
+        if (!res.ok) {
+          setSaveError("We couldn't save this address. Try again or uncheck save to continue.");
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to save shipping address:", err);
+        setSaveError("We couldn't save this address. Try again or uncheck save to continue.");
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    onConfirm(address);
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-10 bg-neutral-200 rounded-md" />
+        <div className="h-10 bg-neutral-200 rounded-md" />
+        <div className="h-10 bg-neutral-200 rounded-md" />
+      </div>
+    );
+  }
+
+  return (
+    <form noValidate onSubmit={handleSubmit} className="space-y-4">
+      {/* Full name */}
+      <div>
+        <label htmlFor="sa-name" className="block text-sm font-medium text-neutral-700 mb-1">Full name</label>
+        <input
+          id="sa-name"
+          type="text"
+          autoComplete="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-invalid={Boolean(errors.name)}
+          aria-describedby={errors.name ? "sa-name-error" : undefined}
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+        />
+        {errors.name && <p id="sa-name-error" role="alert" className="text-sm text-red-600 mt-1">{errors.name}</p>}
+      </div>
+
+      <AddressAutocomplete
+        id="sa-address-search"
+        label="Find address"
+        placeholder="Start typing a shipping address"
+        onSelect={(address) => {
+          setLine1(address.line1);
+          setCity(address.city);
+          setState(address.state);
+          setPostalCode(address.postalCode);
+        }}
+      />
+
+      {/* Address line 1 */}
+      <div>
+        <label htmlFor="sa-line1" className="block text-sm font-medium text-neutral-700 mb-1">Address</label>
+        <input
+          id="sa-line1"
+          type="text"
+          autoComplete="address-line1"
+          value={line1}
+          onChange={(e) => setLine1(e.target.value)}
+          aria-invalid={Boolean(errors.line1)}
+          aria-describedby={errors.line1 ? "sa-line1-error" : undefined}
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+        />
+        {errors.line1 && <p id="sa-line1-error" role="alert" className="text-sm text-red-600 mt-1">{errors.line1}</p>}
+      </div>
+
+      {/* Address line 2 */}
+      <div>
+        <label htmlFor="sa-line2" className="block text-sm font-medium text-neutral-700 mb-1">Address line 2</label>
+        <input
+          id="sa-line2"
+          type="text"
+          autoComplete="address-line2"
+          value={line2}
+          onChange={(e) => setLine2(e.target.value)}
+          placeholder="Apt, suite, etc."
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* City + State + ZIP row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div>
+          <label htmlFor="sa-city" className="block text-sm font-medium text-neutral-700 mb-1">City</label>
+          <input
+            id="sa-city"
+            type="text"
+          autoComplete="address-level2"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          aria-invalid={Boolean(errors.city)}
+          aria-describedby={errors.city ? "sa-city-error" : undefined}
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+        />
+          {errors.city && <p id="sa-city-error" role="alert" className="text-sm text-red-600 mt-1">{errors.city}</p>}
+        </div>
+        <div>
+          <label htmlFor="sa-state" className="block text-sm font-medium text-neutral-700 mb-1">State</label>
+          <select
+            id="sa-state"
+            autoComplete="address-level1"
+            value={state}
+            onChange={(e) => setState(e.target.value)}
+            aria-invalid={Boolean(errors.state)}
+            aria-describedby={errors.state ? "sa-state-error" : undefined}
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Select...</option>
+            {US_STATES.map((s) => (
+              <option key={s.code} value={s.code}>{s.name}</option>
+            ))}
+          </select>
+          {errors.state && <p id="sa-state-error" role="alert" className="text-sm text-red-600 mt-1">{errors.state}</p>}
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <label htmlFor="sa-zip" className="block text-sm font-medium text-neutral-700 mb-1">ZIP code</label>
+          <input
+            id="sa-zip"
+            type="text"
+            autoComplete="postal-code"
+            inputMode="text"
+            maxLength={10}
+            value={postalCode}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+              setPostalCode(digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits);
+            }}
+            aria-invalid={Boolean(errors.postalCode)}
+            aria-describedby={errors.postalCode ? "sa-zip-error" : undefined}
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+          />
+          {errors.postalCode && <p id="sa-zip-error" role="alert" className="text-sm text-red-600 mt-1">{errors.postalCode}</p>}
+        </div>
+      </div>
+
+      {/* Phone */}
+      <div>
+        <label htmlFor="sa-phone" className="block text-sm font-medium text-neutral-700 mb-1">Phone</label>
+        <input
+          id="sa-phone"
+          type="tel"
+          autoComplete="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="555-123-4567"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Save checkbox */}
+      {isSignedIn && (
+        <label className="flex items-center gap-2 text-sm text-neutral-600 mt-4 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={saveAddress}
+            onChange={(e) => {
+              setSaveAddress(e.target.checked);
+              if (!e.target.checked) setSaveError(null);
+            }}
+            className="h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300"
+          />
+          Save this address for future orders
+        </label>
+      )}
+      {saveError && (
+        <p id="sa-save-error" role="alert" className="text-sm text-red-600">
+          {saveError}
+        </p>
+      )}
+
+      {/* Buttons */}
+      <div className="flex items-center justify-between gap-3 pt-2">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-sm text-neutral-500 hover:text-neutral-700"
+          >
+            ← Back
+          </button>
+        ) : <span />}
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-md bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 w-full sm:w-auto"
+        >
+          {saving ? "Saving..." : "Continue to shipping"}
+        </button>
+      </div>
+    </form>
+  );
+}

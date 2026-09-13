@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-08-09T22:42:23.324Z",
+  "phase": "stripe-connect-provider-cutover",
+  "status": "passed",
+  "mode": "test",
+  "commit": "abd49d703ec37349c84b0c70912ffb655faac5e3",
+  "ciRunId": "31339275512",
+  "deploymentId": "dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP",
+  "providerStage": 3,
+  "stripe": {
+    "platformEndpointIdSha256": "a0376e0bf11a207199ba4a190ba9db687b0d5ed5ff50a802ebfb0fcffe7ec3a4",
+    "platformUrl": "https://thegrainline.com/api/stripe/webhook",
+    "platformEvents": [
+      "charge.dispute.closed",
+      "charge.dispute.created",
+      "charge.dispute.funds_reinstated",
+      "charge.dispute.funds_withdrawn",
+      "charge.dispute.updated",
+      "charge.refunded",
+      "checkout.session.async_payment_failed",
+      "checkout.session.async_payment_succeeded",
+      "checkout.session.completed",
+      "checkout.session.expired"
+    ],
+    "connectEndpointIdSha256": "ad8e20cc2af6c378350f4a181252df03eb34a2a15571ad162a21fb2d90063357",
+    "connectUrl": "https://thegrainline.com/api/stripe/webhook/connect",
+    "connectStatus": "disabled",
+    "connectEvents": [
+      "payout.failed"
+    ],
+    "connectedAccountSourceAttestedByRetainedCreationEvidence": true,
+    "v2DestinationIdSha256": "7b8d80337f59643bbf5506ef3f85ba8fa77a988168809313b51b95d9e355202c",
+    "v2Url": "https://thegrainline.com/api/stripe/webhook/v2",
+    "v2Status": "enabled",
+    "v2Payload": "thin",
+    "v2EventsFrom": [
+      "other_accounts"
+    ],
+    "v2Events": [
+      "v2.core.account.closed",
+      "v2.core.account.created",
+      "v2.core.account.updated",
+      "v2.core.account[configuration.customer].capability_status_updated",
+      "v2.core.account[configuration.customer].updated",
+      "v2.core.account[configuration.merchant].capability_status_updated",
+      "v2.core.account[configuration.merchant].updated",
+      "v2.core.account[configuration.recipient].capability_status_updated",
+      "v2.core.account[configuration.recipient].updated",
+      "v2.core.account[defaults].updated",
+      "v2.core.account[identity].updated",
+      "v2.core.account[requirements].updated"
+    ]
+  },
+  "secretsChanged": false,
+  "migrationsRun": false,
+  "rlsChanged": false,
+  "grantsChanged": false,
+  "nextBoundary": "enable only inside the provider-authenticated payout.failed delivery and exact retry proof"
+}

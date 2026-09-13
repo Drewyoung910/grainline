@@ -1,0 +1,176 @@
+# Notification Creation Authority Inventory
+
+Snapshot refreshed: 2026-09-01. Notification RLS is production-active; this
+inventory also covers the compatible Case seller-decision path and the isolated
+buyer-receipt correction prepared after that activation.
+
+## Count Contract
+
+The source has 54 notification-helper calls across 30 files. All pass object
+literals: 50 use the existing best-effort `createNotification` helper, while
+payout, shipped, ready-for-pickup and buyer receipt use four strict retryable
+object-literal calls to `createNotificationOrThrow`. One dedicated back-in-stock
+claim and the database-owned shipping-label provider-record operation each
+derive their Notification write inside fixed owner authority. The inventory
+therefore covers 56
+distinct emission paths:
+
+- 56 authority-bound paths;
+- 0 source-less paths;
+- 30 literal creation sites currently carrying `relatedUserId`, plus the
+  back-in-stock and shipping-label operations' database-derived relationships.
+
+The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
+wrapper and its then-three payload constructions. The complete baseline was 54 total,
+5 tagged and 49 source-less. The social-family implementation moved three paths
+into the tagged set, and the messaging/custom-order implementation moved three
+more. The commission implementation then moved four paths, the case
+implementation moved all twelve case paths. Checkout low-stock, manual low-stock,
+and the dedicated back-in-stock claim then completed all three inventory paths.
+The seven staff and three cron verification/Guild transitions complete that
+family. Three listing-moderation/report paths and two staff/account-warning
+paths now bind exact audit, report, ban, and order evidence. The final ten
+checkout, fulfillment, refund, dispute, and payout paths bind their existing
+order/system-audit/payment/payout ledgers. The later compatible Case work added
+one staff-decision notification for the seller, bound to the atomic staff
+`CaseMessage`. The fulfillment product audit then replaced seller-authored
+pickup completion with buyer-authored receipt evidence and a strict seller
+notification. The later fixed-authority conversion preserves shipped and
+ready-for-pickup as two explicit, independently inventoried strict call sites,
+preserving the current 56/0 split without preserving the unsafe seller
+transition or the old indirection.
+Tests pin direct calls, emission paths, and family state so those concepts are
+not conflated again.
+
+## Family Inventory
+
+| Authority family | Emission paths | Current examples | Database-verifiable provenance or constraint |
+|---|---:|---|---|
+| Existing source-tagged fanout | 5 | Blog comment/reply, followed listing, followed blog, seller broadcast | Comment/post/listing/broadcast, actor, recipient, seller visibility and follow row |
+| Verification and guild lifecycle | 10 | Staff approval/rejection/revocation/reinstatement; guild metric and eligibility jobs | Implemented draft validation: durable exact admin/system audit evidence, non-undone staff action or fixed cron actor, recipient seller, `MakerVerification` and `SellerProfile` transition state; first metrics warning now co-commits its audit with the warning state |
+| Staff and account warnings | 2 | Admin account message; buyer warning after maker ban | Implemented draft validation: successful-send admin audit with stored bounded payload, or compound ban-audit/order evidence with exact affected buyer and banned seller |
+| Listing moderation and reports | 3 | Listing approval/rejection; listing-reported warning | Implemented draft validation: atomic staff-review audit or exact `UserReport`, listing owner, reporter, decision type, and canonical listing/dashboard route |
+| Case lifecycle | 13 | Open, message, mark-resolved, resolve/refund, seller decision notice, timeout escalation and auto-close | Implemented validation: durable `Case`, `CaseMessage`, atomic user-audit, or system-audit source; exact parties/staff/cron actor, order route, event type and recorded transition |
+| Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | Implemented draft validation: durable `CommissionInterest` or final-state `CommissionRequest`, conversation, interested seller, buyer/recipient, CLOSED/FULFILLED/EXPIRED state and route |
+| Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
+| Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Implemented draft validation: checkout low-stock binds `OrderItem`, paid `Order`, and completed reservation; manual low-stock binds an atomic audit; back-in-stock binds an atomic SOLD_OUT→ACTIVE audit plus the locked subscription and performs claim/create/consume as one owner operation |
+| Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair and kind; ready links additionally bind the reserved `Listing`, seller, buyer, conversation and canonical route |
+| Order, payment and fulfillment | 10 | Order buyer/seller notices, refund, shipment/pickup/label purchase, dispute and payout failure | Implemented validation: checkout and fulfillment system audits, `OrderPaymentEvent` refund/dispute evidence, `SellerPayoutEvent`, exact buyer/seller relationships, provider event identity, and derived payload/routes. Label purchase is database-owned inside its provider-record operation so it binds the durable `Order.sellerProfileId` rather than mutable Listing ownership |
+| **Total** | **56** |  |  |
+
+## Chosen Hybrid
+
+Owner-scoped `SELECT` and column-limited mark-read `UPDATE` remain the highest
+confidentiality value, but write authority is not discarded. The runtime role
+must not receive direct Notification `INSERT` or a callable arbitrary-type,
+arbitrary-recipient insert function merely because HTTP users do not insert
+notifications directly. That shortcut would restore broad cross-user authority
+to any runtime query that could invoke it.
+
+The original 54/54 and 55/55 results, and the current 56/56 result, were reached without
+one undifferentiated provenance shape.
+Keep the ten authority families above distinct:
+
+1. Keep an internal fixed-column insert primitive ungranted to `PUBLIC` and the
+   runtime role.
+2. Grant runtime only reviewed family functions. Each accepts stable domain ids
+   and a small event discriminator, derives or validates recipients and allowed
+   types, and derives payload text from the validated source.
+3. Store `sourceType`/`sourceId` where lifecycle cleanup or account-deletion
+   residue needs it. A validation id does not automatically need to become
+   durable lifecycle metadata.
+4. For provider and cron families, require a persisted order/payment/payout or
+   workflow transition, not merely an application-supplied claim that a webhook
+   or timer ran.
+5. For staff-only families, combine a fixed operation with active staff context
+   and an audit or domain source. Application-asserted context is still
+   forgeable by a fully compromised runtime, so keep the operation narrow even
+   after the role check.
+
+Application authorization remains primary. These functions are database
+defense in depth against overly broad queries and partial compromise; they do
+not claim to defeat arbitrary code execution holding the runtime credential.
+
+This is not yet a complete arbitrary-runtime-compromise boundary because a
+compromised runtime can still invoke the narrow functions with legitimate
+source ids and recipient combinations. It no longer controls notification
+content: all ten granted creation wrappers omit title/body/link/dedup parameters
+and derive those fields from the validated source. The dedicated back-in-stock
+claim does the same. Canonical links
+and dedup identity are now derived inside owner authority
+from the validated recipient, type, source kind, source row, related actor, and
+source-specific route columns. Runtime-supplied `link` and `dedupScope` remain
+application telemetry only and never reach the granted SQL signatures. One
+central owner check covers the ten block-sensitive source types: blog comments,
+both commission sources, favorites, follows, followed-maker listing/blog
+fanout, messages, reviews, and seller broadcasts. It runs after the owner
+function takes sorted-pair `User` locks in `FOR SHARE` mode. Every ordinary block/unblock writer takes
+`FOR UPDATE` on the same sorted pair before changing `Block`; account deletion
+already takes its conflicting lifecycle lock before removing outgoing blocks.
+That shared protocol gives the absence check a deterministic linearization
+point at explicitly required `READ COMMITTED` isolation; the owner core rejects
+stale-snapshot isolation and block mutations request `ReadCommitted`. It still
+needs PostgreSQL two-session proof before activation. The
+message family proves the source message, its kind, participants,
+and conversation route; custom-order-ready extracts the listing id from the
+durable structured message inside the core, validates the reserved listing,
+seller, buyer, conversation and status, and derives the canonical listing route.
+Application authorization and block checks remain required; the
+draft must not be described as making forged content or block races impossible
+under arbitrary runtime compromise.
+
+## Next Implementation Order
+
+1. Retain the implemented runtime-ungranted core plus separate source-fanout,
+   social/review, message/custom-order, commission, case, and inventory wrappers;
+   do not restore a generic runtime grant.
+2. Retain the completed inventory-event family. Checkout low-stock binds one
+   `OrderItem` to its paid order, completed stock reservation, listing owner and
+   current 1-2 quantity, and derives its payload/link. Manual low-stock now writes
+   a `MANUAL_LISTING_STOCK_LOW` audit row in the same transaction as the locked
+   listing update and derives authority from that committed event. Back-in-stock
+   writes `MANUAL_LISTING_RESTOCKED` in the same transaction as SOLD_OUT→ACTIVE,
+   then a dedicated owner function locks and validates that audit and the exact
+   subscription, optionally inserts the preference-gated Notification, consumes
+   the subscription, and returns the sole winning claim for email fanout.
+3. Retain the completed verification/Guild family: seven staff transitions bind
+   atomic `AdminAuditLog` evidence and three cron transitions bind atomic
+   `SystemAuditLog` evidence.
+4. Retain the completed moderation/account-warning families. Listing decisions
+   bind transaction-returned audit ids, reports bind exact `UserReport` rows,
+   successful admin messages bind post-send audit evidence, and ban warnings bind
+   a compound ban-audit/order event.
+5. Retain the completed order/payment/fulfillment family. Checkout and seller
+   transitions bind system audits, refunds/disputes bind `OrderPaymentEvent`,
+   and payout failure binds `SellerPayoutEvent`; the owner wrapper derives the
+   exact recipient, counterpart, payload, route, and replay identity.
+
+Fresh PostgreSQL 16 run `29893071538` at exact source
+`187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` now proves parse/apply,
+grants/catalog fingerprints, own/foreign/direct denial, all ten granted
+creation-family boundaries, every one of the 26 family-dispatched private-core
+source types, stable replay, the dedicated back-in-stock claim, and both
+block-race orderings. The 59 creation cases cover all 38 successful source/type
+pairs and the security-relevant action/status/recipient-direction variants;
+every case proves valid creation, replay, and forged-recipient rejection. That
+was distinct from the then-current 54/54 callsite result. The later seller
+decision path reuses the already-proven staff `CaseMessage` source branch. The
+current callsite contract is 56/56 after replacing seller-authored pickup
+completion with buyer-authored receipt confirmation and converting seller
+fulfillment to two explicit fixed-authority finalization paths; the replacement
+`order_fulfillment` direction requires fresh PostgreSQL proof and a compatible
+production function successor before the application change may deploy.
+byte-pinned SQL review, disposable migration/rollback, authenticated real-table
+route behavior, and provider performance evidence remained open before
+production activation. The later accepted provider proof is recorded in
+`docs/rls-bucket-b-notification-plan.md`; authenticated route behavior and the
+final review remain current gates.
+The permanent completeness gate is
+`npm run audit:rls-notification-readiness`: it inventories the real TypeScript
+call graph, requires exactly 56 emission paths, and blocks activation until all
+56 carry a source pair dispatched through a reviewed family whose SQL
+function, `PUBLIC` execute revoke, and runtime grant are also present. Its current
+56/56 passes for creation-authority coverage. This is necessary but not
+sufficient for activation: recipient reads, concurrency, legacy cleanup,
+complete source-branch execution, final migration/rollback proof, provider
+evidence, and the pre-activation review remain open.

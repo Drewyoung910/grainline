@@ -1,0 +1,192 @@
+// src/lib/ensureUser.ts
+import { currentUser } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/db";
+import { sanitizeUserName } from "@/lib/sanitize";
+import {
+  AccountAccessError,
+  isAccountAccessError,
+} from "@/lib/accountAccessError";
+import { normalizeEmailAddress } from "@/lib/emailSuppression";
+import { syncUserEmailAddressHistory } from "@/lib/userEmailAddresses";
+import * as Sentry from "@sentry/nextjs";
+
+export { AccountAccessError, isAccountAccessError };
+
+function isUniqueViolationOn(error: unknown, field: string) {
+  const err = error as { code?: string; meta?: { target?: string[] | string } };
+  if (err.code !== "P2002") return false;
+  const target = err.meta?.target;
+  return Array.isArray(target)
+    ? target.includes(field)
+    : typeof target === "string" && target.includes(field);
+}
+
+/**
+ * Upserts a User row given a Clerk userId.
+ * - On CREATE: uses provided fields, or falls back to a placeholder email.
+ * - On UPDATE: **does not overwrite** existing email/name/image unless explicitly provided.
+ */
+export async function ensureUserByClerkId(
+  clerkId: string,
+  opts?: {
+    email?: string;
+    name?: string | null;
+    imageUrl?: string | null;
+  },
+) {
+  const existing = await prisma.user.findUnique({ where: { clerkId } });
+
+  if (existing) {
+    if (existing.banned) {
+      throw new AccountAccessError(
+        "Your account has been suspended. Contact support@thegrainline.com",
+        "ACCOUNT_SUSPENDED",
+      );
+    }
+    if (existing.deletedAt) {
+      throw new AccountAccessError(
+        "This account has been deleted. Contact support@thegrainline.com",
+        "ACCOUNT_DELETED",
+      );
+    }
+    const updateData: {
+      email?: string;
+      name?: string | null;
+      imageUrl?: string | null;
+    } = {};
+
+    // Only update fields if caller explicitly provided them
+    if (typeof opts?.email === "string" && opts.email.trim() !== "") {
+      const normalizedEmail = normalizeEmailAddress(opts.email);
+      if (normalizedEmail) updateData.email = normalizedEmail;
+    }
+    if (opts && "name" in opts) {
+      updateData.name = opts.name ? sanitizeUserName(opts.name) || null : null;
+    }
+    if (opts && "imageUrl" in opts) {
+      updateData.imageUrl = opts.imageUrl ?? null;
+    }
+    // If nothing to update, just return existing
+    if (Object.keys(updateData).length === 0) return existing;
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const updated = await tx.user.update({
+          where: { clerkId },
+          data: updateData,
+        });
+        if (updateData.email) {
+          await syncUserEmailAddressHistory(tx, {
+            userId: updated.id,
+            previousEmail: existing.email,
+            currentEmail: updateData.email,
+            source: "ensure_user",
+          });
+        }
+        return updated;
+      });
+    } catch (e) {
+      // P2002 = unique constraint violation (another row already has this email)
+      if (isUniqueViolationOn(e, "email") && updateData.email) {
+        Sentry.captureException(e, {
+          tags: { source: "ensure_user_email_conflict" },
+          extra: { clerkId, droppedField: "email" },
+        });
+        const { email: _dropped, ...dataWithoutEmail } = updateData;
+        if (Object.keys(dataWithoutEmail).length === 0) return existing;
+        return prisma.user.update({
+          where: { clerkId },
+          data: dataWithoutEmail,
+        });
+      }
+      throw e;
+    }
+  }
+
+  // CREATE path: allow placeholder email if none provided
+  const email =
+    normalizeEmailAddress(opts?.email) ?? `${clerkId}@placeholder.invalid`;
+  const name = opts?.name ? sanitizeUserName(opts.name) || null : null;
+  const imageUrl = (opts?.imageUrl ?? null) as string | null;
+  const createData = {
+    clerkId,
+    email,
+    name,
+    imageUrl,
+  };
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({ data: createData });
+      await syncUserEmailAddressHistory(tx, {
+        userId: created.id,
+        currentEmail: created.email,
+        source: "ensure_user_create",
+      });
+      return created;
+    });
+  } catch (e) {
+    if (isUniqueViolationOn(e, "clerkId")) {
+      const raced = await prisma.user.findUnique({ where: { clerkId } });
+      if (raced) return ensureUserByClerkId(clerkId, opts);
+    }
+    if (isUniqueViolationOn(e, "email") && opts?.email) {
+      Sentry.captureException(e, {
+        tags: { source: "ensure_user_create_email_conflict" },
+        extra: { clerkId, droppedField: "email" },
+      });
+      return prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            ...createData,
+            email: `${clerkId}@placeholder.invalid`,
+          },
+        });
+        await syncUserEmailAddressHistory(tx, {
+          userId: created.id,
+          currentEmail: created.email,
+          source: "ensure_user_create_email_conflict",
+        });
+        return created;
+      });
+    }
+    throw e;
+  }
+}
+
+/**
+ * Convenience wrapper that reads the signed-in user via Clerk and ensures a DB user.
+ * Returns `null` if no user is signed in.
+ * - On create: seeds real email/name/image.
+ * - On update: refreshes email/name/image from Clerk.
+ */
+export async function ensureUser() {
+  const u = await currentUser();
+  if (!u) return null;
+
+  const primaryEmail = u.emailAddresses?.find(
+    (e) => e.id === u.primaryEmailAddressId,
+  )?.emailAddress;
+
+  const name =
+    u.fullName || [u.firstName, u.lastName].filter(Boolean).join(" ") || null;
+
+  const imageUrl = u.imageUrl ?? null;
+
+  const userFields: Parameters<typeof ensureUserByClerkId>[1] = {
+    name,
+    imageUrl,
+    ...(primaryEmail ? { email: primaryEmail } : {}),
+  };
+
+  // Profile synchronization deliberately excludes legal acceptance state.
+  // Only /api/account/accept-terms may write those durable audit fields.
+  const result = await ensureUserByClerkId(u.id, userFields);
+  if (result && (result as { banned?: boolean }).banned) {
+    throw new AccountAccessError(
+      "Your account has been suspended. Contact support@thegrainline.com",
+      "ACCOUNT_SUSPENDED",
+    );
+  }
+  return result;
+}

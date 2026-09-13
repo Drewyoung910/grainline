@@ -1,0 +1,93 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+const {
+  acceptTermsPathForRedirect,
+  safeInternalPath,
+  safeInternalReturnUrl,
+  signInPathForRedirect,
+  signUpPathForRedirect,
+} = await import("../src/lib/internalReturnUrl.ts");
+
+describe("safe internal return URLs", () => {
+  const appUrl = "https://thegrainline.com";
+
+  it("accepts same-origin relative paths and normalizes them to absolute URLs", () => {
+    assert.equal(
+      safeInternalReturnUrl("/dashboard/onboarding?step=3#stripe", appUrl),
+      "https://thegrainline.com/dashboard/onboarding?step=3#stripe",
+    );
+  });
+
+  it("rejects protocol-relative and backslash-prefixed redirects", () => {
+    assert.equal(safeInternalReturnUrl("//evil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/\\evil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%2Fevil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%2f%2fevil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%5Cevil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%255Cevil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%0d%0a/dashboard", appUrl), null);
+  });
+
+  it("rejects absolute URLs and non-path values", () => {
+    assert.equal(safeInternalReturnUrl("https://evil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("dashboard/onboarding", appUrl), null);
+    assert.equal(safeInternalReturnUrl("", appUrl), null);
+  });
+
+  it("rejects malformed app origins instead of failing open", () => {
+    assert.equal(safeInternalReturnUrl("/dashboard", "not a url"), null);
+  });
+});
+
+describe("safe internal auth redirect paths", () => {
+  it("keeps internal paths as relative Clerk redirect targets", () => {
+    assert.equal(
+      safeInternalPath("/listing/abc?buy_now=1&variant_options=opt_1,opt_2#purchase"),
+      "/listing/abc?buy_now=1&variant_options=opt_1,opt_2#purchase",
+    );
+  });
+
+  it("uses the first query value and rejects external redirects", () => {
+    assert.equal(safeInternalPath(["/cart", "/dashboard"]), "/cart");
+    assert.equal(safeInternalPath("https://evil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("//evil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/%2Fevil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/%5Cevil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/%0a/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("cart", "/fallback"), "/fallback");
+  });
+
+  it("allows encoded slashes in query values without treating them as path prefixes", () => {
+    assert.equal(
+      safeInternalPath("/browse?q=walnut%2Fmaple#results", "/fallback"),
+      "/browse?q=walnut%2Fmaple#results",
+    );
+  });
+
+  it("builds sign-in and sign-up paths with sanitized redirect_url values", () => {
+    assert.equal(
+      signInPathForRedirect("/cart?step=payment"),
+      "/sign-in?redirect_url=%2Fcart%3Fstep%3Dpayment",
+    );
+    assert.equal(
+      signUpPathForRedirect("https://evil.example/cart", "/cart"),
+      "/sign-up?redirect_url=%2Fcart",
+    );
+  });
+
+  it("builds accept-terms paths without double-wrapping existing accept routes", () => {
+    assert.equal(
+      acceptTermsPathForRedirect("/dashboard?setup=required"),
+      "/accept-terms?redirect_url=%2Fdashboard%3Fsetup%3Drequired",
+    );
+    assert.equal(
+      acceptTermsPathForRedirect("/accept-terms?redirect_url=%2Fdashboard"),
+      "/accept-terms?redirect_url=%2Fdashboard",
+    );
+    assert.equal(
+      acceptTermsPathForRedirect("https://evil.example/dashboard", "/account"),
+      "/accept-terms?redirect_url=%2Faccount",
+    );
+  });
+});

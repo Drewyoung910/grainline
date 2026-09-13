@@ -1,0 +1,115 @@
+// src/app/api/cart/route.ts
+import { auth } from "@clerk/nextjs/server";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
+import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
+import { cartReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { DEFAULT_CURRENCY } from "@/lib/money";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import { ownerCartForDisplay } from "@/lib/cartOwnerAccess";
+
+export const runtime = "nodejs";
+
+export async function GET() {
+  try {
+    const { userId } = await auth();
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
+
+    const { success, reset } = await safeRateLimit(cartReadRatelimit, userId);
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many cart reads."));
+
+    const me = await ensureUserByClerkId(userId);
+
+    const cart = await ownerCartForDisplay(me.id);
+
+    const items = (cart?.items ?? []).map((ci) => {
+      const seller = ci.listing.seller as {
+        displayName?: string | null;
+        freeShippingOverCents?: number | null;
+        shippingFlatRateCents?: number | null;
+        allowLocalPickup?: boolean | null;
+        offersGiftWrapping?: boolean | null;
+        giftWrappingPriceCents?: number | null;
+        chargesEnabled?: boolean | null;
+        vacationMode?: boolean | null;
+        user?: { banned?: boolean | null; deletedAt?: Date | string | null } | null;
+      };
+      const freeOverCents = seller?.freeShippingOverCents ?? null;
+      const shippingFlatRateCents = seller?.shippingFlatRateCents ?? null;
+      // Resolve variant option labels
+      const variantLabels: string[] = [];
+      if (ci.selectedVariantOptionIds?.length) {
+        for (const optId of ci.selectedVariantOptionIds) {
+          for (const g of ci.listing.variantGroups ?? []) {
+            const opt = g.options.find((o: { id: string }) => o.id === optId);
+            if (opt) variantLabels.push(`${g.name}: ${(opt as { label: string }).label}`);
+          }
+        }
+      }
+      const variantResolution = resolveListingVariantSelection(
+        ci.listing.variantGroups,
+        ci.selectedVariantOptionIds ?? [],
+      );
+      const livePriceCents = variantResolution.ok
+        ? ci.listing.priceCents + variantResolution.variantAdjustCents
+        : ci.listing.priceCents;
+      const variantUnavailable = !variantResolution.ok || validateVariantUnitPriceCents(livePriceCents) !== null;
+      const maxQuantity = ci.listing.listingType === "MADE_TO_ORDER"
+        ? 1
+        : Math.min(99, Math.max(0, ci.listing.stockQuantity ?? 0));
+      const stockExceeded = cartItemExceedsLiveStock({
+        listingType: ci.listing.listingType,
+        quantity: ci.quantity,
+        stockQuantity: ci.listing.stockQuantity,
+      });
+      return {
+        id: ci.id,
+        quantity: ci.quantity,
+        priceCents: ci.priceCents,
+        priceVersion: ci.priceVersion,
+        livePriceCents,
+        livePriceVersion: ci.listing.priceVersion,
+        priceChanged: variantUnavailable || livePriceCents !== ci.priceCents || ci.listing.priceVersion !== ci.priceVersion,
+        variantUnavailable,
+        stockExceeded,
+        variantLabels,
+        listing: {
+          id: ci.listing.id,
+          title: ci.listing.title,
+          sellerId: ci.listing.sellerId,
+          currency: ci.listing.currency || DEFAULT_CURRENCY,
+          listingType: ci.listing.listingType,
+          maxQuantity,
+          status: ci.listing.status,
+          sellerName:
+            seller?.displayName ??
+            "Seller",
+          sellerVacationMode: !!seller?.vacationMode,
+          sellerUnavailable:
+            !seller?.chargesEnabled ||
+            !!seller?.vacationMode ||
+            !!seller?.user?.banned ||
+            !!seller?.user?.deletedAt,
+          photos: ci.listing.photos.map((p) => ({ url: p.url })),
+          // expose seller shipping knobs so Cart UI can display hints
+          shippingFlatRate: shippingFlatRateCents != null ? shippingFlatRateCents / 100 : null,
+          freeShippingOver: freeOverCents != null ? freeOverCents / 100 : null,
+          freeOverCents: freeOverCents ?? 0,
+          allowLocalPickup: !!seller?.allowLocalPickup,
+          offersGiftWrapping: !!seller?.offersGiftWrapping,
+          giftWrappingPriceCents: seller?.giftWrappingPriceCents ?? null,
+        },
+      };
+    });
+
+    return privateJson({ items });
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return privateJson({ error: err.message, code: err.code }, { status: err.status });
+    }
+    logServerError(err, { source: "cart_route", tags: { route: "/api/cart" } });
+    return privateJson({ error: "Server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
+  }
+}

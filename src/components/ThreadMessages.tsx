@@ -1,0 +1,627 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { MessageCircle, Logs } from "@/components/icons";
+import {
+  parseCommissionInterestMessageBody,
+  parseCustomOrderLinkMessageBody,
+  parseCustomOrderRequestMessageBody,
+  parseFileMessageBody,
+  parseThreadMessagesEvent,
+} from "@/lib/messageBodies";
+import { isTerminalMessageStreamStatus, messageStreamStatusMessage } from "@/lib/messageStreamState";
+import { publicListingPath } from "@/lib/publicPaths";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
+import { isTrustedMediaUrl } from "@/lib/urlValidation";
+
+type Msg = {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  kind?: string | null;
+  isSystemMessage?: boolean | null;
+  contextListing?: { id: string; title: string } | null;
+  createdAt: string | Date;
+  readAt?: string | Date | null;
+};
+
+type OtherUser = {
+  imageUrl?: string | null;
+  avatarImageUrl?: string | null;
+  name?: string | null;
+};
+
+type ClientMessageCursor = { createdAtMs: number; id: string };
+
+function compareMessages(left: Msg, right: Msg) {
+  const timeDelta = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+  if (timeDelta !== 0) return timeDelta;
+  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+}
+
+function mergeThreadMessages(current: Msg[], fresh: Msg[]) {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  for (const message of fresh) byId.set(message.id, message);
+  return [...byId.values()].sort(compareMessages);
+}
+
+function cursorForMessage(message: Msg | undefined): ClientMessageCursor | null {
+  if (!message) return null;
+  const createdAtMs = new Date(message.createdAt).getTime();
+  return Number.isFinite(createdAtMs) ? { createdAtMs, id: message.id } : null;
+}
+
+function appendCursorParams(
+  url: URL,
+  cursor: ClientMessageCursor | null,
+  timestampKey: "since" | "before",
+) {
+  if (!cursor) return;
+  url.searchParams.set(timestampKey, String(cursor.createdAtMs));
+  url.searchParams.set(`${timestampKey}Id`, cursor.id);
+}
+
+const hasImageExtension = (s: string) =>
+  /^https:\/\/.+\.(png|jpe?g|gif|webp|avif)$/i.test(s.trim());
+const hasPdfExtension = (s: string) => /^https:\/\/.+\.pdf$/i.test(s.trim());
+const isTrustedImageUrl = (s: string) => isTrustedMediaUrl(s) && hasImageExtension(s);
+const isTrustedPdfUrl = (s: string) => isTrustedMediaUrl(s) && hasPdfExtension(s);
+
+function PdfChip({ url, name }: { url: string; name?: string | null }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
+    >
+      {/* tiny PDF icon */}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="#ef4444" /* red-500 */
+        aria-hidden="true"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
+        <path d="M14 2v6h6" fill="#fff" opacity="0.6" />
+      </svg>
+      <span className="min-w-0 max-w-[220px] truncate">{name ?? "Document.pdf"}</span>
+      <span className="shrink-0 text-xs text-neutral-500">Open<span className="sr-only"> in a new tab</span></span>
+    </a>
+  );
+}
+
+export default function ThreadMessages({
+  convoId,
+  meId,
+  initial,
+  initialHasMoreBefore = false,
+  otherUser,
+  height = "60vh",
+  refreshEventFormId,
+  liveUpdates = true,
+  canCreateCustomListings = true,
+}: {
+  convoId: string;
+  meId: string;
+  initial: Msg[];
+  initialHasMoreBefore?: boolean;
+  otherUser?: OtherUser | null;
+  height?: number | string;
+  refreshEventFormId?: string;
+  liveUpdates?: boolean;
+  canCreateCustomListings?: boolean;
+}) {
+  const [msgs, setMsgs] = React.useState<Msg[]>(initial || []);
+  const [streamError, setStreamError] = React.useState<string | null>(null);
+  const [hasMoreBefore, setHasMoreBefore] = React.useState(initialHasMoreBefore);
+  const [loadingEarlier, setLoadingEarlier] = React.useState(false);
+  const boxRef = React.useRef<HTMLDivElement | null>(null);
+  const lastCursorRef = React.useRef<ClientMessageCursor | null>(
+    cursorForMessage(initial?.[initial.length - 1]),
+  );
+  const atBottomRef = React.useRef(true);
+
+  const scrollToBottom = (smooth = true) => {
+    const el = boxRef.current;
+    if (!el) return;
+    if (smooth) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+  };
+
+  React.useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      atBottomRef.current =
+        el.scrollTop + el.clientHeight >= el.scrollHeight - 80;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    requestAnimationFrame(() => scrollToBottom(false));
+    const fallbackTimer = setTimeout(() => scrollToBottom(false), 500);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      clearTimeout(fallbackTimer);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    setMsgs(initial || []);
+    lastCursorRef.current = cursorForMessage(initial?.[initial.length - 1]);
+    setHasMoreBefore(initialHasMoreBefore);
+    requestAnimationFrame(() => scrollToBottom(false));
+  }, [convoId, initial, initialHasMoreBefore]);
+
+  const loadEarlier = async () => {
+    if (loadingEarlier || !hasMoreBefore || msgs.length === 0) return;
+    const cursor = cursorForMessage(msgs[0]);
+    if (!cursor) return;
+
+    setLoadingEarlier(true);
+    const box = boxRef.current;
+    const previousHeight = box?.scrollHeight ?? 0;
+    try {
+      const url = new URL(`/api/messages/${convoId}/list`, window.location.origin);
+      appendCursorParams(url, cursor, "before");
+      const response = await fetch(url.toString(), { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      const earlier: Msg[] = Array.isArray(data?.messages) ? data.messages : [];
+      setHasMoreBefore(data?.hasMoreBefore === true);
+      if (earlier.length) {
+        setMsgs((current) => mergeThreadMessages(current, earlier));
+        requestAnimationFrame(() => {
+          const currentBox = boxRef.current;
+          if (currentBox) currentBox.scrollTop += currentBox.scrollHeight - previousHeight;
+        });
+      }
+    } finally {
+      setLoadingEarlier(false);
+    }
+  };
+
+  // Scroll to bottom after a message is sent. Also fire an immediate fetch
+  // so the sent message appears within a few hundred ms instead of waiting
+  // for the next 3s poll or SSE push.
+  React.useEffect(() => {
+    if (!liveUpdates) return;
+
+    let active = true;
+    let controller: AbortController | null = null;
+
+    const onOk = async (event: Event) => {
+      if (refreshEventFormId) {
+        const formId = event instanceof CustomEvent ? event.detail?.formId : null;
+        if (formId !== refreshEventFormId) return;
+      }
+      controller?.abort();
+      const currentController = new AbortController();
+      controller = currentController;
+      try {
+        const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
+        appendCursorParams(u, lastCursorRef.current, "since");
+        const res = await fetch(u.toString(), { cache: "no-store", signal: currentController.signal });
+        if (!active || currentController.signal.aborted) return;
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!active || currentController.signal.aborted) return;
+        const fresh: Msg[] = Array.isArray(data?.messages) ? data.messages : [];
+        if (fresh.length) {
+          setMsgs((prev) => {
+            const merged = mergeThreadMessages(prev, fresh);
+            lastCursorRef.current = cursorForMessage(merged[merged.length - 1]);
+            return merged;
+          });
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        // Polling will catch up on the next tick.
+      }
+      setTimeout(() => {
+        if (!active) return;
+        const el = boxRef.current;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      }, 200);
+    };
+    document.addEventListener("actionform:ok", onOk);
+    return () => {
+      active = false;
+      controller?.abort();
+      document.removeEventListener("actionform:ok", onOk);
+    };
+  }, [convoId, refreshEventFormId, liveUpdates]);
+
+  React.useEffect(() => {
+    if (!liveUpdates) {
+      setStreamError(null);
+      return;
+    }
+
+    let closed = false;
+    let pollId: number | null = null;
+    let pollController: AbortController | null = null;
+    setStreamError(null);
+
+    const apply = (fresh: Msg[]) => {
+      if (!fresh.length) return;
+      setMsgs((prev) => {
+        const merged = mergeThreadMessages(prev, fresh);
+        lastCursorRef.current = cursorForMessage(merged[merged.length - 1]);
+        if (atBottomRef.current) requestAnimationFrame(() => scrollToBottom(true));
+        return merged;
+      });
+    };
+
+    const startPolling = () => {
+      if (closed) return;
+      pollId = window.setInterval(async () => {
+        if (closed || pollController) return;
+        const controller = new AbortController();
+        pollController = controller;
+        try {
+          const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
+          appendCursorParams(u, lastCursorRef.current, "since");
+          const res = await fetch(u.toString(), { cache: "no-store", signal: controller.signal });
+          if (closed) return;
+          if (!res.ok) {
+            if (isTerminalMessageStreamStatus(res.status)) {
+              setStreamError(messageStreamStatusMessage(res.status));
+              if (pollId) window.clearInterval(pollId);
+              pollId = null;
+            }
+            return;
+          }
+          const data = await res.json();
+          if (closed) return;
+          apply(Array.isArray(data?.messages) ? data.messages : []);
+        } catch (error) {
+          if (!(error instanceof DOMException && error.name === "AbortError")) {
+            console.warn("[thread-messages] polling failed", error);
+          }
+        } finally {
+          if (pollController === controller) pollController = null;
+        }
+      }, 3000);
+    };
+
+    try {
+      const u = new URL(`/api/messages/${convoId}/stream`, window.location.origin);
+      appendCursorParams(u, lastCursorRef.current, "since");
+      const es = new EventSource(u.toString());
+      es.onmessage = (ev) => {
+        const messages = parseThreadMessagesEvent(ev.data);
+        if (messages) apply(messages);
+      };
+      es.onerror = () => {
+        // SSE errors are noisy (visibility change, network blips, idle drops).
+        // Silently fall back to polling instead of warning the user every time
+        // the stream drops — only terminal polling failures (401/403/429) set
+        // streamError below, and those are real interruptions worth surfacing.
+        es.close();
+        startPolling();
+      };
+      return () => {
+        closed = true;
+        es.close();
+        if (pollId) window.clearInterval(pollId);
+        pollController?.abort();
+      };
+    } catch (error) {
+      console.warn("[thread-messages] event stream setup failed", error);
+      startPolling();
+      return () => {
+        closed = true;
+        if (pollId) window.clearInterval(pollId);
+        pollController?.abort();
+      };
+    }
+  }, [convoId, liveUpdates]);
+
+  const boxHeight = typeof height === "number" ? `${height}px` : height ?? "60vh";
+
+  // Pre-compute which messages are the last in each consecutive "other" run
+  // so we only show the avatar on the final bubble of a streak.
+  const isLastInOtherRun = React.useMemo(() => {
+    const result = new Set<string>();
+    for (let i = 0; i < msgs.length; i++) {
+      if (msgs[i].senderId !== meId) {
+        const isLast = i === msgs.length - 1 || msgs[i + 1].senderId === meId;
+        if (isLast) result.add(msgs[i].id);
+      }
+    }
+    return result;
+  }, [msgs, meId]);
+
+  const otherAvatar = otherUser?.avatarImageUrl ?? otherUser?.imageUrl ?? null;
+
+  return (
+    <div
+      ref={boxRef}
+      className="w-full min-w-0 max-w-full touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-8 md:card-section md:p-4"
+      style={{ height: boxHeight }}
+    >
+      {streamError && (
+        <div role="status" className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {streamError}
+        </div>
+      )}
+      {hasMoreBefore && (
+        <div className="mb-3 flex justify-center">
+          <button
+            type="button"
+            onClick={loadEarlier}
+            disabled={loadingEarlier}
+            className="min-h-[36px] rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingEarlier ? "Loading earlier messages…" : "Load earlier messages"}
+          </button>
+        </div>
+      )}
+      {msgs.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600 mb-4">
+            <MessageCircle size={28} />
+          </div>
+          <h3 className="text-base font-medium text-neutral-800 mb-1">
+            {otherUser?.name ? `Say hi to ${otherUser.name}` : "Start the conversation"}
+          </h3>
+          <p className="text-sm text-neutral-500 max-w-xs">
+            Send the first message below. Replies appear here in real time.
+          </p>
+        </div>
+      )}
+      <ul className="min-w-0 space-y-3 pb-4">
+        {msgs.map((m) => {
+          const mine = m.senderId === meId;
+          const body = (m.body ?? "").toString().trim();
+
+          // ── Commission interest card ────────────────────────────────────
+          if (m.kind === "commission_interest_card") {
+            const card = parseCommissionInterestMessageBody(body);
+            return (
+              <li key={m.id} className="min-w-0 max-w-[90%]">
+                <div className="min-w-0 space-y-3 overflow-hidden break-words rounded-xl border border-teal-200 bg-teal-50/70 p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-teal-800">Commission Interest</div>
+                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-teal-800 ring-1 ring-teal-200">
+                      New response
+                    </span>
+                  </div>
+                  <p className="text-sm text-neutral-700">
+                    <strong>{card.sellerName ?? "A maker"}</strong> expressed interest in your commission request
+                  </p>
+                  {card.commissionTitle && (
+                    <p className="text-sm font-medium text-neutral-900">&ldquo;{card.commissionTitle}&rdquo;</p>
+                  )}
+                  {(card.budgetMinCents || card.budgetMaxCents) && (
+                    <p className="text-xs text-neutral-500">
+                      Budget:{" "}
+                      {formatCommissionBudgetRange(card.budgetMinCents, card.budgetMaxCents)}
+                    </p>
+                  )}
+                  {card.timeline && (
+                    <p className="text-xs text-neutral-500">Timeline: {card.timeline}</p>
+                  )}
+                  {card.commissionId && (
+                    <Link
+                      href={`/commission/${card.commissionId}`}
+                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md border border-teal-200 bg-white px-3 py-1 text-xs font-medium text-teal-800 transition-colors hover:bg-teal-50"
+                    >
+                      View full request
+                    </Link>
+                  )}
+                </div>
+                <div className="mt-1 text-[11px] text-neutral-500">
+                  {new Date(m.createdAt).toLocaleString("en-US")}
+                </div>
+              </li>
+            );
+          }
+
+          // ── Custom order request card ───────────────────────────────────
+          if (m.kind === "custom_order_request") {
+            const req = parseCustomOrderRequestMessageBody(body);
+            const canCreateCustomListing = canCreateCustomListings && !mine;
+            return (
+              <li key={m.id} className="min-w-0 max-w-[90%]">
+                <div className="min-w-0 space-y-2 overflow-hidden break-words rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="text-sm font-semibold text-amber-800">Custom Order Request</div>
+                  {req.description && (
+                    <p className="text-sm text-amber-900">{req.description}</p>
+                  )}
+                  {(req.dimensions || req.budget != null || req.timelineLabel || req.listingTitle) && (
+                    <div className="space-y-1 text-xs text-amber-700">
+                      {req.dimensions && (
+                        <div><span className="font-medium">Dimensions:</span> {req.dimensions}</div>
+                      )}
+                      {req.budget != null && (
+                        <div><span className="font-medium">Budget:</span> ${req.budget}</div>
+                      )}
+                      {req.timelineLabel && (
+                        <div><span className="font-medium">Timeline:</span> {req.timelineLabel}</div>
+                      )}
+                      {req.listingTitle && (
+                        <div><span className="font-medium">Inspired by:</span> {req.listingTitle}</div>
+                      )}
+                    </div>
+                  )}
+                  {canCreateCustomListing && (
+                    <Link
+                      href={`/dashboard/listings/custom?conversationId=${convoId}&buyerId=${m.senderId}`}
+                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-[#2C1F1A] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#3A2A24]"
+                    >
+                      Create Custom Listing
+                    </Link>
+                  )}
+                </div>
+                <div className="mt-1 text-[11px] text-neutral-500">
+                  {new Date(m.createdAt).toLocaleString("en-US")}
+                </div>
+              </li>
+            );
+          }
+
+          // ── Custom order link card ──────────────────────────────────────
+          if (m.kind === "custom_order_link") {
+            const link = parseCustomOrderLinkMessageBody(body);
+            return (
+              <li key={m.id} className={`min-w-0 max-w-[90%] ${mine ? "ml-auto" : ""}`}>
+                <div className="min-w-0 space-y-2 overflow-hidden break-words rounded-xl border border-stone-200/60 bg-white p-4 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900"><Logs size={15} /> Custom Piece Ready</div>
+                  {link.title && (
+                    <p className="text-sm font-medium text-neutral-700">{link.title}</p>
+                  )}
+                  {link.priceCents != null && (
+                    <p className="text-sm text-neutral-600">
+                      {formatCurrencyCents(link.priceCents, link.currency ?? DEFAULT_CURRENCY)}
+                    </p>
+                  )}
+                  {link.listingId && (
+                    <Link
+                      href={publicListingPath(link.listingId, link.title)}
+                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700"
+                    >
+                      Purchase This Piece
+                    </Link>
+                  )}
+                </div>
+                <div className="mt-1 text-[11px] text-neutral-500">
+                  {new Date(m.createdAt).toLocaleString("en-US")}
+                </div>
+              </li>
+            );
+          }
+
+          // ── Standard message rendering ──────────────────────────────────
+          const file = parseFileMessageBody(body);
+          const fileUrlTrusted = file ? isTrustedMediaUrl(file.url) : false;
+
+          const isImage = file
+            ? fileUrlTrusted && ((file.type?.startsWith("image/") ?? false) || hasImageExtension(file.url))
+            : isTrustedImageUrl(body);
+
+          const isPdf = file
+            ? fileUrlTrusted && (file.type === "application/pdf" || hasPdfExtension(file.url))
+            : isTrustedPdfUrl(body);
+
+          // Attachment bubbles are always light for readability
+          const isAttachment = file || isImage || isPdf;
+          const bubbleClass = isAttachment
+            ? "bg-white text-neutral-900 border border-stone-200/60"
+            : mine
+            ? "bg-[#2C1F1A] text-white"
+            : "bg-[#EFEAE0] text-neutral-900";
+
+          let bubble: React.ReactNode;
+
+          if (file) {
+            if (isImage) {
+              bubble = (
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open ${file.name ?? "image attachment"} in a new tab`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={file.url}
+                    alt={file.name ?? "image"}
+                    className="max-h-80 max-w-[260px] rounded-lg object-cover"
+                  />
+                </a>
+              );
+            } else if (isPdf) {
+              bubble = <PdfChip url={file.url} name={file.name ?? undefined} />;
+            } else if (fileUrlTrusted) {
+              bubble = (
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
+                  aria-label={`Open ${file.name ?? "file attachment"} in a new tab`}
+                >
+                  <span className="min-w-0 max-w-[220px] truncate">{file.name ?? "File attachment"}</span>
+                  <span className="shrink-0 text-xs text-neutral-500">
+                    Open<span className="sr-only"> in a new tab</span>
+                  </span>
+                </a>
+              );
+            } else {
+              bubble = <div className="whitespace-pre-wrap break-words">{file.name ?? "Attachment unavailable"}</div>;
+            }
+          } else if (isImage) {
+            bubble = (
+              <a href={body} target="_blank" rel="noopener noreferrer" aria-label="Open image attachment in a new tab">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={body}
+                  alt="attachment"
+                  className="max-h-80 max-w-[260px] rounded-lg object-cover"
+                />
+              </a>
+            );
+          } else if (isPdf) {
+            bubble = <PdfChip url={body} name={"Document.pdf"} />;
+          } else {
+            bubble = <div className="whitespace-pre-wrap break-words">{body}</div>;
+          }
+
+          const showAvatar = !mine && isLastInOtherRun.has(m.id);
+          const avatarPlaceholder = !mine && !isLastInOtherRun.has(m.id);
+
+          return (
+            <li
+              key={m.id}
+              className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
+            >
+              {/* Avatar slot for other person's messages */}
+              {!mine && (
+                <div className="shrink-0 w-8">
+                  {showAvatar ? (
+                    <div className="h-8 w-8 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm">
+                      {otherAvatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={otherAvatar} alt="" className="h-full w-full object-cover" />
+                      ) : null}
+                    </div>
+                  ) : (
+                    /* invisible spacer keeps bubbles aligned */
+                    <div className="h-8 w-8" aria-hidden />
+                  )}
+                  {/* suppress lint warning on avatarPlaceholder — used implicitly above */}
+                  {avatarPlaceholder && null}
+                </div>
+              )}
+
+              <div className={`min-w-0 max-w-[75%] sm:max-w-[65%] ${mine ? "text-right" : ""}`}>
+                {m.contextListing ? (
+                  <Link
+                    href={publicListingPath(m.contextListing.id, m.contextListing.title)}
+                    className="mb-1 block truncate text-left text-[11px] font-medium text-amber-700 hover:underline"
+                  >
+                    Regarding {m.contextListing.title}
+                  </Link>
+                ) : null}
+                <div className={`inline-block max-w-full break-all rounded-2xl px-3 py-2 text-left ${bubbleClass}`}>
+                  {bubble}
+                </div>
+                <div className="mt-1 text-[11px] text-neutral-500">
+                  {new Date(m.createdAt).toLocaleString("en-US")}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}

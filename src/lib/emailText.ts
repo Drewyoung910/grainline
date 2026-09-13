@@ -1,0 +1,110 @@
+const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF]/g;
+const NULL_BYTES = /\u0000/g;
+
+const ENTITY_MAP: Record<string, string> = {
+  amp: "&",
+  apos: "'",
+  copy: "(c)",
+  gt: ">",
+  hellip: "...",
+  laquo: "<<",
+  ldquo: '"',
+  lsquo: "'",
+  lt: "<",
+  mdash: "-",
+  ndash: "-",
+  nbsp: " ",
+  quot: '"',
+  raquo: ">>",
+  rdquo: '"',
+  reg: "(r)",
+  rsquo: "'",
+  trade: "(tm)",
+};
+
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]+);/gi, (entity, raw: string) => {
+    const name = raw.toLowerCase();
+    if (name.startsWith("#x")) {
+      const codePoint = Number.parseInt(name.slice(2), 16);
+      return Number.isFinite(codePoint) ? safeCodePoint(entity, codePoint) : entity;
+    }
+    if (name.startsWith("#")) {
+      const codePoint = Number.parseInt(name.slice(1), 10);
+      return Number.isFinite(codePoint) ? safeCodePoint(entity, codePoint) : entity;
+    }
+    return ENTITY_MAP[name] ?? entity;
+  });
+}
+
+function safeCodePoint(fallback: string, codePoint: number): string {
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeDecodedEmailText(text: string): string {
+  return text.normalize("NFKC")
+    .replace(BIDI_CONTROL_CHARS, "")
+    .replace(ZERO_WIDTH_CHARS, "")
+    .replace(NULL_BYTES, "");
+}
+
+export function htmlToText(html: string): string {
+  const stripped = html
+    .replace(/<head[\s\S]*?<\/head>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(td|th)>/gi, "\t")
+    .replace(/<\/(p|div|h1|h2|h3|li|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, "");
+
+  const decoded = normalizeDecodedEmailText(decodeHtmlEntities(stripped))
+    .replace(/<head[\s\S]*?<\/head>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, "");
+
+  const lines = decoded
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(formatPlainTextLine);
+
+  return compactTableWhitespace(lines)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function formatPlainTextLine(line: string): string {
+  if (line.includes("\t")) {
+    const cells = line
+      .split("\t")
+      .map(normalizePlainTextSpacing)
+      .filter(Boolean);
+    return cells.join(" | ");
+  }
+
+  return normalizePlainTextSpacing(line);
+}
+
+function normalizePlainTextSpacing(text: string): string {
+  return text.replace(/[ \t]+/g, " ").trim();
+}
+
+function compactTableWhitespace(lines: string[]) {
+  return lines.filter((line, index) => {
+    if (line !== "") return true;
+    const previous = lines[index - 1];
+    const next = lines[index + 1];
+    return !(isPlainTextTableLine(previous) && isPlainTextTableLine(next));
+  });
+}
+
+function isPlainTextTableLine(line: string | undefined) {
+  return !!line && line.includes(" | ");
+}

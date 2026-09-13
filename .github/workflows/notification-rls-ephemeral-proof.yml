@@ -1,0 +1,95 @@
+name: Notification RLS FORCE Proof
+
+on:
+  push:
+    branches:
+      - codex/rls-notification-force-20260722
+      - main
+    paths:
+      - .github/workflows/notification-rls-ephemeral-proof.yml
+      - docs/rls-drafts/**
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/audit-runtime-db-grants.mjs
+      - scripts/build-blocked-checkout-refund-delivery-migration.mjs
+      - scripts/notification-rls-ephemeral-proof.mjs
+      - scripts/notification-rls-rollback-proof.mjs
+      - scripts/stage-notification-rls-candidate-migration.mjs
+      - scripts/verify-notification-activation-release.mjs
+      - scripts/verify-notification-force-release.mjs
+      - scripts/prepare-ci-rls-runtime-role.sql
+      - scripts/provision-direct-upload-cleanup-role.sql
+      - scripts/provision-runtime-db-role.sql
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: grainline_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d grainline_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      NOTIFICATION_RLS_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Verify blocked-checkout refund delivery compatibility release
+        run: npm run audit:order-payment-blocked-checkout-refund-delivery-release
+      - name: Prepare CI runtime policy role
+        run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
+      - name: Verify committed Notification activation release artifact
+        run: npm run audit:rls-notification-activation-release
+      - name: Verify committed Notification FORCE release artifact
+        run: npm run audit:rls-notification-force-release
+      - name: Isolate DirectUpload activation until external grants converge
+        run: >-
+          mv
+          prisma/migrations/20260801194000_enable_direct_upload_rls
+          "$RUNNER_TEMP/direct-upload-activation-release"
+      - name: Apply compatible migrations including committed Notification FORCE
+        run: npx prisma migrate deploy
+      - name: Converge pre-activation production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge pre-activation DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Restore exact DirectUpload activation
+        run: >-
+          mv
+          "$RUNNER_TEMP/direct-upload-activation-release"
+          prisma/migrations/20260801194000_enable_direct_upload_rls
+      - name: Apply current migrations including DirectUpload activation
+        run: npx prisma migrate deploy
+      - name: Reconverge activated production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Reconverge activated DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Audit production-style runtime grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove database-first Notification rollback
+        run: npm run audit:rls-notification-rollback
+      - name: Prove Notification RLS and service authority
+        run: npm run audit:rls-notification-ephemeral

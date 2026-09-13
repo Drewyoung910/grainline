@@ -1,0 +1,78 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("R56-R67 small audit follow-up guardrails", () => {
+  it("keeps markSoldAction atomic against stale listing status", () => {
+    const text = source("src/app/seller/[id]/shop/actions.ts");
+    const start = text.indexOf("export async function markSoldAction");
+    const end = text.indexOf("export async function deleteListingAction");
+    const body = text.slice(start, end);
+
+    assert.match(body, /prisma\.listing\.updateMany/);
+    assert.match(body, /sellerId: listing\.sellerId/);
+    assert.match(body, /status: \{ in: \[ListingStatus\.ACTIVE, ListingStatus\.SOLD_OUT\] \}/);
+    assert.doesNotMatch(body, /prisma\.listing\.update\(\{ where: \{ id: listingId \}/);
+  });
+
+  it("keeps review submission single-flight and review photo removal touch-friendly", () => {
+    const text = source("src/components/ReviewComposer.tsx");
+
+    assert.match(text, /const \[submitting, setSubmitting\] = React\.useState\(false\)/);
+    assert.match(text, /const locked = Boolean\(editing && existing\?\.locked\)/);
+    assert.match(text, /if \(locked\) \{[\s\S]*?toast\("This review is locked because the seller has replied\.", "error"\);[\s\S]*?return;/);
+    assert.match(text, /if \(submitting\) return/);
+    assert.match(text, /This review is locked because the seller has replied\. Existing review content is read-only\./);
+    assert.match(text, /disabled=\{locked \|\| submitting\}/);
+    assert.match(text, /readOnly=\{locked\}/);
+    assert.match(text, /if \(locked\) return;/);
+    assert.match(text, /disabled=\{submitting \|\| locked\}/);
+    assert.match(text, /!locked && !submitting &&/);
+    assert.match(text, /h-11 w-11/);
+    assert.doesNotMatch(text, /h-6 w-6 rounded-full bg-black\/80/);
+  });
+
+  it("handles client fetch lifecycle failures without silent stuck UI", () => {
+    assert.match(source("src/components/CaseReplyBox.tsx"), /catch \{\s*setError\("Failed to send\. Check your connection and try again\."\);\s*setLoading\(false\);/s);
+    assert.match(source("src/components/BroadcastComposer.tsx"), /const controller = new AbortController\(\)/);
+    assert.match(source("src/components/BroadcastComposer.tsx"), /return \(\) => controller\.abort\(\)/);
+    assert.match(source("src/components/ThreadMessages.tsx"), /pollController\?\.abort\(\)/);
+    const editPhotoGrid = source("src/components/EditPhotoGrid.tsx");
+    assert.match(editPhotoGrid, /name="photoManifestJson"/);
+    assert.match(editPhotoGrid, /Photo changes are staged until you press Save/);
+    assert.doesNotMatch(editPhotoGrid, /fetch\(`/);
+    assert.doesNotMatch(editPhotoGrid, /onReorder/);
+  });
+
+  it("keeps existing-listing photo writes behind Save and defers safe object cleanup", () => {
+    const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+
+    assert.match(editPage, /class ListingPhotoConflictError extends Error/);
+    assert.match(editPage, /const submittedNewPhotoUrls = new Set<string>\(\)/);
+    assert.match(editPage, /const updatedPhoto = await tx\.photo\.updateMany/);
+    assert.match(editPage, /if \(updatedPhoto\.count === 0\) \{\s*throw new ListingPhotoConflictError\(\);/s);
+    assert.match(editPage, /syncListingDirectUploadReferences/);
+    assert.doesNotMatch(editPage, /deleteR2ObjectByUrl/);
+    assert.match(editPage, /fenced lifecycle\s+\/\/ worker removes them/s);
+    assert.match(editPage, /source: "listing_update_ai_re_review"/);
+    assert.match(editPage, /logServerError\(err, \{/);
+    assert.doesNotMatch(editPage, /console\.error\("\[listing photo/);
+    assert.doesNotMatch(editPage, /console\.error\("\[listing-update\]/);
+    assert.match(editPage, /return \{ ok: false, error: error\.message \}/);
+  });
+
+  it("keeps minor UI and config cleanup from drifting back", () => {
+    assert.doesNotMatch(source("src/components/BuyNowCheckoutModal.tsx"), /bg-stone-50/);
+    assert.match(source("src/components/BlogCopyLinkButton.tsx"), /Could not copy the link/);
+    assert.match(source(".env.example"), /# CRON_SECRET_PREVIOUS=old-random-cron-secret/);
+  });
+
+  it("removes the unused packing helper and react-email render dependency", () => {
+    assert.equal(existsSync("src/lib/packing.ts"), false);
+    assert.doesNotMatch(source("package.json"), /"@react-email\/render"/);
+  });
+});

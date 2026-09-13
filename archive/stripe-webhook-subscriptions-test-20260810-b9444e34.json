@@ -1,0 +1,106 @@
+{
+  "status": "passed",
+  "generatedAt": "2026-08-10T07:51:00.254Z",
+  "startedAt": "2026-08-10T07:50:59.101Z",
+  "completedAt": "2026-08-10T07:51:00.254Z",
+  "commitSha": "b9444e3488db9276c0d9f895043fe1fc32c850d1",
+  "ciRunId": "31366490630",
+  "mode": "test-dry-run",
+  "target": {
+    "appOrigin": "https://thegrainline.com",
+    "snapshotWebhookPath": "/api/stripe/webhook",
+    "connectPayoutWebhookPath": "/api/stripe/webhook/connect",
+    "connectV2WebhookPath": "/api/stripe/webhook/v2"
+  },
+  "expected": {
+    "snapshotEvents": [
+      "checkout.session.completed",
+      "checkout.session.async_payment_succeeded",
+      "checkout.session.expired",
+      "checkout.session.async_payment_failed",
+      "charge.refunded",
+      "charge.dispute.created",
+      "charge.dispute.updated",
+      "charge.dispute.closed",
+      "charge.dispute.funds_withdrawn",
+      "charge.dispute.funds_reinstated"
+    ],
+    "connectPayoutEvents": [
+      "payout.failed"
+    ],
+    "connectV2EventFamily": "v2.core.account"
+  },
+  "checks": [
+    {
+      "name": "legacy-snapshot-webhook-subscription",
+      "status": "passed",
+      "apiVersion": "2026-03-25.dahlia",
+      "applicationPresent": false,
+      "enabledEvents": [
+        "charge.dispute.closed",
+        "charge.dispute.created",
+        "charge.dispute.funds_reinstated",
+        "charge.dispute.funds_withdrawn",
+        "charge.dispute.updated",
+        "charge.refunded",
+        "checkout.session.async_payment_failed",
+        "checkout.session.async_payment_succeeded",
+        "checkout.session.completed",
+        "checkout.session.expired"
+      ],
+      "endpointId": "we_1TG9607dFPHZMTngXaWRazjq",
+      "httpMethod": "POST",
+      "livemode": false,
+      "statusValue": "enabled",
+      "url": "https://thegrainline.com/api/stripe/webhook"
+    },
+    {
+      "name": "classic-connect-payout-webhook-subscription",
+      "status": "passed",
+      "apiVersion": "2026-02-25.clover",
+      "applicationPresent": true,
+      "enabledEvents": [
+        "payout.failed"
+      ],
+      "endpointId": "we_1U2bPL7dFPHZMTnggPCvj6yo",
+      "httpMethod": "POST",
+      "livemode": false,
+      "sourceScopeRequiresDashboardEvidence": true,
+      "statusValue": "enabled",
+      "url": "https://thegrainline.com/api/stripe/webhook/connect"
+    },
+    {
+      "name": "connect-v2-thin-event-destination",
+      "status": "passed",
+      "destinationId": "ed_test_61UeHHxdhW1XxFBWT16TU2ka85SQmmFCdhYGw02N6XVI",
+      "enabledEvents": [
+        "v2.core.account.closed",
+        "v2.core.account.created",
+        "v2.core.account.updated",
+        "v2.core.account[configuration.customer].capability_status_updated",
+        "v2.core.account[configuration.customer].updated",
+        "v2.core.account[configuration.merchant].capability_status_updated",
+        "v2.core.account[configuration.merchant].updated",
+        "v2.core.account[configuration.recipient].capability_status_updated",
+        "v2.core.account[configuration.recipient].updated",
+        "v2.core.account[defaults].updated",
+        "v2.core.account[identity].updated",
+        "v2.core.account[requirements].updated"
+      ],
+      "eventFamily": "v2.core.account",
+      "eventPayload": "thin",
+      "eventsFrom": [
+        "other_accounts"
+      ],
+      "livemode": false,
+      "statusValue": "enabled",
+      "type": "webhook_endpoint",
+      "url": "https://thegrainline.com/api/stripe/webhook/v2"
+    }
+  ],
+  "caveats": [
+    "Stripe does not return webhook signing secrets after creation; retain dashboard/Vercel evidence that STRIPE_WEBHOOK_SECRET, STRIPE_CONNECT_WEBHOOK_SECRET and STRIPE_V2_WEBHOOK_SECRET match the separate provider endpoints.",
+    "Stripe's classic Webhook Endpoint response does not expose whether an endpoint was created with connected-account source scope; retain Stripe Dashboard evidence that /api/stripe/webhook/connect is a Connect destination."
+  ],
+  "issues": []
+}

@@ -1,0 +1,56 @@
+name: Conversation and Message Legacy Inspection
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character main commit after compatibility migrations
+        required: true
+        type: string
+      confirmation:
+        description: Type inspect-prelaunch-conversation-message-legacy-state
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Aggregate-only production Conversation and Message inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    env:
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      MIGRATION_DB_ROLE: neondb_owner
+      CONVERSATION_MESSAGE_LEGACY_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      CONVERSATION_MESSAGE_LEGACY_INSPECT_CONFIRM: ${{ inputs.confirmation }}
+      CONVERSATION_MESSAGE_LEGACY_PREREQUISITES_CONFIRMED: notification-force-and-messaging-compatibility-migrations-passed
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Inspect aggregate legacy state in a read-only transaction
+        run: npm run ops:conversation-message-legacy-inspect
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          CONVERSATION_MESSAGE_LEGACY_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/conversation-message-legacy-inspection-${{ inputs.release_commit }}.json
+      - name: Upload sanitized aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: conversation-message-legacy-inspection-${{ github.sha }}
+          path: ${{ runner.temp }}/conversation-message-legacy-inspection-${{ github.sha }}.json
+          if-no-files-found: error
+          retention-days: 30

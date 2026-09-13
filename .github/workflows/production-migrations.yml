@@ -1,0 +1,170 @@
+# PRIVATE INTEGRATION CANDIDATE. Job disabled; not installed in active source.
+# Replace the historical workflow atomically ONLY after separate integration
+# review. Action/toolchain pins have private vendor-byte evidence only.
+# Final main SHA, source catalog, Node/npm bytes and exact-main CI must be new.
+name: Production Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact separately reviewed final main commit
+        required: true
+        type: string
+      ci_run_id:
+        description: Successful exact-main push CI run at the final commit
+        required: true
+        type: string
+      ci_run_attempt:
+        description: Exact accepted CI attempt
+        required: true
+        type: string
+      confirmation:
+        description: Type run-reviewed-production-migrations-from-main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: ${{ false }} # Integration review must explicitly replace this gate.
+    name: Guarded production migration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: Production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ''
+          # No cache and no root npm-ci. Existing worker owns clean installation.
+      - name: Prepare credential-free persistent worker
+        id: prepare
+        shell: bash
+        env:
+          ORDER_REVIEWED_TOOLCHAIN_JSON: ${{ vars.ORDER_REVIEWED_TOOLCHAIN_JSON }}
+          ORDER_REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          ORDER_REVIEWED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          ORDER_REVIEWED_CI_RUN_ATTEMPT: ${{ inputs.ci_run_attempt }}
+          ORDER_REVIEWED_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'; import fs from 'node:fs'; import path from 'node:path'; import {execFileSync} from 'node:child_process';
+          try {
+            const fields=['GITHUB_ACTIONS','GITHUB_REPOSITORY','GITHUB_EVENT_NAME','GITHUB_REF','GITHUB_JOB','GITHUB_WORKFLOW_REF','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_SHA','RUNNER_NAME'];
+            const env={PATH:'/usr/bin:/bin',TZ:'UTC',LANG:'C',LC_ALL:'C',...Object.fromEntries(fields.map(k=>[k,process.env[k]]))};
+            assert.equal(process.env.GITHUB_SHA,process.env.ORDER_REVIEWED_RELEASE_COMMIT);
+            const raw=process.env.ORDER_REVIEWED_TOOLCHAIN_JSON; assert.ok(raw && Buffer.byteLength(raw)<=16384);
+            const reviewed=JSON.parse(raw); assert.equal(reviewed.releaseCommit,process.env.GITHUB_SHA);
+            const control=fs.mkdtempSync(path.join(fs.realpathSync(process.env.RUNNER_TEMP),'order-handoff-control-'));fs.chmodSync(control,0o700);
+            assert.ok(!/[\r\n]/u.test(control));fs.appendFileSync(process.env.GITHUB_OUTPUT,`control=${control}\n`);
+            const plan={directory:fs.realpathSync(process.cwd()),reviewed,ci:{ciRunId:process.env.ORDER_REVIEWED_CI_RUN_ID,ciRunAttempt:process.env.ORDER_REVIEWED_CI_RUN_ATTEMPT},
+              context:{runId:env.GITHUB_RUN_ID,runAttempt:env.GITHUB_RUN_ATTEMPT,releaseCommit:env.GITHUB_SHA,runnerName:env.RUNNER_NAME},
+              scope:'order-compatible-prefix-17',confirmation:process.env.ORDER_REVIEWED_CONFIRMATION};
+            const file=path.join(control,'plan.json');fs.writeFileSync(file,JSON.stringify(plan),{mode:0o600,flag:'wx'});
+            execFileSync(process.execPath,['scripts/order-handoff-launch.mjs',file,path.join(control,'receipt.json')],{env,timeout:610000,stdio:['ignore','pipe','pipe'],maxBuffer:16384});
+          } catch { process.stderr.write('Order preparation failed; preserve attempt; no retry\n');process.exitCode=1; }
+          NODE
+      - name: Protected post-install handoff and fixed compatible-prefix execution
+        id: execute
+        shell: bash
+        env:
+          ORDER_HANDOFF_CONTROL: ${{ steps.prepare.outputs.control }}
+          ORDER_HANDOFF_GITHUB_TOKEN: ${{ github.token }}
+          ORDER_HANDOFF_OWNER_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          ORDER_HANDOFF_OWNER_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+          try {
+            // Wrapper uses built-ins only. Client verifies reviewed source before
+            // importing any release code or reading its three credential values.
+            const fields=['GITHUB_ACTIONS','GITHUB_REPOSITORY','GITHUB_EVENT_NAME','GITHUB_REF','GITHUB_JOB','GITHUB_WORKFLOW_REF','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_SHA','RUNNER_NAME',
+              'ORDER_HANDOFF_GITHUB_TOKEN','ORDER_HANDOFF_OWNER_URL','ORDER_HANDOFF_OWNER_URL_SHA256'];
+            const env={PATH:'/usr/bin:/bin',TZ:'UTC',LANG:'C',LC_ALL:'C',...Object.fromEntries(fields.map(k=>[k,process.env[k]]))};
+            const file=path.join(fs.realpathSync(process.env.ORDER_HANDOFF_CONTROL),'receipt.json');
+            const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
+            let receipt;try{const s=fs.fstatSync(fd);if(!s.isFile()||s.nlink!==1||s.uid!==process.getuid()||(s.mode&0o7777)!==0o600||s.size>16384)throw Error();receipt=JSON.parse(fs.readFileSync(fd));}finally{fs.closeSync(fd);}
+            execFileSync(process.execPath,['scripts/order-handoff-client.mjs',receipt.channel],{env,timeout:900000,stdio:['ignore','pipe','pipe'],maxBuffer:16384});
+          }catch{process.stderr.write('Order execution failed; preserve attempt; no retry\n');process.exitCode=1;}
+          NODE
+      - name: End remaining local handoff and collect bounded evidence
+        id: evidence
+        if: ${{ always() && steps.prepare.outputs.control != '' }}
+        shell: bash
+        env:
+          ORDER_HANDOFF_CONTROL: ${{ steps.prepare.outputs.control }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import net from 'node:net';import {execFileSync} from 'node:child_process';import {createHash} from 'node:crypto';
+          try {
+            const control=fs.realpathSync(process.env.ORDER_HANDOFF_CONTROL),receiptFile=path.join(control,'receipt.json');
+            const fd=fs.openSync(receiptFile,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);let receipt;
+            try{const s=fs.fstatSync(fd);assert.ok(s.isFile()&&s.nlink===1&&s.uid===process.getuid()&&(s.mode&0o7777)===0o600&&s.size<=16384);receipt=JSON.parse(fs.readFileSync(fd));}finally{fs.closeSync(fd);}
+            const channel=receipt.channel;assert.equal(fs.realpathSync(channel),channel);const d=fs.lstatSync(channel);assert.ok(d.isDirectory()&&d.uid===process.getuid()&&(d.mode&0o7777)===0o700);
+            const socketPath=path.join(channel,'handoff.sock');
+            if(!fs.existsSync(path.join(channel,'result.json'))&&fs.existsSync(socketPath)){
+              // Closing a bounded local connection deliberately poisons an idle
+              // handoff; a duplicate poisons any executing handoff. No PID kill,
+              // secret packet, resume or recovery command is used by cleanup.
+              const s=fs.lstatSync(socketPath);assert.ok(s.isSocket()&&s.uid===process.getuid()&&(s.mode&0o7777)===0o600);
+              await new Promise(resolve=>{const socket=net.createConnection(socketPath);socket.on('error',()=>socket.destroy());socket.on('close',resolve);socket.setTimeout(5000,()=>socket.destroy());socket.on('connect',()=>socket.destroy());});
+            }
+            await new Promise(resolve=>setTimeout(resolve,1000));
+            execFileSync(process.execPath,['scripts/order-handoff-evidence.mjs',channel,path.join(control,'evidence')],{
+              env:{PATH:'/usr/bin:/bin',TZ:'UTC',LANG:'C',LC_ALL:'C'},timeout:60000,stdio:['ignore','pipe','pipe'],maxBuffer:16384});
+          }catch{process.stderr.write('Order evidence incomplete or unavailable; preserve local attempt; no retry\n');process.exitCode=1;}
+          finally {
+            try {
+              // Emit only the bounded manifest digest as a separate sender receipt,
+              // even when a valid failed/incomplete bundle makes collection exit1.
+              const control=fs.realpathSync(process.env.ORDER_HANDOFF_CONTROL),file=path.join(control,'evidence/manifest.json');
+              if(fs.existsSync(file)){
+                assert.equal(fs.realpathSync(file),file);const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
+                let bytes;try{const s=fs.fstatSync(fd,{bigint:true});assert.ok(s.isFile()&&s.nlink===1n&&s.uid===BigInt(process.getuid())&&(s.mode&0o7777n)===0o600n&&s.size<=262144n);bytes=fs.readFileSync(fd);const after=fs.fstatSync(fd,{bigint:true}),named=fs.lstatSync(file,{bigint:true});for(const k of ['dev','ino','mode','uid','size','mtimeNs','ctimeNs','nlink']){assert.equal(after[k],s[k]);assert.equal(named[k],s[k]);}}finally{fs.closeSync(fd);}
+                const digest=createHash('sha256').update(bytes).digest('hex');
+                fs.appendFileSync(process.env.GITHUB_OUTPUT,`manifest_sha256=${digest}\n`);
+              }
+            }catch{process.stderr.write('Order manifest receipt unavailable; preserve attempt\n');process.exitCode=1;}
+          }
+          NODE
+      - name: Upload only validated evidence, including a failed attempt
+        id: upload
+        if: ${{ always() && steps.prepare.outputs.control != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: order-prefix-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.prepare.outputs.control }}/evidence
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 7
+          archive: true
+          overwrite: false
+          # An upload result alone is not host-loss/retrieval acceptance.
+      - name: Require execution, collection and upload success
+        if: ${{ always() }}
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execute.outcome }}
+          EVIDENCE_OUTCOME: ${{ steps.evidence.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+        run: |
+          test "$EXECUTION_OUTCOME" = success
+          test "$EVIDENCE_OUTCOME" = success
+          test "$UPLOAD_OUTCOME" = success

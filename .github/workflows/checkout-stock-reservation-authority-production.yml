@@ -1,0 +1,166 @@
+name: CheckoutStockReservation Authority Production Preparation
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full CI run for the exact main commit
+        required: true
+        type: string
+      inspection_run_id:
+        description: Successful aggregate-only inspection for the exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-checkout-stock-reservation-authority
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Apply compatible CheckoutStockReservation authority only
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main CI and fresh aggregate inspection
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_CONFIRMATION: ${{ inputs.confirmation }}
+          REVIEWED_INSPECTION_RUN_ID: ${{ inputs.inspection_run_id }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        with:
+          script: |
+            const parseRunId = (name) => {
+              const value = process.env[name];
+              if (!/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+                throw new Error(`${name} is not one positive run id`);
+              }
+              const parsed = Number(value);
+              if (!Number.isSafeInteger(parsed)) {
+                throw new Error(`${name} is not a safe run id`);
+              }
+              return parsed;
+            };
+            const releaseCommit = process.env.REVIEWED_RELEASE_COMMIT;
+            const mainCiRunId = parseRunId('REVIEWED_MAIN_CI_RUN_ID');
+            const inspectionRunId = parseRunId('REVIEWED_INSPECTION_RUN_ID');
+            if (
+              releaseCommit !== context.sha
+              || !/^[0-9a-f]{40}$/.test(releaseCommit ?? '')
+              || process.env.REVIEWED_CONFIRMATION
+                !== 'apply-reviewed-checkout-stock-reservation-authority'
+              || mainCiRunId === inspectionRunId
+            ) {
+              throw new Error('reservation authority production bindings drifted');
+            }
+            const expected = [
+              {
+                id: mainCiRunId,
+                name: 'CI',
+                event: 'push',
+                headBranch: 'main',
+              },
+              {
+                id: inspectionRunId,
+                name: 'Order Payment Shipping Legacy Inspection',
+                event: 'workflow_dispatch',
+                headBranch: 'main',
+              },
+            ];
+            for (const reviewed of expected) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: reviewed.id,
+              });
+              if (
+                run.id !== reviewed.id
+                || run.name !== reviewed.name
+                || run.event !== reviewed.event
+                || run.head_branch !== reviewed.headBranch
+                || run.head_sha !== releaseCommit
+                || run.status !== 'completed'
+                || run.conclusion !== 'success'
+              ) {
+                throw new Error(`Reviewed workflow run ${reviewed.id} drifted`);
+              }
+            }
+      - name: Verify exact source, owner connection, role posture, and Phase B
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify exact compatible authority tree and release
+        run: |
+          npm run verify:rls-release-artifact
+          npm run audit:rls-checkout-stock-reservation-authority-release
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed
+      - name: Verify sealed StripeWebhookEvent FORCE predecessor
+        run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
+      - name: Inspect exact restart scope read-only
+        id: scope
+        shell: bash
+        env:
+          CHECKOUT_STOCK_RESERVATION_AUTHORITY_SCOPE_STAGE: restart
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          scope_json="$(node scripts/verify-checkout-stock-reservation-authority-production-scope.mjs)"
+          printf '%s\n' "$scope_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            if (!["predecessor", "prepared"].includes(value.state)) {
+              throw new Error("invalid reservation authority restart state");
+            }
+            process.stdout.write(`state=${value.state}\n`);
+          ' "$scope_json" >> "$GITHUB_OUTPUT"
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Apply compatible CheckoutStockReservation authority
+        if: steps.scope.outputs.state == 'predecessor'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify production migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Audit compatible runtime grants and global RLS catalog
+        run: npm run audit:db-grants -- --require-direct-url
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Prove exact post-application production scope read-only
+        run: npm run audit:rls-checkout-stock-reservation-authority-production-scope
+        env:
+          CHECKOUT_STOCK_RESERVATION_AUTHORITY_SCOPE_STAGE: after
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

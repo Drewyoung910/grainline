@@ -1,0 +1,242 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { SubmitButton } from "@/components/ActionForm";
+import UploadButton from "@/components/R2UploadButton";
+import { emitToast } from "@/components/Toast";
+import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
+import { createClientId } from "@/lib/clientId";
+
+type Attachment = {
+  id: string;
+  name: string;
+  type: string;
+  url?: string;
+  uploading: boolean;
+};
+
+const ENDPOINT = "messageAny" as const;
+
+export default function MessageComposer({
+  placeholder = "Write a message…",
+  successEventFormId,
+  contextListing,
+  clearContextHref,
+}: {
+  placeholder?: string;
+  successEventFormId?: string;
+  contextListing?: { id: string; title: string } | null;
+  clearContextHref?: string;
+}) {
+  const [value, setValue] = React.useState("");
+  const [attachments, setAttachments] = React.useState<Attachment[]>([]);
+  const taRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const pendingIdsRef = React.useRef<string[]>([]);
+
+  const isUploading = attachments.some((a) => a.uploading);
+  const completed = attachments.filter((a) => !!a.url);
+  const canSend = !isUploading && (value.trim().length > 0 || completed.length > 0);
+
+
+  // Clear after successful submit (make sure ActionForm dispatches `actionform:ok`)
+  React.useEffect(() => {
+    const onOk = (event: Event) => {
+      if (successEventFormId) {
+        const formId = event instanceof CustomEvent ? event.detail?.formId : null;
+        if (formId !== successEventFormId) return;
+      }
+      setValue("");
+      setAttachments([]);
+      if (taRef.current) {
+        taRef.current.value = "";
+        taRef.current.style.height = "auto";
+      }
+    };
+    document.addEventListener("actionform:ok", onOk);
+    return () => document.removeEventListener("actionform:ok", onOk);
+  }, [successEventFormId]);
+
+  const extractUrl = (x: unknown): string | null => uploadedFileUrl(x) || null;
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  return (
+    <div className="sticky bottom-0 w-full min-w-0 max-w-full overflow-x-clip border-t border-neutral-200 bg-[#EFEAE0] px-3 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_8px_-4px_rgba(0,0,0,0.05)] sm:bottom-6 sm:mt-3 sm:rounded-2xl sm:border sm:border-stone-200/70 sm:px-4 sm:shadow-md">
+      {contextListing ? (
+        <div className="mb-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <span className="min-w-0 flex-1 truncate">
+            Regarding <span className="font-medium">{contextListing.title}</span>
+          </span>
+          {clearContextHref ? (
+            <Link href={clearContextHref} className="shrink-0 font-medium underline">
+              Remove
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+      {attachments.length > 0 && (
+        <div className="mb-2 flex min-w-0 flex-wrap gap-2">
+          {attachments.map((a) => (
+            <span
+              key={a.id}
+              className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-1 text-xs"
+            >
+              <span className="min-w-0 max-w-[160px] truncate">{a.name}</span>
+              {a.uploading ? (
+                <svg className="h-3.5 w-3.5 animate-spin text-neutral-500" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25" />
+                  <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="4" fill="none" />
+                </svg>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Remove file"
+                  onClick={() => removeAttachment(a.id)}
+                  className="relative rounded-full h-6 w-6 flex items-center justify-center hover:bg-neutral-100 after:absolute after:-inset-2"
+                >
+                  ✕
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex w-full min-w-0 items-end gap-2">
+        {/* VISIBLE attach circle */}
+        <div className="shrink-0">
+          <UploadButton
+            endpoint={ENDPOINT}
+            appearance={{
+              container: "inline-block align-bottom",
+              // Force visible circle + dark icon regardless of inherited styles
+              button:
+                "h-10 w-10 rounded-full bg-[#F7F5F0] " +
+                "p-0 flex items-center justify-center hover:bg-white " +
+                "transition-colors",
+              allowedContent: "hidden",
+            }}
+            content={{
+              button: () => (
+                <>
+                  {/* Hard-coded dark strokes so it never blends into white */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#111827" /* gray-800 */
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M21 15l-5-5-7 7-4-4" />
+                  </svg>
+                  <span className="sr-only">Attach files</span>
+                </>
+              ),
+            }}
+            onUploadBegin={(fileName) => {
+                const id = createClientId("message-attachment");
+              pendingIdsRef.current.push(id);
+              setAttachments((prev) => [
+                ...prev,
+                { id, name: fileName ?? "Uploading…", type: "", uploading: true },
+              ]);
+            }}
+            onClientUploadComplete={(result) => {
+              for (const r of result ?? []) {
+                const id = pendingIdsRef.current.shift();
+                if (!id) continue;
+                const url = extractUrl(r);
+                setAttachments((prev) =>
+                  prev.map((a) =>
+                    a.id === id
+                      ? {
+                          ...a,
+                          uploading: false,
+                          url: url ?? a.url,
+                          name: (r as { name?: string })?.name ?? a.name,
+                          type: (r as { type?: string })?.type ?? a.type,
+                        }
+                      : a
+                  )
+                );
+              }
+            }}
+            onUploadError={(e) => {
+              const id = pendingIdsRef.current.pop();
+              if (id) setAttachments((prev) => prev.filter((a) => a.id !== id));
+              emitToast(e?.message ?? "Upload failed", "error");
+            }}
+          />
+        </div>
+
+        <textarea
+          ref={taRef}
+          name="body"
+          aria-label="Message"
+          rows={1}
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 resize-none rounded-2xl border-2 border-stone-300 bg-[#F7F5F0] px-4 py-2.5 text-sm max-h-40 overflow-y-auto transition-colors"
+        />
+
+        {canSend ? (
+          <SubmitButton
+            pendingLabel="Sending…"
+            className="rounded-full bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 sm:px-5 py-2 text-white text-sm font-medium disabled:opacity-50 min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
+          >
+            <span className="hidden sm:inline">Send</span>
+            <svg className="sm:hidden h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          </SubmitButton>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="cursor-not-allowed rounded-full bg-[#2C1F1A]/40 px-4 sm:px-5 py-2 text-white text-sm font-medium min-h-[40px] min-w-[40px] flex items-center justify-center"
+          >
+            <span className="hidden sm:inline">Send</span>
+            <svg className="sm:hidden h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Only completed uploads go to the server action */}
+      <input
+        type="hidden"
+        name="attachments"
+        value={JSON.stringify(
+          completed.map(({ name, type, url }) => ({ name, type, url }))
+        )}
+      />
+      <input
+        type="hidden"
+        name="contextListingId"
+        value={contextListing?.id ?? ""}
+      />
+
+      <div className="mt-1 text-xs text-neutral-500">
+        Attach images or PDFs. Files show here before you send.
+      </div>
+    </div>
+  );
+}

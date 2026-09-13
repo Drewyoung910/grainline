@@ -1,0 +1,1892 @@
+# DirectUpload RLS and Lifecycle Authority Audit
+
+Opened 2026-07-26 as CM-A21. High audit completed on
+`agent/direct-upload-rls-audit-20260726`; Extra-High preparation is active on
+`agent/direct-upload-rls-preparation-20260726`. Production now contains the
+four PR #58 Case/CaseMessage compatibility migrations and compatible
+application at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
+both build and runtime. No DirectUpload preparation migration, DirectUpload
+grant/RLS change, provider-object mutation or DirectUpload activation has
+reached production.
+
+`DirectUpload` is a shared upload-control ledger, not an ordinary user-owned
+content table. It spans public listing/profile/review/blog/broadcast/commission
+media, legacy ordinary-message attachments, private Case evidence, future
+private ordinary-message attachments, account export/deletion and the cleanup
+cron. Its production release therefore remains separate from Message and Case
+even though both depend on it.
+
+## Accepted threat boundary
+
+The production runtime role must lose direct table access. `DirectUpload` and
+its reference table should use ENABLE plus FORCE RLS with no runtime table
+policy or direct table grant; the runtime receives only fixed operations.
+Owner-backed functions must pin `search_path`, reject `PUBLIC`, validate all
+durable targets and derive status/timestamps/cleanup state.
+
+Those functions do not authenticate a human. The runtime can assert an actor
+id, so a stolen `grainline_app_runtime` credential can impersonate a valid
+application actor within each granted function. Clerk authentication,
+server-side actor resolution and exact call-site guards remain load-bearing.
+The database boundary removes arbitrary table CRUD, enumeration, target
+selection and status rewriting; it is containment, not independent identity.
+
+The cleanup worker is intentionally different: leasing eligible objects must
+return cross-user object keys. Those lease/complete/fail operations must move
+to a dedicated NOBYPASSRLS worker role and connection before DirectUpload
+activation. Ordinary `grainline_app_runtime` must lose EXECUTE on all three.
+Until then, the compatible preparation retains the existing runtime authority
+and does not claim containment from a stolen runtime credential.
+
+Arbitrary application-runtime compromise with R2 credentials also remains able
+to access objects permitted by those credentials. Database RLS cannot solve
+that provider-secret threat. Separate bucket scope, credential rotation,
+no-public-domain proof and object audit telemetry remain required.
+
+## Verified operation inventory
+
+| Operation | Current code | Authority destination |
+|---|---|---|
+| Record processed public upload | `src/app/api/upload/image/route.ts` calls `recordDirectUploadVerified()` | Fixed actor/endpoint operation; database derives status and clocks and validates endpoint/type/size bounds |
+| Record presigned public upload | `src/app/api/upload/presign/route.ts` calls `recordDirectUploadPresigned()` | Fixed direct-upload operation; disable unused/retired endpoints before grant |
+| Mark public upload verified | `src/app/api/upload/verify/route.ts` calls `markDirectUploadVerified()` | Exact actor/key/endpoint transition with database-derived clocks |
+| Record private Case evidence | `src/app/api/cases/[id]/attachments/route.ts` calls `recordDirectUploadVerified()` | Case-participant operation with fixed private endpoint/storage, exact Case scope and no public URL |
+| Verify public persistence | `src/lib/uploadPersistenceVerification.ts` reads by key | Exact actor/key/endpoint projection; no list or arbitrary-row read |
+| Verify private Case persistence | `src/lib/caseEvidence.ts` reads by key | Exact Case/actor/source projection |
+| Read private Case evidence | Case attachment route reads lifecycle by key | Exact Case attachment read operation; no client key |
+| Claim public durable references | Listing, SellerProfile, Review, BlogPost, CommissionRequest, SellerBroadcast and legacy Message writers call generic claim helpers | Family-specific reference operations that prove the exact durable field/row and owner |
+| Claim private Case evidence | Case message route calls generic key claim then directly links `claimedById` | One atomic CaseMessage/attachment/reference operation |
+| Clean abandoned uploads | Cleanup cron calls `processExpiredDirectUploadBatch()` | Fixed lease/complete/fail operations returning only an eligible batch; grant them to a dedicated cleanup-worker role, not ordinary request runtime, at activation |
+| Account export | Account export directly lists every column | Fixed actor export projection with no key, URL, internal target id or raw error |
+| Account deletion | Deletion reads rows and deletes public lifecycle rows directly | Fixed source-aware release/deletion operation; retained Case evidence remains referenced |
+| Runtime provisioning | `scripts/provision-runtime-db-role.sql` grants SELECT/INSERT/UPDATE/DELETE | Activation must revoke all table access and grant only reviewed functions |
+
+Current public claim call sites:
+
+- Listing: new, custom and edit;
+- SellerProfile: onboarding and profile edit;
+- Review: create and edit;
+- BlogPost: new and edit;
+- CommissionRequest: create;
+- SellerBroadcast: create; and
+- ordinary Message: attachment send.
+
+Private Case evidence is the current private claim path. CM-A20 will add a
+private ordinary-Message path only after this rollout.
+
+## Endpoint and durable-source matrix
+
+| Endpoint | Current storage/content | Valid durable sources |
+|---|---|---|
+| `listingImage` | Public processed image | Listing photos; an already-referenced seller-owned image may also appear in that seller's broadcast |
+| `messageImage` | Public processed image | CommissionRequest reference images |
+| `messageFile` | Public PDF direct upload | Legacy Message only; no new grant after the CM-A20 cutover |
+| `messageAny` | Public processed image or PDF direct upload | Legacy ordinary Message only; no new grant after the CM-A20 cutover |
+| `caseEvidenceImage` | Private processed image | One exact CaseMessageAttachment |
+| `messagePrivateImage` | Planned private processed image | One exact MessageAttachment after CM-A20 |
+| `reviewPhoto` | Public processed image | ReviewPhoto owned by the reviewer |
+| `listingVideo` | Public video direct upload | Listing video, but no active UI call site was found; inspect legacy state before deciding whether to disable it |
+| `bannerImage` | Public processed image | SellerProfile banner; seller-owned broadcast reuse is valid |
+| `galleryImage` | Public processed image | SellerProfile avatar/workshop/gallery, BlogPost cover, or seller-owned broadcast |
+| `blogImage` | Public processed image | BlogPost cover |
+
+Do not encode one exclusive claim rule across this matrix. Private attachments
+are exclusive. Public images can legitimately be referenced by more than one
+durable source.
+
+## Findings
+
+### DU-A01: broad runtime CRUD
+
+The provisioning script grants runtime SELECT, INSERT, UPDATE and DELETE on
+`DirectUpload`. A stolen runtime credential can enumerate keys, rewrite
+ownership/status/cleanup state, delete lifecycle evidence or create arbitrary
+rows. Child-table RLS does not contain that table-level access.
+
+### DU-A02: caller-controlled generic claim identity
+
+`claimDirectUploadForKey()` accepts `claimedByType` and `claimedById` from
+application code. It validates upload owner/storage/status but does not prove
+that the claimed source row exists, belongs to that actor or contains the
+object. Fixed family operations must derive reference identity from the exact
+durable source.
+
+### DU-A03: one claim conflicts with valid public reuse
+
+The current `claimedByType`/`claimedById` pair is exclusive. Yet the product
+explicitly accepts a seller's existing `listingImage`, `bannerImage` or
+`galleryImage` in a SellerBroadcast, and BlogPost covers may reuse a
+`galleryImage`. A previously tracked image already claimed by Listing or
+SellerProfile is rejected when the second valid source tries to claim it.
+
+Use a normalized reference ledger with multiple active references for PUBLIC
+objects and exactly one for PRIVATE objects. Do not weaken private exclusivity
+to solve public reuse.
+
+### DU-A04: claimed-object deletion drifts from ledger state
+
+Review removal/admin deletion and Listing edit/delete call R2 deletion helpers
+without releasing or updating the corresponding lifecycle row. Other replaced
+profile/blog objects may retain both object and claim indefinitely. A row can
+therefore remain `CLAIMED` after its object or source is gone, while storage can
+retain unreferenced claimed objects forever.
+
+Reference release must happen atomically with the durable source change. The
+last active reference should set the upload back to cleanup-eligible
+`VERIFIED` with a database-derived immediate `cleanupAfter`; the retryable
+worker performs the external delete and records success/failure.
+
+### DU-A05: export exposes raw control metadata
+
+Account export selects `key`, `publicUrl`, `claimedById` and `lastError` for
+every row. With private storage this would export opaque private object keys.
+The user-facing export needs only bounded endpoint/storage/content/size/status
+and lifecycle timestamps. It must omit key, URL, internal target ids and raw
+provider error text.
+
+### DU-A06: private key duplication
+
+The unapplied Case-compatible schema duplicates the private key in
+`CaseMessageAttachment`. The CM-A20 draft initially proposed the same shape.
+Both private children should instead hold a unique foreign key to the exact
+`DirectUpload` row. Only a fixed authenticated read operation may resolve the
+object key. The already reviewed Case migration must remain byte-immutable;
+the next reviewed DirectUpload migration performs the shape transition and
+must fail closed rather than rewrite any unexpected Case evidence row.
+
+### DU-A07: incomplete database invariants
+
+The database checks the status enum, positive size, nonnegative attempts and
+public/private URL nullability. It does not yet enforce:
+
+- endpoint whitelist and endpoint/storage/content/size compatibility;
+- ownership foreign key;
+- status-specific timestamp/claim/cleanup coherence;
+- immutable key/owner/endpoint/storage/content/size;
+- permitted status transitions;
+- active-reference/status coherence; or
+- private exclusive versus public shared reference cardinality.
+
+Add compatible constraints/triggers in stages and validate them only after the
+legacy inspection/backfill.
+
+### DU-A08: compatibility accepts untracked new references
+
+The public verifier allows a valid owned first-party object when no lifecycle
+row exists, and generic claim returns `{tracked:false, claimed:false}` without
+failing. That preserves historical URLs but lets a newly submitted URL bypass
+the ledger. After compatible app deployment, new values must require a
+verified lifecycle row. Exact already-persisted legacy values may remain under
+an explicit unchanged-value exception until migration.
+
+### DU-A09: cleanup completion lacks a lease fence
+
+The cleanup worker serializes normal duplicate pickup through status and
+`cleanupAfter`, but its final success/failure updates use only the row id. A
+worker that outlives the retry lease can overwrite a newer worker's result.
+Fixed cleanup operations must return an attempt/lease token and condition
+complete/fail updates on that exact token and `DELETING` state.
+
+### DU-A10: endpoint retirement is unresolved
+
+No active `VideoUploader` consumer was found for `listingVideo`;
+`messageFile` is legacy and `messageAny` is scheduled for public-message
+cutover. Aggregate legacy counts—not assumptions—must decide whether those
+creation grants can be removed. Unknown endpoints/types fail closed.
+
+### DU-A11: legacy reference completeness is unknown
+
+Database inspection is required for tracked rows with null/unknown/dangling
+claims, durable public URLs without lifecycle rows, multiple durable sources
+sharing one URL, stale claimed rows, expired cleanup rows, private attachment
+mismatches and invalid state coherence. Inspection returns aggregate counts
+only: never keys, URLs, user ids, source ids, message bodies or raw errors.
+
+### DU-A12: cleanup authority is broader than ordinary request authority
+
+The cleanup lease must return a bounded cross-user batch containing object
+keys, while complete/fail mutate service-owned lifecycle state. The cron route
+is protected by `verifyCronRequest()`, but the current database grant is still
+held by the ordinary request runtime role. A stolen runtime database credential
+could therefore invoke the worker operations directly, lease eligible rows and
+enumerate their keys even without the cron secret.
+
+Preparation may retain that grant only because DirectUpload still has its old
+full runtime CRUD authority and RLS remains off. Activation must create a
+dedicated NOBYPASSRLS cleanup-worker role/connection, grant it only
+lease/complete/fail EXECUTE, and revoke those three functions from
+`grainline_app_runtime`. The production grant audit and pooled postflight must
+prove both sides. The unused future
+`grainline_direct_upload_record_private_message` grant must also be absent from
+ordinary-runtime activation until CM-A20's compatible application release
+actually consumes it.
+
+### DU-A13: private Case child conversion must survive old/new app overlap
+
+The first reference-ledger draft treated the unapplied Case evidence table as
+empty and replaced `objectKey` with `directUploadId` in one migration. That is
+fail-closed for unexpected rows but not deployment-compatible: an old
+application instance would continue inserting `objectKey` after the migration
+and fail against the new shape.
+
+Preparation must instead retain the compatibility column, add and exactly
+backfill `directUploadId`, and install a private database binding trigger. The
+trigger derives the id for an old writer and rejects any caller-provided
+key/id/uploader/content/size mismatch. It locks the lifecycle row against the
+cleanup worker and makes attachment identity immutable. A second private,
+deferred constraint trigger creates the exclusive normalized reference at
+transaction commit and releases it on delete. Deferral is required because the
+old Case writer claims the upload, inserts the attachment, then fills the
+legacy `claimedById` in the same transaction; an immediate trigger would fill
+that legacy field first and make the old writer roll back. New application code
+dual-writes both columns and performs an immediate explicit reference call; the
+deferred commit-time replay remains idempotent.
+
+After the compatible application is deployed and every older instance has
+drained, a separate reviewed cleanup migration must prove exact agreement and
+drop `objectKey`. DirectUpload activation may not retain this duplicate private
+key behind ordinary runtime table access; either the compatibility column is
+gone first or the parent attachment table has independently activated,
+parent-derived RLS. The planned sequence uses the narrower first option.
+
+### DU-A14: a second database URL cannot share the application environment
+
+The reviewed Vercel runtime guard rejects every PostgreSQL URL outside
+`DATABASE_URL`. That is load-bearing: adding
+`DIRECT_UPLOAD_CLEANUP_DATABASE_URL` to the main Vercel project would both fail
+the build and place the supposedly isolated worker credential in the same
+environment as every ordinary request handler. Application compromise able to
+read environment variables could then recover the worker credential, defeating
+the separation from `grainline_app_runtime`.
+
+The accepted cleanup topology is therefore external to the application
+project:
+
+- a separate protected GitHub environment named
+  `Production DirectUpload Cleanup`;
+- one direct Neon connection authenticating only as
+  `grainline_direct_upload_cleanup`;
+- one R2 credential restricted to the exact public and private cleanup
+  buckets, with no application upload credential in the job;
+- an hourly, non-overlapping main-branch workflow that can only call the three
+  fenced cleanup functions and `DeleteObject`;
+- a maximum of 10 batches of 20 rows per run, with no bucket listing;
+- exact source, database digest, endpoint, role, RLS, table-denial and function
+  ACL checks before the first lease; and
+- mode-`0600` evidence containing only counts, bounded error-code
+  distributions and hashes of provider identifiers.
+
+`scripts/provision-direct-upload-cleanup-role.sql` deliberately creates no role
+and sets no password. The externally managed LOGIN must exist first; the
+operator verifies its exact attributes and membership posture, then converges
+only its grants. The worker
+refuses to run until both lifecycle tables have ENABLE plus FORCE RLS with zero
+policies, the worker has zero table/sequence authority, ordinary runtime has
+lost cleanup EXECUTE, and the unused private-message recorder remains
+runtime-inaccessible.
+
+GitHub schedule delay is acceptable for abandoned-object garbage collection:
+it can delay deletion but cannot authorize a live object or customer action.
+It is not a substitute for monitoring. Before activation, verify protected
+environment review rules, failed-workflow notifications and one disposable
+provider smoke with complete object/database cleanup. At activation, remove
+the Vercel cleanup schedule so two providers do not own the same operational
+job. Do not put the cleanup URL into Vercel or weaken
+`guard:runtime-db-env`.
+
+## Proposed compatible schema
+
+Add `DirectUploadReference`:
+
+- id;
+- `directUploadId` foreign key;
+- constrained `sourceType`;
+- bounded `sourceId`;
+- database-derived `exclusive` flag matching the lifecycle storage class;
+- `createdAt`;
+- nullable `releasedAt` and bounded `releaseReason`;
+- active source and lifecycle indexes;
+- one active `(directUploadId, sourceType, sourceId)` reference; and
+- one active reference total when `exclusive=true`.
+
+The reference table starts with ENABLE plus FORCE RLS and no runtime table
+grants. Fixed family functions insert/release rows only after locking the
+lifecycle and validating the exact durable source. A trigger rejects a
+reference whose exclusivity does not match PUBLIC/PRIVATE storage.
+
+The compatible `CaseMessageAttachment` transition temporarily stores both its
+legacy `objectKey` and unique `directUploadId`; the database derives and proves
+their equality for old writers while the new application dual-writes them.
+After old deployment drain, drop the duplicate key. The planned
+`MessageAttachment` starts directly with a unique `directUploadId` foreign key
+and never needs the legacy duplicate. Child metadata remains source-derived and
+database-constrained.
+
+Keep legacy `claimedByType`/`claimedById` during coexistence only. Preparation
+functions dual-write them where compatible. After old deployment drain and
+reference backfill, remove application dependence on those columns; later drop
+them in a separately reviewed cleanup migration.
+
+## Fixed operation catalog
+
+Preparation must define and prove:
+
+1. processed-public record;
+2. presigned-public record;
+3. public verification transition;
+4. private Case record;
+5. private Message record;
+6. exact actor-owned persistence lookup;
+7. family-specific public reference operations for Listing, SellerProfile,
+   Review, BlogPost, CommissionRequest and SellerBroadcast;
+8. legacy Message compatibility reference during drain only;
+9. atomic Case and Message private attachment references;
+10. source-aware reference release;
+11. fenced cleanup batch lease, complete and fail;
+12. sanitized account-export projection;
+13. account-deletion release/retention; and
+14. owner-only aggregate legacy inspection.
+
+Private generic cores, if used, receive no runtime or PUBLIC EXECUTE. Every
+runtime function has a pinned signature, `search_path=pg_catalog`, bounded
+return projection and exact ACL inventory. No dynamic SQL is permitted.
+
+## Legacy aggregate inspection
+
+The separately approved, repeatable-read owner inspection must count:
+
+- rows by endpoint/storage/status/content type/claim type;
+- unknown endpoint/type/storage/status combinations;
+- state/timestamp/cleanup coherence violations;
+- missing User owners;
+- null/unknown/dangling claim pairs;
+- claims whose source exists but has the wrong owner, endpoint or URL/key;
+- lifecycle rows referenced by zero, one or multiple durable sources;
+- durable first-party URLs by source family with no lifecycle row;
+- allowlisted legacy UploadThing/UTFS durable URLs by source family and origin;
+- private Case child/lifecycle mismatches;
+- expired cleanup-eligible rows and stale `DELETING` leases;
+- `listingVideo`, `messageFile` and `messageAny` legacy populations; and
+- rows that cannot be deterministically backfilled.
+
+Inspection stops after counts. Reference backfill, constraint validation,
+object deletion, URL rewrite, key migration and endpoint retirement each need
+their own reviewed mutation and residue proof.
+
+The reusable inspector is now scaffolded in
+`scripts/direct-upload-legacy-inspect.mjs` and the protected,
+production-serialized manual workflow is
+`.github/workflows/direct-upload-legacy-inspection.yml`. It refuses anything
+except the exact clean dispatched main commit, reviewed direct production
+owner URL/digest and the explicit
+`compatible-app-drained-private-surfaces-disabled` prerequisite. The current
+public R2 base comes from the protected GitHub Production variable
+`CLOUDFLARE_R2_PUBLIC_URL`; the artifact retains only its SHA-256.
+
+The single repeatable-read, read-only transaction returns fixed aggregate
+counts for lifecycle/reference coherence, source ownership, public/private
+exclusivity, Case key/id/reference binding, cleanup eligibility, stale leases,
+first-party and UploadThing/UTFS legacy populations, backfillable versus
+untracked durable URLs and the legacy `listingVideo`, `messageFile`,
+`messageAny` and future-private endpoint populations. Fixed categorical
+distributions cover endpoint, storage class, status, content type, claim type,
+and source-family/provider-origin buckets. Unknown database values are folded
+into `UNKNOWN`/`UNKNOWN_EXTERNAL`; no raw value, key, URL, row id, user id or
+message body enters the evidence.
+
+The exact aggregate SQL is also executed inside the disposable DirectUpload
+PostgreSQL harness. GitHub Actions run `30228466175` (job `89862786290`) at
+commit `c748758e` passed on PostgreSQL 16.14: all 166 migrations,
+production-style runtime grant convergence, migration status, the global
+grant/RLS audit, static contracts and seven live checks passed. The seventh
+check, `aggregate_only_legacy_query`, executed the full inspector SQL against
+the disposable fixture population and preserved the expected Case/reference
+invariants. The run recorded `persistentStagingChanged=false` and
+`productionChanged=false`.
+
+This accepts the query as executable disposable-engine evidence, not as a
+production data classification. Dispatching it against production still
+requires separate read-only authorization after the compatible application is
+deployed and old instances have drained.
+
+## Release sequence
+
+1. **High audit:** complete this source/actor/endpoint inventory and static
+   drift tests.
+2. **Extra-High preparation:** design schema, fixed functions, grants,
+   constraints, call-site guards and exact disposable PostgreSQL
+   authority/concurrency/rollback proof. No production mutation.
+3. **Additive preparation release:** land the reference table, compatible
+   columns/functions and non-disruptive constraints. Old app remains valid.
+4. **Compatible application release:** new code uses fixed operations and
+   dual-writes references while old instances may still use direct CRUD.
+5. **Drain proof:** prove the old deployment is gone; stop all new untracked
+   persistence and direct lifecycle CRUD.
+6. **Aggregate legacy inspection:** separately approved, read-only and
+   count-only.
+7. **Reference backfill/repair:** separately approved from exact counts with
+   backup, rollback and residue proof. Unknown rows remain fail-closed.
+8. **Activation:** ENABLE plus FORCE RLS, revoke all runtime table privileges,
+   grant only reviewed actor operations, move cleanup lease/complete/fail to
+   the externally isolated worker role, remove the Vercel cleanup schedule,
+   withhold the unused private-message recorder, and validate accepted
+   invariants.
+9. **Postflight:** prove no-context/direct CRUD denial, actor/source isolation,
+   public shared references, private exclusivity, release/cleanup fencing,
+   sanitized export and exact grants under the pooled runtime role.
+10. **Private-object releases:** only after this postflight may Case or CM-A20
+    make private-key application paths live, each in its own release.
+
+## Extra-High proof requirements
+
+Disposable PostgreSQL must prove:
+
+- runtime cannot select, insert, update or delete either table directly;
+- exact record/verify state transitions and invalid-transition denial;
+- endpoint/storage/content/size and owner validation;
+- valid same-owner public reuse plus foreign-source denial;
+- private single-use under concurrent claims;
+- reference creation versus release and cleanup winner orderings;
+- stale cleanup worker completion cannot overwrite a newer lease;
+- actor/key exact lookup cannot enumerate or switch context;
+- export never returns key, URL, source id or raw error;
+- account deletion retains Case evidence and schedules ordinary private/public
+  cleanup correctly, including when the account is banned before local
+  anonymization starts;
+- function ACL/search-path/source hashes match the reviewed catalog; and
+- rollback restores the accepted compatible schema/grants without residue.
+
+## Extra-High preparation checkpoints
+
+### Reference-ledger schema checkpoint
+
+The first local-only checkpoint adds
+`20260726184500_prepare_direct_upload_reference_ledger` and begins the
+deployment-compatible Case child transition to `DirectUpload.id`.
+
+The preparation migration deliberately leaves `DirectUpload` RLS disabled and
+keeps its old runtime grants for old-application compatibility. It creates
+`DirectUploadReference` with ENABLE plus FORCE RLS, zero policies and no
+runtime/PUBLIC table privileges from birth. It also adds:
+
+- a NOT VALID DirectUpload owner foreign key so new rows are checked without
+  pretending unknown legacy rows have been inspected;
+- compatible endpoint/storage/content/size and key/public-URL constraints;
+- cleanup lease columns for later attempt fencing;
+- immutable lifecycle identity and bounded status-transition triggers;
+- active reference identity and private-exclusivity partial unique indexes;
+  a locked Case attachment key/id binding trigger for old/new application
+  coexistence; and
+- a trigger that derives reference exclusivity from the locked lifecycle row
+  instead of accepting the caller's value.
+
+This is schema preparation only. The fixed operation catalog, reference/status
+maintenance, app call-site conversion, activation migration, aggregate legacy
+inspection and live PostgreSQL proof remain open.
+
+The exact reviewed bytes of
+`20260726184000_prepare_private_case_message_attachments` remain immutable.
+`20260726184500_prepare_direct_upload_reference_ledger` adds and exactly
+backfills `directUploadId` while retaining `objectKey` for old-application
+compatibility. A locked SECURITY DEFINER trigger derives the id for old writes,
+validates dual writes, and rejects attachment identity mutation. The authority
+migration then creates/releases normalized references automatically for both
+writer versions and backfills any rows created between the two migrations.
+Production has received the four earlier PR #58 Case compatibility migrations
+and compatible app at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled. It
+has not received `20260726184500_prepare_direct_upload_reference_ledger`,
+`20260726185000_prepare_direct_upload_authority` or
+`20260726185500_prepare_direct_upload_public_references`. The duplicate key is
+a temporary transition field and must be removed after the compatible app
+drains, before DirectUpload activation.
+
+### Fixed lifecycle/core authority checkpoint
+
+The next local-only checkpoint adds
+`20260726185000_prepare_direct_upload_authority` without revoking the old
+DirectUpload table grants or enabling DirectUpload RLS. It adds fixed,
+runtime-granted operations for:
+
+- processed-public, presigned-public, private Case and future private Message
+  lifecycle creation;
+- the public verification transition and exact actor/key lookup;
+- source-validated private Case attachment reference and read;
+- bounded cleanup leasing plus exact lease-fenced completion/failure;
+- sanitized account export;
+- account-owned public URL collection; and
+- account-deletion reference release/cleanup scheduling.
+
+Private actor, UTC clock, record, reference and release cores are explicitly
+revoked from both runtime and PUBLIC. Database clocks are normalized to UTC at
+the SQL boundary; IDs and cleanup lease tokens are database-derived. The record
+core independently derives the key owner segment from the actor's durable
+Clerk id and rejects a key whose endpoint or user segment does not match,
+rather than relying only on application-side key construction.
+
+The compatible application draft now uses those operations for upload
+record/verify, persistence lookup, private Case reference/read, cleanup,
+account export and account deletion. New first-party persistence fails closed
+without a matching lifecycle row; exact unchanged legacy URLs remain accepted
+only through the pre-existing `existingUrls` path.
+
+This checkpoint still has no live PostgreSQL proof and is not release-ready.
+The public source families, source-aware release, exact ACL/catalog proof and
+the activation/rollback split remain open at this checkpoint.
+
+### Fixed public-reference family checkpoint
+
+The next compatible draft adds
+`20260726185500_prepare_direct_upload_public_references` and removes the
+generic application claim API. Runtime receives only seven source-specific
+operations for Listing, SellerProfile, Review, BlogPost, CommissionRequest,
+SellerBroadcast and the drain-only legacy Message representation. Each
+operation locks and reads its durable source, proves the actor/source
+relationship, derives URLs, endpoints, source type and source id in the
+database, and calls a runtime-inaccessible reference core.
+
+The family conversion preserves valid public object reuse through normalized
+references rather than rebinding a single `claimedByType`/`claimedById`.
+Create paths fail closed when a submitted first-party URL lacks a matching
+verified lifecycle. Compatible edit paths may retain exact legacy URLs already
+stored on the source, pending the aggregate legacy inspection and backfill.
+When any durable URL is untracked, the database may add references for matched
+lifecycles but releases none; this prevents a permissive legacy edit or a
+direct fixed-function caller from using an ignored untracked count to release
+and clean up an object the source still needs.
+
+The Extra-High static review caught and corrected four defects before live
+PostgreSQL execution:
+
+1. nullable BlogPost ownership originally used `NOT IN`, and six other
+   families used `<>`; SQL UNKNOWN could fail to reject a null actor. All
+   ownership checks now use `IS DISTINCT FROM`, the core rejects null
+   actor/source inputs explicitly, and Blog recognizes only durable
+   `authorId`, matching the application edit authority;
+2. SellerProfile invoked four mutating families through `UNION ALL`, which did
+   not provide an explicit execution sequence;
+3. desired references and stale references originally acquired lifecycle
+   locks in separate orders, allowing a cross-source public-object swap to
+   deadlock; and
+4. Listing/Review application cleanup still deleted R2 objects directly after
+   release, which could destroy an object that another valid public source
+   continued to reference.
+
+The corrected core locks the union of desired and currently referenced
+lifecycle rows by id before any reference mutation. SellerProfile families run
+sequentially. Source-root BEFORE DELETE triggers release references for
+Listing, SellerProfile, Review, BlogPost, CommissionRequest, SellerBroadcast
+and legacy Message rows. Application mutation paths no longer directly delete
+Listing or Review media; the fenced lifecycle worker deletes only after the
+last reference is released. Removing a seller avatar also synchronizes its
+reference in the same transaction.
+
+This remains preparation only: DirectUpload RLS is still off, old runtime table
+grants remain for deployment coexistence, no SQL has been applied, and no
+provider or production state changed. Exact disposable PostgreSQL syntax, ACL,
+authority, reuse, release/cleanup and concurrency proof has passed. Aggregate
+legacy inspection and backfill, the production preparation preflight,
+activation/rollback split and final Extra-High authority review remain
+required.
+
+### Disposable PostgreSQL proof record
+
+`scripts/direct-upload-authority-postgres-proof.mjs` and its branch-scoped
+PostgreSQL 16 workflow are the next evidence gate. The harness refuses every
+non-loopback target and every database name except `grainline_ci`; it never
+reads the ordinary runtime or migration URL variables. It is designed to
+apply the exact stacked migration tree, converge the production-style runtime
+role, and prove:
+
+- exact runtime/PUBLIC function ACLs, pinned `pg_catalog` search paths, the
+  compatible pre-activation DirectUpload posture, and the zero-table-authority
+  FORCE posture of DirectUploadReference;
+- runtime denial of generic reference operations, null/foreign actor denial,
+  and database-derived key ownership;
+- fail-closed partial-source behavior even when a direct database caller
+  ignores the returned untracked count;
+- public-object reuse plus last-reference release through source-delete
+  triggers;
+- stable lifecycle lock ordering during a two-source object swap; and
+- both cleanup/reference winner orders, including `SKIP LOCKED` behavior and
+  exact cleanup-lease fencing.
+
+The scaffold is not evidence of a pass until the workflow runs successfully.
+It uses only disposable `example.invalid` fixtures, removes them in `finally`,
+and records that neither persistent staging nor production changed.
+
+The first workflow execution, GitHub Actions run `30224585194`, applied the
+entire migration tree, converged the runtime role, and then stopped at the
+global grant audit before fixtures ran. The audit still assumed that every
+Prisma table required CRUD and every `grainline_*` function required runtime
+EXECUTE. That old assumption correctly failed against the new least-privilege
+shape: `DirectUploadReference` has zero table grants and 12 generic/trigger
+functions are runtime-private. The correction keeps the audit hard while
+classifying exactly that one service-only table and those 12 functions,
+teaches provisioning to converge the same ACLs, and updates the schema-wide
+inventory from 59 to 60 models. Do not reinterpret this stopped run as
+authority evidence; the actual proof did not execute.
+
+The corrected exact-tree execution, GitHub Actions run `30224847389` (job
+`89853249938`) at commit `f7dcce32`, passed on PostgreSQL 16.14. It passed the
+full migration tree, production-style runtime-role convergence, the global
+grant/RLS audit, static harness contracts and all five live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `stable_swap_lock_order`;
+4. `multi_source_reuse_and_delete_release`; and
+5. `reference_cleanup_winner_orderings`.
+
+The runtime-role denial probes produced the expected database errors for
+DirectUploadReference table access, generic sync execution, null actor,
+forged key ownership and foreign Listing source authority. The result recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the CI service
+database and every disposable fixture were destroyed with the job. This is
+accepted disposable-engine authority/concurrency evidence for the compatible
+preparation stack, not activation evidence and not a production catalog claim.
+The post-proof Extra-High review also hardened the global drift audit: accepting
+this intentionally policyless service ledger may not suppress verification of
+its posture. The audit now independently requires DirectUploadReference to
+retain ENABLE plus FORCE, zero policies and zero runtime table privileges; a
+missing catalog row or loss of either RLS flag fails closed.
+
+That audit correction passed again in run `30224946994` at commit `69ecd95a`.
+During final release-guard packaging, the guard then correctly exposed that the
+previously sealed Case migration had been amended by the first reference-ledger
+checkpoint. Commit `6697a0f3` restored
+`20260726184000_prepare_private_case_message_attachments` byte-for-byte to its
+reviewed `b3e3d18f...` tree and moved its then-empty-only `objectKey` to
+`directUploadId` transition into
+`20260726184500_prepare_direct_upload_reference_ledger`. The reviewed full-tree
+fingerprint at that checkpoint was
+`8eb9896ac024b73daf368593e57fc485bd2b651b8e4b4b37a8cb66b31c1fe7bc`.
+
+The fresh exact-tree execution, GitHub Actions run `30225445722` (job
+`89854768934`) at commit `6697a0f3`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified
+migration status, passed the global grant/RLS audit and static contracts, then
+passed all five live authority/concurrency checks listed above. It recorded
+`persistentStagingChanged=false` and `productionChanged=false`. The subsequent
+Extra-High deployment-skew review found that its empty-only shape replacement
+would reject old-application writes after migration. The preparation now uses
+the additive dual-column/binding-trigger protocol in DU-A13 and adds automatic
+Case reference insert/delete maintenance. Therefore run `30225445722` remains
+useful prior authority/concurrency evidence but is explicitly superseded for
+release; the amended exact tree requires a fresh PostgreSQL run before its
+preparation can be accepted. The first Extra-High-reviewed amended full-tree
+fingerprint was
+`90290c0c88ecf0270acf832605126100fa6f24505496989754ab5d6d01274324`.
+
+The first execution of that amended tree, GitHub Actions run `30226471869`
+(job `89857383277`) at commit `34711980`, applied all 166 migrations and passed
+runtime-role convergence, migration status, the global grant/RLS audit and
+static contracts. The live harness then failed because its older cleanup
+concurrency check asserted that the entire service-wide lease batch was empty.
+The new Case lifecycle check had correctly released an unrelated private
+fixture, so PostgreSQL legitimately leased that row. This was a proof-isolation
+defect, not an authority or migration failure; both databases were disposable
+and the workflow changed no persistent staging or production state. The
+correction verifies that the specifically referenced upload is absent from the
+lease batch and moves the already-proven released fixture outside the later
+test's clock window.
+
+The corrected exact-tree execution, GitHub Actions run `30226543504` (job
+`89857578571`) at commit `6c1dba12`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified migration
+status, passed the global grant/RLS audit and static contracts, then passed all
+six live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`; and
+6. `reference_cleanup_winner_orderings`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable service database and fixtures were
+destroyed with the job. This is the accepted disposable-engine evidence for the
+amended compatible preparation tree. It is not DirectUpload activation
+evidence, provider-bucket evidence or a production catalog claim.
+
+The following deployment-packaging review then compared the database triggers
+against the exact old Phase 1B Case route rather than only its final insert. It
+found that the old route updates legacy `claimedById` after attachment creation
+inside one transaction. The immediate insert trigger in the proven tree had
+already populated that field, so the old route's exact null-guarded update would
+return zero and roll back. Run `30226543504` remains valid for its six modeled
+checks but is superseded for release compatibility. The corrected trigger is
+`DEFERRABLE INITIALLY DEFERRED`, and the live harness now executes both the
+exact old claim-insert-link transaction and the new
+dual-write-plus-explicit-reference transaction. That amended tree requires
+another exact PostgreSQL proof. Its then-reviewed full-tree fingerprint was
+`61bd54f8f1a3b6c627fe6c895be65e30aa09c906ab732a42e94d021d8018ce74`.
+
+The corrected exact-tree execution, GitHub Actions run `30226904740` (job
+`89858487348`) at commit `ce4a914b`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified migration
+status, passed the global grant/RLS audit and static contracts, then passed all
+six live checks listed above. In particular,
+`case_attachment_compatibility_and_lifecycle` now commits both the exact legacy
+claim-insert-null-guarded-link transaction and the new
+dual-write-plus-explicit-reference transaction. The result recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the disposable
+database and fixtures were destroyed with the job. This is the accepted
+disposable-engine authority, concurrency and application-skew evidence for the
+then-current compatible preparation tree. It is not DirectUpload activation
+evidence, provider-bucket evidence or a production catalog claim.
+
+### Final preparation authority review corrections
+
+The 2026-07-27 Extra-High review found two pre-production defects in the
+preparation stack:
+
+1. New seller broadcasts verified an optional first-party image before their
+   serializable create transaction, but did not require the source-sync result
+   to track every selected URL. A concurrent cleanup lease could therefore win
+   between verification and source sync, leave `untracked=1`, and still allow
+   the broadcast row to commit. The create path now passes
+   `requireAllTracked: Boolean(imageUrl)` inside the transaction, so that race
+   rolls back the new broadcast rather than persisting an image whose object
+   may be deleted.
+2. Account URL collection and account release reused the ordinary interactive
+   actor-validity helper, which rejects banned users. Provider-driven deletion
+   or deletion of an already-banned account could therefore omit its public
+   media and make local anonymization roll back. Those two account-lifecycle
+   operations now independently require a syntactically valid, existing,
+   not-yet-deleted account while intentionally allowing `banned=true`.
+   Ordinary upload creation, ownership lookup and sanitized export continue to
+   use the stricter not-banned actor rule.
+
+The disposable PostgreSQL harness now includes an eighth
+`banned_account_lifecycle_cleanup` check proving that a banned account can
+enumerate its exact public deletion URLs and schedule its unreferenced public
+upload for cleanup while its ordinary sanitized upload export remains empty.
+The migration edit changes the complete reviewed tree fingerprint to
+`0dacf34460ed27a16e332d29240c09eb8e0d183dba3c89778498987d3501759c`.
+All earlier runs remain useful evidence for the checks they executed, but are
+superseded for release by this exact-tree change.
+
+The fresh exact-tree execution, GitHub Actions run `30327497254` (job
+`90175815165`) at executable commit `546c112f`, passed on PostgreSQL 16.14. It
+applied all 166 migrations, converged the production-style runtime role,
+verified migration status, passed the global grant/RLS audit and static
+contracts, then passed all eight live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`;
+7. `aggregate_only_legacy_query`; and
+8. `banned_account_lifecycle_cleanup`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable service database and fixtures were
+destroyed with the job. This is the accepted disposable-engine authority,
+concurrency, application-skew, aggregate-inspector and banned-account cleanup
+evidence for the exact compatible preparation tree. It is not DirectUpload
+activation evidence, provider-bucket evidence or a production catalog claim.
+
+Local validation at this checkpoint passed all 2,147 repository tests
+(2,144 pass, zero fail, three intentional skips), TypeScript and lint. The
+default Next build did not reach application compilation because Turbopack
+rejects this disposable worktree's intentionally external `node_modules`
+symlink. The webpack fallback then reached compilation but exhausted Node's
+default 2 GiB heap without reporting an application defect. Neither result is
+accepted as build evidence. The partial `.next` output was deleted, the 10 GiB
+disk guard was preserved, and the clean GitHub runner must provide the exact
+in-tree dependency install, build and PostgreSQL evidence.
+
+That clean-runner gate is now accepted. Pull-request CI run `30327609567` (job
+`90176153302`) at documentation head `67617abd` completed the in-tree
+dependency install and Prisma generation, verified every pinned migration and
+prior RLS release artifact, applied all migrations to ephemeral PostgreSQL,
+converged/audited runtime grants, passed the retained database proofs,
+TypeScript, lint, all repository tests, the high-severity dependency audit and
+the production Next build. The executable DirectUpload tree remained exact
+commit `546c112f`; `67617abd` changed only this audit and `STRATEGY.md`.
+
+### Production preparation postflight scaffold
+
+`scripts/direct-upload-preparation-production-postflight.mjs` is the
+read-only pooled-runtime proof for the additive preparation release. It is
+deliberately separate from the owner migration workflow and rejects every
+owner/direct/aliased database credential. The operator requires:
+
+- the exact clean release commit;
+- the reviewed pooled `grainline_app_runtime` production identity;
+- exact positive general-CI and protected-migration run ids;
+- an explicit confirmation phrase; and
+- a fresh, commit-bound evidence path.
+
+It verifies the compatible pre-activation boundary rather than pretending
+activation has occurred:
+
+- `DirectUpload` still has RLS off, zero policies and legacy runtime CRUD for
+  old-application coexistence;
+- `DirectUploadReference` has ENABLE plus FORCE, zero policies and no runtime
+  table authority;
+- the temporary Case `objectKey` plus `directUploadId` columns and deferred
+  commit-time reference trigger are installed;
+- all 35 reviewed DirectUpload functions retain exact runtime/PUBLIC ACL,
+  owner and pinned-search-path posture;
+- direct reference-ledger access and the generic source core fail with
+  `42501`; and
+- invalid-actor fixed lookup/read operations return no rows.
+
+The live database transaction is `READ ONLY`, creates no fixture rows and
+writes only a fresh mode-0600 local JSON artifact. This database postflight
+does **not** verify the Vercel deployment, the
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` environment value, the private R2
+bucket, authenticated routes, legacy data, cleanup-worker separation or
+DirectUpload activation. Those remain explicit later gates rather than
+caller-supplied claims embedded in this evidence.
+
+### Cleanup-worker activation scaffold
+
+The isolated activation-design branch adds:
+
+- `scripts/direct-upload-activation-catalog.mjs`, which partitions all 35
+  reviewed functions into 17 ordinary-runtime, 3 cleanup-worker and 15 private
+  functions;
+- `scripts/direct-upload-function-source-catalog.mjs`, which derives the exact
+  final `pg_proc.prosrc` SHA-256 for every reviewed function from the immutable
+  migration history and makes source drift a worker/proof failure;
+- `scripts/provision-direct-upload-cleanup-role.sql`, which requires an
+  externally created NOBYPASSRLS/NOINHERIT LOGIN with exact provider-owned
+  attributes, then converges only its database privileges without handling its
+  password;
+- `scripts/direct-upload-cleanup-worker.mjs`, which refuses every non-main,
+  shared-credential, pooled/wrong-endpoint, unforced-RLS, table-authorized or
+  ACL-drifted execution; and
+- `.github/workflows/direct-upload-cleanup.yml`, which is manual-only and
+  references only the separate protected cleanup environment. The hourly
+  trigger belongs to the later activation release that removes the Vercel
+  cleanup schedule.
+
+This remains an inactive worker scaffold. Provider preparation created the
+dedicated Neon LOGIN and the separate protected GitHub environment described
+below, but no cleanup run, R2 deletion credential, schedule, app deployment or
+DirectUpload activation has occurred. The current Vercel cron remains the
+compatible pre-activation owner of cleanup until the later activation release
+deliberately transfers that responsibility.
+
+### Cleanup-worker provider preparation
+
+On 2026-07-28, the main-only protected GitHub environment
+`Production DirectUpload Cleanup` was created as environment id
+`18906676825`, with Drew Young as its required reviewer and only the exact
+`main` branch allowed. The dedicated direct Neon role
+`grainline_direct_upload_cleanup` was created on production branch
+`br-hidden-mouse-aaugn2wr`. Its generated password was never printed or
+persisted locally. The resulting direct connection URL exists only as the
+environment secret `DIRECT_UPLOAD_CLEANUP_DATABASE_URL`; the environment
+variable `DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256` records digest
+`6096b5b751b15fcb036f835bf60d20fddaeb354f94d5b9d492eed120401f731a`.
+Neither value was added to Vercel.
+
+The role exists but is not accepted as provisioned until the reviewed operator
+lands and passes. `.github/workflows/direct-upload-cleanup-role-provision.yml`
+is a manual exact-main operator in the existing `Production` environment and
+uses the same `production-database-migrations` concurrency group as schema
+migrations. It:
+
+1. reuses the production migration preflight to prove the exact clean main
+   commit, owner URL digest/identity, ordinary runtime role posture,
+   SavedSearch Phase B posture and migration ledger;
+2. runs `scripts/provision-direct-upload-cleanup-role.sql` without creating a
+   role or handling its password; and
+3. runs an owner-side `READ ONLY` postflight proving the cleanup role has no
+   parent memberships, unexpected member roles, create authority, default
+   privileges or table/column/sequence authority, exactly three non-grantable
+   DirectUpload function grants, and no unexpected privileged function access.
+   A SQL-created production role may retain only PostgreSQL 16's exact
+   non-effective bootstrap admin edge described below.
+
+The postflight simultaneously proves `DirectUpload` remains RLS-off with
+compatible runtime CRUD, `DirectUploadReference` remains policyless ENABLE
+plus FORCE, and all compatible runtime function grants remain unchanged. Its
+artifact is aggregate/catalog-only, commit-bound, sanitized and mode 0600.
+Provisioning does not activate the worker, run object deletion, alter R2,
+deploy the app or enable DirectUpload RLS.
+
+The cleanup-only R2 credential is not accepted until its disposable-object
+proof passes. It must be scoped to delete objects from the exact public and
+private cleanup buckets; application R2 keys must not be reused or copied into
+the cleanup environment. Until that credential and provider deletion are
+proved, the cleanup worker and DirectUpload activation remain blocked.
+
+The pre-activation R2 credential proof is a separate manual-only, main-only
+workflow because the cleanup worker correctly requires both DirectUpload
+tables to have ENABLE plus FORCE RLS before it may lease a row. The proof
+receives only the cleanup-specific R2 credential and exact account/bucket
+variables; it explicitly rejects application R2 and every database credential.
+For each bucket it creates one random operator-prefix text object, verifies the
+object metadata, deletes it, and verifies absence. Absence checks use only the
+full random operator key as an exact `ListObjectsV2` prefix with `MaxKeys=1`;
+the proof cannot enumerate user-object namespaces. It never retains an object
+key or raw target identifier, writes only hashes and bounded result codes to
+mode-0600 evidence, and attempts immediate deletion if a provider request
+fails after creation. A run with any possible residue is failed evidence and
+cannot satisfy the activation gate.
+
+The first protected production provisioning run, `30398188163` (job
+`90406279837`) at exact main `a816af9a`, passed the Node owner/source/database
+preflight and then failed before opening the `psql` connection. The runner's
+libpq client honored `sslmode=verify-full` but had no default
+`~/.postgresql/root.crt`; no SQL statement or production mutation ran, and the
+postflight was correctly skipped. The workflow now supplies
+`PGSSLROOTCERT=system` only to the `psql` convergence step. This retains
+hostname and certificate-chain verification through libpq's system CA pool;
+it does not weaken `sslmode=verify-full`, alter the protected URL or affect the
+Node pre/postflight connection handling. Preserve the failed run as
+non-evidence and require a fresh exact-main run.
+
+The second protected run, `30398993315` (job `90408905840`) at exact main
+`f708810e`, passed preflight and established the verified libpq connection.
+It then failed on the first statement inside the transaction:
+`ALTER ROLE ... NOSUPERUSER ...`. Neon correctly exposes `neondb_owner` as a
+non-superuser migration owner, and PostgreSQL permits only a superuser to
+change the `SUPERUSER` attribute even when requesting `NOSUPERUSER`. The
+statement failed atomically, the transaction never committed, and no grant,
+membership or production data changed.
+
+The corrected provisioning contract no longer asks the migration owner to
+alter provider-owned role attributes. It first verifies LOGIN,
+NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOINHERIT, NOREPLICATION and
+NOBYPASSRLS exactly, then converges only schema/database/object/function
+privileges that the migration owner is authorized to manage. Any attribute
+drift is a hard provider-remediation failure, not something the database
+operator attempts to repair. Preserve `30398993315` as failed evidence and
+require another fresh exact-main production run.
+
+The third protected run, `30399802535` (job `90411568860`) at exact main
+`58b8cb88`, passed the exact-source, owner-identity and compatible production
+preflight, then failed before any grant. A separate owner-authenticated
+`READ ONLY` catalog inspection proved why: the Neon API-created cleanup role
+had `CREATEDB`, `CREATEROLE`, `INHERIT`, `REPLICATION` and `BYPASSRLS`, plus
+direct membership in `neon_superuser` and its transitive privileged roles.
+The attempted grant transaction stopped on the attribute check and rolled
+back; DirectUpload RLS, data, grants, R2 and cleanup execution were unchanged.
+
+This is provider behavior, not permissible cleanup authority. Neon documents
+that Console/CLI/API-created roles receive `neon_superuser`, whereas roles
+created through SQL receive ordinary PostgreSQL defaults. A rollback-only
+test also proved `neondb_owner` lacks `ADMIN OPTION` on the rejected API role,
+so it cannot safely strip the attributes in place. The accepted remediation
+is therefore a guarded credential rotation: prove the exact rejected posture
+and zero active sessions, prove SQL role creation inside a rollback-only
+transaction, delete only the rejected API role, recreate the same role name
+through SQL as LOGIN/NOINHERIT with no privileged attributes or parent
+memberships,
+prove the new direct connection, and replace only the protected cleanup
+environment secret and its SHA-256 digest. The generated password and SCRAM
+verifier must remain in process memory/stdin and must never be printed or
+written to evidence. This provider remediation does not grant functions,
+activate RLS, run cleanup, deploy the app or touch R2; the protected role
+convergence remains a separate fresh exact-main gate afterward. Run the
+operator's `--preflight` mode first: it verifies the exact protected secret
+metadata and rejected-role posture, then creates and discards a replacement
+probe inside a rolled-back transaction. Only a fresh exact-main invocation
+without `--preflight` may cross the provider-delete boundary.
+
+The first exact-main rollback-only preflight at `a1f72cc0` stopped before its
+first provider request because the local credential-shape guard incorrectly
+assumed an access token must exceed 100 characters. The current Neon CLI
+stores an 87-character opaque token. No SQL, role, secret or provider mutation
+was reachable. The corrected guard accepts only 64-4096 characters from the
+reviewed opaque-token alphabet and retains the exact user-id, private-file and
+minimum-lifetime checks. A fresh exact-main preflight remains mandatory before
+the delete boundary.
+
+The replacement probe at corrected exact main `3c2ed678` then reached
+PostgreSQL and exposed a second, provider-specific contract error entirely
+inside rolled-back transactions. PostgreSQL 16 rejected the explicit
+`ADMIN neondb_owner` clause because an admin option cannot be granted back to
+its own grantor. Omitting that clause created an ordinary LOGIN/NOINHERIT role,
+but PostgreSQL automatically recorded `neondb_owner` as a member of the new
+role with `ADMIN=true`, `INHERIT=false`, `SET=false`, granted by Neon's
+`cloud_admin`. A plain revoke could not remove a grant made by `cloud_admin`,
+and a grantor-qualified revoke was correctly denied because `neondb_owner`
+cannot assume `cloud_admin`. PostgreSQL 16 documents that a non-superuser with
+`CREATEROLE` is always given this bootstrap admin option and cannot remove the
+bootstrap-user grant itself:
+<https://www.postgresql.org/docs/16/role-attributes.html>.
+
+That forced reverse edge does not give the cleanup LOGIN any parent authority,
+does not let `neondb_owner` inherit or `SET ROLE` to cleanup authority, and
+adds no untrusted principal: `neondb_owner` is the already protected migration
+owner and has broader database authority independently. The reviewed
+production posture is therefore zero parent memberships and either zero member
+edges (if a provider superuser later removes it) or exactly this one
+`neondb_owner`/`cloud_admin` bootstrap admin edge, with no transitive member
+role beyond `neondb_owner`. Every other edge or option combination fails
+closed in the remediation connection proof, protected provisioning postflight
+and cleanup worker. All exploratory creations were transaction-aborted or
+rolled back; the rejected provider role, protected secret and digest, RLS
+posture, R2 and production data remained unchanged. A fresh exact-main
+rollback-only probe is still required.
+
+Exact-main commit `f66aa92fa51954c44f73384d3b4f9761b618d437` passed ordinary
+merged-main CI and the separate complete disposable DirectUpload activation
+plus database-first rollback proof. Its production provider-remediation
+preflight then passed the exact provider, rejected-role, protected
+secret/digest and rollback-only replacement checks. The subsequent actual
+operator deleted the rejected API-created role but failed closed before the
+ordinary SQL replacement committed. Reconciliation immediately afterward
+proved the cleanup role absent from Neon's role list, while the protected
+cleanup secret timestamp and rejected digest
+`6096b5b751b15fcb036f835bf60d20fddaeb354f94d5b9d492eed120401f731a`
+remained unchanged. The prior owner-catalog checks and the failed create
+transaction establish that no replacement role persisted. No function grant,
+RLS state, application data, deployment, cleanup execution or R2 state
+changed. The old protected URL is now unusable because its role no longer
+exists.
+
+The operator had treated completion of the Neon delete operation as immediate
+PostgreSQL catalog absence and had no explicit resume path after a successful
+non-replayable delete. The correction polls an owner-authenticated read-only
+catalog proof before the ordinary create and adds a separate
+`complete-deleted-neon-api-cleanup-role` recovery confirmation. Recovery is
+accepted only when the exact Neon project/branch/endpoint and protected
+environment remain pinned, the cleanup role is absent in both provider
+metadata and the production catalog, the rejected secret digest is unchanged,
+and an exact-name SQL replacement passes entirely inside a rolled-back
+transaction. It never issues a second provider delete. Sanitized failure
+output now includes only the bounded stage name so future partial progress can
+be reconciled without exposing credentials.
+
+The corrected recovery operator merged as exact main
+`1d4c5fe20d99966ac10c3bfa890a41ba2b026f8e`; its merged-main CI and
+production build passed. Recovery preflight proved the API role already
+deleted, exact provider/catalog absence, the unchanged rejected digest and
+exact-name replacement creation under rollback. Actual recovery then failed
+closed at `replacement-create`. Immediate reconciliation again proved zero
+cleanup roles in Neon, the old protected secret/digest timestamps unchanged,
+and therefore no reachable grant, RLS, data, deployment, cleanup or R2 change.
+The failure is within the transactional SQL create/assert/commit operation,
+not the provider or GitHub stages.
+
+The stage marker was still too coarse to distinguish a PostgreSQL permission,
+catalog, invariant or transaction failure. The next diagnostic retains verbose
+PostgreSQL errors only inside the operator process and emits at most a validated
+five-character SQLSTATE class such as `postgres-42501`; it never emits raw
+stderr, SQL, role passwords, connection URLs or error text. A fresh exact-main
+recovery preflight remains mandatory before another committed replacement.
+
+The SQLSTATE-hardened exact-main attempt at `dfeda5bd` passed the same
+rollback-only preflight and again failed only when committing the exact retired
+name, now classified as PostgreSQL `XX000` (internal/provider error).
+Reconciliation found both the retired role and proposed versioned role absent,
+with the protected cleanup secret/digest still unchanged. Repeating that
+provider-tombstoned name is no longer accepted.
+
+The replacement principal is now
+`grainline_direct_upload_cleanup_v2`. The old API-created name remains a
+separate rejected-name constant and both names must be absent before
+preflight. The operator has one confirmation,
+`create-versioned-sql-cleanup-role`, and contains no provider `DELETE` request,
+delete-response validator or operation waiter. It creates only the versioned
+ordinary SQL role, proves its exact LOGIN/NOBYPASSRLS/NOINHERIT posture and
+zero parent memberships, authenticates directly, then rotates only the
+protected cleanup URL and digest. The shared authority catalog, disposable
+proof roles, protected provisioning workflow, activation/rollback proofs and
+cleanup-worker connection identity use the versioned principal together.
+Function names do not change.
+
+Changing the cleanup principal changes generated DirectUpload
+retirement/activation candidate bytes. The prior exact-tree proof remains
+useful design evidence but is superseded for release. Before provider creation,
+rerun the complete disposable PostgreSQL compatible, activation and
+database-first rollback program against the versioned role, then require fresh
+ordinary CI and production build evidence.
+
+The full versioned-role proof passed at exact candidate `318646a7`, and the
+candidate merged as main `62cc42e1`. Its production preflight then proved the
+exact Neon/GitHub targets, both role names absent and the versioned
+create/assert path under rollback. The actual run failed closed at
+`versioned-role-create` with PostgreSQL `XX000`; an immediate repeat of the
+same preflight again proved both names absent and no secret, grant, RLS, data,
+deployment, cleanup or R2 change. Because the fresh `v2` name fails in the same
+way as the retired name, name tombstoning is no longer a sufficient
+explanation. The common operation is the client-built SCRAM verifier supplied
+to SQL, which is also the operation class already retired after the production
+owner-password `XX000`.
+
+The next candidate therefore keeps the generated password exclusively in
+process memory and `psql` stdin, pins `password_encryption` to
+`scram-sha-256`, and lets PostgreSQL hash the plaintext during `CREATE ROLE`.
+The password remains absent from command arguments, stdout/stderr, evidence and
+git. This is a correction to the credential-transport method, not permission
+to weaken the role attributes, membership checks, exact-target checks or
+post-creation direct-authentication proof. Require a fresh exact-main
+preflight before the next actual run, preserve the failed `62cc42e1` attempt as
+negative evidence, and do not claim the provider's hidden `XX000` cause is
+proven until a persistent creation passes.
+
+Exact main `9c853676` passed that corrected preflight and actual provider
+remediation. PostgreSQL created and directly authenticated
+`grainline_direct_upload_cleanup_v2` with LOGIN/NOBYPASSRLS/NOINHERIT, zero
+parent memberships, and only the reviewed `neondb_owner` bootstrap admin edge;
+the protected cleanup URL/digest rotated to the new credential. The sanitized
+mode-0600 evidence hash is
+`036486b04ef16da3605bf9721f79deee88f914c1255b67d061b381d69194de38`.
+No function grant, RLS, data, deployment, cleanup or R2 state changed.
+
+The first subsequent protected provision run, `30408963222` (job
+`90440653852`), failed in its owner-only preflight before the grant statement.
+The live read-only catalog explains the failure exactly: the global production
+migration guard still expected only the older
+`grainline_app_runtime`/`neon_superuser` owner memberships and had not yet
+incorporated PostgreSQL 16's already-reviewed
+`grainline_direct_upload_cleanup_v2` reverse bootstrap edge. The edge is
+`ADMIN=true`, `INHERIT=false`, `SET=false`, granted by `cloud_admin`; it does
+not allow the owner to inherit or assume cleanup authority. Update the shared
+production-migration and owner-rotation contracts to accept exactly these
+three owner membership rows, while rejecting any other role or option drift,
+before rerunning the protected provision workflow. The failed run reached no
+grant or postflight step.
+
+The scaffold's first disposable PostgreSQL execution, GitHub Actions run
+`30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
+tree and reached cleanup-role convergence, including the three intended
+function grants. Its final authority verifier then failed with
+`"pg_toast_16388" is not a sequence`. PostgreSQL had reordered a
+`has_sequence_privilege` predicate ahead of the adjacent `relkind = 'S'`
+filter, so the verifier passed a TOAST relation to the sequence-only helper.
+This was a catalog-verifier defect, not accepted activation evidence; the
+service database was disposable and no persistent staging or production state
+was addressed. The corrected verifier and runtime worker keep each relation
+kind check inside a `CASE` expression before calling the type-specific
+privilege helper. A fresh exact-commit PostgreSQL proof is required.
+
+The corrected exact-tree execution, GitHub Actions run `30230829313` (job
+`89869276880`) at commit `6f8856b4`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role and the isolated
+NOBYPASSRLS/NOINHERIT cleanup role, verified migration status, passed the
+global grant/RLS audit and static contracts, then passed all seven live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`; and
+7. `aggregate_only_legacy_query`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable database and fixtures were destroyed
+with the job. This accepts the cleanup-role catalog partition, exact function
+source/ACL checks and compatible DirectUpload preparation authority on the
+disposable engine. It does not activate the worker, create provider
+credentials, prove R2 deletion, inspect production legacy data, apply
+DirectUpload RLS activation or change any persistent environment.
+
+### Compatibility-key retirement and activation proof
+
+The next isolated stack retires the duplicate
+`CaseMessageAttachment.objectKey` only after exact equality/reference/status
+preflight and keeps `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false`. The application
+passes only authoritative `directUploadId` values to the fixed Case-reply
+operation. That compatible database function dual-writes `objectKey` until
+retirement; the disposable retirement candidate now replaces it without the
+retired column in the same transaction and verifies that its existing runtime
+EXECUTE ACL and SECURITY DEFINER boundary survive. The candidate also validates
+the six staged DirectUpload constraints, replaces the attachment binding
+trigger with id-derived validation and changes no RLS flag or grant. The
+following activation candidate requires the exact
+clean predecessor, then makes both `DirectUpload` and
+`DirectUploadReference` policyless ENABLE plus FORCE service tables with zero
+direct runtime/worker table authority. Its exact function partition is 17
+ordinary-runtime, 3 isolated cleanup-worker and 15 private functions; the
+unused private-message recorder remains withheld.
+
+The same disposable workflow also contains two separate live gates:
+
+- activated authority proves exact function identities, owners, source hashes,
+  modes and ACLs; direct table denial for both roles; fixed public/Case
+  operations; foreign-source denial; retired Case attachment identity; and a
+  fenced cleanup lease/complete flow; and
+- database-first rollback disables DirectUpload RLS before restoring the old
+  runtime CRUD/four compatibility functions, executes old-app direct CRUD,
+  then restores both FORCE tables and the exact 17/3 function partition with
+  zero fixture residue. The retired duplicate key is deliberately not
+  recreated; the rollback target is the drained compatible app, not an ancient
+  pre-drain deployment.
+
+The first clean PostgreSQL 16.14 execution, GitHub Actions run `30232279615`
+(job `89873270366`) at commit `af4d0f8e`, passed the current 166 migrations,
+runtime/cleanup-role convergence, global pre-activation grant/RLS audit,
+static contracts, compatible authority proof and both candidate generators.
+The retirement candidate applied, but Prisma reported the activation
+transaction only as `current transaction is aborted`, without the original
+statement error. This is failed activation evidence: no activation,
+rollback or post-activation authority claim is accepted from that run. The
+database was the disposable loopback CI service; it changed neither persistent
+staging nor production. The workflow now executes each generated candidate
+with `psql --echo-errors -v ON_ERROR_STOP=1` and records the exact successful
+bytes in Prisma's disposable ledger afterward, so the next run retains the
+load-bearing PostgreSQL diagnostic instead of Prisma's secondary transaction
+error.
+
+The diagnostic rerun, GitHub Actions run `30232434982` (job `89873695544`)
+at commit `6cbf2681`, again passed preparation and retirement, then exposed the
+original activation error exactly. Activation completed preflight, all
+function/table revokes and grants, and both tables' ENABLE plus FORCE
+statements inside its transaction; the final table-ACL postflight failed to
+parse because the newly strengthened per-privilege/runtime-worker query did
+not close its first `EXISTS` before the separate `PUBLIC` ACL `EXISTS`.
+PostgreSQL rolled the entire activation transaction back. This was a generated
+postflight syntax defect, not a passed or partially committed activation, and
+the disposable service database changed neither persistent staging nor
+production. The correction closes both predicates independently and adds a
+class-specific static regression assertion. A fresh full run is still required
+before any activation/rollback evidence is accepted.
+
+The corrected candidate then applied completely in GitHub Actions run
+`30232549766` (job `89874007172`) at commit `9c54af1f`; both runtime and cleanup
+role provisioners also reconverged the activated state. The following global
+grant audit correctly stopped because its source-derived generic function
+rule still expected the three cleanup functions and the unused private-message
+recorder to remain executable by the ordinary runtime. This was stale audit
+classification, not an activation or provisioning failure. Restoring those
+grants would violate the reviewed separation, so the audit now derives the
+activated runtime-private set from the exact function catalog and requires
+those four functions to remain withheld. The run did not reach live activated
+authority or rollback proof, remains failed evidence, and used only the
+disposable CI database.
+
+Run `30232738558` (job `89874534822`) at commit `0adc668b` then passed the
+activated global grant/RLS audit and exact migration status. Its duplicate
+post-staging static step failed because the schema-source inventory contract
+correctly pins the committed tree's 95 revokes, while the two intentionally
+staged disposable candidates raise that temporary working-tree count to 131.
+The same contract had already passed before staging, and the live activated
+audit had just passed; rerunning that committed-tree cardinality assertion
+after mutating the disposable migration directory was a workflow-ordering
+error. The post-staging step now retains only harness contracts that are
+state-independent. This run did not execute the live activated authority or
+rollback scripts and therefore remains failed evidence.
+
+Run `30232827314` (job `89874779664`) at commit `3b58888c` passed every
+migration, role convergence, pre/post-activation global audit, exact status and
+static contract, then entered the live activated authority proof. Its first
+function-identity comparison stopped on PostgreSQL representation:
+`pg_get_function_identity_arguments()` returned named arguments such as
+`p_user_id text`, while the callable catalog intentionally stores type-only
+signatures such as `text` for `to_regprocedure`. No authority mismatch was
+reported. Both live activation and rollback proofs now use
+`oidvectortypes(proargtypes)`, PostgreSQL's exact type-only representation.
+The run did not reach behavioral authority or rollback checks, so it remains
+failed disposable evidence.
+
+The corrected exact-stack execution, GitHub Actions run `30232923132` (job
+`89875033710`) at commit `7de1b836`, passed on PostgreSQL 16.14. It applied the
+current 166 migrations, proved compatible authority, then staged and applied
+the two disposable retirement/activation candidates (168 total), reconverged
+both least-privilege roles, passed the activated global grant/RLS audit, and
+verified exact migration status. The live activated proof passed four checks:
+
+1. `activated_catalog_source_and_acl`;
+2. `runtime_and_worker_direct_denial`;
+3. `runtime_fixed_authority_and_retired_case_key`; and
+4. `isolated_cleanup_lease_fence`.
+
+The separate database-first rollback proof passed old-application direct CRUD
+compatibility, exact function-partition restoration, exact ENABLE plus FORCE
+restoration on both policyless service tables, preserved retirement of
+`objectKey`, and left zero fixture residue. Both proof payloads recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the disposable
+database and candidates were destroyed with the job.
+
+This accepts the retirement/activation SQL shape, catalog/source/ACL partition,
+fixed runtime behavior, isolated worker fencing and reversible database-first
+compatibility path on the disposable engine. It does **not** promote either
+candidate into the committed migration tree, inspect or repair production
+legacy rows, create the production cleanup role/provider credentials, prove R2
+deletion, deploy the compatible app, complete an old-instance drain, activate
+production RLS, or enable either private-object feature. Those remain separate
+reviewed gates.
+
+The final Extra-High authority review added two explicit assertions that the
+accepted run had only implied: a third, non-participant user receives no Case
+attachment-read row, and the rollback postflight re-queries the catalog to
+prove `CaseMessageAttachment.objectKey` remains absent after exact activation
+restoration. GitHub Actions run `30233243581` (job `89875935635`) at exact
+commit `6449d722` repeated the complete PostgreSQL 16.14 program and passed
+every gate, including both strengthened checks. It recorded the same four
+activated proof groups and successful database-first rollback/restoration with
+no persistent-staging or production change. This is the current accepted
+disposable-engine proof head; it supersedes `7de1b836` only by adding those
+assertions, not by changing the authority design.
+
+The 2026-07-28 Extra-High review supersedes that run for release. Its catalog
+check was exact only inside `grainline_direct_upload_*`; it did not reject
+another accessible public `SECURITY DEFINER` function, column-only relation
+authority, default privilege grants, or a role that was a member of the cleanup
+role. It also put the hourly trigger in the scaffold even though the
+Vercel-to-GitHub scheduler handoff is an activation operation. Provisioning,
+the live worker and the disposable proof now reject both membership directions,
+table/view/materialized-view/foreign-table and column authority, sequence
+authority, default grants, and every unexpected public `SECURITY DEFINER`.
+All DirectUpload functions also require their exact DEFINER/INVOKER posture,
+non-LEAKPROOF ordinary-function kind, source hash, owner, search path and role
+ACLs. Pure public `SECURITY INVOKER` validators carry no owner authority and
+remain harmless without relation privileges. The scaffold is manual-only. A
+fresh exact-tree disposable PostgreSQL proof is required before this branch can
+be accepted.
+
+Fresh diagnostic run `30329320704` at `64c0203d` then failed closed during
+cleanup-role convergence before any authority proof or cleanup call. Diagnostic
+run `30329414299` at `228514f9` identified the first effective function as
+`public.grainline_notification_preferences_valid(jsonb)`. That function is a
+pure immutable `SECURITY INVOKER` check-constraint validator, not a
+privilege-bearing service function. PostgreSQL's default PUBLIC EXECUTE makes a
+blanket ban on every named invoker helper both over-broad and impossible to
+enforce with a per-role REVOKE. The global escape check is therefore scoped to
+all accessible public `SECURITY DEFINER` functions, while the complete
+DirectUpload catalog remains exact. Neither failed run addressed persistent
+staging or production.
+
+The corrected exact-tree disposable PostgreSQL 16.14 execution, GitHub Actions
+run `30329597171` (job `90181797774`) at executable commit
+`e407271e891f59330b20fb50a127b21f2a598364`, then passed. It applied all 166
+migrations, converged the production-style runtime role and the isolated
+NOBYPASSRLS/NOINHERIT cleanup role, verified migration status, passed the
+global grant/RLS audit and static contracts, and passed all eight live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`;
+7. `aggregate_only_legacy_query`; and
+8. `banned_account_lifecycle_cleanup`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; its database, roles and fixtures existed only
+inside the discarded job service container. Expected `42501` and validation
+errors in the PostgreSQL service log are deliberate negative assertions that
+proved the cleanup role could not read reference rows, execute private cores,
+forge actors/keys or create invalid Case bindings. This accepts the hardened
+cleanup-role authority partition and current DirectUpload function catalog on
+the disposable engine. It does not create or exercise a live cleanup
+credential, GitHub environment, R2 credential, schedule or production
+activation.
+
+### Production legacy-reference repair
+
+The compatible application and database preparation were preserved while PR
+`#66` added only the exact data-repair migration plus fail-closed pre/post
+aggregate verification. Exact main
+`9bda3509b4dd371c469e6a694c6b6a0ac5af6a83` passed merged-main CI run
+`30394252961`; the exact branch head had already passed focused PostgreSQL run
+`30393987193` and pull-request CI `30393989837`.
+
+Protected read-only preflight `30394541893` re-proved the 3 lifecycle / 0
+reference / 2 backfillable boundary and added an explicit zero count for
+missing, banned or deleted owners. Before mutation, protected compute-less
+Neon backup branch `br-late-night-aaghw6ow` captured production parent
+`br-hidden-mouse-aaugn2wr` at LSN `0/4B8C9578` and timestamp
+`2026-07-28T20:05:34Z`.
+
+Protected migration run `30394920532` applied only
+`20260726185700_repair_direct_upload_legacy_references`; its final migration
+status and live grant/RLS audit passed. Protected read-only postflight
+`30395029352` proved the distinct-upload partition: 2 active references on 2
+`CLAIMED` uploads, one unmatched `VERIFIED` upload behind the seven-day
+cleanup fence, zero unknown claims/backfillable sources/invalid owners or
+other reviewed anomalies, and no change to the compatible RLS/grant posture.
+Sanitized mode-0600 pre/post artifacts have SHA-256
+`ad172adece521e4560febdf41e5c82b580e654667eb2a990e6502517777ed6db` and
+`57f6fbb42e879ee5c06a11433088c8edbb929c631f4f0733c29cfb6d55669a2a`.
+
+This closes the legacy-reference repair only. It does not retire
+`CaseMessageAttachment.objectKey`, activate the cleanup worker, enable
+DirectUpload RLS or either private-object feature, and it does not create
+lifecycle rows for the 120 historical first-party URLs that were already
+outside the ledger.
+
+Because the accepted retirement/activation run at `6449d722` predates this
+cleanup-authority hardening, it remains useful design evidence but is
+superseded for release. The integrated retirement/activation tree must repeat
+the complete disposable PostgreSQL activation and database-first rollback
+program against the hardened global catalog, role-membership, default-grant and
+function-security checks before PR #61 can be accepted.
+
+The integrated 2026-07-28 SQL review then found that both generated candidates
+took their exclusive table locks after inspecting mutable catalog/data state.
+The documented disabled-app drain reduces that race in production, but the
+migration itself should not depend on timing: both candidates now take their
+fixed-order `ACCESS EXCLUSIVE` locks immediately after the rollout advisory
+lock and before any preflight. The activation preflight also checks inbound and
+outbound role memberships, and both the candidate and live proof require every
+catalog entry to remain an ordinary `pg_proc.prokind = 'f'` function. Static
+regressions pin those class-wide invariants. Any proof run predating these
+changes is superseded; a fresh exact-tree disposable activation plus
+database-first rollback run remains required.
+
+Integrated run `30330040739` at merge head `3a61fa50` completed successfully,
+but it began before the lock-order/function-kind corrections and is deliberately
+not accepted as release evidence.
+
+The replacement exact-tree PostgreSQL 16.14 execution, GitHub Actions run
+`30330329787` (job `90183904860`) at executable commit
+`b843e21e88bfa79f4951e2e18329408671b9f49a`, passed the complete program. It
+applied all 166 committed migrations, converged the production-style runtime
+role and hardened isolated cleanup role, passed migration status, the global
+grant/RLS audit, pre-activation static contracts and the eight-check compatible
+authority proof, then generated and applied only these disposable candidates:
+
+- `20260726190000_retire_direct_upload_compatibility_key`, SHA-256
+  `adbad525ca29a6ea42227d3b196659a04b8a39daf0dbb06a859ba3b5dca3a9d6`;
+- `20260726190500_enable_direct_upload_rls`, SHA-256
+  `fe4da53160f2add8a7303bcca0a6bc310b07cdb02e16c39213cabf63a56cec21`.
+
+After 168 total migrations it reconverged both roles, passed the activated
+global audit and exact migration status, then passed all four activated checks:
+`activated_catalog_source_and_acl`, `runtime_and_worker_direct_denial`,
+`runtime_fixed_authority_and_retired_case_key`, and
+`isolated_cleanup_lease_fence`. The separate database-first rollback proved
+old-application direct CRUD compatibility, exact function-partition
+restoration, exact FORCE restoration, preservation of `objectKey` retirement
+and zero fixture residue. Both proof payloads recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the service
+database, roles, fixtures and candidate directories were discarded with the
+job. This accepts the integrated candidate bytes and database proof at
+`b843e21e` only. It does not promote a migration, inspect production, create a
+role/credential/provider object, exercise R2, deploy, activate RLS or enable
+private Case evidence.
+
+Local validation at `b843e21e` passed Prisma generation, `tsc --noEmit`, lint
+(with the existing JSX analyzer warning), all 2,172 runnable repository tests
+and 3 intentional skips. Turbopack compiled the production application
+successfully twice in the disposable worktree, but Next's subsequent
+type-check worker exhausted both the default 2 GiB and explicit 4 GiB Node heap
+on the 8 GiB local host. Because the separate TypeScript pass is green, this is
+classified as a local resource failure rather than a source/type failure, but
+it is not called a successful production build. PR #60 exact head
+`c667e5c96f203301e1d6c64300b537187976288e` merged into `main` as
+`9d3a55e078e21264f40765cedeedf81a5e6d2187` on 2026-07-28. PR #61 was then
+retargeted to that `main` head while remaining draft. A fresh clean-runner CI
+production build against the retargeted PR is still a mandatory gate before
+any merge.
+
+### Production cleanup-role provision
+
+The provider-credential correction merged through PR `#77` as exact main
+`9c853676f64960923fdfeee93eb592b5c10f1e4f`. Its rollback-only preflight and
+actual run passed: `grainline_direct_upload_cleanup_v2` is a direct,
+non-pooled LOGIN/NOBYPASSRLS/NOINHERIT principal with zero parent memberships,
+only PostgreSQL 16's reviewed non-effective reverse bootstrap edge, and a
+working rotated password stored only in the protected
+`Production DirectUpload Cleanup` environment. The protected URL digest is
+`8ce9ee5b0cc56bfe6c6f2d30b0a749fbbae63425be7581b3a0ca24e5a0b21a3a`.
+Sanitized provider evidence is retained mode 0600 as
+`direct-upload-cleanup-role-provider-remediation-9c853676f64960923fdfeee93eb592b5c10f1e4f.json`,
+SHA-256
+`036486b04ef16da3605bf9721f79deee88f914c1255b67d061b381d69194de38`.
+
+Protected provision run `30408963222` failed before grants because the shared
+migration-owner guard had not yet added that reviewed edge. PR `#78` updated
+the shared migration, historical owner-rotation and runtime-separation
+contracts together and merged as exact main
+`4f859fc89f7f4ebdb84028c2a78e12c2882040b3`; its local and GitHub CI gates
+passed.
+
+Corrected protected run `30409531954` (job `90442358212`) then passed all
+steps: exact-main/owner/compatible-state preflight, convergence of only the
+three cleanup functions, read-only catalog/authority postflight and sanitized
+artifact upload. The proof covers 35 exact DirectUpload functions, no cleanup
+role relation/column/sequence/default/create authority, zero parent
+memberships, only the reviewed member posture, retained compatible runtime
+authority, forced policyless `DirectUploadReference`, zero incomplete
+migrations and `DirectUpload` RLS still off. The artifact is retained mode
+0600 as
+`direct-upload-cleanup-role-provision-4f859fc89f7f4ebdb84028c2a78e12c2882040b3.json`,
+SHA-256
+`e471a8fed1935bc5b788567648b03b8da1b89f187182f1b17ce80c58b0f54b38`.
+No app deployment, data cleanup, R2 change or DirectUpload RLS activation
+occurred.
+
+### 2026-07-30 cleanup R2 credential continuation
+
+Wrangler `4.115.0` was authorized through Cloudflare OAuth using its macOS
+Keychain-backed session. The authenticated account was independently
+identified as `b582ca1d820c44010f427756ea803212`. The existing
+`grainline-uploads` bucket was left unchanged. The missing
+`grainline-private` bucket was created empty in the default jurisdiction with
+Standard storage; no object, public-domain setting or existing bucket
+configuration was changed.
+
+The protected GitHub environment `Production DirectUpload Cleanup` now has the
+non-secret variables:
+
+- `DIRECT_UPLOAD_CLEANUP_R2_ACCOUNT_ID=b582ca1d820c44010f427756ea803212`
+- `DIRECT_UPLOAD_CLEANUP_R2_PUBLIC_BUCKET=grainline-uploads`
+- `DIRECT_UPLOAD_CLEANUP_R2_PRIVATE_BUCKET=grainline-private`
+
+The Wrangler OAuth grant is not a token-minting credential. Its granted scopes
+do not include Cloudflare `API Tokens Write`, and a read-only request to
+`GET /client/v4/user/tokens/permission_groups` failed closed with HTTP `403`
+and provider code `9109`. The cleanup credential must therefore be created
+through the authenticated R2 dashboard as a User API token with only
+`Object Read & Write`, scoped to exactly the two buckets above. Neither
+generated value may enter source control, a command argument, shell history or
+the application environment. Store them only as
+`DIRECT_UPLOAD_CLEANUP_R2_ACCESS_KEY_ID` and
+`DIRECT_UPLOAD_CLEANUP_R2_SECRET_ACCESS_KEY` in the protected cleanup
+environment, then run the reviewed disposable-object proof before claiming
+the provider gate complete.
+
+Protected proof run `30565266171` (job `90948091342`) at exact main
+`60e4da2f38f6bb53c33acb35193d87f7db938c88` is failed evidence and must not be
+replayed as proof. The operator passed its exact-source, protected-environment
+and secret-shape gates, then failed closed on the first public-bucket
+preflight `HEAD` with bounded code `R2_PUBLIC_PREFLIGHT_HEAD_403_UNKNOWN`.
+No `PUT` request ran, cleanup was not required, the private-bucket step did
+not run and the artifact records `residualPossible=false`. The sanitized
+artifact
+`direct-upload-r2-credential-proof-30565266171-1.json` has SHA-256
+`6d3ef0851e719d8b0fba8584af477ce49d2851539bef02a115f80f7e081c8786`.
+Independent Wrangler metadata reads still reached both exact buckets:
+`grainline-uploads` retained 257 objects / 283 MB and
+`grainline-private` retained zero objects / zero bytes. The initial
+credential-scope diagnosis was deliberately tested with a replacement R2 User
+API token visibly limited to `Object Read & Write` on both exact buckets.
+Protected run `30566210168` (job `90951270227`) at the same exact main commit
+failed at the identical preflight `HEAD`, before any `PUT`, with
+`residualPossible=false`; its sanitized artifact
+`direct-upload-r2-credential-proof-30566210168-1.json` has SHA-256
+`d319a479ccaba455fbf6a19efd6ffed5edaacb41b842a61b3a4f43ae5bcc03a6`.
+
+The reproduced failure falsifies the bucket-selection hypothesis and exposes
+an operator defect. S3-compatible `HeadObject` intentionally returns an
+ambiguous `403` for a missing object when the request cannot establish
+bucket-list authority, so an absent-key `HEAD` cannot distinguish least-
+privilege posture from invalid credentials. The corrected operator keeps its
+atomic `PutObject` `If-None-Match: *` collision fence and replaces only the
+preflight/final absence probes with strongly consistent, full-random-key
+`ListObjectsV2` requests capped at one result. Any returned object, truncation,
+continuation token, provider error or malformed count fails closed; cleanup
+still repeats delete plus bounded absence proof after an ambiguous provider
+response. Both failed runs remain non-evidence. No database, object,
+application deployment, cleanup-worker or RLS state changed.
+
+The corrected bounded-list operator merged through PR `#127` as exact main
+`89b623f1f4d58d910710c09d1f6c0f7fc3078e00` after its full GitHub CI gate
+passed. Protected proof run `30708992172` (job `91392974917`) is a third piece
+of failed, zero-residue evidence and must not be replayed as proof. The exact
+public-bucket preflight `ListObjectsV2` request failed with provider code
+`R2_PUBLIC_PREFLIGHT_LIST_403_SIGNATUREDOESNOTMATCH`. No `PUT` ran, the private
+bucket was not attempted, cleanup was unnecessary and the schema-v2 artifact
+records `residualPossible=false`. The sanitized mode-0600 artifact
+`direct-upload-r2-credential-proof-30708992172-1.json` has SHA-256
+`9614edb310ed6c0c21c0cc13d6fee15311a0d4dead931ca7bfb33d4eb4a692b2`.
+
+This result resolves the earlier ambiguous-`HEAD` question but does not accept
+the credential. The protected credential-pair digest is unchanged from run
+`30566210168`, and Cloudflare classified the bounded list as a signature
+mismatch rather than an authorization denial. The account endpoint, `auto`
+region and AWS SDK client shape match Cloudflare's documented S3-compatible
+configuration. Treat the stored access-key/secret pair as unusable: revoke it,
+replace both values from one newly created bucket-scoped R2 token and run one
+fresh exact-main proof. Do not retry the unchanged pair or weaken the proof.
+No database, persistent R2 object, application deployment, cleanup-worker or
+RLS state changed in run `30708992172`.
+
+The rejected pair was replaced as one new `v4` R2 User API token
+with `Object Read & Write` limited to the exact public/private buckets. Its two
+values were transferred separately from the clipboard directly into the
+protected environment, never printed or written to disk, and the clipboard
+was cleared. Protected proof run `30710557050` (job `91397146264`) at exact
+main `f7d149c682a8891e6b62cb0990390f8af4ce1384` passed both buckets through
+preflight absence, conditional write, metadata `HEAD`, delete and final
+bounded-list absence. The schema-v2 artifact records `complete=true`, both
+results `residualPossible=false`, and a clean exact source. The sanitized
+mode-0600 artifact
+`direct-upload-r2-credential-proof-30710557050-1.json` has SHA-256
+`d38aab53c5d5c9ae8dae1bf542f07d8bf65941f95fda150b6c588a241d49615c`.
+Independent Wrangler `4.118.0` metadata then showed the public bucket restored
+to 257 objects / 283 MB and the private bucket at zero objects / zero bytes.
+The cleanup-only R2 credential gate is accepted; the raw credential remains
+only in the protected cleanup environment. The Cloudflare revocation state of
+the rejected `v3` token was not independently verified; confirm or revoke that
+exact token before DirectUpload activation rather than claiming it is absent.
+
+Fresh exact-main disposable PostgreSQL 16 run `30709645196` (job
+`91394729233`) also passed the full DirectUpload sequence: legacy repair and
+compatible authority, generated compatibility-key retirement, generated FORCE
+activation, final runtime/cleanup grant audits, activated direct-denial and
+fixed-function authority, and database-first rollback with exact restoration.
+The production retirement release is therefore promoted separately, after the
+already-applied Case migrations, as
+`20260801175000_retire_direct_upload_compatibility_key`, SHA-256
+`42622759fdf9fcfda418e674ab43c9d013c0f0c536eda93c0aaa9495da826754`.
+Its release verifier reconstructs and byte-matches disposable proof SHA-256
+`63e8db0888e7ba5fb805707bb0ba855d6050c8e6ac573b37eafe4a2678e2dcce`;
+only the non-executable promotion header and the Prisma migration-directory
+name differ. The earlier `20260726190000` name remains disposable proof
+identity only and is not inserted behind already-applied production history.
+The release validates six legacy
+constraints and drops the duplicate compatibility key without changing RLS
+or table grants. DirectUpload activation remains a later, separate promotion.
+
+### 2026-08-01 activation pre-merge scheduler audit
+
+The byte-pinned activation SQL and its 17 runtime / 3 cleanup / 15 private
+function partition remain correct, but the release sequence was incomplete.
+Production `vercel.json` still invokes `/api/cron/direct-upload-cleanup` hourly,
+and that route uses `grainline_app_runtime` to execute the same three functions
+that activation revokes from ordinary runtime. Activating first would create a
+predictable hourly permission failure.
+
+Read-only Vercel inspection confirmed this on READY production deployment
+`dpl_Gvsge8MWYW8DfDRSom34YPwsY8rH`: the deployed cron is present at
+`50 * * * *` on `thegrainline.com`. This is live configuration evidence, not
+an inference from repository source.
+
+The missing compatible release is now isolated on
+`agent/direct-upload-runtime-retirement-20260801`. It removes the Vercel cron,
+the route and the duplicate ordinary-runtime cleanup implementation while
+leaving the protected GitHub worker manual-only. This does not delete the
+worker implementation or any object/data; it temporarily pauses expiry cleanup
+until the later scheduler release. Deploy and drain that compatible release
+before rebasing or applying activation. Separately confirm the rejected
+Cloudflare `v3` token is revoked, activate and postflight DirectUpload, then
+enable and prove the GitHub schedule in its own release. Case evidence stays
+disabled throughout those gates.
+
+### 2026-08-01 activation refresh after runtime retirement
+
+The compatible runtime-cleanup retirement is now deployed on production at
+exact merge commit `a5d54e79d9b8747936bd2a7850115705461d0fbf`, Vercel deployment
+`dpl_2o2yBehsStAiVWUhoj1LQTmZ9HJe`. The production alias is READY, health is
+200, the deployed cron manifest contains no DirectUpload cleanup schedule and
+an authenticated request to the retired route returns 404. No migration, RLS,
+Case-evidence, provider-variable, schedule, cleanup or token state changed.
+
+The activation branch was then refreshed on that deployed mainline. Extra-High
+review found that the external production runner proves `neondb_owner` has
+BYPASSRLS, while the byte-pinned migration itself only proved the 35 fixed
+functions were owned by `current_user`. With policyless FORCE RLS, that owner
+property is load-bearing availability. The candidate and promoted migration
+now also fail closed unless the SECURITY DEFINER owner is a superuser or has
+BYPASSRLS. This is defense in depth over the already-correct operator guard,
+not evidence of a current production role defect. It intentionally supersedes
+the old activation hashes and requires a fresh exact-tree disposable
+activation plus rollback proof before promotion.
+
+Signed-in Cloudflare dashboard inspection on 2026-08-01 later showed exactly
+the active account token `grainline-uploads` and active user token
+`grainline-direct-upload-cleanup-v4`. The rejected `v3` user token was absent;
+no raw credential was displayed, copied into chat or retained. This accepts the
+credential-revocation gate without weakening the exact-bucket v4 proof.
+
+### 2026-08-01 activation-aware production postflight gate
+
+The pre-activation runtime and cleanup-role operators deliberately reject the
+final FORCE posture, so they cannot serve as honest post-activation evidence.
+Production activation remains pending while the isolated postflight release is
+reviewed. It adds one two-mode, database-read-only operator plus a protected
+cleanup-role workflow. The pooled runtime mode never receives owner or cleanup
+credentials; the cleanup mode never receives runtime, owner or R2 credentials.
+Both verify the exact 35-function identities, source hashes, modes and ACL
+partition; exact policyless ENABLE plus FORCE posture; zero DirectUpload table
+or column authority; direct denial; incomplete-migration absence; and an exact
+clean release bound to the successful main-CI and migration runs.
+
+The cleanup-role proof calls the authorized lease function only inside
+`BEGIN TRANSACTION READ ONLY` and requires SQLSTATE `25006`, demonstrating that
+execution reached the function body while PostgreSQL prevented a lease. The
+runtime proof requires SQLSTATE `42501` for direct table access, private cores
+and cleanup functions, while invalid-actor fixed reads return zero rows. Both
+roll back, persist no database change and write only fresh mode-0600 sanitized
+evidence. Function identity arguments are now also pinned in the standing
+cleanup-worker catalog so same-name signature drift cannot pass later worker
+preflight.
+
+### 2026-08-01 failed activation and diagnostic boundary
+
+Guarded Production Migrations run `30729632410` targeted exact main
+`9eeb7ceb828ac1a6f9817e270f2933237bd4cdfc`. All source, role, migration-byte,
+proof-equivalence and Prisma-generation gates passed. Prisma selected only
+`20260801194000_enable_direct_upload_rls`, then failed with the secondary
+message `current transaction is aborted`; it did not expose the first
+PostgreSQL error in the Actions log. Migration status and the final grant audit
+were skipped, and neither reviewed activation postflight ran. This is failed
+evidence, not a production activation claim.
+
+The earlier legacy verifier cannot classify this state: run `30729803125`
+failed read-only because that pre-retirement operator still requires the
+intentionally retired `CaseMessageAttachment.objectKey`. It produced no
+evidence and changed nothing. A new isolated failure inspector instead reads
+only the exact Prisma ledger row and current catalog in a repeatable-read,
+read-only owner transaction. It hashes but never retains the raw migration log,
+emits only an allowlisted database-error classification, proves the exact
+pre-activation role/table/function posture apart from the expected incomplete
+ledger row, and writes a mode-0600 sanitized artifact. No migration recovery or
+retry is allowed until that evidence passes.
+
+Read-only inspection run `30731902991` passed at exact main
+`4f56c3ba213d380b0eeb9bb94b51aab7e6a0a75b`. It proved one exact unfinished
+activation row with the promoted checksum and zero applied steps, plus complete
+restoration of the compatible pre-activation RLS, table-grant and 35-function
+partition. Production was unchanged. The ledger log itself is empty, so it
+cannot reveal the original PostgreSQL error. Sanitized mode-0600 evidence
+`direct-upload-activation-failure-inspection-4f56c3ba213d380b0eeb9bb94b51aab7e6a0a75b.json`
+has SHA-256
+`89250c0ac5d1d08f7fd86880c19e90ce153d9699e25673c7cfa628780b587b8e`;
+artifact `8828241114` has archive SHA-256
+`6bb5b224ba2c1c086cd12d9e502cfa104981dbba0945cf0fde5490e3c63b33a0`.
+The follow-up inspector executes only the migration's two exact preflight `DO`
+blocks as the last statement in the same read-only transaction, after the
+failed ledger row, promoted checksum and compatible posture are all re-proven.
+It captures the first SQLSTATE and allowlisted message directly. It cannot
+perform the earlier locks or the later revokes, grants, RLS changes or commit.
+
+That follow-up passed in run `30732821707` at exact main
+`a1b59157fc1fedcbb3ef9d6e0217a2ffec4e190e` and recovered SQLSTATE `P0001`:
+the activation preflight rejected an inbound/outbound role membership. This is
+the already-reviewed PostgreSQL 16 bootstrap edge from `neondb_owner` to
+`grainline_direct_upload_cleanup_v2`, granted by `cloud_admin` with
+`ADMIN=true`, `INHERIT=false`, `SET=false`. The role-provision and worker
+proofs correctly accept that exact non-effective edge (or no edge); the
+activation SQL was inconsistent and rejected all edges. Production remained
+in the exact compatible posture with the original failed row at zero applied
+steps.
+
+The first recovery candidate changed only that membership preflight. It
+continues to reject all runtime memberships, every cleanup parent membership,
+every direct cleanup member edge except the exact bootstrap tuple, and every
+transitive cleanup member beyond `neondb_owner`. The failed original checksum
+remains pinned separately; the corrected reviewed checksum is
+`810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71`.
+That checksum is retained as superseded evidence after the later protected
+inspection proved the equivalent runtime bootstrap edge also needs exact
+allowlisting; it is no longer the current recovery candidate.
+A disposable PostgreSQL proof of failed-row resolution plus corrected replay is
+required before any production recovery operator may be staged. That proof
+passed in run `30733990797` / job `91459182538` at exact branch head
+`c38b9ac37c0b32b7bbf029ea1fa72db3dad5e995`: exact old zero-step failure,
+compatible rollback posture, disposable resolve boundary, corrected second
+ledger row, final grant audit, activated authority and database-first rollback
+all passed. No production credential or persistent provider was reachable.
+
+## Exit
+
+### 2026-08-03 hardened alias inspection and second preflight mismatch
+
+Protected read-only inspection run `30862128758` passed at exact main
+`1cfc9c75f87c90fa82e989c4897a21fd9aa99d68`. It independently proved the
+historical listing-variants alias has no finish timestamp, one rollback marker
+and zero applied steps while the reviewed current name has the sole completed
+application. The DirectUpload activation row remains the exact unfinished,
+unrolled-back zero-step failure; DirectUpload RLS remains off; compatible
+authority is restored; and the repeatable-read transaction reported read-only.
+The inspection changed no production state.
+
+The extracted live activation preflight still failed with SQLSTATE `P0001` and
+the allowlisted membership message. This is not drift in the cleanup edge that
+PR #139 fixed. The production baseline intentionally has the owner as a
+non-inheriting, non-settable admin member of both restricted login roles, while
+the current activation SQL permits the exact provider bootstrap tuple only for
+`grainline_direct_upload_cleanup_v2`. It therefore rejects the equally
+non-effective `grainline_app_runtime` owner edge that the global production
+migration guard already requires. Do not resolve the failed row or retry
+recovery. A successor candidate must model both exact direct edges, recursively
+reject any transitive member other than `neondb_owner`, replay both edges in
+the disposable PostgreSQL recovery proof, refresh byte pins, and re-run the
+protected read-only preflight before any production mutation.
+
+The sanitized evidence file SHA-256 is
+`b881c9a64029c621b01e820975082b7a1eff4cfbd9b7851028724c41b72d708e`;
+GitHub artifact `8874773325` belongs to inspection run `30862128758`.
+
+Isolated branch
+`agent/direct-upload-activation-runtime-bootstrap-preflight-20260803` now
+contains the authorized successor candidate. It allowlists the exact
+`cloud_admin`-granted, `ADMIN=true`, `INHERIT=false`, `SET=false` direct edge
+from each restricted role to `neondb_owner`, and no other touching edge. A
+root-labelled recursive membership walk starts independently at both
+`grainline_app_runtime` and `grainline_direct_upload_cleanup_v2` and rejects
+every descendant other than `neondb_owner`. The production migration and its
+generator remain byte-equivalent at promoted SHA-256
+`1bceed7a5076f15ae5c9c46a89bbaecdf583953f7a1ff80b26a8b0e7c21157c4`
+and disposable SHA-256
+`6600e6b96bf1d151befb860bab2fa268199d3847b4e4b7ccb3be647ca44c4a8b`.
+The failed original checksum remains separately pinned. The disposable fixture
+now reproduces both exact provider edges, and a transaction-rolled-back proof
+tests exact-edge and no-edge acceptance plus direct-member, parent-membership,
+transitive-member and option-drift rejection with zero role residue. Local
+focused contracts and the full non-database suite pass after Prisma generation;
+the PostgreSQL 16 workflow remains the required execution proof before review.
+
+The first exact-head execution, run `30863620128`, passed the new seven-check
+membership-preflight step on PostgreSQL 16. It then stopped before disposable
+resolution/replay because the pre-existing recovery-posture assertion still
+pinned only the cleanup bootstrap edge. That harness-only expectation now
+uses an exported, unit-tested two-edge contract. The failed run had no
+production credential and changed no provider or production state; a complete
+exact-head rerun remains required.
+
+That complete rerun passed at executable commit
+`595098e9f19af737a2f70f5567a99c00a6d15c55`: disposable PostgreSQL 16 run
+`30863895210` / job `91851469212` completed every membership, failure,
+resolution, activation, grant, authority and rollback stage. Full PR CI run
+`30863897027` / job `91851475050` also passed, including the production build.
+No production credential or persistent provider was available to the proof.
+
+The subsequent Extra-High review found no defect in the exact two-edge SQL
+allowlist or root-labelled recursive rejection. It did find a proof-coverage
+asymmetry: the live harness had exercised unexpected direct/parent membership
+and bootstrap option drift primarily through the runtime role. Commit
+`99eab93713a7bfcbbea450c97e5e0b1192f4e3c9` makes those cases symmetric across
+both restricted roles and expands the rolled-back membership matrix from
+seven to 14 checks. Disposable PostgreSQL 16 run `30865221934` / job
+`91855473752` passed the expanded matrix and the complete recovery sequence;
+full CI run `30865224129` / job `91855481718` passed all database proofs,
+TypeScript, lint, 2,680 tests, security audit and the production build at the
+same exact head. The draft branch remains non-production: no migration ledger,
+database, deployment or provider state changed.
+
+A follow-on operator audit found that the production recovery workflow and
+verifier still pinned superseded cleanup-edge-only proof `30734098369`. That
+would have rejected the new proof input while preserving evidence for obsolete
+migration bytes. The isolated branch now binds successful two-edge disposable
+proof `30865542314` / job `91856468869` at exact head
+`5f8f761ead7619baf5037dcdce595bfc4e877329`, and static contracts pin the run,
+branch and SHA. This is a branch-only fail-closed binding correction; no
+production workflow was dispatched and no production or provider state
+changed. Exact-head disposable PostgreSQL run `30866643733` / job
+`91859847929` and full CI run `30866645901` / job `91859854716` passed at
+commit `dfa9bad6f17abe7079ee955be097f68bc345ba01`, including the updated operator
+contract, complete recovery sequence, TypeScript, lint, 2,680 tests, security
+audit and production build.
+
+Keep Extra High through the activation sequencing and authority review. The
+production v2 cleanup login and its exact three-function authority are
+provisioned and proved, the cleanup-only R2 credential passed its exact-bucket
+disposable-object proof, and the compatibility key is retired in production.
+`DirectUpload` RLS remains off. The compatible runtime-cleanup retirement is
+deployed and drained, the rejected Cloudflare `v3` token is absent, the
+activation-aware postflights are merged, and the original production
+activation attempt is fully classified as a zero-step rolled-back preflight
+failure. Reviewed draft PR `#146` holds the current two-edge membership
+preflight, symmetric 14-check proof and corrected recovery-evidence binding.
+Its branch proofs are complete. Next, merge only that reviewed exact head, wait
+for exact-main CI, and run the separate protected read-only Failure Inspection.
+Do not resolve the production ledger row, retry activation, schedule the
+protected worker or enable Case evidence merely because those read-only gates
+pass; production recovery remains a distinct guarded action.
+Standing authorization permits routine continuation through this
+already-scoped rollout without conversational micro-approval. Exact-commit
+proof, protected-environment, migration, deployment and production postflight
+gates remain mandatory, and work must stop on failed safety evidence,
+unexpected production state, destructive scope drift or a required platform
+approval.

@@ -1,0 +1,760 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
+import { Store } from "@/components/icons";
+import { safeStripeRedirectUrl } from "@/lib/stripeRedirect";
+import { saveStep1, saveStep2, advanceStep, completeOnboarding } from "./actions";
+
+interface Props {
+  initialStep: number;
+  displayName: string;
+  bio: string | null;
+  tagline: string | null;
+  avatarImageUrl: string | null;
+  yearsInBusiness: number | null;
+  city: string | null;
+  state: string | null;
+  returnPolicy: string | null;
+  shippingPolicy: string | null;
+  acceptsCustomOrders: boolean;
+  /** Stripe account ID exists (but may not be fully set up) */
+  hasStripeAccount: boolean;
+  /** Stripe account is fully onboarded and charges_enabled = true */
+  chargesEnabled: boolean;
+  stripeReturn?: boolean;
+  listingCount: number;
+  latestListing: { id: string; title: string; status: string } | null;
+}
+
+const TOTAL_STEPS = 5;
+
+export default function OnboardingWizard({
+  initialStep,
+  displayName,
+  bio,
+  tagline,
+  avatarImageUrl,
+  yearsInBusiness,
+  city,
+  state,
+  returnPolicy,
+  shippingPolicy,
+  acceptsCustomOrders,
+  hasStripeAccount,
+  chargesEnabled,
+  stripeReturn = false,
+  listingCount,
+  latestListing,
+}: Props) {
+  const router = useRouter();
+  const [step, setStep] = useState(initialStep);
+  const [loading, setLoading] = useState(false);
+  const [connectingStripe, setConnectingStripe] = useState(false);
+  const [checkingStripe, setCheckingStripe] = useState(stripeReturn && hasStripeAccount && !chargesEnabled);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Track what was completed during the session (for summary on step 5)
+  const [completed, setCompleted] = useState({
+    step1: !!(bio || tagline || avatarImageUrl),
+    step2: !!(city && state),
+    step3: chargesEnabled,
+    step4: listingCount > 0,
+  });
+
+  const progressPct = Math.round((step / TOTAL_STEPS) * 100);
+  const hasListing = listingCount > 0 || completed.step4;
+  const stripeReady = chargesEnabled || completed.step3;
+  const canComplete = stripeReady && listingCount > 0;
+  const latestListingTitle = latestListing?.title?.trim() || "Your latest listing";
+
+  useEffect(() => {
+    if (!hasStripeAccount || chargesEnabled) return;
+    let cancelled = false;
+    async function refreshStripeStatus() {
+      setCheckingStripe(true);
+      try {
+        const res = await fetch("/api/stripe/connect/status", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { chargesEnabled?: boolean };
+        if (cancelled) return;
+        if (data.chargesEnabled) {
+          setCompleted((current) => ({ ...current, step3: true }));
+          router.replace("/dashboard/onboarding", { scroll: false });
+        }
+      } catch {
+        // Status refresh is best effort; the Connect button remains available.
+      } finally {
+        if (!cancelled) setCheckingStripe(false);
+      }
+    }
+    void refreshStripeStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [chargesEnabled, hasStripeAccount, router, stripeReturn]);
+
+  async function advance(targetStep: number) {
+    setLoading(true);
+    setActionError(null);
+    try {
+      const result = await advanceStep(targetStep);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      setStep(targetStep);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleStep1Submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await saveStep1Form(e.currentTarget);
+  }
+
+  async function saveStep1Form(form: HTMLFormElement) {
+    const formData = new FormData(form);
+    setLoading(true);
+    setActionError(null);
+    try {
+      const result = await saveStep1(formData);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      try {
+        window.sessionStorage.removeItem("grainline:onboarding:avatarImageUrl");
+      } catch {
+        // Draft cleanup is best effort.
+      }
+      setCompleted((c) => ({ ...c, step1: true }));
+      setStep(2);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleStep1Skip(e: React.MouseEvent<HTMLButtonElement>) {
+    const form = e.currentTarget.form;
+    if (!form) {
+      await advance(2);
+      return;
+    }
+    await saveStep1Form(form);
+  }
+
+  async function handleStep2Submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await saveStep2Form(e.currentTarget);
+  }
+
+  async function saveStep2Form(form: HTMLFormElement) {
+    const formData = new FormData(form);
+    setLoading(true);
+    setActionError(null);
+    try {
+      const result = await saveStep2(formData);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      setCompleted((c) => ({ ...c, step2: true }));
+      setStep(3);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleStep2Skip(e: React.MouseEvent<HTMLButtonElement>) {
+    const form = e.currentTarget.form;
+    if (!form) {
+      await advance(3);
+      return;
+    }
+    await saveStep2Form(form);
+  }
+
+  async function handleConnectStripe() {
+    setConnectingStripe(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/stripe/connect/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ returnUrl: "/dashboard/onboarding?stripe_return=1" }),
+      });
+      const data = await res.json();
+      const redirectUrl = safeStripeRedirectUrl(data.url);
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+        return;
+      }
+      setActionError(typeof data.error === "string" ? data.error : "We couldn't start Stripe setup. Please try again.");
+      setConnectingStripe(false);
+    } catch {
+      setActionError("We couldn't start Stripe setup. Please try again.");
+      setConnectingStripe(false);
+    }
+  }
+
+  async function handleComplete() {
+    setLoading(true);
+    setActionError(null);
+    try {
+      const result = await completeOnboarding();
+      if (!result.ok) {
+        setActionError(result.error);
+        setLoading(false);
+      }
+    } catch {
+      setLoading(false);
+    }
+  }
+
+  const inputClass =
+    "w-full rounded-md border border-neutral-200 px-3 py-2 text-sm";
+  const btnPrimary =
+    "flex-1 rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]";
+  const btnSecondary =
+    "flex-1 rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50";
+
+  return (
+    <div className="min-h-[100svh] bg-[#F7F5F0] flex flex-col items-center justify-start py-12 px-4">
+      <div className="w-full max-w-xl">
+        {/* Action errors */}
+        {actionError && (
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {actionError}
+          </div>
+        )}
+
+        {/* Progress bar — visible on steps 1–4 */}
+        {step > 0 && step < TOTAL_STEPS && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-neutral-500">Step {step} of {TOTAL_STEPS - 1}</span>
+              <span className="text-xs text-neutral-500">{progressPct}%</span>
+            </div>
+            <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-500 transition-all duration-500"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 0: Welcome ─────────────────────────────────── */}
+        {step === 0 && (
+          <div className="card-section p-8 text-center">
+            <div className="flex justify-center mb-4 text-neutral-600"><Store size={48} /></div>
+            <h1 className="text-2xl font-semibold font-display mb-2">
+              Welcome to Grainline, {displayName}!
+            </h1>
+            <p className="text-neutral-600 mb-8">
+              Let&apos;s get your shop set up. It takes about 5 minutes.
+            </p>
+            <button
+              onClick={() => advance(1)}
+              disabled={loading}
+              className="rounded-md bg-neutral-900 px-8 py-3 font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]"
+            >
+              {loading ? "Loading…" : "Get Started →"}
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 1: Your Profile ─────────────────────────────── */}
+        {step === 1 && (
+          <div className="card-section p-8">
+            <h2 className="text-xl font-semibold font-display mb-1">Your Profile</h2>
+            <p className="text-sm text-neutral-500 mb-6">
+              This is how buyers will know you. Tell them about your craft.
+            </p>
+            <form onSubmit={handleStep1Submit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-1" htmlFor="displayName">
+                  Display Name
+                </label>
+                <input
+                  id="displayName"
+                  name="displayName"
+                  type="text"
+                  autoComplete="name"
+                  defaultValue={displayName}
+                  maxLength={100}
+                  className={inputClass}
+                  placeholder="Your shop or maker name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1" htmlFor="tagline">
+                  Tagline{" "}
+                  <span className="text-neutral-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="tagline"
+                  name="tagline"
+                  type="text"
+                  autoComplete="off"
+                  defaultValue={tagline ?? ""}
+                  maxLength={100}
+                  className={inputClass}
+                  placeholder="e.g. Handcrafted from reclaimed oak"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1" htmlFor="bio">
+                  Bio{" "}
+                  <span className="text-neutral-500 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  id="bio"
+                  name="bio"
+                  autoComplete="off"
+                  defaultValue={bio ?? ""}
+                  maxLength={500}
+                  rows={4}
+                  className={inputClass}
+                  placeholder="Tell buyers about yourself and your craft…"
+                />
+              </div>
+
+              <div>
+                <p className="block text-sm font-medium mb-2">
+                  Profile Photo{" "}
+                  <span className="text-neutral-500 font-normal">(optional)</span>
+                </p>
+                <ProfileAvatarUploader initialUrl={avatarImageUrl} storageKey="grainline:onboarding:avatarImageUrl" />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleStep1Skip}
+                  disabled={loading}
+                  className={btnSecondary}
+                >
+                  Skip for now
+                </button>
+                <button type="submit" disabled={loading} className={btnPrimary}>
+                  {loading ? "Saving…" : "Save & Continue →"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* ── Step 2: Your Shop ────────────────────────────────── */}
+        {step === 2 && (
+          <div className="card-section p-8">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 block"
+            >
+              ← Back
+            </button>
+            <h2 className="text-xl font-semibold font-display mb-1">Your Shop</h2>
+            <p className="text-sm text-neutral-500 mb-6">
+              Help buyers know what to expect when shopping with you.
+            </p>
+            <form onSubmit={handleStep2Submit} className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1" htmlFor="city">
+                    City{" "}
+                    <span className="text-neutral-500 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    id="city"
+                    name="city"
+                    type="text"
+                    autoComplete="address-level2"
+                    defaultValue={city ?? ""}
+                    className={inputClass}
+                    placeholder="Austin"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1" htmlFor="state">
+                    State{" "}
+                    <span className="text-neutral-500 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    id="state"
+                    name="state"
+                    type="text"
+                    autoComplete="address-level1"
+                    defaultValue={state ?? ""}
+                    className={inputClass}
+                    placeholder="TX"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1" htmlFor="yearsInBusiness">
+                  Years in Business{" "}
+                  <span className="text-neutral-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="yearsInBusiness"
+                  name="yearsInBusiness"
+                  type="number"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  min="0"
+                  max="100"
+                  defaultValue={yearsInBusiness ?? ""}
+                  className={inputClass}
+                  placeholder="e.g. 5"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1" htmlFor="returnPolicy">
+                  Return Policy{" "}
+                  <span className="text-neutral-500 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  id="returnPolicy"
+                  name="returnPolicy"
+                  autoComplete="off"
+                  defaultValue={returnPolicy ?? ""}
+                  maxLength={2000}
+                  rows={3}
+                  className={inputClass}
+                  placeholder="e.g. All sales final. Contact me within 7 days for damaged items."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1" htmlFor="shippingPolicy">
+                  Shipping Policy{" "}
+                  <span className="text-neutral-500 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  id="shippingPolicy"
+                  name="shippingPolicy"
+                  autoComplete="off"
+                  defaultValue={shippingPolicy ?? ""}
+                  maxLength={2000}
+                  rows={3}
+                  className={inputClass}
+                  placeholder="e.g. Ships within 3 business days via UPS Ground."
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  id="acceptsCustomOrders"
+                  name="acceptsCustomOrders"
+                  type="checkbox"
+                  defaultChecked={acceptsCustomOrders}
+                  className="h-5 w-5 rounded border-neutral-300 accent-neutral-900"
+                />
+                <label htmlFor="acceptsCustomOrders" className="text-sm font-medium">
+                  I accept custom orders
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleStep2Skip}
+                  disabled={loading}
+                  className={btnSecondary}
+                >
+                  Skip for now
+                </button>
+                <button type="submit" disabled={loading} className={btnPrimary}>
+                  {loading ? "Saving…" : "Save & Continue →"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* ── Step 3: Get Paid ─────────────────────────────────── */}
+        {step === 3 && (
+          <div className="card-section p-8">
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 block"
+            >
+              ← Back
+            </button>
+            <h2 className="text-xl font-semibold font-display mb-1">Get Paid</h2>
+            <p className="text-sm text-neutral-500 mb-6">
+              Grainline uses Stripe to send you money when you make a sale. Setup takes 2 minutes.
+            </p>
+
+            {stripeReady ? (
+              // Fully connected and charges enabled
+              <div className="flex items-center gap-3 rounded-md bg-green-50 border border-green-200 px-4 py-4 mb-6">
+                <span className="text-green-600 text-lg">✓</span>
+                <div>
+                  <p className="font-medium text-green-800">Stripe Connected</p>
+                  <p className="text-sm text-green-700">
+                    You&apos;re all set to receive payouts.
+                  </p>
+                </div>
+              </div>
+            ) : hasStripeAccount ? (
+              // Account exists but setup not complete
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center gap-3 rounded-md bg-amber-50 border border-amber-200 px-4 py-3 mb-3">
+                  <span className="text-amber-600 text-lg">⚠</span>
+                  <div>
+                    <p className="font-medium text-amber-800">Stripe Setup Incomplete</p>
+                    <p className="text-sm text-amber-700">
+                      Your Stripe account exists but isn&apos;t fully set up yet.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleConnectStripe}
+                  disabled={connectingStripe || loading}
+                  className="w-full rounded-md bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-6 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+                >
+                  {connectingStripe ? "Connecting…" : "Continue Stripe Setup →"}
+                </button>
+              </div>
+            ) : (
+              // No Stripe account yet
+              <div className="space-y-3 mb-6">
+                <button
+                  onClick={handleConnectStripe}
+                  disabled={connectingStripe || loading}
+                  className="w-full rounded-md bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-6 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+                >
+                  {connectingStripe ? "Connecting…" : "Connect Stripe →"}
+                </button>
+                <p className="text-xs text-neutral-500">
+                  You can draft your first listing now, but Stripe must be fully connected before
+                  onboarding can finish or any listing can publish.
+                </p>
+              </div>
+            )}
+
+            {checkingStripe && (
+              <div className="mb-4 rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600">
+                Checking your Stripe setup...
+              </div>
+            )}
+
+            {!stripeReady && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Stripe must be fully connected before onboarding can be completed or listings can publish.
+              </div>
+            )}
+
+            <button
+              onClick={() => advance(4)}
+              disabled={loading}
+              className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
+            >
+              {loading
+                ? "Loading…"
+                : stripeReady
+                ? "Continue →"
+                : "Skip for now"}
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 4: Your First Listing ───────────────────────── */}
+        {step === 4 && (
+          <div className="card-section p-8">
+            <button
+              type="button"
+              onClick={() => setStep(3)}
+              className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 block"
+            >
+              ← Back
+            </button>
+            <h2 className="text-xl font-semibold font-display mb-1">Your First Listing</h2>
+            <p className="text-sm text-neutral-500 mb-6">
+              Show buyers what you make. You can always add more later.
+            </p>
+
+            {listingCount > 0 || completed.step4 ? (
+              <>
+                <div className="flex items-center gap-3 rounded-md bg-green-50 border border-green-200 px-4 py-4 mb-6">
+                  <span className="text-green-600 text-lg">✓</span>
+                  <div>
+                    <p className="font-medium text-green-800">You already have listings!</p>
+                    <p className="text-sm text-green-700">
+                      {listingCount} listing{listingCount !== 1 ? "s" : ""} in your shop.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => advance(5)}
+                  disabled={loading}
+                  className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
+                >
+                  {loading ? "Loading…" : "Continue →"}
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/dashboard/listings/new"
+                  onClick={() => {
+                    void advanceStep(5);
+                  }}
+                  className="mb-3 block w-full rounded-md bg-neutral-900 px-6 py-3 text-center font-medium text-white transition-colors hover:bg-neutral-800 min-h-[44px]"
+                >
+                  Create a Listing →
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => advance(5)}
+                  disabled={loading}
+                  className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
+                >
+                  {loading ? "Loading…" : "Skip for now"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Step 5: All set! ─────────────────────────────────── */}
+        {step === 5 && (
+          <div className="card-section p-8 text-center">
+            <div className="flex justify-center mb-4 text-neutral-600"><Store size={48} /></div>
+            <h2 className="text-2xl font-semibold font-display mb-2">
+              {canComplete ? "Your shop is ready!" : "Finish your shop setup"}
+            </h2>
+            <p className="text-neutral-600 mb-6">
+              {canComplete
+                ? "Here's a summary of what you set up:"
+                : "Complete the remaining items below before opening your dashboard."}
+            </p>
+
+            <div className="text-left rounded-lg border border-neutral-200 divide-y divide-neutral-100 mb-8 overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <span className={completed.step1 ? "text-green-600 font-medium" : "text-neutral-300 font-medium"}>
+                  {completed.step1 ? "✓" : "○"}
+                </span>
+                <span className="text-sm flex-1">Profile — display name, bio &amp; tagline</span>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  Edit
+                </button>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <span className={completed.step2 ? "text-green-600 font-medium" : "text-neutral-300 font-medium"}>
+                  {completed.step2 ? "✓" : "○"}
+                </span>
+                <span className="text-sm flex-1">Shop — location &amp; policies</span>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  Edit
+                </button>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <span
+                  className={
+                    stripeReady
+                      ? "text-green-600 font-medium"
+                      : "text-neutral-300 font-medium"
+                  }
+                >
+                  {stripeReady ? "✓" : "○"}
+                </span>
+                <span className="text-sm flex-1">Stripe payouts connected</span>
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  {stripeReady ? "View" : "Finish"}
+                </button>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <span
+                  className={
+                    hasListing
+                      ? "text-green-600 font-medium"
+                      : "text-neutral-300 font-medium"
+                  }
+                >
+                  {hasListing ? "✓" : "○"}
+                </span>
+                <span className="text-sm flex-1">
+                  {latestListing ? `First listing created — ${latestListingTitle}` : "First listing created"}
+                </span>
+                {latestListing ? (
+                  <Link
+                    href={`/dashboard/listings/${latestListing.id}/edit`}
+                    className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                  >
+                    Edit
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStep(4)}
+                    className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                  >
+                    Create
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {latestListing && !stripeReady && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
+                Your draft listing is saved. You can keep editing it while Stripe setup is pending.
+                <Link href={`/dashboard/listings/${latestListing.id}/edit`} className="ml-1 font-semibold underline">
+                  Open draft
+                </Link>
+              </div>
+            )}
+
+            {!stripeReady && (
+              <>
+                <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Stripe payouts are not fully connected yet. Finish Stripe setup before completing onboarding.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleConnectStripe}
+                  disabled={connectingStripe || loading}
+                  className="mb-3 w-full rounded-md bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+                >
+                  {connectingStripe ? "Connecting…" : "Connect Stripe Payouts →"}
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={handleComplete}
+              disabled={loading || !stripeReady || listingCount < 1}
+              className="w-full rounded-md bg-neutral-900 px-8 py-3 font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]"
+            >
+              {loading ? "Loading…" : "Go to My Dashboard →"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

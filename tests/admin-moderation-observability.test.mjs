@@ -1,0 +1,125 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("admin moderation hardening follow-ups", () => {
+  it("expires open checkout sessions when staff remove a listing", () => {
+    const route = source("src/app/api/admin/listings/[id]/route.ts");
+
+    assert.match(route, /expireOpenCheckoutSessionsForListing/);
+    assert.match(route, /source: "admin_listing_remove"/);
+    assert.match(route, /sellerId: listing\.sellerId/);
+  });
+
+  it("captures admin listing-review and custom-order side effects", () => {
+    const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const customOrderReadyLink = source("src/lib/customOrderReadyLink.ts");
+
+    assert.match(reviewRoute, /source: 'admin_listing_review_founding_maker'/);
+    assert.match(reviewRoute, /source: 'admin_listing_review_notification'/);
+    assert.doesNotMatch(reviewRoute, /\.catch\(\(\) => \{\}\)/);
+    assert.match(customOrderReadyLink, /source: "custom_order_ready_email"/);
+    assert.match(customOrderReadyLink, /listingId: source\.listingId/);
+    assert.doesNotMatch(customOrderReadyLink, /extra:\s*\{[^}]*email/s);
+  });
+
+  it("sanitizes admin listing rejection reasons before persistence and notifications", () => {
+    const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
+
+    assert.match(reviewRoute, /import \{ sanitizeText, truncateText \} from '@\/lib\/sanitize'/);
+    assert.match(reviewRoute, /const sanitizedReason = truncateText\(sanitizeText\(reason \?\? ''\), 500\)\.trim\(\)/);
+    assert.match(reviewRoute, /if \(!sanitizedReason\) return privateJson\(\{ error: 'Reason required for rejection' \}/);
+    assert.match(reviewRoute, /rejectionReason: sanitizedReason/);
+    assert.match(reviewRoute, /reason: sanitizedReason/);
+    assert.match(reviewRoute, /Reason: \$\{sanitizedReason\}/);
+    assert.doesNotMatch(reviewRoute, /rejectionReason: reason/);
+    assert.doesNotMatch(reviewRoute, /Reason: \$\{reason\}/);
+  });
+
+  it("rechecks seller orderability before admin listing approval", () => {
+    const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
+
+    assert.match(reviewRoute, /function sellerUnavailableReason/);
+    assert.match(reviewRoute, /chargesEnabled: true/);
+    assert.match(reviewRoute, /vacationMode: false/);
+    assert.match(reviewRoute, /user: \{ banned: false, deletedAt: null \}/);
+    assert.match(reviewRoute, /status: 'PENDING_REVIEW'/);
+    assert.match(reviewRoute, /SET status = 'SOLD_OUT'/);
+    assert.match(reviewRoute, /"listingType" = 'IN_STOCK'/);
+    assert.match(reviewRoute, /COALESCE\("stockQuantity", 0\) <= 0/);
+    assert.match(reviewRoute, /const finalStatus = Number\(soldOutCount\) > 0 \? 'SOLD_OUT' : 'ACTIVE'/);
+    assert.match(reviewRoute, /metadata: \{ finalStatus \}/);
+    assert.match(reviewRoute, /return privateJson\(\{ error: unavailableReason \}, \{ status: HTTP_STATUS\.CONFLICT \}\)/);
+    assert.match(reviewRoute, /return privateJson\(\{ error: currentUnavailableReason \}, \{ status: HTTP_STATUS\.CONFLICT \}\)/);
+    assert.match(reviewRoute, /currentListing\.status === 'ACTIVE' &&\s*!\s*currentUnavailableReason/s);
+    assert.match(reviewRoute, /if \(approved\.finalStatus === 'ACTIVE'\) \{/);
+    assert.ok(
+      reviewRoute.indexOf("const unavailableReason = sellerUnavailableReason(listing.seller)") <
+        reviewRoute.indexOf("const approved = await prisma.$transaction"),
+      "seller orderability should be checked before ACTIVE approval mutation",
+    );
+    assert.ok(
+      reviewRoute.indexOf("const approved = await prisma.$transaction") <
+        reviewRoute.indexOf("await maybeGrantFoundingMaker(listing.sellerId)"),
+      "Founding Maker grant should only run after guarded ACTIVE mutation succeeds",
+    );
+  });
+
+  it("keeps report resolution rate-limited and stale-safe", () => {
+    const route = source("src/app/api/admin/reports/[id]/resolve/route.ts");
+
+    assert.match(route, /adminActionRatelimit/);
+    assert.match(route, /safeRateLimit\(adminActionRatelimit, admin\.id\)/);
+    assert.match(route, /userReport\.updateMany/);
+    assert.match(route, /where: \{ id, resolved: false \}/);
+  });
+
+  it("keeps admin review rating summaries transactional and delegates media release to the database lifecycle", () => {
+    const route = source("src/app/api/admin/reviews/[id]/route.ts");
+    const migration = source(
+      "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
+    );
+
+    assert.match(route, /await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(route, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
+    assert.doesNotMatch(route, /source: "admin_review_rating_summary_refresh"/);
+    assert.doesNotMatch(route, /deletePublicObjectsBestEffort|deleteObject\(|directUpload\./);
+    assert.match(
+      migration,
+      /CREATE TRIGGER grainline_direct_upload_release_review_delete\s+BEFORE DELETE ON public\."Review"/,
+    );
+  });
+
+  it("captures admin email and verification email failures with safe telemetry", () => {
+    const emailRoute = source("src/app/api/admin/email/route.ts");
+    const verificationPage = source("src/app/admin/verification/page.tsx");
+
+    assert.match(emailRoute, /hashEmailForTelemetry/);
+    assert.match(emailRoute, /UNSUBSCRIBE_HREF_PLACEHOLDER/);
+    assert.doesNotMatch(emailRoute, /href="\$\{APP_URL\}\/unsubscribe"/);
+    assert.match(emailRoute, /source: "admin_email_send"/);
+    assert.match(emailRoute, /source: "admin_email_notification"/);
+    assert.match(emailRoute, /source: "admin_email_audit_log"/);
+    assert.match(emailRoute, /notificationAuditId = await logAdminActionOrThrow\(\{/);
+    assert.match(emailRoute, /targetType: "USER"/);
+    assert.match(emailRoute, /targetId: recipientUserId/);
+    assert.match(emailRoute, /metadata: \{ notificationBody \}/);
+    assert.match(emailRoute, /if \(recipientUserId && notificationAuditId\)/);
+    assert.doesNotMatch(emailRoute, /targetId: normalizedRecipientEmail/);
+    assert.doesNotMatch(emailRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+    assert.match(verificationPage, /"admin_verification_email"/);
+    assert.doesNotMatch(verificationPage, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+  });
+
+  it("captures admin blog comment approval notification failures", () => {
+    const page = source("src/app/admin/blog/page.tsx");
+
+    assert.match(page, /Sentry\.captureException/);
+    assert.match(page, /source: "admin_blog_comment_approval_notification"/);
+    assert.doesNotMatch(page, /catch \{\s*\/\* non-fatal/);
+  });
+});

@@ -1,0 +1,28 @@
+// src/app/sitemap_index.xml/route.ts
+// Sitemap index. The chunked sitemaps live at /sitemap/[id].xml via
+// `generateSitemaps()` in `src/app/sitemap.ts`; Next.js does not auto-create an
+// index and reserves `/sitemap.xml` internally (a custom route there fails the
+// build with "Conflicting route and metadata"). The index lives at
+// `/sitemap_index.xml` and robots.txt advertises that URL — crawlers accept
+// any URL listed in the `Sitemap:` directive.
+
+import { NextResponse } from "next/server";
+import { sitemapChunkCount, sitemapIndexXml } from "@/lib/sitemapIndex";
+import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
+
+const BASE_URL = "https://thegrainline.com";
+
+export const revalidate = 3600;
+
+export async function GET() {
+  const chunkCount = sitemapChunkCount(await sitemapSourceCounts());
+  const lastmod = new Date().toISOString();
+  const xml = sitemapIndexXml(BASE_URL, chunkCount, lastmod);
+
+  return new NextResponse(xml, {
+    headers: {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Cache-Control": "public, max-age=3600, s-maxage=3600",
+    },
+  });
+}

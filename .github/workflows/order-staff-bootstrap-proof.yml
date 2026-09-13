@@ -1,0 +1,58 @@
+name: Order Staff Bootstrap Proof
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Exact-main admission requires a proof for that SHA, including documentation
+# release checkpoints. This short independent job avoids stale-proof exceptions.
+
+permissions:
+  contents: read
+
+jobs:
+  tls-login:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: neondb_owner
+          POSTGRES_PASSWORD: ci-owner
+          POSTGRES_DB: neondb
+          POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U neondb_owner -d neondb"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Enable TLS only on the disposable proof service
+        env:
+          PROOF_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$PROOF_CONTAINER" openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 -subj '/CN=localhost' -addext 'subjectAltName=IP:127.0.0.1,DNS:localhost' -keyout /tmp/staff-proof.key -out /tmp/staff-proof.crt
+          docker exec "$PROOF_CONTAINER" chown postgres:postgres /tmp/staff-proof.key /tmp/staff-proof.crt
+          docker exec "$PROOF_CONTAINER" chmod 600 /tmp/staff-proof.key
+          docker cp "$PROOF_CONTAINER:/tmp/staff-proof.crt" "$RUNNER_TEMP/staff-bootstrap-ca.pem"
+          docker exec "$PROOF_CONTAINER" psql -U neondb_owner -d neondb -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_cert_file = '/tmp/staff-proof.crt'"
+          docker exec "$PROOF_CONTAINER" psql -U neondb_owner -d neondb -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_key_file = '/tmp/staff-proof.key'"
+          docker exec "$PROOF_CONTAINER" psql -U neondb_owner -d neondb -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl = 'on'"
+          docker exec "$PROOF_CONTAINER" psql -U neondb_owner -d neondb -v ON_ERROR_STOP=1 -c 'SELECT pg_reload_conf()'
+      - name: Prove real TLS channel-bound bootstrap and exact restart
+        run: |
+          test "$ORDER_STAFF_BOOTSTRAP_TLS_PROOF" = loopback-ci-postgres16
+          test -r "$ORDER_STAFF_BOOTSTRAP_TLS_PROOF_CA"
+          node --test tests/order-staff-read-bootstrap-tls-postgres.test.mjs
+        env:
+          ORDER_STAFF_BOOTSTRAP_TLS_PROOF: loopback-ci-postgres16
+          ORDER_STAFF_BOOTSTRAP_TLS_PROOF_CA: ${{ runner.temp }}/staff-bootstrap-ca.pem

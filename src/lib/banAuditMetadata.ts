@@ -1,0 +1,164 @@
+import { CommissionStatus } from "@prisma/client";
+import { reviewNoteSnapshot } from "./banOrderReviewState.ts";
+
+const COMMISSION_STATUSES = new Set<string>(Object.values(CommissionStatus));
+
+export type BanSellerProfileSnapshot = {
+  id: string;
+  chargesEnabled: boolean;
+  vacationMode: boolean;
+};
+
+export type BanCommissionRequestSnapshot = {
+  id: string;
+  status: CommissionStatus;
+};
+
+export type BanOpenOrderSnapshot = {
+  id: string;
+  buyerId: string | null;
+  previousReviewNeeded: boolean;
+  previousReviewNoteHash: string | null;
+  previousReviewNoteLength: number;
+  addedReviewNote?: boolean;
+};
+
+export type BanOpenOrderInput = {
+  id: string;
+  buyerId: string | null;
+  previousReviewNeeded: boolean;
+  previousReviewNote?: string | null;
+  addedReviewNote?: boolean;
+};
+
+export type BanAuditMetadata = {
+  appliedBannedAt: string | null;
+  externalSyncVersion: number | null;
+  previousSellerProfile: BanSellerProfileSnapshot | null;
+  previousCommissionRequests: BanCommissionRequestSnapshot[];
+  flaggedOpenOrders: BanOpenOrderSnapshot[];
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readSellerProfileSnapshot(value: unknown): BanSellerProfileSnapshot | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.id !== "string") return null;
+  if (typeof value.chargesEnabled !== "boolean") return null;
+  if (typeof value.vacationMode !== "boolean") return null;
+  return {
+    id: value.id,
+    chargesEnabled: value.chargesEnabled,
+    vacationMode: value.vacationMode,
+  };
+}
+
+function readCommissionRequestSnapshots(value: unknown): BanCommissionRequestSnapshot[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    if (typeof item.id !== "string") return [];
+    if (typeof item.status !== "string" || !COMMISSION_STATUSES.has(item.status)) return [];
+    return [{ id: item.id, status: item.status as CommissionStatus }];
+  });
+}
+
+function readOpenOrderSnapshots(value: unknown): BanOpenOrderSnapshot[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    if (typeof item.id !== "string") return [];
+    if (item.buyerId !== null && typeof item.buyerId !== "string") return [];
+    if (typeof item.previousReviewNeeded !== "boolean") return [];
+    const legacyReviewNote = typeof item.previousReviewNote === "string" ? item.previousReviewNote : null;
+    const legacySnapshot = reviewNoteSnapshot(legacyReviewNote);
+    const previousReviewNoteHash =
+      typeof item.previousReviewNoteHash === "string" || item.previousReviewNoteHash === null
+        ? item.previousReviewNoteHash
+        : legacySnapshot.previousReviewNoteHash;
+    const previousReviewNoteLength =
+      typeof item.previousReviewNoteLength === "number" && Number.isSafeInteger(item.previousReviewNoteLength)
+        ? item.previousReviewNoteLength
+        : legacySnapshot.previousReviewNoteLength;
+    const addedReviewNote = typeof item.addedReviewNote === "boolean" ? item.addedReviewNote : undefined;
+    return [{
+      id: item.id,
+      buyerId: item.buyerId,
+      previousReviewNeeded: item.previousReviewNeeded,
+      previousReviewNoteHash,
+      previousReviewNoteLength,
+      ...(addedReviewNote !== undefined ? { addedReviewNote } : {}),
+    }];
+  });
+}
+
+export function buildBanAuditMetadata({
+  sellerProfile,
+  commissionRequests,
+  openOrders = [],
+  openOrderSnapshots = [],
+  appliedBannedAt,
+  externalSyncVersion = 1,
+}: {
+  sellerProfile: BanSellerProfileSnapshot | null;
+  commissionRequests: BanCommissionRequestSnapshot[];
+  openOrders?: BanOpenOrderInput[];
+  openOrderSnapshots?: BanOpenOrderSnapshot[];
+  appliedBannedAt?: Date;
+  externalSyncVersion?: number;
+}): BanAuditMetadata {
+  if (openOrders.length > 0 && openOrderSnapshots.length > 0) {
+    throw new TypeError("Ban audit metadata accepts one Order snapshot source");
+  }
+  return {
+    appliedBannedAt: appliedBannedAt?.toISOString() ?? null,
+    externalSyncVersion,
+    previousSellerProfile: sellerProfile
+      ? {
+          id: sellerProfile.id,
+          chargesEnabled: sellerProfile.chargesEnabled,
+          vacationMode: sellerProfile.vacationMode,
+        }
+      : null,
+    previousCommissionRequests: commissionRequests.map((request) => ({
+      id: request.id,
+      status: request.status,
+    })),
+    flaggedOpenOrders: openOrderSnapshots.length > 0
+      ? openOrderSnapshots.map((order) => ({ ...order }))
+      : openOrders.map((order) => ({
+          id: order.id,
+          buyerId: order.buyerId,
+          previousReviewNeeded: order.previousReviewNeeded,
+          ...(typeof order.addedReviewNote === "boolean" ? { addedReviewNote: order.addedReviewNote } : {}),
+          ...reviewNoteSnapshot(order.previousReviewNote ?? null),
+        })),
+  };
+}
+
+export function readBanAuditMetadata(metadata: unknown): BanAuditMetadata {
+  if (!isRecord(metadata)) {
+    return {
+      appliedBannedAt: null,
+      externalSyncVersion: null,
+      previousSellerProfile: null,
+      previousCommissionRequests: [],
+      flaggedOpenOrders: [],
+    };
+  }
+
+  return {
+    appliedBannedAt: typeof metadata.appliedBannedAt === "string" ? metadata.appliedBannedAt : null,
+    externalSyncVersion:
+      typeof metadata.externalSyncVersion === "number" && Number.isSafeInteger(metadata.externalSyncVersion)
+        ? metadata.externalSyncVersion
+        : null,
+    previousSellerProfile: readSellerProfileSnapshot(metadata.previousSellerProfile),
+    previousCommissionRequests: readCommissionRequestSnapshots(metadata.previousCommissionRequests),
+    flaggedOpenOrders: readOpenOrderSnapshots(metadata.flaggedOpenOrders),
+  };
+}

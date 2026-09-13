@@ -1,0 +1,134 @@
+import { ListingStatus, Prisma } from "@prisma/client";
+
+const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
+
+const PUBLIC_SELLER_STATE = {
+  chargesEnabled: true,
+  OR: [
+    { stripeAccountVersion: null },
+    { stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION },
+  ],
+  vacationMode: false,
+  user: { banned: false, deletedAt: null },
+} satisfies Prisma.SellerProfileWhereInput;
+
+function isSupportedPublicStripeAccountVersion(version: string | null | undefined) {
+  return version == null || version === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION;
+}
+
+export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma.ListingWhereInput {
+  return {
+    AND: [
+      {
+        status: ListingStatus.ACTIVE,
+        isPrivate: false,
+        seller: PUBLIC_SELLER_STATE,
+      },
+      extra,
+    ],
+  };
+}
+
+export function publicListingDetailWhere(extra: Prisma.ListingWhereInput = {}): Prisma.ListingWhereInput {
+  return {
+    AND: [
+      {
+        status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
+        isPrivate: false,
+        seller: PUBLIC_SELLER_STATE,
+      },
+      extra,
+    ],
+  };
+}
+
+type ListingVisibilityInput = {
+  status: ListingStatus | string;
+  isPrivate: boolean;
+  reservedForUserId?: string | null;
+  seller: {
+    userId?: string | null;
+    chargesEnabled: boolean;
+    stripeAccountVersion?: string | null;
+    vacationMode?: boolean | null;
+    user?: {
+      id?: string | null;
+      clerkId?: string | null;
+      banned?: boolean | null;
+      deletedAt?: Date | string | null;
+    } | null;
+  };
+};
+
+export function isPublicListing(listing: ListingVisibilityInput) {
+  return (
+    listing.status === ListingStatus.ACTIVE &&
+    !listing.isPrivate &&
+    listing.seller.chargesEnabled &&
+    isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
+    !listing.seller.vacationMode &&
+    !listing.seller.user?.banned &&
+    !listing.seller.user?.deletedAt
+  );
+}
+
+export function isPublicListingDetail(listing: ListingVisibilityInput) {
+  return (
+    (listing.status === ListingStatus.ACTIVE || listing.status === ListingStatus.SOLD_OUT) &&
+    !listing.isPrivate &&
+    listing.seller.chargesEnabled &&
+    isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
+    !listing.seller.vacationMode &&
+    !listing.seller.user?.banned &&
+    !listing.seller.user?.deletedAt
+  );
+}
+
+export function canViewListingDetail(
+  listing: ListingVisibilityInput,
+  viewer: {
+    dbUserId?: string | null;
+    clerkUserId?: string | null;
+    preview?: boolean;
+    staffPreview?: boolean;
+    role?: string | null;
+    banned?: boolean | null;
+    deletedAt?: Date | string | null;
+  },
+) {
+  const viewerAccountActive = !viewer.banned && !viewer.deletedAt;
+  if (
+    viewer.staffPreview &&
+    viewerAccountActive &&
+    (viewer.role === "ADMIN" || viewer.role === "EMPLOYEE")
+  ) {
+    return true;
+  }
+
+  if (!viewerAccountActive) return false;
+
+  const isOwner =
+    (!!viewer.dbUserId && listing.seller.userId === viewer.dbUserId) ||
+    (!!viewer.dbUserId && listing.seller.user?.id === viewer.dbUserId) ||
+    (!!viewer.clerkUserId && listing.seller.user?.clerkId === viewer.clerkUserId);
+  if (viewer.preview && isOwner) return true;
+  if (isOwner) return true;
+
+  const reservedForViewer =
+    listing.status === ListingStatus.ACTIVE &&
+    listing.isPrivate &&
+    !!viewer.dbUserId &&
+    listing.reservedForUserId === viewer.dbUserId;
+
+  if (reservedForViewer) {
+    return (
+      listing.seller.chargesEnabled &&
+      isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
+      !listing.seller.vacationMode &&
+      !listing.seller.user?.banned &&
+      !listing.seller.user?.deletedAt
+    );
+  }
+
+  return isPublicListingDetail(listing);
+}

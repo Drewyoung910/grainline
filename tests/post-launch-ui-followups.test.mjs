@@ -1,0 +1,769 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("post-launch UI follow-ups", () => {
+  it("keeps Clerk OAuth callbacks on path routing in App Router catch-all pages", () => {
+    assert.match(source("src/app/sign-in/[[...sign-in]]/page.tsx"), /routing="path"/);
+    assert.match(source("src/app/sign-in/[[...sign-in]]/page.tsx"), /path="\/sign-in"/);
+    assert.match(source("src/app/sign-up/[[...sign-up]]/page.tsx"), /routing="path"/);
+    assert.match(source("src/app/sign-up/[[...sign-up]]/page.tsx"), /path="\/sign-up"/);
+  });
+
+  it("refreshes Stripe Connect status after hosted onboarding returns", () => {
+    const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
+    const statusRoute = source("src/app/api/stripe/connect/status/route.ts");
+    const sellerButton = source("src/app/dashboard/seller/StripeConnectButton.tsx");
+
+    assert.match(wizard, /\/api\/stripe\/connect\/status/);
+    assert.match(wizard, /stripe_return=1/);
+    assert.match(sellerButton, /\/dashboard\/seller\?stripe_return=1/);
+    assert.match(statusRoute, /stripe\.accounts\.retrieve/);
+    assert.match(statusRoute, /mirrorStripeChargesEnabled/);
+    assert.match(statusRoute, /route: "\/api\/stripe\/connect\/status"/);
+  });
+
+  it("keeps shop identity and workshop gallery canonical on the shop profile page", () => {
+    const settings = source("src/app/dashboard/seller/page.tsx");
+    const profile = source("src/app/dashboard/profile/page.tsx");
+
+    assert.doesNotMatch(settings, /name="displayName"/);
+    assert.doesNotMatch(settings, /name="bio"/);
+    assert.doesNotMatch(settings, /GalleryUploader/);
+    assert.match(profile, /GalleryUploader/);
+    assert.match(profile, /galleryImageUrlsTouched/);
+    assert.match(profile, /Workshop gallery/);
+  });
+
+  it("reuses the shared address autocomplete on shipping, pickup, and ship-from surfaces", () => {
+    assert.match(source("src/components/ShippingAddressForm.tsx"), /AddressAutocomplete/);
+    assert.match(source("src/components/LocationPicker.tsx"), /AddressAutocomplete/);
+    assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /AddressAutocomplete/);
+    assert.match(source("src/app/api/address/autocomplete/route.ts"), /countrycodes/);
+    assert.match(source("src/app/api/address/autocomplete/route.ts"), /dedupe/);
+    assert.match(source("src/app/api/address/autocomplete/route.ts"), /limit: "8"/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /\/api\/address\/autocomplete/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /trimmed\.length < 2/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /}, 350\);/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /setQuery\(""\)/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /No address matches yet/);
+    assert.match(source("src/components/ShippingAddressForm.tsx"), /setCity\(address\.city\)/);
+    assert.doesNotMatch(source("src/components/ShippingAddressForm.tsx"), /if \(address\.city\)/);
+    assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /setCity\(address\.city\)/);
+    assert.doesNotMatch(source("src/components/SellerShipFromAddressFields.tsx"), /if \(address\.city\)/);
+    const state = source("src/lib/addressAutocompleteState.ts");
+    assert.doesNotMatch(state, /cityFromDisplayName/);
+    assert.doesNotMatch(state, /address\.city \?\?.*address\.county/s);
+    assert.doesNotMatch(state, /address\.city \?\?.*address\.suburb/s);
+    assert.doesNotMatch(state, /address\.city \?\?.*address\.neighbourhood/s);
+    assert.doesNotMatch(state, /address\.city \?\?.*address\.city_district/s);
+    assert.doesNotMatch(state, /firstNonEmpty\([^)]*address\.hamlet/s);
+    assert.match(state, /formatAddressLabel/);
+  });
+
+  it("allows seller blog publishing before Stripe but requires an actual seller profile", () => {
+    const page = source("src/app/dashboard/blog/new/page.tsx");
+    assert.match(page, /if \(!isStaff && !seller\) redirect\("\/dashboard"\)/);
+    assert.match(page, /Create a maker profile before publishing blog posts/);
+    assert.doesNotMatch(page, /chargesEnabled/);
+  });
+
+  it("shows the Guild Master path before Guild Member approval and avoids sparkle icons", () => {
+    const verification = source("src/app/dashboard/verification/page.tsx");
+    const dashboard = source("src/app/dashboard/page.tsx");
+
+    assert.match(verification, /GUILD_MASTER_PREVIEW_REQUIREMENTS/);
+    assert.match(verification, /Available after Guild Member approval/);
+    assert.doesNotMatch(dashboard, /Sparkles/);
+    assert.match(dashboard, /Shield/);
+  });
+
+  it("keeps icon-only Guild badges accessible", () => {
+    const badge = source("src/components/GuildBadge.tsx");
+
+    assert.match(badge, /const label = isMember \? "Guild Member" : "Guild Master"/);
+    assert.match(badge, /aria-label=\{label\}/);
+    assert.match(badge, /title=\{label\}/);
+  });
+
+  it("keeps profile media uploaders aligned with the design system", () => {
+    for (const path of [
+      "src/components/ProfileBannerUploader.tsx",
+      "src/components/ProfileAvatarUploader.tsx",
+      "src/components/ProfileWorkshopUploader.tsx",
+    ]) {
+      const text = source(path);
+      assert.match(text, /border-neutral-200/);
+      assert.match(text, /bg-neutral-900/);
+      assert.match(text, /rounded-md/);
+      assert.doesNotMatch(text, /bg-black/);
+    }
+  });
+
+  it("keeps search dropdowns useful even when data-backed popular tags are empty", () => {
+    const searchBar = source("src/components/SearchBar.tsx");
+    const blogSearchBar = source("src/components/BlogSearchBar.tsx");
+    const globals = source("src/app/globals.css");
+
+    assert.match(searchBar, /FALLBACK_POPULAR_SEARCHES/);
+    assert.match(searchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_POPULAR_SEARCHES/);
+    assert.match(searchBar, /aria-label="Clear search"/);
+    assert.match(searchBar, /params\.delete\("q"\)/);
+    assert.match(searchBar, /openDropdown\(\)/);
+    assert.match(globals, /@keyframes search-pop-in/);
+    assert.match(globals, /\.animate-search-pop-out/);
+    assert.match(blogSearchBar, /FALLBACK_BLOG_TOPICS/);
+    assert.match(blogSearchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_BLOG_TOPICS/);
+    assert.match(blogSearchBar, /aria-label="Search"/);
+    assert.match(blogSearchBar, /group-hover:bg-neutral-100/);
+    assert.match(blogSearchBar, /group-active:bg-neutral-200\/70/);
+  });
+
+  it("invalidates popular search caches when public listing or blog visibility changes", () => {
+    assert.match(source("src/lib/searchCache.ts"), /popular-listing-tags/);
+    assert.match(source("src/lib/searchCache.ts"), /popular-blog-tags/);
+    assert.match(source("src/lib/popularBlogTags.ts"), /unstable_cache/);
+    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/api/admin/listings/[id]/review/route.ts"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/api/listings/[id]/stock/route.ts"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/blog/new/page.tsx"), /revalidateBlogSearchCaches/);
+    assert.match(source("src/app/dashboard/blog/[id]/edit/page.tsx"), /revalidateBlogSearchCaches/);
+  });
+
+  it("uses neutral primary CTAs in the onboarding wizard while keeping amber as an accent", () => {
+    const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
+    assert.match(wizard, /bg-neutral-900/);
+    assert.match(wizard, /h-full bg-amber-500/);
+    assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
+  });
+
+  it("displays listing product imagery at 4:5 portrait via CSS without forcing an upload-time crop", () => {
+    assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
+    assert.match(source("src/components/ListingGallery.tsx"), /aspect-\[4\/5\]/);
+    assert.doesNotMatch(source("src/components/ListingGallery.tsx"), /h-\[350px\]|h-\[400px\]|h-\[500px\]/);
+    // Upload-time crop is intentionally NOT forced on listing photos so the
+    // lightbox can show the original aspect. Cards crop via CSS object-cover.
+    // Match the actual UploadButton element — endpoint immediately followed by
+    // `appearance` (or other non-cropAspect prop) means cropAspect is NOT set.
+    const photoManager = source("src/components/PhotoManager.tsx");
+    assert.match(photoManager, /<UploadButton\s+endpoint="listingImage"\s+appearance/);
+    assert.doesNotMatch(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /AddPhotosButton/);
+    // Re-crop affordances still pass cropAspect={4/5} so sellers can opt in to
+    // 4:5 thumbnail framing on existing photos.
+    assert.match(photoManager, /<ImageRecropButton[\s\S]*?cropAspect=\{4 \/ 5\}/);
+    assert.match(source("src/components/EditPhotoGrid.tsx"), /<ImageRecropButton[\s\S]*?cropAspect=\{4 \/ 5\}/);
+  });
+
+  it("keeps made-to-order variants from exposing stock checkboxes", () => {
+    const variant = source("src/components/VariantEditor.tsx");
+    const wrapper = source("src/components/ListingTypeVariantSection.tsx");
+    assert.match(wrapper, /onListingTypeChange=\{setType\}/);
+    assert.match(variant, /listingType = "MADE_TO_ORDER"/);
+    assert.match(variant, /!isMadeToOrder &&/);
+    assert.match(variant, /inStock: isMadeToOrder \? true : o\.inStock/);
+  });
+
+  it("keeps variant price typing raw until blur", () => {
+    const variant = source("src/components/VariantEditor.tsx");
+    assert.match(variant, /priceDrafts/);
+    assert.match(variant, /focusedPriceKey/);
+    assert.match(variant, /onBlur=/);
+    assert.doesNotMatch(variant, /value=\{opt\.priceAdjustCents === 0 \? "" : \(opt\.priceAdjustCents \/ 100\)\.toFixed\(2\)\}/);
+  });
+
+  it("prevents accidental listing form submit and restores values after server errors", () => {
+    const actionForm = source("src/components/ActionForm.tsx");
+    assert.match(actionForm, /preventEnterSubmit/);
+    assert.match(actionForm, /preserveOnError/);
+    assert.match(actionForm, /restoreFormValues/);
+    assert.match(actionForm, /field\.type === "file"/);
+    assert.match(actionForm, /field\.checked = values\?\.some/);
+    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /preventEnterSubmit preserveOnError/);
+    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /preventEnterSubmit preserveOnError/);
+  });
+
+  it("uses one left disclosure marker in listing shop policies", () => {
+    assert.doesNotMatch(source("src/app/listing/[id]/page.tsx"), /▾/);
+  });
+
+  it("keeps light avatars visible on light surfaces", () => {
+    assert.doesNotMatch(source("src/app/seller/[id]/page.tsx"), /ring-white/);
+    assert.match(source("src/app/seller/[id]/page.tsx"), /ring-4 ring-\[#F7F5F0\] shadow-sm/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /ring-1 ring-neutral-200 shadow-sm/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /borderRadius: "9999px"/);
+    assert.match(source("src/components/ThreadMessages.tsx"), /ring-1 ring-neutral-200 shadow-sm/);
+  });
+
+  it("uses direct order message links and touch-friendly listing gallery controls", () => {
+    const buyerOrder = source("src/app/dashboard/orders/[id]/page.tsx");
+    const gallery = source("src/components/ListingGallery.tsx");
+
+    assert.match(buyerOrder, /href=\{messageHref\}/);
+    assert.doesNotMatch(buyerOrder, /href="\/messages"[\s\S]*Message maker/);
+    assert.match(gallery, /touch-pan-y/);
+    assert.match(gallery, /addEventListener\("touchmove"/);
+    assert.match(gallery, /passive: false/);
+    assert.match(gallery, /horizontalLocked/);
+    assert.match(gallery, /event\.preventDefault\(\)/);
+    assert.match(gallery, /aria-label="Previous photo"/);
+    assert.match(gallery, /aria-label="Next photo"/);
+    assert.match(gallery, /left-3\.5 top-3\.5 inline-flex h-9 w-9/);
+  });
+
+  it("keeps listing detail constrained on narrow mobile viewports", () => {
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+    const purchasePanel = source("src/components/ListingPurchasePanel.tsx");
+    const variantSelector = source("src/components/VariantSelector.tsx");
+
+    assert.match(listingPage, /overflow-x-hidden/);
+    assert.match(listingPage, /grid min-w-0/);
+    assert.match(listingPage, /min-w-0 overflow-x-hidden/);
+    assert.match(purchasePanel, /min-w-0 space-y-4 overflow-x-hidden/);
+    assert.match(variantSelector, /flex min-w-0 flex-wrap gap-2/);
+    assert.match(variantSelector, /max-w-full whitespace-normal break-words/);
+  });
+
+  it("sends order confirmations directly from the Stripe webhook with outbox fallback", () => {
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(webhook, /sendOrderTransactionalEmailWithFallback/);
+    assert.match(webhook, /sendRenderedEmail\(email, \{\s*throwOnFailure: true,\s*idempotencyKey: enqueued\.job\.dedupKey,\s*\}\)/);
+    assert.match(webhook, /enqueueEmailOutbox/);
+    assert.match(webhook, /renderOrderConfirmedBuyerEmail/);
+    assert.match(webhook, /renderOrderConfirmedSellerEmail/);
+    assert.match(webhook, /renderFirstSaleCongratsEmail/);
+    assert.match(webhook, /shouldSendEmail\(sellerUserId, "EMAIL_NEW_ORDER"\)/);
+    assert.match(webhook, /dedupKey: `order-confirmed-buyer:\$\{order\.orderId\}`/);
+    assert.match(webhook, /dedupKey: `order-confirmed-seller:\$\{order\.orderId\}`/);
+    assert.match(webhook, /dedupKey: firstSaleCongratsDedupKey\(order\.sellerProfileId\)/);
+  });
+
+  it("supports workshop gallery alt text, reordering, and buyer-facing alt attributes", () => {
+    const galleryUploader = source("src/components/GalleryUploader.tsx");
+    const profilePage = source("src/app/dashboard/profile/page.tsx");
+    const sellerGallery = source("src/components/SellerGallery.tsx");
+    const schema = source("prisma/schema.prisma");
+
+    assert.match(schema, /galleryAltTexts\s+String\[\]\s+@default\(\[\]\)/);
+    assert.match(galleryUploader, /name="galleryAltTexts"/);
+    assert.match(galleryUploader, /draggable/);
+    assert.match(galleryUploader, /Move photo left/);
+    assert.match(galleryUploader, /Save alt text/);
+    assert.match(profilePage, /galleryAltTexts/);
+    assert.match(sellerGallery, /imageAltTexts/);
+    assert.match(sellerGallery, /alt=\{url\.alt \|\| `Gallery image \$\{i \+ 1\}`\}/);
+  });
+
+  it("uses solid warm-cream page backgrounds instead of page-wide amber gradients", () => {
+    assert.match(source("src/components/Header.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/app/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/app/browse/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/app/listing/[id]/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.doesNotMatch(source("src/components/Header.tsx"), /bg-gradient-to-b/);
+  });
+
+  it("adds order timeline context without a redundant payment-confirmed step", () => {
+    const timeline = source("src/components/OrderTimeline.tsx");
+    const buyerOrder = source("src/app/dashboard/orders/[id]/page.tsx");
+    const sellerOrder = source("src/app/dashboard/sales/[orderId]/page.tsx");
+
+    assert.match(timeline, /Estimated delivery:/);
+    assert.match(timeline, /processingWindowDetail/);
+    assert.match(buyerOrder, /estimatedDeliveryDate=\{order\.estimatedDeliveryDate\}/);
+    assert.match(sellerOrder, /processingTimeMinDays=\{processingMins\.length/);
+    assert.doesNotMatch(timeline, /Payment confirmed/);
+  });
+
+  it("renames the staff reconciliation queue away from old flagged-order wording", () => {
+    assert.match(source("src/app/admin/flagged/page.tsx"), /Orders Needing Review/);
+    assert.match(source("src/app/admin/layout.tsx"), /Orders Needing Review/);
+    assert.match(source("src/components/AdminMobileNav.tsx"), /Needs Review/);
+    assert.doesNotMatch(source("src/app/admin/flagged/page.tsx"), /No flagged orders/);
+    assert.doesNotMatch(source("src/app/dashboard/orders/[id]/page.tsx"), /shipping detail change/);
+    assert.doesNotMatch(source("src/app/dashboard/sales/[orderId]/page.tsx"), /Shipping address or rate changed/);
+    assert.doesNotMatch(source("src/app/admin/orders/[id]/page.tsx"), /Shipping address or rate changed/);
+    assert.match(source("src/app/admin/orders/[id]/page.tsx"), /This order has a staff review hold/);
+  });
+
+  it("dashboard listing card click goes to public path for active and to preview URL for non-public statuses", () => {
+    const dashboard = source("src/app/dashboard/page.tsx");
+    // The card link branches on isPublicStatus and appends ?preview=1 for the
+    // owner-preview case so DRAFT/HIDDEN/REJECTED/PENDING_REVIEW don't 404.
+    assert.match(dashboard, /isPublicStatus = l\.status === "ACTIVE" \|\| l\.status === "SOLD" \|\| l\.status === "SOLD_OUT"/);
+    assert.match(dashboard, /\?preview=1`/);
+    assert.match(dashboard, /isArchived\s*\?\s*null/);
+  });
+
+  it("AI alt-text backfill helper exists and is wired into every reviewListingWithAI path", () => {
+    const helper = source("src/lib/photoAltTextBackfill.ts");
+    const publishActions = source("src/app/seller/[id]/shop/actions.ts");
+    const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const newPage = source("src/app/dashboard/listings/new/page.tsx");
+    const customPage = source("src/app/dashboard/listings/custom/page.tsx");
+    const addPhotosRoute = source("src/app/api/listings/[id]/photos/route.ts");
+
+    assert.match(helper, /export async function backfillEmptyAltTexts/);
+    assert.match(helper, /planPhotoAltTextBackfill\(photos, altTexts\)/);
+    assert.match(helper, /data: \{ altText: update\.altText \}/);
+    assert.match(helper, /\.findMany\(/);
+    assert.match(helper, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(helper, /source: "photo_alt_text_backfill"/);
+    assert.doesNotMatch(helper, /Sentry\.captureException/);
+    assert.doesNotMatch(helper, /console\.error\(/);
+    assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
+    assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
+    // Edit page intentionally runs AI re-review on Save for ACTIVE listings.
+    // The old immediate photo API is disabled so uploads/re-crops/reorders
+    // cannot kick a seller into review before they press Save.
+    assert.match(editPage, /backfillEmptyAltTexts/);
+    const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/g) ?? [];
+    assert.equal(backfillCalls.length, 1, "expected the Save/review path to backfill alt text once");
+    assert.match(editPage, /photoManifestJson/);
+    assert.match(editPage, /tx\.photo\.create/);
+    assert.match(editPage, /tx\.photo\.updateMany/);
+    assert.match(customPage, /import \{ backfillEmptyAltTexts \}/);
+    assert.match(customPage, /backfillEmptyAltTexts\(created\.id, aiResult\.altTexts\)/);
+    assert.doesNotMatch(customPage, /prisma\.photo\.findMany\(\{\s*where: \{ listingId: created\.id \}/s);
+    assert.doesNotMatch(addPhotosRoute, /reviewListingWithAI/);
+    assert.doesNotMatch(addPhotosRoute, /listingPhotoAiRatelimit/);
+    assert.doesNotMatch(addPhotosRoute, /status: ListingStatus\.PENDING_REVIEW/);
+    assert.doesNotMatch(addPhotosRoute, /prisma\.photo\.createMany/);
+    assert.match(addPhotosRoute, /status: HTTP_STATUS\.GONE/);
+    // Catch returns now include altTexts so TypeScript can union the success
+    // type without a property-missing error.
+    const editAltTextsInCatch = editPage.match(/altTexts: \[\] as string\[\]/g) ?? [];
+    assert.equal(editAltTextsInCatch.length, 1, "expected altTexts in the Save/review catch return");
+    // New listing path was already there — sanity check it still backfills.
+    assert.match(newPage, /aiResult\.altTexts/);
+  });
+
+  it("publish from edit redirects PENDING_REVIEW to preview URL with status-aware banner", () => {
+    const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+
+    // updateListing redirect: ACTIVE/SOLD/SOLD_OUT → public, PENDING_REVIEW →
+    // preview URL, everything else → edit page with saved=1.
+    assert.match(editPage, /finalStatus === ListingStatus\.PENDING_REVIEW/);
+    assert.match(editPage, /\$\{publicListingPath\(listingId, finalTitle\)\}\?preview=1/);
+    assert.match(editPage, /\?saved=1/);
+    // saved=pending can remain in historical comments, but no redirect should use it.
+    assert.doesNotMatch(editPage, /redirect\([^)]*saved=pending/);
+    // Preview banner now branches on status so PENDING_REVIEW shows the right
+    // "under review" message instead of the generic preview message.
+    assert.match(listingPage, /listing\.status === "PENDING_REVIEW"/);
+    assert.match(listingPage, /Under review/);
+  });
+
+  it("header uses a wider container and lets the desktop search fill its slot", () => {
+    const header = source("src/components/Header.tsx");
+    assert.match(header, /max-w-\[1600px\]/);
+    assert.doesNotMatch(header, /max-w-6xl/);
+    assert.doesNotMatch(header, /max-w-\[820px\]/);
+    // The search consumes all remaining room, and parent gap-3 is the exact
+    // search-to-actions spacing instead of a variable ml-auto spacer.
+    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] flex-1"/);
+    assert.match(header, /data-header-actions className="flex items-center gap-1 xl:gap-2"/);
+  });
+
+  it("keeps metro SEO page widths matched to their content density", () => {
+    const metroBrowse = source("src/app/browse/[metroSlug]/page.tsx");
+    const metroCategory = source("src/app/browse/[metroSlug]/[category]/page.tsx");
+    const makersMetro = source("src/app/makers/[metroSlug]/page.tsx");
+    const commissionParam = source("src/app/commission/[param]/page.tsx");
+    const docs = source("CLAUDE.md");
+
+    for (const gridPage of [metroBrowse, metroCategory, makersMetro]) {
+      assert.match(gridPage, /max-w-\[1600px\]/);
+      assert.match(gridPage, /font-display text-3xl/);
+    }
+
+    assert.match(commissionParam, /<main className="max-w-4xl mx-auto px-4 sm:px-6 pb-16 pt-8">/);
+    assert.match(commissionParam, /font-display text-3xl/);
+    assert.match(docs, /metro branch of `\/commission\/\[param\]` intentionally stays `max-w-4xl`/);
+    assert.doesNotMatch(docs, /metro branch of `\/commission\/\[param\]` use `max-w-\[1600px\]`/);
+  });
+
+  it("ImageCropModal renders through a portal so re-crop pointer events don't bubble into draggable parents", () => {
+    const modal = source("src/components/ImageCropModal.tsx");
+    assert.match(modal, /import \{ createPortal \} from "react-dom"/);
+    assert.match(modal, /createPortal\(modal, document\.body\)/);
+    // Mount guard prevents SSR mismatch — ensures portal only renders client-side.
+    assert.match(modal, /const \[mounted, setMounted\] = React\.useState\(false\)/);
+  });
+
+  it("EditPhotoGrid stages photo changes in the listing form until Save", () => {
+    const grid = source("src/components/EditPhotoGrid.tsx");
+    const docs = source("CLAUDE.md");
+    // Photo interactions stay client-side until the parent edit form submits
+    // photoManifestJson to updateListing.
+    assert.match(grid, /photosKey = initialPhotos\.map\(\(p\) => `\$\{p\.id\}:\$\{p\.url\}`\)\.join\("\|"\)/);
+    assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?setPhotos\(initialPhotos\)/);
+    assert.match(grid, /name="photoManifestJson"/);
+    assert.match(grid, /Photo changes are staged until you press Save/);
+    assert.doesNotMatch(grid, /onReorder/);
+    assert.doesNotMatch(grid, /onDelete/);
+    assert.doesNotMatch(grid, /onReplace/);
+    assert.doesNotMatch(grid, /onSaveAltTexts/);
+    // Alt-text merge keeps in-progress local edits per existing photo id.
+    assert.match(grid, /next\[p\.id\] = prev\[p\.id\] \?\? p\.altText/);
+    assert.match(docs, /Do not reintroduce immediate server actions for reorder\/delete\/re-crop\/alt\s+text\./);
+    assert.match(docs, /There is no separate "Save alt texts"\s+server action on the edit page\./);
+    assert.doesNotMatch(docs, /Inline alt text editing per photo with "Save alt texts" button/);
+    assert.doesNotMatch(docs, /saveAltTextsAction/);
+  });
+
+  it("ThreadMessages silently falls back to polling on SSE error instead of warning the user", () => {
+    const thread = source("src/components/ThreadMessages.tsx");
+    // es.onerror should NOT call setStreamError(messageStreamStatusMessage(0))
+    // because polling fallback handles the gap silently. Terminal polling
+    // failures (401/403/429) still surface the warning at the polling site.
+    assert.doesNotMatch(thread, /es\.onerror = \(\) => \{\s*es\.close\(\);\s*setStreamError\(messageStreamStatusMessage\(0\)\)/);
+    // Polling site still uses isTerminalMessageStreamStatus to decide.
+    assert.match(thread, /isTerminalMessageStreamStatus\(res\.status\)/);
+  });
+
+  it("message thread uses card-section styling and shows a friendly empty state", () => {
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+    const thread = source("src/components/ThreadMessages.tsx");
+    // Listing context card uses the darker cream surface to separate the
+    // thread chrome from the body cream page background.
+    assert.match(threadPage, /bg-\[#EFEAE0\][\s\S]*?p-3/);
+    // Thread container uses card-section on md+ instead of bare md:border.
+    assert.match(thread, /md:card-section md:p-4/);
+    // Empty-state visual when there are no messages yet.
+    assert.match(thread, /msgs\.length === 0 &&/);
+    assert.match(thread, /Start the conversation/);
+  });
+
+  it("keeps launch polish surfaces on the dark cream system color", () => {
+    const reviews = source("src/components/ReviewComposer.tsx");
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const customOrder = source("src/components/CustomOrderRequestForm.tsx");
+    const composer = source("src/components/MessageComposer.tsx");
+    const mapSection = source("src/components/MakersMapSection.tsx");
+    const map = source("src/components/AllSellersMap.tsx");
+    const globals = source("src/app/globals.css");
+
+    assert.match(reviews, /bg-\[#EFEAE0\]/);
+    assert.match(sellerPage, /bg-\[#EFEAE0\][\s\S]*?Shop Policies/);
+    assert.match(sellerPage, /bg-\[#EFEAE0\][\s\S]*?FAQs/);
+    assert.match(customOrder, /bg-\[#F7F5F0\]/);
+    assert.match(customOrder, /bg-\[#EFEAE0\]/);
+    assert.match(composer, /bg-\[#EFEAE0\]/);
+    assert.match(composer, /bg-\[#F7F5F0\]/);
+    assert.match(mapSection, /mobileInitialZoom=\{2\.05\}/);
+    assert.match(map, /matchMedia\("\(max-width: 640px\)"\)/);
+    assert.match(map, /resolvedInitialZoom/);
+    assert.match(globals, /calc\(100% - 16px\)/);
+    assert.doesNotMatch(globals, /calc\(100% - 32px\)/);
+  });
+
+  it("keeps the homepage map compact without shrinking the full map page", () => {
+    const homepage = source("src/app/page.tsx");
+    const mapSection = source("src/components/MakersMapSection.tsx");
+    const allSellersMap = source("src/components/AllSellersMap.tsx");
+    const mapPage = source("src/app/map/page.tsx");
+
+    const homepageMapCall = homepage.match(/<MakersMapSection\b[\s\S]*?\/>/)?.[0];
+    const sectionMapCall = mapSection.match(/<AllSellersMap\b[\s\S]*?\/>/)?.[0];
+    const fallbackCall = allSellersMap.match(/<MapFallback\b[\s\S]*?\/>/)?.[0];
+    const fullMapCall = mapPage.match(/<AllSellersMap\b[\s\S]*?\/>/)?.[0];
+
+    assert.ok(homepageMapCall, "homepage should render MakersMapSection");
+    assert.ok(sectionMapCall, "MakersMapSection should render AllSellersMap");
+    assert.ok(fallbackCall, "AllSellersMap should retain a WebGL fallback");
+    assert.ok(fullMapCall, "the full map page should render AllSellersMap");
+
+    assert.match(homepageMapCall, /\bcompact\b/);
+    assert.match(mapSection, /compact = false/);
+    assert.match(mapSection, /compact\?: boolean/);
+    assert.match(mapSection, /h-\[300px\] sm:h-\[320px\] lg:h-\[340px\]/);
+    assert.match(mapSection, /h-\[420px\]/);
+    assert.match(sectionMapCall, /height="100%"/);
+    assert.match(fallbackCall, /className="[^"]*h-full/);
+    assert.match(fallbackCall, /className="[^"]*w-full/);
+    assert.match(allSellersMap, /className="relative h-full"/);
+    assert.equal((mapSection.match(/min-h-11/g) ?? []).length, 2);
+
+    assert.match(allSellersMap, /height = 520/);
+    assert.doesNotMatch(fullMapCall, /\bheight=/);
+    assert.doesNotMatch(fullMapCall, /\bcompact\b/);
+  });
+
+  it("prefers shop avatars over Clerk photos on homepage blog cards", () => {
+    const homepage = source("src/app/page.tsx");
+
+    assert.match(
+      homepage,
+      /author:\s*\{\s*select:\s*\{\s*name:\s*true,\s*imageUrl:\s*true,\s*sellerProfile:\s*\{\s*select:\s*\{\s*displayName:\s*true,\s*avatarImageUrl:\s*true\s*\},?\s*\},?\s*\},?\s*\}/,
+      "homepage blog queries should load the author's shop identity",
+    );
+    assert.match(
+      homepage,
+      /const authorProfile = p\.sellerProfile \?\? p\.author\?\.sellerProfile;/,
+      "a post-linked shop should take precedence over the author's shop",
+    );
+    assert.match(
+      homepage,
+      /const authorAvatar = authorProfile\?\.avatarImageUrl \?\? p\.author\?\.imageUrl \?\? null;/,
+      "the Clerk photo should remain only the final avatar fallback",
+    );
+  });
+
+  it("keeps blog comment fields on the global field-focus contract", () => {
+    const globals = source("src/app/globals.css");
+    const blogComment = source("src/components/BlogCommentForm.tsx");
+    const messageComposer = source("src/components/MessageComposer.tsx");
+    const docs = source("CLAUDE.md");
+
+    assert.match(globals, /single sitewide field-focus treatment/);
+    assert.match(globals, /border-color: #a8a29e/);
+    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(168 162 158 \/ 0\.16\)/);
+    assert.match(blogComment, /rounded-md border border-neutral-200 bg-white/);
+    assert.doesNotMatch(blogComment, /focus:border|focus:ring/);
+    assert.match(messageComposer, /border-2 border-stone-300/);
+    assert.doesNotMatch(messageComposer, /focus:border|focus:ring|focus-visible:shadow-none/);
+    assert.match(docs, /Blog comment form[\s\S]*inherits the sitewide text-field focus treatment/);
+    assert.match(docs, /MessageComposer\.tsx[\s\S]*sitewide field-focus treatment/);
+    assert.doesNotMatch(docs, /Blog comment form[\s\S]{0,160}focus:border-stone-500/);
+  });
+
+  it("keeps the Fable newsletter and follow CTA placement honest", () => {
+    const homepage = source("src/app/page.tsx");
+    const blogPost = source("src/app/blog/[slug]/page.tsx");
+    const following = source("src/app/account/following/page.tsx");
+    const docs = source("CLAUDE.md");
+
+    assert.doesNotMatch(homepage, /NewsletterSignup/);
+    assert.match(homepage, /import \{ getCachedPublicSellerStats \} from "@\/lib\/publicSellerStats"/);
+    assert.match(homepage, /import FollowButton from "@\/components\/FollowButton"/);
+    assert.match(homepage, /userId: true/);
+    assert.match(homepage, /storyBody: true/);
+    assert.match(homepage, /yearsInBusiness: true/);
+    assert.match(homepage, /createdAt: true/);
+    assert.match(homepage, /home-featured-makers-v4/);
+    assert.match(homepage, /isFoundingMaker: true/);
+    assert.match(homepage, /foundingMakerNumber: true/);
+    assert.match(homepage, /const featuredMakerIds = featuredMakers\.map\(\(\{ maker \}\) => maker\.id\)/);
+    assert.match(homepage, /prisma\.follow\.groupBy\(\{/);
+    assert.match(homepage, /where: \{ followerId: meDbId, sellerProfileId: \{ in: featuredMakerIds \} \}/);
+    assert.match(homepage, /getCachedPublicSellerStats\(featuredMakers\[0\]\.maker\.id\)/);
+    assert.match(homepage, /<h2 className="text-xl font-semibold font-display">In the Workshop<\/h2>/);
+    assert.match(homepage, /href=\{publicSellerPath\(spotlight\.id, spotlight\.displayName\)\}[\s\S]*absolute bottom-4 left-4/);
+    assert.match(homepage, /hover:underline[\s\S]*Visit the Workshop →/);
+    assert.match(homepage, /meDbId !== spotlight\.userId && \(/);
+    assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(spotlight\.id\)\}/);
+    assert.match(homepage, /initialCount=\{featuredFollowerCounts\.get\(spotlight\.id\) \?\? 0\}/);
+    assert.match(homepage, /meDbId !== also\.userId && \(/);
+    assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
+    assert.match(homepage, /hover:underline[\s\S]*Visit shop →/);
+    assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfile/);
+    assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.author\?\.id === meId/);
+    assert.match(blogPost, /!viewerIsAuthor && \(/);
+    assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfile\.id\}[\s\S]*initialCount=\{authorFollowerCount\}/);
+    assert.match(blogPost, /<NewsletterSignup \/>/);
+    assert.match(following, /href="\/account\/feed"[\s\S]*bg-\[#2C1F1A\]/);
+    assert.doesNotMatch(following, /href="\/account\/feed"[\s\S]{0,160}text-amber-700/);
+    assert.match(docs, /In the Workshop spotlight[\s\S]*getCachedPublicSellerStats\(\)[\s\S]*FollowButton/);
+    assert.match(docs, /The homepage stops here; it intentionally does not render `NewsletterSignup`/);
+    assert.match(docs, /maker posts show a Follow-the-maker card[\s\S]*staff posts show `NewsletterSignup`/);
+  });
+
+  it("keeps the map maker card an overlay pinned to the map container", () => {
+    const allSellersMap = source("src/components/AllSellersMap.tsx");
+    const sellersMap = source("src/components/SellersMap.tsx");
+    const makerCard = source("src/components/MakerMapCard.tsx");
+    const mapCardRoute = source("src/app/api/seller/[id]/map-card/route.ts");
+
+    // The maker card is a React overlay pinned inside the map container —
+    // NOT a maplibre popup — so it can never be clipped by map bounds and
+    // map pan/scroll can't dismiss it. Pins set selectedPin; map background
+    // clicks clear it; markers are retained and removed on cleanup.
+    for (const mapSource of [allSellersMap, sellersMap]) {
+      assert.doesNotMatch(mapSource, /maplibregl\.Popup/);
+      assert.match(mapSource, /const cardCache = useMemo<MakerMapCardCache>\(\(\) => new Map\(\), \[\]\)/);
+      assert.match(mapSource, /setSelectedPin\(\{/);
+      assert.match(mapSource, /map\.on\("click", \(\) => setSelectedPin\(null\)\)/);
+      assert.match(mapSource, /markerEl\.setAttribute\("role", "button"\)/);
+      assert.match(mapSource, /markerEl\.setAttribute\("tabindex", "0"\)/);
+      assert.match(mapSource, /markerEl\.setAttribute\("aria-label", `Show maker details for/);
+      assert.match(mapSource, /markerEl\.addEventListener\("keydown"/);
+      assert.match(mapSource, /<MakerMapCard/);
+      assert.match(mapSource, /cache=\{cardCache\}/);
+      assert.match(mapSource, /const markers: maplibregl\.Marker\[\] = \[\]/);
+      assert.match(mapSource, /markers\.push\(marker\)/);
+      assert.match(mapSource, /markers\.forEach\([\s\S]*?\.remove\(\)\)/);
+    }
+
+    assert.match(makerCard, /export type MakerMapCardCache = Map<string, MakerMapCardData \| "error">/);
+    assert.match(makerCard, /cache: MakerMapCardCache/);
+    assert.match(makerCard, /cardRef\.current\?\.focus\(\)/);
+    assert.match(makerCard, /role="dialog"/);
+    assert.doesNotMatch(makerCard, /aria-modal/);
+    assert.match(makerCard, /tabIndex=\{-1\}/);
+    assert.match(makerCard, /safeHttpsUrl\(loaded\?\.photoUrl\)/);
+    assert.match(makerCard, /safeHttpsUrl\(loaded\?\.avatarUrl\)/);
+    assert.match(makerCard, /fetch\(`\/api\/seller\/\$\{encodeURIComponent\(sellerId\)\}\/map-card`\)/);
+    assert.match(makerCard, /aria-label="Close maker details"/);
+    assert.match(makerCard, /bg-\[#F7F5F0\]/);
+    assert.match(makerCard, /border-\[#F7F5F0\]/);
+    // Content avatars have NO hairline (Drew rejected them) — thick border
+    // matches the card background instead.
+    assert.match(makerCard, /border-\[3px\] border-\[#F7F5F0\] bg-\[#EFEAE0\]/);
+    assert.doesNotMatch(makerCard, /ring-1 ring-black\/10 bg-\[#EFEAE0\]/);
+    assert.match(makerCard, /<X size=\{16\} aria-hidden="true" \/>/);
+    assert.doesNotMatch(makerCard, /dangerouslySetInnerHTML|innerHTML/);
+    assert.match(mapCardRoute, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(mapCardRoute, /activeSellerProfileWhere\(\{ id, publicMapOptIn: true \}\)/);
+    assert.match(mapCardRoute, /headers: \{ "Cache-Control": "public, max-age=300" \}/);
+  });
+
+  it("keeps listing similar makers public-scoped and visually bounded", () => {
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+    const similarMakers = source("src/components/SimilarMakers.tsx");
+    const docs = source("CLAUDE.md");
+
+    assert.match(listingPage, /import SimilarMakers from "@\/components\/SimilarMakers"/);
+    assert.match(listingPage, /metroId: true/);
+    assert.match(listingPage, /cityMetroId: true/);
+    assert.match(listingPage, /<SimilarMakers[\s\S]*sellerId=\{listing\.seller\.id\}[\s\S]*metroId=\{listing\.metroId\}[\s\S]*cityMetroId=\{listing\.cityMetroId\}/);
+    assert.match(listingPage, /blockedUserIds=\{blockedUserIds\.size > 0 \? \[\.\.\.blockedUserIds\] : undefined\}/);
+
+    assert.match(similarMakers, /activeSellerProfileWhere/);
+    assert.match(similarMakers, /publicListingWhere/);
+    assert.match(similarMakers, /satisfies Prisma\.SellerProfileSelect/);
+    assert.doesNotMatch(similarMakers, /include:/);
+    assert.match(similarMakers, /id: \{ not: sellerId \}/);
+    assert.match(similarMakers, /userId: \{ notIn: blockedUserIds \}/);
+    assert.match(similarMakers, /listings: \{ some: publicListingWhere\(\) \}/);
+    assert.match(similarMakers, /OR: \[\{ metroId: \{ in: metroIds \} \}, \{ cityMetroId: \{ in: metroIds \} \}\]/);
+    assert.match(similarMakers, /id: \{ notIn: \[sellerId, \.\.\.found\] \}/);
+    assert.match(similarMakers, /take: MAX_SIMILAR_MAKERS/);
+    assert.match(similarMakers, /\{ id: "asc" as const \}/);
+    assert.match(similarMakers, /border-\[3px\] border-\[#EFEAE0\] bg-white/);
+    assert.doesNotMatch(similarMakers, /ring-1 ring-black\/10 bg-white/);
+    assert.doesNotMatch(similarMakers, /import GuildBadge|<GuildBadge/);
+    assert.doesNotMatch(similarMakers, /lat: true|lng: true|radiusMeters: true/);
+    assert.match(docs, /SimilarMakers[\s\S]*activeSellerProfileWhere\(\)[\s\S]*publicListingWhere\(\)[\s\S]*SellerProfile\.userId/);
+    assert.match(docs, /Listing detail[\s\S]*SimilarMakers\.tsx[\s\S]*blockedUserIds/);
+  });
+
+  it("header icon-only buttons share the hover-circle pattern", () => {
+    const header = source("src/components/Header.tsx");
+    const bell = source("src/components/NotificationBell.tsx");
+    const messageIconLink = source("src/components/MessageIconLink.tsx");
+    const unreadBadge = source("src/components/UnreadBadge.tsx");
+    // The cart remains public, while the messages control is rendered only
+    // through the signed-in MessageIconLink.
+    // Native title tooltips were replaced by the styled IconHoverTip labels
+    assert.match(header, /aria-label="Cart"/);
+    assert.doesNotMatch(header, /title="Cart"/);
+    assert.match(header, /<IconHoverTip label="Cart" \/>/);
+    assert.match(header, /<Show when="signed-in">\s*<MessageIconLink \/>\s*<\/Show>/);
+    assert.doesNotMatch(header, /sign-in\?redirect_url=\/messages/);
+    assert.match(bell, /\{!open && <IconHoverTip label="Notifications" \/>\}/);
+    assert.match(messageIconLink, /<IconHoverTip label="Messages" \/>/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /\{!open && <IconHoverTip label="Account" \/>\}/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /clearCloseTimer\(\);[\s\S]*setClosing\(false\);[\s\S]*setOpen\(true\);/);
+    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(header, /border-stone-200\/60 bg-\[#EFEAE0\]/);
+    assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
+    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(bell, /<div className="relative flex" ref=\{containerRef\}>/);
+    for (const text of [header, bell, unreadBadge]) {
+      assert.match(text, /absolute -top-1 -right-1 inline-flex h-5 min-w-5/);
+    }
+    assert.match(header, /inner span is the 40×40 visible hover circle/);
+    assert.match(bell, /"bg-\[#EFEAE0\] border-b border-stone-200\/60"/);
+    assert.match(bell, /notificationUnreadClass[\s\S]*"bg-\[#EFEAE0\]\/50"/);
+    assert.doesNotMatch(bell, /!n\.read \? "bg-amber-50" : ""/);
+  });
+
+  it("relative time labels do not render future timestamps as just now", () => {
+    for (const path of ["src/app/account/feed/FeedClient.tsx", "src/components/NotificationBell.tsx"]) {
+      const text = source(path);
+      assert.match(text, /if \(!Number\.isFinite\(timestamp\)\) return "recently"/);
+      assert.match(text, /if \(diff < -60000\) return date\.toLocaleDateString/);
+      assert.match(text, /if \(mins < 1\) return "just now"/);
+    }
+  });
+
+  it("cart page has skeleton loading and friendly empty-state card", () => {
+    const cart = source("src/app/cart/page.tsx");
+    assert.match(cart, /CartLoadingSkeleton/);
+    assert.match(cart, /animate-pulse/);
+    assert.match(cart, /CartEmptyState/);
+    assert.match(cart, /Browse the workshop/);
+    // Suspense fallback also uses the skeleton, not the plain "Loading…" text.
+    assert.match(cart, /<Suspense fallback=\{<CartLoadingSkeleton \/>}/);
+    assert.match(cart, /aria-label="Loading cart"/);
+    assert.match(cart, /Mirrors the Cart \/ Address \/ Shipping \/ Payment progress pill/);
+    assert.match(cart, /border-b border-neutral-200\/70 pb-3/);
+    assert.match(cart, /h-16 w-16 shrink-0 animate-pulse/);
+  });
+
+  it("keeps customer-photo galleries scoped to publicly viewable listing detail pages", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+    const sitemap = source("src/app/sitemap.ts");
+
+    assert.match(sellerPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
+    assert.match(customerPhotosPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
+    assert.match(customerPhotosPage, /reviewer: \{ banned: false, deletedAt: null \}/);
+    assert.match(customerPhotosPage, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
+    assert.doesNotMatch(customerPhotosPage, /review: \{ listing: \{ sellerId: seller\.id \} \}/);
+    assert.match(sitemap, /publicListingDetailWhere\(\{\s*reviews: \{ some: \{ photos: \{ some: \{\} \} \} \},\s*\}\)/s);
+    assert.match(sitemap, /chunk\.kind === "customerPhotos"/);
+    assert.match(sitemap, /publicSellerPath\(s\.id, s\.displayName\)}\/customer-photos/);
+  });
+
+  it("serializes Founding Maker number assignment instead of relying on bounded retries", () => {
+    const founding = source("src/lib/foundingMaker.ts");
+    const foundingCore = source("src/lib/foundingMakerCore.ts");
+    const repairRoute = source("src/app/api/cron/founding-maker-repair/route.ts");
+    const vercel = source("vercel.json");
+
+    assert.match(founding, /maybeGrantFoundingMakerWithClient\(prisma, sellerProfileId\)/);
+    assert.match(foundingCore, /import \{ publicListingWhere \} from "\.\/listingVisibility\.ts"/);
+    assert.equal((foundingCore.match(/where: publicListingWhere\(\{ sellerId: sellerProfileId \}\)/g) ?? []).length, 2);
+    assert.match(foundingCore, /pg_advisory_xact_lock/);
+    assert.match(foundingCore, /FOUNDING_MAKER_LOCK_NAMESPACE/);
+    assert.match(foundingCore, /foundingMakerGrant\.aggregate/);
+    assert.match(foundingCore, /foundingMakerGrant\.create/);
+    assert.match(foundingCore, /existingGrant/);
+    assert.match(foundingCore, /stillEligible/);
+    assert.match(foundingCore, /maxWait: 5000, timeout: 10000/);
+    assert.doesNotMatch(foundingCore, /sellerProfile\.aggregate/);
+    assert.match(founding, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(founding, /logServerError\(err, \{/);
+    assert.match(founding, /source: "founding_maker_grant"/);
+    assert.doesNotMatch(founding, /Sentry\.captureException\(err/);
+    assert.doesNotMatch(founding, /console\.error\("\[founding-maker\] grant failed", err\)/);
+    assert.doesNotMatch(founding, /FOUNDING_MAKER_GRANT_ATTEMPTS/);
+    assert.doesNotMatch(founding, /isUniqueConstraintError\(err\)/);
+    assert.doesNotMatch(founding, /currentCount \+ 1/);
+    assert.doesNotMatch(foundingCore, /status: "ACTIVE"/);
+    assert.doesNotMatch(foundingCore, /isPrivate: false/);
+
+    assert.match(founding, /export const FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT = 250/);
+    assert.match(founding, /export const FOUNDING_MAKER_REPAIR_SELLER_LIMIT = 25/);
+    assert.match(founding, /repairMissedFoundingMakerGrants/);
+    assert.match(founding, /prisma\.foundingMakerGrant\.aggregate/);
+    assert.match(founding, /publicListingWhere\(\{\s*seller: \{\s*isFoundingMaker: false/s);
+    assert.match(founding, /await maybeGrantFoundingMaker\(sellerId\)/);
+    assert.match(founding, /remainingSlots/);
+    assert.match(repairRoute, /verifyCronRequest\(request\)/);
+    assert.match(repairRoute, /withSentryCronMonitor\("founding-maker-repair", \{ value: "10 17 \* \* \*"/);
+    assert.match(repairRoute, /beginCronRun\("founding-maker-repair"\)/);
+    assert.match(repairRoute, /repairMissedFoundingMakerGrants\(\)/);
+    assert.match(repairRoute, /source: "cron_founding_maker_repair"/);
+    assert.match(vercel, /"path": "\/api\/cron\/founding-maker-repair"[\s\S]*"schedule": "10 17 \* \* \*"/);
+  });
+});

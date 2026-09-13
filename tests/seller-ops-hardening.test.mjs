@@ -1,0 +1,417 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("seller operational route hardening", () => {
+  it("keeps vacation mode confirmation cancellable from the toggle and buttons", () => {
+    const form = source("src/app/dashboard/seller/VacationModeForm.tsx");
+
+    assert.match(form, /setPendingEnable\(false\);\s*setShowWarning\(false\);/s);
+    assert.match(form, /function cancelEnable\(\)[\s\S]*?setEnabled\(false\);/);
+    assert.match(form, /if \(showWarning\) \{\s*if \(!checked\) cancelEnable\(\);\s*return;\s*\}/);
+    assert.match(form, /checked=\{enabled \|\| pendingEnable\}/);
+    assert.match(form, /type="button"[\s\S]*?onClick=\{confirmEnable\}/);
+    assert.match(form, /type="button"[\s\S]*?onClick=\{cancelEnable\}/);
+    assert.match(form, /type="button"[\s\S]*?onClick=\{handleSave\}/);
+  });
+
+  it("accepts date-input return dates without weakening vacation route validation", () => {
+    const route = source("src/app/api/seller/vacation/route.ts");
+
+    assert.match(route, /vacationReturnDate: z\.string\(\)\.max\(40\)\.optional\(\)\.nullable\(\)/);
+    assert.doesNotMatch(route, /\.datetime\(\)/);
+    assert.match(route, /function parseVacationReturnDate/);
+    assert.match(route, /VACATION_RETURN_DATE_RE = \/\^\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)\$\//);
+    assert.match(route, /VACATION_RETURN_DATE_RE\.exec\(trimmed\)/);
+    assert.match(route, /Date\.UTC\(year, month - 1, day, 12, 0, 0, 0\)/);
+    assert.match(route, /date\.getUTCFullYear\(\) !== year/);
+    assert.doesNotMatch(route, /new Date\(trimmed\)/);
+    assert.match(route, /return privateJson\(\{ error: "Invalid return date" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.match(route, /function isPastVacationReturnDate/);
+    assert.match(route, /Native date inputs carry no timezone/);
+    assert.match(route, /todayNoonUtc\.getTime\(\) - 24 \* 60 \* 60 \* 1000/);
+    assert.match(route, /vacationMode && vacationReturnDate && isPastVacationReturnDate\(vacationReturnDate\)/);
+    assert.match(route, /return privateJson\(\{ error: "Return date cannot be in the past" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.match(route, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
+    assert.match(route, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(route, /logServerError\(err, \{[\s\S]*source: "seller_vacation_update"[\s\S]*route: "\/api\/seller\/vacation"/);
+    assert.doesNotMatch(route, /console\.error\("POST \/api\/seller\/vacation error:", err\)/);
+    assert.doesNotMatch(route, /status: (400|401|413|500)\b/);
+    assert.match(route, /source: "seller_vacation_update"/);
+    assert.match(route, /expireOpenCheckoutSessionsForSeller/);
+    assert.match(route, /source: "seller_vacation"/);
+  });
+
+  it("renders vacation return dates consistently as date-only local dates", () => {
+    const localDate = source("src/components/LocalDate.tsx");
+    const sellerProfile = source("src/app/seller/[id]/page.tsx");
+    const sellerShop = source("src/app/seller/[id]/shop/page.tsx");
+
+    assert.match(localDate, /dateOnly = false/);
+    assert.match(localDate, /toLocaleDateString\("en-US", \{ month: "long", day: "numeric", year: "numeric" \}\)/);
+    assert.match(sellerProfile, /<LocalDate date=\{seller\.vacationReturnDate\} dateOnly \/>/);
+    assert.match(sellerShop, /import LocalDate from "@\/components\/LocalDate"/);
+    assert.match(sellerShop, /<LocalDate date=\{seller\.vacationReturnDate\} dateOnly \/>/);
+    assert.doesNotMatch(sellerShop, /vacationReturnDate\)\.toLocaleDateString/);
+  });
+
+  it("captures seller broadcast notification side-effect failures without message payloads", () => {
+    const route = source("src/app/api/seller/broadcast/route.ts");
+
+    assert.match(route, /source: "seller_broadcast_notification"/);
+    assert.match(route, /source: "seller_broadcast_email"/);
+    assert.match(route, /source: "seller_broadcast_after"/);
+    assert.match(route, /broadcastId: broadcast\.id/);
+    assert.match(route, /sellerProfileId: seller\.id/);
+    assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+    assert.doesNotMatch(route, /extra:\s*\{[^}]*message/s);
+  });
+
+  it("keeps seller broadcast history pagination bounded", () => {
+    const route = source("src/app/api/seller/broadcast/route.ts");
+    const getRoute = route.slice(route.indexOf("export async function GET"));
+
+    assert.match(getRoute, /parseBoundedPositiveIntParam\(\s*url\.searchParams\.get\("page"\),\s*1,\s*1000,\s*\)/s);
+    assert.match(getRoute, /safeRateLimit\(\s*sellerBroadcastReadRatelimit,\s*userId,\s*\)/s);
+    assert.match(getRoute, /where: \{ sellerProfileId: seller\.id \}/);
+    assert.match(getRoute, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.ok(
+      getRoute.indexOf("sellerBroadcastReadRatelimit,\n    userId") <
+        getRoute.indexOf("prisma.user.findUnique"),
+      "broadcast history GET should rate-limit before Prisma reads",
+    );
+  });
+
+  it("keeps seller broadcast writes gated to orderable sellers and first-party media", () => {
+    const route = source("src/app/api/seller/broadcast/route.ts");
+    const composer = source("src/components/BroadcastComposer.tsx");
+
+    assert.match(route, /!seller\.chargesEnabled \|\| seller\.vacationMode/);
+    assert.match(route, /isFirstPartyMediaUrl\(u\)/);
+    assert.match(route, /verifyFirstPartyMediaUrlForPersistence\(\{/);
+    assert.match(route, /syncSellerBroadcastDirectUploadReferences\(\{/);
+    assert.match(
+      route,
+      /syncSellerBroadcastDirectUploadReferences\(\{[\s\S]*requireAllTracked: Boolean\(imageUrl\),[\s\S]*\}\);/,
+    );
+    assert.match(route, /allowedEndpoints: \[\s*"listingImage",\s*"bannerImage",\s*"galleryImage",\s*\]/s);
+    assert.match(route, /safeRateLimit\(\s*broadcastAttemptRatelimit,\s*seller\.id,\s*\)/s);
+    assert.match(route, /safeRateLimit\(\s*broadcastRatelimit,\s*seller\.id,\s*\)/s);
+    assert.match(route, /BROADCAST_COOLDOWN_MS = 7 \* 24 \* 60 \* 60 \* 1000/);
+    assert.match(route, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(route, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(route, /const latest = await tx\.sellerBroadcast\.findFirst\(\{/);
+    assert.match(route, /Date\.now\(\) - latest\.sentAt\.getTime\(\) < BROADCAST_COOLDOWN_MS/);
+    assert.match(route, /dedupScope: broadcast\.id/);
+    assert.match(route, /link: `\/account\/feed\?broadcast=\$\{broadcast\.id\}`/);
+    assert.match(route, /isEmailNotificationEnabled\(\s*f\.follower\.notificationPreferences,\s*"EMAIL_SELLER_BROADCAST",\s*\)/s);
+    assert.match(route, /renderSellerBroadcastEmail/);
+    assert.match(route, /enqueueEmailOutbox\(\{/);
+    assert.match(route, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
+    assert.match(route, /dedupKey: `seller-broadcast:\$\{broadcast\.id\}:\$\{f\.followerId\}`/);
+    assert.match(route, /const currentBroadcast = await prisma\.sellerBroadcast\.findUnique/);
+    assert.match(route, /!currentBroadcast\s*\|\|[\s\S]*!currentBroadcast\.sellerProfile\.chargesEnabled[\s\S]*currentBroadcast\.sellerProfile\.vacationMode[\s\S]*currentBroadcast\.sellerProfile\.user\.banned[\s\S]*currentBroadcast\.sellerProfile\.user\.deletedAt/);
+    assert.match(route, /nextAvailableAt: nextAvailable\.toISOString\(\)/);
+    assert.doesNotMatch(route, /nextAvailable\.toLocaleDateString/);
+    assert.match(composer, /function broadcastErrorMessage/);
+    assert.match(composer, /new Date\(data\.nextAvailableAt\)/);
+    assert.match(composer, /next\.toLocaleDateString\("en-US"/);
+
+    const attemptLimiter = route.indexOf("broadcastAttemptRatelimit,\n    seller.id");
+    const bodyRead = route.indexOf("readBoundedJson(req, BROADCAST_BODY_MAX_BYTES)");
+    const schemaParse = route.indexOf("BroadcastSchema.parse");
+    const firstPartyMedia = route.indexOf("verifyFirstPartyMediaUrlForPersistence({");
+    const cooldownCheck = route.indexOf("prisma.sellerBroadcast.findFirst");
+    const weeklyLimiter = route.indexOf("broadcastRatelimit,\n    seller.id");
+    const createBroadcast = route.indexOf("tx.sellerBroadcast.create");
+
+    assert.ok(attemptLimiter !== -1, "broadcast attempt limiter should exist");
+    assert.ok(weeklyLimiter !== -1, "weekly broadcast limiter should exist");
+    assert.ok(
+      attemptLimiter < bodyRead,
+      "cheap attempt limiter should run before parsing request bodies",
+    );
+    assert.ok(
+      schemaParse < weeklyLimiter,
+      "weekly broadcast token should not be consumed before schema validation",
+    );
+    assert.ok(
+      firstPartyMedia < weeklyLimiter,
+      "weekly broadcast token should not be consumed before media ownership validation",
+    );
+    assert.ok(
+      cooldownCheck < weeklyLimiter,
+      "DB cooldown should run before weekly Redis token consumption",
+    );
+    assert.ok(
+      weeklyLimiter < createBroadcast,
+      "weekly broadcast limiter should run before creating the broadcast",
+    );
+    assert.ok(
+      route.indexOf("const latest = await tx.sellerBroadcast.findFirst") < createBroadcast,
+      "broadcast DB cooldown should be rechecked in the transaction before insert",
+    );
+  });
+
+  it("keeps seller profile FAQ and featured listing writes capped under serializable transactions", () => {
+    const profile = source("src/app/dashboard/profile/page.tsx");
+    const addFaq = profile.slice(profile.indexOf("async function addFaq"), profile.indexOf("async function deleteFaq"));
+    const toggleFeatured = profile.slice(
+      profile.indexOf("async function toggleFeaturedListing"),
+      profile.indexOf("// ──────────────────────────────────────────────────────────────────────────────", profile.indexOf("async function toggleFeaturedListing")),
+    );
+
+    assert.match(profile, /const SELLER_FAQ_LIMIT = 20/);
+    assert.match(profile, /const SELLER_FEATURED_LISTING_LIMIT = 6/);
+    assert.match(addFaq, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(addFaq, /tx\.sellerFaq\.count\(\{\s*where: \{ sellerProfileId: seller\.id \},\s*\}\)/s);
+    assert.match(addFaq, /if \(faqCount >= SELLER_FAQ_LIMIT\) return/);
+    assert.match(addFaq, /tx\.sellerFaq\.create\(\{/);
+    assert.match(addFaq, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(profile, /fullSeller\.faqs\.length >= SELLER_FAQ_LIMIT/);
+
+    assert.match(toggleFeatured, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(toggleFeatured, /tx\.listing\.count\(\{ where: \{ id: listingId, sellerId: seller\.id \} \}/);
+    assert.match(toggleFeatured, /tx\.sellerProfile\.findUnique\(\{/);
+    assert.match(toggleFeatured, /if \(current\.length >= SELLER_FEATURED_LISTING_LIMIT\) return/);
+    assert.match(toggleFeatured, /tx\.sellerProfile\.update\(\{/);
+    assert.match(toggleFeatured, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(profile, /featured\.size >= SELLER_FEATURED_LISTING_LIMIT/);
+  });
+
+  it("keeps seller analytics scoped to the current seller profile", () => {
+    const analytics = source("src/app/api/seller/analytics/route.ts");
+    const recentSales = source("src/app/api/seller/analytics/recent-sales/route.ts");
+
+    assert.match(analytics, /ensureUserByClerkId\(userId\)/);
+    assert.match(analytics, /where: \{ userId: me\.id \}/);
+    assert.match(analytics, /const sellerId = sellerProfile\.id/);
+    assert.match(analytics, /accountAccessErrorResponse\(err\)/);
+    assert.match(analytics, /const profileViewAggPromise = prisma\.sellerProfileViewDaily\.aggregate\(\{/);
+    assert.match(analytics, /where: \{ sellerProfileId: sellerId, date: analyticsDateRange \}/);
+    assert.match(analytics, /const profileVisits =\s*range === "alltime" \? sellerProfile\.profileViews : profileViewAgg\._sum\.views \?\? 0/s);
+
+    const sellerProfileView = source("src/app/api/seller/[id]/view/route.ts");
+    assert.match(sellerProfileView, /function todayUtcBucket\(\)/);
+    assert.match(sellerProfileView, /tx\.sellerProfile\.updateMany\(\{/);
+    assert.match(sellerProfileView, /tx\.sellerProfileViewDaily\.upsert\(\{/);
+    assert.match(sellerProfileView, /where: \{ sellerProfileId_date: \{ sellerProfileId: id, date: today \} \}/);
+
+    assert.match(recentSales, /ensureUserByClerkId\(userId\)/);
+    assert.match(recentSales, /where: \{ userId: me\.id \}/);
+    assert.match(recentSales, /readSellerRecentSales\(me\.id\)/);
+    assert.doesNotMatch(recentSales, /items:\s*\{\s*(?:some|every):\s*\{\s*listing:/s);
+    const sellerAnalyticsAuthority = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
+    assert.match(sellerAnalyticsAuthority, /source_order\."sellerRefundId" IS NULL/);
+    assert.match(sellerAnalyticsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.match(sellerAnalyticsAuthority, /ORDER BY source_order\."createdAt" DESC, source_order\.id DESC/);
+    assert.doesNotMatch(recentSales, /paymentEvents:|blockingRefundLedgerWhere/);
+    assert.match(recentSales, /accountAccessErrorResponse\(err\)/);
+  });
+
+  it("keeps seller analytics labels clean while preserving UTC bucket math", () => {
+    const page = source("src/app/dashboard/analytics/page.tsx");
+
+    assert.match(page, /label: "Today"/);
+    assert.match(page, /label: "Yesterday"/);
+    assert.match(page, /label: "This week"/);
+    assert.match(page, /label: "Last 7 days"/);
+    assert.doesNotMatch(page, /label: "Today UTC"/);
+    assert.doesNotMatch(page, /label: "Yesterday UTC"/);
+    assert.doesNotMatch(page, /label: "Last 7 UTC days"/);
+
+    const analytics = source("src/app/api/seller/analytics/route.ts");
+    assert.match(analytics, /case "last30":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 29\)/);
+    assert.match(analytics, /case "last365":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 364\)/);
+    assert.match(analytics, /const endExclusive = range === "yesterday"/);
+    assert.match(analytics, /const dateEndFilter = endExclusive \? \{ lt: endDate \} : \{ lte: endDate \}/);
+    assert.match(analytics, /const analyticsDateRange = \{ gte: startDate, \.\.\.dateEndFilter \}/);
+    assert.match(
+      analytics,
+      /const rangeEndSql = endExclusive \? Prisma\.sql`< \$\{endDate\}` : Prisma\.sql`<= \$\{endDate\}`/,
+    );
+    assert.doesNotMatch(analytics, /date: \{ gte: startDate, lte: endDate \}/);
+    assert.doesNotMatch(analytics, /createdAt: \{ gte: startDate, lte: endDate \}/);
+    assert.doesNotMatch(analytics, /"createdAt" <= \$\{endDate\}/);
+  });
+
+  it("keeps seller analytics independent reads parallelized and avoids listing-id prefetches", () => {
+    const analytics = source("src/app/api/seller/analytics/route.ts");
+    const promiseAllIndex = analytics.indexOf("] = await Promise.all([");
+
+    assert.ok(promiseAllIndex > -1, "seller analytics should await a broad Promise.all block");
+
+    for (const promiseName of [
+      "orderSummaryPromise",
+      "activeListingCountPromise",
+      "rangeViewAggPromise",
+      "profileViewAggPromise",
+      "favoritesCountPromise",
+      "stockNotificationSubsPromise",
+      "dailyViewDataPromise",
+      "chartOrderRowsPromise",
+      "topListingRowsPromise",
+      "ratingRowsPromise",
+      "existingMetricsPromise",
+    ]) {
+      const declarationIndex = analytics.indexOf(`const ${promiseName}`);
+      assert.ok(declarationIndex > -1, `${promiseName} should be declared`);
+      assert.ok(
+        declarationIndex < promiseAllIndex,
+        `${promiseName} should start before the broad Promise.all await`,
+      );
+      assert.match(analytics.slice(promiseAllIndex), new RegExp(`${promiseName},`));
+    }
+
+    assert.doesNotMatch(
+      analytics,
+      /prisma\.listing\.findMany\(\{\s*where: \{ sellerId \},\s*select: \{ id: true \}/s,
+    );
+    assert.doesNotMatch(analytics, /listingIds = listings\.map/);
+    assert.doesNotMatch(analytics, /listingId: \{ in: listingIds \}/);
+    assert.match(analytics, /prisma\.favorite\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
+    assert.match(analytics, /prisma\.stockNotification\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
+    assert.match(analytics, /readSellerOrderAnalyticsSummary\(\{/);
+    assert.match(analytics, /readSellerOrderAnalyticsBuckets\(\{/);
+    assert.match(analytics, /readSellerOrderTopListings\(\{/);
+    assert.doesNotMatch(analytics, /JOIN "Cart"|FROM "Order"|JOIN "OrderItem"/);
+    assert.match(analytics, /import \{[\s\S]*getFreshSellerMetrics[\s\S]*SELLER_METRICS_SELECT[\s\S]*\} from "@\/lib\/metrics"/);
+    assert.match(analytics, /const existingMetricsPromise = prisma\.sellerMetrics\.findUnique\(\{[\s\S]*?select: SELLER_METRICS_SELECT/s);
+    assert.match(analytics, /const metrics = await getFreshSellerMetrics\(sellerId, 3, existingMetrics\);/);
+    assert.doesNotMatch(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
+    assert.doesNotMatch(analytics, /const isStale = !existingMetrics/);
+    assert.match(analytics, /AND r\."createdAt" >= \$\{startDate\}/);
+    assert.match(analytics, /AND r\."createdAt" \$\{rangeEndSql\}/);
+    assert.doesNotMatch(analytics, /24 \* 60 \* 60 \* 1000/);
+    assert.doesNotMatch(analytics, /const topFavsRows/);
+    assert.doesNotMatch(analytics, /const topStockRows/);
+    assert.doesNotMatch(analytics, /await prisma\.sellerMetrics\.findUnique\(\{ where: \{ sellerProfileId: sellerId \} \}\)/);
+  });
+
+  it("keeps listing stock updates owner-scoped in the final mutation", () => {
+    const route = source("src/app/api/listings/[id]/stock/route.ts");
+
+    assert.match(route, /where: \{ id, seller: \{ userId: me\.id \} \}/);
+    assert.match(route, /AND "sellerId" = \$\{listing\.seller\.id\}/);
+    assert.match(route, /source: "stock_back_in_stock_fanout"/);
+    assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+  });
+
+  it("keeps seller listing status follow-up mutations owner-scoped", () => {
+    const shopActions = source("src/app/seller/[id]/shop/actions.ts");
+    const createListing = source("src/app/dashboard/listings/new/page.tsx");
+    const customListing = source("src/app/dashboard/listings/custom/page.tsx");
+    const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+
+    assert.match(shopActions, /WHERE id = \$\{listingId\}\s+AND "sellerId" = \$\{listing\.sellerId\}/);
+    assert.match(createListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
+    assert.match(customListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
+    assert.match(editListing, /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.PENDING_REVIEW, updatedAt: updatedListing\.updatedAt \}/);
+    assert.match(editListing, /status: approvedPublicStatus/);
+  });
+
+  it("rate-limits seller listing server actions before owner mutation work", () => {
+    const shopActions = source("src/app/seller/[id]/shop/actions.ts");
+    const dashboard = source("src/app/dashboard/page.tsx");
+
+    assert.match(shopActions, /listingMutationRatelimit/);
+    assert.match(shopActions, /safeRateLimit\(listingMutationRatelimit, userId\)/);
+    assert.ok(
+      shopActions.indexOf("safeRateLimit(listingMutationRatelimit, userId)") <
+        shopActions.indexOf("prisma.user.findUnique"),
+      "shop listing actions should rate-limit before ownership DB lookups",
+    );
+
+    assert.match(dashboard, /listingMutationRatelimit/);
+    assert.ok(
+      dashboard.indexOf("safeRateLimit(listingMutationRatelimit, userId)") <
+        dashboard.indexOf("const me = await prisma.user.findUnique"),
+      "dashboard listing status action should rate-limit before ownership DB lookup",
+    );
+    assert.ok(
+      dashboard.lastIndexOf("safeRateLimit(listingMutationRatelimit, userId)") <
+        dashboard.lastIndexOf("const me = await prisma.user.findUnique"),
+      "dashboard listing archive action should rate-limit before ownership DB lookup",
+    );
+  });
+
+  it("rate-limits seller profile, shop, onboarding, and notification server actions before DB write work", () => {
+    const ratelimit = source("src/lib/ratelimit.ts");
+    const profile = source("src/app/dashboard/profile/page.tsx");
+    const sellerSettings = source("src/app/dashboard/seller/page.tsx");
+    const onboarding = source("src/app/dashboard/onboarding/actions.ts");
+    const notifications = source("src/app/dashboard/notifications/page.tsx");
+
+    assert.match(ratelimit, /export const sellerProfileRatelimit = new Ratelimit/);
+    assert.match(ratelimit, /prefix: "rl:seller-profile"/);
+
+    assert.match(profile, /sellerProfileRatelimit/);
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)") <
+        profile.indexOf("const { seller } = await ensureSeller()"),
+      "profile update should rate-limit before seller lookup/write preparation",
+    );
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function addFaq")) <
+        profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function addFaq")),
+      "FAQ create should rate-limit before seller lookup",
+    );
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function deleteFaq")) <
+        profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function deleteFaq")),
+      "FAQ delete should rate-limit before seller lookup",
+    );
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function removeSellerAvatar")) <
+        profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function removeSellerAvatar")),
+      "avatar removal should rate-limit before seller lookup",
+    );
+    assert.match(profile.slice(profile.indexOf("async function removeSellerAvatar")), /where: \{ id: seller\.id \}/);
+    assert.doesNotMatch(profile.slice(profile.indexOf("async function removeSellerAvatar")), /prisma\.user\.findUnique/);
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function toggleFeaturedListing")) <
+        profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function toggleFeaturedListing")),
+      "featured-listing toggle should rate-limit before seller lookup",
+    );
+
+    assert.match(sellerSettings, /sellerProfileRatelimit/);
+    assert.ok(
+      sellerSettings.indexOf("safeRateLimit(sellerProfileRatelimit, userId)") <
+        sellerSettings.indexOf("const { seller } = await ensureSeller()"),
+      "shop settings update should rate-limit before seller lookup/write preparation",
+    );
+
+    assert.match(onboarding, /SELLER_PROFILE_RATE_LIMITED/);
+    assert.match(onboarding, /Too many profile updates\. Try again shortly\./);
+    assert.ok(
+      onboarding.indexOf("safeRateLimit(sellerProfileRatelimit, userId)") <
+        onboarding.indexOf("prisma.sellerProfile.findFirst"),
+      "onboarding step actions should rate-limit before seller lookup",
+    );
+
+    assert.match(notifications, /markReadRatelimit/);
+    assert.ok(
+      notifications.indexOf("safeRateLimit(markReadRatelimit, userId)") <
+        notifications.indexOf("prisma.user.findUnique"),
+      "notification mark-all-read should rate-limit before current-user lookup",
+    );
+    assert.match(notifications, /select: \{ id: true, banned: true, deletedAt: true \}/);
+    assert.match(notifications, /if \(me\.banned \|\| me\.deletedAt\) return/);
+  });
+
+  it("keeps made-to-order processing windows internally consistent", () => {
+    const createPage = source("src/app/dashboard/listings/new/page.tsx");
+    const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const guard =
+      /listingType === "MADE_TO_ORDER"[\s\S]*?processingTimeMinDays !== null[\s\S]*?processingTimeMaxDays !== null[\s\S]*?processingTimeMinDays > processingTimeMaxDays[\s\S]*?Processing time minimum cannot exceed the maximum/;
+
+    assert.match(createPage, guard);
+    assert.match(editPage, guard);
+  });
+});

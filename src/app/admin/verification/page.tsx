@@ -1,0 +1,1392 @@
+// src/app/admin/verification/page.tsx
+import * as Sentry from "@sentry/nextjs";
+import { prisma } from "@/lib/db";
+import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import {
+  sendGuildMasterRevokedEmail,
+  sendGuildMemberRevokedEmail,
+  sendVerificationApproved,
+  sendVerificationRejected,
+} from "@/lib/email";
+import {
+  GUILD_MASTER_REQUIREMENTS,
+  meetsGuildMasterRequirements,
+  metricsPeriodStart,
+  type SellerMetricsResult,
+} from "@/lib/metrics";
+import { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } from "@/lib/metricsFreshness";
+import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
+import { logAdminAction, logAdminActionOrThrow } from "@/lib/audit";
+import ActionForm, { SubmitButton } from "@/components/ActionForm";
+import { publicSellerPath } from "@/lib/publicPaths";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import {
+  GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
+  GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES,
+  GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
+  assertGuildVerificationTransition,
+  isGuildVerificationTransitionConflict,
+} from "@/lib/guildVerificationState";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
+import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
+import { readOrderSellerMetricsFacts } from "@/lib/orderSellerMetricsAuthority";
+import { formatCurrencyCents } from "@/lib/money";
+import {
+  getCaseGuildUnresolvedGuard,
+  getCaseSellerVerificationEligibility,
+} from "@/lib/caseSellerAggregateAuthority";
+import {
+  ADMIN_PIN_COOKIE_NAME,
+  verifyAdminPinCookieValue,
+} from "@/lib/adminPin";
+
+type ActionState = { ok: boolean; error?: string };
+
+type CachedSellerMetrics = {
+  calculatedAt: Date;
+  periodMonths: number;
+  averageRating: number;
+  reviewCount: number;
+  onTimeShippingRate: number;
+  responseRate: number;
+  totalSalesCents: number | bigint;
+  completedOrderCount: number;
+  activeCaseCount: number;
+  accountAgeDays: number;
+};
+
+function cachedMetricsToResult(sellerProfileId: string, metrics: CachedSellerMetrics): SellerMetricsResult {
+  return {
+    sellerProfileId,
+    calculatedAt: metrics.calculatedAt,
+    periodMonths: metrics.periodMonths,
+    averageRating: metrics.averageRating,
+    reviewCount: metrics.reviewCount,
+    onTimeShippingRate: metrics.onTimeShippingRate,
+    responseRate: metrics.responseRate,
+    totalSalesCents: Number(metrics.totalSalesCents),
+    completedOrderCount: metrics.completedOrderCount,
+    activeCaseCount: metrics.activeCaseCount,
+    accountAgeDays: metrics.accountAgeDays,
+  };
+}
+
+function formatUsd(cents: number) {
+  return formatCurrencyCents(cents);
+}
+
+function PortfolioUrlReviewLink({ url }: { url: string }) {
+  const safeUrl = normalizePublicHttpsUrl(url);
+  if (!safeUrl) {
+    return (
+      <span className="inline-flex flex-col gap-1">
+        <span className="break-all text-neutral-600">{url}</span>
+        <span className="text-xs text-amber-700">Not linked: URL is not a public HTTPS host.</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex flex-col gap-1">
+      <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all hover:text-blue-800">
+        {safeUrl}
+      </a>
+      <span className="text-xs text-neutral-500">Seller-provided external URL.</span>
+    </span>
+  );
+}
+
+function captureVerificationEmailFailure(
+  error: unknown,
+  source: string,
+  extra: Record<string, string | null>,
+) {
+  Sentry.captureException(error, {
+    level: "warning",
+    tags: { source },
+    extra,
+  });
+}
+
+function guildMasterFailureDetails(
+  metrics: SellerMetricsResult,
+  criteria: ReturnType<typeof meetsGuildMasterRequirements>,
+) {
+  return [
+    !criteria.ratingMet
+      ? `${metrics.averageRating.toFixed(1)}/${GUILD_MASTER_REQUIREMENTS.averageRating} average rating`
+      : null,
+    !criteria.reviewsMet
+      ? `${metrics.reviewCount}/${GUILD_MASTER_REQUIREMENTS.reviewCount} reviews`
+      : null,
+    !criteria.shippingMet
+      ? `${(metrics.onTimeShippingRate * 100).toFixed(0)}%/${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}% on-time shipping`
+      : null,
+    !criteria.responseMet
+      ? `${(metrics.responseRate * 100).toFixed(0)}%/${GUILD_MASTER_REQUIREMENTS.responseRate * 100}% response rate`
+      : null,
+    !criteria.ageMet
+      ? `${metrics.accountAgeDays}/${GUILD_MASTER_REQUIREMENTS.accountAgeDays} account age days`
+      : null,
+    !criteria.salesMet
+      ? `${formatUsd(metrics.totalSalesCents)}/${formatUsd(GUILD_MASTER_REQUIREMENTS.totalSalesCents)} completed sales`
+      : null,
+    !criteria.casesMet
+      ? `${metrics.activeCaseCount} active case${metrics.activeCaseCount === 1 ? "" : "s"}`
+      : null,
+  ].filter(Boolean);
+}
+
+// ── Shared auth helpers ─────────────────────────────────────────────────────
+async function requireStaff() {
+  const { userId, sessionId } = await auth();
+  if (!userId) redirect("/");
+  const { success } = await safeRateLimit(adminActionRatelimit, userId);
+  if (!success) redirect("/");
+  const cookieStore = await cookies();
+  const pinVerified = await verifyAdminPinCookieValue(
+    cookieStore.get(ADMIN_PIN_COOKIE_NAME)?.value,
+    userId,
+    sessionId,
+  );
+  if (!pinVerified) redirect("/admin");
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, role: true, banned: true, deletedAt: true },
+  });
+  if (!me) redirect("/");
+  if (me.banned || me.deletedAt) redirect("/banned");
+  if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") redirect("/");
+  return me;
+}
+
+async function requireAdminOnly() {
+  const me = await requireStaff();
+  if (me.role !== "ADMIN") redirect("/");
+  return me;
+}
+
+// ── Guild Member actions ────────────────────────────────────────────────────
+async function approveGuildMember(_prevState: unknown, formData: FormData): Promise<ActionState> {
+  "use server";
+  const me = await requireStaff();
+  const verificationId = String(formData.get("verificationId") ?? "");
+  const adminOverride = formData.get("adminOverride") === "on";
+
+  const verification = await prisma.makerVerification.findUnique({
+    where: { id: verificationId },
+    select: {
+      status: true,
+      sellerProfileId: true,
+      sellerProfile: {
+        select: {
+          userId: true,
+          id: true,
+          displayName: true,
+          user: { select: { email: true, createdAt: true, banned: true, deletedAt: true } },
+        },
+      },
+    },
+  });
+  if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
+  if (verification.status !== "PENDING") return { ok: false, error: "Application is no longer pending. Refresh this page." };
+  if (verification.sellerProfile.user.banned || verification.sellerProfile.user.deletedAt) {
+    return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
+  }
+
+  const [activeListings, orderFacts, longCaseCount] = await Promise.all([
+    prisma.listing.count({
+      where: { sellerId: verification.sellerProfileId, status: "ACTIVE", isPrivate: false },
+    }),
+    readOrderSellerMetricsFacts(
+      verification.sellerProfileId,
+      metricsPeriodStart(new Date(), 3),
+    ),
+    getCaseSellerVerificationEligibility({
+      actorUserId: me.id,
+      sellerProfileId: verification.sellerProfileId,
+    }).then((result) => {
+      if (!result) {
+        throw new Error("Case seller verification authority denied staff access");
+      }
+      return result.agedUnresolvedCount;
+    }),
+  ]);
+  if (!orderFacts || orderFacts.sellerProfileId !== verification.sellerProfileId) {
+    throw new Error("Guild Member Order metrics authority returned no matching seller");
+  }
+  const totalSalesCents = orderFacts.totalSalesCents;
+  const accountAgeDays = Math.floor(
+    (Date.now() - new Date(verification.sellerProfile.user.createdAt).getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const unmetRequirements = [
+    activeListings < 5 ? `${activeListings}/5 active public listings` : null,
+    accountAgeDays < 30 ? `${accountAgeDays}/30 account age days` : null,
+    longCaseCount > 0 ? `${longCaseCount} unresolved case${longCaseCount === 1 ? "" : "s"} older than 60 days` : null,
+    !adminOverride && totalSalesCents < 25_000
+      ? `${formatUsd(totalSalesCents)}/$250 completed non-refunded sales`
+      : null,
+  ].filter(Boolean);
+
+  if (unmetRequirements.length > 0) {
+    await logAdminAction({
+      adminId: me.id,
+      action: "APPROVE_GUILD_MEMBER_BLOCKED",
+      targetType: "SELLER_PROFILE",
+      targetId: verification.sellerProfileId,
+      reason: "Server-side eligibility check failed",
+      metadata: { activeListings, totalSalesCents, accountAgeDays, longCaseCount, adminOverride },
+    });
+    return {
+      ok: false,
+      error: `Approval blocked: ${unmetRequirements.join("; ")}.`,
+    };
+  }
+
+  const approvedAt = new Date();
+  let approvalAuditId: string | null = null;
+  try {
+    approvalAuditId = await prisma.$transaction(async (tx) => {
+      const updated = await tx.makerVerification.updateMany({
+        where: { id: verificationId, status: "PENDING" },
+        data: {
+          status: "APPROVED",
+          reviewedById: me.id,
+          reviewedAt: approvedAt,
+          reviewNotes: adminOverride ? "Admin override: $250 sales requirement waived" : null,
+        },
+      });
+      if (updated.count === 0) return null;
+
+      const sellerUpdated = await tx.sellerProfile.updateMany({
+        where: {
+          id: verification.sellerProfileId,
+          user: { banned: false, deletedAt: null },
+        },
+        data: {
+          isVerifiedMaker: true,
+          verifiedAt: approvedAt,
+          guildLevel: "GUILD_MEMBER",
+          guildMemberApprovedAt: approvedAt,
+        },
+      });
+      assertGuildVerificationTransition(sellerUpdated.count, "approve Guild Member");
+      return logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "APPROVE_GUILD_MEMBER",
+        targetType: "SELLER_PROFILE",
+        targetId: verification.sellerProfileId,
+        metadata: { verificationId },
+      });
+    });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
+  if (!approvalAuditId) return { ok: false, error: "Application changed while approving. Refresh and try again." };
+
+  await createNotification({
+    userId: verification.sellerProfile.userId,
+    type: "VERIFICATION_APPROVED",
+    title: "You are now a Guild Member!",
+    body: "Your Guild Member badge is now live on your profile",
+    link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
+    dedupScope: `guild-member-approve:${verificationId}`,
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+    sourceId: approvalAuditId,
+  });
+
+  if (
+    verification.sellerProfile.user?.email &&
+    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")
+  ) {
+    try {
+      await sendVerificationApproved({
+        seller: {
+          displayName: verification.sellerProfile.displayName,
+          email: verification.sellerProfile.user.email,
+        },
+        profileId: verification.sellerProfile.id,
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        verificationId,
+        sellerProfileId: verification.sellerProfile.id,
+      });
+    }
+  }
+
+  revalidatePath("/admin/verification");
+  return { ok: true };
+}
+
+async function rejectGuildMember(formData: FormData) {
+  "use server";
+  const me = await requireStaff();
+  const verificationId = String(formData.get("verificationId") ?? "");
+  const reviewNotes = truncateText(sanitizeText(String(formData.get("reviewNotes") ?? "")), 2000) || null;
+
+  const verification = await prisma.makerVerification.findUnique({
+    where: { id: verificationId },
+    select: {
+      status: true,
+      sellerProfileId: true,
+      sellerProfile: {
+        select: { userId: true, displayName: true, user: { select: { email: true } } },
+      },
+    },
+  });
+  if (!verification || verification.status !== "PENDING") return;
+
+  const rejectionAuditId = await prisma.$transaction(async (tx) => {
+    const updated = await tx.makerVerification.updateMany({
+      where: { id: verificationId, status: "PENDING" },
+      data: {
+        status: "REJECTED",
+        reviewedById: me.id,
+        reviewedAt: new Date(),
+        reviewNotes,
+      },
+    });
+    if (updated.count === 0) return null;
+    return logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "REJECT_GUILD_MEMBER",
+      targetType: "SELLER_PROFILE",
+      targetId: verification.sellerProfileId,
+      reason: reviewNotes ?? undefined,
+      metadata: { verificationId },
+    });
+  });
+  if (!rejectionAuditId) return;
+
+  if (verification?.sellerProfile.userId) {
+    await createNotification({
+      userId: verification.sellerProfile.userId,
+      type: "VERIFICATION_REJECTED",
+      title: "Guild Member application update",
+      body: reviewNotes ?? "Please review your application",
+      link: "/dashboard/verification",
+      dedupScope: `guild-member-reject:${verificationId}`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+      sourceId: rejectionAuditId,
+    });
+  }
+
+  if (
+    verification?.sellerProfile.user?.email &&
+    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_REJECTED")
+  ) {
+    try {
+      await sendVerificationRejected({
+        seller: {
+          displayName: verification.sellerProfile.displayName,
+          email: verification.sellerProfile.user.email,
+        },
+        notes: reviewNotes,
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        verificationId,
+        sellerProfileId: null,
+      });
+    }
+  }
+
+  revalidatePath("/admin/verification");
+}
+
+async function revokeMember(_prevState: unknown, formData: FormData): Promise<ActionState> {
+  "use server";
+  const me = await requireStaff();
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
+
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { id: sellerProfileId },
+    select: { userId: true, displayName: true, user: { select: { email: true } } },
+  });
+
+  const revokedAt = new Date();
+  let revocationAuditId: string | null = null;
+  try {
+    revocationAuditId = await prisma.$transaction(async (tx) => {
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId,
+          status: { in: [...GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES] },
+        },
+        data: {
+          status: "REJECTED",
+          reviewedById: me.id,
+          reviewedAt: revokedAt,
+          reviewNotes: "Guild Member badge revoked by Grainline staff.",
+        },
+      });
+      if (verificationUpdated.count === 0) return null;
+
+      const updated = await tx.sellerProfile.updateMany({
+        where: { id: sellerProfileId, guildLevel: "GUILD_MEMBER" },
+        data: {
+          guildLevel: "NONE",
+          isVerifiedMaker: false,
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+          listingsBelowThresholdSince: null,
+          lastMetricCheckAt: revokedAt,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "revoke Guild Member");
+
+      return logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "REVOKE_GUILD_MEMBER",
+        targetType: "SELLER_PROFILE",
+        targetId: sellerProfileId,
+      });
+    });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
+  if (!revocationAuditId) return { ok: false, error: "Guild Member badge was already changed. Refresh this page." };
+
+  if (seller?.userId) {
+    await createNotification({
+      userId: seller.userId,
+      type: "VERIFICATION_REJECTED",
+      title: "Guild Member badge revoked",
+      body: "Your Guild Member badge was revoked by Grainline staff.",
+      link: "/dashboard/verification",
+      dedupScope: `guild-member-revoke:${sellerProfileId}`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+      sourceId: revocationAuditId,
+    });
+  }
+  if (
+    seller?.userId &&
+    seller.user?.email &&
+    await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")
+  ) {
+    try {
+      await sendGuildMemberRevokedEmail({
+        seller: { displayName: seller.displayName, email: seller.user.email },
+        reason: "Your Guild Member badge was revoked by Grainline staff.",
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        sellerProfileId,
+        verificationId: null,
+      });
+    }
+  }
+
+  revalidatePath("/admin/verification");
+  return { ok: true };
+}
+
+// ── Guild Master actions ─────────────────────────────────────────────────────
+async function approveGuildMaster(_prevState: unknown, formData: FormData): Promise<ActionState> {
+  "use server";
+  const me = await requireStaff();
+  const verificationId = String(formData.get("verificationId") ?? "");
+
+  const verification = await prisma.makerVerification.findUnique({
+    where: { id: verificationId },
+    select: {
+      status: true,
+      sellerProfileId: true,
+      sellerProfile: {
+        select: {
+          userId: true,
+          id: true,
+          displayName: true,
+          user: { select: { email: true, banned: true, deletedAt: true } },
+          sellerMetrics: {
+            select: {
+              calculatedAt: true,
+              periodMonths: true,
+              averageRating: true,
+              reviewCount: true,
+              onTimeShippingRate: true,
+              responseRate: true,
+              totalSalesCents: true,
+              completedOrderCount: true,
+              activeCaseCount: true,
+              accountAgeDays: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
+  if (verification.status !== "GUILD_MASTER_PENDING") {
+    return { ok: false, error: "Application is no longer pending. Refresh this page." };
+  }
+  if (verification.sellerProfile.user.banned || verification.sellerProfile.user.deletedAt) {
+    return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
+  }
+
+  if (
+    !verification.sellerProfile.sellerMetrics ||
+    !isSellerMetricsFresh(verification.sellerProfile.sellerMetrics)
+  ) {
+    return {
+      ok: false,
+      error: "Cached Guild metrics are missing or stale. Ask the seller to refresh the verification page, or run the metrics cron, before approval.",
+    };
+  }
+
+  const metrics = cachedMetricsToResult(verification.sellerProfileId, verification.sellerProfile.sellerMetrics);
+  const criteria = meetsGuildMasterRequirements(metrics);
+  if (!criteria.allMet) {
+    await logAdminAction({
+      adminId: me.id,
+      action: "APPROVE_GUILD_MASTER_BLOCKED",
+      targetType: "SELLER_PROFILE",
+      targetId: verification.sellerProfileId,
+      reason: "Server-side Guild Master metrics check failed",
+      metadata: { metrics, criteria },
+    });
+    return {
+      ok: false,
+      error: `Approval blocked: ${guildMasterFailureDetails(metrics, criteria).join("; ")}.`,
+    };
+  }
+
+  const approvedAt = new Date();
+  let approvalAuditId: string | null = null;
+  try {
+    approvalAuditId = await prisma.$transaction(async (tx) => {
+      const updated = await tx.makerVerification.updateMany({
+        where: { id: verificationId, status: "GUILD_MASTER_PENDING" },
+        data: { status: "GUILD_MASTER_APPROVED", reviewedById: me.id, reviewedAt: approvedAt },
+      });
+      if (updated.count === 0) return null;
+
+      const sellerUpdated = await tx.sellerProfile.updateMany({
+        where: {
+          id: verification.sellerProfileId,
+          user: { banned: false, deletedAt: null },
+        },
+        data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: approvedAt },
+      });
+      assertGuildVerificationTransition(sellerUpdated.count, "approve Guild Master");
+      return logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "APPROVE_GUILD_MASTER",
+        targetType: "SELLER_PROFILE",
+        targetId: verification.sellerProfileId,
+        metadata: { verificationId },
+      });
+    });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
+  if (!approvalAuditId) return { ok: false, error: "Application changed while approving. Refresh and try again." };
+
+  await createNotification({
+    userId: verification.sellerProfile.userId,
+    type: "VERIFICATION_APPROVED",
+    title: "You are now a Guild Master!",
+    body: "Your Guild Master badge is now live on your profile",
+    link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
+    dedupScope: `guild-master-approve:${verificationId}`,
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+    sourceId: approvalAuditId,
+  });
+
+  if (
+    verification.sellerProfile.user?.email &&
+    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")
+  ) {
+    try {
+      await sendVerificationApproved({
+        seller: {
+          displayName: verification.sellerProfile.displayName,
+          email: verification.sellerProfile.user.email,
+        },
+        profileId: verification.sellerProfile.id,
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        verificationId,
+        sellerProfileId: verification.sellerProfile.id,
+      });
+    }
+  }
+
+  revalidatePath("/admin/verification");
+  return { ok: true };
+}
+
+async function rejectGuildMaster(formData: FormData) {
+  "use server";
+  const me = await requireStaff();
+  const verificationId = String(formData.get("verificationId") ?? "");
+  const reviewNotes = truncateText(sanitizeText(String(formData.get("reviewNotes") ?? "")), 2000) || null;
+
+  const verification = await prisma.makerVerification.findUnique({
+    where: { id: verificationId },
+    select: {
+      status: true,
+      sellerProfileId: true,
+      sellerProfile: {
+        select: { userId: true, displayName: true, user: { select: { email: true } } },
+      },
+    },
+  });
+  if (!verification || verification.status !== "GUILD_MASTER_PENDING") return;
+
+  const rejectionAuditId = await prisma.$transaction(async (tx) => {
+    const updated = await tx.makerVerification.updateMany({
+      where: { id: verificationId, status: "GUILD_MASTER_PENDING" },
+      data: { status: "GUILD_MASTER_REJECTED", reviewedById: me.id, reviewedAt: new Date() },
+    });
+    if (updated.count === 0) return null;
+
+    await tx.sellerProfile.update({
+      where: { id: verification.sellerProfileId },
+      data: { guildMasterReviewNotes: reviewNotes },
+    });
+    return logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "REJECT_GUILD_MASTER",
+      targetType: "SELLER_PROFILE",
+      targetId: verification.sellerProfileId,
+      reason: reviewNotes ?? undefined,
+      metadata: { verificationId },
+    });
+  });
+  if (!rejectionAuditId) return;
+
+  if (verification?.sellerProfile.userId) {
+    await createNotification({
+      userId: verification.sellerProfile.userId,
+      type: "VERIFICATION_REJECTED",
+      title: "Guild Master application update",
+      body: reviewNotes ?? "Please review your application",
+      link: "/dashboard/verification",
+      dedupScope: `guild-master-reject:${verificationId}`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+      sourceId: rejectionAuditId,
+    });
+  }
+
+  revalidatePath("/admin/verification");
+}
+
+async function revokeMaster(_prevState: unknown, formData: FormData): Promise<ActionState> {
+  "use server";
+  const me = await requireStaff();
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
+
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { id: sellerProfileId },
+    select: { userId: true, displayName: true, user: { select: { email: true } } },
+  });
+
+  const revokedAt = new Date();
+  let revocationAuditId: string | null = null;
+  try {
+    revocationAuditId = await prisma.$transaction(async (tx) => {
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId,
+          status: { in: [...GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES] },
+        },
+        data: {
+          status: "GUILD_MASTER_REJECTED",
+          reviewedById: me.id,
+          reviewedAt: revokedAt,
+          reviewNotes: "Guild Master badge revoked by Grainline staff.",
+        },
+      });
+      if (verificationUpdated.count === 0) return null;
+
+      const updated = await tx.sellerProfile.updateMany({
+        where: { id: sellerProfileId, guildLevel: "GUILD_MASTER" },
+        data: {
+          guildLevel: "GUILD_MEMBER",
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+          lastMetricCheckAt: revokedAt,
+          guildMasterApprovedAt: null,
+          guildMasterAppliedAt: null,
+          guildMasterReviewNotes: null,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "revoke Guild Master");
+
+      return logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "REVOKE_GUILD_MASTER",
+        targetType: "SELLER_PROFILE",
+        targetId: sellerProfileId,
+      });
+    });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
+  if (!revocationAuditId) return { ok: false, error: "Guild Master badge was already changed. Refresh this page." };
+
+  if (seller?.userId) {
+    await createNotification({
+      userId: seller.userId,
+      type: "VERIFICATION_REJECTED",
+      title: "Guild Master badge revoked",
+      body: "Your Guild Master badge was revoked. Your Guild Member badge remains active.",
+      link: "/dashboard/verification",
+      dedupScope: `guild-master-revoke:${sellerProfileId}`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+      sourceId: revocationAuditId,
+    });
+  }
+  if (
+    seller?.userId &&
+    seller.user?.email &&
+    await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")
+  ) {
+    try {
+      await sendGuildMasterRevokedEmail({
+        seller: { displayName: seller.displayName, email: seller.user.email },
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        sellerProfileId,
+        verificationId: null,
+      });
+    }
+  }
+
+  revalidatePath("/admin/verification");
+  return { ok: true };
+}
+
+async function reinstateGuildMember(_prevState: unknown, formData: FormData): Promise<ActionState> {
+  "use server";
+  const me = await requireAdminOnly();
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
+
+  const reinstatedAt = new Date();
+  let reinstatedSeller: { userId: string; displayName: string; auditLogId: string } | null = null;
+  try {
+    reinstatedSeller = await prisma.$transaction(async (tx) => {
+      const seller = await tx.sellerProfile.findUnique({
+        where: { id: sellerProfileId },
+        select: {
+          userId: true,
+          displayName: true,
+          user: { select: { banned: true, deletedAt: true } },
+        },
+      });
+      if (!seller || seller.user.banned || seller.user.deletedAt) return null;
+
+      const longCase = await getCaseGuildUnresolvedGuard(
+        sellerProfileId,
+        tx,
+      );
+      if (!longCase || longCase.blocked) return null;
+
+      const activeListings = await tx.listing.count({
+        where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false },
+      });
+      if (activeListings < 5) return null;
+
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId,
+          status: { in: [...GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES] },
+        },
+        data: {
+          status: "APPROVED",
+          reviewedById: me.id,
+          reviewedAt: reinstatedAt,
+          reviewNotes: null,
+        },
+      });
+      if (verificationUpdated.count === 0) return null;
+
+      const updated = await tx.sellerProfile.updateMany({
+        where: {
+          id: sellerProfileId,
+          guildLevel: "NONE",
+          guildMemberApprovedAt: { not: null },
+          user: { banned: false, deletedAt: null },
+        },
+        data: {
+          guildLevel: "GUILD_MEMBER",
+          isVerifiedMaker: true,
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+          listingsBelowThresholdSince: null,
+          lastMetricCheckAt: reinstatedAt,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "reinstate Guild Member");
+
+      const auditLogId = await logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "REINSTATE_GUILD_MEMBER",
+        targetType: "SELLER_PROFILE",
+        targetId: sellerProfileId,
+      });
+      return { ...seller, auditLogId };
+    });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
+  if (!reinstatedSeller) {
+    return {
+      ok: false,
+      error: "Guild Member badge could not be reinstated. Confirm the seller is active, has 5 active public listings, and has no unresolved case older than 90 days.",
+    };
+  }
+
+  await createNotification({
+    userId: reinstatedSeller.userId,
+    type: "VERIFICATION_APPROVED",
+    title: "Guild Member badge reinstated",
+    body: "Your Guild Member badge is live again on your profile.",
+    link: publicSellerPath(sellerProfileId, reinstatedSeller.displayName),
+    dedupScope: `guild-member-reinstate:${sellerProfileId}`,
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+    sourceId: reinstatedSeller.auditLogId,
+  });
+
+  revalidatePath("/admin/verification");
+  return { ok: true };
+}
+
+async function featureMaker(sellerProfileId: string) {
+  "use server";
+  const me = await requireAdminOnly();
+
+  const ownSeller = await prisma.sellerProfile.findUnique({
+    where: { userId: me.id },
+    select: { id: true },
+  });
+  if (ownSeller?.id === sellerProfileId) return;
+
+  const now = new Date();
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: activeSellerProfileWhere({
+        id: sellerProfileId,
+        guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
+        OR: [{ featuredUntil: null }, { featuredUntil: { lte: now } }],
+      }),
+      data: { featuredUntil: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
+    });
+    if (updated.count === 0) return updated;
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "FEATURE_MAKER",
+      targetType: "SELLER_PROFILE",
+      targetId: sellerProfileId,
+    });
+    return updated;
+  });
+  if (result.count === 0) return;
+
+  revalidatePath("/admin/verification");
+  revalidatePath("/");
+  revalidateTag("home-featured-maker", "max");
+}
+
+async function unfeatureMaker(sellerProfileId: string) {
+  "use server";
+  const me = await requireAdminOnly();
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: { id: sellerProfileId, featuredUntil: { not: null } },
+      data: { featuredUntil: null },
+    });
+    if (updated.count === 0) return updated;
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "UNFEATURE_MAKER",
+      targetType: "SELLER_PROFILE",
+      targetId: sellerProfileId,
+    });
+    return updated;
+  });
+  if (result.count === 0) return;
+
+  revalidatePath("/admin/verification");
+  revalidatePath("/");
+  revalidateTag("home-featured-maker", "max");
+}
+
+// ── Page ────────────────────────────────────────────────────────────────────
+export default async function AdminVerificationPage() {
+  const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
+  const [memberPending, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
+    prisma.makerVerification.findMany({
+      where: { status: "PENDING" },
+      orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
+      take: 50,
+      include: {
+        sellerProfile: { select: { displayName: true, id: true } },
+      },
+    }),
+    prisma.makerVerification.findMany({
+      where: { status: "GUILD_MASTER_PENDING" },
+      orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
+      take: 50,
+      include: {
+        sellerProfile: {
+          select: {
+            displayName: true,
+            id: true,
+            guildMasterAppliedAt: true,
+            sellerMetrics: {
+              select: {
+                calculatedAt: true,
+                periodMonths: true,
+                averageRating: true,
+                reviewCount: true,
+                onTimeShippingRate: true,
+                responseRate: true,
+                totalSalesCents: true,
+                completedOrderCount: true,
+                activeCaseCount: true,
+                accountAgeDays: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.sellerProfile.findMany({
+      where: { guildLevel: "GUILD_MEMBER" },
+      select: { id: true, displayName: true, guildMemberApprovedAt: true, featuredUntil: true },
+      orderBy: { guildMemberApprovedAt: "desc" },
+      take: 50,
+    }),
+    prisma.sellerProfile.findMany({
+      where: { guildLevel: "GUILD_MASTER" },
+      select: { id: true, displayName: true, guildMasterApprovedAt: true, featuredUntil: true },
+      orderBy: { guildMasterApprovedAt: "desc" },
+      take: 50,
+    }),
+    prisma.sellerProfile.findMany({
+      where: { guildLevel: "NONE", guildMemberApprovedAt: { not: null } },
+      select: { id: true, displayName: true, guildMemberApprovedAt: true },
+      orderBy: { guildMemberApprovedAt: "desc" },
+      take: 50,
+    }),
+  ]);
+
+  const masterMetricsMap = new Map<string, SellerMetricsResult>();
+  for (const v of masterPending) {
+    if (v.sellerProfile.sellerMetrics && isSellerMetricsFresh(v.sellerProfile.sellerMetrics)) {
+      masterMetricsMap.set(v.id, cachedMetricsToResult(v.sellerProfile.id, v.sellerProfile.sellerMetrics));
+    }
+  }
+
+  // Currently-featured makers (for the 2-slot homepage spotlight)
+  const now = new Date();
+  const featuredNow = [...memberActive, ...masterActive]
+    .filter((s) => s.featuredUntil != null && s.featuredUntil > now)
+    .sort((a, b) => (b.featuredUntil!.getTime() - a.featuredUntil!.getTime()));
+  const featuredSlotsUsed = Math.min(featuredNow.length, 2);
+
+  return (
+    <div className="space-y-10">
+      <div>
+        <h1 className="text-2xl font-bold">Guild Verification</h1>
+      </div>
+
+      <section className="card-section p-5 bg-[#EFEAE0]">
+        <div className="text-xs font-semibold uppercase tracking-wider text-amber-800 mb-2">
+          Homepage spotlight ({featuredSlotsUsed} of 2 slots active)
+        </div>
+        {featuredNow.length === 0 ? (
+          <p className="text-sm text-neutral-700">
+            No makers currently featured. The homepage Featured Makers section is falling back to the weekly Guild rotation.
+          </p>
+        ) : (
+          <ul className="space-y-1 text-sm text-neutral-800">
+            {featuredNow.slice(0, 2).map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-3">
+                <span><strong>{s.displayName}</strong> through {s.featuredUntil!.toLocaleDateString("en-US")}</span>
+              </li>
+            ))}
+            {featuredNow.length > 2 && (
+              <li className="text-xs text-amber-900 mt-2 italic">
+                {featuredNow.length - 2} additional maker{featuredNow.length - 2 === 1 ? "" : "s"} marked featured but not visible: only the 2 most recently featured show on the homepage. Unfeature one of the above to free a slot.
+              </li>
+            )}
+          </ul>
+        )}
+      </section>
+
+      {/* ── Guild Member Applications ── */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2">
+          Guild Member Applications{" "}
+          <span className="text-sm font-normal text-neutral-500">({memberPending.length} pending)</span>
+        </h2>
+
+        {memberPending.length === 0 ? (
+          <div className="card-section p-6 text-neutral-500 text-sm">No pending Guild Member applications.</div>
+        ) : (
+          <div className="space-y-4">
+            {memberPending.map((v) => (
+              <div key={v.id} className="card-section p-6 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="font-semibold text-base">{v.sellerProfile.displayName}</div>
+                    <div className="text-xs text-neutral-500 mt-0.5">
+                      Applied {new Date(v.appliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </div>
+                  </div>
+                  <a
+                    href={publicSellerPath(v.sellerProfile.id, v.sellerProfile.displayName)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs underline text-neutral-500 hover:text-neutral-700 shrink-0"
+                  >
+                    View profile ↗
+                  </a>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium text-neutral-700">About their craft:</span>
+                    <p className="text-neutral-600 mt-0.5 whitespace-pre-wrap">{v.craftDescription}</p>
+                  </div>
+                  <div className="flex gap-6">
+                    <div>
+                      <span className="font-medium text-neutral-700">Experience:</span>{" "}
+                      <span className="text-neutral-600">{v.yearsExperience} year{v.yearsExperience !== 1 ? "s" : ""}</span>
+                    </div>
+                    {v.portfolioUrl && (
+                      <div>
+                        <span className="font-medium text-neutral-700">Portfolio:</span>{" "}
+                        <PortfolioUrlReviewLink url={v.portfolioUrl} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Admin review checklist ── */}
+                <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
+                  <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Admin Review Checklist</p>
+                  <ul className="text-xs text-neutral-600 space-y-1">
+                    {[
+                      "Profile photo uploaded",
+                      "Bio written (not placeholder text)",
+                      "At least 5 active listings with real photos",
+                      "Shop policies filled out",
+                      "No suspicious activity or red flags",
+                      "Craft description sounds authentic",
+                      "Portfolio URL checked (if provided)",
+                      "Sales requirement met or admin override applied",
+                    ].map((item) => (
+                      <li key={item} className="flex items-center gap-1.5">
+                        <span className="text-neutral-300">□</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
+                  <ActionForm action={approveGuildMember} className="flex flex-col gap-2">
+                    <input type="hidden" name="verificationId" value={v.id} />
+                    <div className="flex items-center gap-2 text-xs text-neutral-600">
+                      <input
+                        type="checkbox"
+                        name="adminOverride"
+                        id={`override-${v.id}`}
+                        className="accent-amber-700"
+                      />
+                      <label htmlFor={`override-${v.id}`} className="cursor-pointer select-none">
+                        Override $250 sales requirement{" "}
+                        <span className="text-neutral-500">(for trusted early sellers you know personally)</span>
+                      </label>
+                    </div>
+                    <SubmitButton className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60 self-start">
+                      Approve Guild Member
+                    </SubmitButton>
+                  </ActionForm>
+                  <form action={rejectGuildMember} className="flex items-start gap-2 flex-wrap">
+                    <input type="hidden" name="verificationId" value={v.id} />
+                    <input
+                      name="reviewNotes"
+                      type="text"
+                      placeholder="Rejection notes (optional)"
+                      className="rounded-lg border px-3 py-2 text-sm w-56"
+                    />
+                    <button type="submit" className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                      Reject
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Guild Master Applications ── */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2">
+          Guild Master Applications{" "}
+          <span className="text-sm font-normal text-neutral-500">({masterPending.length} pending)</span>
+        </h2>
+
+        {masterPending.length === 0 ? (
+          <div className="card-section p-6 text-neutral-500 text-sm">No pending Guild Master applications.</div>
+        ) : (
+          <div className="space-y-4">
+            {masterPending.map((v) => {
+              const m = masterMetricsMap.get(v.id);
+              const mc = m ? meetsGuildMasterRequirements(m) : null;
+              return (
+              <div key={v.id} className="card-section p-6 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="font-semibold text-base">{v.sellerProfile.displayName}</div>
+                    <div className="text-xs text-neutral-500 mt-0.5">
+                      Applied{" "}
+                      {v.sellerProfile.guildMasterAppliedAt
+                        ? new Date(v.sellerProfile.guildMasterAppliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                        : "—"}
+                    </div>
+                  </div>
+                  <a
+                    href={publicSellerPath(v.sellerProfile.id, v.sellerProfile.displayName)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs underline text-neutral-500 hover:text-neutral-700 shrink-0"
+                  >
+                    View profile ↗
+                  </a>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium text-neutral-700">Business narrative:</span>
+                    <p className="text-neutral-600 mt-0.5 whitespace-pre-wrap">
+                      {v.guildMasterCraftBusiness ?? v.craftDescription}
+                    </p>
+                  </div>
+                  {v.portfolioUrl && (
+                    <div>
+                      <span className="font-medium text-neutral-700">Portfolio:</span>{" "}
+                      <PortfolioUrlReviewLink url={v.portfolioUrl} />
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Cached metrics dashboard ── */}
+                {m && mc ? (
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-indigo-800 uppercase tracking-wide">Cached Metrics</p>
+                      {mc.allMet
+                        ? <span className="text-xs text-green-700 font-medium">✓ All requirements met</span>
+                        : <span className="text-xs text-amber-700 font-medium">⚠ Some requirements not met</span>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                      {[
+                        { label: "Avg Rating", value: `${m.averageRating.toFixed(1)} ★`, req: `≥${GUILD_MASTER_REQUIREMENTS.averageRating}`, met: mc.ratingMet },
+                        { label: "Reviews", value: String(m.reviewCount), req: `≥${GUILD_MASTER_REQUIREMENTS.reviewCount}`, met: mc.reviewsMet },
+                        { label: "On-Time Shipping", value: `${(m.onTimeShippingRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%`, met: mc.shippingMet },
+                        { label: "Response Rate", value: `${(m.responseRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.responseRate * 100}%`, met: mc.responseMet },
+                        { label: "Account Age", value: `${m.accountAgeDays}d`, req: `≥${GUILD_MASTER_REQUIREMENTS.accountAgeDays}d`, met: mc.ageMet },
+                        { label: "Total Sales", value: formatUsd(m.totalSalesCents), req: "≥$1,000", met: mc.salesMet },
+                        { label: "Open Cases", value: String(m.activeCaseCount), req: "0", met: mc.casesMet },
+                        { label: "Orders", value: String(m.completedOrderCount), req: "—", met: true },
+                      ].map(({ label, value, req, met }) => (
+                        <div key={label} className="flex items-center gap-1.5">
+                          <span className={met ? "text-green-600" : "text-red-500"}>{met ? "✓" : "✗"}</span>
+                          <span className="text-indigo-900 font-medium">{label}:</span>
+                          <span className={met ? "text-green-700" : "text-red-600"}>{value}</span>
+                          <span className="text-indigo-400">({req})</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-indigo-500 pt-1">
+                      Metrics calculated {m.calculatedAt.toLocaleDateString("en-US")} · {m.periodMonths}-month period · valid for {Math.round(SELLER_METRICS_MAX_AGE_MS / (24 * 60 * 60 * 1000))} days
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                    Cached Guild metrics are missing or stale. Approval is blocked until the seller refreshes their verification page or the metrics cron updates this profile.
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
+                  {m && mc ? (
+                    <ActionForm action={approveGuildMaster}>
+                      <input type="hidden" name="verificationId" value={v.id} />
+                      <SubmitButton className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60">
+                        Approve Guild Master
+                      </SubmitButton>
+                    </ActionForm>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="rounded-lg bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-500 disabled:cursor-not-allowed"
+                    >
+                      Approval unavailable
+                    </button>
+                  )}
+                  <form action={rejectGuildMaster} className="flex items-start gap-2 flex-wrap">
+                    <input type="hidden" name="verificationId" value={v.id} />
+                    <input
+                      name="reviewNotes"
+                      type="text"
+                      placeholder="Rejection notes (optional)"
+                      className="rounded-lg border px-3 py-2 text-sm w-56"
+                    />
+                    <button type="submit" className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                      Reject
+                    </button>
+                  </form>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ── Active Guild Members (revocable) ── */}
+      {memberActive.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-amber-800">
+            Active Guild Members ({memberActive.length})
+          </h2>
+          <div className="space-y-2">
+            {memberActive.map((s) => (
+              <div key={s.id} className="flex items-center justify-between card-section px-5 py-3">
+                <div>
+                  <div className="font-medium text-sm">{s.displayName}</div>
+                  {s.guildMemberApprovedAt && (
+                    <div className="text-xs text-neutral-500">
+                      Approved {new Date(s.guildMemberApprovedAt).toLocaleDateString("en-US")}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <FeatureMakerButton
+                    sellerProfileId={s.id}
+                    isFeatured={s.featuredUntil != null && s.featuredUntil > new Date()}
+                    featureAction={featureMaker}
+                    unfeatureAction={unfeatureMaker}
+                  />
+                  <ActionForm action={revokeMember}>
+                    <input type="hidden" name="sellerProfileId" value={s.id} />
+                    <SubmitButton
+                      pendingLabel="Revoking..."
+                      className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Revoke Badge
+                    </SubmitButton>
+                  </ActionForm>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Active Guild Masters (revocable) ── */}
+      {masterActive.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-indigo-800">
+            Active Guild Masters ({masterActive.length})
+          </h2>
+          <div className="space-y-2">
+            {masterActive.map((s) => (
+              <div key={s.id} className="flex items-center justify-between card-section px-5 py-3">
+                <div>
+                  <div className="font-medium text-sm">{s.displayName}</div>
+                  {s.guildMasterApprovedAt && (
+                    <div className="text-xs text-neutral-500">
+                      Approved {new Date(s.guildMasterApprovedAt).toLocaleDateString("en-US")}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <FeatureMakerButton
+                    sellerProfileId={s.id}
+                    isFeatured={s.featuredUntil != null && s.featuredUntil > new Date()}
+                    featureAction={featureMaker}
+                    unfeatureAction={unfeatureMaker}
+                  />
+                  <ActionForm action={revokeMaster}>
+                    <input type="hidden" name="sellerProfileId" value={s.id} />
+                    <SubmitButton
+                      pendingLabel="Revoking..."
+                      className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Revoke Guild Master
+                    </SubmitButton>
+                  </ActionForm>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {/* ── Revoked Guild Members (reinstateable) ── */}
+      {revokedMembers.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-neutral-600">
+            Revoked Guild Members ({revokedMembers.length})
+          </h2>
+          <div className="space-y-2">
+            {revokedMembers.map((s) => (
+              <div key={s.id} className="flex items-center justify-between card-section px-5 py-3">
+                <div>
+                  <div className="font-medium text-sm">{s.displayName}</div>
+                  {s.guildMemberApprovedAt && (
+                    <div className="text-xs text-neutral-500">
+                      Was approved {new Date(s.guildMemberApprovedAt).toLocaleDateString("en-US")}
+                    </div>
+                  )}
+                </div>
+                <ActionForm action={reinstateGuildMember}>
+                  <input type="hidden" name="sellerProfileId" value={s.id} />
+                  <SubmitButton
+                    pendingLabel="Reinstating..."
+                    className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Reinstate
+                  </SubmitButton>
+                </ActionForm>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}

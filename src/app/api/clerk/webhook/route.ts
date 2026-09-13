@@ -1,0 +1,384 @@
+// src/app/api/clerk/webhook/route.ts
+import { Webhook } from "svix";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import {
+  renderWelcomeBuyerEmail,
+  renderWelcomeSellerEmail,
+  sendRenderedEmail,
+  type QueuedRenderedEmail,
+} from "@/lib/email";
+import { enqueueEmailOutbox } from "@/lib/emailOutbox";
+import { prisma } from "@/lib/db";
+import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
+import {
+  resolveClerkWebhookPrimaryEmail,
+  shouldReserveClerkWelcomeEmail,
+  type ClerkWebhookEmailAddress,
+} from "@/lib/clerkWebhookEmail";
+import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
+import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
+import { emailSuppressionAddressKeys } from "@/lib/emailSuppression";
+import { sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
+import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import * as Sentry from "@sentry/nextjs";
+
+interface ClerkUserEvent {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email_addresses: ClerkWebhookEmailAddress[];
+  primary_email_address_id?: string | null;
+  image_url: string | null;
+}
+
+const CLERK_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
+const CLERK_WEBHOOK_BODY_MAX_BYTES = 512 * 1024;
+const CLERK_WEBHOOK_RETRY_AFTER_SECONDS = Math.ceil(CLERK_WEBHOOK_RETRY_AFTER_MS / 1000);
+
+function isUniqueViolation(err: unknown) {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
+}
+
+async function enqueueWelcomeFallbackEmail(
+  email: QueuedRenderedEmail,
+  dedupKey: string,
+  userId: string,
+) {
+  await enqueueEmailOutbox({
+    to: email.to,
+    subject: email.subject,
+    html: email.html,
+    dedupKey,
+    templateName: "welcome",
+    userId,
+  });
+}
+
+async function reserveClerkWebhookEvent(svixId: string, type: string): Promise<"process" | "processed" | "in_progress"> {
+  const now = new Date();
+  try {
+    await prisma.clerkWebhookEvent.create({
+      data: { svixId, type, processingStartedAt: now },
+    });
+    return "process";
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+  }
+
+  const existing = await prisma.clerkWebhookEvent.findUnique({
+    where: { svixId },
+    select: { processedAt: true, processingStartedAt: true },
+  });
+  if (existing?.processedAt) return "processed";
+
+  const retryBefore = new Date(now.getTime() - CLERK_WEBHOOK_RETRY_AFTER_MS);
+  const claimed = await prisma.clerkWebhookEvent.updateMany({
+    where: {
+      svixId,
+      processedAt: null,
+      OR: [
+        { lastError: { not: null } },
+        { processingStartedAt: null },
+        { processingStartedAt: { lt: retryBefore } },
+      ],
+    },
+    data: {
+      type,
+      processingStartedAt: now,
+      lastError: null,
+    },
+  });
+
+  return claimed.count === 1 ? "process" : "in_progress";
+}
+
+async function markClerkWebhookProcessed(svixId: string) {
+  await prisma.clerkWebhookEvent.update({
+    where: { svixId },
+    data: { processedAt: new Date(), lastError: null },
+  });
+}
+
+async function markClerkWebhookFailed(svixId: string, err: unknown) {
+  await prisma.clerkWebhookEvent.updateMany({
+    where: { svixId, processedAt: null },
+    data: {
+      processingStartedAt: null,
+      lastError: truncateText(sanitizeEmailOutboxError(err), 2000),
+    },
+  });
+}
+
+export async function POST(req: Request) {
+  const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return NextResponse.json(
+      { error: "Missing CLERK_WEBHOOK_SECRET" },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
+    );
+  }
+
+  const headerPayload = await headers();
+  const svixId = headerPayload.get("svix-id");
+  const svixTimestamp = headerPayload.get("svix-timestamp");
+  const svixSignature = headerPayload.get("svix-signature");
+
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    return NextResponse.json({ error: "Missing svix headers" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  let body = "";
+  try {
+    body = await readBoundedText(req, CLERK_WEBHOOK_BODY_MAX_BYTES);
+  } catch (err) {
+    if (isRequestBodyTooLargeError(err)) {
+      return NextResponse.json({ error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+    }
+    // Body-stream failures (including a caller disconnecting mid-request) are
+    // still pre-authentication input failures. Do not throw them into the
+    // route-level Sentry wrapper and let unauthenticated traffic consume
+    // shared telemetry capacity.
+    return NextResponse.json({ error: "Invalid body" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  const wh = new Webhook(webhookSecret);
+  let event: { type: string; data: ClerkUserEvent };
+  try {
+    event = wh.verify(body, {
+      "svix-id": svixId,
+      "svix-timestamp": svixTimestamp,
+      "svix-signature": svixSignature,
+    }) as { type: string; data: ClerkUserEvent };
+  } catch {
+    return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  let reservation: Awaited<ReturnType<typeof reserveClerkWebhookEvent>>;
+  try {
+    reservation = await reserveClerkWebhookEvent(svixId, event.type);
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "clerk_webhook_reservation" },
+      extra: { svixId, eventType: event.type },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "clerk",
+      kind: "reservation",
+      status: HTTP_STATUS.SERVICE_UNAVAILABLE,
+      extra: { svixId, eventType: event.type },
+    });
+    return NextResponse.json(
+      { error: "Webhook temporarily unavailable" },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
+  }
+  if (reservation === "processed") {
+    return NextResponse.json({ ok: true });
+  }
+  if (reservation === "in_progress") {
+    return NextResponse.json(
+      { ok: false, status: reservation },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
+    );
+  }
+
+  try {
+    if (event.type === "user.deleted") {
+      const anonymized = await anonymizeUserAccountByClerkId(event.data.id);
+      if ("inProgress" in anonymized && anonymized.inProgress) {
+        const retryError = new Error("Clerk user.deleted local anonymization is already in progress");
+        await markClerkWebhookFailed(svixId, retryError).catch((markError) => {
+          Sentry.captureException(markError, {
+            tags: { source: "clerk_webhook_mark_failed" },
+            extra: { svixId, eventType: event.type },
+          });
+        });
+        Sentry.captureMessage("Clerk user.deleted local anonymization is already in progress", {
+          level: "warning",
+          tags: { source: "clerk_webhook_user_deleted_in_progress" },
+          extra: { svixId, clerkId: event.data.id },
+        });
+        await recordWebhookFailureSpike({
+          webhook: "clerk",
+          kind: "handler",
+          status: HTTP_STATUS.SERVICE_UNAVAILABLE,
+          extra: { svixId, eventType: event.type },
+        });
+        return NextResponse.json(
+          { ok: false, status: "in_progress" },
+          { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
+        );
+      }
+      await markClerkWebhookProcessed(svixId);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (event.type !== "user.created" && event.type !== "user.updated") {
+      await markClerkWebhookProcessed(svixId);
+      return NextResponse.json({ ok: true });
+    }
+
+    const {
+      id,
+      first_name,
+      last_name,
+      email_addresses,
+      primary_email_address_id,
+      image_url,
+    } = event.data;
+
+    const name = sanitizeUserName([first_name, last_name].filter(Boolean).join(" ")) || null;
+    const emailResolution = resolveClerkWebhookPrimaryEmail({
+      emailAddresses: email_addresses,
+      primaryEmailAddressId: primary_email_address_id,
+    });
+    const email = emailResolution.email;
+    if (emailResolution.reason !== "resolved") {
+      Sentry.captureMessage("Clerk webhook primary email unavailable", {
+        level: "warning",
+        tags: {
+          source: "clerk_webhook_primary_email",
+          reason: emailResolution.reason,
+          eventType: event.type,
+        },
+        extra: {
+          svixId,
+          clerkId: id,
+          primaryEmailAddressId: primary_email_address_id ?? null,
+          emailAddressCount: email_addresses?.length ?? 0,
+        },
+      });
+    }
+
+    const existingLocalUser = await prisma.user.findUnique({
+      where: { clerkId: id },
+      select: { id: true, email: true, banned: true, deletedAt: true },
+    });
+    if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
+      await markClerkWebhookProcessed(svixId);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (event.type === "user.created") {
+      const suppressionEmailKeys = emailSuppressionAddressKeys(email);
+      if (suppressionEmailKeys.length > 0) {
+        await prisma.emailSuppression.deleteMany({
+          where: { email: { in: suppressionEmailKeys }, source: "account_deletion" },
+        });
+      }
+    }
+
+    if (
+      shouldRevokeSessionsForClerkEmailChange({
+        eventType: event.type,
+        clerkUserId: id,
+        previousEmail: existingLocalUser?.email,
+        nextEmail: email,
+      })
+    ) {
+      const result = await revokeClerkUserSessions(id);
+      Sentry.captureMessage("Clerk email change revoked active sessions", {
+        level: "info",
+        tags: { source: "clerk_email_change_session_revoke" },
+        extra: {
+          svixId,
+          clerkId: id,
+          userId: existingLocalUser?.id,
+          revokedSessionCount: result.revokedSessionCount,
+        },
+      });
+    }
+
+    const user = await ensureUserByClerkId(id, {
+      ...(email ? { email } : {}),
+      name,
+      imageUrl: image_url ?? null,
+    });
+
+    if (
+      shouldReserveClerkWelcomeEmail({
+        eventType: event.type,
+        email,
+        welcomeEmailSentAt: user.welcomeEmailSentAt,
+      })
+    ) {
+      const welcomeEmail = email;
+      if (!welcomeEmail) {
+        await markClerkWebhookProcessed(svixId);
+        return NextResponse.json({ ok: true });
+      }
+
+      const reserved = await prisma.user.updateMany({
+        where: { id: user.id, welcomeEmailSentAt: null },
+        data: { welcomeEmailSentAt: new Date() },
+      });
+      if (reserved.count !== 1) {
+        await markClerkWebhookProcessed(svixId);
+        return NextResponse.json({ ok: true });
+      }
+
+      const sellerProfile = await prisma.sellerProfile.findUnique({
+        where: { userId: user.id },
+        select: { displayName: true },
+      });
+      const buyerWelcomeEmail = renderWelcomeBuyerEmail({ user: { name, email: welcomeEmail } });
+      const sellerWelcomeEmail = sellerProfile
+        ? renderWelcomeSellerEmail({
+            seller: { displayName: sellerProfile.displayName, email: welcomeEmail },
+          })
+        : null;
+
+      try {
+        await sendRenderedEmail(buyerWelcomeEmail, { throwOnFailure: true });
+        if (sellerWelcomeEmail) {
+          await sendRenderedEmail(sellerWelcomeEmail, { throwOnFailure: true });
+        }
+      } catch (error) {
+        Sentry.captureException(error, {
+          tags: { source: "clerk_webhook_welcome_email" },
+          extra: { svixId, clerkId: id, userId: user.id },
+        });
+        await enqueueWelcomeFallbackEmail(buyerWelcomeEmail, `welcome-buyer:${user.id}`, user.id).catch((enqueueError) => {
+          Sentry.captureException(enqueueError, {
+            tags: { source: "clerk_webhook_welcome_email_outbox" },
+            extra: { svixId, clerkId: id, userId: user.id, kind: "buyer" },
+          });
+        });
+        if (sellerWelcomeEmail) {
+          await enqueueWelcomeFallbackEmail(sellerWelcomeEmail, `welcome-seller:${user.id}`, user.id).catch((enqueueError) => {
+            Sentry.captureException(enqueueError, {
+              tags: { source: "clerk_webhook_welcome_email_outbox" },
+              extra: { svixId, clerkId: id, userId: user.id, kind: "seller" },
+            });
+          });
+        }
+      }
+    }
+
+    await markClerkWebhookProcessed(svixId);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    await markClerkWebhookFailed(svixId, error).catch((markError) => {
+      Sentry.captureException(markError, {
+        tags: { source: "clerk_webhook_mark_failed" },
+        extra: { svixId, eventType: event.type },
+      });
+    });
+    Sentry.captureException(error, {
+      tags: { source: "clerk_webhook" },
+      extra: { svixId, eventType: event.type },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "clerk",
+      kind: "handler",
+      status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      extra: { svixId, eventType: event.type },
+    });
+    throw error;
+  }
+}

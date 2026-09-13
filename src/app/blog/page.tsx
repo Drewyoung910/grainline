@@ -1,0 +1,578 @@
+// src/app/blog/page.tsx
+import { prisma } from "@/lib/db";
+import Link from "next/link";
+import type { Metadata } from "next";
+import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
+import { BlogPostType, Prisma } from "@prisma/client";
+import NewsletterSignup from "@/components/NewsletterSignup";
+import { auth } from "@clerk/nextjs/server";
+import SaveBlogButton from "@/components/SaveBlogButton";
+import { getBlockedIdsFor } from "@/lib/blocks";
+import BlogSearchBar from "@/components/BlogSearchBar";
+import MediaImage from "@/components/MediaImage";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { safeJsonLd } from "@/lib/json-ld";
+import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
+import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
+import { Suspense } from "react";
+import { BlogIndexSkeleton } from "@/components/RouteSkeletons";
+
+const BLOG_TITLE = "Stories from the Workshop";
+const BLOG_DESCRIPTION = "Spotlights, gift guides, build stories, and woodworking education from the Grainline community.";
+const BLOG_URL = "https://thegrainline.com/blog";
+const BLOG_SEARCH_QUERY_MAX_CHARS = 200;
+const BLOG_TAG_MAX_CHARS = 50;
+const BLOG_TAG_FILTER_MAX_COUNT = 10;
+const BLOG_AUTHOR_FILTER_MAX_CHARS = 50;
+
+export const metadata: Metadata = {
+  title: BLOG_TITLE,
+  description: BLOG_DESCRIPTION,
+  alternates: { canonical: BLOG_URL },
+};
+
+const TYPE_TABS: Array<{ label: string; value: string }> = [
+  { label: "All", value: "" },
+  { label: "Gift Guides", value: "GIFT_GUIDE" },
+  { label: "Spotlights", value: "MAKER_SPOTLIGHT" },
+  { label: "Behind the Build", value: "BEHIND_THE_BUILD" },
+  { label: "Education", value: "WOOD_EDUCATION" },
+];
+
+type BlogIndexPageProps = {
+  searchParams: Promise<{ type?: string; page?: string; bq?: string; tags?: string; sort?: string; author?: string }>;
+};
+
+export default function BlogIndexPage(props: BlogIndexPageProps) {
+  return (
+    <Suspense fallback={<BlogIndexSkeleton />}>
+      <BlogIndexPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function BlogIndexPageContent({
+  searchParams,
+}: BlogIndexPageProps) {
+  const sp = await searchParams;
+  const q = truncateText((sp.bq ?? "").trim(), BLOG_SEARCH_QUERY_MAX_CHARS);
+  const typeFilter = sp.type ?? "";
+  const tagsFilter = sp.tags
+    ? sp.tags
+        .split(",")
+        .map((tag) => truncateText(tag.trim(), BLOG_TAG_MAX_CHARS))
+        .filter(Boolean)
+        .slice(0, BLOG_TAG_FILTER_MAX_COUNT)
+    : [];
+  const authorFilter = truncateText((sp.author ?? "").trim(), BLOG_AUTHOR_FILTER_MAX_CHARS);
+  const sort = sp.sort ?? (q ? "relevant" : "newest");
+  const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
+  const pageSize = 12;
+
+  const typeValid = typeFilter && (Object.values(BlogPostType) as string[]).includes(typeFilter);
+
+  // Auth + block filter (resolved before queries so authorId notIn applies to both query paths)
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = meRow?.id ?? null;
+  }
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
+  const blockedUserIdList = [...blockedUserIds];
+
+  // Base where clause (type + tag + author filters apply always)
+  const blockFilters: Prisma.BlogPostWhereInput[] = [
+    ...(blockedUserIdList.length > 0 ? [{ authorId: { notIn: blockedUserIdList } }] : []),
+    ...(blockedSellerIds.length > 0
+      ? [{ OR: [{ sellerProfileId: null }, { sellerProfileId: { notIn: blockedSellerIds } }] }]
+      : []),
+  ];
+  const baseFilters: Prisma.BlogPostWhereInput = {
+    AND: [
+      ...(typeValid ? [{ type: typeFilter as BlogPostType }] : []),
+      ...(tagsFilter.length > 0 ? [{ tags: { hasSome: tagsFilter } }] : []),
+      ...(authorFilter ? [{ sellerProfileId: authorFilter }] : []),
+      ...blockFilters,
+    ],
+  };
+
+  type PostSelect = {
+    id: string;
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    coverImageUrl: string | null;
+    type: BlogPostType;
+    tags: string[];
+    readingTimeMinutes: number | null;
+    publishedAt: Date | null;
+    authorType: string;
+    author: { name: string | null; imageUrl: string | null; sellerProfile: { avatarImageUrl: string | null; displayName: string | null } | null };
+    sellerProfile: { displayName: string; avatarImageUrl: string | null } | null;
+  };
+
+  const POST_SELECT = {
+    id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, type: true,
+    tags: true, readingTimeMinutes: true, publishedAt: true, authorType: true,
+    author: { select: { name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
+    sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
+  } as const;
+
+  let allPosts: PostSelect[] = [];
+  let total = 0;
+
+  if (q && sort === "relevant") {
+    // GIN full-text ranked search
+    type RankedRow = { id: string };
+    const typeSql = typeValid ? Prisma.sql`AND "BlogPost".type = ${typeFilter}::"BlogPostType"` : Prisma.empty;
+    const tagsSql = tagsFilter.length > 0
+      ? Prisma.sql`AND "BlogPost".tags && ARRAY[${Prisma.join(tagsFilter)}]::text[]`
+      : Prisma.empty;
+    const authorSql = authorFilter ? Prisma.sql`AND "BlogPost"."sellerProfileId" = ${authorFilter}` : Prisma.empty;
+    const blockedAuthorSql = blockedUserIdList.length > 0
+      ? Prisma.sql`AND "BlogPost"."authorId" != ALL(${blockedUserIdList})`
+      : Prisma.empty;
+    const blockedSellerSql = blockedSellerIds.length > 0
+      ? Prisma.sql`AND ("BlogPost"."sellerProfileId" IS NULL OR "BlogPost"."sellerProfileId" != ALL(${blockedSellerIds}))`
+      : Prisma.empty;
+    const rankedRows = await prisma.$queryRaw<RankedRow[]>`
+      SELECT "BlogPost".id FROM "BlogPost"
+      JOIN "User" author_user ON author_user.id = "BlogPost"."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = "BlogPost"."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+      WHERE "BlogPost".status = 'PUBLISHED'
+        AND "BlogPost"."publishedAt" IS NOT NULL
+        AND "BlogPost"."publishedAt" <= NOW()
+        AND author_user.banned = false
+        AND author_user."deletedAt" IS NULL
+        AND (
+          "BlogPost"."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND sp."vacationMode" = false
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
+        ${typeSql}
+        ${tagsSql}
+        ${authorSql}
+        ${blockedAuthorSql}
+        ${blockedSellerSql}
+        AND to_tsvector('english',
+          coalesce("BlogPost".title, '') || ' ' || coalesce("BlogPost".excerpt, '') || ' ' || coalesce("BlogPost".body, '')
+        ) @@ plainto_tsquery('english', ${q})
+      ORDER BY ts_rank(
+        to_tsvector('english',
+          coalesce("BlogPost".title, '') || ' ' || coalesce("BlogPost".excerpt, '') || ' ' || coalesce("BlogPost".body, '')
+        ),
+        plainto_tsquery('english', ${q})
+      ) DESC,
+      "BlogPost"."publishedAt" DESC,
+      "BlogPost".id DESC
+      LIMIT 500
+    `;
+    const rankedIds = rankedRows.map((r) => r.id);
+
+    if (rankedIds.length > 0) {
+      const fetched = await prisma.blogPost.findMany({
+        where: publicBlogPostWhere({ id: { in: rankedIds }, ...baseFilters }),
+        select: POST_SELECT,
+      });
+      const byId = new Map(fetched.map((p) => [p.id, p as PostSelect]));
+      const ordered = rankedIds.map((id) => byId.get(id)).filter((p): p is PostSelect => !!p);
+      total = ordered.length;
+      const relevantTotalPages = Math.max(1, Math.ceil(total / pageSize));
+      const relevantPage = Math.min(Math.max(page, 1), relevantTotalPages);
+      const relevantSkip = (relevantPage - 1) * pageSize;
+      allPosts = ordered.slice(relevantSkip, relevantSkip + pageSize);
+    }
+  } else {
+    // Standard sort
+    const where: Prisma.BlogPostWhereInput = publicBlogPostWhere({
+      ...baseFilters,
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: "insensitive" } },
+              { excerpt: { contains: q, mode: "insensitive" } },
+              { tags: { hasSome: [q.toLowerCase()] } },
+            ],
+          }
+        : {}),
+    });
+    const orderBy: Prisma.BlogPostOrderByWithRelationInput[] =
+      sort === "alpha" ? [{ title: "asc" }, { publishedAt: "desc" }, { id: "desc" }] : [{ publishedAt: "desc" }, { id: "desc" }];
+    total = await prisma.blogPost.count({ where });
+    const standardTotalPages = Math.max(1, Math.ceil(total / pageSize));
+    const standardPage = Math.min(Math.max(page, 1), standardTotalPages);
+    allPosts = await prisma.blogPost.findMany({
+      where,
+      orderBy,
+      skip: (standardPage - 1) * pageSize,
+      take: pageSize,
+      select: POST_SELECT,
+    }) as PostSelect[];
+  }
+
+  const totalPages = Math.ceil(total / pageSize);
+  const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
+  const featured = !q && clampedPage === 1 && tagsFilter.length === 0 ? allPosts[0] ?? null : null;
+  const rest = featured ? allPosts.slice(1) : allPosts;
+
+  // Tag cloud — only when no active search
+  let tagCloud: Array<{ tag: string; count: number }> = [];
+  if (!q && tagsFilter.length === 0) {
+    tagCloud = await getPopularBlogTagRows(20);
+  }
+
+  // Saved set for logged-in users
+  let savedSet = new Set<string>();
+  if (meDbId && allPosts.length > 0) {
+    const saved = await ownerSavedBlogPostIdRows(meDbId, allPosts.map((p) => p.id));
+    savedSet = new Set(saved.map((s) => s.blogPostId));
+  }
+
+  function buildHref(overrides: Record<string, string>) {
+    const p = new URLSearchParams();
+    if (typeFilter) p.set("type", typeFilter);
+    if (q) p.set("bq", q);
+    if (tagsFilter.length) p.set("tags", tagsFilter.join(","));
+    if (authorFilter) p.set("author", authorFilter);
+    if (sort && sort !== "newest") p.set("sort", sort);
+    if (page > 1) p.set("page", String(page));
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v) p.set(k, v); else p.delete(k);
+    }
+    const qs = p.toString();
+    return `/blog${qs ? `?${qs}` : ""}`;
+  }
+
+  // Tag cloud size tiers
+  const maxTagCount = tagCloud.length > 0 ? Math.max(...tagCloud.map((t) => t.count)) : 1;
+  function tagSizeClass(count: number) {
+    const ratio = count / maxTagCount;
+    if (ratio > 0.66) return "text-sm font-medium text-neutral-800";
+    if (ratio > 0.33) return "text-xs text-neutral-700";
+    return "text-xs text-neutral-500";
+  }
+
+  const isSearching = q || tagsFilter.length > 0 || authorFilter;
+  const blogLd = {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    name: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    url: BLOG_URL,
+    blogPost: allPosts.slice(0, 12).map((post) => ({
+      "@type": "BlogPosting",
+      headline: post.title,
+      url: `${BLOG_URL}/${post.slug}`,
+      image: post.coverImageUrl ?? undefined,
+      datePublished: post.publishedAt?.toISOString(),
+      author: {
+        "@type": "Person",
+        name: post.sellerProfile?.displayName ?? post.author.sellerProfile?.displayName ?? post.author.name ?? "Grainline",
+      },
+    })),
+  };
+
+  return (
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(blogLd) }} />
+      {/* Hero */}
+      <section className="py-12 sm:py-16 text-center mb-8">
+        <h1 className="text-4xl sm:text-5xl font-bold font-display text-neutral-900 mb-3">
+          Stories from the Workshop
+        </h1>
+        <p className="text-lg text-neutral-600 max-w-xl mx-auto mb-6">
+          Spotlights, gift guides, build stories, and practical education from the Grainline community.
+        </p>
+        {/* Search bar */}
+        <div className="max-w-xl mx-auto">
+          <BlogSearchBar initialQ={q} />
+        </div>
+      </section>
+
+      {/* Filter tabs + sort */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        {TYPE_TABS.map((tab) => {
+          const active = typeFilter === tab.value;
+          return (
+            <Link
+              key={tab.value}
+              href={buildHref({ type: tab.value, page: "" })}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                active
+                  ? "bg-neutral-900 text-white"
+                  : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+
+        {/* Sort dropdown — only show when searching */}
+        {q && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-neutral-500">Sort:</span>
+            {(["relevant", "newest", "alpha"] as const).map((s) => (
+              <Link
+                key={s}
+                href={buildHref({ sort: s, page: "" })}
+                className={`text-sm px-3 py-1 rounded-full transition-colors ${
+                  sort === s
+                    ? "bg-neutral-900 text-white"
+                    : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+                }`}
+              >
+                {s === "relevant" ? "Most Relevant" : s === "newest" ? "Newest" : "A–Z"}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Active tag filter chips */}
+      {tagsFilter.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {tagsFilter.map((tag) => (
+            <span key={tag} className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full">
+              #{tag}
+              <Link
+                href={buildHref({ tags: tagsFilter.filter((t) => t !== tag).join(","), page: "" })}
+                className="hover:text-amber-900 ml-0.5"
+                aria-label={`Remove tag ${tag}`}
+              >
+                ×
+              </Link>
+            </span>
+          ))}
+          <Link href={buildHref({ tags: "", page: "" })} className="text-xs text-neutral-500 hover:underline self-center">
+            Clear all
+          </Link>
+        </div>
+      )}
+
+      {/* Search results header */}
+      {isSearching && (
+        <div className="mb-5 text-sm text-neutral-500">
+          {q && (
+            <span>
+              {total} result{total !== 1 ? "s" : ""} for{" "}
+              <span className="font-medium text-neutral-800">&ldquo;{q}&rdquo;</span>
+              {typeValid && (
+                <span> in <span className="font-medium text-neutral-800">{BLOG_TYPE_LABELS[typeFilter as BlogPostType]}</span></span>
+              )}
+            </span>
+          )}
+          {!q && tagsFilter.length > 0 && (
+            <span>{total} post{total !== 1 ? "s" : ""} tagged {tagsFilter.map((t) => `#${t}`).join(", ")}</span>
+          )}
+        </div>
+      )}
+
+      {allPosts.length === 0 ? (
+        <div className="card-section p-12 text-center">
+          <p className="text-neutral-500 mb-4">
+            {q ? `No posts found for "${q}"` : "No posts yet — check back soon."}
+          </p>
+          {q && tagCloud.length > 0 && (
+            <>
+              <p className="text-sm text-neutral-500 mb-4">Try browsing by topic →</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {tagCloud.slice(0, 10).map((t) => (
+                  <Link
+                    key={t.tag}
+                    href={buildHref({ tags: t.tag, bq: "", page: "" })}
+                    className="border rounded-full px-3 py-1 text-xs text-neutral-600 hover:bg-neutral-50"
+                  >
+                    #{t.tag}
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Featured post (only on first page, no search, no tag filter) */}
+          {featured && (
+            <div className="relative mb-10">
+            <div className="absolute top-3 right-3 z-10">
+              <SaveBlogButton slug={featured.slug} initialSaved={savedSet.has(featured.id)} />
+            </div>
+            <Link
+              href={`/blog/${featured.slug}`}
+              className="group block card-listing hover:shadow-md transition-shadow"
+            >
+              <div className="md:flex">
+                <div className="md:w-1/2 aspect-[16/9] overflow-hidden bg-neutral-100">
+                  <MediaImage
+                    src={featured.coverImageUrl}
+                    alt={featured.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    fallbackClassName="w-full h-full bg-gradient-to-br from-amber-100 to-stone-200"
+                  />
+                </div>
+                <div className="md:w-1/2 p-6 sm:p-8 flex flex-col justify-center space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-xs font-semibold">
+                      Featured
+                    </span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[featured.type]}`}>
+                      {BLOG_TYPE_LABELS[featured.type]}
+                    </span>
+                    {featured.readingTimeMinutes && (
+                      <span className="text-xs text-neutral-500">{featured.readingTimeMinutes} min read</span>
+                    )}
+                  </div>
+                  <h2 className="text-2xl font-bold text-neutral-900 group-hover:underline underline-offset-2">
+                    {featured.title}
+                  </h2>
+                  {featured.excerpt && (
+                    <p className="text-neutral-600 text-sm line-clamp-3">{featured.excerpt}</p>
+                  )}
+                  <div className="flex items-center gap-2 pt-1">
+                    {(() => {
+                      const authorProfile = featured.sellerProfile ?? featured.author.sellerProfile;
+                      const avatar = authorProfile?.avatarImageUrl ?? featured.author.imageUrl;
+                      const name = authorProfile?.displayName ?? featured.author.name ?? "Staff";
+                      return (
+                        <>
+                          {avatar ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={avatar} alt={name} className="h-6 w-6 rounded-full object-cover" />
+                          ) : (
+                            <div className="h-6 w-6 rounded-full bg-neutral-200" />
+                          )}
+                          <span className="text-xs text-neutral-500">{name}</span>
+                        </>
+                      );
+                    })()}
+                    {featured.publishedAt && (
+                      <span className="text-xs text-neutral-500 ml-auto">
+                        {new Date(featured.publishedAt).toLocaleDateString("en-US", {
+                          month: "short", day: "numeric", year: "numeric",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Link>
+            </div>
+          )}
+
+          {/* Post grid */}
+          {rest.length > 0 && (
+            <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-10">
+              {rest.map((post) => {
+                const authorProfile = post.sellerProfile ?? post.author.sellerProfile;
+                const avatar = authorProfile?.avatarImageUrl ?? post.author.imageUrl;
+                const name = authorProfile?.displayName ?? post.author.name ?? "Staff";
+                const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
+                return (
+                  <li key={post.id} className="relative card-listing">
+                    <div className="absolute top-2 right-2 z-10">
+                      <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
+                    </div>
+                    <Link href={`/blog/${post.slug}`} className="block">
+                      <div className="aspect-[4/3] bg-neutral-100 overflow-hidden">
+                        <MediaImage
+                          src={post.coverImageUrl}
+                          alt={post.title}
+                          className="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[post.type]}`}>
+                            {BLOG_TYPE_LABELS[post.type]}
+                          </span>
+                          {post.readingTimeMinutes && (
+                            <span className="text-xs text-neutral-500">{post.readingTimeMinutes} min</span>
+                          )}
+                        </div>
+                        <h3 className="font-semibold text-neutral-900 line-clamp-2">{post.title}</h3>
+                        {excerpt && <p className="text-sm text-neutral-500 line-clamp-2">{excerpt}</p>}
+                        <div className="flex items-center gap-1.5 pt-1">
+                          {avatar ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={avatar} alt={name} className="h-5 w-5 rounded-full object-cover" />
+                          ) : (
+                            <div className="h-5 w-5 rounded-full bg-neutral-200" />
+                          )}
+                          <span className="text-xs text-neutral-500">{name}</span>
+                          {post.publishedAt && (
+                            <span className="text-xs text-neutral-500 ml-auto">
+                              {new Date(post.publishedAt).toLocaleDateString("en-US", {
+                                month: "short", day: "numeric",
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex justify-center gap-2 mb-12">
+              {clampedPage > 1 && (
+                <Link
+                  href={buildHref({ page: String(clampedPage - 1) })}
+                  className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+                >
+                  ← Previous
+                </Link>
+              )}
+              <span className="rounded-md border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+                Page {clampedPage} of {totalPages}
+              </span>
+              {clampedPage < totalPages && (
+                <Link
+                  href={buildHref({ page: String(clampedPage + 1) })}
+                  className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+                >
+                  Next →
+                </Link>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Browse by Topic tag cloud — only shown when not searching */}
+      {!isSearching && tagCloud.length > 0 && (
+        <section className="mb-12 pt-8 border-t border-neutral-100">
+          <h2 className="text-lg font-semibold text-neutral-800 mb-4">Browse by Topic</h2>
+          <div className="flex flex-wrap gap-2">
+            {tagCloud.map((t) => (
+              <Link
+                key={t.tag}
+                href={buildHref({ tags: t.tag, page: "" })}
+                className={`border border-neutral-200 rounded-full px-3 py-1 hover:bg-neutral-50 transition-colors ${tagSizeClass(t.count)}`}
+              >
+                #{t.tag}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Newsletter */}
+      <NewsletterSignup />
+    </main>
+  );
+}

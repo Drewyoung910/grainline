@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "reviewedAtUtc": "2026-09-13T00:29:50.801931+00:00",
+  "actions": {
+    "checkout": {
+      "repository": "actions/checkout",
+      "version": "v7.0.1",
+      "commit": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "releaseUrl": "https://github.com/actions/checkout/releases/tag/v7.0.1",
+      "publishedAt": "2026-07-20T15:10:05Z",
+      "githubReportsVerifiedSignature": true,
+      "runtime": "node24"
+    },
+    "setup-node": {
+      "repository": "actions/setup-node",
+      "version": "v7.0.0",
+      "commit": "820762786026740c76f36085b0efc47a31fe5020",
+      "releaseUrl": "https://github.com/actions/setup-node/releases/tag/v7.0.0",
+      "publishedAt": "2026-07-14T02:46:05Z",
+      "githubReportsVerifiedSignature": true,
+      "runtime": "node24"
+    },
+    "upload-artifact": {
+      "repository": "actions/upload-artifact",
+      "version": "v7.0.1",
+      "commit": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "releaseUrl": "https://github.com/actions/upload-artifact/releases/tag/v7.0.1",
+      "publishedAt": "2026-04-10T17:31:14Z",
+      "githubReportsVerifiedSignature": true,
+      "runtime": "node24"
+    }
+  },
+  "runner": {
+    "label": "ubuntu-24.04",
+    "platform": "linux",
+    "architecture": "x64",
+    "minimumActionsRunnerVersion": "2.327.1",
+    "actualRunnerIdentityVerified": false
+  },
+  "toolchain": {
+    "nodeVersion": "v22.23.2",
+    "npmVersion": "10.9.8",
+    "nodeSha256": "3517c2df0b2f8cd7f422b4b8450ef81c6889f08eb03e281d6de9079b15e6a327",
+    "npmCliSha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "npmPackageSha256": "3f6dff62de33c82d89e986a05ddd5644e6b613344a54ecf2820a612bfbaee7d7",
+    "npmInventorySha256": "1dfec6dc86674ec3c479c06e05d61a7a92e29173a5f9358243f75b54b5aab551",
+    "nodeArchiveUrl": "https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-x64.tar.xz",
+    "nodeArchiveSha256": "d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307",
+    "toolCacheArchiveUrl": "https://github.com/actions/node-versions/releases/download/22.23.2-30508424155/node-22.23.2-linux-x64.tar.gz",
+    "toolCacheArchiveSha256": "eebfee5f7ded97a9364ebf5275923c62d3b09e98df2334bd1ef65b5e6b0a8e2d",
+    "npmCliRelativePath": "lib/node_modules/npm/bin/npm-cli.js",
+    "npmInventoryEntries": 1964,
+    "actualRunnerPlacementVerified": false,
+    "linuxExecutionProven": false
+  },
+  "workflowActivated": false,
+  "productionExecutionAuthorized": false
+}

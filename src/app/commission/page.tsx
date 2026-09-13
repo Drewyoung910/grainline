@@ -1,0 +1,548 @@
+// src/app/commission/page.tsx
+import { prisma } from "@/lib/db";
+import Link from "next/link";
+import { truncateTextWithEllipsis } from "@/lib/sanitize";
+import type { Metadata } from "next";
+import { auth } from "@clerk/nextjs/server";
+import { Category } from "@prisma/client";
+import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
+import CommissionInterestButton from "./CommissionInterestButton";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
+import { MapPin } from "@/components/icons";
+import { safeJsonLd } from "@/lib/json-ld";
+import { openCommissionWhere } from "@/lib/commissionExpiry";
+import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
+import { Suspense } from "react";
+import { CommissionRoomSkeleton } from "@/components/RouteSkeletons";
+
+export const metadata: Metadata = {
+  title: "Custom Woodworking Commissions — Find a Maker | Grainline",
+  description: "Post a custom woodworking commission request and get matched with skilled local and national makers. Describe your vision, set your budget, and let makers come to you.",
+};
+
+function timeAgo(dateStr: Date | string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+type CommissionPageProps = {
+  searchParams: Promise<{ page?: string; category?: string; tab?: string }>;
+};
+
+export default function CommissionPage(props: CommissionPageProps) {
+  return (
+    <Suspense fallback={<CommissionRoomSkeleton />}>
+      <CommissionPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function CommissionPageContent({
+  searchParams,
+}: CommissionPageProps) {
+  const sp = await searchParams;
+  const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 1000);
+  let page = requestedPage;
+  const categoryFilter = sp.category ?? "";
+  const categoryValid = categoryFilter && CATEGORY_VALUES.includes(categoryFilter);
+  const tab = sp.tab === "near" ? "near" : "all";
+  const pageSize = 20;
+
+  // Get current user + location + seller profile
+  const { userId } = await auth();
+  let meId: string | null = null;
+  let sellerProfileId: string | null = null;
+  let viewerLat: number | null = null;
+  let viewerLng: number | null = null;
+
+  if (userId) {
+    const me = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: {
+        id: true,
+        sellerProfile: { select: { id: true, lat: true, lng: true } },
+      },
+    });
+    if (me) {
+      meId = me.id;
+      sellerProfileId = me.sellerProfile?.id ?? null;
+      if (me.sellerProfile?.lat != null) viewerLat = Number(me.sellerProfile.lat);
+      if (me.sellerProfile?.lng != null) viewerLng = Number(me.sellerProfile.lng);
+    }
+  }
+
+  const hasLocation = viewerLat != null && viewerLng != null;
+  const blockedUserIds = await getBlockedUserIdsFor(meId);
+
+  // Build where clause
+  const where = openCommissionWhere({
+    ...(categoryValid ? { category: categoryFilter as Category } : {}),
+    ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
+  });
+
+  // For Near Me tab: filter by distance using raw SQL
+  let requests: Array<{
+    id: string;
+    title: string;
+    description: string;
+    category: Category | null;
+    budgetMinCents: number | null;
+    budgetMaxCents: number | null;
+    timeline: string | null;
+    referenceImageUrls: string[];
+    interestedCount: number;
+    createdAt: Date;
+    lat: number | null;
+    lng: number | null;
+    isNational: boolean;
+    buyer: { name: string | null; imageUrl: string | null };
+    distanceMeters?: number;
+  }>;
+  let total: number;
+
+  if (tab === "near" && hasLocation) {
+    // Near Me: show local requests first, then national ones, filtered by 80km
+    const radius = 80000; // 80km
+
+    // SECURITY: $queryRawUnsafe is used here because Prisma's $queryRaw
+    // tagged template cannot handle conditional SQL fragments. All user
+    // input (categoryFilter) is passed as bound positional parameters ($9/$5),
+    // never interpolated into the SQL string. categoryFilter is also
+    // validated against CATEGORY_VALUES allowlist before reaching this code.
+    const categoryConditionSelect = categoryValid ? `AND cr.category::text = $9` : "";
+    const categoryConditionCount = categoryValid ? `AND cr.category::text = $5` : "";
+
+    const countSql = `
+      SELECT COUNT(*) FROM "CommissionRequest" cr
+      JOIN "User" u ON u.id = cr."buyerId"
+      WHERE cr.status = 'OPEN'
+        AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND NOT (u.id = ANY($4::text[]))
+        ${categoryConditionCount}
+        AND (
+          cr."isNational" = true
+          OR (cr.lat IS NOT NULL AND cr.lng IS NOT NULL AND
+              6371000 * acos(
+                LEAST(1.0, GREATEST(-1.0,
+                  cos(radians($1)) * cos(radians(cr.lat)) *
+                  cos(radians(cr.lng) - radians($2)) +
+                  sin(radians($1)) * sin(radians(cr.lat))
+                ))
+              ) <= $3
+          )
+        )`;
+
+    const countArgs: unknown[] = [viewerLat, viewerLng, radius, [...blockedUserIds]];
+    if (categoryValid) countArgs.push(categoryFilter);
+    const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, ...countArgs);
+
+    total = Number(countResult[0].count);
+    page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
+
+    const selectSql = `
+      SELECT
+        cr.id, cr.title, cr.description, cr.category,
+        cr."budgetMinCents", cr."budgetMaxCents", cr.timeline,
+        cr."referenceImageUrls", COALESCE(ci."interestCount", 0)::int AS "interestedCount", cr."createdAt",
+        cr.lat, cr.lng, cr."isNational",
+        u.id AS "buyerId", u.name AS "buyerName", u."imageUrl" AS "buyerImageUrl",
+        CASE
+          WHEN cr.lat IS NOT NULL AND cr.lng IS NOT NULL
+          THEN (6371000 * acos(
+            LEAST(1.0, GREATEST(-1.0,
+              cos(radians($1)) * cos(radians(cr.lat)) *
+              cos(radians(cr.lng) - radians($2)) +
+              sin(radians($1)) * sin(radians(cr.lat))
+            ))
+          ))
+          ELSE NULL
+        END AS distance_m
+      FROM "CommissionRequest" cr
+      JOIN "User" u ON u.id = cr."buyerId"
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS "interestCount"
+        FROM "CommissionInterest" ci
+        INNER JOIN "SellerProfile" isp ON isp.id = ci."sellerProfileId"
+        INNER JOIN "User" iu ON iu.id = isp."userId"
+        WHERE ci."commissionRequestId" = cr.id
+          AND isp."chargesEnabled" = true
+          AND (isp."stripeAccountVersion" IS NULL OR isp."stripeAccountVersion" = 'v2')
+          AND isp."vacationMode" = false
+          AND iu.banned = false
+          AND iu."deletedAt" IS NULL
+      ) ci ON true
+      WHERE cr.status = 'OPEN'
+        AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND NOT (u.id = ANY($8::text[]))
+        ${categoryConditionSelect}
+        AND (
+          cr."isNational" = true
+          OR (cr.lat IS NOT NULL AND cr.lng IS NOT NULL AND
+              6371000 * acos(
+                LEAST(1.0, GREATEST(-1.0,
+                  cos(radians($3)) * cos(radians(cr.lat)) *
+                  cos(radians(cr.lng) - radians($4)) +
+                  sin(radians($3)) * sin(radians(cr.lat))
+                ))
+              ) <= $5
+          )
+        )
+      ORDER BY
+        CASE WHEN cr."isNational" = false AND cr.lat IS NOT NULL THEN 0 ELSE 1 END ASC,
+        distance_m ASC NULLS LAST,
+        cr."createdAt" DESC,
+        cr.id DESC
+      LIMIT $6 OFFSET $7`;
+
+    const rawResults = await prisma.$queryRawUnsafe<Array<{
+      id: string;
+      title: string;
+      description: string;
+      category: string | null;
+      budgetMinCents: number | null;
+      budgetMaxCents: number | null;
+      timeline: string | null;
+      referenceImageUrls: string[];
+      interestedCount: number;
+      createdAt: Date;
+      lat: number | null;
+      lng: number | null;
+      isNational: boolean;
+      buyerId: string;
+      buyerName: string | null;
+      buyerImageUrl: string | null;
+      distance_m: number | null;
+    }>>(selectSql, ...((): unknown[] => {
+      const args: unknown[] = [viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, (page - 1) * pageSize, [...blockedUserIds]];
+      if (categoryValid) args.push(categoryFilter);
+      return args;
+    })());
+
+    requests = rawResults.map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      category: r.category as Category | null,
+      budgetMinCents: r.budgetMinCents,
+      budgetMaxCents: r.budgetMaxCents,
+      timeline: r.timeline,
+      referenceImageUrls: r.referenceImageUrls,
+      interestedCount: Number(r.interestedCount),
+      createdAt: r.createdAt,
+      lat: r.lat,
+      lng: r.lng,
+      isNational: r.isNational,
+      buyer: { name: r.buyerName, imageUrl: r.buyerImageUrl },
+      distanceMeters: r.distance_m != null ? Number(r.distance_m) : undefined,
+    }));
+  } else {
+    total = await prisma.commissionRequest.count({ where });
+    page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
+    const found = await prisma.commissionRequest.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        category: true,
+        budgetMinCents: true,
+        budgetMaxCents: true,
+        timeline: true,
+        referenceImageUrls: true,
+        interestedCount: true,
+        _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
+        createdAt: true,
+        lat: true,
+        lng: true,
+        isNational: true,
+        buyer: { select: { name: true, imageUrl: true } },
+      },
+    });
+    requests = found.map(({ _count, ...request }) => ({
+      ...request,
+      interestedCount: resolvedInterestedCount({
+        interestedCount: request.interestedCount,
+        _count,
+      }),
+    }));
+  }
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  // Load interest set for this seller
+  let interestedSet = new Set<string>();
+  if (sellerProfileId && requests.length > 0) {
+    const interests = await prisma.commissionInterest.findMany({
+      where: {
+        sellerProfileId,
+        commissionRequestId: { in: requests.map((r) => r.id) },
+      },
+      select: { commissionRequestId: true },
+    });
+    interestedSet = new Set(interests.map((i) => i.commissionRequestId));
+  }
+
+  function buildHref(overrides: Record<string, string>) {
+    const p = new URLSearchParams();
+    if (categoryFilter) p.set("category", categoryFilter);
+    if (tab === "near") p.set("tab", "near");
+    if (page > 1) p.set("page", String(page));
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v) p.set(k, v); else p.delete(k);
+    }
+    const qs = p.toString();
+    return `/commission${qs ? `?${qs}` : ""}`;
+  }
+
+  const faqLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "How do custom woodworking commissions work on Grainline?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Post a request describing the custom piece you want, including details like dimensions, wood type, and budget. Skilled makers browse requests and express interest. You review their profiles, past work, and ratings, then connect directly via messages to discuss your project and finalize details.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "How much does a custom woodworking commission cost?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Pricing varies based on the complexity, size, wood species, and maker experience. You set your own budget range when posting a request, and makers who can work within that range will express interest. Most custom pieces range from $100 for small items to several thousand dollars for large furniture.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "How long does a custom commission take?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Timelines depend on the maker's schedule and the complexity of your piece. Simple items may take 1-2 weeks, while complex furniture can take 2-3 months. You can specify your preferred timeline when posting a request, and makers will let you know if they can meet it.",
+        },
+      },
+    ],
+  };
+
+  return (
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+      {/* FAQ JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(faqLd) }}
+      />
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold font-display text-neutral-900">Commission Room</h1>
+          <p className="text-neutral-500 mt-1 text-sm">
+            Buyers post custom piece requests. Makers express interest to connect.
+          </p>
+        </div>
+        <Link
+          href="/commission/new"
+          className="rounded-md bg-neutral-900 text-white text-sm px-4 py-2 hover:bg-neutral-700 transition-colors"
+        >
+          Post a Request
+        </Link>
+      </div>
+
+      {/* Tab strip */}
+      <div className="flex gap-1 mb-6 border-b border-neutral-100">
+        <Link
+          href={buildHref({ tab: "", page: "" })}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === "all"
+              ? "border-neutral-900 text-neutral-900"
+              : "border-transparent text-neutral-500 hover:text-neutral-700"
+          }`}
+        >
+          All Requests
+        </Link>
+        {hasLocation && (
+          <Link
+            href={buildHref({ tab: "near", page: "" })}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === "near"
+                ? "border-neutral-900 text-neutral-900"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            <span className="flex items-center gap-1"><MapPin size={13} /> Near Me</span>
+          </Link>
+        )}
+      </div>
+
+      {/* How it works explainer */}
+      <div className="bg-amber-50 border border-amber-200/60 rounded-lg p-4 mb-6">
+        <h2 className="font-medium text-amber-900 mb-1">How the Commission Room works</h2>
+        <p className="text-sm text-amber-800">
+          Post a custom piece request describing what you need. Makers browse requests and express interest.
+          You review interested makers and connect directly via messages to discuss your project.
+        </p>
+      </div>
+
+      {/* Category filter */}
+      <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto">
+        <Link
+          href={buildHref({ category: "", page: "" })}
+          className={`rounded-full px-3 py-1 text-sm border whitespace-nowrap transition-colors ${
+            !categoryFilter ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
+          }`}
+        >
+          All
+        </Link>
+        {CATEGORY_VALUES.map((cat) => (
+          <Link
+            key={cat}
+            href={buildHref({ category: cat, page: "" })}
+            className={`rounded-full px-3 py-1 text-sm border whitespace-nowrap transition-colors ${
+              categoryFilter === cat ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
+            }`}
+          >
+            {CATEGORY_LABELS[cat]}
+          </Link>
+        ))}
+      </div>
+
+      {requests.length === 0 ? (
+        <div className="card-section p-12 text-center">
+          <p className="text-lg font-medium text-neutral-700 mb-2">No commission requests yet</p>
+          <p className="text-sm text-neutral-500 mb-6">
+            Be the first to post a custom piece request. Describe what you&apos;re looking for
+            and makers will reach out directly.
+          </p>
+          <Link
+            href="/commission/new"
+            className="inline-block rounded-md bg-neutral-900 text-white px-6 py-2 text-sm hover:bg-neutral-700"
+          >
+            Post a Request →
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {requests.map((r) => {
+            const buyerName = r.buyer.name?.split(" ")[0] ?? "Buyer";
+            return (
+              <div key={r.id} className="card-listing p-5">
+                <div className="flex items-start gap-4">
+                  {/* Thumbnail */}
+                  {r.referenceImageUrls[0] && (
+                    <Link href={`/commission/${r.id}`} className="shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={r.referenceImageUrls[0]}
+                        alt="Reference"
+                        loading="lazy"
+                        className="w-24 h-24 object-cover rounded-lg border border-stone-200"
+                      />
+                    </Link>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <Link href={`/commission/${r.id}`} className="font-medium text-neutral-900 hover:underline">
+                        {r.title}
+                      </Link>
+                      {r.category && (
+                        <span className="text-xs text-stone-500 border border-stone-200 rounded-full px-2 py-0.5 shrink-0">
+                          {CATEGORY_LABELS[r.category]}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Budget — most prominent element */}
+                    {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents) && (
+                      <div className="font-semibold text-lg text-amber-700 mb-1">
+                        {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents)}
+                      </div>
+                    )}
+
+                    <p className="text-sm text-stone-500 line-clamp-2 mb-2">
+                      {truncateTextWithEllipsis(r.description, 200)}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
+                      {/* Timeline */}
+                      {r.timeline && <span className="text-stone-500">{r.timeline}</span>}
+                      {/* Buyer */}
+                      <span className="flex items-center gap-1">
+                        {r.buyer.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={r.buyer.imageUrl} alt={buyerName} className="w-4 h-4 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full bg-neutral-200" />
+                        )}
+                        {buyerName}
+                      </span>
+                      {/* Time */}
+                      <span>{timeAgo(r.createdAt)}</span>
+                      {/* Interest count */}
+                      <span>{r.interestedCount} maker{r.interestedCount !== 1 ? "s" : ""} interested</span>
+                      {/* Local distance badge */}
+                      {!r.isNational && r.distanceMeters != null && r.distanceMeters < 80000 && (
+                        <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
+                          <MapPin size={11} /> {Math.round(r.distanceMeters / 1609)} mi away
+                        </span>
+                      )}
+                      {!r.isNational && r.distanceMeters == null && (
+                        <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
+                          <MapPin size={11} /> Local request
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Interest button — only for sellers, not buyer */}
+                  {sellerProfileId && (
+                    <CommissionInterestButton
+                      requestId={r.id}
+                      sellerProfileId={sellerProfileId}
+                      initialInterested={interestedSet.has(r.id)}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 mt-8">
+          {page > 1 && (
+            <Link href={buildHref({ page: String(page - 1) })} className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+              ← Previous
+            </Link>
+          )}
+          <span className="border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+            Page {page} of {totalPages}
+          </span>
+          {page < totalPages && (
+            <Link href={buildHref({ page: String(page + 1) })} className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+              Next →
+            </Link>
+          )}
+        </div>
+      )}
+    </main>
+  );
+}

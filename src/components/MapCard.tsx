@@ -1,0 +1,182 @@
+// src/components/MapCard.tsx
+"use client";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { useEffect, useRef, useState } from "react";
+import * as maplibregl from "@/lib/maplibreClient";
+import MapFallback from "@/components/MapFallback";
+import { maplibreSupported } from "@/lib/mapSupport";
+
+// --- deterministic PRNG so jitter stays stable per seed ---
+function xmur3(str: string) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return (h ^= h >>> 16) >>> 0;
+  };
+}
+function mulberry32(a: number) {
+  return function () {
+    let t = (a += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seededRand(seed: string) {
+  const h = xmur3(seed);
+  return mulberry32(h());
+}
+
+// small jitter so the circle center isn't the exact address
+function jitterAround(lat: number, lng: number, radiusMeters: number, seed?: string | null) {
+  const R = 111_111; // m per degree approx
+  const max = Math.min(radiusMeters * 0.4, 800); // cap jitter at 800m
+
+  const rnd = seed ? seededRand(seed) : Math.random;
+  const r = (rnd() * max) / R;
+  const t = rnd() * Math.PI * 2;
+
+  const dLat = r * Math.sin(t);
+  const dLon = (r * Math.cos(t)) / Math.cos((lat * Math.PI) / 180);
+  return { lat: lat + dLat, lng: lng + dLon };
+}
+
+type Props = {
+  lat: number;
+  lng: number;
+  label?: string;
+  radiusMeters?: number | null;
+  /** Show a pin even when a radius is present (defaults to false for privacy) */
+  showPinWithRadius?: boolean;
+  /** Use a stable seed so jitter doesn't jump (e.g., seller.id) */
+  seed?: string | null;
+  className?: string;
+};
+
+export default function MapCard({
+  lat,
+  lng,
+  label,
+  radiusMeters,
+  showPinWithRadius = false,
+  seed,
+  className,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [mapUnavailable, setMapUnavailable] = useState(false);
+  const privacyRadiusMeters = typeof radiusMeters === "number" && radiusMeters > 0 ? radiusMeters : null;
+  const hasPrivacyRadius = privacyRadiusMeters !== null;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    setMapUnavailable(false);
+
+    if (!maplibreSupported(maplibregl)) {
+      setMapUnavailable(true);
+      return;
+    }
+
+    let displayLat = lat;
+    let displayLng = lng;
+    if (hasPrivacyRadius) {
+      const jittered = jitterAround(lat, lng, privacyRadiusMeters, seed);
+      displayLat = jittered.lat;
+      displayLng = jittered.lng;
+    }
+
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        center: [displayLng, displayLat],
+        zoom: privacyRadiusMeters ? Math.max(9, 14 - Math.log2(privacyRadiusMeters / 100)) : 13,
+        // interactive defaults to true — pan and zoom enabled
+      });
+    } catch {
+      setMapUnavailable(true);
+      return;
+    }
+
+    map.scrollZoom.disable(); // prevent scroll hijacking on page
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    map.on("load", () => {
+      if (hasPrivacyRadius) {
+        const numPoints = 64;
+        const coords: [number, number][] = [];
+        for (let i = 0; i < numPoints; i++) {
+          const angle = (i / numPoints) * 2 * Math.PI;
+          const dx = (privacyRadiusMeters / 111320) * Math.cos(angle);
+          const dy = (privacyRadiusMeters / (111320 * Math.cos((displayLat * Math.PI) / 180))) * Math.sin(angle);
+          coords.push([displayLng + dy, displayLat + dx]);
+        }
+        coords.push(coords[0]);
+
+        map.addSource("radius", {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            geometry: { type: "Polygon", coordinates: [coords] },
+            properties: {},
+          },
+        });
+
+        map.addLayer({
+          id: "radius-fill",
+          type: "fill",
+          source: "radius",
+          paint: { "fill-color": "#1C1C1A", "fill-opacity": 0.08 },
+        });
+
+        map.addLayer({
+          id: "radius-border",
+          type: "line",
+          source: "radius",
+          paint: { "line-color": "#1C1C1A", "line-width": 1.5, "line-opacity": 0.4 },
+        });
+      }
+
+      if (!hasPrivacyRadius || showPinWithRadius) {
+        const marker = new maplibregl.Marker({ color: "#1C1C1A" })
+          .setLngLat([displayLng, displayLat]);
+        if (label) {
+          marker.setPopup(new maplibregl.Popup({ offset: 25 }).setText(label));
+        }
+        marker.addTo(map);
+      }
+    });
+
+    return () => map.remove();
+  }, [lat, lng, privacyRadiusMeters, hasPrivacyRadius, showPinWithRadius, seed, label]);
+
+  const resolvedClassName = className ?? "h-48 w-full rounded-xl border border-neutral-200 overflow-hidden";
+  if (mapUnavailable) {
+    return (
+      <MapFallback
+        className={resolvedClassName}
+        lat={hasPrivacyRadius ? null : lat}
+        lng={hasPrivacyRadius ? null : lng}
+        message={
+          hasPrivacyRadius
+            ? "Map preview is unavailable because WebGL is disabled or unsupported. Exact pickup details are private."
+            : "Map preview is unavailable because WebGL is disabled or unsupported."
+        }
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      role="application"
+      aria-label={label ? `Map showing ${label}` : "Map preview"}
+      className={resolvedClassName}
+    />
+  );
+}

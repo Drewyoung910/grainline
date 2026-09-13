@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-08-10T06:07:28.555Z",
+  "phase": "stripe-connect-disposable-payout-preparation",
+  "status": "passed",
+  "mode": "test",
+  "commit": "0b718171e71700990bf8f9106ee880b116707bd3",
+  "ciRunId": "31357207924",
+  "deploymentId": "dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP",
+  "stripe": {
+    "accountIdSha256": "430231e8832bd4a590f53fc74c89e2413a24d0a69d02a5e68e09c31d3ba8a8ec",
+    "payoutIdSha256": "7c6d3def0b9a0db9881854ef978f7cb975cfa020dd5fd23df72d9050d69c23df",
+    "eventIdSha256": "5bcf419f013b7c82f523b41029a6f8fb76a114e468dfb56eedaef850dda19a9f",
+    "preparationAttemptIdSha256": "9b160717436a1ad7f53ea1939270f10958170f0673c827d33495c04ad5752933",
+    "eventType": "payout.failed",
+    "failureCode": "no_account",
+    "livemode": false,
+    "disposableAccountCleanupPending": true
+  },
+  "rawProviderIdsPersistedInEvidence": false,
+  "secretsPersistedInEvidence": false,
+  "connectEndpointEnabled": false,
+  "nextBoundary": "enable the canonical endpoint only inside signed delivery and exact replay proof"
+}

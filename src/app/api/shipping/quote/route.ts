@@ -1,0 +1,860 @@
+// src/app/api/shipping/quote/route.ts
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/db";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { shippoRequest } from "@/lib/shippo";
+import {
+  shippingRateSubjectHash,
+  signRate,
+  type SignedRateFields,
+} from "@/lib/shipping-token";
+import {
+  filterShippoRatesForCheckout,
+  normalizeShippoRatesForCheckout,
+  PICKUP_RATE_OBJECT_ID,
+  resolveSellerCheckoutShippingPolicy,
+  safeFallbackShippingCents,
+  type SellerConfiguredShippingRate,
+  type ShippoQuoteRate,
+} from "@/lib/shippingQuoteState";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
+import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import { DEFAULT_CURRENCY } from "@/lib/money";
+import { sanitizeAddressField } from "@/lib/addressFields";
+import { logServerError } from "@/lib/serverErrorLogger";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { z } from "zod";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import { ownerCartForShippingQuote, ownerCartForShippingQuoteById } from "@/lib/cartOwnerAccess";
+import { buildShippoCheckoutQuoteShipment } from "@/lib/shippingQuoteProvider";
+import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
+import { normalizeUsState } from "@/lib/usStates";
+
+type SignedRateDestination = Pick<
+  SignedRateFields,
+  "buyerCity" | "buyerState" | "buyerPostal" | "buyerCountry"
+>;
+
+const ShippingQuoteSchema = z.object({
+  mode: z.enum(["cart", "single"]).optional(),
+  cartId: z.string().min(1).optional().nullable(),
+  sellerId: z.string().min(1).optional().nullable(),
+  listingId: z.string().min(1).optional().nullable(),
+  quantity: z.number().int().min(1).max(99).optional().nullable(),
+  selectedVariantOptionIds: z.array(z.string().min(1)).max(30).optional().default([]),
+  // The complete normalized destination is signed into the HMAC and must
+  // match what checkout submits. Defaults here would weaken the quote/checkout
+  // binding or cause every signature to mismatch during verification.
+  toPostal: z.string().trim().regex(/^\d{5}(-\d{4})?$/),
+  toState: z.string().trim().length(2).refine(
+    (value) => normalizeUsState(value) !== "",
+    "Select a valid US state.",
+  ),
+  toCity: z.string().trim().min(1).max(100),
+  toCountry: z.string().trim().length(2).refine(
+    (value) => value.toUpperCase() === "US",
+    "Only US shipping addresses are supported.",
+  ),
+});
+
+export const runtime = "nodejs";
+export const maxDuration = 30;
+const SHIPPING_QUOTE_BODY_MAX_BYTES = 32 * 1024;
+
+function fallbackRate({
+  amountCents,
+  currency,
+  contextId,
+  buyerId,
+  subjectHash,
+  ...destination
+}: {
+  amountCents: number;
+  currency: string;
+  contextId: string;
+  buyerId: string;
+  subjectHash: string;
+} & SignedRateDestination) {
+  const label = "Standard shipping";
+  const { token, expiresAt } = signRate({
+    objectId: "fallback",
+    amountCents,
+    currency,
+    displayName: label,
+    carrier: "fallback",
+    estDays: null,
+    contextId,
+    buyerId,
+    ...destination,
+    subjectHash,
+  });
+
+  return {
+    label,
+    amountCents,
+    currency,
+    carrier: "fallback",
+    service: "fallback",
+    estDays: null,
+    taxBehavior: "exclusive" as const,
+    objectId: "fallback",
+    token,
+    expiresAt,
+    subjectHash,
+  };
+}
+
+function pickupRate({
+  currency,
+  contextId,
+  buyerId,
+  subjectHash,
+  ...destination
+}: {
+  currency: string;
+  contextId: string;
+  buyerId: string;
+  subjectHash: string;
+} & SignedRateDestination) {
+  const label = "Local Pickup (Free)";
+  const { token, expiresAt } = signRate({
+    objectId: "pickup",
+    amountCents: 0,
+    currency,
+    displayName: label,
+    carrier: "pickup",
+    estDays: null,
+    contextId,
+    buyerId,
+    ...destination,
+    subjectHash,
+  });
+
+  return {
+    label,
+    amountCents: 0,
+    currency,
+    carrier: "pickup",
+    service: "pickup",
+    estDays: null,
+    taxBehavior: "exclusive" as const,
+    objectId: "pickup",
+    token,
+    expiresAt,
+    subjectHash,
+  };
+}
+
+function sellerConfiguredRate({
+  rate,
+  currency,
+  contextId,
+  buyerId,
+  subjectHash,
+  ...destination
+}: {
+  rate: SellerConfiguredShippingRate;
+  currency: string;
+  contextId: string;
+  buyerId: string;
+  subjectHash: string;
+} & SignedRateDestination) {
+  const { token, expiresAt } = signRate({
+    objectId: rate.objectId,
+    amountCents: rate.amountCents,
+    currency,
+    displayName: rate.label,
+    carrier: rate.carrier,
+    estDays: null,
+    contextId,
+    buyerId,
+    ...destination,
+    subjectHash,
+  });
+
+  return {
+    ...rate,
+    currency,
+    estDays: null,
+    taxBehavior: "exclusive" as const,
+    token,
+    expiresAt,
+    subjectHash,
+  };
+}
+
+function pickupOnlyResponse({
+  currency,
+  contextId,
+  buyerId,
+  subjectHash,
+  ...destination
+}: {
+  currency: string;
+  contextId: string;
+  buyerId: string;
+  subjectHash: string;
+} & SignedRateDestination) {
+  return privateJson({
+    rates: [pickupRate({ currency, contextId, buyerId, subjectHash, ...destination })],
+    pickupOnly: true,
+    warning: "This maker only has local pickup available for this address. Choose it only if you can pick up the order in person; no shipping label will be created.",
+  });
+}
+
+function quoteBlockedResponse(error: string, status = HTTP_STATUS.BAD_REQUEST) {
+  return privateJson({ rates: [], error }, { status });
+}
+
+/**
+ * POST /api/shipping/quote
+ * Body:
+ *   { mode: "cart", cartId: string, sellerId?: string, toPostal, toState, toCity, toCountry }
+ *   OR
+ *   { mode: "single", listingId: string, quantity?: number, toPostal, toState, toCity, toCountry }
+ *
+ * Response:
+ *   { rates: [{ label, amountCents, currency, carrier?, service?, estDays?, taxBehavior? }] }
+ */
+export async function POST(req: Request) {
+  try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+    }
+
+    const { userId } = await auth();
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+
+    const { success: rlOk, reset } = await safeRateLimit(shippingQuoteRatelimit, userId);
+    if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many shipping quote requests."));
+
+    // Resolve DB user for cart ownership check and account-state enforcement.
+    const me = await ensureUserByClerkId(userId);
+
+    let body;
+    try {
+      body = ShippingQuoteSchema.parse(await readBoundedJson(req, SHIPPING_QUOTE_BODY_MAX_BYTES));
+    } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
+      }
+      if (e instanceof z.ZodError) {
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
+      }
+      throw e;
+    }
+    const mode = body.mode ?? "cart";
+    let currency = DEFAULT_CURRENCY;
+
+    let sellerId: string | null = null;
+    let sellerAllowsPickup = false;
+    let sellerPreferredCarriers: string[] = [];
+    let sellerUseCalculatedShipping = false;
+    let sellerFlatRateCents: number | null = null;
+    let sellerFreeShippingOverCents: number | null = null;
+    let itemsSubtotalCents = 0;
+    let totalWeightGrams = 0;
+    let lengthCm: number | null = null;
+    let widthCm: number | null = null;
+    let heightCm: number | null = null;
+    let subjectHash = "";
+
+    let shipFrom:
+      | {
+          name?: string | null;
+          line1?: string | null;
+          line2?: string | null;
+          city?: string | null;
+          state?: string | null;
+          postal?: string | null;
+          country?: string | null;
+          defaults?: {
+            weight?: number | null;
+            len?: number | null;
+            wid?: number | null;
+            hgt?: number | null;
+          };
+        }
+      | null = null;
+
+    // Zod establishes the US destination shape before sanitization. The HMAC
+    // below binds the normalized city/state/postal/country and checkout derives
+    // the same fields from body.shippingAddress.
+    const sanitizedToCity = sanitizeAddressField(body.toCity, 100);
+    const sanitizedToState = sanitizeAddressField(body.toState, 2);
+    const sanitizedToCountry = sanitizeAddressField(body.toCountry, 2);
+    const shipTo = {
+      postal: sanitizeAddressField(body.toPostal, 20),
+      state: normalizeUsState(sanitizedToState),
+      city: sanitizedToCity,
+      country: sanitizedToCountry.toUpperCase(),
+    };
+    const signedDestination: SignedRateDestination = {
+      buyerCity: shipTo.city,
+      buyerState: shipTo.state,
+      buyerPostal: shipTo.postal,
+      buyerCountry: shipTo.country,
+    };
+
+    if (mode === "cart") {
+      let cart;
+      if (body.cartId) {
+        cart = await ownerCartForShippingQuoteById(me.id, body.cartId, body.sellerId);
+        if (!cart) {
+          return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+        }
+        if (body.sellerId) {
+          const sellerInCart = cart.items.some((item) => item.listing.sellerId === body.sellerId);
+          if (!sellerInCart) {
+            return privateJson({ error: "sellerId not in cart" }, { status: HTTP_STATUS.BAD_REQUEST });
+          }
+        }
+      } else {
+        cart = await ownerCartForShippingQuote(me.id, body.sellerId);
+      }
+      if (!cart || cart.items.length === 0) {
+        return privateJson({ rates: [] });
+      }
+      sellerId = cart.items[0].listing.sellerId;
+      currency = (cart.items[0].listing.currency || DEFAULT_CURRENCY).toLowerCase();
+
+      const mixedCurrencyItem = cart.items.find(
+        (item) => (item.listing.currency || DEFAULT_CURRENCY).toLowerCase() !== currency,
+      );
+      if (mixedCurrencyItem) {
+        return quoteBlockedResponse("Items with different currencies cannot be checked out together.");
+      }
+
+      const sellerBlockedItem = cart.items.find((it) => sellerOrderBlockReason(it.listing.seller));
+      if (sellerBlockedItem) {
+        const reason = sellerOrderBlockReason(sellerBlockedItem.listing.seller)!;
+        return quoteBlockedResponse(sellerOrderBlockMessage(reason));
+      }
+
+      const paymentUnavailableItem = cart.items.find(
+        (it) => !it.listing.seller.chargesEnabled || !it.listing.seller.stripeAccountId,
+      );
+      if (paymentUnavailableItem) {
+        return quoteBlockedResponse("This seller is not currently accepting orders.");
+      }
+
+      const selfPurchaseItem = cart.items.find((it) => it.listing.seller.userId === me.id);
+      if (selfPurchaseItem) {
+        return quoteBlockedResponse("You cannot purchase your own listings.");
+      }
+
+      const inactiveItem = cart.items.find((it) => it.listing.status !== "ACTIVE");
+      if (inactiveItem) {
+        return quoteBlockedResponse(`"${inactiveItem.listing.title}" is no longer available.`);
+      }
+
+      const privateItem = cart.items.find(
+        (it) => it.listing.isPrivate && it.listing.reservedForUserId !== me.id,
+      );
+      if (privateItem) {
+        return quoteBlockedResponse("One or more items in your cart are not available for purchase.");
+      }
+
+      const invalidMadeToOrderItem = cart.items.find(
+        (it) => it.listing.listingType === "MADE_TO_ORDER" && it.quantity !== 1,
+      );
+      if (invalidMadeToOrderItem) {
+        return quoteBlockedResponse(`"${invalidMadeToOrderItem.listing.title}" can only be ordered one at a time.`);
+      }
+
+      const unavailableStockItem = cart.items.find((it) => {
+        if (it.listing.listingType !== "IN_STOCK") return false;
+        const available = it.listing.stockQuantity ?? 0;
+        return available <= 0 || it.quantity > available;
+      });
+      if (unavailableStockItem) {
+        const available = unavailableStockItem.listing.stockQuantity ?? 0;
+        return quoteBlockedResponse(
+          available <= 0
+            ? `"${unavailableStockItem.listing.title}" is currently out of stock.`
+            : `Only ${available} available for "${unavailableStockItem.listing.title}".`,
+        );
+      }
+
+      // Load seller defaults + ship-from
+      const seller = await prisma.sellerProfile.findUnique({
+        where: { id: sellerId },
+        select: {
+          shipFromName: true,
+          shipFromLine1: true,
+          shipFromLine2: true,
+          shipFromCity: true,
+          shipFromState: true,
+          shipFromPostal: true, // ✅ correct field
+          shipFromCountry: true,
+          defaultPkgWeightGrams: true,
+          defaultPkgLengthCm: true,
+          defaultPkgWidthCm: true,
+          defaultPkgHeightCm: true,
+          allowLocalPickup: true,
+          preferredCarriers: true,
+          useCalculatedShipping: true,
+          shippingFlatRateCents: true,
+          freeShippingOverCents: true,
+        },
+      });
+
+      if (!seller) return privateJson({ rates: [] });
+
+      sellerAllowsPickup = seller.allowLocalPickup;
+      sellerPreferredCarriers = seller.preferredCarriers ?? [];
+      sellerUseCalculatedShipping = seller.useCalculatedShipping;
+      sellerFlatRateCents = seller.shippingFlatRateCents;
+      sellerFreeShippingOverCents = seller.freeShippingOverCents;
+      itemsSubtotalCents = cart.items.reduce(
+        (sum, item) => sum + item.priceCents * item.quantity,
+        0,
+      );
+
+      shipFrom = {
+        name: seller.shipFromName,
+        line1: seller.shipFromLine1,
+        line2: seller.shipFromLine2,
+        city: seller.shipFromCity,
+        state: seller.shipFromState,
+        postal: seller.shipFromPostal ?? undefined,
+        country: seller.shipFromCountry ?? "US",
+        defaults: {
+          weight: seller.defaultPkgWeightGrams ?? null,
+          len: seller.defaultPkgLengthCm ?? null,
+          wid: seller.defaultPkgWidthCm ?? null,
+          hgt: seller.defaultPkgHeightCm ?? null,
+        },
+      };
+
+      // Aggregate: sum weights, take max dims (simple heuristic)
+      for (const it of cart.items) {
+        const qty = it.quantity;
+        const L = it.listing;
+        const w = L.packagedWeightGrams ?? seller.defaultPkgWeightGrams ?? 0;
+        const l = L.packagedLengthCm ?? seller.defaultPkgLengthCm ?? 0;
+        const wi = L.packagedWidthCm ?? seller.defaultPkgWidthCm ?? 0;
+        const h = L.packagedHeightCm ?? seller.defaultPkgHeightCm ?? 0;
+
+        totalWeightGrams += w * qty;
+        lengthCm = Math.max(lengthCm ?? 0, l);
+        widthCm = Math.max(widthCm ?? 0, wi);
+        heightCm = Math.max(heightCm ?? 0, h);
+      }
+      subjectHash = shippingRateSubjectHash({
+        mode: "cart",
+        sellerId,
+        items: cart.items
+          .map((it) => {
+            const L = it.listing;
+            return {
+              cartItemId: it.id,
+              listingId: it.listingId,
+              quantity: it.quantity,
+              variantKey: it.variantKey ?? "",
+              unitPriceCents: it.priceCents,
+              priceVersion: it.listing.priceVersion,
+              weight: L.packagedWeightGrams ?? seller.defaultPkgWeightGrams ?? 0,
+              length: L.packagedLengthCm ?? seller.defaultPkgLengthCm ?? 0,
+              width: L.packagedWidthCm ?? seller.defaultPkgWidthCm ?? 0,
+              height: L.packagedHeightCm ?? seller.defaultPkgHeightCm ?? 0,
+            };
+          })
+          .sort((a, b) => a.cartItemId.localeCompare(b.cartItemId)),
+      });
+    } else if (mode === "single") {
+      const listing = await prisma.listing.findUnique({
+        where: { id: body.listingId ?? "" },
+        include: {
+          seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
+          variantGroups: { include: { options: true } },
+        },
+      });
+      if (!listing) return privateJson({ rates: [] });
+
+      sellerId = listing.sellerId;
+      currency = (listing.currency || DEFAULT_CURRENCY).toLowerCase();
+      const qty = Math.max(1, body.quantity ?? 1);
+
+      if (listing.status !== "ACTIVE") {
+        return quoteBlockedResponse("This listing is not currently available.");
+      }
+      if (listing.isPrivate && listing.reservedForUserId !== me.id) {
+        return quoteBlockedResponse("This listing is not available for purchase.");
+      }
+      if (listing.seller.userId === me.id) {
+        return quoteBlockedResponse("You cannot buy your own listing.");
+      }
+      const sellerBlockReason = sellerOrderBlockReason(listing.seller);
+      if (sellerBlockReason) {
+        return quoteBlockedResponse(sellerOrderBlockMessage(sellerBlockReason));
+      }
+      if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
+        return quoteBlockedResponse("This seller is not currently accepting orders.");
+      }
+      if (listing.listingType === "MADE_TO_ORDER" && qty > 1) {
+        return quoteBlockedResponse("Made-to-order items can only be ordered one at a time.");
+      }
+      if (listing.listingType === "IN_STOCK") {
+        const available = listing.stockQuantity ?? 0;
+        if (available <= 0) {
+          return quoteBlockedResponse("This item is currently out of stock.");
+        }
+        if (qty > available) {
+          return quoteBlockedResponse(`Only ${available} available.`);
+        }
+      }
+
+      const seller = await prisma.sellerProfile.findUnique({
+        where: { id: sellerId },
+        select: {
+          shipFromName: true,
+          shipFromLine1: true,
+          shipFromLine2: true,
+          shipFromCity: true,
+          shipFromState: true,
+          shipFromPostal: true, // ✅ correct field
+          shipFromCountry: true,
+          defaultPkgWeightGrams: true,
+          defaultPkgLengthCm: true,
+          defaultPkgWidthCm: true,
+          defaultPkgHeightCm: true,
+          allowLocalPickup: true,
+          preferredCarriers: true,
+          useCalculatedShipping: true,
+          shippingFlatRateCents: true,
+          freeShippingOverCents: true,
+        },
+      });
+
+      if (!seller) return privateJson({ rates: [] });
+
+      sellerAllowsPickup = seller.allowLocalPickup;
+      sellerPreferredCarriers = seller.preferredCarriers ?? [];
+      sellerUseCalculatedShipping = seller.useCalculatedShipping;
+      sellerFlatRateCents = seller.shippingFlatRateCents;
+      sellerFreeShippingOverCents = seller.freeShippingOverCents;
+
+      shipFrom = {
+        name: seller.shipFromName,
+        line1: seller.shipFromLine1,
+        line2: seller.shipFromLine2,
+        city: seller.shipFromCity,
+        state: seller.shipFromState,
+        postal: seller.shipFromPostal ?? undefined,
+        country: seller.shipFromCountry ?? "US",
+        defaults: {
+          weight: seller.defaultPkgWeightGrams ?? null,
+          len: seller.defaultPkgLengthCm ?? null,
+          wid: seller.defaultPkgWidthCm ?? null,
+          hgt: seller.defaultPkgHeightCm ?? null,
+        },
+      };
+
+      const w = listing.packagedWeightGrams ?? seller.defaultPkgWeightGrams ?? 0;
+      const l = listing.packagedLengthCm ?? seller.defaultPkgLengthCm ?? 0;
+      const wi = listing.packagedWidthCm ?? seller.defaultPkgWidthCm ?? 0;
+      const h = listing.packagedHeightCm ?? seller.defaultPkgHeightCm ?? 0;
+
+      totalWeightGrams = w * qty;
+      lengthCm = l;
+      widthCm = wi;
+      heightCm = h;
+      const variantResolution = resolveListingVariantSelection(
+        listing.variantGroups,
+        body.selectedVariantOptionIds,
+      );
+      if (!variantResolution.ok) {
+        return quoteBlockedResponse(variantResolution.error);
+      }
+      const unitPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
+      const unitPriceError = validateVariantUnitPriceCents(unitPriceCents);
+      if (unitPriceError) {
+        return quoteBlockedResponse(unitPriceError);
+      }
+      itemsSubtotalCents = unitPriceCents * qty;
+      subjectHash = shippingRateSubjectHash({
+        mode: "single",
+        listingId: listing.id,
+        quantity: qty,
+        variantKey: variantResolution.variantKey,
+        unitPriceCents,
+        priceVersion: listing.priceVersion,
+        weight: w,
+        length: l,
+        width: wi,
+        height: h,
+      });
+    } else {
+      return privateJson({ error: "Bad mode" }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+
+    // contextId ties the HMAC signature to either the seller (cart)
+    // or the specific listing (buy-now). This prevents a cheap rate
+    // signed for one seller/listing from being replayed against another.
+    // sellerId is resolved above in both branches.
+    const contextId: string =
+      mode === "single" ? (body.listingId ?? "") : (sellerId ?? "");
+
+    const sellerShippingPolicy = resolveSellerCheckoutShippingPolicy({
+      useCalculatedShipping: sellerUseCalculatedShipping,
+      flatRateCents: sellerFlatRateCents,
+      freeShippingOverCents: sellerFreeShippingOverCents,
+      itemsSubtotalCents,
+    });
+    const configuredAndPickupRates = (): Array<
+      ReturnType<typeof sellerConfiguredRate> | ReturnType<typeof pickupRate>
+    > => {
+      const configuredRates: Array<
+        ReturnType<typeof sellerConfiguredRate> | ReturnType<typeof pickupRate>
+      > = sellerShippingPolicy.configuredRate
+        ? [sellerConfiguredRate({
+            rate: sellerShippingPolicy.configuredRate,
+            currency,
+            contextId,
+            buyerId: me.id,
+            subjectHash,
+            ...signedDestination,
+          })]
+        : [];
+      if (sellerAllowsPickup) {
+        configuredRates.push(
+          pickupRate({ currency, contextId, buyerId: me.id, subjectHash, ...signedDestination }),
+        );
+      }
+      return configuredRates;
+    };
+
+    if (!sellerShippingPolicy.useCalculatedShipping) {
+      return privateJson({ rates: configuredAndPickupRates() });
+    }
+
+    // Need a valid ship-from + nonzero package for shippable rates. Pickup-only
+    // sellers can still produce a signed pickup option, but it must be explicit.
+    if (
+      !shipFrom?.line1 ||
+      !shipFrom.city ||
+      !shipFrom.state ||
+      !shipFrom.postal ||
+      !shipFrom.country
+    ) {
+      const configuredRates = configuredAndPickupRates();
+      if (configuredRates.length > 0) {
+        return privateJson({
+          rates: configuredRates,
+          ...(sellerShippingPolicy.configuredRate === null && sellerAllowsPickup
+            ? {
+                pickupOnly: true,
+                warning: "This maker only has local pickup available for this address. Choose it only if you can pick up the order in person; no shipping label will be created.",
+              }
+            : {}),
+        });
+      }
+      return privateJson({ rates: [] });
+    }
+    if (!totalWeightGrams || !lengthCm || !widthCm || !heightCm) {
+      const configuredRates = configuredAndPickupRates();
+      if (configuredRates.length > 0) {
+        return privateJson({
+          rates: configuredRates,
+          ...(sellerShippingPolicy.configuredRate === null && sellerAllowsPickup
+            ? {
+                pickupOnly: true,
+                warning: "This maker only has local pickup available for this address. Choose it only if you can pick up the order in person; no shipping label will be created.",
+              }
+            : {}),
+        });
+      }
+      return privateJson({ rates: [] });
+    }
+
+    type ShippoShipment = { rates?: ShippoQuoteRate[] };
+    let rates: ShippoQuoteRate[] = [];
+
+    try {
+      // Build Shippo shipment + fetch rates (async=false embeds rates)
+      const shipment = await shippoRequest<ShippoShipment>("/shipments/", {
+        method: "POST",
+        body: JSON.stringify(
+          buildShippoCheckoutQuoteShipment({
+            from: {
+              name: shipFrom.name,
+              line1: shipFrom.line1,
+              line2: shipFrom.line2,
+              city: shipFrom.city,
+              state: shipFrom.state,
+              postal: shipFrom.postal,
+              country: shipFrom.country,
+            },
+            to: shipTo,
+            parcel: {
+              lengthCm,
+              widthCm,
+              heightCm,
+              weightGrams: totalWeightGrams,
+            },
+          }),
+        ),
+      });
+      rates = Array.isArray(shipment?.rates) ? shipment.rates : [];
+    } catch (err) {
+      logServerError(err, {
+        source: "shipping_quote_shippo_fallback",
+        extra: { mode, sellerId, contextId },
+      });
+      const configuredRates = configuredAndPickupRates();
+      if (configuredRates.length > 0) {
+        if (sellerShippingPolicy.configuredRate === null && sellerAllowsPickup) {
+          return pickupOnlyResponse({
+            currency,
+            contextId,
+            buyerId: me.id,
+            subjectHash,
+            ...signedDestination,
+          });
+        }
+        return privateJson({ rates: configuredRates });
+      }
+      let fallbackShippingCents: number | null | undefined;
+      try {
+        const siteConfig = await prisma.siteConfig.findUnique({
+          where: { id: 1 },
+          select: { fallbackShippingCents: true },
+        });
+        fallbackShippingCents = siteConfig?.fallbackShippingCents;
+      } catch (siteConfigError) {
+        logServerError(siteConfigError, {
+          source: "shipping_quote_fallback_config",
+          extra: { mode, sellerId, contextId },
+        });
+      }
+      const fallbackRates = [
+        fallbackRate({
+          amountCents: safeFallbackShippingCents(fallbackShippingCents),
+          currency,
+          contextId,
+          buyerId: me.id,
+          subjectHash,
+          ...signedDestination,
+        }),
+      ];
+      return privateJson({ rates: fallbackRates });
+    }
+
+    // Filter by seller's preferred carriers (if set) before signing.
+    // Do not replace carrier-filtered results with a platform fallback; that
+    // silently bypasses the seller's configured carrier policy.
+    const filtered = filterShippoRatesForCheckout({
+      rates,
+      currency,
+      preferredCarriers: sellerPreferredCarriers,
+    });
+    if (filtered.blockedByCarrierPreference) {
+      if (sellerAllowsPickup) {
+        return pickupOnlyResponse({ currency, contextId, buyerId: me.id, subjectHash, ...signedDestination });
+      }
+      return privateJson({
+        rates: [],
+        error: "No shipping rates matched this maker's carrier preferences.",
+      });
+    }
+
+    const validRates = normalizeShippoRatesForCheckout(filtered.rates).slice(0, 12);
+
+    const out = validRates
+      .map(({ label, amountCents, carrier, service, estDays, objectId }) => {
+        const { token, expiresAt } = signRate({
+          objectId,
+          amountCents,
+          currency,
+          displayName: label,
+          carrier,
+          estDays,
+          contextId,
+          buyerId: me.id,
+          subjectHash,
+          ...signedDestination,
+        });
+
+        return {
+          label,
+          amountCents,
+          currency,
+          carrier,
+          service,
+          estDays,
+          taxBehavior: "exclusive" as const,
+          objectId,
+          token,
+          expiresAt,
+          subjectHash,
+        };
+      });
+
+    if (out.length === 0) {
+      if (sellerShippingPolicy.configuredRate) {
+        out.push(...configuredAndPickupRates());
+      } else if (!sellerAllowsPickup) {
+        let fallbackShippingCents: number | null | undefined;
+        try {
+          const siteConfig = await prisma.siteConfig.findUnique({
+            where: { id: 1 },
+            select: { fallbackShippingCents: true },
+          });
+          fallbackShippingCents = siteConfig?.fallbackShippingCents;
+        } catch (siteConfigError) {
+          logServerError(siteConfigError, {
+            source: "shipping_quote_empty_rates_fallback_config",
+            extra: { mode, sellerId, contextId },
+          });
+        }
+        out.push(
+          fallbackRate({
+            amountCents: safeFallbackShippingCents(fallbackShippingCents),
+            currency,
+            contextId,
+            buyerId: me.id,
+            subjectHash,
+            ...signedDestination,
+          }),
+        );
+      }
+    }
+
+    const pickupOnly = out.length === 0 && sellerAllowsPickup;
+
+    // Local pickup option — injected as a synthetic rate if seller allows it.
+    // configuredAndPickupRates() already appends it on the seller-fallback path.
+    if (sellerAllowsPickup && !out.some((rate) => rate.objectId === PICKUP_RATE_OBJECT_ID)) {
+      out.unshift(pickupRate({ currency, contextId, buyerId: me.id, subjectHash, ...signedDestination }));
+    }
+
+    return privateJson({
+      rates: out,
+      ...(pickupOnly
+        ? {
+            pickupOnly: true,
+            warning: "This maker only has local pickup available for this address. Choose it only if you can pick up the order in person; no shipping label will be created.",
+          }
+        : {}),
+    });
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
+    logServerError(err, { source: "shipping_quote_route" });
+    // Fail closed: checkout requires a signed rate from this endpoint.
+    return privateJson({ rates: [] });
+  }
+}

@@ -1,0 +1,2 @@
+ALTER TABLE "SellerProfile"
+ADD COLUMN "galleryAltTexts" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

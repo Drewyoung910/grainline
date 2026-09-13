@@ -1,0 +1,235 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+const notificationRetention = await import("../src/lib/notificationRetentionState.ts");
+const webhookRetention = await import("../src/lib/webhookEventRetentionState.ts");
+const metricsState = await import("../src/lib/metricsState.ts");
+
+describe("retention and ops-health follow-ups", () => {
+  it("keeps read and unread notification retention windows explicit", () => {
+    const now = new Date("2026-05-21T12:00:00.000Z");
+    const cutoffs = notificationRetention.notificationRetentionCutoffs(now);
+
+    assert.equal(notificationRetention.READ_NOTIFICATION_RETENTION_DAYS, 90);
+    assert.equal(notificationRetention.UNREAD_NOTIFICATION_RETENTION_DAYS, 365);
+    assert.equal(cutoffs.readCutoff.toISOString(), "2026-02-20T12:00:00.000Z");
+    assert.equal(cutoffs.unreadCutoff.toISOString(), "2025-05-21T12:00:00.000Z");
+  });
+
+  it("wires unread notification and webhook event pruning into notification-prune", () => {
+    const route = readFileSync("src/app/api/cron/notification-prune/route.ts", "utf8");
+
+    assert.match(route, /pruneReadNotifications\(\)/);
+    assert.match(route, /pruneUnreadNotifications\(\)/);
+    assert.match(route, /pruneReadNotificationServiceBatch/);
+    assert.match(route, /pruneUnreadNotificationServiceBatch/);
+    assert.match(route, /pruneWebhookEventRetention\(\)/);
+    assert.match(route, /unreadPruned/);
+    assert.match(route, /webhookEventsPruned/);
+  });
+
+  it("keeps refund-lock release failures isolated from notification pruning", () => {
+    const route = readFileSync("src/app/api/cron/notification-prune/route.ts", "utf8");
+
+    assert.match(route, /releaseStaleRefundLocksForPrune\(\)/);
+    assert.match(route, /Sentry\.captureException\(error, \{ tags: \{ source: "cron_refund_lock_release" \} \}\)/);
+    assert.match(route, /staleRefundLocksReleaseFailed/);
+    assert.doesNotMatch(route, /releaseStaleRefundLocks\(\),/);
+  });
+
+  it("retains ordinary processed webhook events for 90 days and permanent stock-restore claims", () => {
+    const now = new Date("2026-05-21T12:00:00.000Z");
+    const cutoff = webhookRetention.webhookEventRetentionCutoff(now);
+    const source = readFileSync("src/lib/webhookEventRetention.ts", "utf8");
+
+    assert.equal(webhookRetention.WEBHOOK_EVENT_RETENTION_DAYS, 90);
+    assert.equal(cutoff.toISOString(), "2026-02-20T12:00:00.000Z");
+    assert.equal(webhookRetention.webhookEventRetentionBatchSize(0), 1);
+    assert.equal(webhookRetention.webhookEventRetentionBatchSize(12.8), 12);
+    assert.equal(webhookRetention.webhookEventRetentionBatchSize(5_000), 1_000);
+    assert.throws(
+      () => webhookRetention.webhookEventRetentionBatchSize(Number.NaN),
+      /must be finite/,
+    );
+    assert.match(source, /pruneStripeWebhookEventServiceBatch\(effectiveBatchSize\)/);
+    assert.doesNotMatch(source, /FROM "StripeWebhookEvent"/);
+    assert.match(source, /FROM "ResendWebhookEvent"/);
+    assert.match(source, /FROM "ClerkWebhookEvent"/);
+    assert.match(source, /"processedAt" IS NOT NULL/);
+    assert.doesNotMatch(source, /lastError/);
+    const maintenanceMigration = readFileSync(
+      "prisma/migrations/20260805040000_prepare_stripe_webhook_maintenance_authority/migration.sql",
+      "utf8",
+    );
+    assert.match(
+      maintenanceMigration,
+      /event\.type <> 'checkout\.session\.stock_restored'/,
+    );
+  });
+
+  it("keeps listing-view cleanup time-budgeted inside guild metrics", () => {
+    const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+
+    assert.match(source, /const VIEW_CLEANUP_TIME_BUDGET_MS = 60_000/);
+    assert.match(source, /runBoundedDeletionBatches\(\{/);
+    assert.match(source, /timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS/);
+    assert.match(source, /deletedViewRowsComplete/);
+    assert.match(source, /deleteOldSellerProfileViewDaily\(twoYearsAgo\)/);
+    assert.match(source, /DELETE FROM "SellerProfileViewDaily"/);
+    assert.match(source, /deletedProfileViewRowsComplete/);
+  });
+
+  it("uses a fixed listing-view retention window without calendar rollover", () => {
+    const cutoff = metricsState.listingViewDailyRetentionCutoff(new Date("2028-02-29T09:00:00.000Z"));
+    const route = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+
+    assert.equal(metricsState.LISTING_VIEW_DAILY_RETENTION_DAYS, 730);
+    assert.equal(cutoff.toISOString(), "2026-03-01T09:00:00.000Z");
+    assert.match(route, /listingViewDailyRetentionCutoff\(\)/);
+    assert.doesNotMatch(route, /setFullYear\(twoYearsAgo\.getFullYear\(\) - 2\)/);
+  });
+
+  it("keeps Guild Master revocation behind a real 30-day warning grace", () => {
+    const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+
+    assert.match(source, /const GUILD_MASTER_WARNING_GRACE_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
+    assert.match(source, /metricWarningSentAt: true/);
+    assert.match(source, /now\.getTime\(\) - warningSentAt\.getTime\(\) < GUILD_MASTER_WARNING_GRACE_MS/);
+    assert.match(source, /metricWarningSentAt: warningSentAt \?\? now/);
+    assert.match(source, /const revocationCutoff = new Date\(now\.getTime\(\) - GUILD_MASTER_WARNING_GRACE_MS\)/);
+    assert.match(source, /metricWarningSentAt: \{ lte: revocationCutoff \}/);
+  });
+
+  it("rechecks Guild Master metrics immediately before revocation", () => {
+    const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+
+    assert.match(source, /const revocationMetrics = await calculateSellerMetrics\(seller\.id\)/);
+    assert.match(source, /const revocationCriteria = meetsGuildMasterRequirements\(revocationMetrics\)/);
+    assert.match(source, /if \(revocationCriteria\.allMet\) \{/);
+    assert.match(source, /consecutiveMetricFailures: 0,\s*metricWarningSentAt: null,\s*lastMetricCheckAt: now/s);
+    assert.ok(
+      source.indexOf("const revocationMetrics = await calculateSellerMetrics(seller.id)") <
+        source.indexOf("const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS)"),
+      "fresh metrics must be recalculated before revocation update",
+    );
+  });
+
+  it("surfaces webhook and account-deletion side-effect piles in ops-health", () => {
+    const source = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
+    const warningStart = source.indexOf("if (");
+    const warningCondition = source.slice(warningStart, source.indexOf("Sentry.captureMessage", warningStart));
+
+    assert.match(source, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
+    assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS/);
+    assert.match(source, /stripeWebhookHealthSummary/);
+    assert.match(source, /STALE_SVIX_WEBHOOK_PROCESSING_MS/);
+    assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS/);
+    assert.doesNotMatch(source, /staleStripeWebhookBefore/);
+    assert.match(source, /staleSvixWebhookBefore/);
+    assert.match(source, /staleAccountDeletionSideEffectBefore/);
+    assert.match(source, /RECENT_COMPLETED_CRON_RUN_SCAN_LIMIT = 50/);
+    assert.match(source, /cronRunPartialIssueSummary\(run\.result\)/);
+    assert.match(source, /partialFailureCronRunCount/);
+    assert.match(source, /partialCronRunIssueCount/);
+    assert.match(source, /partialFailureCronRuns/);
+    assert.match(source, /stripeWebhookFailureCount/);
+    assert.match(source, /resendWebhookFailureCount/);
+    assert.match(source, /clerkWebhookFailureCount/);
+    assert.match(source, /accountDeletionSideEffectFailureCount/);
+    assert.match(source, /lastError:\s*\{\s*not:\s*null\s*\}/);
+    assert.match(source, /processedAt:\s*null/);
+    assert.match(source, /processingStartedAt:\s*null/);
+    assert.match(source, /stripeWebhookFailedLeaseCount/);
+    assert.match(source, /stripeWebhookReleasedLeaseCount/);
+    assert.match(source, /stripeWebhookStaleLeaseCount/);
+    assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleSvixWebhookBefore\s*\}/);
+    assert.match(source, /status:\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.FAILED/);
+    assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PENDING/);
+    assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PROCESSING/);
+    assert.match(source, /updatedAt:\s*\{\s*lt:\s*staleAccountDeletionSideEffectBefore\s*\}/);
+    assert.match(warningCondition, /issues\.stripeWebhookFailureCount > 0/);
+    assert.match(warningCondition, /issues\.resendWebhookFailureCount > 0/);
+    assert.match(warningCondition, /issues\.clerkWebhookFailureCount > 0/);
+    assert.match(warningCondition, /issues\.accountDeletionSideEffectFailureCount > 0/);
+    assert.match(warningCondition, /issues\.partialFailureCronRunCount > 0/);
+    assert.match(warningCondition, /issues\.partialCronRunIssueCount > 0/);
+    assert.match(source, /response\.ok \? HTTP_STATUS\.OK : HTTP_STATUS\.SERVICE_UNAVAILABLE/);
+  });
+
+  it("keeps ops-health runbook and launch monitoring evidence aligned with current checks", () => {
+    const runbook = readFileSync("docs/runbook.md", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+
+    assert.match(runbook, /stale `RUNNING` cron rows/);
+    assert.match(runbook, /StripeWebhookEvent/);
+    assert.match(runbook, /ResendWebhookEvent/);
+    assert.match(runbook, /ClerkWebhookEvent/);
+    assert.match(runbook, /AccountDeletionSideEffect/);
+    assert.match(runbook, /partial record failures/);
+    assert.match(runbook, /webhook failure spike/);
+
+    assert.match(launch, /HEALTH_CHECK_TOKEN/);
+    assert.match(launch, /STRIPE_V2_WEBHOOK_SECRET/);
+    assert.match(launch, /Sentry cron monitors/);
+    assert.match(launch, /source=cron_ops_health/);
+    assert.match(launch, /AccountDeletionSideEffect/);
+    assert.match(launch, /partial record failures/);
+    assert.match(launch, /webhook failure spike/);
+  });
+
+  it("keeps Clerk dashboard settings as external launch evidence, not source-proven claims", () => {
+    const claude = readFileSync("CLAUDE.md", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+
+    assert.match(claude, /Clerk security dashboard evidence \(external\)/);
+    assert.match(claude, /Do not close audit items for these settings from source review alone/);
+    assert.match(claude, /breached-password protection/);
+    assert.match(launch, /Clerk production security settings evidence/);
+    assert.match(launch, /staff\/admin MFA or enforcement plan/);
+    assert.match(launch, /multi-account\/spam controls/);
+    assert.doesNotMatch(claude, /### Clerk security settings \(configured in Clerk dashboard\)/);
+  });
+
+  it("keeps R2 health limitations and launch evidence explicit", () => {
+    const health = readFileSync("src/app/api/health/route.ts", "utf8");
+    const runbook = readFileSync("docs/runbook.md", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+    const claude = readFileSync("CLAUDE.md", "utf8");
+
+    assert.match(health, /HeadBucketCommand/);
+    assert.match(runbook, /HeadBucketCommand/);
+    assert.match(runbook, /does not prove\s+`PutObject`/);
+    assert.match(runbook, /direct\s+upload\/verify/);
+    assert.match(launch, /only proves `HeadBucket` reachability/);
+    assert.match(launch, /DB\/Redis\/R2 dependency checks/);
+    assert.match(launch, /public bucket listing\/ListBucket exposure/);
+    assert.match(launch, /bucket-level max object-size/);
+    assert.match(launch, /upload smoke-test artifact from `npm run audit:r2-upload`/);
+    assert.match(claude, /cheap `HeadBucketCommand` reachability probe only/);
+  });
+
+  it("keeps Vercel Analytics and Speed Insights behind an explicit privacy decision", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+    const layout = readFileSync("src/app/layout.tsx", "utf8");
+    const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+
+    assert.match(launch, /Confirm production and preview values in Vercel/);
+    assert.doesNotMatch(JSON.stringify(deps), /@vercel\/analytics|@vercel\/speed-insights/);
+    assert.doesNotMatch(layout, /<Analytics\s*\/>|<SpeedInsights\s*\/>/);
+    assert.doesNotMatch(layout, /@vercel\/analytics|@vercel\/speed-insights/);
+    assert.doesNotMatch(privacy, /Vercel Analytics|Speed Insights/);
+  });
+
+  it("keeps verbose health token comparison constant-time", () => {
+    const source = readFileSync("src/lib/healthState.ts", "utf8");
+
+    assert.match(source, /timingSafeEqual\(sha256\(supplied\), sha256\(token\)\)/);
+    assert.match(source, /headers\.get\("authorization"\)/);
+    assert.match(source, /headers\.get\("x-health-check-token"\)/);
+    assert.doesNotMatch(source, /searchParams\.get\("token"\)/);
+    assert.doesNotMatch(source, /supplied\s*===\s*token/);
+  });
+});

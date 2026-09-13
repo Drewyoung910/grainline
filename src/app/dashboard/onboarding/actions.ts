@@ -1,0 +1,184 @@
+"use server";
+
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { normalizeDisplayNameForLookup, sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { verifyFirstPartyMediaUrlForPersistence } from "@/lib/uploadPersistenceVerification";
+import { syncSellerProfileDirectUploadReferences } from "@/lib/directUploadLifecycle";
+import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
+import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
+import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
+import { logServerError } from "@/lib/serverErrorLogger";
+
+type ActionResult = { ok: true } | { ok: false; error: string };
+
+const SELLER_PROFILE_RATE_LIMITED = "SELLER_PROFILE_RATE_LIMITED";
+
+function actionError(error: unknown): ActionResult {
+  if (error instanceof Error && error.message === SELLER_PROFILE_RATE_LIMITED) {
+    return { ok: false, error: "Too many profile updates. Try again shortly." };
+  }
+  logServerError(error, { source: "seller_onboarding_action" });
+  return { ok: false, error: "We couldn't save that step. Please try again." };
+}
+
+async function getSeller(): Promise<{
+  id: string;
+  userId: string;
+  onboardingStep: number;
+  chargesEnabled: boolean;
+  listingCount: number;
+  clerkUserId: string;
+}> {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Not signed in");
+
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) throw new Error(SELLER_PROFILE_RATE_LIMITED);
+
+  const seller = await prisma.sellerProfile.findFirst({
+    where: { user: { clerkId: userId } },
+    select: {
+      id: true,
+      userId: true,
+      onboardingStep: true,
+      chargesEnabled: true,
+      _count: { select: { listings: true } },
+      user: { select: { banned: true, deletedAt: true } },
+    },
+  });
+  if (!seller) throw new Error("No seller profile");
+  if (seller.user.banned || seller.user.deletedAt) throw new Error("Account suspended");
+  return {
+    id: seller.id,
+    userId: seller.userId,
+    onboardingStep: seller.onboardingStep,
+    chargesEnabled: seller.chargesEnabled,
+    listingCount: seller._count.listings,
+    clerkUserId: userId,
+  };
+}
+
+export async function saveStep1(formData: FormData): Promise<ActionResult> {
+  try {
+    const seller = await getSeller();
+    const displayName = sanitizeUserName(String(formData.get("displayName") || ""));
+    const bio = cleanSellerProfileRichText(formData.get("bio"), SELLER_PROFILE_TEXT_LIMITS.bio);
+    const taglineRaw = truncateText(String(formData.get("tagline") || "").trim(), 100);
+    const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
+    const avatarImageUrl = String(formData.get("avatarImageUrl") || "").trim() || null;
+    if (avatarImageUrl) {
+      const verification = await verifyFirstPartyMediaUrlForPersistence({
+        url: avatarImageUrl,
+        allowedEndpoints: ["galleryImage"],
+        clerkUserId: seller.clerkUserId,
+        accountUserId: seller.userId,
+        allowedContentTypes: IMAGE_UPLOAD_TYPES,
+      });
+      if (!verification.ok) {
+        return { ok: false, error: "Use an uploaded Grainline image for your profile photo." };
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.sellerProfile.update({
+        where: { id: seller.id },
+        data: {
+          ...(displayName ? { displayName, displayNameNormalized: normalizeDisplayNameForLookup(displayName) } : {}),
+          bio,
+          tagline,
+          avatarImageUrl,
+          onboardingStep: 2,
+        },
+      });
+      if (avatarImageUrl) {
+        await syncSellerProfileDirectUploadReferences({
+          client: tx,
+          userId: seller.userId,
+          sellerProfileId: seller.id,
+          requireAllTracked: true,
+        });
+      }
+    });
+    revalidatePath("/dashboard/onboarding");
+    return { ok: true };
+  } catch (error) {
+    return actionError(error);
+  }
+}
+
+export async function saveStep2(formData: FormData): Promise<ActionResult> {
+  try {
+    const seller = await getSeller();
+    const yearsRaw = formData.get("yearsInBusiness");
+    const yearsNum = yearsRaw ? parseInt(String(yearsRaw), 10) : NaN;
+    const yearsInBusiness = !Number.isNaN(yearsNum) ? Math.max(0, Math.min(100, yearsNum)) : null;
+    const city = truncateText(String(formData.get("city") || "").trim(), 100) || null;
+    const state = truncateText(String(formData.get("state") || "").trim(), 100) || null;
+    const returnPolicy = cleanSellerProfileRichText(formData.get("returnPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
+    const shippingPolicy = cleanSellerProfileRichText(formData.get("shippingPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
+    const acceptsCustomOrders = formData.get("acceptsCustomOrders") === "on";
+
+    await prisma.sellerProfile.update({
+      where: { id: seller.id },
+      data: {
+        yearsInBusiness,
+        city,
+        state,
+        returnPolicy,
+        shippingPolicy,
+        acceptsCustomOrders,
+        onboardingStep: 3,
+      },
+    });
+    revalidatePath("/dashboard/onboarding");
+    return { ok: true };
+  } catch (error) {
+    return actionError(error);
+  }
+}
+
+export async function advanceStep(targetStep: number): Promise<ActionResult> {
+  try {
+    const seller = await getSeller();
+    const normalizedStep = Math.max(0, Math.min(5, Math.floor(targetStep)));
+    if (normalizedStep > seller.onboardingStep + 1) {
+      return { ok: false, error: "Complete the current onboarding step first." };
+    }
+    const result = await prisma.sellerProfile.updateMany({
+      where: { id: seller.id, onboardingStep: seller.onboardingStep },
+      data: { onboardingStep: normalizedStep },
+    });
+    if (result.count === 0) {
+      return { ok: false, error: "Onboarding changed in another tab. Refresh and try again." };
+    }
+    revalidatePath("/dashboard/onboarding");
+    return { ok: true };
+  } catch (error) {
+    return actionError(error);
+  }
+}
+
+export async function completeOnboarding(): Promise<ActionResult> {
+  try {
+    const seller = await getSeller();
+    if (seller.onboardingStep < 5) {
+      return { ok: false, error: "Finish onboarding before opening your dashboard." };
+    }
+    if (!seller.chargesEnabled) {
+      return { ok: false, error: "Connect Stripe before completing onboarding." };
+    }
+    if (seller.listingCount < 1) {
+      return { ok: false, error: "Create your first listing before completing onboarding." };
+    }
+    await prisma.sellerProfile.update({
+      where: { id: seller.id },
+      data: { onboardingComplete: true },
+    });
+  } catch (error) {
+    return actionError(error);
+  }
+  redirect("/dashboard");
+}

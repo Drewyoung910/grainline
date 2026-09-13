@@ -1,0 +1,262 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("private CaseMessage evidence", () => {
+  it("adds only opaque parent-scoped image metadata and private upload lifecycle state", () => {
+    const schema = source("prisma/schema.prisma");
+    const compatibilityMigration = source(
+      "prisma/migrations/20260726184000_prepare_private_case_message_attachments/migration.sql",
+    );
+    const lifecycleMigration = source(
+      "prisma/migrations/20260726184500_prepare_direct_upload_reference_ledger/migration.sql",
+    );
+
+    assert.match(schema, /model CaseMessageAttachment \{/);
+    assert.match(schema, /caseMessage\s+CaseMessage[\s\S]*onDelete: Cascade/);
+    assert.match(schema, /directUploadId\s+String\s+@unique/);
+    assert.match(
+      schema,
+      /directUpload\s+DirectUpload\s+@relation\(fields: \[directUploadId\], references: \[id\], onDelete: Restrict\)/,
+    );
+    assert.match(schema, /contentType\s+String\s+@db\.VarChar\(100\)/);
+    assert.match(schema, /byteSize\s+Int/);
+    assert.doesNotMatch(
+      schema.match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "",
+      /objectKey/,
+    );
+    assert.doesNotMatch(
+      schema.match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "",
+      /\burl\b|publicUrl/,
+    );
+    assert.match(schema, /publicUrl\s+String\?\s+@db\.VarChar\(2048\)/);
+    assert.match(schema, /storageClass\s+String\s+@default\("PUBLIC"\)/);
+
+    assert.match(compatibilityMigration, /\bBEGIN;/);
+    assert.match(compatibilityMigration, /\bCOMMIT;/);
+    assert.match(compatibilityMigration, /ALTER COLUMN "publicUrl" DROP NOT NULL/);
+    assert.match(compatibilityMigration, /CHECK \("storageClass" IN \('PUBLIC', 'PRIVATE'\)\)/);
+    assert.match(
+      compatibilityMigration,
+      /"storageClass" = 'PUBLIC' AND "publicUrl" IS NOT NULL[\s\S]*"storageClass" = 'PRIVATE' AND "publicUrl" IS NULL/,
+    );
+    assert.match(
+      compatibilityMigration,
+      /CHECK \("contentType" IN \('image\/jpeg', 'image\/png', 'image\/webp'\)\)/,
+    );
+    assert.match(compatibilityMigration, /CHECK \("byteSize" > 0 AND "byteSize" <= 8388608\)/);
+    assert.match(compatibilityMigration, /"objectKey" VARCHAR\(500\) NOT NULL/);
+    assert.match(
+      lifecycleMigration,
+      /Old code writes objectKey; new code dual-writes[\s\S]*ADD COLUMN "directUploadId" TEXT/,
+    );
+    assert.match(
+      lifecycleMigration,
+      /UPDATE public\."CaseMessageAttachment" AS attachment[\s\S]*CaseMessageAttachment contains an unbindable DirectUpload source/,
+    );
+    assert.match(
+      lifecycleMigration,
+      /ALTER COLUMN "directUploadId" SET NOT NULL[\s\S]*"CaseMessageAttachment_directUploadId_fkey"[\s\S]*REFERENCES public\."DirectUpload"\(id\)/,
+    );
+    assert.match(
+      lifecycleMigration,
+      /grainline_direct_upload_case_attachment_bind\(\)[\s\S]*SECURITY DEFINER[\s\S]*CaseMessageAttachment identity fields are immutable/,
+    );
+    assert.doesNotMatch(lifecycleMigration, /DROP COLUMN "objectKey"/);
+  });
+
+  it("keeps Case evidence out of every public upload path", () => {
+    const imageRoute = source("src/app/api/upload/image/route.ts");
+    const presignRoute = source("src/app/api/upload/presign/route.ts");
+    const uploadRoute = source(
+      "src/app/api/cases/[id]/attachments/route.ts",
+    );
+    const r2 = source("src/lib/r2.ts");
+
+    assert.match(
+      imageRoute,
+      /endpoint === "caseEvidenceImage"[\s\S]*private Case attachment endpoint/,
+    );
+    assert.match(
+      presignRoute,
+      /endpoint === "caseEvidenceImage"[\s\S]*private Case attachment endpoint/,
+    );
+    assert.match(uploadRoute, /privateR2BucketName\(\)/);
+    assert.match(uploadRoute, /getExplicitCrossOriginPostRejection/);
+    assert.match(uploadRoute, /CacheControl: "private, no-store"/);
+    assert.match(uploadRoute, /publicUrl: null/);
+    assert.match(uploadRoute, /storageClass: CASE_EVIDENCE_STORAGE_CLASS/);
+    assert.doesNotMatch(uploadRoute, /R2_PUBLIC_URL|assertPublicMediaAvailable/);
+    assert.match(r2, /CLOUDFLARE_R2_PRIVATE_BUCKET_NAME/);
+    assert.match(r2, /must differ from the public R2 bucket/);
+  });
+
+  it("authorizes upload and retrieval through the exact parent Case", () => {
+    const uploadRoute = source(
+      "src/app/api/cases/[id]/attachments/route.ts",
+    );
+    const readRoute = source(
+      "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts",
+    );
+
+    assert.match(uploadRoute, /await getCaseMessagePreflight\(\{/);
+    assert.match(uploadRoute, /actorUserId: me\.id/);
+    assert.match(uploadRoute, /if \(preflight\.actsAsStaff\)/);
+    assert.match(uploadRoute, /requireStaffAdminPinForApi/);
+    assert.match(uploadRoute, /if \(!preflight\.canCreateMessage\)/);
+    assert.match(uploadRoute, /if \(preflight\.recipientUnavailableReason\)/);
+    assert.ok(
+      uploadRoute.indexOf("if (preflight.recipientUnavailableReason)") <
+        uploadRoute.indexOf("form = await req.formData()"),
+      "recipient availability must fail before private upload bytes are read",
+    );
+    assert.doesNotMatch(uploadRoute, /prisma\.case\.findUnique/);
+    assert.match(
+      readRoute,
+      /getVisibleCaseById\(\{[\s\S]*actorUserId: me\.id,[\s\S]*caseId: id/,
+    );
+    assert.match(
+      readRoute,
+      /if \(caseRecord\.actsAsStaff\)[\s\S]*requireStaffAdminPinForApi/,
+    );
+    assert.doesNotMatch(
+      readRoute,
+      /prisma\.case|me\.id === caseRecord|me\.role ===/,
+    );
+    assert.match(uploadRoute, /uploadFileSignatureMatches/);
+    assert.match(uploadRoute, /stripMetadata/);
+    assert.match(
+      readRoute,
+      /readDirectUploadCaseAttachment\(\{[\s\S]*caseId: id,[\s\S]*attachmentId/,
+    );
+    assert.match(readRoute, /CASE_EVIDENCE_SIGNED_URL_TTL_SECONDS = 60/);
+    assert.match(readRoute, /"Cache-Control": "private, no-store, max-age=0"/);
+    assert.match(readRoute, /"Referrer-Policy": "no-referrer"/);
+  });
+
+  it("re-verifies private evidence before the fixed database authority binds it atomically", () => {
+    const route = source("src/app/api/cases/[id]/messages/route.ts");
+    const evidence = source("src/lib/caseEvidence.ts");
+    const authority = source("src/lib/caseReplyAuthority.ts");
+    const migration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
+    );
+    const referenceMigration = source(
+      "prisma/migrations/20260726185000_prepare_direct_upload_authority/migration.sql",
+    );
+
+    assert.match(route, /verifyPrivateCaseEvidenceForReply/);
+    assert.match(
+      evidence,
+      /lifecycle\.publicUrl !== null[\s\S]*lifecycle\.storageClass !== CASE_EVIDENCE_STORAGE_CLASS/,
+    );
+    assert.match(evidence, /DIRECT_UPLOAD_STATUS\.VERIFIED[\s\S]*DIRECT_UPLOAD_STATUS\.CLAIMED/);
+    assert.match(evidence, /exact HTTP retry[\s\S]*fixed database authority/);
+    assert.match(evidence, /uploadFileSignatureMatches/);
+    assert.match(route, /await replyToCaseWithFixedAuthority\(\{/);
+    assert.match(authority, /SELECT public\.grainline_case_reply\(/);
+    assert.match(
+      migration,
+      /INSERT INTO public\."CaseMessage"[\s\S]*INSERT INTO public\."CaseMessageAttachment"/,
+    );
+    assert.match(
+      referenceMigration,
+      /CREATE CONSTRAINT TRIGGER[\s\S]*grainline_direct_upload_case_attachment_reference_trigger/,
+    );
+    assert.doesNotMatch(route, /referenceDirectUploadCaseAttachment|attachmentKeysMatch/);
+  });
+
+  it("keeps private object keys server-side and stops exact replays before side effects", () => {
+    const route = source("src/app/api/cases/[id]/messages/route.ts");
+    const responseMapper = route.slice(
+      route.indexOf("function caseMessageResponse"),
+      route.indexOf("function caseReplyFailureResponse"),
+    );
+
+    assert.match(responseMapper, /attachments: message\.attachments\.map/);
+    assert.doesNotMatch(responseMapper, /directUpload|objectKey|\bkey:/);
+    assert.match(route, /if \(result\.action === "replay"\)[\s\S]*status: 200/);
+    assert.match(route, /return privateJson\(message, \{ status: 201 \}\)/);
+    assert.ok(
+      route.indexOf('if (result.action === "replay")') <
+        route.indexOf("// Notify the appropriate party/parties"),
+      "replay must return before notification and email side effects",
+    );
+  });
+
+  it("keeps evidence bounded in UI/export and retained during account anonymization", () => {
+    const reply = source("src/components/CaseReplyBox.tsx");
+    const history = source("src/lib/caseMessageHistory.ts");
+    const exportRoute = source("src/app/api/account/export/route.ts");
+    const exportAuthority = source(
+      "src/lib/caseAccountExportAuthority.ts",
+    );
+    const exportMessageResult = source(
+      "src/lib/caseMessagePageResult.ts",
+    );
+    const deletion = source("src/lib/accountDeletion.ts");
+    const plan = source("docs/rls-case-case-message-plan.md");
+
+    assert.match(reply, /MAX_CASE_MESSAGE_ATTACHMENTS/);
+    assert.match(reply, /accept="image\/jpeg,image\/png,image\/webp"/);
+    assert.match(reply, /attachmentKeys:/);
+    assert.match(history, /listCaseMessagePage/);
+    assert.doesNotMatch(history, /objectKey|directUploadId/);
+    assert.match(exportRoute, /exportParticipantCases\(user\.id\)/);
+    assert.match(exportAuthority, /listCaseMessagePage/);
+    assert.match(exportAuthority, /MESSAGE_EXPORT_PAGE_SIZE = 51/);
+    assert.match(exportMessageResult, /byteSize: number/);
+    assert.doesNotMatch(
+      `${exportAuthority}\n${exportMessageResult}`,
+      /objectKey|directUploadId/,
+    );
+    assert.match(
+      deletion,
+      /Private Case evidence is retained with the dispute\/order record/,
+    );
+    assert.match(
+      deletion,
+      /releaseDirectUploadsForAccount\(\{\s*client: tx,\s*userId: user\.id/s,
+    );
+    assert.match(plan, /PDFs remain prohibited/);
+    assert.match(plan, /future Case retention purge must[\s\S]*private-object deletion/);
+    assert.match(plan, /Code presence is not evidence that the bucket is private/);
+  });
+
+  it("keeps the private Case path fail-closed until its release gate is explicit", () => {
+    const release = source("src/lib/caseEvidenceRelease.ts");
+    const uploadRoute = source("src/app/api/cases/[id]/attachments/route.ts");
+    const readRoute = source(
+      "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts",
+    );
+    const messageRoute = source("src/app/api/cases/[id]/messages/route.ts");
+    const reply = source("src/components/CaseReplyBox.tsx");
+    const pages = [
+      source("src/app/dashboard/orders/[id]/page.tsx"),
+      source("src/app/dashboard/sales/[orderId]/page.tsx"),
+      source("src/app/admin/cases/[id]/page.tsx"),
+    ];
+
+    assert.match(
+      release,
+      /CASE_EVIDENCE_ATTACHMENTS_ENABLED_ENV[\s\S]*=== "true"/,
+    );
+    assert.match(uploadRoute, /if \(!caseEvidenceAttachmentsEnabled\(\)\)/);
+    assert.match(readRoute, /if \(!caseEvidenceAttachmentsEnabled\(\)\)/);
+    assert.match(
+      messageRoute,
+      /attachmentKeys\.length > 0[\s\S]*!caseEvidenceAttachmentsEnabled\(\)/,
+    );
+    assert.match(reply, /attachmentsEnabled[\s\S]*Evidence images/);
+    for (const page of pages) {
+      assert.match(
+        page,
+        /attachmentsEnabled=\{caseEvidenceAttachmentsEnabled\(\)\}/,
+      );
+    }
+  });
+});

@@ -1,0 +1,66 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+const {
+  caseResolutionCopy,
+  caseResolutionSellerMessage,
+} = await import("../src/lib/caseResolutionCopy.ts");
+
+describe("case resolution copy", () => {
+  it("uses distinct buyer-facing copy for full refunds", () => {
+    const copy = caseResolutionCopy("REFUND_FULL", 12_345, "usd");
+
+    assert.equal(copy.notificationTitle, "Full refund issued");
+    assert.equal(copy.body, "A full refund has been issued to your original payment method.");
+    assert.equal(copy.emailSubject, "Full refund issued for your case");
+    assert.equal(copy.refunding, true);
+  });
+
+  it("includes the partial refund amount and currency", () => {
+    const copy = caseResolutionCopy("REFUND_PARTIAL", 12_345, "usd");
+
+    assert.equal(copy.notificationTitle, "Partial refund issued");
+    assert.equal(copy.body, "A partial refund of $123.45 has been issued to your original payment method.");
+    assert.equal(copy.emailSubject, "Partial refund issued for your case");
+    assert.equal(copy.refunding, true);
+  });
+
+  it("uses shared currency minor-unit formatting for partial refunds", () => {
+    const copy = caseResolutionCopy("REFUND_PARTIAL", 12_345, "jpy");
+
+    assert.match(copy.body, /12,345/);
+    assert.doesNotMatch(copy.body, /123\.45/);
+  });
+
+  it("does not render a zero-dollar partial refund when older rows lack an amount", () => {
+    const copy = caseResolutionCopy("REFUND_PARTIAL", null, "usd");
+
+    assert.equal(copy.body, "A partial refund has been issued to your original payment method.");
+    assert.doesNotMatch(copy.body, /\$0\.00/);
+    assert.equal(copy.refunding, true);
+  });
+
+  it("does not imply a refund for dismissed cases", () => {
+    const copy = caseResolutionCopy("DISMISSED", null, "usd");
+
+    assert.equal(copy.notificationTitle, "Case dismissed");
+    assert.equal(copy.body, "The case has been reviewed and dismissed.");
+    assert.equal(copy.emailSubject, "Your case was dismissed");
+    assert.equal(copy.refunding, false);
+  });
+
+  it("uses seller-facing decision copy without implying the seller received the refund", () => {
+    assert.equal(
+      caseResolutionSellerMessage("REFUND_FULL", 12_345, "usd"),
+      "Grainline resolved this case with a full refund to the buyer.",
+    );
+    assert.equal(
+      caseResolutionSellerMessage("REFUND_PARTIAL", 12_345, "usd"),
+      "Grainline resolved this case with a partial refund of $123.45 to the buyer.",
+    );
+    assert.equal(
+      caseResolutionSellerMessage("DISMISSED", null, "usd"),
+      "Grainline reviewed this case and dismissed it.",
+    );
+  });
+});

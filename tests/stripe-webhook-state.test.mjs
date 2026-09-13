@@ -1,0 +1,932 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+const {
+  blockedCheckoutDisputeState,
+  chargeDisputeLedgerState,
+  chargeRefundLedgerState,
+  checkoutItemsSubtotalCents,
+  checkoutInvalidReasonState,
+  checkoutPriceDriftState,
+  invalidCheckoutBuyerReason,
+  invalidCheckoutListingReason,
+  invalidCheckoutSellerReason,
+  isLikelyThinStripeEventObject,
+  isStaleStripeEvent,
+  latestSuccessfulRefund,
+  normalizeShippoRateObjectId,
+  POSTGRES_INT_MAX,
+  payoutFailureState,
+  parseBoundedPositiveInt,
+  parseOptionalNonNegativeInt,
+  parsePositiveInt,
+  requireCheckoutChargedTotalCents,
+  retrievedStripeEventMatchesSignedEnvelope,
+  SHIPPING_ESTIMATED_DAYS_MAX,
+  shouldApplyDisputeWebhookSideEffects,
+} = await import("../src/lib/stripeWebhookState.ts");
+
+const {
+  REFUND_AMBIGUOUS_SENTINEL,
+} = await import("../src/lib/refundLockState.ts");
+
+function seller(overrides = {}) {
+  return {
+    id: "seller_1",
+    userId: "user_1",
+    chargesEnabled: true,
+    stripeAccountId: "acct_1",
+    user: { id: "user_1", banned: false, deletedAt: null },
+    ...overrides,
+  };
+}
+
+describe("Stripe webhook state helpers", () => {
+  it("requires an exact PostgreSQL-safe paid Checkout total", () => {
+    assert.equal(requireCheckoutChargedTotalCents(12_345), 12_345);
+    for (const value of [null, undefined, -1, 1.5, Number.MAX_SAFE_INTEGER]) {
+      assert.throws(
+        () => requireCheckoutChargedTotalCents(value),
+        /missing a valid amount_total/,
+      );
+    }
+  });
+
+  it("stamps new Orders with the signed Stripe event time", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /if \(eventCreatedSeconds == null \|\| isStaleStripeEvent\(eventCreatedSeconds\)\)/);
+    assert.match(source, /const signedPaymentTime = new Date\(eventCreatedSeconds \* 1000\)/);
+    assert.equal((source.match(/paidAt: signedPaymentTime/g) ?? []).length, 1);
+    assert.doesNotMatch(source, /paidAt: new Date\(\)/);
+  });
+
+  it("does not let a blocked or refunded checkout consume first-sale congratulations", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const sql = readFileSync(
+      "docs/rls-drafts/order-checkout-postpayment-authority.sql",
+      "utf8",
+    );
+    assert.match(source, /if \(order\.isFirstLegitimateSale\)/);
+    assert.match(sql, /candidate\."sellerProfileId" = source_seller\.id/);
+    assert.match(sql, /candidate\."paidAt" IS NOT NULL/);
+    assert.match(sql, /candidate\."sellerRefundId" IS NULL/);
+    assert.match(sql, /NOT candidate\."paymentRefundBlocked"/);
+    assert.match(sql, /NOT candidate\."reviewNeeded"/);
+    assert.match(sql, /candidate\."reviewNote" IS NULL/);
+    assert.match(sql, /Order was held for staff review\./);
+    assert.match(source, /firstSaleCongratsDedupKey\(order\.sellerProfileId\)/);
+    assert.doesNotMatch(source, /first-sale-congrats:\$\{order\.orderId\}/);
+  });
+
+  it("keeps checkout session shipping-address casting centralized in the webhook", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /type CheckoutSessionShippingDetails/);
+    assert.match(source, /function checkoutSessionShippingAddress\(session: Stripe\.Checkout\.Session\)/);
+    assert.match(source, /const shipAddress = checkoutSessionShippingAddress\(s\)/);
+    assert.equal((source.match(/checkoutSessionShippingAddress\(s\)/g) ?? []).length, 1);
+    assert.equal((source.match(/as unknown as \{ shipping_details/g) ?? []).length, 0);
+  });
+
+  it("keeps expanded checkout payment-intent extraction behind a runtime-narrowing helper", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const paymentRefs = readFileSync("src/lib/checkoutPaymentIntentRefs.ts", "utf8");
+
+    assert.match(source, /async function checkoutSessionPaymentIntentRefs\(session: Stripe\.Checkout\.Session\)/);
+    assert.match(paymentRefs, /function objectRecord\(value: unknown\)/);
+    assert.match(paymentRefs, /function stripeObjectId\(value: unknown\)/);
+    assert.match(source, /await checkoutSessionPaymentIntentRefs\(s\)/);
+    assert.match(source, /expand: \["payment_intent\.latest_charge\.transfer", "shipping_cost\.shipping_rate", "line_items\.data\.price\.product"\]/);
+    assert.match(paymentRefs, /expand: \["latest_charge\.transfer"\]/);
+    assert.match(paymentRefs, /retrieveCharge\(latestCharge, \{ expand: \["transfer"\] \}\)/);
+    assert.match(paymentRefs, /paymentIntentRecord\?\.latest_charge/);
+    assert.doesNotMatch(paymentRefs, /payment_intent\.charges\.data/);
+    assert.equal((source.match(/as unknown as ExpandedPI/g) ?? []).length, 0);
+    assert.doesNotMatch(source, /type ExpandedPI/);
+  });
+
+  it("fails closed and binds the exact destination transfer before a blocked-checkout refund claim", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const missingTransfer = source.indexOf("Blocked checkout destination transfer is not yet available");
+    const bindTransfer = source.indexOf("await bindBlockedCheckoutTransfer({");
+    const claimRefund = source.indexOf("const refundClaim = await claimBlockedCheckoutOrderRefund({");
+
+    assert.ok(missingTransfer >= 0);
+    assert.ok(bindTransfer > missingTransfer);
+    assert.ok(claimRefund > bindTransfer);
+    assert.match(source, /eventClaimGeneration: claimGeneration/);
+    assert.match(source, /transferId: stripeTransferId/);
+  });
+
+  it("detects Stripe thin event data objects conservatively", () => {
+    assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session" }), true);
+    assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session", livemode: true }), true);
+    assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session", amount_total: 1000 }), false);
+    assert.equal(
+      isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session", amount_total: 1000, metadata: {} }),
+      false,
+    );
+    assert.equal(isLikelyThinStripeEventObject({ object: "checkout.session" }), false);
+  });
+
+  it("requires retrieved thin events to match the signed envelope", () => {
+    const signed = { id: "evt_1", type: "checkout.session.completed", created: 100, api_version: "2026-04-30" };
+    assert.equal(retrievedStripeEventMatchesSignedEnvelope(signed, { ...signed, data: { object: {} } }), true);
+    assert.equal(
+      retrievedStripeEventMatchesSignedEnvelope(signed, { ...signed, type: "charge.refunded" }),
+      false,
+    );
+    assert.equal(
+      retrievedStripeEventMatchesSignedEnvelope(signed, { ...signed, api_version: "2025-01-01" }),
+      false,
+    );
+  });
+
+  it("serializes charge refund and dispute webhook mutations by charge id", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
+    const refundStart = source.indexOf('if (event.type === "charge.refunded")');
+    const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+
+    assert.ok(refundStart >= 0, "charge.refunded branch should exist");
+    assert.ok(disputeStart > refundStart, "dispute branch should follow refund branch");
+
+    const refundBranch = source.slice(refundStart, disputeStart);
+    const disputeBranch = source.slice(disputeStart);
+
+    assert.match(refundBranch, /applySignedRefundWebhook\(tx, \{/);
+    assert.match(disputeBranch, /applySignedDisputeWebhook\(tx, \{/);
+    assert.equal(
+      (migration.match(/pg_catalog\.pg_advisory_xact_lock\(913337, pg_catalog\.hashtext\(p_charge_id\)\)/gu) ?? []).length,
+      2,
+    );
+  });
+
+  it("treats prevented Stripe disputes as closed across webhook helpers", () => {
+    assert.equal(
+      blockedCheckoutDisputeState({
+        latestDispute: { status: "prevented", stripeObjectId: "dp_1" },
+        reviewPrefix: "Checkout blocked.",
+      }),
+      null,
+    );
+
+    const state = chargeDisputeLedgerState({
+      chargeId: "ch_1",
+      eventType: "charge.dispute.updated",
+      stripeEventCreated: 1_777_777_777,
+      dispute: {
+        id: "dp_1",
+        amount: 500,
+        currency: "usd",
+        status: "prevented",
+        reason: "fraudulent",
+      },
+      orderCurrency: "usd",
+    });
+
+    assert.equal(state.orderUpdate.sellerRefundLockedAt, null);
+    assert.equal(state.ledger.status, "prevented");
+  });
+
+  it("keeps unmatched charge refund and dispute webhooks retryable", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
+    const refundStart = source.indexOf('if (event.type === "charge.refunded")');
+    const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+    const payoutStart = source.indexOf('if (event.type === "payout.failed")');
+
+    assert.ok(refundStart >= 0, "charge.refunded branch should exist");
+    assert.ok(disputeStart > refundStart, "dispute branch should follow refund branch");
+    assert.ok(payoutStart > disputeStart, "payout branch should follow dispute branch");
+
+    const refundBranch = source.slice(refundStart, disputeStart);
+    const disputeBranch = source.slice(disputeStart, payoutStart);
+
+    assert.match(refundBranch, /await applySignedRefundWebhook\(tx,/);
+    assert.match(disputeBranch, /await applySignedDisputeWebhook\(tx,/);
+    assert.match(migration, /Signed refund Order source is invalid/);
+    assert.match(migration, /Signed dispute Order source is invalid/);
+    assert.doesNotMatch(refundBranch, /catch \(/);
+    assert.doesNotMatch(disputeBranch, /catch \(/);
+  });
+
+  it("orders dispute webhook side effects by Stripe event time", () => {
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 100,
+        currentStatus: "needs_response",
+        latestEvent: { stripeEventCreated: 101, status: "lost", stripeEventId: "evt_closed" },
+      }),
+      false,
+    );
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 101,
+        currentStatus: "lost",
+        latestEvent: { stripeEventCreated: 100, status: "needs_response", stripeEventId: "evt_created" },
+      }),
+      true,
+    );
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 101,
+        currentStatus: "needs_response",
+        latestEvent: { stripeEventCreated: 101, status: "won", stripeEventId: "evt_won" },
+      }),
+      false,
+    );
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 101,
+        currentStatus: "won",
+        latestEvent: { stripeEventCreated: 101, status: "needs_response", stripeEventId: "evt_created" },
+      }),
+      true,
+    );
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 100,
+        currentStatus: "needs_response",
+        latestEvent: null,
+      }),
+      true,
+    );
+  });
+
+  it("checks existing dispute event order before applying dispute side effects", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
+    const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+    const payoutStart = source.indexOf('if (event.type === "payout.failed")');
+    const disputeBranch = source.slice(disputeStart, payoutStart);
+
+    const latestQuery = migration.indexOf('FROM public."OrderPaymentEvent" AS payment');
+    const setConflictQuery = migration.indexOf('FROM public."OrderPaymentEvent" AS equal_payment');
+    const ledgerWrite = migration.indexOf('INSERT INTO public."OrderPaymentEvent"', setConflictQuery);
+    const orderUpdate = migration.indexOf('UPDATE public."Order" AS orders', ledgerWrite);
+    const caseAction = migration.indexOf("grainline_case_stripe_dispute_apply(payment_event_id)", ledgerWrite);
+
+    assert.ok(latestQuery >= 0, "fixed dispute authority should read existing dispute ledgers");
+    assert.ok(setConflictQuery > latestQuery, "equal-second decisions should inspect the complete state set");
+    assert.ok(ledgerWrite > setConflictQuery, "dispute evidence should follow ordering classification");
+    assert.ok(orderUpdate > ledgerWrite, "Order effects should happen after evidence insertion");
+    assert.ok(caseAction > ledgerWrite, "Case promotion should be guarded after evidence insertion");
+    assert.match(migration, /result_action := 'stale_recorded'/);
+    assert.match(migration, /result_action := 'same_second_recorded'/);
+    assert.match(migration, /result_action := 'conflict_recorded'/);
+    assert.match(migration, /IF source_event\.type = 'charge\.dispute\.created'/);
+    assert.doesNotMatch(disputeBranch, /tx\.case\.(?:create|update|updateMany|upsert|delete|deleteMany)\(/);
+    assert.doesNotMatch(disputeBranch, /case:\s*\{\s*select:/);
+    assert.match(disputeBranch, /if \(result\.notificationAuthorized\)/);
+    assert.match(disputeBranch, /createNotificationOrThrow\([\s\S]*\}, tx\)/);
+  });
+
+  it("applies refund webhook order side effects only when the refund ledger is new", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
+    const refundStart = source.indexOf('if (event.type === "charge.refunded")');
+    const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+    const refundBranch = source.slice(refundStart, disputeStart);
+
+    assert.match(refundBranch, /await applySignedRefundWebhook\(tx,/);
+    const replayReturn = migration.indexOf("'replay'::text");
+    const ledgerInsert = migration.indexOf('INSERT INTO public."OrderPaymentEvent"');
+    const orderUpdate = migration.indexOf('UPDATE public."Order" AS orders', ledgerInsert);
+    assert.ok(replayReturn >= 0 && replayReturn < ledgerInsert);
+    assert.ok(orderUpdate > ledgerInsert);
+  });
+
+  it("detects stale Stripe webhook events from the signed event timestamp", () => {
+    const now = 1_000_000;
+    assert.equal(isStaleStripeEvent(now - 30 * 24 * 60 * 60, now), false);
+    assert.equal(isStaleStripeEvent(now - 30 * 24 * 60 * 60 - 1, now), true);
+    assert.equal(isStaleStripeEvent(now + 10 * 60, now), false);
+    assert.equal(isStaleStripeEvent(now + 10 * 60 + 1, now), true);
+    assert.equal(isStaleStripeEvent(undefined, now), true);
+  });
+
+  it("selects the newest succeeded refund from Stripe charge data", () => {
+    assert.deepEqual(
+      latestSuccessfulRefund([
+        { id: "re_old", status: "succeeded", created: 10 },
+        { id: "re_failed", status: "failed", created: 30 },
+        { id: "re_pending", status: "pending", created: 40 },
+        { id: "re_canceled", status: "canceled", created: 50 },
+        { id: "re_new", status: "succeeded", created: 20 },
+      ]),
+      { id: "re_new", status: "succeeded", created: 20 },
+    );
+    assert.equal(latestSuccessfulRefund([{ id: "re_failed", status: "failed", created: 30 }]), null);
+    assert.equal(latestSuccessfulRefund([{ id: "re_pending", status: "pending", created: 30 }]), null);
+  });
+
+  it("parses positive integer metadata with a fallback", () => {
+    assert.equal(parsePositiveInt("3", 7), 3);
+    assert.equal(parsePositiveInt(4, 7), 4);
+    assert.equal(parsePositiveInt("0", 7), 7);
+    assert.equal(parsePositiveInt("1.5", 7), 7);
+    assert.equal(parsePositiveInt("abc", 7), 7);
+    assert.equal(parsePositiveInt(String(POSTGRES_INT_MAX + 1), 7), 7);
+  });
+
+  it("parses bounded positive integer metadata with a fallback", () => {
+    assert.equal(parseBoundedPositiveInt("3", 7, SHIPPING_ESTIMATED_DAYS_MAX), 3);
+    assert.equal(parseBoundedPositiveInt(60, 7, SHIPPING_ESTIMATED_DAYS_MAX), 60);
+    assert.equal(parseBoundedPositiveInt("61", 7, SHIPPING_ESTIMATED_DAYS_MAX), 7);
+    assert.equal(parseBoundedPositiveInt("0", 7, SHIPPING_ESTIMATED_DAYS_MAX), 7);
+    assert.equal(parseBoundedPositiveInt("1.5", 7, SHIPPING_ESTIMATED_DAYS_MAX), 7);
+    assert.equal(parseBoundedPositiveInt("abc", 7, SHIPPING_ESTIMATED_DAYS_MAX), 7);
+  });
+
+  it("parses optional non-negative integer metadata", () => {
+    assert.equal(parseOptionalNonNegativeInt("0"), 0);
+    assert.equal(parseOptionalNonNegativeInt(12), 12);
+    assert.equal(parseOptionalNonNegativeInt(null), null);
+    assert.equal(parseOptionalNonNegativeInt(""), null);
+    assert.equal(parseOptionalNonNegativeInt("-1"), null);
+    assert.equal(parseOptionalNonNegativeInt("1.25"), null);
+    assert.equal(parseOptionalNonNegativeInt(String(POSTGRES_INT_MAX + 1)), null);
+  });
+
+  it("derives checkout item subtotal from listing line items before gift-wrap fallback", () => {
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: 10_300,
+        giftWrappingPriceCents: 300,
+        lineItems: [
+          {
+            amount_subtotal: 10_000,
+            quantity: 2,
+            price: {
+              unit_amount: 5_000,
+              product: { metadata: { listingId: "listing_1" } },
+            },
+          },
+          {
+            amount_subtotal: 300,
+            quantity: 1,
+            price: {
+              unit_amount: 300,
+              product: { metadata: {} },
+            },
+          },
+        ],
+      }),
+      10_000,
+    );
+
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: 10_300,
+        metadataItemsSubtotalCents: 10_000,
+        giftWrappingPriceCents: 300,
+        lineItems: [],
+      }),
+      10_000,
+    );
+
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: 10_300,
+        giftWrappingPriceCents: 300,
+        lineItems: [],
+      }),
+      10_000,
+    );
+  });
+
+  it("bounds checkout subtotal derivation to persisted integer cents fields", () => {
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: POSTGRES_INT_MAX + 1,
+        metadataItemsSubtotalCents: POSTGRES_INT_MAX + 1,
+        giftWrappingPriceCents: 0,
+        lineItems: [
+          {
+            amount_subtotal: POSTGRES_INT_MAX + 1,
+            quantity: 2,
+            price: {
+              unit_amount: POSTGRES_INT_MAX,
+              product: { metadata: { listingId: "listing_1" } },
+            },
+          },
+        ],
+      }),
+      0,
+    );
+
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: POSTGRES_INT_MAX,
+        giftWrappingPriceCents: 0,
+        lineItems: [
+          {
+            quantity: 2,
+            price: {
+              unit_amount: POSTGRES_INT_MAX,
+              product: { metadata: { listingId: "listing_1" } },
+            },
+          },
+        ],
+      }),
+      POSTGRES_INT_MAX,
+    );
+  });
+
+  it("persists checkout order item subtotals without reusing Stripe subtotal directly", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /const checkoutLineItems: CheckoutLineItem\[\] =/);
+    assert.match(source, /const itemsSubtotalCents = checkoutItemsSubtotalCents\(\{/);
+    assert.match(source, /metadataItemsSubtotalCents: parseOptionalNonNegativeInt\(sessionMeta\.itemsSubtotalCents\)/);
+    assert.match(source, /checkoutAmountSubtotalCents: s\.amount_subtotal \?\? null/);
+    assert.doesNotMatch(source, /const itemsSubtotalCents: number = s\.amount_subtotal \?\? 0/);
+  });
+
+  it("detects checkout price drift without changing Stripe-authoritative order data", () => {
+    assert.deepEqual(
+      checkoutPriceDriftState({
+        stripeUnitAmountCents: 1_200,
+        expectedUnitAmountCents: 1_000,
+        checkoutPriceVersion: 3,
+        currentPriceVersion: 4,
+      }),
+      {
+        reasons: ["stripe_unit_amount_mismatch", "price_version_changed"],
+        stripeUnitAmountCents: 1_200,
+        expectedUnitAmountCents: 1_000,
+        checkoutPriceVersion: 3,
+        currentPriceVersion: 4,
+      },
+    );
+    assert.equal(
+      checkoutPriceDriftState({
+        stripeUnitAmountCents: 1_000,
+        expectedUnitAmountCents: 1_000,
+        checkoutPriceVersion: 4,
+        currentPriceVersion: 4,
+      }),
+      null,
+    );
+  });
+
+  it("ignores incomplete checkout price drift inputs", () => {
+    assert.equal(
+      checkoutPriceDriftState({
+        stripeUnitAmountCents: null,
+        expectedUnitAmountCents: 1_000,
+        checkoutPriceVersion: null,
+        currentPriceVersion: 4,
+      }),
+      null,
+    );
+  });
+
+  it("does not persist synthetic Shippo pickup/fallback IDs", () => {
+    assert.equal(normalizeShippoRateObjectId("pickup"), null);
+    assert.equal(normalizeShippoRateObjectId(" fallback "), null);
+    assert.equal(normalizeShippoRateObjectId(null), null);
+    assert.equal(normalizeShippoRateObjectId("shippo_rate_1"), "shippo_rate_1");
+    assert.equal(normalizeShippoRateObjectId("quote-only:shippo_rate_1"), "quote-only:shippo_rate_1");
+  });
+
+  it("explains why a completed checkout seller is no longer eligible", () => {
+    assert.match(invalidCheckoutSellerReason(null), /could not be verified/);
+    assert.match(invalidCheckoutSellerReason(seller({ user: { id: "user_1", banned: true, deletedAt: null } })), /suspended/);
+    assert.match(
+      invalidCheckoutSellerReason(seller({ user: { id: "user_1", banned: false, deletedAt: new Date("2026-04-28") } })),
+      /deleted/,
+    );
+    assert.match(invalidCheckoutSellerReason(seller({ chargesEnabled: false })), /disabled/);
+    assert.match(invalidCheckoutSellerReason(seller({ stripeAccountId: null })), /disconnected/);
+    assert.match(invalidCheckoutSellerReason(seller({ vacationMode: true })), /vacation mode/);
+    assert.match(invalidCheckoutSellerReason(seller({ acceptingNewOrders: false })), /stopped accepting/);
+    assert.equal(invalidCheckoutSellerReason(seller()), null);
+  });
+
+  it("explains why a completed checkout listing is no longer eligible", () => {
+    const listing = {
+      id: "listing_1",
+      status: "ACTIVE",
+      isPrivate: false,
+      reservedForUserId: null,
+    };
+    assert.match(invalidCheckoutListingReason(null, "buyer_1"), /could not be verified/);
+    assert.match(invalidCheckoutListingReason({ ...listing, status: "SOLD_OUT" }, "buyer_1"), /no longer active/);
+    assert.match(
+      invalidCheckoutListingReason({ ...listing, isPrivate: true, reservedForUserId: "buyer_2" }, "buyer_1"),
+      /reservation changed/,
+    );
+    assert.equal(invalidCheckoutListingReason({ ...listing, isPrivate: true, reservedForUserId: "buyer_1" }, "buyer_1"), null);
+    assert.equal(invalidCheckoutListingReason(listing, "buyer_1"), null);
+  });
+
+  it("explains why a completed checkout buyer is no longer eligible", () => {
+    assert.match(invalidCheckoutBuyerReason(null), /could not be verified/);
+    assert.match(invalidCheckoutBuyerReason({ id: "buyer_1", banned: true, deletedAt: null }), /suspended/);
+    assert.match(
+      invalidCheckoutBuyerReason({ id: "buyer_1", banned: false, deletedAt: new Date("2026-04-30") }),
+      /deleted/,
+    );
+    assert.equal(invalidCheckoutBuyerReason({ id: "buyer_1", banned: false, deletedAt: null }), null);
+  });
+
+  it("builds a transaction-revalidated checkout invalid state", () => {
+    assert.deepEqual(
+      checkoutInvalidReasonState({
+        buyer: { id: "buyer_1", banned: false, deletedAt: null },
+        sellers: [seller({ chargesEnabled: false }), seller({ id: "seller_2", userId: "user_2" })],
+        listings: [{ id: "listing_1", status: "ACTIVE", isPrivate: false, reservedForUserId: null }],
+      }),
+      {
+        reason: "Seller Stripe account was disabled before payment completion.",
+        buyerInvalidReason: null,
+        buyerUserId: "buyer_1",
+        sellerUserIds: ["user_1"],
+      },
+    );
+    assert.deepEqual(
+      checkoutInvalidReasonState({
+        buyer: { id: "buyer_1", banned: true, deletedAt: null },
+        sellers: [seller()],
+        listings: [{ id: "listing_1", status: "SOLD_OUT", isPrivate: false, reservedForUserId: null }],
+      }),
+      {
+        reason: "Buyer account was suspended before payment completion. Listing was no longer active before payment completion.",
+        buyerInvalidReason: "Buyer account was suspended before payment completion.",
+        buyerUserId: null,
+        sellerUserIds: [],
+      },
+    );
+  });
+
+  it("blocks automatic invalid-checkout refunds while a Stripe dispute is open", () => {
+    const state = blockedCheckoutDisputeState({
+      latestDispute: { status: "needs_response", stripeObjectId: "dp_123" },
+      reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+    });
+
+    assert.deepEqual(state, {
+      reviewNeeded: true,
+      reviewNote: "Seller account was suspended. Order was held for staff review. Automatic refund was skipped because Stripe dispute dp_123 is still open; staff must reconcile this payment manually.",
+      disputeId: "dp_123",
+      disputeStatus: "needs_response",
+    });
+    assert.equal(
+      blockedCheckoutDisputeState({
+        latestDispute: { status: "won", stripeObjectId: "dp_closed" },
+        reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+      }),
+      null,
+    );
+    assert.equal(
+      blockedCheckoutDisputeState({
+        latestDispute: null,
+        reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+      }),
+      null,
+    );
+    assert.deepEqual(
+      blockedCheckoutDisputeState({
+        openDisputeBlocked: true,
+        reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+      }),
+      {
+        reviewNeeded: true,
+        reviewNote: "Seller account was suspended. Order was held for staff review. Automatic refund was skipped because a Stripe dispute is still open; staff must reconcile this payment manually.",
+        disputeId: null,
+        disputeStatus: null,
+      },
+    );
+    assert.deepEqual(
+      blockedCheckoutDisputeState({
+        latestDispute: { status: "won", stripeObjectId: "du_stale_closed" },
+        openDisputeBlocked: true,
+        reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+      }),
+      {
+        reviewNeeded: true,
+        reviewNote: "Seller account was suspended. Order was held for staff review. Automatic refund was skipped because a Stripe dispute is still open; staff must reconcile this payment manually.",
+        disputeId: null,
+        disputeStatus: null,
+      },
+    );
+  });
+
+  it("classifies Stripe-confirmed local refunds without changing the order row", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 4_000,
+      latestRefund: { id: "re_local", amount: 4_000, status: "succeeded", created: 10 },
+      order: { currency: "usd", sellerRefundId: "re_local", sellerRefundAmountCents: 4_000 },
+    });
+
+    assert.equal(state.latestRefundId, "re_local");
+    assert.equal(state.ledger.reason, "local_refund_confirmed");
+    assert.equal(state.ledger.description, "Stripe confirmed a Grainline-tracked refund.");
+    assert.equal(state.ledger.metadata.preservedLocalRefundId, null);
+    assert.equal(state.orderUpdate, null);
+  });
+
+  it("records external Stripe refunds and marks the order for review", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: null,
+      amountRefundedCents: 2_500,
+      latestRefund: { id: "re_external", amount: 2_500, status: "succeeded", created: 10, reason: "requested_by_customer" },
+      order: { currency: "usd", sellerRefundId: null, sellerRefundAmountCents: null },
+    });
+
+    assert.equal(state.ledger.stripeObjectId, "re_external");
+    assert.equal(state.ledger.amountCents, 2_500);
+    assert.equal(state.ledger.currency, "usd");
+    assert.equal(state.ledger.reason, "requested_by_customer");
+    assert.deepEqual(state.orderUpdate, {
+      sellerRefundId: "re_external",
+      sellerRefundAmountCents: 2_500,
+      sellerRefundLockedAt: null,
+      reviewNeeded: true,
+      reviewNote: "Stripe refund was created outside Grainline.",
+    });
+  });
+
+  it("records charge.refunded ledgers without stealing fresh local refund locks", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 3_500,
+      latestRefund: { id: "re_route", amount: 3_500, status: "succeeded", created: 10 },
+      order: {
+        currency: "usd",
+        sellerRefundId: "pending",
+        sellerRefundLockedAt: new Date(),
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.ledger.reason, "local_refund_pending_confirmation");
+    assert.equal(state.ledger.description, "Stripe reported a refund while Grainline was recording local refund side effects.");
+    assert.equal(state.ledger.metadata.pendingLocalRefundLock, true);
+    assert.equal(state.orderUpdate, null);
+  });
+
+  it("lets charge.refunded recover stale pending refund locks", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 3_500,
+      latestRefund: { id: "re_stale", amount: 3_500, status: "succeeded", created: 10 },
+      order: {
+        currency: "usd",
+        sellerRefundId: "pending",
+        sellerRefundLockedAt: new Date(0),
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.ledger.reason, "external_refund");
+    assert.equal(state.ledger.metadata.pendingLocalRefundLock, false);
+    assert.deepEqual(state.orderUpdate, {
+      sellerRefundId: "re_stale",
+      sellerRefundAmountCents: 3_500,
+      sellerRefundLockedAt: null,
+      reviewNeeded: true,
+      reviewNote: "Stripe refund was created outside Grainline.",
+    });
+  });
+
+  it("does not let charge.refunded steal a stale sentinel from an active Case claim", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 3_500,
+      latestRefund: {
+        id: "re_case_claim",
+        amount: 3_500,
+        status: "succeeded",
+        created: 10,
+      },
+      order: {
+        currency: "usd",
+        sellerRefundId: "pending",
+        sellerRefundLockedAt: new Date(0),
+        caseResolutionClaimId: "case_resolution_claim_1",
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.ledger.reason, "local_refund_pending_confirmation");
+    assert.equal(state.ledger.metadata.pendingLocalRefundLock, true);
+    assert.equal(state.orderUpdate, null);
+  });
+
+  it("does not let charge.refunded steal an elapsed generation-fenced refund claim", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 3_500,
+      latestRefund: {
+        id: "re_generation_claim",
+        amount: 3_500,
+        status: "succeeded",
+        created: 10,
+      },
+      order: {
+        currency: "usd",
+        sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
+        sellerRefundLockedAt: new Date(0),
+        refundClaimId: "order_refund_claim_1",
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.ledger.reason, "local_refund_pending_confirmation");
+    assert.equal(state.ledger.metadata.pendingLocalRefundLock, true);
+    assert.equal(state.orderUpdate, null);
+  });
+
+  it("lets charge.refunded resolve ambiguous local refund attempts", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 4_000,
+      latestRefund: { id: "re_resolved", amount: 4_000, status: "succeeded", created: 10 },
+      order: {
+        currency: "usd",
+        sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
+        sellerRefundLockedAt: null,
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.orderUpdate?.sellerRefundId, "re_resolved");
+    assert.equal(state.orderUpdate?.sellerRefundLockedAt, null);
+  });
+
+  it("preserves a local refund id when Stripe reports an additional external refund", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 6_000,
+      latestRefund: { id: "re_new_external", amount: 1_500, status: "succeeded", created: 20 },
+      order: { currency: "usd", sellerRefundId: "re_local", sellerRefundAmountCents: 4_000 },
+    });
+
+    assert.equal(state.ledger.reason, "additional_external_refund");
+    assert.equal(state.ledger.metadata.preservedLocalRefundId, "re_local");
+    assert.deepEqual(state.orderUpdate, {
+      sellerRefundAmountCents: 6_000,
+      sellerRefundLockedAt: null,
+      reviewNeeded: true,
+      reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
+    });
+  });
+
+  it("flags Stripe refund totals that exceed the order total", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 6_000,
+      latestRefund: { id: "re_chargeback", amount: 5_000, status: "succeeded", created: 30 },
+      order: {
+        currency: "usd",
+        sellerRefundId: "re_local",
+        sellerRefundAmountCents: 1_000,
+        itemsSubtotalCents: 4_000,
+        shippingAmountCents: 500,
+        giftWrappingPriceCents: 0,
+        taxAmountCents: 300,
+      },
+    });
+
+    assert.equal(state.ledger.metadata.orderTotalCents, 4_800);
+    assert.equal(state.ledger.metadata.refundExceedsOrderTotal, true);
+    assert.match(state.orderUpdate?.reviewNote ?? "", /exceeds the order total/);
+  });
+
+  it("falls back to charge-level refund data when Stripe omits refund details", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      amountRefundedCents: 900,
+      latestRefund: null,
+      fallbackRefundId: "external:evt_refunded",
+      order: { currency: "usd", sellerRefundId: null, sellerRefundAmountCents: null },
+    });
+
+    assert.equal(state.ledger.stripeObjectId, "external:evt_refunded");
+    assert.equal(state.ledger.amountCents, 900);
+    assert.equal(state.ledger.status, "refunded");
+    assert.equal(state.orderUpdate?.sellerRefundId, "external:evt_refunded");
+  });
+
+  it("builds dispute ledger rows and order review updates", () => {
+    const state = chargeDisputeLedgerState({
+      chargeId: "ch_1",
+      eventType: "charge.dispute.created",
+      stripeEventCreated: 1_717_171_717,
+      orderCurrency: "usd",
+      dispute: { id: "dp_1", amount: 3_200, currency: null, reason: "fraudulent", status: null },
+    });
+
+    assert.deepEqual(state.ledger, {
+      stripeObjectId: "dp_1",
+      amountCents: 3_200,
+      currency: "usd",
+      status: "created",
+      reason: "fraudulent",
+      description: "Stripe dispute charge.dispute.created: fraudulent",
+      metadata: {
+        chargeId: "ch_1",
+        disputeId: "dp_1",
+        stripeEventType: "charge.dispute.created",
+        stripeEventCreated: 1_717_171_717,
+      },
+    });
+    assert.deepEqual(state.orderUpdate, {
+      reviewNeeded: true,
+      reviewNote: "Stripe dispute charge.dispute.created: fraudulent",
+    });
+  });
+
+  it("records signed Stripe event time on dispute ledger rows", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
+
+    assert.match(source, /applySignedDisputeWebhook\(tx, \{[\s\S]*eventCreatedSeconds: event\.created,/);
+    assert.match(migration, /"stripeEventCreatedSeconds"[\s\S]*p_event_created_seconds/);
+  });
+
+  it("clears stale refund-lock timestamps when a Stripe dispute closes", () => {
+    const state = chargeDisputeLedgerState({
+      chargeId: "ch_1",
+      eventType: "charge.dispute.closed",
+      orderCurrency: "usd",
+      dispute: { id: "dp_1", amount: 3_200, currency: "usd", reason: "fraudulent", status: "lost" },
+    });
+
+    assert.deepEqual(state.orderUpdate, {
+      reviewNeeded: true,
+      reviewNote: "Stripe dispute charge.dispute.closed: fraudulent",
+      sellerRefundLockedAt: null,
+    });
+  });
+
+  it("builds durable payout-failure ledger state and seller notification copy", () => {
+    const state = payoutFailureState(
+      {
+        id: "po_1",
+        status: null,
+        amount: 10_500,
+        currency: "usd",
+        failure_code: "account_closed",
+        failure_message: "The destination account is closed.",
+      },
+      "evt_1",
+    );
+
+    assert.deepEqual(state.event, {
+      stripePayoutId: "po_1",
+      status: "failed",
+      amountCents: 10_500,
+      currency: "usd",
+      failureCode: "account_closed",
+      failureMessage: "The destination account is closed.",
+      stripeEventId: "evt_1",
+    });
+    assert.deepEqual(state.notification, {
+      type: "PAYOUT_FAILED",
+      title: "Payout failed",
+      body: "Stripe could not complete a payout: The destination account is closed.",
+      link: "/dashboard/seller",
+    });
+  });
+
+  it("uses safe payout-failure fallbacks when Stripe omits optional fields", () => {
+    const state = payoutFailureState({ id: "po_1" }, "evt_1");
+
+    assert.equal(state.event.status, "failed");
+    assert.equal(state.event.amountCents, null);
+    assert.equal(state.event.currency, "usd");
+    assert.equal(state.event.failureCode, null);
+    assert.equal(state.notification.body, "Stripe could not complete a payout. Review your Stripe account so the payout can be retried.");
+  });
+});

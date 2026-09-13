@@ -1,0 +1,86 @@
+export const ADMIN_PIN_COOKIE_NAME = "admin-pin-verified";
+export const ADMIN_PIN_MAX_AGE_SECONDS = 60 * 60 * 4;
+
+const encoder = new TextEncoder();
+const DEV_ADMIN_PIN_COOKIE_SECRET =
+  process.env.ADMIN_PIN_COOKIE_SECRET_DEV || `grainline-local-dev-admin-pin-cookie-secret-${crypto.randomUUID()}`;
+const ADMIN_PIN_COOKIE_SECRET_ERROR = "ADMIN_PIN_COOKIE_SECRET is required in production";
+
+export function assertAdminPinCookieSecretConfigured(env: NodeJS.ProcessEnv = process.env) {
+  const isNextProductionBuild = env.NEXT_PHASE === "phase-production-build";
+  if (env.NODE_ENV === "production" && !isNextProductionBuild && !env.ADMIN_PIN_COOKIE_SECRET) {
+    throw new Error(ADMIN_PIN_COOKIE_SECRET_ERROR);
+  }
+}
+
+assertAdminPinCookieSecretConfigured();
+
+function getCookieSecret() {
+  if (process.env.ADMIN_PIN_COOKIE_SECRET) return process.env.ADMIN_PIN_COOKIE_SECRET;
+  return process.env.NODE_ENV !== "production" ? DEV_ADMIN_PIN_COOKIE_SECRET : "";
+}
+
+function base64Url(bytes: ArrayBuffer) {
+  let binary = "";
+  for (const byte of new Uint8Array(bytes)) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function signPayload(payload: string, secret: string) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+  return base64Url(signature);
+}
+
+function constantTimeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+export function isAdminPinConfigured() {
+  return Boolean(process.env.ADMIN_PIN);
+}
+
+export async function createAdminPinSessionCookieValue(
+  userId: string,
+  sessionId: string | null | undefined,
+  now = Date.now(),
+) {
+  const secret = getCookieSecret();
+  if (!secret || !sessionId) return null;
+  const expiresAt = now + ADMIN_PIN_MAX_AGE_SECONDS * 1000;
+  const payload = `${userId}.${sessionId}.${expiresAt}`;
+  const signature = await signPayload(payload, secret);
+  return `v2.${expiresAt}.${signature}`;
+}
+
+export async function verifyAdminPinCookieValue(
+  cookieValue: string | undefined,
+  userId: string,
+  sessionId?: string | null,
+  now = Date.now(),
+) {
+  const secret = getCookieSecret();
+  if (!secret || !cookieValue || !sessionId) return false;
+
+  const [version, expiresAtRaw, signature] = cookieValue.split(".");
+  if (version !== "v2" || !expiresAtRaw || !signature) return false;
+
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
+
+  const expected = await signPayload(`${userId}.${sessionId}.${expiresAtRaw}`, secret);
+  return constantTimeEqual(signature, expected);
+}

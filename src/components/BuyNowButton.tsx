@@ -1,0 +1,108 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import dynamic from "next/dynamic";
+import { useToast } from "@/components/Toast";
+import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
+import { DEFAULT_CURRENCY } from "@/lib/money";
+
+const BuyNowCheckoutModal = dynamic(() => import("./BuyNowCheckoutModal"), {
+  ssr: false,
+});
+
+type Props = {
+  listingId: string;
+  listingTitle: string;
+  listingImageUrl?: string;
+  sellerName: string;
+  sellerId: string;
+  priceCents: number;
+  currency?: string | null;
+  quantity?: number;
+  offersGiftWrapping?: boolean;
+  giftWrappingPriceCents?: number | null;
+  selectedVariantOptionIds?: string[];
+  variantRequired?: boolean;
+  autoOpen?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+};
+
+export default function BuyNowButton({
+  listingId,
+  listingTitle,
+  listingImageUrl,
+  sellerName,
+  sellerId,
+  priceCents,
+  currency = DEFAULT_CURRENCY,
+  quantity = 1,
+  offersGiftWrapping = false,
+  giftWrappingPriceCents = null,
+  selectedVariantOptionIds = [],
+  variantRequired = false,
+  autoOpen = false,
+  className = "",
+  children,
+}: Props) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
+  const openedFromRedirect = useRef(false);
+  const { isSignedIn, isLoaded } = useUser();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!autoOpen || openedFromRedirect.current || !isLoaded || !isSignedIn) return;
+    if (variantRequired && selectedVariantOptionIds.length === 0) return;
+    openedFromRedirect.current = true;
+    setHasOpened(true);
+    setIsOpen(true);
+  }, [autoOpen, isLoaded, isSignedIn, selectedVariantOptionIds.length, variantRequired]);
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={!isLoaded}
+        onClick={() => {
+          if (variantRequired && selectedVariantOptionIds.length === 0) {
+            toast("Please select all variant options first.", "error");
+            return;
+          }
+          if (!isSignedIn) {
+            window.location.href = signUpPathForRedirect(window.location.pathname + window.location.search);
+            return;
+          }
+          setHasOpened(true);
+          setIsOpen(true);
+        }}
+        className={
+          className ||
+          "inline-flex min-h-11 items-center justify-center rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+        }
+      >
+        {children ?? "Buy now"}
+      </button>
+
+      {hasOpened && (
+        <BuyNowCheckoutModal
+          listingId={listingId}
+          listingTitle={listingTitle}
+          listingImageUrl={listingImageUrl}
+          sellerName={sellerName}
+          sellerId={sellerId}
+          priceCents={priceCents}
+          currency={currency}
+          quantity={quantity}
+          offersGiftWrapping={offersGiftWrapping}
+          giftWrappingPriceCents={giftWrappingPriceCents}
+          selectedVariantOptionIds={selectedVariantOptionIds}
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+          isSignedIn={isSignedIn ?? false}
+        />
+      )}
+    </>
+  );
+}

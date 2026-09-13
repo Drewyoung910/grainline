@@ -1,0 +1,183 @@
+// src/app/map/page.tsx
+import { prisma } from "@/lib/db";
+import AllSellersMap from "@/components/AllSellersMap";
+import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import type { Metadata } from "next";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
+
+export const metadata: Metadata = {
+  title: "Find Local Woodworkers Near You | Grainline Makers Map",
+  description: "Discover handmade woodworking makers in your area. Browse makers by city and find someone local to commission custom furniture, home decor, and more.",
+  alternates: { canonical: "https://thegrainline.com/map" },
+  openGraph: {
+    title: "Find Local Woodworkers Near You | Grainline",
+    description: "Discover handmade woodworking makers in your area.",
+    type: "website",
+  },
+};
+
+type Point = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  city: string | null;
+  state: string | null;
+};
+
+const MAP_SELLER_POINT_LIMIT = 500;
+
+export default async function AllSellersMapPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ near?: string; zoom?: string }>;
+}) {
+  const { near, zoom } = await searchParams;
+
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = meRow?.id ?? null;
+  }
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+  const visibleSellerWhere = activeSellerProfileWhere(
+    blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {},
+  );
+
+  let initialCenter: { lat: number; lng: number } | null = null;
+  let initialZoom = 3;
+
+  if (near) {
+    const [latStr, lngStr] = near.split(",");
+    const lat = parseBoundedDecimalParam(latStr, -90, 90);
+    const lng = parseBoundedDecimalParam(lngStr, -180, 180);
+    if (lat !== null && lng !== null) {
+      initialCenter = { lat, lng };
+    }
+  }
+  if (zoom) {
+    initialZoom = parseBoundedPositiveIntParam(zoom, 3, 18);
+  }
+
+  // Only sellers with a precise pin (lat & lng present). Exclude radius-only rows.
+  const activeMetros = await prisma.metro.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        {
+          sellerProfiles: {
+            some: visibleSellerWhere,
+          },
+        },
+        {
+          sellerCityProfiles: {
+            some: visibleSellerWhere,
+          },
+        },
+      ],
+    },
+    select: { id: true, slug: true, name: true, state: true, parentMetroId: true },
+    orderBy: { name: "asc" },
+  });
+
+  // Group child metros under their parents; major metros with no children stand alone
+  const majorMetros = activeMetros.filter((m) => !m.parentMetroId);
+  const childMetros = activeMetros.filter((m) => m.parentMetroId);
+  const childrenByParent = new Map<string, typeof childMetros>();
+  for (const c of childMetros) {
+    const list = childrenByParent.get(c.parentMetroId!) ?? [];
+    list.push(c);
+    childrenByParent.set(c.parentMetroId!, list);
+  }
+
+  const sellers = await prisma.sellerProfile.findMany({
+    where: {
+      publicMapOptIn: true,
+      ...visibleSellerWhere,
+      lat: { not: null },
+      lng: { not: null },
+      OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
+    },
+    select: {
+      id: true,
+      displayName: true,
+      city: true,
+      state: true,
+      lat: true,
+      lng: true,
+    },
+    orderBy: { id: "asc" },
+    take: MAP_SELLER_POINT_LIMIT,
+  });
+
+  const points: Point[] = sellers
+    .map((s) => ({
+      id: s.id,
+      name: s.displayName ?? "Maker",
+      lat: Number(s.lat),
+      lng: Number(s.lng),
+      city: s.city,
+      state: s.state,
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+
+  return (
+    <main className="max-w-7xl mx-auto p-6 space-y-6">
+      <header className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold font-display">Makers near you</h1>
+          <p className="text-sm text-neutral-500 mt-1">
+            Showing {points.length} maker{points.length === 1 ? "" : "s"} with exact pickup locations.
+          </p>
+        </div>
+      </header>
+
+      <section className="rounded-lg border border-stone-200/60 overflow-hidden">
+        {/* Client map; no SSR */}
+        <AllSellersMap
+          points={points}
+          initialCenter={initialCenter}
+          initialZoom={initialZoom}
+        />
+      </section>
+
+      {majorMetros.length > 0 && (
+        <section className="border-t border-neutral-100 pt-6">
+          <h2 className="text-sm font-semibold text-neutral-700 mb-4">Browse makers by city</h2>
+          <div className="space-y-4">
+            {majorMetros.map((major) => {
+              const children = childrenByParent.get(major.id) ?? [];
+              return (
+                <div key={major.id}>
+                  <Link
+                    href={`/makers/${major.slug}`}
+                    className="text-sm font-medium text-neutral-800 hover:underline"
+                  >
+                    {major.name}, {major.state}
+                  </Link>
+                  {children.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      {children.map((c) => (
+                        <Link
+                          key={c.id}
+                          href={`/makers/${c.slug}`}
+                          className="text-xs text-neutral-500 hover:text-neutral-800 hover:underline"
+                        >
+                          {c.name}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}

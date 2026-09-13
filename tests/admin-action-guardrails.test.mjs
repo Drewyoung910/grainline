@@ -1,0 +1,203 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("admin server action guardrails", () => {
+  it("blocks suspended or deleted staff accounts inside admin server actions", () => {
+    for (const path of [
+      "src/app/admin/actions.ts",
+      "src/app/admin/support/actions.ts",
+      "src/app/admin/blog/page.tsx",
+      "src/app/admin/broadcasts/page.tsx",
+      "src/app/admin/verification/page.tsx",
+    ]) {
+      const text = source(path);
+      assert.match(
+        text,
+        /banned:\s*true/,
+        `${path} must select staff banned state inside admin server actions`,
+      );
+      assert.match(
+        text,
+        /deletedAt:\s*true/,
+        `${path} must select staff deletion state inside admin server actions`,
+      );
+      assert.match(
+        text,
+        /banned\s*\|\|\s*[^;\n]*deletedAt/,
+        `${path} must block suspended or deleted staff accounts inside admin server actions`,
+      );
+    }
+  });
+
+  it("blocks suspended or deleted staff accounts inside admin APIs", () => {
+    for (const path of [
+      "src/app/api/admin/listings/[id]/route.ts",
+      "src/app/api/admin/listings/[id]/review/route.ts",
+      "src/app/api/admin/users/[id]/ban/route.ts",
+      "src/app/api/admin/audit/[id]/undo/route.ts",
+      "src/app/api/admin/email/route.ts",
+      "src/app/api/admin/reports/[id]/resolve/route.ts",
+      "src/app/api/admin/reviews/[id]/route.ts",
+      "src/app/api/admin/verify-pin/route.ts",
+    ]) {
+      const text = source(path);
+      assert.match(
+        text,
+        /banned:\s*true/,
+        `${path} must select staff banned state before admin access`,
+      );
+      assert.match(
+        text,
+        /deletedAt:\s*true/,
+        `${path} must select staff deletion state before admin access`,
+      );
+      assert.match(
+        text,
+        /banned\s*\|\|\s*[^;\n]*deletedAt/,
+        `${path} must block suspended or deleted staff accounts before admin access`,
+      );
+    }
+  });
+
+  it("keeps sensitive admin pages locally guarded before page data queries", () => {
+    const helper = source("src/lib/adminPageAccess.ts");
+    assert.match(helper, /auth\(\)/);
+    assert.match(helper, /banned:\s*true/);
+    assert.match(helper, /deletedAt:\s*true/);
+    assert.match(helper, /user\.banned\s*\|\|\s*user\.deletedAt/);
+    assert.match(helper, /user\.role !== "EMPLOYEE" && user\.role !== "ADMIN"/);
+    assert.match(helper, /verifyAdminPinCookieValue\(/);
+    assert.match(helper, /cookieStore\.get\(ADMIN_PIN_COOKIE_NAME\)/);
+    assert.match(helper, /sessionId/);
+
+    for (const [path, queryNeedle] of [
+      ["src/app/admin/orders/page.tsx", "readStaffOrderPage("],
+      ["src/app/admin/orders/[id]/page.tsx", "readStaffOrderDetail("],
+      ["src/app/admin/flagged/page.tsx", "readStaffOrderPage("],
+      ["src/app/admin/cases/page.tsx", "getStaffCaseQueue"],
+      ["src/app/admin/cases/[id]/page.tsx", "getVisibleCaseById"],
+      ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
+      ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
+      ["src/app/admin/verification/page.tsx", "prisma.makerVerification.findMany"],
+      ["src/app/admin/audit/page.tsx", "prisma.adminAuditLog.count"],
+      ["src/app/admin/users/page.tsx", "prisma.user.count"],
+      ["src/app/admin/reviews/page.tsx", "prisma.review.count"],
+      ["src/app/admin/review/page.tsx", "prisma.listing.count"],
+      ["src/app/admin/reports/page.tsx", "prisma.userReport.findMany"],
+      ["src/app/admin/support/page.tsx", "prisma.supportRequest."],
+    ]) {
+      const text = source(path);
+      const pageStart = text.indexOf("export default async function");
+      const pageText = text.slice(pageStart);
+      assert.match(text, /requireAdminPageAccess/, `${path} must import/call the admin page guard`);
+      const accessCall = /\/admin\/(?:audit|users)\//.test(path)
+        ? 'await requireAdminPageAccess("ADMIN")' : "await requireAdminPageAccess()";
+      assert.ok(
+        pageText.indexOf(accessCall) >= 0 &&
+          pageText.indexOf(accessCall) < pageText.indexOf(queryNeedle),
+        `${path} must guard admin page access before sensitive data queries`,
+      );
+      const challenge = pageText.indexOf("if (!staff) return <AdminPinGate />;");
+      assert.ok(challenge > pageText.indexOf(accessCall) && challenge < pageText.indexOf(queryNeedle),
+        `${path} must withhold data and retain the PIN challenge`);
+    }
+  });
+
+  it("rate-limits admin server actions before local admin DB lookups", () => {
+    for (const path of [
+      "src/app/admin/actions.ts",
+      "src/app/admin/support/actions.ts",
+      "src/app/admin/blog/page.tsx",
+      "src/app/admin/broadcasts/page.tsx",
+      "src/app/admin/verification/page.tsx",
+    ]) {
+      const text = source(path);
+      assert.match(text, /adminActionRatelimit/, `${path} must use adminActionRatelimit`);
+      assert.match(text, /safeRateLimit\(adminActionRatelimit, userId\)/, `${path} must rate-limit by Clerk userId before DB lookup`);
+      assert.ok(
+        text.indexOf("safeRateLimit(adminActionRatelimit, userId)") <
+          text.indexOf("prisma.user.findUnique"),
+        `${path} must rate-limit before local admin user lookup`,
+      );
+    }
+  });
+
+  it("lets staff record an externally voided label before refund reconciliation", () => {
+    const actions = source("src/app/admin/actions.ts");
+    const panel = source("src/app/admin/orders/[id]/AdminOrderActions.tsx");
+    const page = source("src/app/admin/orders/[id]/page.tsx");
+
+    assert.match(actions, /export async function recordLabelVoided/);
+    assert.match(actions, /recordStaffOrderLabelVoided\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?getOrderStaffReadClient\(\)/);
+    assert.match(actions, /verifyAdminPinCookieValue/);
+    const authority = source("docs/rls-drafts/order-staff-mutation-authority.sql");
+    assert.match(authority, /"labelStatus" IS DISTINCT FROM 'PURCHASED'/);
+    assert.match(authority, /"labelClawbackStatus" IN \('RETRY_PENDING', 'RETRYING'\)/);
+    assert.match(authority, /"labelStatus" = 'VOIDED'/);
+    assert.match(authority, /'RECORD_LABEL_VOIDED'/);
+    assert.match(actions, /source: "admin_order_record_label_voided"/);
+    assert.match(panel, /recordLabelVoided/);
+    assert.match(panel, /Only use this after staff has voided or reconciled the carrier label outside Grainline/);
+    assert.match(panel, /labelStatus === "PURCHASED"/);
+    assert.match(panel, /labelClawbackStatus !== "RETRY_PENDING"/);
+    assert.match(page, /labelStatus=\{order\.labelStatus \?\? null\}/);
+    assert.match(page, /labelClawbackStatus=\{order\.labelClawbackStatus \?\? null\}/);
+  });
+
+  it("surfaces first-party refund accounting evidence on admin order payment events", () => {
+    const page = source("src/app/admin/orders/[id]/page.tsx");
+    const authority = source("src/lib/orderPaymentEventReadAuthority.ts");
+    const state = source("src/lib/orderPaymentEventReadState.ts");
+    const migration = source(
+      "prisma/migrations/20260829020000_prepare_order_payment_event_read_authority/migration.sql",
+    );
+
+    assert.match(page, /staffOrderPaymentTimeline\(staff\.id, order\.id\)/);
+    assert.match(page, /const refundAccounting = event\.refundAccounting/);
+    assert.doesNotMatch(page, /event\.metadata|refundAccountingFromMetadata/);
+    assert.match(authority, /grainline_order_payment_staff_timeline/);
+    assert.match(state, /orderPaymentStaffTimelineFromRows/);
+    assert.match(migration, /metadata #>> '\{refundAccounting,transferReversalId\}'/);
+    assert.match(page, /transferReversalId/);
+    assert.match(page, /transferReversalAmountCents/);
+    assert.match(page, /platformFundedRefundCents/);
+    assert.match(page, /originalTransferAmountCents/);
+    assert.match(page, />Refund accounting</);
+    assert.match(page, /Transfer reversal:/);
+    assert.match(page, /Seller recovery:/);
+    assert.match(page, /Platform funded:/);
+    assert.match(page, /Original seller transfer:/);
+  });
+
+  it("does not allow admin email to become an arbitrary external sender", () => {
+    const route = source("src/app/api/admin/email/route.ts");
+    const usersPage = source("src/app/admin/users/page.tsx");
+
+    assert.match(route, /privateResponse\(rateLimitResponse\(rl\.reset, "Too many admin email attempts\."\)\)/);
+    assert.match(route, /Admin email can only be sent to an existing Grainline user/);
+    assert.match(route, /where: \{ email: normalizedInputEmail \}/);
+    assert.match(route, /recipientUserId = recipient\.id/);
+    assert.match(route, /userId: recipientUserId/);
+    assert.match(usersPage, /No Grainline user exists for/);
+    assert.match(usersPage, /support mailbox for external replies/);
+    assert.doesNotMatch(usersPage, /<AdminEmailForm\s+defaultTo=\{emailParam\}/);
+  });
+
+  it("handles stale broadcast deletes without throwing and cleans queued side effects", () => {
+    const broadcasts = source("src/app/admin/broadcasts/page.tsx");
+
+    assert.match(broadcasts, /tx\.sellerBroadcast\.findUnique/);
+    assert.match(broadcasts, /tx\.sellerBroadcast\.deleteMany\(\{ where: \{ id \} \}\)/);
+    assert.match(broadcasts, /if \(deleted\.count !== 1\) return/);
+    assert.doesNotMatch(broadcasts, /sellerBroadcast\.delete\(\{/);
+    assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
+    assert.doesNotMatch(broadcasts, /tx\.notification\.|sourceType: null|sourceId: null/);
+    assert.match(broadcasts, /tx\.emailOutbox\.deleteMany\(\{/);
+    assert.match(broadcasts, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
+  });
+});

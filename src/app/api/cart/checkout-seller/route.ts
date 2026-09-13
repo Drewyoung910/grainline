@@ -1,0 +1,871 @@
+// src/app/api/cart/checkout-seller/route.ts
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { shippingRateExpiresAtIsTooFarFuture, shippingRateSubjectHash, verifyRate } from "@/lib/shipping-token";
+import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
+import { resolveListingVariantSelection, validateVariantUnitPriceCents, type SelectedVariantSnapshot } from "@/lib/listingVariants";
+import { stripeStatementDescriptorSuffix } from "@/lib/stripeStatementDescriptor";
+import {
+  acquireCheckoutLock,
+  cartCheckoutLockKey,
+  checkoutPayloadHash,
+  checkoutSessionCreateIdempotencyKey,
+  getCheckoutLock,
+  markCheckoutLockReady,
+  releaseCheckoutLock,
+  releasePreparingCheckoutLock,
+} from "@/lib/checkoutSessionLock";
+import {
+  checkoutStockReservationMetadata,
+  restoreBuyerExpiredCheckoutStockOnce,
+} from "@/lib/checkoutStockRestore";
+import {
+  abortCheckoutStockReservation,
+  bindCheckoutStockReservationSession,
+  createSnapshotCartCheckoutStockReservation,
+  isCheckoutReservationSourceChangedDatabaseError,
+  isCheckoutStockUnavailableDatabaseError,
+} from "@/lib/checkoutStockReservationAuthority";
+import {
+  cartCheckoutReservationSnapshotWitness,
+} from "@/lib/checkoutReservationSourceState";
+import { logSecurityEvent } from "@/lib/security";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
+import { DEFAULT_CURRENCY } from "@/lib/money";
+import { ownerCartForCheckoutSeller, updateOwnerCartItemPrice } from "@/lib/cartOwnerAccess";
+import { isPickupRateObjectId } from "@/lib/shippingQuoteState";
+import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
+import { normalizeCheckoutShippingAddress } from "@/lib/addressFields";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
+import * as Sentry from "@sentry/nextjs";
+import { z } from "zod";
+import { APP_BASE_URL } from "@/lib/appBaseUrl";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
+import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
+import { normalizeUsState } from "@/lib/usStates";
+
+const CheckoutSellerSchema = z.object({
+  sellerId: z.string().min(1),
+  checkoutGroupId: z.string().uuid(),
+  shippingAddress: z.object({
+    name: z.string().min(1).max(100),
+    line1: z.string().min(1).max(200),
+    line2: z.string().max(200).optional().nullable(),
+    city: z.string().min(1).max(100),
+    state: z.string().length(2).refine(
+      (value) => normalizeUsState(value) !== "",
+      "Select a valid US state.",
+    ),
+    postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
+    phone: z.string().max(20).optional().nullable(),
+  }),
+  selectedRate: z.object({
+    objectId: z.string().min(1),
+    amountCents: z.number().int().min(0),
+    currency: z.string().length(3),
+    displayName: z.string().min(1).max(100),
+    carrier: z.string().max(100),
+    estDays: z.number().int().min(1).max(SHIPPING_ESTIMATED_DAYS_MAX).nullable(),
+    subjectHash: z.string().min(1).max(64),
+    token: z.string().min(1),
+    expiresAt: z.number().int().min(0).refine(
+      (expiresAt) => !shippingRateExpiresAtIsTooFarFuture(expiresAt),
+      "Shipping rate expiry is too far in the future.",
+    ),
+  }),
+  giftNote: z.string().max(200).optional().nullable(),
+  giftWrapping: z.boolean().optional().default(false),
+});
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+const CHECKOUT_BODY_MAX_BYTES = 64 * 1024;
+
+export async function POST(req: Request) {
+  let checkoutReservationId: string | null = null;
+  let checkoutReservationItemCount = 0;
+  let checkoutLockKeyValue: string | null = null;
+  let checkoutLockAcquired = false;
+  let checkoutLockOwnerToken: string | null = null;
+  let createdCheckoutSessionId: string | null = null;
+  let createdCheckoutSessionExpired = false;
+  let checkoutSessionCreateAttempted = false;
+  let checkoutBuyerId: string | null = null;
+  let checkoutPayloadHashValue: string | null = null;
+  let checkoutReservationSessionBound = false;
+
+  try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+    }
+
+    const { userId } = await auth();
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
+
+    const { success, reset } = await safeRateLimit(checkoutRatelimit, userId);
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many checkout attempts."));
+
+    const me = await ensureUserByClerkId(userId);
+    checkoutBuyerId = me.id;
+
+    let body;
+    try {
+      body = CheckoutSellerSchema.parse(await readBoundedJson(req, CHECKOUT_BODY_MAX_BYTES));
+    } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
+      }
+      if (e instanceof z.ZodError) {
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
+      }
+      throw e;
+    }
+    const shippingAddress = normalizeCheckoutShippingAddress(body.shippingAddress);
+    if (!shippingAddress.name || !shippingAddress.line1 || !shippingAddress.city) {
+      return privateJson({ error: "Shipping address is incomplete." }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+    const sellerId = body.sellerId;
+
+    const giftNote = body.giftNote ? truncateText(sanitizeText(body.giftNote), 200) : "";
+    const giftWrapping: boolean = body.giftWrapping === true;
+    // Gift wrap price is resolved below from the seller's server-side
+    // giftWrappingPriceCents — do NOT trust client input for this.
+
+    // Fetch buyer email for tax calculation
+    const userWithEmail = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { email: true },
+    });
+    const buyerEmail = userWithEmail?.email;
+    if (!buyerEmail) {
+      return privateJson({ error: "Buyer email required for tax calculation" }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+
+    // Load cart (filter items to this seller)
+    const cart = await ownerCartForCheckoutSeller(me.id);
+    if (!cart) return privateJson({ error: "Cart is empty" }, { status: HTTP_STATUS.BAD_REQUEST });
+
+    const cartSellerCount = new Set(cart.items.map((it) => it.listing.sellerId)).size;
+    const sellerItems = cart.items.filter((it) => it.listing.sellerId === sellerId);
+    if (sellerItems.length === 0) {
+      return privateJson({ error: "No items for this seller" }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+
+    const currency = (sellerItems[0].listing.currency || DEFAULT_CURRENCY).toLowerCase();
+    const mixedCurrencyItem = sellerItems.find(
+      (item) => (item.listing.currency || DEFAULT_CURRENCY).toLowerCase() !== currency,
+    );
+    if (mixedCurrencyItem) {
+      return privateJson(
+        { error: "Items with different currencies cannot be checked out together." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+    if (body.selectedRate.currency.toLowerCase() !== currency) {
+      return privateJson({ error: "Invalid shipping rate currency." }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+    const destination = sellerItems[0].listing.seller.stripeAccountId || null;
+    const sellerChargesEnabled = sellerItems[0].listing.seller.chargesEnabled ?? false;
+
+    const sellerBlockReason = sellerOrderBlockReason(sellerItems[0].listing.seller);
+    if (sellerBlockReason) {
+      return privateJson(
+        {
+          error: sellerOrderBlockMessage(sellerBlockReason),
+          blockedSellers: [{ sellerId, reason: sellerBlockReason }],
+        },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
+    // Pre-flight: verify seller can accept payments
+    if (!destination || !sellerChargesEnabled) {
+      return privateJson({ error: "This seller is not currently accepting orders. Please try again later." }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+
+    // Block self-purchase (Stripe ToS violation)
+    if (sellerItems[0].listing.seller.userId === me.id) {
+      return privateJson(
+        { error: "You cannot purchase your own listings." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
+    // Only ACTIVE listings are purchasable.
+    // Blocks DRAFT, SOLD, SOLD_OUT, HIDDEN, PENDING_REVIEW, REJECTED.
+    const inactiveItem = sellerItems.find(
+      (it) => it.listing.status !== "ACTIVE",
+    );
+    if (inactiveItem) {
+      return privateJson(
+        { error: `"${inactiveItem.listing.title}" is no longer available.` },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
+    // Private/reserved listings: only the reserved buyer can purchase.
+    const privateItem = sellerItems.find(
+      (it) =>
+        it.listing.isPrivate &&
+        it.listing.reservedForUserId !== me.id,
+    );
+    if (privateItem) {
+      return privateJson(
+        { error: "One or more items in your cart are not available for purchase." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
+    // Gift wrapping: reject if buyer requested it but seller does not offer it.
+    if (giftWrapping && !sellerItems[0].listing.seller.offersGiftWrapping) {
+      return privateJson(
+        { error: "This seller does not offer gift wrapping." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
+    // Gift wrap price: sourced server-side from the seller's profile.
+    // Client input for this amount is ignored to prevent price manipulation.
+    const giftWrappingPriceCents: number = giftWrapping
+      ? (sellerItems[0].listing.seller.giftWrappingPriceCents ?? 0)
+      : 0;
+
+    const resolvedSellerItems: Array<(typeof sellerItems)[number] & {
+      unitPriceCents: number;
+      variantKey: string;
+      selectedVariantLabels: string[];
+      selectedVariantsSnapshot: SelectedVariantSnapshot[];
+    }> = [];
+
+    for (const item of sellerItems) {
+      if (item.listing.listingType === "MADE_TO_ORDER" && item.quantity !== 1) {
+        return privateJson(
+          { error: `"${item.listing.title}" can only be ordered one at a time.` },
+          { status: HTTP_STATUS.BAD_REQUEST },
+        );
+      }
+      if (item.listing.listingType === "IN_STOCK") {
+        const available = item.listing.stockQuantity ?? 0;
+        if (available <= 0) {
+          return privateJson(
+            { error: `"${item.listing.title}" is currently out of stock.` },
+            { status: HTTP_STATUS.BAD_REQUEST },
+          );
+        }
+        if (item.quantity > available) {
+          return privateJson(
+            { error: `Only ${available} available for "${item.listing.title}".` },
+            { status: HTTP_STATUS.BAD_REQUEST },
+          );
+        }
+      }
+
+      const variantResolution = resolveListingVariantSelection(
+        item.listing.variantGroups,
+        item.selectedVariantOptionIds ?? [],
+      );
+      if (!variantResolution.ok) {
+        return privateJson(
+          { error: `"${item.listing.title}": ${variantResolution.error}` },
+          { status: HTTP_STATUS.BAD_REQUEST },
+        );
+      }
+
+      const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents;
+      if (validateVariantUnitPriceCents(unitPriceCents)) {
+        return privateJson(
+          { error: `"${item.listing.title}" has an invalid variant price.` },
+          { status: HTTP_STATUS.BAD_REQUEST },
+        );
+      }
+      if (unitPriceCents !== item.priceCents || item.priceVersion !== item.listing.priceVersion) {
+        await updateOwnerCartItemPrice(me.id, cart.id, item.id, {
+          priceCents: unitPriceCents,
+          priceVersion: item.listing.priceVersion,
+        });
+        return privateJson(
+          {
+            error: "Price changed since this item was added to your cart. Review your cart before checking out.",
+            code: "PRICE_CHANGED",
+            cartItemId: item.id,
+            listingId: item.listingId,
+            oldPriceCents: item.priceCents,
+            newPriceCents: unitPriceCents,
+            oldPriceVersion: item.priceVersion,
+            newPriceVersion: item.listing.priceVersion,
+          },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+      resolvedSellerItems.push({
+        ...item,
+        unitPriceCents,
+        variantKey: variantResolution.variantKey,
+        selectedVariantLabels: variantResolution.selectedVariantLabels,
+        selectedVariantsSnapshot: variantResolution.selectedVariantsSnapshot,
+      });
+    }
+
+    // Verify every shipping rate, including fallback. Fallback rates must be
+    // signed by /api/shipping/quote; clients cannot force the fallback objectId.
+    const contextId = body.sellerId;
+    const sellerDefaults = sellerItems[0].listing.seller;
+    const subjectHash = shippingRateSubjectHash({
+      mode: "cart",
+      sellerId,
+      items: resolvedSellerItems
+        .map((it) => ({
+          cartItemId: it.id,
+          listingId: it.listingId,
+          quantity: it.quantity,
+          variantKey: it.variantKey ?? "",
+          unitPriceCents: it.unitPriceCents,
+          priceVersion: it.listing.priceVersion,
+          weight: it.listing.packagedWeightGrams ?? sellerDefaults.defaultPkgWeightGrams ?? 0,
+          length: it.listing.packagedLengthCm ?? sellerDefaults.defaultPkgLengthCm ?? 0,
+          width: it.listing.packagedWidthCm ?? sellerDefaults.defaultPkgWidthCm ?? 0,
+          height: it.listing.packagedHeightCm ?? sellerDefaults.defaultPkgHeightCm ?? 0,
+        }))
+        .sort((a, b) => a.cartItemId.localeCompare(b.cartItemId)),
+    });
+
+    const rateVerification = verifyRate(
+      {
+        objectId: body.selectedRate.objectId,
+        amountCents: body.selectedRate.amountCents,
+        currency,
+        displayName: body.selectedRate.displayName,
+        carrier: body.selectedRate.carrier,
+        estDays: body.selectedRate.estDays,
+        contextId,
+        buyerId: me.id,
+        buyerCity: shippingAddress.city,
+        buyerState: shippingAddress.state,
+        buyerPostal: shippingAddress.postalCode,
+        buyerCountry: "US",
+        subjectHash,
+      },
+      body.selectedRate.token,
+      body.selectedRate.expiresAt,
+    );
+
+    if (!rateVerification.ok) {
+      if (rateVerification.status === HTTP_STATUS.BAD_REQUEST) {
+        logSecurityEvent("token_rejected", {
+          userId: me.id,
+          route: "/api/cart/checkout-seller",
+          reason: "invalid shipping rate token",
+          sellerId: body.sellerId,
+          objectIdPresent: !!body.selectedRate.objectId,
+          tokenLength: body.selectedRate.token.length,
+        });
+      }
+      return privateJson(
+        { error: rateVerification.error },
+        { status: rateVerification.status },
+      );
+    }
+
+    if (isPickupRateObjectId(body.selectedRate.objectId) && !sellerItems[0].listing.seller.allowLocalPickup) {
+      return privateJson(
+        { error: "Local pickup is no longer available for this seller. Please re-select a shipping option." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
+    // Stripe line items
+    const line_items: {
+      quantity: number;
+      price_data: { currency: string; unit_amount: number; product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string } };
+    }[] = resolvedSellerItems.map((i) => {
+      const variantSuffix = i.selectedVariantLabels.length > 0 ? ` (${i.selectedVariantLabels.join(", ")})` : "";
+      return {
+        quantity: i.quantity,
+        price_data: {
+          currency,
+          unit_amount: i.unitPriceCents,
+          product_data: {
+            name: `${i.listing.title}${variantSuffix}`,
+            images: i.listing.photos?.length ? [i.listing.photos[0]!.url] : undefined,
+            metadata: {
+              listingId: i.listing.id,
+              cartItemId: i.id,
+              variantKey: i.variantKey,
+              ...checkoutShippingPackageMetadata({
+                shippingWeightGrams:
+                  i.listing.packagedWeightGrams ?? i.listing.seller.defaultPkgWeightGrams,
+                shippingLengthCm:
+                  i.listing.packagedLengthCm ?? i.listing.seller.defaultPkgLengthCm,
+                shippingWidthCm:
+                  i.listing.packagedWidthCm ?? i.listing.seller.defaultPkgWidthCm,
+                shippingHeightCm:
+                  i.listing.packagedHeightCm ?? i.listing.seller.defaultPkgHeightCm,
+              }),
+            },
+            tax_code: "txcd_99999999", // General - Tangible Personal Property
+          },
+        },
+      };
+    });
+
+    if (giftWrapping && giftWrappingPriceCents > 0) {
+      line_items.push({
+        quantity: 1,
+        price_data: {
+          currency,
+          unit_amount: giftWrappingPriceCents,
+          product_data: { name: "Gift Wrapping", tax_code: "txcd_99999999" },
+        },
+      });
+    }
+
+    const itemsSubtotalCents = resolvedSellerItems.reduce(
+      (sum, it) => sum + it.unitPriceCents * it.quantity,
+      0
+    );
+
+    // Amount is trusted because the selected rate was signed above.
+    const shippingAmountCents = body.selectedRate.amountCents;
+
+    const giftWrapCents = giftWrapping ? giftWrappingPriceCents : 0;
+    const checkoutAmounts = calculateCheckoutAmounts({
+      itemsSubtotalCents,
+      shippingAmountCents,
+      giftWrapCents,
+    });
+    const sellerTransferAmount = checkoutAmounts.sellerTransferAmountCents;
+
+    if (checkoutAmounts.belowMinimumSellerTransfer) {
+      return privateJson(
+        { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
+    checkoutLockKeyValue = cartCheckoutLockKey(cart.id, sellerId);
+    const payloadHash = checkoutPayloadHash({
+      buyerId: me.id,
+      cartId: cart.id,
+      sellerId,
+      checkoutGroupId: body.checkoutGroupId,
+      items: resolvedSellerItems.map((it) => ({
+        cartItemId: it.id,
+        listingId: it.listingId,
+        quantity: it.quantity,
+        variantKey: it.variantKey,
+        unitPriceCents: it.unitPriceCents,
+      })),
+      shippingAddress,
+      selectedRate: {
+        objectId: body.selectedRate.objectId,
+        amountCents: shippingAmountCents,
+        currency,
+        estDays: body.selectedRate.estDays,
+      },
+      giftWrapping,
+      giftNote,
+    });
+
+    const existingCheckoutLock = await getCheckoutLock(checkoutLockKeyValue);
+    if (existingCheckoutLock) {
+      if (
+        existingCheckoutLock.payloadHash === payloadHash &&
+        existingCheckoutLock.state === "ready" &&
+        existingCheckoutLock.clientSecret &&
+        existingCheckoutLock.sessionId
+      ) {
+        return privateJson({
+          clientSecret: existingCheckoutLock.clientSecret,
+          sessionId: existingCheckoutLock.sessionId,
+          reused: true,
+        });
+      }
+      return privateJson(
+        { error: "A checkout session is already open for this seller. Complete payment in the Stripe tab or wait up to 31 minutes for the reservation to expire." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    }
+
+    checkoutPayloadHashValue = payloadHash;
+    const checkoutLockOwnerTokenValue = await acquireCheckoutLock(checkoutLockKeyValue, payloadHash);
+    checkoutLockOwnerToken = checkoutLockOwnerTokenValue;
+    checkoutLockAcquired = checkoutLockOwnerTokenValue !== null;
+    if (!checkoutLockAcquired) {
+      const racedCheckoutLock = await getCheckoutLock(checkoutLockKeyValue);
+      if (
+        racedCheckoutLock?.payloadHash === payloadHash &&
+        racedCheckoutLock.state === "ready" &&
+        racedCheckoutLock.clientSecret &&
+        racedCheckoutLock.sessionId
+      ) {
+        return privateJson({
+          clientSecret: racedCheckoutLock.clientSecret,
+          sessionId: racedCheckoutLock.sessionId,
+          reused: true,
+        });
+      }
+      return privateJson(
+        { error: "A checkout session is already being prepared. Please try again in a moment." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    }
+    if (!checkoutLockOwnerTokenValue) {
+      throw new Error("Checkout lock acquisition returned no ownership token");
+    }
+
+    const reservableItems = resolvedSellerItems
+      .filter((it) => it.listing.listingType === "IN_STOCK")
+      .map((it) => ({
+        listingId: it.listing.id,
+        sellerId: it.listing.sellerId,
+        quantity: it.quantity,
+        title: it.listing.title,
+      }));
+    checkoutReservationItemCount = reservableItems.length;
+    const pricedSourceWitness = cartCheckoutReservationSnapshotWitness(
+      me.id,
+      sellerId,
+      resolvedSellerItems,
+    );
+    if (!pricedSourceWitness) {
+      await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      return privateJson(
+        { error: "Your cart changed while checkout was starting. Review it and try again." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    }
+    let reservation: Awaited<ReturnType<typeof createSnapshotCartCheckoutStockReservation>>;
+    try {
+      reservation = await createSnapshotCartCheckoutStockReservation({
+        cartId: cart.id,
+        sellerProfileId: sellerId,
+        checkoutGroupId: body.checkoutGroupId,
+        payloadHash,
+        buyerId: me.id,
+        sourceWitness: pricedSourceWitness,
+      });
+      if (!reservation) throw new Error("Snapshot cart reservation returned no reservation");
+      checkoutReservationId = reservation.id;
+    } catch (reservationError) {
+      await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      if (isCheckoutReservationSourceChangedDatabaseError(reservationError)) {
+        Sentry.captureMessage("Checkout source changed before cart reservation commit", {
+          level: "warning",
+          tags: { source: "checkout_stock_reservation_source", route: "cart_checkout_seller" },
+          extra: { pricedItemCount: resolvedSellerItems.length },
+        });
+        return privateJson(
+          { error: "Your cart changed while checkout was starting. Review it and try again." },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+      if (isCheckoutStockUnavailableDatabaseError(reservationError)) {
+        return privateJson(
+          { error: "One or more items do not have enough stock." },
+          { status: HTTP_STATUS.BAD_REQUEST },
+        );
+      }
+      throw reservationError;
+    }
+
+    const return_url = `${APP_BASE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+
+    const csDescriptor = stripeStatementDescriptorSuffix(sellerItems[0].listing.seller.displayName);
+    const reservedStockMetadata = reservableItems
+      .map((item) => `${item.listingId}:${item.quantity}`)
+      .join(",");
+    const checkoutMetadata: Record<string, string> = {
+      cartId: cart.id,
+      buyerId: me.id,
+      sellerId,
+      sellerStripeAccountId: destination,
+      taxRetainedAtCreation: "true",
+      selectedRateObjectId: body.selectedRate.objectId,
+      quotedToName: shippingAddress.name,
+      quotedToLine1: shippingAddress.line1,
+      quotedToLine2: shippingAddress.line2 ?? "",
+      quotedToCity: shippingAddress.city,
+      quotedToState: shippingAddress.state,
+      quotedToPostalCode: shippingAddress.postalCode,
+      quotedToCountry: "US",
+      quotedToPhone: shippingAddress.phone ?? "",
+      quotedShippingAmountCents: String(shippingAmountCents),
+      itemsSubtotalCents: String(itemsSubtotalCents),
+      giftNote: giftNote ?? "",
+      giftWrapping: giftWrapping ? "true" : "false",
+      giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",
+      cartSellerCount: String(cartSellerCount),
+      multiSellerCheckout: cartSellerCount > 1 ? "true" : "false",
+      checkoutLockKey: checkoutLockKeyValue,
+      checkoutPayloadHash: payloadHash,
+      ...checkoutStockReservationMetadata(checkoutReservationId, body.checkoutGroupId),
+      ...(reservedStockMetadata.length <= 500 ? { reservedStock: reservedStockMetadata } : {}),
+    };
+
+    checkoutSessionCreateAttempted = true;
+    const session = await stripe.checkout.sessions.create({
+      ui_mode: "embedded",
+      redirect_on_completion: "if_required",
+      // ~30-minute expiry — stock is reserved at checkout, restored on expiry.
+      // 31 min (not 30) provides a buffer against clock skew — Stripe's minimum is 30.
+      expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
+      mode: "payment",
+      payment_method_types: ["card"],
+      return_url,
+      line_items,
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: shippingAmountCents, currency },
+            display_name: body.selectedRate.displayName,
+            tax_behavior: "exclusive",
+            metadata: {
+              objectId: body.selectedRate.objectId,
+              estDays: body.selectedRate.estDays != null ? String(body.selectedRate.estDays) : "",
+            },
+          },
+        },
+      ],
+      customer_email: buyerEmail,
+      automatic_tax: { enabled: true, liability: { type: "self" as const } },
+      payment_intent_data: {
+        transfer_data: {
+          destination,
+          // Platform fee is retained by transferring only the seller portion.
+          // Do not also set application_fee_amount with this manual transfer model.
+          amount: sellerTransferAmount,
+        },
+        statement_descriptor_suffix: csDescriptor,
+      },
+      metadata: checkoutMetadata,
+    }, {
+      idempotencyKey: checkoutSessionCreateIdempotencyKey(checkoutLockOwnerTokenValue),
+    });
+    createdCheckoutSessionId = session.id;
+
+    if (checkoutReservationId) {
+      const reservationSessionRecorded = await bindCheckoutStockReservationSession({
+        reservationId: checkoutReservationId,
+        buyerId: me.id,
+        payloadHash,
+        sessionId: session.id,
+      });
+      if (!reservationSessionRecorded) {
+        Sentry.captureMessage("Checkout stock reservation session transition rejected", {
+          level: "warning",
+          tags: { source: "checkout_stock_reservation_session", route: "cart_checkout_seller" },
+          extra: { checkoutReservationId, stripeSessionId: session.id },
+        });
+        let staleSessionExpired = false;
+        await stripe.checkout.sessions.expire(session.id).then(() => {
+          staleSessionExpired = true;
+          createdCheckoutSessionExpired = true;
+        }).catch((error) => {
+          Sentry.captureException(error, { tags: { source: "checkout_stock_reservation_expire_stale" } });
+        });
+        if (staleSessionExpired) {
+          const abortResult = await abortCheckoutStockReservation({
+            reservationId: checkoutReservationId,
+            buyerId: me.id,
+            payloadHash,
+          }).catch((error) => {
+            Sentry.captureException(error, { tags: { source: "checkout_stock_reservation_restore_stale" } });
+            return null;
+          });
+          if (abortResult && abortResult.result !== "retained") {
+            await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+          }
+        }
+        return privateJson(
+          { error: "Checkout state changed. Please try again." },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+      checkoutReservationSessionBound = true;
+    }
+
+    try {
+      const lockMarkedReady = await markCheckoutLockReady(
+        checkoutLockKeyValue,
+        payloadHash,
+        checkoutLockOwnerTokenValue,
+        session.id,
+        session.client_secret,
+      );
+      if (!lockMarkedReady) {
+        Sentry.captureMessage("Checkout lock ready transition rejected", {
+          level: "warning",
+          tags: { source: "checkout_lock_ready", route: "cart_checkout_seller" },
+          extra: {
+            checkoutLockKeyHash: hashIdentifierForTelemetry(checkoutLockKeyValue),
+            stripeSessionId: session.id,
+          },
+        });
+        let staleSessionExpired = false;
+        await stripe.checkout.sessions.expire(session.id).then(() => {
+          staleSessionExpired = true;
+          createdCheckoutSessionExpired = true;
+        }).catch((error) => {
+          Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
+        });
+        if (staleSessionExpired) {
+          if (checkoutReservationId) {
+            await restoreBuyerExpiredCheckoutStockOnce({
+              buyerId: me.id,
+              sessionId: session.id,
+              metadata: checkoutMetadata,
+            });
+          }
+          await releaseCheckoutLock(checkoutLockKeyValue, session.id);
+          await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+        }
+        return privateJson(
+          { error: "Checkout state changed. Please try again." },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+    } catch (lockErr) {
+      Sentry.captureException(lockErr, {
+        tags: { source: "checkout_lock_ready", route: "cart_checkout_seller" },
+        extra: {
+          checkoutLockKeyHash: hashIdentifierForTelemetry(checkoutLockKeyValue),
+          stripeSessionId: session.id,
+        },
+      });
+      let staleSessionExpired = false;
+      await stripe.checkout.sessions.expire(session.id).then(() => {
+        staleSessionExpired = true;
+        createdCheckoutSessionExpired = true;
+      }).catch((error) => {
+        Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
+      });
+      if (staleSessionExpired) {
+        if (checkoutReservationId) {
+          await restoreBuyerExpiredCheckoutStockOnce({
+            buyerId: me.id,
+            sessionId: session.id,
+            metadata: checkoutMetadata,
+          });
+        }
+        await releaseCheckoutLock(checkoutLockKeyValue, session.id);
+        await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      }
+      return privateJson(
+        { error: "Checkout state changed. Please try again." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    }
+
+    return privateJson({ clientSecret: session.client_secret, sessionId: session.id });
+  } catch (err: unknown) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
+    logServerError(err, {
+      source: "checkout_seller_route",
+      tags: { route: "/api/cart/checkout-seller" },
+      extra: {
+        checkoutReservationId,
+        reservedItemCount: checkoutReservationItemCount,
+        checkoutLockAcquired,
+        checkoutSessionCreateAttempted,
+      },
+    });
+
+    if (createdCheckoutSessionId && !createdCheckoutSessionExpired) {
+      await stripe.checkout.sessions.expire(createdCheckoutSessionId).then(() => {
+        createdCheckoutSessionExpired = true;
+      }).catch((expireError) => {
+        Sentry.captureException(expireError, {
+          level: "warning",
+          tags: { source: "checkout_outer_error_session_expire", route: "cart_checkout_seller" },
+          extra: { checkoutReservationId, stripeSessionId: createdCheckoutSessionId },
+        });
+      });
+    }
+
+    const reservationCanBeRestored = !checkoutSessionCreateAttempted || createdCheckoutSessionExpired;
+    let databaseReservationReleased = !checkoutReservationId;
+    if (
+      checkoutReservationId &&
+      reservationCanBeRestored &&
+      checkoutReservationSessionBound &&
+      createdCheckoutSessionId &&
+      checkoutBuyerId
+    ) {
+      databaseReservationReleased = await restoreBuyerExpiredCheckoutStockOnce({
+        buyerId: checkoutBuyerId,
+        sessionId: createdCheckoutSessionId,
+        metadata: { checkoutReservationId },
+      }).then(() => true).catch((restoreError) => {
+        Sentry.captureException(restoreError, {
+          level: "warning",
+          tags: { source: "checkout_stock_restore_failed", route: "cart_checkout_seller" },
+          extra: { checkoutReservationId, reason: "confirmed_session_expired" },
+        });
+        return false;
+      });
+    } else if (
+      checkoutReservationId &&
+      reservationCanBeRestored &&
+      checkoutBuyerId &&
+      checkoutPayloadHashValue
+    ) {
+      const abortResult = await abortCheckoutStockReservation({
+        reservationId: checkoutReservationId,
+        buyerId: checkoutBuyerId,
+        payloadHash: checkoutPayloadHashValue,
+      }).catch((restoreError) => {
+        Sentry.captureException(restoreError, {
+          level: "warning",
+          tags: { source: "checkout_stock_restore_failed", route: "cart_checkout_seller" },
+          extra: { checkoutReservationId, reason: "checkout_create_error" },
+        });
+        return null;
+      });
+      databaseReservationReleased = Boolean(abortResult && abortResult.result !== "retained");
+    } else if (checkoutReservationId) {
+      Sentry.captureMessage("Checkout reservation retained because Stripe session expiry was not confirmed", {
+        level: "warning",
+        tags: { source: "checkout_outer_error_reservation_retained", route: "cart_checkout_seller" },
+        extra: {
+          checkoutReservationId,
+          stripeSessionId: createdCheckoutSessionId,
+          checkoutSessionCreateAttempted,
+        },
+      });
+    }
+
+    if (checkoutLockAcquired && reservationCanBeRestored && databaseReservationReleased) {
+      if (createdCheckoutSessionId) {
+        await releaseCheckoutLock(checkoutLockKeyValue, createdCheckoutSessionId);
+      }
+      if (checkoutLockOwnerToken) {
+        await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerToken);
+      }
+    }
+
+    return privateJson(
+      { error: "Server error creating checkout session" },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
+    );
+  }
+}

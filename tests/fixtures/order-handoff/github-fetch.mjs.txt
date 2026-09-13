@@ -1,0 +1,28 @@
+// Fixture-only transport installed before the real read-only collector modules.
+import bridgeFs from 'node:fs';
+globalThis.fetch = async (url, options) => {
+  const state = JSON.parse(bridgeFs.readFileSync(__CONTROL__));
+  const resource = new URL(url).pathname.replace('/repos/Drewyoung910/grainline/', '');
+  bridgeFs.appendFileSync(__EVENTS__, JSON.stringify({event:'github-get',resource})+'\n');
+  if (state.requestDelayMs) await new Promise((resolve,reject) => {
+    const timer = setTimeout(resolve,state.requestDelayMs);
+    options.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new Error('fixture abort'));},{once:true});
+  });
+  const count = bridgeFs.readFileSync(__EVENTS__,'utf8').trim().split('\n').map(JSON.parse).filter(e=>e.event==='github-get').length;
+  if (state.quotaAfter !== undefined && count > state.quotaAfter) return new Response('{}',{status:403,headers:{'content-type':'application/json'}});
+  const job = {id:123,run_id:Number(state.runId),run_attempt:1,head_sha:state.releaseCommit,
+    name:'Guarded production migration',status:'in_progress',conclusion:null,runner_name:'Fixture runner',runner_id:1};
+  let body;
+  if (/^actions\/runs\/\d+\/attempts\/1\/jobs$/u.test(resource)) body={total_count:1,jobs:[job]};
+  else if (resource==='actions/jobs/123') body=job;
+  else if (resource==='git/ref/heads/main') body={ref:'refs/heads/main',object:{type:'commit',sha:state.releaseCommit}};
+  else if (resource.startsWith('actions/runs/')) {
+    const ci=resource==='actions/runs/456';
+    body={id:ci?456:Number(state.runId),run_attempt:1,head_sha:state.releaseCommit,head_branch:'main',
+      repository:{full_name:'Drewyoung910/grainline'},head_repository:{full_name:'Drewyoung910/grainline'},
+      path:ci?'.github/workflows/ci.yml':'.github/workflows/production-migrations.yml',event:ci?'push':'workflow_dispatch',
+      status:ci?'completed':'in_progress',conclusion:ci?'success':null};
+  } else throw new Error('unmodeled fixture request');
+  return new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});
+};
+

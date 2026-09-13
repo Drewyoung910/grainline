@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("admin audit durability", () => {
+  it("keeps best-effort audit logging distinct from strict transactional audit logging", () => {
+    const audit = source("src/lib/audit.ts");
+
+    assert.match(audit, /export class AdminAuditLogError extends Error/);
+    assert.match(audit, /export async function logAdminAction\(input: AdminAuditLogInput\): Promise<string \| null>/);
+    assert.match(audit, /export async function logAdminActionOrThrow/);
+    assert.match(audit, /throw new AdminAuditLogError\(\)/);
+    assert.match(audit, /import \{ sanitizeEmailOutboxError \} from '\.\/emailOutboxSanitize'/);
+    assert.match(audit, /console\.error\('Audit log failed:', sanitizeEmailOutboxError\(error\)\)/);
+    assert.doesNotMatch(audit, /console\.error\('Audit log failed:', error\)/);
+    assert.match(audit, /Sentry\.captureException\(error, \{\s*tags: \{ source: 'audit_log', action \}/);
+    assert.match(audit, /extra: \{ adminId, targetType, targetId \}/);
+    assert.doesNotMatch(audit, /return ''/);
+    assert.match(audit, /Cannot automatically undo this ban because its audit metadata is incomplete/);
+    assert.match(audit, /source: 'admin_undo_stripe_account_verify'/);
+    assert.match(audit, /console\.error\('Failed to verify Stripe account during admin undo:', sanitizeEmailOutboxError\(err\)\)/);
+    assert.doesNotMatch(audit, /console\.error\('Failed to verify Stripe account during admin undo:', err\)/);
+    assert.match(audit, /error: sanitizeEmailOutboxError\(error\)/);
+    assert.doesNotMatch(audit, /error: error instanceof Error \? error\.message : String\(error\)/);
+  });
+
+  it("co-commits high-risk admin mutations with their audit rows", () => {
+    for (const path of [
+      "src/app/admin/blog/page.tsx",
+      "src/app/admin/broadcasts/page.tsx",
+      "src/app/admin/support/actions.ts",
+      "src/app/admin/verification/page.tsx",
+      "src/app/api/admin/listings/[id]/route.ts",
+      "src/app/api/admin/listings/[id]/review/route.ts",
+      "src/app/api/admin/reports/[id]/resolve/route.ts",
+      "src/app/api/admin/reviews/[id]/route.ts",
+    ]) {
+      const text = source(path);
+      assert.match(text, /logAdminActionOrThrow/, `${path} must use strict audit logging`);
+      assert.match(
+        text,
+        /(?:prisma\.\$transaction\(async \(tx\) => \{|withDbUserContext\([^,]+,\s*async \(tx\) => \{)[\s\S]*client: tx/s,
+        `${path} must audit inside the mutation transaction`,
+      );
+    }
+
+    const orderActions = source("src/app/admin/actions.ts");
+    const orderAuthority = source("docs/rls-drafts/order-staff-mutation-authority.sql");
+    assert.match(orderActions, /markStaffOrderReviewed\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?getOrderStaffReadClient\(\)/);
+    assert.match(orderActions, /recordStaffOrderLabelVoided\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?getOrderStaffReadClient\(\)/);
+    assert.match(orderActions, /appendStaffOrderNote\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?note,[\s\S]*?getOrderStaffReadClient\(\)/);
+    assert.doesNotMatch(orderActions, /prisma\.order\.(?:update|updateMany)/);
+    assert.equal(
+      (orderAuthority.match(/INSERT INTO public\."AdminAuditLog"/g) ?? []).length,
+      3,
+      "each fixed staff Order mutation must co-commit one audit row",
+    );
+    assert.equal(
+      (orderAuthority.match(/SELECT source_order\.\* INTO locked_order[\s\S]*?FOR UPDATE;/g) ?? []).length,
+      3,
+      "each fixed staff Order mutation must lock its source row",
+    );
+  });
+});

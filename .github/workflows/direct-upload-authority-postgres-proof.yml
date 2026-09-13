@@ -1,0 +1,165 @@
+name: DirectUpload Authority PostgreSQL Proof
+
+on:
+  push:
+    branches:
+      - agent/direct-upload-rls-preparation-20260726
+      - agent/direct-upload-rls-activation-20260726
+      - agent/direct-upload-object-key-retirement-20260726
+      - agent/direct-upload-legacy-repair-20260728
+      - agent/direct-upload-cleanup-provider-prep-20260728
+      - agent/case-reply-app-20260729
+      - agent/direct-upload-activation-production-20260801
+    paths:
+      - .github/workflows/direct-upload-authority-postgres-proof.yml
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/audit-runtime-db-grants.mjs
+      - scripts/direct-upload-activation-catalog.mjs
+      - scripts/direct-upload-activation-postgres-proof.mjs
+      - scripts/direct-upload-activation-rollback-proof.mjs
+      - scripts/direct-upload-authority-catalog.mjs
+      - scripts/direct-upload-authority-postgres-proof.mjs
+      - scripts/direct-upload-cleanup-worker.mjs
+      - scripts/direct-upload-cleanup-role-production-provision.mjs
+      - scripts/direct-upload-function-source-catalog.mjs
+      - scripts/direct-upload-legacy-inspect.mjs
+      - scripts/direct-upload-legacy-repair-postgres-proof.mjs
+      - scripts/prepare-ci-rls-runtime-role.sql
+      - scripts/provision-direct-upload-cleanup-role.sql
+      - scripts/provision-runtime-db-role.sql
+      - scripts/stage-direct-upload-activation-migration.mjs
+      - scripts/stage-direct-upload-retirement-migration.mjs
+      - scripts/verify-direct-upload-activation-release.mjs
+      - scripts/verify-direct-upload-retirement-release.mjs
+      - src/app/api/cases/**/messages/route.ts
+      - src/lib/caseEvidence.ts
+      - tests/case-message-private-evidence.test.mjs
+      - tests/db-grant-inventory.test.mjs
+      - tests/direct-upload-activation-candidate.test.mjs
+      - tests/direct-upload-activation-postgres-proof.test.mjs
+      - tests/direct-upload-activation-rollback-proof.test.mjs
+      - tests/direct-upload-authority-postgres-proof.test.mjs
+      - tests/direct-upload-cleanup-worker.test.mjs
+      - tests/direct-upload-cleanup-role-production-provision.test.mjs
+      - tests/direct-upload-legacy-inspect.test.mjs
+      - tests/direct-upload-legacy-repair-postgres-proof.test.mjs
+      - tests/direct-upload-retirement-candidate.test.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: grainline_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d grainline_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_AUTHORITY_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_LEGACY_REPAIR_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_ACTIVATION_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Prepare CI runtime policy role
+        run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
+      - name: Run static proof contracts before isolating promoted migrations
+        run: >-
+          node --test
+          tests/case-message-private-evidence.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/direct-upload-activation-candidate.test.mjs
+          tests/direct-upload-activation-postgres-proof.test.mjs
+          tests/direct-upload-activation-rollback-proof.test.mjs
+          tests/direct-upload-authority-postgres-proof.test.mjs
+          tests/direct-upload-cleanup-worker.test.mjs
+          tests/direct-upload-cleanup-role-production-provision.test.mjs
+          tests/direct-upload-legacy-inspect.test.mjs
+          tests/direct-upload-legacy-repair-postgres-proof.test.mjs
+          tests/direct-upload-retirement-candidate.test.mjs
+      - name: Isolate the repair migration for exact SQL diagnostics
+        run: |
+          mv prisma/migrations/20260726185700_repair_direct_upload_legacy_references "$RUNNER_TEMP/direct-upload-legacy-repair"
+          mv prisma/migrations/20260801175000_retire_direct_upload_compatibility_key "$RUNNER_TEMP/direct-upload-retirement-release"
+          mv prisma/migrations/20260801194000_enable_direct_upload_rls "$RUNNER_TEMP/direct-upload-activation-release"
+      - name: Apply the compatible baseline migration tree
+        run: npx prisma migrate deploy
+      - name: Restore the exact repair migration
+        run: >-
+          mv
+          "$RUNNER_TEMP/direct-upload-legacy-repair"
+          prisma/migrations/20260726185700_repair_direct_upload_legacy_references
+      - name: Apply the repair migration with exact SQL diagnostics
+        run: >-
+          psql "$DIRECT_URL"
+          --echo-errors
+          -v ON_ERROR_STOP=1
+          -f prisma/migrations/20260726185700_repair_direct_upload_legacy_references/migration.sql
+      - name: Record the repair migration in the disposable Prisma ledger
+        run: >-
+          npx prisma migrate resolve
+          --applied 20260726185700_repair_direct_upload_legacy_references
+      - name: Converge production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge isolated DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Audit final runtime grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove both valid DirectUpload legacy repair shapes
+        run: npm run audit:rls-direct-upload-legacy-repair
+      - name: Prove compatible DirectUpload fixed authority
+        run: npm run audit:rls-direct-upload-authority
+      - name: Restore the exact promoted DirectUpload releases
+        run: |
+          mv "$RUNNER_TEMP/direct-upload-retirement-release" prisma/migrations/20260801175000_retire_direct_upload_compatibility_key
+          mv "$RUNNER_TEMP/direct-upload-activation-release" prisma/migrations/20260801194000_enable_direct_upload_rls
+      - name: Verify promoted DirectUpload release bytes and migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed
+        run: |
+          npm run verify:rls-release-artifact
+          npm run audit:rls-direct-upload-retirement-release
+          npm run audit:rls-direct-upload-activation-release
+      - name: Apply promoted retirement and activation through Prisma
+        run: npx prisma migrate deploy
+      - name: Reconverge activated runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Reconverge activated cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Audit activated runtime grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Verify promoted migration status
+        run: npx prisma migrate status
+      - name: Run activated proof-harness contracts
+        run: >-
+          node --test
+          tests/direct-upload-activation-postgres-proof.test.mjs
+          tests/direct-upload-activation-rollback-proof.test.mjs
+      - name: Prove activated DirectUpload authority
+        run: npm run audit:rls-direct-upload-activation
+      - name: Prove database-first activation rollback and exact restoration
+        run: npm run audit:rls-direct-upload-activation-rollback

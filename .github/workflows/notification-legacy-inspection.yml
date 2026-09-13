@@ -1,0 +1,56 @@
+name: Notification Legacy Inspection
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character main commit containing the applied preparation migration
+        required: true
+        type: string
+      confirmation:
+        description: Type inspect-prelaunch-notification-legacy-state
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Aggregate-only production Notification inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    env:
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      MIGRATION_DB_ROLE: neondb_owner
+      NOTIFICATION_LEGACY_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      NOTIFICATION_LEGACY_INSPECT_CONFIRM: ${{ inputs.confirmation }}
+      NOTIFICATION_RLS_PREREQUISITES_CONFIRMED: saved-search-phase-b-and-runtime-separation-postflights-passed
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Inspect aggregate legacy state in a read-only transaction
+        run: npm run ops:notification-legacy-inspect
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          NOTIFICATION_LEGACY_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/notification-legacy-inspection-${{ inputs.release_commit }}.json
+      - name: Upload sanitized aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-legacy-inspection-${{ github.sha }}
+          path: ${{ runner.temp }}/notification-legacy-inspection-${{ github.sha }}.json
+          if-no-files-found: error
+          retention-days: 30

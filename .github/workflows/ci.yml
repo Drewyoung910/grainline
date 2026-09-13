@@ -1,0 +1,1624 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: grainline_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d grainline_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Database — CI uses local Postgres service container, not the Neon pooler/direct URLs from Vercel
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      # Clerk auth
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      # Stripe
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      # Cloudflare R2
+      CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
+      CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+      CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+      CLOUDFLARE_R2_PUBLIC_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_URL }}
+      R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+      NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL: ${{ secrets.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL }}
+      NEXT_PUBLIC_R2_PUBLIC_URL: ${{ secrets.NEXT_PUBLIC_R2_PUBLIC_URL }}
+      CLOUDFLARE_R2_PUBLIC_URLS: ${{ secrets.CLOUDFLARE_R2_PUBLIC_URLS }}
+      ALLOWED_R2_PUBLIC_URLS: ${{ secrets.ALLOWED_R2_PUBLIC_URLS }}
+      UPLOAD_VERIFICATION_SECRET: ci-upload-verification-secret
+      # Upstash Redis
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      # Shipping
+      SHIPPO_API_KEY: ${{ secrets.SHIPPO_API_KEY }}
+      SHIPPING_RATE_SECRET: ${{ secrets.SHIPPING_RATE_SECRET }}
+      # Email
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+      EMAIL_UNSUBSCRIBE_SECRET: ${{ secrets.EMAIL_UNSUBSCRIBE_SECRET }}
+      # AI
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # Admin / cron
+      ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
+      ADMIN_PIN_COOKIE_SECRET: ${{ secrets.ADMIN_PIN_COOKIE_SECRET }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      HEALTH_CHECK_TOKEN: ci-health-check-token
+      EMAIL_OUTBOX_DAILY_LIMIT: "100"
+      # Sentry / app
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Verify complete Order zero-direct compatible prefix
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test
+          tests/order-zero-direct-compatible-prefix.test.mjs
+          tests/order-zero-direct-compatible-prefix-postgres.test.mjs
+          tests/order-authority-composition-correction.test.mjs
+      - name: Isolate Order zero-direct suffix until every predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/order-zero-direct-compatible-suffix"
+          mkdir "$destination"
+          for migration in \
+            20260905030000_prepare_order_provider_claim_exclusion \
+            20260905040000_prepare_order_refund_claim_clock_authority \
+            20260905050000_prepare_order_seller_refund_preflight_authority \
+            20260905060000_prepare_order_legacy_refund_lock_authority \
+            20260905070000_prepare_order_legacy_stock_restore_fence \
+            20260905080000_prepare_order_refund_reconciliation_commit_proof \
+            20260905090000_prepare_order_staff_mutation_authority \
+            20260905100000_prepare_order_ban_review_authority \
+            20260905110000_prepare_order_checkout_source_snapshot \
+            20260905120000_prepare_order_seller_deauthorization_authority \
+            20260905130000_prepare_order_paid_checkout_authority \
+            20260905140000_prepare_order_checkout_existing_authority \
+            20260905150000_prepare_order_checkout_postpayment_authority \
+            20260905160000_prepare_order_checkout_refund_review_authority \
+            20260905170000_correct_order_authority_composition
+          do
+            mv "prisma/migrations/$migration" "$destination/$migration"
+          done
+      - name: Verify compatible Order account-deletion authority
+        run: >-
+          node --test
+          tests/order-account-deletion-authority.test.mjs
+          tests/order-account-deletion-authority-release.test.mjs
+          tests/order-account-deletion-authority-postgres.test.mjs
+          tests/order-account-deletion-review-note-concurrency-proof.test.mjs
+      - name: Isolate Order account-deletion authority until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260905020000_prepare_order_account_deletion_authority
+          "$RUNNER_TEMP/order-account-deletion-authority"
+      - name: Verify dormant Order staff charged-total correction
+        run: >-
+          node --test
+          tests/order-staff-read-charged-total-correction.test.mjs
+          tests/order-staff-read-authority-postgres.test.mjs
+      - name: Isolate Order staff charged-total correction until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260905010000_correct_order_staff_read_charged_total
+          "$RUNNER_TEMP/order-staff-read-charged-total-correction"
+      - name: Verify Shippo test-token credential recovery
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test
+          tests/shippo-api-credential-recovery-plan.test.mjs
+          tests/shippo-api-credential-exposure-recovery.test.mjs
+          tests/clerk-server-key-credential-recovery-plan.test.mjs
+          tests/clerk-server-key-credential-exposure-recovery.test.mjs
+      - name: Verify additive Case and Order correctness candidate
+        run: >-
+          node --test
+          tests/case-correctness-migration.test.mjs
+          tests/case-correctness-postgres.test.mjs
+          tests/case-case-message-invariant-postgres-proof.test.mjs
+          tests/case-order-active-authority-postgres-proof.test.mjs
+          tests/case-account-deletion-authority-postgres-proof.test.mjs
+      - name: Isolate Case and Order correctness until every predecessor passes
+        run: >-
+          mv
+          prisma/migrations/20260901160000_correct_case_order_invariants
+          "$RUNNER_TEMP/case-order-correctness-release"
+      - name: Verify Order participant list projection correction
+        run: npm run audit:order-participant-list-projection-correction
+      - name: Isolate Order participant list projection correction until charged total passes
+        run: >-
+          mv
+          prisma/migrations/20260901155000_correct_order_participant_list_projection
+          "$RUNNER_TEMP/order-participant-list-projection-correction"
+      - name: Verify compatible Order charged-total witness
+        run: npm run audit:order-charged-total-compatibility
+      - name: Isolate Order charged-total witness until label authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901150000_prepare_order_charged_total
+          "$RUNNER_TEMP/order-charged-total-compatibility"
+      - name: Verify compatible Order label authority release
+        run: npm run audit:order-label-authority-release
+      - name: Isolate Order label authority until fulfillment authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901140000_prepare_order_label_authority
+          "$RUNNER_TEMP/order-label-authority-release"
+      - name: Verify compatible Order fulfillment authority release
+        run: npm run audit:order-fulfillment-authority-release
+      - name: Isolate Order fulfillment authority until receipt Notification authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901130000_prepare_order_fulfillment_authority
+          "$RUNNER_TEMP/order-fulfillment-authority-release"
+      - name: Verify compatible Order receipt Notification authority release
+        run: npm run audit:order-receipt-notification-authority-release
+      - name: Isolate Order receipt Notification authority until checkout receipt authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
+          "$RUNNER_TEMP/order-receipt-notification-authority-release"
+      - name: Verify compatible Order checkout receipt authority release
+        run: npm run audit:order-checkout-receipt-authority-release
+      - name: Isolate Order checkout receipt authority until snapshot correction passes
+        run: >-
+          mv
+          prisma/migrations/20260901110000_prepare_order_checkout_receipt_authority
+          "$RUNNER_TEMP/order-checkout-receipt-authority-release"
+      - name: Isolate Order participant snapshot correction until detail projection passes
+        run: >-
+          mv
+          prisma/migrations/20260901105000_correct_order_participant_snapshot_projection
+          "$RUNNER_TEMP/order-participant-snapshot-correction-release"
+      - name: Verify compatible Order participant detail projection release
+        run: npm run audit:order-participant-detail-projection-release
+      - name: Isolate Order participant detail projection until cursor authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901100000_prepare_order_participant_detail_projection
+          "$RUNNER_TEMP/order-participant-detail-projection-release"
+      - name: Verify compatible Order participant cursor authority release
+        run: npm run audit:order-participant-cursor-authority-release
+      - name: Isolate Order participant cursor authority until summary authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901090000_prepare_order_participant_cursor_authority
+          "$RUNNER_TEMP/order-participant-cursor-authority-release"
+      - name: Verify compatible Order participant summary authority release
+        run: npm run audit:order-participant-summary-authority-release
+      - name: Isolate Order participant summary authority until seller metrics passes
+        run: >-
+          mv
+          prisma/migrations/20260901080000_prepare_order_participant_summary_authority
+          "$RUNNER_TEMP/order-participant-summary-authority-release"
+      - name: Verify compatible Order seller metrics authority release
+        run: npm run audit:order-seller-metrics-authority-release
+      - name: Isolate Order seller metrics authority until seller analytics passes
+        run: >-
+          mv
+          prisma/migrations/20260901070000_prepare_order_seller_metrics_authority
+          "$RUNNER_TEMP/order-seller-metrics-authority-release"
+      - name: Verify compatible Order seller analytics authority release
+        run: npm run audit:order-seller-analytics-authority-release
+      - name: Isolate Order seller analytics authority until public aggregate authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901060000_prepare_order_seller_analytics_authority
+          "$RUNNER_TEMP/order-seller-analytics-authority-release"
+      - name: Verify compatible Order public aggregate authority release
+        run: npm run audit:order-public-aggregate-authority-release
+      - name: Isolate Order public aggregate authority until eligibility authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901050000_prepare_order_public_aggregate_authority
+          "$RUNNER_TEMP/order-public-aggregate-authority-release"
+      - name: Verify compatible Order eligibility authority release
+        run: npm run audit:order-eligibility-authority-release
+      - name: Isolate Order eligibility authority until participant export passes
+        run: >-
+          mv
+          prisma/migrations/20260901040000_prepare_order_eligibility_authority
+          "$RUNNER_TEMP/order-eligibility-authority-release"
+      - name: Verify compatible Order participant export authority release
+        run: npm run audit:order-participant-export-authority-release
+      - name: Isolate Order participant export authority until staff authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901030000_prepare_order_participant_export_authority
+          "$RUNNER_TEMP/order-participant-export-authority-release"
+      - name: Verify dormant Order staff read authority release
+        run: npm run audit:order-staff-read-authority-release
+      - name: Isolate Order staff read authority until participant detail passes
+        run: >-
+          mv
+          prisma/migrations/20260901020000_prepare_order_staff_read_authority
+          "$RUNNER_TEMP/order-staff-read-authority-release"
+      - name: Verify compatible Order participant detail authority release
+        run: npm run audit:order-participant-detail-authority-release
+      - name: Isolate Order participant detail authority until list authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901010000_prepare_order_participant_detail_authority
+          "$RUNNER_TEMP/order-participant-detail-authority-release"
+      - name: Verify compatible Order participant list authority release
+        run: npm run audit:order-participant-list-authority-release
+      - name: Isolate Order participant list authority until OrderPaymentEvent FORCE passes
+        run: >-
+          mv
+          prisma/migrations/20260831233000_prepare_order_participant_list_authority
+          "$RUNNER_TEMP/order-participant-list-authority-release"
+      - name: Prove OrderPaymentEvent application zero-direct-access
+        run: npm run audit:order-payment-event-zero-direct-access
+      - name: Verify OrderPaymentEvent FORCE migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-force-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify OrderPaymentEvent posture-only FORCE release
+        run: npm run audit:order-payment-event-force-release
+      - name: Isolate OrderPaymentEvent FORCE until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260831010000_force_order_payment_event_rls
+          "$RUNNER_TEMP/order-payment-event-force-release"
+      - name: Verify OrderPaymentEvent activation migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-activation-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify OrderPaymentEvent policyless activation release
+        run: npm run audit:order-payment-event-activation-release
+      - name: Isolate OrderPaymentEvent activation until transition authority passes
+        run: >-
+          mv
+          prisma/migrations/20260830030000_enable_order_payment_event_rls
+          "$RUNNER_TEMP/order-payment-event-activation-release"
+      - name: Verify OrderPaymentEvent transition-authority release
+        run: npm run audit:order-payment-event-transition-authority-release
+      - name: Isolate OrderPaymentEvent transition authority until aggregate authority passes
+        run: >-
+          mv
+          prisma/migrations/20260830020000_prepare_order_payment_event_transition_authority
+          "$RUNNER_TEMP/order-payment-event-transition-authority-release"
+      - name: Verify OrderPaymentEvent aggregate-authority release
+        run: npm run audit:order-payment-event-aggregate-authority-release
+      - name: Isolate OrderPaymentEvent aggregate authority until read authority passes
+        run: >-
+          mv
+          prisma/migrations/20260830010000_prepare_order_payment_event_aggregate_authority
+          "$RUNNER_TEMP/order-payment-event-aggregate-authority-release"
+      - name: Verify OrderPaymentEvent fixed read-authority release
+        run: npm run audit:order-payment-event-read-authority-release
+      - name: Isolate OrderPaymentEvent read authority until invariants pass
+        run: >-
+          mv
+          prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
+          "$RUNNER_TEMP/order-payment-event-read-authority-release"
+      - name: Verify OrderPaymentEvent invariant compatibility release
+        run: npm run audit:order-payment-event-invariants-release
+      - name: Isolate OrderPaymentEvent invariants until signed-event predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+          "$RUNNER_TEMP/order-payment-event-invariants-release"
+      - name: Verify signed-dispute identity compatibility release
+        run: npm run audit:order-payment-signed-dispute-identity-release
+      - name: Isolate signed-dispute identity until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity
+          "$RUNNER_TEMP/order-payment-signed-dispute-identity-release"
+      - name: Verify signed-refund identity compatibility release
+        run: npm run audit:order-payment-signed-refund-identity-release
+      - name: Isolate signed-refund identity until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260828010000_prepare_order_payment_signed_refund_identity
+          "$RUNNER_TEMP/order-payment-signed-refund-identity-release"
+      - name: Verify blocked-checkout transfer binding release
+        run: npm run audit:order-payment-blocked-checkout-transfer-binding-release
+      - name: Isolate blocked-checkout transfer binding until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260826010000_prepare_blocked_checkout_transfer_binding
+          "$RUNNER_TEMP/blocked-checkout-transfer-binding-release"
+      - name: Verify blocked-checkout refund delivery compatibility release
+        run: npm run audit:order-payment-blocked-checkout-refund-delivery-release
+      - name: Isolate blocked-checkout refund delivery until OrderPaymentEvent predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260825010000_prepare_blocked_checkout_refund_delivery
+          "$RUNNER_TEMP/blocked-checkout-refund-delivery-release"
+      - name: Verify Order refund inactive-seller recovery release
+        run: npm run audit:order-refund-inactive-seller-recovery-release
+      - name: Isolate Order refund inactive-seller recovery until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery
+          "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release"
+      - name: Verify Order refund reconciliation authority release
+        run: npm run audit:order-refund-reconciliation-authority-release
+      - name: Isolate Order refund reconciliation until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority
+          "$RUNNER_TEMP/order-refund-reconciliation-authority-release"
+      - name: Verify Order payment signed authority release
+        run: npm run audit:order-payment-signed-authority-release
+      - name: Isolate Order payment signed authority until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824030000_prepare_order_payment_signed_authority
+          "$RUNNER_TEMP/order-payment-signed-authority-release"
+      - name: Verify Order refund record authority release
+        run: npm run audit:order-refund-record-authority-release
+      - name: Isolate Order refund record authority until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824020000_prepare_order_refund_record_authority
+          "$RUNNER_TEMP/order-refund-record-authority-release"
+      - name: Verify Order refund claim generation release
+        run: npm run audit:order-refund-claim-generation-release
+      - name: Isolate Order refund claim generation until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824010000_prepare_order_refund_claim_generation
+          "$RUNNER_TEMP/order-refund-claim-generation-release"
+      - name: Verify SellerPayoutEvent FORCE migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-force-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify SellerPayoutEvent FORCE release
+        run: npm run audit:rls-seller-payout-event-force-release
+      - name: Isolate SellerPayoutEvent FORCE until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260823220000_force_seller_payout_event_rls
+          "$RUNNER_TEMP/seller-payout-event-force-release"
+      - name: Verify SellerPayoutEvent activation migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-activation-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify SellerPayoutEvent activation release
+        run: npm run audit:rls-seller-payout-event-activation-release
+      - name: Isolate SellerPayoutEvent activation until authority proofs pass
+        run: >-
+          mv
+          prisma/migrations/20260822180000_enable_seller_payout_event_rls
+          "$RUNNER_TEMP/seller-payout-event-activation-release"
+      - name: Isolate SellerPayoutEvent authority until all sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260815210000_prepare_seller_payout_event_authority
+          "$RUNNER_TEMP/seller-payout-event-authority-release"
+      - name: Verify CheckoutStockReservation FORCE migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-force-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify CheckoutStockReservation FORCE release
+        run: npm run audit:rls-checkout-stock-reservation-force-release
+      - name: Isolate CheckoutStockReservation FORCE until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260815060001_force_checkout_stock_reservation_rls
+          "$RUNNER_TEMP/checkout-stock-reservation-force-release"
+      - name: Verify CheckoutStockReservation activation migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-activation-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify CheckoutStockReservation activation release
+        run: npm run audit:rls-checkout-stock-reservation-activation-release
+      - name: Isolate CheckoutStockReservation activation until source consistency passes
+        run: >-
+          mv
+          prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls
+          "$RUNNER_TEMP/checkout-stock-reservation-activation-release"
+      - name: Verify CheckoutStockReservation source-consistency migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify CheckoutStockReservation source-consistency release
+        run: npm run audit:rls-checkout-stock-reservation-source-consistency-release
+      - name: Isolate CheckoutStockReservation source consistency until authority passes
+        run: >-
+          mv
+          prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency
+          "$RUNNER_TEMP/checkout-stock-reservation-source-consistency-release"
+      - name: Verify sealed CheckoutStockReservation authority predecessor
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify CheckoutStockReservation authority release
+        run: npm run audit:rls-checkout-stock-reservation-authority-release
+      - name: Verify StripeWebhookEvent FORCE release
+        run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
+      - name: Verify Case FORCE proof equivalence
+        run: npm run audit:rls-case-force-release
+      - name: Verify Case read-mode release bytes
+        run: npm run audit:rls-case-read-mode-candidate
+      - name: Verify Conversation and Message authority proof equivalence
+        run: npm run audit:rls-conversation-message-authority-release
+      - name: Verify Conversation and Message activation proof equivalence
+        run: npm run audit:rls-conversation-message-activation-release
+      - name: Verify Conversation and Message FORCE release artifact
+        run: npm run audit:rls-conversation-message-force-release
+      - name: Verify Notification activation proof equivalence
+        run: npm run audit:rls-notification-activation-release
+      - name: Verify Notification FORCE release artifact
+        run: npm run audit:rls-notification-force-release
+      - name: Verify DirectUpload retirement proof equivalence
+        run: npm run audit:rls-direct-upload-retirement-release
+      - name: Verify DirectUpload activation proof equivalence
+        run: npm run audit:rls-direct-upload-activation-release
+      - name: Verify the sealed StripeWebhookEvent Phase-A predecessor
+        run: npm run audit:rls-stripe-webhook-event-activation-sealed-prefix
+      - name: Prepare CI runtime policy role
+        run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
+      - name: Prove runtime-role provisioning refusals exit nonzero
+        run: |
+          if psql "$DIRECT_URL" -v runtime_role=ci -v migration_role=ci -f scripts/provision-runtime-db-role.sql; then
+            echo "runtime-role provisioning unexpectedly accepted the migration owner as runtime"
+            exit 1
+          fi
+      - name: Isolate the exact Case activation until authority proofs pass
+        run: >-
+          mv
+          prisma/migrations/20260804160000_enable_case_rls
+          "$RUNNER_TEMP/case-activation-release"
+      - name: Isolate the exact Case FORCE release until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260804191000_force_case_rls
+          "$RUNNER_TEMP/case-force-release"
+      - name: Isolate the exact DirectUpload activation until external grants converge
+        run: >-
+          mv
+          prisma/migrations/20260801194000_enable_direct_upload_rls
+          "$RUNNER_TEMP/direct-upload-activation-release"
+      - name: Isolate the exact StripeWebhookEvent activation until compatibility proofs pass
+        run: >-
+          mv
+          prisma/migrations/20260805060000_enable_stripe_webhook_event_rls
+          "$RUNNER_TEMP/stripe-webhook-event-activation-release"
+      - name: Isolate the exact StripeWebhookEvent FORCE release until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260810172000_force_stripe_webhook_event_rls
+          "$RUNNER_TEMP/stripe-webhook-event-force-release"
+      - name: Isolate CheckoutStockReservation authority until webhook FORCE passes
+        run: >-
+          mv
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
+      - name: Apply compatible migrations to CI Postgres
+        run: npx prisma migrate deploy
+      - name: Converge pre-activation production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge pre-activation DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Prove DirectUpload legacy repair in ephemeral PostgreSQL
+        run: npm run audit:rls-direct-upload-legacy-repair
+        env:
+          DIRECT_UPLOAD_LEGACY_REPAIR_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore the exact DirectUpload activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/direct-upload-activation-release"
+          prisma/migrations/20260801194000_enable_direct_upload_rls
+      - name: Apply migrations to CI Postgres
+        run: npx prisma migrate deploy
+      - name: Converge production-style runtime grants after migrations
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge activated DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Prove participant Case resolution authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-participant-resolution
+        env:
+          CASE_PARTICIPANT_RESOLUTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove buyer Case-open authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-open-authority
+        env:
+          CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case-reply authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-reply-authority
+        env:
+          CASE_REPLY_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case-message preflight authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-message-preflight
+        env:
+          CASE_MESSAGE_PREFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case-message page authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-message-page
+        env:
+          CASE_MESSAGE_PAGE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case recipient-read authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-recipient-read
+        env:
+          CASE_RECIPIENT_READ_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case staff queue authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-staff-queue
+        env:
+          CASE_STAFF_QUEUE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case-aware Order authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-order-active
+        env:
+          CASE_ORDER_ACTIVE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case seller aggregate authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-seller-aggregate
+        env:
+          CASE_SELLER_AGGREGATE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case account-export authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-account-export
+        env:
+          CASE_ACCOUNT_EXPORT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case escalation and cron-transition authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-escalation-cron
+        env:
+          CASE_ESCALATION_CRON_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case account-deletion authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-account-deletion
+        env:
+          CASE_ACCOUNT_DELETION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case invariant drafts in rollback-only PostgreSQL
+        run: npm run audit:rls-case-invariant-drafts
+        env:
+          CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case and CaseMessage legacy inspection SQL in ephemeral PostgreSQL
+        run: npm run audit:rls-case-legacy-inspection
+        env:
+          CASE_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Clerk legal acceptance provenance inspection in ephemeral PostgreSQL
+        run: npm run audit:clerk-legal-provenance-inspection-postgres
+        env:
+          CLERK_LEGAL_PROVENANCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Clerk legal acceptance provenance cleanup in ephemeral PostgreSQL
+        run: npm run audit:clerk-legal-provenance-cleanup-postgres
+        env:
+          CLERK_LEGAL_PROVENANCE_CLEANUP_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove compatible Order seller key in rollback-only PostgreSQL
+        run: npm run audit:rls-order-seller-key-compatibility
+        env:
+          ORDER_SELLER_KEY_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove compatible Stripe webhook leases in rollback-only PostgreSQL
+        run: npm run audit:rls-stripe-webhook-lease-compatibility
+        env:
+          STRIPE_WEBHOOK_LEASE_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Stripe webhook maintenance authority in rollback-only PostgreSQL
+        run: npm run audit:rls-stripe-webhook-maintenance-postgres
+        env:
+          STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove buyer-deletion fixed-lease verifier rollback in PostgreSQL
+        run: npm run audit:buyer-deletion-replay-postgres
+        env:
+          BUYER_DELETION_REPLAY_POSTGRES_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Order/payment/shipping compatible postflight under the runtime role
+        run: npm run audit:rls-order-payment-shipping-compatible-postflight
+        env:
+          ORDER_PAYMENT_SHIPPING_COMPATIBLE_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Conversation and Message legacy cleanup in ephemeral PostgreSQL
+        run: npm run audit:rls-conversation-message-legacy-cleanup
+        env:
+          CONVERSATION_MESSAGE_LEGACY_CLEANUP_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove compatible Case production postflight under the runtime role
+        run: npm run audit:rls-case-compatible-db-postflight
+        env:
+          CASE_COMPATIBLE_DB_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore the exact Case activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-activation-release"
+          prisma/migrations/20260804160000_enable_case_rls
+      - name: Apply the exact Case activation release
+        run: npx prisma migrate deploy
+      - name: Converge activated Case runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Audit final runtime grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove promoted Case activation under the runtime role
+        run: npm run audit:rls-case-activation-postgres
+        env:
+          CASE_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore the exact Case FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-force-release"
+          prisma/migrations/20260804191000_force_case_rls
+      - name: Apply the exact Case FORCE release
+        run: npx prisma migrate deploy
+      - name: Converge FORCE-hardened Case runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened runtime grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened Case authority under the runtime role
+        run: npm run audit:rls-case-force-postgres
+        env:
+          CASE_FORCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore the exact StripeWebhookEvent activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/stripe-webhook-event-activation-release"
+          prisma/migrations/20260805060000_enable_stripe_webhook_event_rls
+      - name: Apply the exact StripeWebhookEvent activation release
+        run: npx prisma migrate deploy
+      - name: Converge activated StripeWebhookEvent runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Audit activated StripeWebhookEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove policyless StripeWebhookEvent activation
+        run: npm run audit:rls-stripe-webhook-event-activation-postgres
+        env:
+          STRIPE_WEBHOOK_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Enable disposable direct runtime login for the activation postflight proof
+        run: >-
+          psql "$DIRECT_URL"
+          -v ON_ERROR_STOP=1
+          -c "ALTER ROLE grainline_app_runtime PASSWORD 'grainline-ci-runtime-postflight-only'"
+      - name: Prove activation postflight through the actual runtime login
+        run: npm run audit:rls-stripe-webhook-event-activation-postflight-postgres
+        env:
+          STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Re-prove Stripe webhook leases behind policyless activation
+        run: npm run audit:rls-stripe-webhook-lease-compatibility
+        env:
+          STRIPE_WEBHOOK_LEASE_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-prove Stripe webhook maintenance behind policyless activation
+        run: npm run audit:rls-stripe-webhook-maintenance-postgres
+        env:
+          STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove StripeWebhookEvent database-first rollback and restoration
+        run: npm run audit:rls-stripe-webhook-event-activation-rollback
+        env:
+          STRIPE_WEBHOOK_EVENT_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-audit restored StripeWebhookEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore the exact StripeWebhookEvent FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/stripe-webhook-event-force-release"
+          prisma/migrations/20260810172000_force_stripe_webhook_event_rls
+      - name: Apply the exact StripeWebhookEvent FORCE release
+        run: npx prisma migrate deploy
+      - name: Verify StripeWebhookEvent FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened StripeWebhookEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened StripeWebhookEvent authority
+        run: npm run audit:rls-stripe-webhook-event-force-postgres
+        env:
+          STRIPE_WEBHOOK_EVENT_FORCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove StripeWebhookEvent FORCE rollback and restoration
+        run: npm run audit:rls-stripe-webhook-event-force-rollback
+        env:
+          STRIPE_WEBHOOK_EVENT_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-audit restored StripeWebhookEvent FORCE posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore CheckoutStockReservation authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
+      - name: Apply CheckoutStockReservation compatible authority
+        run: npx prisma migrate deploy
+      - name: Converge compatible reservation function grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify CheckoutStockReservation authority migration status
+        run: npx prisma migrate status
+      - name: Audit compatible reservation grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore CheckoutStockReservation source-consistency release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-source-consistency-release"
+          prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency
+      - name: Prove CheckoutStockReservation source successor before application
+        run: npm run audit:rls-checkout-stock-reservation-authority-postgres
+      - name: Apply CheckoutStockReservation source-consistency authority
+        run: npx prisma migrate deploy
+      - name: Converge source-consistent reservation function grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify CheckoutStockReservation source-consistency migration status
+        run: npx prisma migrate status
+      - name: Audit source-consistent reservation grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove promoted CheckoutStockReservation source consistency
+        run: npm run audit:rls-checkout-stock-reservation-authority-postgres
+      - name: Restore CheckoutStockReservation activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-activation-release"
+          prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls
+      - name: Re-prove the activation predecessor before application
+        run: npm run audit:rls-checkout-stock-reservation-authority-postgres
+      - name: Apply CheckoutStockReservation policyless activation
+        run: npx prisma migrate deploy
+      - name: Converge activated reservation runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify CheckoutStockReservation activation migration status
+        run: npx prisma migrate status
+      - name: Audit activated reservation grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove CheckoutStockReservation activation through the actual runtime login
+        run: npm run audit:rls-checkout-stock-reservation-activation-postflight-postgres
+        env:
+          CHECKOUT_STOCK_RESERVATION_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore CheckoutStockReservation FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-force-release"
+          prisma/migrations/20260815060001_force_checkout_stock_reservation_rls
+      - name: Apply CheckoutStockReservation FORCE hardening
+        run: npx prisma migrate deploy
+      - name: Verify CheckoutStockReservation FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened reservation grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened CheckoutStockReservation authority
+        run: npm run audit:rls-checkout-stock-reservation-force-postgres
+        env:
+          CHECKOUT_STOCK_RESERVATION_FORCE_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove CheckoutStockReservation FORCE rollback and restoration
+        run: npm run audit:rls-checkout-stock-reservation-force-rollback
+        env:
+          CHECKOUT_STOCK_RESERVATION_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-audit restored CheckoutStockReservation FORCE posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore SellerPayoutEvent compatible authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-payout-event-authority-release"
+          prisma/migrations/20260815210000_prepare_seller_payout_event_authority
+      - name: Verify SellerPayoutEvent compatible authority release
+        run: npm run audit:rls-seller-payout-event-authority-release
+      - name: Apply SellerPayoutEvent compatible authority
+        run: npx prisma migrate deploy
+      - name: Converge compatible SellerPayoutEvent runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify SellerPayoutEvent authority migration status
+        run: npx prisma migrate status
+      - name: Audit compatible SellerPayoutEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove SellerPayoutEvent authority in real PostgreSQL
+        run: npm run audit:rls-seller-payout-event-authority-postgres
+        env:
+          SELLER_PAYOUT_EVENT_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove zero direct SellerPayoutEvent application access
+        run: npm run audit:rls-seller-payout-event-zero-direct-access
+      - name: Restore SellerPayoutEvent activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-payout-event-activation-release"
+          prisma/migrations/20260822180000_enable_seller_payout_event_rls
+      - name: Re-prove the SellerPayoutEvent activation predecessor
+        run: npm run audit:rls-seller-payout-event-authority-postgres
+        env:
+          SELLER_PAYOUT_EVENT_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Apply SellerPayoutEvent policyless activation
+        run: npx prisma migrate deploy
+      - name: Converge activated SellerPayoutEvent runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify SellerPayoutEvent activation migration status
+        run: npx prisma migrate status
+      - name: Audit activated SellerPayoutEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove SellerPayoutEvent policyless activation through separate logins
+        run: npm run audit:rls-seller-payout-event-activation-postgres
+        env:
+          SELLER_PAYOUT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          SELLER_PAYOUT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove SellerPayoutEvent activation postflight through the actual runtime login
+        run: npm run audit:rls-seller-payout-event-activation-postflight-postgres
+        env:
+          SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove SellerPayoutEvent database-first rollback and restoration
+        run: npm run audit:rls-seller-payout-event-activation-rollback
+        env:
+          SELLER_PAYOUT_EVENT_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          SELLER_PAYOUT_EVENT_ACTIVATION_ROLLBACK_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Re-audit restored SellerPayoutEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore SellerPayoutEvent FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-payout-event-force-release"
+          prisma/migrations/20260823220000_force_seller_payout_event_rls
+      - name: Apply SellerPayoutEvent FORCE hardening
+        run: npx prisma migrate deploy
+      - name: Verify SellerPayoutEvent FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened SellerPayoutEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened SellerPayoutEvent authority
+        run: npm run audit:rls-seller-payout-event-force-postgres
+        env:
+          SELLER_PAYOUT_EVENT_FORCE_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove SellerPayoutEvent FORCE postflight through the actual runtime login
+        run: npm run audit:rls-seller-payout-event-force-postflight-postgres
+        env:
+          SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove SellerPayoutEvent FORCE rollback and restoration
+        run: npm run audit:rls-seller-payout-event-force-rollback
+        env:
+          SELLER_PAYOUT_EVENT_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-audit restored SellerPayoutEvent FORCE posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Order refund claim generation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-refund-claim-generation-release"
+          prisma/migrations/20260824010000_prepare_order_refund_claim_generation
+      - name: Apply Order refund claim generation preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order refund claim generation migration status
+        run: npx prisma migrate status
+      - name: Audit Order refund claim grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove Order refund claims in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-refund-claim-generation-migration.test.mjs
+          tests/order-refund-claim-generation-postgres.test.mjs
+      - name: Restore Order refund record authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-refund-record-authority-release"
+          prisma/migrations/20260824020000_prepare_order_refund_record_authority
+      - name: Apply Order refund record authority preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order refund record authority migration status
+        run: npx prisma migrate status
+      - name: Audit Order refund record grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove atomic Order refund finalization in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-refund-record-authority.test.mjs
+          tests/order-refund-record-authority-release.test.mjs
+          tests/order-refund-record-authority-postgres.test.mjs
+      - name: Restore Order payment signed authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-signed-authority-release"
+          prisma/migrations/20260824030000_prepare_order_payment_signed_authority
+      - name: Apply Order payment signed authority preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order payment signed authority migration status
+        run: npx prisma migrate status
+      - name: Audit signed payment grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove signed Order payment authority in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-event-signed-authority-migration.test.mjs
+          tests/order-payment-event-signed-authority-postgres-proof.test.mjs
+          tests/order-payment-event-signed-webhook.test.mjs
+          tests/order-payment-signed-authority-release.test.mjs
+      - name: Restore Order refund reconciliation authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-refund-reconciliation-authority-release"
+          prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority
+      - name: Apply Order refund reconciliation authority preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order refund reconciliation migration status
+        run: npx prisma migrate status
+      - name: Audit Order refund reconciliation grants and retained payment RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove Order refund reconciliation authority through the runtime role
+        run: npm run audit:order-refund-reconciliation-authority-postgres
+        env:
+          ORDER_REFUND_RECONCILIATION_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Order refund reconciliation authority in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-refund-reconciliation-authority.test.mjs
+          tests/order-refund-reconciliation-authority-release.test.mjs
+          tests/order-refund-reconciliation-authority-postgres-proof.test.mjs
+          tests/order-refund-reconciliation-authority-postgres.test.mjs
+          tests/order-refund-provider-reconciliation.test.mjs
+          tests/order-refund-reconciliation-state.test.mjs
+      - name: Restore Order refund inactive-seller recovery release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release"
+          prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery
+      - name: Apply Order refund inactive-seller recovery preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order refund inactive-seller recovery migration status
+        run: npx prisma migrate status
+      - name: Audit inactive-seller recovery grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove restart-safe OrderPaymentEvent compatible production scope in PostgreSQL 16
+        run: npm run audit:order-payment-compatible-production-scope-postgres
+        env:
+          ORDER_PAYMENT_EVENT_COMPATIBLE_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove OrderPaymentEvent compatible postflight through the actual runtime login
+        run: npm run audit:order-payment-compatible-postflight-postgres
+        env:
+          ORDER_PAYMENT_EVENT_COMPATIBLE_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove inactive-seller refund recovery through the runtime role
+        run: npm run audit:order-refund-inactive-seller-recovery-postgres
+        env:
+          ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove inactive-seller recovery packaging and proof guardrails
+        run: >-
+          node --test
+          tests/order-refund-inactive-seller-recovery-release.test.mjs
+          tests/order-refund-inactive-seller-recovery-postgres-proof.test.mjs
+      - name: Restore blocked-checkout refund delivery compatibility release
+        run: >-
+          mv
+          "$RUNNER_TEMP/blocked-checkout-refund-delivery-release"
+          prisma/migrations/20260825010000_prepare_blocked_checkout_refund_delivery
+      - name: Apply blocked-checkout refund delivery compatibility
+        run: npx prisma migrate deploy
+      - name: Verify blocked-checkout refund delivery migration status
+        run: npx prisma migrate status
+      - name: Audit blocked-checkout refund delivery grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove restart-safe blocked-checkout refund delivery production scope in PostgreSQL 16
+        run: npm run audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres
+        env:
+          BLOCKED_CHECKOUT_REFUND_DELIVERY_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove predecessor and corrected blocked-checkout notification delivery
+        run: npm run audit:rls-notification-ephemeral
+        env:
+          NOTIFICATION_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore blocked-checkout transfer binding release
+        run: >-
+          mv
+          "$RUNNER_TEMP/blocked-checkout-transfer-binding-release"
+          prisma/migrations/20260826010000_prepare_blocked_checkout_transfer_binding
+      - name: Apply blocked-checkout transfer binding preparation
+        run: npx prisma migrate deploy
+      - name: Verify blocked-checkout transfer binding migration status
+        run: npx prisma migrate status
+      - name: Audit blocked-checkout transfer binding grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove blocked-checkout transfer binding in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/blocked-checkout-transfer-binding-migration.test.mjs
+          tests/blocked-checkout-transfer-binding-postgres.test.mjs
+      - name: Prove blocked-checkout transfer binding through the real runtime login
+        run: npm run audit:order-payment-blocked-checkout-transfer-binding-postgres
+        env:
+          BLOCKED_CHECKOUT_TRANSFER_BINDING_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          BLOCKED_CHECKOUT_TRANSFER_BINDING_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore signed-refund identity compatibility release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-signed-refund-identity-release"
+          prisma/migrations/20260828010000_prepare_order_payment_signed_refund_identity
+      - name: Apply signed-refund identity compatibility
+        run: npx prisma migrate deploy
+      - name: Verify signed-refund identity migration status
+        run: npx prisma migrate status
+      - name: Audit signed-refund identity grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove signed-refund identity compatibility in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-signed-refund-identity-migration.test.mjs
+          tests/order-payment-signed-refund-identity-postgres.test.mjs
+          tests/order-payment-signed-refund-identity-production-postflight.test.mjs
+          tests/order-payment-signed-refund-identity-release.test.mjs
+      - name: Prove signed-refund identity through the real runtime login
+        run: npm run audit:order-payment-signed-refund-identity-postgres
+        env:
+          ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore signed-dispute identity compatibility release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-signed-dispute-identity-release"
+          prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity
+      - name: Apply signed-dispute identity compatibility
+        run: npx prisma migrate deploy
+      - name: Verify signed-dispute identity migration status
+        run: npx prisma migrate status
+      - name: Audit signed-dispute identity grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove canonical signed-dispute identity in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-signed-dispute-identity-migration.test.mjs
+          tests/order-payment-signed-dispute-identity-production-scope.test.mjs
+          tests/order-payment-signed-dispute-identity-release.test.mjs
+          tests/order-payment-event-signed-authority-postgres-proof.test.mjs
+      - name: Restore OrderPaymentEvent invariant compatibility release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-invariants-release"
+          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+      - name: Apply OrderPaymentEvent invariant compatibility
+        run: npx prisma migrate deploy
+      - name: Verify OrderPaymentEvent invariant migration status
+        run: npx prisma migrate status
+      - name: Audit OrderPaymentEvent invariant grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove OrderPaymentEvent invariants in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-event-invariants-postgres.test.mjs
+          tests/order-payment-event-invariants-proof.test.mjs
+          tests/order-payment-event-invariants-production-scope.test.mjs
+          tests/order-payment-event-invariants-release.test.mjs
+      - name: Prove OrderPaymentEvent lock and authority invariants through real logins
+        run: npm run audit:order-payment-event-invariants-postgres
+        env:
+          ORDER_PAYMENT_EVENT_INVARIANTS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_INVARIANTS_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore OrderPaymentEvent fixed read-authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-read-authority-release"
+          prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
+      - name: Apply OrderPaymentEvent fixed read authority
+        run: npx prisma migrate deploy
+      - name: Converge OrderPaymentEvent read-authority runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Verify OrderPaymentEvent read-authority migration status
+        run: npx prisma migrate status
+      - name: Audit OrderPaymentEvent read grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove exact OrderPaymentEvent read-authority scope in CI
+        run: npm run audit:order-payment-event-read-authority-ci-scope
+      - name: Prove fixed OrderPaymentEvent projections in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-event-read-authority-postgres.test.mjs
+          tests/order-payment-event-read-authority-proof.test.mjs
+          tests/order-payment-event-read-authority-production-scope.test.mjs
+          tests/order-payment-event-read-authority-release.test.mjs
+          tests/order-payment-event-read-state.test.mjs
+      - name: Prove OrderPaymentEvent read authority through real logins
+        run: npm run audit:order-payment-event-read-authority-postgres
+        env:
+          ORDER_PAYMENT_EVENT_READ_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_READ_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore OrderPaymentEvent aggregate-authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-aggregate-authority-release"
+          prisma/migrations/20260830010000_prepare_order_payment_event_aggregate_authority
+      - name: Apply OrderPaymentEvent aggregate authority
+        run: npx prisma migrate deploy
+      - name: Converge private OrderPaymentEvent projection grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Audit OrderPaymentEvent aggregate grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove exact OrderPaymentEvent aggregate-authority scope in CI
+        run: npm run audit:order-payment-event-aggregate-authority-ci-scope
+      - name: Prove OrderPaymentEvent aggregate authority in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-event-aggregate-authority-ci-scope-proof.test.mjs
+          tests/order-payment-event-aggregate-authority-postgres.test.mjs
+          tests/order-payment-event-aggregate-authority-proof.test.mjs
+          tests/order-payment-event-aggregate-authority-production-scope.test.mjs
+          tests/order-payment-event-aggregate-authority-release.test.mjs
+      - name: Prove OrderPaymentEvent aggregate locks through real logins
+        run: npm run audit:order-payment-event-aggregate-authority-postgres
+        env:
+          ORDER_PAYMENT_EVENT_AGGREGATE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_AGGREGATE_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent aggregate postflight through the runtime login
+        run: npm run audit:order-payment-event-aggregate-authority-postflight-postgres
+        env:
+          ORDER_PAYMENT_EVENT_AGGREGATE_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore OrderPaymentEvent transition-authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-transition-authority-release"
+          prisma/migrations/20260830020000_prepare_order_payment_event_transition_authority
+      - name: Apply OrderPaymentEvent transition authority
+        run: npx prisma migrate deploy
+      - name: Converge private OrderPaymentEvent transition grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Audit OrderPaymentEvent transition grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove OrderPaymentEvent transition authority in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-event-dispute-state-postgres.test.mjs
+          tests/order-payment-event-transition-authority-postgres.test.mjs
+          tests/order-payment-event-transition-authority-proof.test.mjs
+          tests/order-payment-event-transition-authority-release.test.mjs
+          tests/postgres-special-form-qualification.test.mjs
+      - name: Prove exact OrderPaymentEvent transition-authority production scope in CI
+        run: npm run audit:order-payment-event-transition-authority-ci-scope
+      - name: Prove OrderPaymentEvent transition locks through real logins
+        run: npm run audit:order-payment-event-transition-authority-postgres
+        env:
+          ORDER_PAYMENT_EVENT_TRANSITION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_TRANSITION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent transition postflight through the runtime login
+        run: npm run audit:order-payment-event-transition-authority-postflight-postgres
+        env:
+          ORDER_PAYMENT_EVENT_TRANSITION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore OrderPaymentEvent policyless activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-activation-release"
+          prisma/migrations/20260830030000_enable_order_payment_event_rls
+      - name: Re-prove zero direct OrderPaymentEvent application access
+        run: npm run audit:order-payment-event-zero-direct-access
+      - name: Re-prove exact OrderPaymentEvent transition predecessor
+        run: npm run audit:order-payment-event-transition-authority-ci-scope
+      - name: Apply OrderPaymentEvent policyless activation
+        run: npx prisma migrate deploy
+      - name: Converge activated OrderPaymentEvent runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Verify OrderPaymentEvent activation migration status
+        run: npx prisma migrate status
+      - name: Audit activated OrderPaymentEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove OrderPaymentEvent activation through separate logins
+        run: npm run audit:order-payment-event-activation-postgres
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent activation postflight through the runtime login
+        run: npm run audit:order-payment-event-activation-postflight-postgres
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent activation rollback and restoration
+        run: npm run audit:order-payment-event-activation-rollback
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Re-audit restored OrderPaymentEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore OrderPaymentEvent posture-only FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-force-release"
+          prisma/migrations/20260831010000_force_order_payment_event_rls
+      - name: Re-verify OrderPaymentEvent FORCE migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-force-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Re-verify OrderPaymentEvent posture-only FORCE release
+        run: npm run audit:order-payment-event-force-release
+      - name: Apply OrderPaymentEvent posture-only FORCE hardening
+        run: npx prisma migrate deploy
+      - name: Verify OrderPaymentEvent FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened OrderPaymentEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened OrderPaymentEvent through separate logins
+        run: npm run audit:order-payment-event-force-postgres
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent FORCE postflight through the runtime login
+        run: npm run audit:order-payment-event-force-postflight-postgres
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent FORCE rollback and restoration
+        run: npm run audit:order-payment-event-force-rollback
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Re-audit restored OrderPaymentEvent FORCE posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore compatible Order participant list authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-list-authority-release"
+          prisma/migrations/20260831233000_prepare_order_participant_list_authority
+      - name: Restore compatible Order participant detail authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-detail-authority-release"
+          prisma/migrations/20260901010000_prepare_order_participant_detail_authority
+      - name: Restore dormant Order staff read authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-staff-read-authority-release"
+          prisma/migrations/20260901020000_prepare_order_staff_read_authority
+      - name: Restore compatible Order participant export authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-export-authority-release"
+          prisma/migrations/20260901030000_prepare_order_participant_export_authority
+      - name: Restore compatible Order eligibility authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-eligibility-authority-release"
+          prisma/migrations/20260901040000_prepare_order_eligibility_authority
+      - name: Restore compatible Order public aggregate authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-public-aggregate-authority-release"
+          prisma/migrations/20260901050000_prepare_order_public_aggregate_authority
+      - name: Restore compatible Order seller analytics authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-seller-analytics-authority-release"
+          prisma/migrations/20260901060000_prepare_order_seller_analytics_authority
+      - name: Restore compatible Order seller metrics authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-seller-metrics-authority-release"
+          prisma/migrations/20260901070000_prepare_order_seller_metrics_authority
+      - name: Restore compatible Order participant summary authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-summary-authority-release"
+          prisma/migrations/20260901080000_prepare_order_participant_summary_authority
+      - name: Restore compatible Order participant cursor authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-cursor-authority-release"
+          prisma/migrations/20260901090000_prepare_order_participant_cursor_authority
+      - name: Restore compatible Order participant detail projection release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-detail-projection-release"
+          prisma/migrations/20260901100000_prepare_order_participant_detail_projection
+      - name: Restore compatible Order participant snapshot correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-snapshot-correction-release"
+          prisma/migrations/20260901105000_correct_order_participant_snapshot_projection
+      - name: Restore compatible Order checkout receipt authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-checkout-receipt-authority-release"
+          prisma/migrations/20260901110000_prepare_order_checkout_receipt_authority
+      - name: Restore compatible Order receipt Notification authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-receipt-notification-authority-release"
+          prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
+      - name: Restore compatible Order fulfillment authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-fulfillment-authority-release"
+          prisma/migrations/20260901130000_prepare_order_fulfillment_authority
+      - name: Restore compatible Order label authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-label-authority-release"
+          prisma/migrations/20260901140000_prepare_order_label_authority
+      - name: Restore compatible Order charged-total witness
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-charged-total-compatibility"
+          prisma/migrations/20260901150000_prepare_order_charged_total
+      - name: Restore Order participant list projection correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-list-projection-correction"
+          prisma/migrations/20260901155000_correct_order_participant_list_projection
+      # This postflight seals the historical 18-migration catalog, not the
+      # later source-replacing corrections. Keep both release stages proved.
+      - name: Apply historical Order compatibility prefix before successors
+        run: npx prisma migrate deploy
+      - name: Converge historical Order compatibility runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Prove Order compatible postflight through the runtime login
+        run: npm run audit:rls-order-compatible-runtime-postflight
+        env:
+          ORDER_COMPATIBLE_RUNTIME_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore additive Case and Order correctness release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-order-correctness-release"
+          prisma/migrations/20260901160000_correct_case_order_invariants
+      - name: Apply exact Case predecessor before bounded Order executor
+        run: npx prisma migrate deploy
+      - name: Restore Order staff charged-total correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-staff-read-charged-total-correction"
+          prisma/migrations/20260905010000_correct_order_staff_read_charged_total
+      - name: Restore compatible Order account-deletion authority
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-account-deletion-authority"
+          prisma/migrations/20260905020000_prepare_order_account_deletion_authority
+      - name: Restore complete Order zero-direct compatible suffix
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/order-zero-direct-compatible-suffix"
+          for migration in \
+            20260905030000_prepare_order_provider_claim_exclusion \
+            20260905040000_prepare_order_refund_claim_clock_authority \
+            20260905050000_prepare_order_seller_refund_preflight_authority \
+            20260905060000_prepare_order_legacy_refund_lock_authority \
+            20260905070000_prepare_order_legacy_stock_restore_fence \
+            20260905080000_prepare_order_refund_reconciliation_commit_proof \
+            20260905090000_prepare_order_staff_mutation_authority \
+            20260905100000_prepare_order_ban_review_authority \
+            20260905110000_prepare_order_checkout_source_snapshot \
+            20260905120000_prepare_order_seller_deauthorization_authority \
+            20260905130000_prepare_order_paid_checkout_authority \
+            20260905140000_prepare_order_checkout_existing_authority \
+            20260905150000_prepare_order_checkout_postpayment_authority \
+            20260905160000_prepare_order_checkout_refund_review_authority \
+            20260905170000_correct_order_authority_composition
+          do
+            mv "$source/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$source"
+      - name: Re-verify complete Order zero-direct compatible prefix
+        run: npm run audit:order-zero-direct-compatible-prefix
+      - name: Re-verify compatible Order participant list authority release
+        run: npm run audit:order-participant-list-authority-release
+      - name: Re-verify compatible Order participant detail authority release
+        run: npm run audit:order-participant-detail-authority-release
+      - name: Re-verify dormant Order staff read authority release
+        run: npm run audit:order-staff-read-authority-release
+      - name: Re-verify compatible Order participant export authority release
+        run: npm run audit:order-participant-export-authority-release
+      - name: Re-verify compatible Order eligibility authority release
+        run: npm run audit:order-eligibility-authority-release
+      - name: Re-verify compatible Order public aggregate authority release
+        run: npm run audit:order-public-aggregate-authority-release
+      - name: Re-verify compatible Order seller analytics authority release
+        run: npm run audit:order-seller-analytics-authority-release
+      - name: Re-verify compatible Order seller metrics authority release
+        run: npm run audit:order-seller-metrics-authority-release
+      - name: Re-verify compatible Order participant summary authority release
+        run: npm run audit:order-participant-summary-authority-release
+      - name: Re-verify compatible Order participant cursor authority release
+        run: npm run audit:order-participant-cursor-authority-release
+      - name: Re-verify compatible Order participant detail projection release
+        run: npm run audit:order-participant-detail-projection-release
+      - name: Re-verify compatible Order checkout receipt authority release
+        run: npm run audit:order-checkout-receipt-authority-release
+      - name: Re-verify compatible Order receipt Notification authority release
+        run: npm run audit:order-receipt-notification-authority-release
+      - name: Re-verify compatible Order fulfillment authority release
+        run: npm run audit:order-fulfillment-authority-release
+      - name: Re-verify compatible Order label authority release
+        run: npm run audit:order-label-authority-release
+      - name: Re-verify compatible Order charged-total witness
+        run: npm run audit:order-charged-total-compatibility
+      - name: Re-verify Order participant list projection correction
+        run: npm run audit:order-participant-list-projection-correction
+      - name: Re-verify compatible Order account-deletion authority
+        run: npm run audit:order-account-deletion-authority
+      - name: Apply compatible Order participant authority
+        run: |
+          npm run guard:local-disk-space
+          node scripts/order-zero-direct-execution-postgres-proof.mjs
+        env:
+          ORDER_ZERO_DIRECT_EXECUTION_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci?sslmode=disable
+      - name: Converge Order participant runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Audit Order participant grants and retained Order posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove Order/payment/shipping legacy inspection SQL after label claim preparation
+        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
+        env:
+          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove complete Order zero-direct prefix in disposable PostgreSQL
+        run: npm run audit:order-zero-direct-compatible-prefix-postgres
+        env:
+          ORDER_ZERO_DIRECT_COMPATIBLE_PREFIX_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove exact zero-direct release catalog with the native PostgreSQL driver
+        run: node scripts/order-zero-direct-release-scope-postgres-proof.mjs
+        env:
+          ORDER_ZERO_DIRECT_RELEASE_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove zero-direct schema and role drift rejection with exact rollback
+        run: node scripts/order-zero-direct-release-structure-postgres-proof.mjs
+        env:
+          ORDER_ZERO_DIRECT_RELEASE_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove input correction drafts without retaining catalog changes
+        run: node scripts/order-input-correction-drafts-postgres-proof.mjs
+        env:
+          ORDER_INPUT_CORRECTION_DRAFTS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove corrected input boundaries through an actual runtime login
+        run: node scripts/order-input-correction-runtime-postgres-proof.mjs
+        env:
+          ORDER_INPUT_CORRECTION_RUNTIME_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove label clawback clock without retaining catalog changes
+        run: node scripts/order-label-clawback-clock-postgres-proof.mjs
+        env:
+          ORDER_LABEL_CLAWBACK_CLOCK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove stock adjustment retry and checkout lock schedules
+        run: node --experimental-strip-types scripts/listing-stock-mutation-postgres-proof.mjs
+        env:
+          LISTING_STOCK_MUTATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case lifecycle corrections and unchanged catalog after rollback
+        run: node scripts/case-lifecycle-correction-postgres-proof.mjs
+        env:
+          CASE_LIFECYCLE_CORRECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove reservation repair correction through an actual runtime login
+        run: node scripts/checkout-repair-outcome-runtime-postgres-proof.mjs
+        env:
+          CHECKOUT_REPAIR_OUTCOME_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove exact Order Case reservation correction composition and rollback
+        run: node scripts/order-correction-composition-postgres-proof.mjs
+        env:
+          ORDER_CORRECTION_COMPOSITION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+
+      - name: Prove correction release ledger and body restart states
+        run: node scripts/order-correction-release-package-postgres-proof.mjs
+        env:
+          ORDER_CORRECTION_RELEASE_PACKAGE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove compatible Order participant authority
+        run: >-
+          node --test
+          tests/order-participant-list-authority-contract.test.mjs
+          tests/order-participant-list-authority-postgres.test.mjs
+          tests/order-participant-list-authority-release.test.mjs
+          tests/order-participant-read-state.test.mjs
+          tests/order-participant-detail-authority-postgres.test.mjs
+          tests/order-participant-detail-authority-contract.test.mjs
+          tests/order-participant-detail-authority-release.test.mjs
+          tests/order-participant-detail-state.test.mjs
+          tests/order-staff-read-authority-postgres.test.mjs
+          tests/order-staff-read-authority-contract.test.mjs
+          tests/order-staff-read-authority-release.test.mjs
+          tests/order-staff-read-charged-total-correction.test.mjs
+          tests/order-staff-read-state.test.mjs
+          tests/order-account-deletion-authority.test.mjs
+          tests/order-account-deletion-authority-release.test.mjs
+          tests/order-account-deletion-authority-postgres.test.mjs
+          tests/order-account-deletion-review-note-concurrency-proof.test.mjs
+          tests/order-participant-export-authority-postgres.test.mjs
+          tests/order-participant-export-authority-contract.test.mjs
+          tests/order-participant-export-authority-release.test.mjs
+          tests/order-participant-export-state.test.mjs
+          tests/order-eligibility-authority-postgres.test.mjs
+          tests/order-eligibility-authority-contract.test.mjs
+          tests/order-eligibility-authority-release.test.mjs
+          tests/order-eligibility-authority-state.test.mjs
+          tests/order-public-aggregate-authority-postgres.test.mjs
+          tests/order-public-aggregate-authority-contract.test.mjs
+          tests/order-public-aggregate-authority-release.test.mjs
+          tests/order-public-aggregate-authority-state.test.mjs
+          tests/order-seller-analytics-authority-postgres.test.mjs
+          tests/order-seller-analytics-authority-release.test.mjs
+          tests/order-seller-analytics-state.test.mjs
+          tests/order-seller-metrics-authority-postgres.test.mjs
+          tests/order-seller-metrics-authority-release.test.mjs
+          tests/order-seller-metrics-state.test.mjs
+          tests/order-participant-summary-authority-app.test.mjs
+          tests/order-participant-summary-authority-postgres.test.mjs
+          tests/order-participant-summary-authority-release.test.mjs
+          tests/order-history-cursor.test.mjs
+          tests/order-participant-cursor-authority-app.test.mjs
+          tests/order-participant-cursor-authority-release.test.mjs
+          tests/order-participant-detail-authority-contract.test.mjs
+          tests/order-participant-detail-authority-postgres.test.mjs
+          tests/order-participant-detail-projection-app.test.mjs
+          tests/order-participant-detail-projection-release.test.mjs
+          tests/order-participant-detail-state.test.mjs
+          tests/order-checkout-receipt-authority-app.test.mjs
+          tests/order-checkout-receipt-authority-release.test.mjs
+          tests/order-checkout-receipt-state.test.mjs
+          tests/checkout-success-state.test.mjs
+          tests/notification-order-authority.test.mjs
+          tests/order-receipt-notification-authority-release.test.mjs
+          tests/order-receipt-notification-authority-postgres.test.mjs
+          tests/order-fulfillment-authority-release.test.mjs
+          tests/order-fulfillment-authority-postgres.test.mjs
+          tests/order-label-authority-release.test.mjs
+          tests/order-label-authority-postgres.test.mjs
+          tests/order-label-ambiguous-reconciliation-operator.test.mjs
+          tests/order-payment-event-aggregate-authority-app.test.mjs
+          tests/order-payment-event-transition-authority-app.test.mjs
+          tests/order-participant-list-projection-correction.test.mjs
+          tests/order-participant-list-projection-correction-postgres.test.mjs
+      - name: Prove Order compatible production-scope query in disposable PostgreSQL
+        run: node --test tests/order-compatible-production-scope-postgres.test.mjs
+        env:
+          ORDER_COMPATIBLE_PRODUCTION_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove staff read login grants in disposable local PostgreSQL
+        run: node --test tests/order-staff-read-role-provision-postgres.test.mjs
+        env:
+          # Exact CI service above; the harness rejects every other target.
+          ORDER_STAFF_READ_ROLE_PROVISION_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci?sslmode=disable
+      - name: Verify Case and Order correctness migration status
+        run: npx prisma migrate status
+      - name: Audit corrected Case grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove corrected staff refund replay and finalization
+        run: npm run audit:rls-case-invariant-drafts
+        env:
+          CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_CORRECTNESS_EXPECTED: "1"
+      - name: Prove corrected dispute-retention boundary
+        run: npm run audit:rls-case-order-active
+        env:
+          CASE_ORDER_ACTIVE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_CORRECTNESS_EXPECTED: "1"
+      - name: Prove corrected account-deletion Order serialization
+        run: npm run audit:rls-case-account-deletion
+        env:
+          CASE_ACCOUNT_DELETION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_CORRECTNESS_EXPECTED: "1"
+      - name: Prove Case correctness production-scope query in disposable PostgreSQL
+        run: node --test tests/case-correctness-production-scope-postgres.test.mjs
+        env:
+          CASE_CORRECTNESS_PRODUCTION_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
+        run: npm run audit:rls-conversation-message-force-rollback
+        env:
+          CONVERSATION_MESSAGE_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove FORCE-hardened Conversation and Message authority in ephemeral PostgreSQL
+        run: npm run audit:rls-conversation-message-recipient
+        env:
+          CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Tests
+        run: |
+          node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
+          npm test
+      - name: Security audit
+        run: npm run audit:dependencies
+      - name: Production build
+        run: npm run build

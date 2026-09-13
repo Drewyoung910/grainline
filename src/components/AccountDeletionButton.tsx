@@ -1,0 +1,150 @@
+"use client";
+
+import { useState } from "react";
+import { useClerk, useReverification } from "@clerk/nextjs";
+import { isReverificationCancelledError } from "@clerk/nextjs/errors";
+import { useToast } from "@/components/Toast";
+import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
+
+type Blocker = {
+  code: string;
+  count: number;
+  message: string;
+};
+
+type AccountDeletionResult =
+  | {
+      ok: true;
+      warning?: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      clerkSessionDeleted?: boolean;
+      blockers?: Blocker[];
+    }
+  | {
+      ok: false;
+      clerk_error: unknown;
+      error: string;
+    };
+
+async function requestAccountDeletion(confirmText: string): Promise<AccountDeletionResult> {
+  const res = await fetch("/api/account/delete", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ confirmText }),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    warning?: string;
+    clerk_error?: unknown;
+    clerkSessionDeleted?: boolean;
+    blockers?: Blocker[];
+  };
+
+  if (data.clerk_error) {
+    return {
+      ok: false,
+      clerk_error: data.clerk_error,
+      error: "Account verification required.",
+    };
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: data.error ?? "Account deletion failed.",
+      clerkSessionDeleted: data.clerkSessionDeleted,
+      blockers: data.blockers,
+    };
+  }
+  return { ok: true, warning: data.warning };
+}
+
+export function AccountDeletionButton() {
+  const { signOut } = useClerk();
+  const { toast } = useToast();
+  const [confirmText, setConfirmText] = useState("");
+  const [pending, setPending] = useState(false);
+  const [blockers, setBlockers] = useState<Blocker[]>([]);
+  const deleteAccountWithReverification = useReverification(requestAccountDeletion);
+
+  async function deleteAccount() {
+    if (confirmText !== "DELETE") {
+      toast("Type DELETE to confirm account deletion.", "error");
+      return;
+    }
+
+    setPending(true);
+    setBlockers([]);
+    try {
+      const data = await deleteAccountWithReverification(confirmText);
+
+      if (!data.ok) {
+        setBlockers(data.blockers ?? []);
+        if (data.clerkSessionDeleted) {
+          toast(data.error ?? "Account deletion needs manual support follow-up.", "error");
+          clearSignedOutLocalAccountState();
+          await signOut({ redirectUrl: "/account/deleted?status=support" });
+          return;
+        }
+        toast(data.error ?? "Account deletion failed.", "error");
+        return;
+      }
+
+      toast(data.warning ?? "Account deleted.", data.warning ? "info" : "success");
+      clearSignedOutLocalAccountState();
+      await signOut({ redirectUrl: "/account/deleted" });
+    } catch (error) {
+      if (isReverificationCancelledError(error)) {
+        toast("Account verification was cancelled.", "info");
+        return;
+      }
+      toast("Network error. Please try again.", "error");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label htmlFor="delete-confirm" className="block text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Type DELETE to confirm
+        </label>
+        <input
+          id="delete-confirm"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          className="mt-1 w-full rounded-md border border-neutral-200 px-3 py-2 text-sm"
+          autoComplete="off"
+        />
+      </div>
+
+      {blockers.length > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p className="font-medium">Resolve these before deleting your account:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            {blockers.map((b) => (
+              <li key={b.code}>{b.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={deleteAccount}
+        disabled={pending || confirmText !== "DELETE"}
+        className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {pending ? "Deleting..." : "Delete my account"}
+      </button>
+    </div>
+  );
+}

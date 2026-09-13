@@ -1,0 +1,842 @@
+// src/app/dashboard/profile/page.tsx
+import { Prisma } from "@prisma/client";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import Link from "next/link";
+import { prisma } from "@/lib/db";
+import { ensureSeller } from "@/lib/ensureSeller";
+import ProfileBannerUploader from "@/components/ProfileBannerUploader";
+import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
+import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
+import GalleryUploader from "@/components/GalleryUploader";
+import ActionForm from "@/components/ActionForm";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+import CharCounter from "@/components/CharCounter";
+import RemoveAvatarButton from "./RemoveAvatarButton";
+import { normalizeDisplayNameForLookup, sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
+import {
+  filterVerifiedFirstPartyMediaUrlsForUser,
+  verifyFirstPartyMediaUrlForPersistence,
+} from "@/lib/uploadPersistenceVerification";
+import { syncSellerProfileDirectUploadReferences } from "@/lib/directUploadLifecycle";
+import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
+import { publicSellerPath } from "@/lib/publicPaths";
+import { parseMoneyInputToCents } from "@/lib/money";
+import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
+import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
+import { withSerializableRetry } from "@/lib/transactionRetry";
+
+const inputClass =
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
+const textareaClass =
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
+const checkboxClass =
+  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
+const primaryButtonClass =
+  "rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50";
+const SELLER_FAQ_LIMIT = 20;
+const SELLER_FEATURED_LISTING_LIMIT = 6;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Server actions
+// ──────────────────────────────────────────────────────────────────────────────
+
+async function updateSellerProfile(_prevState: unknown, formData: FormData) {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in?redirect_url=/dashboard/profile");
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return { ok: false, error: "Too many profile updates. Try again shortly." };
+  const clerkUserId = userId;
+  const { seller } = await ensureSeller();
+
+  function toNull(v: FormDataEntryValue | null): string | null {
+    const s = typeof v === "string" ? v.trim() : null;
+    return s === "" || s === null ? null : s;
+  }
+  function toInt(v: FormDataEntryValue | null): number | null {
+    const s = typeof v === "string" ? v.trim() : "";
+    if (s === "") return null;
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  function toBool(v: FormDataEntryValue | null): boolean {
+    return String(v ?? "") === "on";
+  }
+  function normalizeHttpsUrl(
+    v: FormDataEntryValue | null,
+    allowedHosts?: string[],
+  ): string | null {
+    const raw = toNull(v);
+    if (!raw) return null;
+    if (raw.length > 2048) {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
+    if (parsed.protocol !== "https:") {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
+    if (allowedHosts) {
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+      if (!allowedHosts.includes(host)) {
+        redirect("/dashboard/profile?warning=invalid-url");
+      }
+    }
+    parsed.hash = "";
+    return parsed.toString();
+  }
+  async function normalizeOwnedImageUrl(
+    v: FormDataEntryValue | null,
+    endpoint: "bannerImage" | "galleryImage",
+    existingUrl?: string | null,
+  ): Promise<string | null> {
+    const raw = toNull(v);
+    if (raw === null) return null;
+    if (raw === "") return null;
+    if (raw.length > 2048) {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
+    if (raw === existingUrl) {
+      return raw;
+    }
+    const verification = await verifyFirstPartyMediaUrlForPersistence({
+      url: raw,
+      allowedEndpoints: [endpoint],
+      clerkUserId,
+      accountUserId: seller.userId,
+      allowedContentTypes: IMAGE_UPLOAD_TYPES,
+    });
+    if (!verification.ok) {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
+    return raw;
+  }
+
+  const displayNameRaw = (String(formData.get("displayName") ?? "")).trim();
+  if (!displayNameRaw) return { ok: false, error: "Display name is required." };
+  const displayName = sanitizeUserName(displayNameRaw);
+  if (!displayName) return { ok: false, error: "Display name is required." };
+  const displayNameNormalized = normalizeDisplayNameForLookup(displayName);
+
+  const taglineRaw = toNull(formData.get("tagline"));
+  const tagline = taglineRaw ? truncateText(sanitizeText(taglineRaw), 140) : null;
+  const bio = cleanSellerProfileRichText(formData.get("bio"), SELLER_PROFILE_TEXT_LIMITS.bio);
+  const storyTitleRaw = toNull(formData.get("storyTitle"));
+  const storyTitle = storyTitleRaw ? truncateText(sanitizeText(storyTitleRaw), 200) : null;
+  const storyBody = cleanSellerProfileRichText(formData.get("storyBody"), SELLER_PROFILE_TEXT_LIMITS.storyBody);
+  const yearsInBusiness = toInt(formData.get("yearsInBusiness"));
+
+  const bannerImageUrl = await normalizeOwnedImageUrl(formData.get("bannerImageUrl"), "bannerImage", seller.bannerImageUrl);
+  const avatarImageUrl = await normalizeOwnedImageUrl(formData.get("avatarImageUrl"), "galleryImage", seller.avatarImageUrl);
+  const workshopImageUrl = await normalizeOwnedImageUrl(formData.get("workshopImageUrl"), "galleryImage", seller.workshopImageUrl);
+  const galleryImageUrlsTouched = formData.get("galleryImageUrlsTouched") === "1";
+  const galleryImageUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: formData.getAll("galleryImageUrls").map(String),
+    max: 10,
+    clerkUserId,
+    accountUserId: seller.userId,
+    allowedEndpoints: ["galleryImage"],
+    existingUrls: seller.galleryImageUrls ?? [],
+  });
+  const galleryAltTexts = galleryImageUrls.map((_, index) => {
+    const raw = formData.getAll("galleryAltTexts")[index];
+    return truncateText(sanitizeText(String(raw ?? "")), 240);
+  });
+
+  const instagramUrl = normalizeHttpsUrl(formData.get("instagramUrl"), ["instagram.com"]);
+  const facebookUrl = normalizeHttpsUrl(formData.get("facebookUrl"), ["facebook.com", "fb.com"]);
+  const pinterestUrl = normalizeHttpsUrl(formData.get("pinterestUrl"), ["pinterest.com"]);
+  const tiktokUrl = normalizeHttpsUrl(formData.get("tiktokUrl"), ["tiktok.com"]);
+  const websiteUrl = normalizeHttpsUrl(formData.get("websiteUrl"));
+
+  const returnPolicy = cleanSellerProfileRichText(formData.get("returnPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
+  const customOrderPolicy = cleanSellerProfileRichText(formData.get("customOrderPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
+  const shippingPolicy = cleanSellerProfileRichText(formData.get("shippingPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
+
+  const acceptsCustomOrders = toBool(formData.get("acceptsCustomOrders"));
+  const acceptingNewOrders = toBool(formData.get("acceptingNewOrders"));
+  const customOrderTurnaroundDays = toInt(formData.get("customOrderTurnaroundDays"));
+
+  const offersGiftWrapping = toBool(formData.get("offersGiftWrapping"));
+  const giftWrappingPriceCentsRaw = parseMoneyInputToCents(formData.get("giftWrappingPriceCents"));
+  const giftWrappingPriceCents =
+    giftWrappingPriceCentsRaw !== null
+      ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
+      : null;
+
+  // Soft uniqueness check — warn (don't block) if another seller has the same name
+  const duplicate = await prisma.sellerProfile.findFirst({
+    where: {
+      OR: [
+        { displayName: { equals: displayName, mode: "insensitive" } },
+        { displayNameNormalized: { equals: displayNameNormalized, mode: "insensitive" } },
+      ],
+      id: { not: seller.id },
+    },
+    select: { id: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.sellerProfile.update({
+      where: { id: seller.id },
+      data: {
+        displayName,
+        displayNameNormalized,
+        tagline,
+        bio,
+        storyTitle,
+        storyBody,
+        yearsInBusiness,
+        bannerImageUrl,
+        avatarImageUrl,
+        workshopImageUrl,
+        ...(galleryImageUrlsTouched ? { galleryImageUrls, galleryAltTexts } : {}),
+        instagramUrl,
+        facebookUrl,
+        pinterestUrl,
+        tiktokUrl,
+        websiteUrl,
+        returnPolicy,
+        customOrderPolicy,
+        shippingPolicy,
+        acceptsCustomOrders,
+        acceptingNewOrders,
+        customOrderTurnaroundDays,
+        offersGiftWrapping,
+        giftWrappingPriceCents: offersGiftWrapping ? giftWrappingPriceCents : null,
+      },
+    });
+    await syncSellerProfileDirectUploadReferences({
+      client: tx,
+      userId: seller.userId,
+      sellerProfileId: seller.id,
+    });
+  });
+
+  revalidatePath("/dashboard/profile");
+  revalidatePath(`/seller/${seller.id}`);
+  // Homepage Meet a Maker spotlight may render this seller's banner/avatar/bio,
+  // so refresh the homepage cache when any of those fields change.
+  revalidateFeaturedMakerCaches();
+  revalidatePath("/");
+
+  if (duplicate) {
+    redirect("/dashboard/profile?warning=duplicate-name");
+  }
+  return { ok: true };
+}
+
+async function addFaq(formData: FormData) {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return;
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return;
+  const { seller } = await ensureSeller();
+
+  const question = truncateText(sanitizeText(String(formData.get("question") ?? "")), 200).trim();
+  const answer = truncateText(sanitizeRichText(String(formData.get("answer") ?? "")), 2000).trim();
+  if (!question || !answer) return;
+
+  await withSerializableRetry(() => prisma.$transaction(async (tx) => {
+    const faqCount = await tx.sellerFaq.count({
+      where: { sellerProfileId: seller.id },
+    });
+    if (faqCount >= SELLER_FAQ_LIMIT) return;
+
+    const last = await tx.sellerFaq.findFirst({
+      where: { sellerProfileId: seller.id },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+
+    await tx.sellerFaq.create({
+      data: {
+        sellerProfileId: seller.id,
+        question,
+        answer,
+        sortOrder: (last?.sortOrder ?? 0) + 1,
+      },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+
+  revalidatePath("/dashboard/profile");
+  revalidatePath(`/seller/${seller.id}`);
+}
+
+async function deleteFaq(faqId: string) {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return;
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return;
+  const { seller } = await ensureSeller();
+
+  await prisma.sellerFaq.deleteMany({
+    where: { id: faqId, sellerProfileId: seller.id },
+  });
+
+  revalidatePath("/dashboard/profile");
+  revalidatePath(`/seller/${seller.id}`);
+}
+
+async function removeSellerAvatar() {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return;
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return;
+  const { seller } = await ensureSeller();
+  await prisma.$transaction(async (tx) => {
+    await tx.sellerProfile.update({
+      where: { id: seller.id },
+      data: { avatarImageUrl: null },
+    });
+    await syncSellerProfileDirectUploadReferences({
+      client: tx,
+      userId: seller.userId,
+      sellerProfileId: seller.id,
+    });
+  });
+  revalidatePath("/dashboard/profile");
+  revalidatePath(`/seller/${seller.id}`);
+  revalidateFeaturedMakerCaches();
+  revalidatePath("/");
+}
+
+async function toggleFeaturedListing(listingId: string) {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return;
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return;
+  const { seller } = await ensureSeller();
+
+  await withSerializableRetry(() => prisma.$transaction(async (tx) => {
+    // Verify seller owns the listing before featuring it.
+    const owned = await tx.listing.count({ where: { id: listingId, sellerId: seller.id } });
+    if (owned === 0) return;
+
+    const freshSeller = await tx.sellerProfile.findUnique({
+      where: { id: seller.id },
+      select: { featuredListingIds: true },
+    });
+    const current = freshSeller?.featuredListingIds ?? [];
+    let next: string[];
+    if (current.includes(listingId)) {
+      next = current.filter((id) => id !== listingId);
+    } else {
+      if (current.length >= SELLER_FEATURED_LISTING_LIMIT) return;
+      next = [...current, listingId];
+    }
+
+    await tx.sellerProfile.update({
+      where: { id: seller.id },
+      data: { featuredListingIds: next },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+
+  revalidatePath("/dashboard/profile");
+  revalidatePath(`/seller/${seller.id}`);
+  revalidateFeaturedMakerCaches();
+  revalidatePath("/");
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Page
+// ──────────────────────────────────────────────────────────────────────────────
+
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ warning?: string }>;
+}) {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in?redirect_url=/dashboard/profile");
+
+  const { seller } = await ensureSeller();
+
+  const [fullSeller, activeListings] = await Promise.all([
+    prisma.sellerProfile.findUnique({
+      where: { id: seller.id },
+      include: { faqs: { orderBy: { sortOrder: "asc" } }, user: { select: { imageUrl: true } } },
+    }),
+    prisma.listing.findMany({
+      where: { sellerId: seller.id, status: "ACTIVE" },
+      include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
+
+  if (!fullSeller) redirect("/dashboard");
+
+  const sp = await searchParams;
+  const featured = new Set(fullSeller.featuredListingIds ?? []);
+
+  return (
+    <main className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-8">
+      {sp.warning === "duplicate-name" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Another maker already uses this display name. Consider adding your location
+          or specialty to stand out (e.g. &quot;Oak &amp; Iron Woodworks — Austin&quot;).
+        </div>
+      )}
+
+      {sp.warning === "invalid-url" && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Enter valid https:// links for your website/social profiles, and use uploaded Grainline images for profile photos.
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold font-display">Shop Profile</h1>
+        <Link
+          href={publicSellerPath(seller.id, seller.displayName)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border border-neutral-200 px-3 py-2 text-sm text-neutral-600 hover:bg-white"
+        >
+          View public profile
+        </Link>
+      </div>
+
+      <ActionForm action={updateSellerProfile} className="space-y-6">
+        {/* ── A. Shop Identity ─────────────────────────────────────────────── */}
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Shop Identity</h2>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Profile avatar</label>
+            <ProfileAvatarUploader key={fullSeller.avatarImageUrl ?? "none"} initialUrl={fullSeller.avatarImageUrl} />
+            {fullSeller.avatarImageUrl && (
+              <div className="mt-2">
+                <RemoveAvatarButton action={removeSellerAvatar} />
+              </div>
+            )}
+            <div className="mt-3 flex items-center gap-3">
+              {fullSeller.user?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={fullSeller.user.imageUrl} alt="Manage Account photo" className="h-10 w-10 rounded-full object-cover border border-neutral-200" />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-neutral-200 border border-neutral-200 shrink-0" />
+              )}
+              <p className="text-xs text-neutral-500">
+                <span className="font-medium">Current photo from Manage Account</span> — used as fallback if no custom photo is uploaded above.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Banner image</label>
+            <p className="text-xs text-neutral-500 mb-2">
+              Displayed at the top of your public profile. Ideal size: 1800×600.
+            </p>
+            <ProfileBannerUploader initialUrl={fullSeller.bannerImageUrl} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Display name <span className="text-red-500">*</span>
+            </label>
+            <input
+              name="displayName"
+              required
+              autoComplete="name"
+              defaultValue={fullSeller.displayName}
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Tagline</label>
+            <input
+              name="tagline"
+              autoComplete="off"
+              maxLength={100}
+              defaultValue={fullSeller.tagline ?? ""}
+              placeholder="e.g. Hand-crafting heirloom pieces in Austin since 2018"
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Years in business</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              name="yearsInBusiness"
+              autoComplete="off"
+              min={0}
+              max={200}
+              defaultValue={fullSeller.yearsInBusiness ?? ""}
+              className={`${inputClass} w-40`}
+            />
+          </div>
+        </section>
+
+        {/* ── B. Your Story ─────────────────────────────────────────────────── */}
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Your Story</h2>
+
+          <div>
+            <label htmlFor="seller-bio" className="block text-sm font-medium mb-1">Bio</label>
+            <CharCounter
+              id="seller-bio"
+              name="bio"
+              maxLength={500}
+              rows={4}
+              defaultValue={fullSeller.bio ?? ""}
+              placeholder="Tell buyers a bit about yourself and your craft."
+              className={textareaClass}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Story title</label>
+            <input
+              name="storyTitle"
+              defaultValue={fullSeller.storyTitle ?? ""}
+              placeholder="e.g. How I got into woodworking"
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="seller-story" className="block text-sm font-medium mb-1">Story</label>
+            <CharCounter
+              id="seller-story"
+              name="storyBody"
+              maxLength={2000}
+              rows={8}
+              defaultValue={fullSeller.storyBody ?? ""}
+              placeholder="Share your full story with buyers..."
+              className={textareaClass}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Workshop photo</label>
+            <p className="text-xs text-neutral-500 mb-2">
+              A photo of your workspace or tools.
+            </p>
+            <ProfileWorkshopUploader initialUrl={fullSeller.workshopImageUrl} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Workshop gallery</label>
+            <p className="text-xs text-neutral-500 mb-2">
+              Add supporting photos of your workspace, process, and finished details.
+            </p>
+            <GalleryUploader
+              initialUrls={fullSeller.galleryImageUrls ?? []}
+              initialAltTexts={fullSeller.galleryAltTexts ?? []}
+              maxImages={8}
+            />
+          </div>
+        </section>
+
+        {/* ── C. Social Links ───────────────────────────────────────────────── */}
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Social Links</h2>
+
+          {(
+            [
+              ["instagramUrl", "Instagram", "https://instagram.com/yourhandle"],
+              ["facebookUrl", "Facebook", "https://facebook.com/yourpage"],
+              ["pinterestUrl", "Pinterest", "https://pinterest.com/yourprofile"],
+              ["tiktokUrl", "TikTok", "https://tiktok.com/@yourhandle"],
+              ["websiteUrl", "Website", "https://yourwebsite.com"],
+            ] as const
+          ).map(([field, label, placeholder]) => (
+            <div key={field}>
+              <label className="block text-sm font-medium mb-1">{label}</label>
+              <input
+                name={field}
+                type="url"
+                autoComplete="url"
+                defaultValue={(fullSeller[field] as string | null) ?? ""}
+                placeholder={placeholder}
+                className={inputClass}
+              />
+            </div>
+          ))}
+        </section>
+
+        {/* ── D. Shop Policies ──────────────────────────────────────────────── */}
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Shop Policies</h2>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Return policy</label>
+            <textarea
+              name="returnPolicy"
+              autoComplete="off"
+              rows={4}
+              maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
+              defaultValue={fullSeller.returnPolicy ?? ""}
+              className={textareaClass}
+              placeholder="Describe your return / refund policy..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Custom order policy</label>
+            <textarea
+              name="customOrderPolicy"
+              autoComplete="off"
+              rows={4}
+              maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
+              defaultValue={fullSeller.customOrderPolicy ?? ""}
+              className={textareaClass}
+              placeholder="Describe how you handle custom orders..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Shipping policy</label>
+            <textarea
+              name="shippingPolicy"
+              autoComplete="off"
+              rows={4}
+              maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
+              defaultValue={fullSeller.shippingPolicy ?? ""}
+              className={textareaClass}
+              placeholder="Describe your shipping timelines, carriers, etc."
+            />
+          </div>
+        </section>
+
+        {/* ── E. Custom Orders & Availability ───────────────────────────────── */}
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Custom Orders &amp; Availability</h2>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="acceptsCustomOrders"
+              name="acceptsCustomOrders"
+              type="checkbox"
+              defaultChecked={fullSeller.acceptsCustomOrders}
+              className={checkboxClass}
+            />
+            <label htmlFor="acceptsCustomOrders" className="text-sm">
+              I accept custom orders
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="acceptingNewOrders"
+              name="acceptingNewOrders"
+              type="checkbox"
+              defaultChecked={fullSeller.acceptingNewOrders}
+              className={checkboxClass}
+            />
+            <label htmlFor="acceptingNewOrders" className="text-sm">
+              Currently accepting new orders
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Custom order turnaround (days)
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              name="customOrderTurnaroundDays"
+              autoComplete="off"
+              min={1}
+              defaultValue={fullSeller.customOrderTurnaroundDays ?? ""}
+              className={`${inputClass} w-40`}
+            />
+          </div>
+        </section>
+
+        {/* ── F. Gift Wrapping ───────────────────────────────────────────────── */}
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Gift Wrapping</h2>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="offersGiftWrapping"
+              name="offersGiftWrapping"
+              type="checkbox"
+              defaultChecked={fullSeller.offersGiftWrapping}
+              className={checkboxClass}
+            />
+            <label htmlFor="offersGiftWrapping" className="text-sm">
+              I offer gift wrapping
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Gift wrapping price (USD)
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
+              name="giftWrappingPriceCents"
+              autoComplete="off"
+              defaultValue={
+                fullSeller.giftWrappingPriceCents != null
+                  ? (fullSeller.giftWrappingPriceCents / 100).toFixed(2)
+                  : ""
+              }
+              placeholder="e.g. 5.00"
+              className={`${inputClass} w-40`}
+            />
+          </div>
+        </section>
+
+        <div>
+          <button
+            type="submit"
+            className={primaryButtonClass}
+          >
+            Save profile
+          </button>
+        </div>
+      </ActionForm>
+
+      {/* ── FAQs ───────────────────────────────────────────────────────────── */}
+      <section className="card-section space-y-4 p-6">
+        <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">FAQs</h2>
+
+        {fullSeller.faqs.length === 0 ? (
+          <p className="text-sm text-neutral-500">No FAQs yet.</p>
+        ) : (
+          <ul className="space-y-3">
+            {fullSeller.faqs.map((faq) => (
+              <li
+                key={faq.id}
+                className="card-section p-4 flex items-start justify-between gap-4"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{faq.question}</p>
+                  <p className="text-sm text-neutral-600 mt-1">{faq.answer}</p>
+                </div>
+                <form action={deleteFaq.bind(null, faq.id)}>
+                  <button
+                    type="submit"
+                    className="shrink-0 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {fullSeller.faqs.length >= SELLER_FAQ_LIMIT ? (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            You can add up to {SELLER_FAQ_LIMIT} FAQs.
+          </p>
+        ) : (
+          <form action={addFaq} className="space-y-3 rounded-md border border-neutral-200 bg-white p-4">
+            <h3 className="text-sm font-medium">Add a FAQ</h3>
+            <div>
+              <label className="block text-xs text-neutral-500 mb-1">Question</label>
+              <input
+                name="question"
+                autoComplete="off"
+                required
+                className={inputClass}
+                placeholder="e.g. Do you ship internationally?"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-500 mb-1">Answer</label>
+              <textarea
+                name="answer"
+                autoComplete="off"
+                required
+                rows={3}
+                className={textareaClass}
+                placeholder="Your answer..."
+              />
+            </div>
+            <button
+              type="submit"
+              className={primaryButtonClass}
+            >
+              Add FAQ
+            </button>
+          </form>
+        )}
+      </section>
+
+      {/* ── Featured Listings ──────────────────────────────────────────────── */}
+      <section className="card-section space-y-4 p-6">
+        <div>
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Featured Listings</h2>
+          <p className="text-sm text-neutral-500 mt-1">
+            Select up to {SELLER_FEATURED_LISTING_LIMIT} active listings to feature at the top of your profile.
+          </p>
+        </div>
+
+        {activeListings.length === 0 ? (
+          <p className="text-sm text-neutral-500">No active listings yet.</p>
+        ) : (
+          <ul className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {activeListings.map((listing) => {
+              const isFeatured = featured.has(listing.id);
+              const thumb = listing.photos[0]?.url ?? null;
+              return (
+                <li
+                  key={listing.id}
+                  className={`relative card-listing ${
+                    isFeatured ? "ring-2 ring-amber-400" : ""
+                  }`}
+                >
+                  {isFeatured && (
+                    <span className="absolute top-2 left-2 z-10 bg-amber-400 text-amber-900 text-xs font-medium px-2 py-0.5 rounded-full">
+                      Featured
+                    </span>
+                  )}
+                  {thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumb}
+                      alt={listing.title}
+                      className="h-32 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-32 w-full bg-neutral-100" />
+                  )}
+                  <div className="p-3">
+                    <p className="text-xs font-medium truncate">{listing.title}</p>
+                    <form action={toggleFeaturedListing.bind(null, listing.id)} className="mt-2">
+                      <button
+                        type="submit"
+                        className={`text-xs rounded px-2 py-1 border ${
+                          isFeatured
+                            ? "text-amber-700 border-amber-300 hover:bg-amber-50"
+                            : "text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+                        }`}
+                        disabled={!isFeatured && featured.size >= SELLER_FEATURED_LISTING_LIMIT}
+                      >
+                        {isFeatured ? "Unfeature" : "Feature"}
+                      </button>
+                    </form>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </main>
+  );
+}

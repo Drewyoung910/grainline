@@ -1,0 +1,79 @@
+type CaseParticipantState = {
+  id: string;
+  banned?: boolean | null;
+  deletedAt?: Date | string | null;
+} | null;
+
+export type UnavailableCaseRecipientReason = "suspended" | "deleted" | "missing";
+export const CASE_PARTY_MESSAGE_STATUSES = [
+  "OPEN",
+  "IN_DISCUSSION",
+  "PENDING_CLOSE",
+] as const;
+
+export const CASE_STAFF_MESSAGE_STATUSES = [
+  ...CASE_PARTY_MESSAGE_STATUSES,
+  "UNDER_REVIEW",
+] as const;
+
+export function canCreateCaseMessageForStatus(
+  status: string | null | undefined,
+  { isStaff = false }: { isStaff?: boolean } = {},
+): boolean {
+  const allowed: readonly string[] = isStaff ? CASE_STAFF_MESSAGE_STATUSES : CASE_PARTY_MESSAGE_STATUSES;
+  return allowed.includes(status ?? "");
+}
+
+export type CaseMessageStatusTransition =
+  | "none"
+  | "seller_started_discussion"
+  | "party_reopened_pending_close";
+
+export function caseMessageStatusTransition({
+  status,
+  actorId,
+  buyerId,
+  sellerId,
+  isStaff = false,
+}: {
+  status: string | null | undefined;
+  actorId: string;
+  buyerId: string | null | undefined;
+  sellerId: string;
+  isStaff?: boolean;
+}): CaseMessageStatusTransition {
+  if (status === "OPEN" && actorId === sellerId) return "seller_started_discussion";
+  const isParty = actorId === buyerId || actorId === sellerId;
+  if (!isStaff && isParty && status === "PENDING_CLOSE") return "party_reopened_pending_close";
+  return "none";
+}
+
+export function unavailableCaseMessageRecipientReason({
+  senderId,
+  buyer,
+  seller,
+  isStaff,
+}: {
+  senderId: string;
+  buyer: CaseParticipantState;
+  seller: CaseParticipantState;
+  isStaff: boolean;
+}): UnavailableCaseRecipientReason | null {
+  if (isStaff) return null;
+
+  const recipient = senderId === buyer?.id ? seller : senderId === seller?.id ? buyer : null;
+  if (!recipient) return "missing";
+  if (recipient.deletedAt) return "deleted";
+  if (recipient.banned) return "suspended";
+  return null;
+}
+
+export function unavailableCaseRecipientMessage(reason: UnavailableCaseRecipientReason) {
+  if (reason === "suspended") {
+    return "The other party's account is suspended. Escalate this case for staff review instead.";
+  }
+  if (reason === "deleted") {
+    return "The other party's account has been deleted. Escalate this case for staff review instead.";
+  }
+  return "The other party is no longer available. Escalate this case for staff review instead.";
+}

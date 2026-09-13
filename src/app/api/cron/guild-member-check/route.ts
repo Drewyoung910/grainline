@@ -1,0 +1,242 @@
+// src/app/api/cron/guild-member-check/route.ts
+// Daily cron — runs every day at 14:10 UTC.
+// Checks all Guild Members for revocation triggers:
+//   1. Unresolved case older than 90 days
+//   2. Active listing count below 5 for 30+ consecutive days
+
+import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+import { prisma } from "@/lib/db";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { sendGuildMemberRevokedEmail } from "@/lib/email";
+import { verifyCronRequest } from "@/lib/cronAuth";
+import { withSentryCronMonitor } from "@/lib/cronMonitor";
+import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
+import {
+  guildMemberRevocationSellerWhere,
+  type GuildMemberRevocationGuard,
+} from "@/lib/guildMemberRevocationState";
+import { getCaseGuildUnresolvedGuard } from "@/lib/caseSellerAggregateAuthority";
+import {
+  GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
+  assertGuildVerificationTransition,
+  isGuildVerificationTransitionConflict,
+} from "@/lib/guildVerificationState";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
+import { logSystemActionOrThrow } from "@/lib/systemAudit";
+import { runCronCursorPages } from "@/lib/cronBatchState";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
+const SELLER_PAGE_SIZE = 50;
+const SELLER_PROCESS_CONCURRENCY = 3;
+
+export async function GET(request: NextRequest) {
+  if (!verifyCronRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  }
+
+  return withSentryCronMonitor("guild-member-check", { value: "10 14 * * *", maxRuntimeMinutes: 5 }, async () => {
+    const cronRun = await beginCronRun("guild-member-check");
+    if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+
+    try {
+      const response = await runGuildMemberCheckCron();
+      await completeCronRun(cronRun, response);
+      return NextResponse.json(response);
+    } catch (error) {
+      await failCronRun(cronRun, error);
+      Sentry.captureException(error, { tags: { source: "cron_guild_member_check" } });
+      return NextResponse.json({ error: "Internal server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
+    }
+  });
+}
+
+async function runGuildMemberCheckCron() {
+  const now = new Date();
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  let revokedMember = 0;
+  const errors: Array<{ sellerId: string; code: string }> = [];
+
+  await runCronCursorPages({
+    pageSize: SELLER_PAGE_SIZE,
+    fetchPage: fetchGuildMemberBatch,
+    getCursor: (seller) => seller.id,
+    processPage: async (sellers) => {
+      for (let i = 0; i < sellers.length; i += SELLER_PROCESS_CONCURRENCY) {
+        const batch = sellers.slice(i, i + SELLER_PROCESS_CONCURRENCY);
+        const results = await Promise.all(
+          batch.map(async (seller) => {
+            try {
+              return await checkGuildMemberSeller(seller, ninetyDaysAgo, thirtyDaysAgo, now);
+            } catch (err) {
+              const code = getErrorCode(err);
+              errors.push({ sellerId: seller.id, code });
+              Sentry.captureException(err, { tags: { source: "cron_guild_member_check", sellerId: seller.id, code } });
+              return 0;
+            }
+          }),
+        );
+        revokedMember += results.reduce((sum, result) => sum + result, 0);
+      }
+    },
+  });
+
+  return { revokedMember, errors };
+}
+
+async function fetchGuildMemberBatch(cursorId: string | null) {
+  return prisma.sellerProfile.findMany({
+    where: {
+      guildLevel: "GUILD_MEMBER",
+      vacationMode: false,
+    },
+    orderBy: { id: "asc" },
+    take: SELLER_PAGE_SIZE,
+    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+    select: {
+      id: true,
+      userId: true,
+      guildLevel: true,
+      listingsBelowThresholdSince: true,
+      user: { select: { name: true, email: true } },
+    },
+  });
+}
+
+type GuildMemberSeller = Awaited<ReturnType<typeof fetchGuildMemberBatch>>[number];
+
+async function checkGuildMemberSeller(
+  seller: GuildMemberSeller,
+  ninetyDaysAgo: Date,
+  thirtyDaysAgo: Date,
+  now: Date,
+): Promise<number> {
+  // Check 1: unresolved case older than 90 days
+  const unresolvedCaseGuard: GuildMemberRevocationGuard = {
+    kind: "unresolved_case",
+    caseCreatedBefore: ninetyDaysAgo,
+  };
+  const longCase = await getCaseGuildUnresolvedGuard(seller.id);
+  if (!longCase) {
+    throw new Error("Case Guild unresolved guard denied current Guild Member");
+  }
+  if (longCase.blocked) {
+    return revokeMember(seller, "An unresolved dispute has been open for over 90 days.", unresolvedCaseGuard, now);
+  }
+
+  // Check 2: active listings below 5 for 30+ consecutive days
+  if (
+    seller.listingsBelowThresholdSince &&
+    new Date(seller.listingsBelowThresholdSince) < thirtyDaysAgo
+  ) {
+    const listingThresholdGuard: GuildMemberRevocationGuard = {
+      kind: "listing_threshold",
+      listingsBelowThresholdBefore: thirtyDaysAgo,
+    };
+    return revokeMember(
+      seller,
+      "Your shop has had fewer than 5 active listings for over 30 consecutive days.",
+      listingThresholdGuard,
+      now,
+    );
+  }
+
+  return 0;
+}
+
+async function revokeMember(
+  seller: { id: string; userId: string; user: { name?: string | null; email?: string | null } | null },
+  reason: string,
+  guard: GuildMemberRevocationGuard,
+  now: Date,
+): Promise<number> {
+  let revocationAuditId: string | null = null;
+  try {
+    revocationAuditId = await prisma.$transaction(async (tx) => {
+      if (guard.kind === "unresolved_case") {
+        const longCase = await getCaseGuildUnresolvedGuard(seller.id, tx);
+        if (!longCase || !longCase.blocked) return null;
+      }
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId: seller.id,
+          status: { in: [...GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES] },
+        },
+        data: { status: "REJECTED", reviewedAt: now, reviewNotes: reason },
+      });
+      if (verificationUpdated.count === 0) return null;
+
+      const updated = await tx.sellerProfile.updateMany({
+        where: guildMemberRevocationSellerWhere(seller.id, guard),
+        data: {
+          guildLevel: "NONE",
+          isVerifiedMaker: false,
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "revoke Guild Member");
+
+      return logSystemActionOrThrow({
+        client: tx,
+        actorType: "cron",
+        actorId: "guild-member-check",
+        action: "AUTO_REVOKE_GUILD_MEMBER",
+        targetType: "SELLER_PROFILE",
+        targetId: seller.id,
+        reason,
+        metadata: {
+          jobName: "guild-member-check",
+          sellerUserId: seller.userId,
+          guardKind: guard.kind,
+          caseCreatedBefore:
+            guard.kind === "unresolved_case" ? guard.caseCreatedBefore.toISOString() : null,
+          listingsBelowThresholdBefore:
+            guard.kind === "listing_threshold" ? guard.listingsBelowThresholdBefore.toISOString() : null,
+        },
+      });
+    });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
+  if (!revocationAuditId) return 0;
+  revalidateFeaturedMakerCaches();
+
+  await createNotification({
+    userId: seller.userId,
+    type: "VERIFICATION_REJECTED",
+    title: "Guild Member badge revoked",
+    body: reason,
+    link: "/dashboard/verification",
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_SYSTEM_ACTION,
+    sourceId: revocationAuditId,
+  });
+
+  if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {
+    try {
+      await sendGuildMemberRevokedEmail({
+        seller: { displayName: seller.user.name, email: seller.user.email },
+        reason,
+      });
+    } catch (err) {
+      Sentry.captureException(err, { tags: { source: "cron_guild_member_check_revoked_email", sellerId: seller.id } });
+    }
+  }
+  return 1;
+}
+
+function getErrorCode(err: unknown): string {
+  if (typeof err === "object" && err && "code" in err) {
+    return String((err as { code?: unknown }).code ?? "UNKNOWN").slice(0, 64);
+  }
+  if (err instanceof Error) {
+    return err.name.slice(0, 64) || "Error";
+  }
+  return "UNKNOWN";
+}

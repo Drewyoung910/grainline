@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "observedAt": "2026-08-09T04:08:13Z",
+  "commitSha": "423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1",
+  "deploymentId": "dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3",
+  "target": "https://thegrainline.com/api/cron/ops-health",
+  "response": {
+    "httpStatus": 200,
+    "ok": true,
+    "skipped": false,
+    "stripeWebhookFailureCount": 0,
+    "stripeWebhookFailedLeaseCount": 0,
+    "stripeWebhookReleasedLeaseCount": 0,
+    "stripeWebhookStaleLeaseCount": 0,
+    "savedSearchRlsCanaryStatus": "healthy",
+    "failedCronRunCount": 0,
+    "staleRunningCronRunCount": 0
+  },
+  "boundaries": {
+    "migrationsRun": false,
+    "rlsChanged": false,
+    "grantsChanged": false,
+    "providerStateChanged": false,
+    "cleanupRun": false,
+    "cronRunRecorded": true
+  }
+}

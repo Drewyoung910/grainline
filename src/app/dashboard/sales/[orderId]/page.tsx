@@ -1,0 +1,795 @@
+// src/app/dashboard/sales/[orderId]/page.tsx
+import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
+import { notFound, redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
+import LabelSection from "@/components/LabelSection";
+import CaseReplyBox from "@/components/CaseReplyBox";
+import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
+import CaseInitialSummary from "@/components/CaseInitialSummary";
+import CaseMessageHistoryNav from "@/components/CaseMessageHistoryNav";
+import CaseEscalateButton from "@/components/CaseEscalateButton";
+import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
+import SellerRefundPanel from "@/components/SellerRefundPanel";
+import SellerNotesForm from "@/components/SellerNotesForm";
+import { ArrowLeft, Gift } from "@/components/icons";
+import LocalDate from "@/components/LocalDate";
+import OrderTimeline from "@/components/OrderTimeline";
+import { caseStatusLabel } from "@/lib/caseLabels";
+import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
+import {
+  unavailableCaseRecipientMessage,
+} from "@/lib/caseMessagingState";
+import { caseEscalationAvailable } from "@/lib/caseActionState";
+import { publicListingPath } from "@/lib/publicPaths";
+import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
+import { orderTotalCents } from "@/lib/orderTotals";
+import {
+  orderPaymentPresentationLabel,
+  orderPaymentPresentationState,
+  suppressActiveFulfillmentForPaymentState,
+} from "@/lib/orderPaymentPresentation";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import {
+  DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
+} from "@/lib/orderReviewHolds";
+import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
+import type { Metadata } from "next";
+import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
+import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
+import CaseMessageAttachments from "@/components/CaseMessageAttachments";
+import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
+import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
+import {
+  historicalProcessingTimeDays,
+} from "@/lib/orderItemSnapshot";
+import { readSellerOrderDetail } from "@/lib/orderParticipantDetailAuthority";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
+  return formatCurrencyCents(cents, currency);
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-neutral-200 px-2 py-0.5 text-xs font-medium">
+      {children}
+    </span>
+  );
+}
+
+const REASON_LABELS: Record<string, string> = {
+  NOT_RECEIVED: "Item not received",
+  NOT_AS_DESCRIBED: "Not as described",
+  DAMAGED: "Item arrived damaged",
+  WRONG_ITEM: "Wrong item received",
+  OTHER: "Other",
+};
+
+function trackingUrl(carrier: string | null | undefined, number: string | null | undefined): string | null {
+  if (!number) return null;
+  const c = (carrier ?? "").toUpperCase();
+  const trackingParam = encodeURIComponent(number);
+  if (c.includes("UPS")) return `https://www.ups.com/track?tracknum=${trackingParam}`;
+  if (c.includes("USPS")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingParam}`;
+  if (c.includes("FEDEX") || c.includes("FED EX")) return `https://www.fedex.com/fedextrack/?trknbr=${trackingParam}`;
+  if (c.includes("DHL")) return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${trackingParam}`;
+  return null;
+}
+
+function fmtTimeRemaining(deadline: Date, now: Date): string {
+  const ms = deadline.getTime() - now.getTime();
+  if (ms <= 0) return "Deadline has passed";
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  if (hours >= 48) return `${Math.floor(hours / 24)} days`;
+  return `${hours} hour${hours !== 1 ? "s" : ""}`;
+}
+
+export default async function SellerOrderDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orderId: string }>;
+  searchParams: Promise<{ caseBefore?: string | string[] }>;
+}) {
+  const [{ orderId }, { caseBefore }] = await Promise.all([params, searchParams]);
+
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in?redirect_url=/dashboard/sales");
+
+  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  if (!me) redirect("/sign-in?redirect_url=/dashboard/sales");
+
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { userId: me.id },
+    select: { onboardingComplete: true, manualStripeReconciliationNeeded: true },
+  });
+  if (!seller) redirect("/dashboard/seller");
+  if (!seller.onboardingComplete) redirect("/dashboard?setup=required");
+
+  const order = await readSellerOrderDetail(me.id, orderId);
+
+  if (!order) notFound();
+  const externalRefund = (
+    await sellerRefundOutcomes(me.id, [order.id])
+  ).get(order.id) ?? null;
+  const myItems = order.items;
+
+  const currency = order.currency ?? DEFAULT_CURRENCY;
+  const myItemsSubtotal = myItems.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+  const shipping = order.shippingAmountCents ?? 0;
+  const tax = order.taxAmountCents ?? 0;
+  const itemsSubtotal =
+    order.itemsSubtotalCents && order.itemsSubtotalCents > 0
+      ? order.itemsSubtotalCents
+      : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+  const giftWrapping = order.giftWrappingPriceCents ?? 0;
+  const orderTotal = orderTotalCents(order, { itemsSubtotalCents: itemsSubtotal });
+  const hasAddress =
+    !!(order.shipToLine1 || order.shipToCity || order.shipToPostalCode || order.shipToCountry);
+  const shippingDetailsPurged =
+    !!order.buyerDataPurgedAt && !order.shipToLine1 && !order.shipToLine2;
+  const isPickup =
+    order.fulfillmentMethod === "PICKUP" ||
+    (order.shippingTitle?.toLowerCase().includes("pickup") ?? false) ||
+    (shipping === 0 && !hasAddress);
+
+  const status = order.fulfillmentStatus ?? "PENDING";
+  const method = order.fulfillmentMethod ?? (isPickup ? "PICKUP" : "SHIPPING");
+  const deauthorizedReviewHold = order.deauthorizedReviewHold;
+  const processingMins = myItems
+    .map((item) => historicalProcessingTimeDays(item.snapshot).min)
+    .filter((value): value is number => typeof value === "number");
+  const processingMaxes = myItems
+    .map((item) => historicalProcessingTimeDays(item.snapshot).max)
+    .filter((value): value is number => typeof value === "number");
+
+  const activeCase = await getVisibleCaseByOrderId({
+    actorUserId: me.id,
+    orderId: order.id,
+  });
+  const [caseMessageHistory, caseMessagePreflight] = activeCase
+    ? await Promise.all([
+        findCaseMessageHistoryPage(me.id, activeCase.id, caseBefore),
+        getCaseMessagePreflight({
+          actorUserId: me.id,
+          caseId: activeCase.id,
+        }),
+      ])
+    : [null, null];
+  if (activeCase && !caseMessagePreflight) {
+    throw new TypeError("Case message preflight denied a visible seller case");
+  }
+  const now = new Date();
+  const sellerRefundState = order.sellerRefundState;
+  const sellerRefundIssued = sellerRefundState === "RECORDED";
+  const refundCents =
+    (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
+    activeCase?.refundAmountCents ??
+    externalRefund?.amountCents ??
+    null;
+  const hasCaseRefund =
+    activeCase?.resolution === "REFUND_FULL"
+    || activeCase?.resolution === "REFUND_PARTIAL";
+  const hasRefund = sellerRefundIssued || hasCaseRefund || !!externalRefund;
+  const paymentState = orderPaymentPresentationState({
+    paid: order.paidAt != null,
+    orderTotalCents: orderTotal,
+    refundAmountCents: refundCents,
+    refundRecorded: sellerRefundIssued || hasCaseRefund,
+    providerRefundStatus: externalRefund?.status ?? null,
+  });
+  const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
+    paymentState,
+    status,
+  );
+  const buyerId = order.buyerId ?? "";
+  const meId = me.id;
+  const caseReplyUnavailableReason =
+    caseMessagePreflight?.recipientUnavailableReason ?? null;
+  const caseReplyUnavailableMessage = caseReplyUnavailableReason
+    ? unavailableCaseRecipientMessage(caseReplyUnavailableReason)
+    : null;
+
+  return (
+    <main className="mx-auto max-w-4xl p-8 space-y-6">
+      <Link href="/dashboard/sales" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+        <ArrowLeft size={14} /> Back to Sales
+      </Link>
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold">
+          Order <span className="font-mono">#{order.id.slice(-8)}</span>
+        </h1>
+        <div className="flex items-center gap-2 text-sm text-neutral-600">
+          <span>
+            Placed <LocalDate date={order.createdAt} /> · {orderPaymentPresentationLabel(paymentState)}
+          </span>
+          <Badge>{method}</Badge>
+          <Badge>
+            {suppressActiveFulfillment
+              ? orderPaymentPresentationLabel(paymentState)
+              : fulfillmentStatusLabel(status)}
+          </Badge>
+          {order.reviewNeeded && <Badge>Review needed</Badge>}
+        </div>
+        <div className="text-neutral-600 text-sm">
+          Buyer: {sellerFacingOrderBuyerLabel(order, "Deleted user")}
+        </div>
+      </header>
+
+      <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
+        {suppressActiveFulfillment ? (
+          "Fully refunded — no fulfillment is required."
+        ) : (
+          <>
+            {status === "PENDING" && "New order — time to get crafting!"}
+            {status === "SHIPPED" && "Shipped — nice work!"}
+            {status === "DELIVERED" && "Delivered — another happy buyer!"}
+            {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
+            {status === "PICKED_UP" && "Picked up — great work!"}
+          </>
+        )}
+      </div>
+
+      <OrderTimeline
+        placedAt={order.createdAt}
+        shippedAt={order.shippedAt}
+        deliveredAt={order.deliveredAt}
+        pickupReadyAt={order.pickupReadyAt}
+        pickedUpAt={order.pickedUpAt}
+        fulfillmentMethod={method}
+        fulfillmentStatus={status}
+        trackingNumber={order.trackingNumber}
+        trackingCarrier={order.trackingCarrier}
+        estimatedDeliveryDate={order.estimatedDeliveryDate}
+        processingTimeMinDays={processingMins.length > 0 ? Math.min(...processingMins) : null}
+        processingTimeMaxDays={processingMaxes.length > 0 ? Math.max(...processingMaxes) : null}
+        refundAmountCents={
+          paymentState === "PARTIALLY_REFUNDED" || paymentState === "FULLY_REFUNDED"
+            ? refundCents
+            : null
+        }
+        currency={currency}
+      />
+
+      {deauthorizedReviewHold ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE} Check the review note or contact support before changing fulfillment.
+        </div>
+      ) : order.reviewNeeded && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          This order needs staff review before fulfillment. Check the review note or contact support before shipping.
+        </div>
+      )}
+
+      {(order.giftNote || order.giftWrapping) && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm space-y-1">
+          <div className="font-medium text-amber-800 flex items-center gap-1.5"><Gift size={14} className="inline" /> Gift order</div>
+          {order.giftWrapping && <div className="text-amber-700">Gift wrapping requested</div>}
+          {order.giftNote && <div className="text-amber-700">Note: &ldquo;{order.giftNote}&rdquo;</div>}
+        </div>
+      )}
+
+      {/* ── Case banners ── */}
+      {activeCase?.status === "OPEN" && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-0.5">
+          <div className="font-semibold">A buyer has opened a case on this order</div>
+          <div>
+            Reason:{" "}
+            <span className="font-medium">
+              {REASON_LABELS[activeCase.reason] ?? activeCase.reason}
+            </span>
+          </div>
+          <div>
+            Respond by:{" "}
+            <span className="font-medium">
+              {activeCase.sellerRespondBy
+                ? `${fmtTimeRemaining(activeCase.sellerRespondBy, now)} remaining`
+                : "—"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {activeCase?.status === "IN_DISCUSSION" && (
+        <div className="rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-900 space-y-0.5">
+          <div className="font-semibold">Case in discussion</div>
+          <div>
+            Reason:{" "}
+            <span className="font-medium">
+              {REASON_LABELS[activeCase.reason] ?? activeCase.reason}
+            </span>
+          </div>
+          {activeCase.escalateUnlocksAt && activeCase.escalateUnlocksAt > now && (
+            <div className="text-xs">
+              Escalation available in{" "}
+              {fmtTimeRemaining(activeCase.escalateUnlocksAt, now)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeCase?.status === "PENDING_CLOSE" && (
+        <div className="rounded-md border border-teal-300 bg-teal-50 px-4 py-3 text-sm text-teal-900">
+          <div className="font-semibold">Resolution pending confirmation</div>
+          <div>Both parties must confirm to close the case.</div>
+        </div>
+      )}
+
+      {activeCase?.status === "UNDER_REVIEW" && (
+        <div className="rounded-md border border-purple-300 bg-purple-50 px-4 py-3 text-sm text-purple-900">
+          <div className="font-semibold">Case under review</div>
+          <div>
+            This case is being reviewed by Grainline staff. We will contact you if we need more
+            information.
+          </div>
+        </div>
+      )}
+
+      {activeCase?.status === "RESOLVED" && activeCase.resolution === "DISMISSED" && (
+        <div className="rounded-md border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-900">
+          <div className="font-semibold">Case resolved — dismissed</div>
+          <div>The case was reviewed and dismissed. No refund was issued.</div>
+        </div>
+      )}
+
+      {activeCase?.status === "RESOLVED" &&
+        (activeCase.resolution === "REFUND_FULL" ||
+          activeCase.resolution === "REFUND_PARTIAL") && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="font-semibold">
+              Case resolved —{" "}
+              {activeCase.resolution === "REFUND_FULL" ? "full refund issued" : "partial refund issued"}
+            </div>
+            {activeCase.refundAmountCents != null && (
+              <div>
+                Refund amount:{" "}
+                <span className="font-medium">
+                  {fmtMoney(activeCase.refundAmountCents, currency)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+      {/* ── Case thread ── */}
+      {activeCase && caseMessageHistory && (
+        <section className="card-section">
+          <div className="border-b border-neutral-100 bg-white px-4 py-3 text-sm font-semibold">Case thread</div>
+
+          {caseMessageHistory.messages.length === 0 ? (
+            <div className="bg-white px-4 py-3">
+              {caseMessageHistory.isHistoricalPage ? (
+                <p className="text-sm text-neutral-500">No older messages found.</p>
+              ) : (
+                <CaseInitialSummary description={activeCase.description} />
+              )}
+            </div>
+          ) : (
+            <ul className="divide-y divide-neutral-100 bg-white">
+              {caseMessageHistory.messages.map((msg) => {
+                const label = caseMessageAuthorLabel({
+                  authorKind: msg.authorKind,
+                  authorId: msg.authorId,
+                  buyerId,
+                  sellerId: activeCase.sellerId,
+                  viewerId: meId,
+                });
+                const isMe = label === "You (Seller)";
+                return (
+                  <li key={msg.id} className="px-4 py-3 space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-neutral-500">
+                      <span
+                        className={`font-medium ${
+                          isMe
+                            ? "text-neutral-900"
+                            : label === "Grainline Staff"
+                            ? "text-purple-700"
+                            : "text-neutral-700"
+                        }`}
+                      >
+                        {label}
+                      </span>
+                      <span>·</span>
+                      <span><LocalDate date={msg.createdAt} /></span>
+                    </div>
+                    <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
+                    <CaseMessageAttachments
+                      caseId={activeCase.id}
+                      attachments={msg.attachments}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <CaseMessageHistoryNav
+            baseHref={`/dashboard/sales/${order.id}`}
+            olderCursor={caseMessageHistory.olderCursor}
+            isHistoricalPage={caseMessageHistory.isHistoricalPage}
+          />
+
+          {(activeCase.status === "OPEN" ||
+            activeCase.status === "IN_DISCUSSION" ||
+            activeCase.status === "PENDING_CLOSE") &&
+            !caseMessageHistory.isHistoricalPage && (
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4">
+              {caseReplyUnavailableMessage ? (
+                <p className="text-sm text-neutral-600">{caseReplyUnavailableMessage}</p>
+              ) : (
+                <CaseReplyBox
+                  caseId={activeCase.id}
+                  attachmentsEnabled={caseEvidenceAttachmentsEnabled()}
+                />
+              )}
+            </div>
+          )}
+
+          {(activeCase.status === "IN_DISCUSSION" ||
+            activeCase.status === "PENDING_CLOSE" ||
+            (activeCase.status === "OPEN" &&
+              caseEscalationAvailable(activeCase.status, activeCase.escalateUnlocksAt, now, caseReplyUnavailableReason != null))) &&
+            !caseMessageHistory.isHistoricalPage && (() => {
+            const escalateAvailable = caseEscalationAvailable(
+              activeCase.status,
+              activeCase.escalateUnlocksAt,
+              now,
+              caseReplyUnavailableReason != null,
+            );
+            const waitingForBuyer =
+              activeCase.sellerMarkedResolved && !activeCase.buyerMarkedResolved;
+            return (
+              <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
+                {waitingForBuyer ? (
+                  <p className="text-sm text-neutral-500">
+                    Waiting for buyer to confirm resolution.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {activeCase.status !== "OPEN" && <CaseMarkResolvedButton caseId={activeCase.id} />}
+                  </div>
+                )}
+                {escalateAvailable && (
+                  <CaseEscalateButton caseId={activeCase.id} />
+                )}
+              </div>
+            );
+          })()}
+
+          {activeCase.status === "UNDER_REVIEW" && (
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+              Awaiting staff review. You may not add messages at this time.
+            </div>
+          )}
+
+          {(activeCase.status === "RESOLVED" || activeCase.status === "CLOSED") && (
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+              This case is {caseStatusLabel(activeCase.status).toLowerCase()}.
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Items */}
+      <section className="card-section">
+        <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+          <div className="text-sm font-medium">Items you sold in this order</div>
+          <div className="text-sm font-semibold">{fmtMoney(myItemsSubtotal, currency)}</div>
+        </div>
+
+        <ul className="divide-y divide-neutral-100">
+          {myItems.map((it) => {
+            const img = it.snapshot.imageUrls[0];
+            return (
+              <li key={it.id} className="flex items-center gap-3 px-4 py-3">
+                {img ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
+                ) : (
+                  <div className="h-16 w-16 rounded bg-neutral-100" />
+                )}
+                <div className="min-w-0 flex-1">
+                  {it.listingLinkAvailable ? (
+                    <Link
+                      href={publicListingPath(it.listingId, it.snapshot.title)}
+                      className="block truncate text-sm font-medium hover:underline"
+                    >
+                      {it.snapshot.title}
+                    </Link>
+                  ) : (
+                    <span className="block truncate text-sm font-medium text-neutral-500">
+                      {it.snapshot.title}
+                    </span>
+                  )}
+                  {it.selectedVariants && Array.isArray(it.selectedVariants) && (it.selectedVariants as { groupName: string; optionLabel: string }[]).length > 0 && (
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      {(it.selectedVariants as { groupName: string; optionLabel: string }[]).map((v) => `${v.groupName}: ${v.optionLabel}`).join(" · ")}
+                    </p>
+                  )}
+                  <div className="mt-1 text-sm text-neutral-700">
+                    {fmtMoney(it.priceCents, currency)} × {it.quantity}
+                  </div>
+                </div>
+                <div className="text-sm font-medium">
+                  {fmtMoney(it.priceCents * it.quantity, currency)}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Totals */}
+        <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-neutral-600">Your items subtotal</span>
+            <span className="font-medium">{fmtMoney(myItemsSubtotal, currency)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-neutral-600">
+              Shipping{order.shippingTitle ? ` · ${order.shippingTitle}` : ""}
+              {order.shippingCarrier || order.shippingService ? (
+                <>
+                  {" "}
+                  ·{" "}
+                  <span className="text-neutral-700">
+                    {[order.shippingCarrier, order.shippingService].filter(Boolean).join(" ")}
+                  </span>
+                </>
+              ) : null}
+            </span>
+            <span className="font-medium">{fmtMoney(shipping, currency)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-neutral-600">Tax</span>
+            <span className="font-medium">{fmtMoney(tax, currency)}</span>
+          </div>
+          {giftWrapping > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-600">Gift wrapping</span>
+              <span className="font-medium">{fmtMoney(giftWrapping, currency)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
+            <span className="text-neutral-800">Order total</span>
+            <span className="text-base font-semibold">{fmtMoney(orderTotal, currency)}</span>
+          </div>
+          {hasRefund && refundCents != null && (
+            <>
+              <div className="flex items-center justify-between text-amber-700">
+                <span>Refund issued</span>
+                <span className="font-medium">{fmtMoney(refundCents, currency)}</span>
+              </div>
+              <p className="text-xs text-neutral-500">
+                {seller.manualStripeReconciliationNeeded
+                  ? "This refund is recorded; staff may need to reconcile the connected-account transfer manually."
+                  : "This amount has been deducted from your Stripe balance."}
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Fulfillment context */}
+      {isPickup ? (
+        <div className="card-section px-4 py-3 text-sm">
+          <div className="font-medium text-neutral-800">Local pickup selected</div>
+          <div className="text-neutral-700">Coordinate pickup with the buyer via Messages.</div>
+          {order.pickupReadyAt && (
+            <div className="mt-2 text-neutral-600">
+              Ready for pickup since <LocalDate date={order.pickupReadyAt} />
+            </div>
+          )}
+        </div>
+      ) : shippingDetailsPurged && order.buyerDataPurgedAt ? (
+        <div className="card-section px-4 py-3 text-sm">
+          <div className="font-medium text-neutral-800">Shipping details purged</div>
+          <div className="text-neutral-700">
+            Street address, buyer contact, and gift note details were removed under the retention policy.
+          </div>
+          <div className="mt-2 text-neutral-600">
+            Purged on <LocalDate date={order.buyerDataPurgedAt} />
+          </div>
+        </div>
+      ) : hasAddress ? (
+        <div className="card-section px-4 py-3 text-sm">
+          <div className="font-medium text-neutral-800 mb-1">Ship to</div>
+          <div className="text-neutral-700">
+            {order.shipToLine1}
+            {order.shipToLine2 ? (
+              <>
+                <br />
+                {order.shipToLine2}
+              </>
+            ) : null}
+            <br />
+            {[order.shipToCity, order.shipToState, order.shipToPostalCode]
+              .filter(Boolean)
+              .join(", ")}
+            <br />
+            {order.shipToCountry}
+          </div>
+          {order.trackingNumber && (() => {
+            const url = trackingUrl(order.trackingCarrier, order.trackingNumber);
+            return (
+              <div className="mt-2 text-neutral-700">
+                <span className="font-medium">Tracking:</span>{" "}
+                {order.trackingCarrier && <span>{order.trackingCarrier} · </span>}
+                {url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-neutral-900">
+                    {order.trackingNumber}
+                  </a>
+                ) : (
+                  <span>{order.trackingNumber}</span>
+                )}
+              </div>
+            );
+          })()}
+          {!suppressActiveFulfillment && order.processingDeadline && (() => {
+            const overdue =
+              order.processingDeadline < now &&
+              !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(status);
+            return (
+              <div className={`mt-2 font-medium ${overdue ? "text-red-700" : "text-amber-700"}`}>
+                {overdue ? "Overdue — should have shipped by " : "Ship by "}
+                <LocalDate date={order.processingDeadline} />
+              </div>
+            );
+          })()}
+          {order.estimatedDeliveryDate && (
+            <div className="mt-1 text-xs text-neutral-500">
+              Estimated delivery to buyer:{" "}
+              <LocalDate date={order.estimatedDeliveryDate} />
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {/* Refund panel — shown when order is paid and not already fully refunded (by seller or admin) */}
+      {order.paidAt && sellerRefundState === "NONE" && !externalRefund && !hasCaseRefund && (
+        <SellerRefundPanel
+          orderId={order.id}
+          currency={currency}
+          orderTotalCents={orderTotal}
+          refundState="NONE"
+          alreadyRefundedCents={null}
+        />
+      )}
+      {sellerRefundState !== "NONE" && (
+        <SellerRefundPanel
+          orderId={order.id}
+          currency={currency}
+          orderTotalCents={orderTotal}
+          refundState={sellerRefundState}
+          alreadyRefundedCents={order.sellerRefundAmountCents ?? null}
+        />
+      )}
+      {sellerRefundState === "NONE" && externalRefund && (
+        <SellerRefundPanel
+          orderId={order.id}
+          currency={currency}
+          orderTotalCents={orderTotal}
+          refundState={paymentState === "REFUND_PROCESSING" ? "PROCESSING" : "RECORDED"}
+          alreadyRefundedCents={externalRefund.amountCents ?? null}
+        />
+      )}
+
+      {/* Actions */}
+      {!suppressActiveFulfillment && status !== "DELIVERED" && status !== "PICKED_UP" && (
+        <section className="card-section p-4 space-y-3">
+          <div className="font-medium">Fulfillment actions</div>
+
+          {deauthorizedReviewHold ? (
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+              {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE}
+            </div>
+          ) : (
+            <>
+              {method === "PICKUP" && status === "PENDING" && (
+                <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
+                  <input type="hidden" name="action" value="ready_for_pickup" />
+                  <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
+                    Mark ready for pickup
+                  </button>
+                </form>
+              )}
+
+              {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
+                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                  Waiting for the buyer to confirm pickup. This keeps the receipt date and case window buyer-controlled.
+                </div>
+              )}
+
+              {method === "SHIPPING" && (status === "PENDING" || order.labelStatus === "PURCHASED") && (
+                <div className="space-y-4">
+                  <LabelSection
+                    orderId={order.id}
+                    labelStatus={order.labelStatus ?? null}
+                    labelCarrier={order.labelCarrier ?? null}
+                    labelTrackingNumber={order.labelTrackingNumber ?? null}
+                    labelPurchasedAt={order.labelPurchasedAt?.toISOString() ?? null}
+                    fulfillmentStatus={status}
+                    shippingAmountCents={shipping}
+                    currency={currency}
+                  />
+
+                  {status === "PENDING" && <div className="border-t border-neutral-100 pt-3 space-y-2">
+                    <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+                      Already shipped? Enter tracking manually
+                    </div>
+                    <form
+                      method="post"
+                      action={`/api/orders/${order.id}/fulfillment`}
+                      className="space-y-2"
+                    >
+                      <input type="hidden" name="action" value="shipped" />
+                      <div className="flex flex-wrap gap-2">
+                        <select
+                          name="trackingCarrier"
+                          required
+                          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Carrier</option>
+                          <option value="UPS">UPS</option>
+                          <option value="USPS">USPS</option>
+                          <option value="FedEx">FedEx</option>
+                          <option value="DHL">DHL</option>
+                          <option value="Other">Other</option>
+                        </select>
+                        <input
+                          name="trackingNumber"
+                          placeholder="Tracking number"
+                          required
+                          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                        />
+                        <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
+                          Mark shipped
+                        </button>
+                      </div>
+                    </form>
+                  </div>}
+                </div>
+              )}
+
+              {method === "SHIPPING" && status === "SHIPPED" && (
+                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                  Waiting for buyer delivery confirmation. If tracking shows a problem, contact the buyer or support.
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {/* Seller notes */}
+      <section className="card-section p-4 space-y-3">
+        <div className="font-medium">Seller notes</div>
+        {order.buyerDataPurgedAt ? (
+          <p className="text-sm text-neutral-500">
+            Seller notes were removed under the retention policy.
+          </p>
+        ) : (
+          <SellerNotesForm orderId={order.id} initialNotes={order.sellerNotes ?? ""} />
+        )}
+      </section>
+
+      <div className="flex gap-3">
+        <Link
+          href="/dashboard/sales"
+          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+        >
+          Back to sales
+        </Link>
+        {order.buyerId ? (
+          <Link
+            href={`/messages/new?to=${order.buyerId}`}
+            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Message buyer
+          </Link>
+        ) : null}
+      </div>
+    </main>
+  );
+}

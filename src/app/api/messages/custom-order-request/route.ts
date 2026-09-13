@@ -1,0 +1,206 @@
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/db";
+import * as Sentry from "@sentry/nextjs";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { sendCustomOrderRequest } from "@/lib/email";
+import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { parseMoneyInputToCents } from "@/lib/money";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import { z } from "zod";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { createCustomOrderRequestMessage } from "@/lib/customOrderRequestAccess";
+
+const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
+
+const CustomOrderRequestSchema = z.object({
+  sellerUserId: z.string().min(1),
+  description: z.string().min(1).max(500),
+  dimensions: z.string().max(200).optional().nullable(),
+  budget: BudgetInputSchema.optional().nullable(),
+  timeline: z.enum(["no_rush", "2_months", "1_month", "2_weeks"]).optional().nullable(),
+  listingId: z.string().min(1).optional().nullable(),
+  listingTitle: z.string().max(200).optional().nullable(),
+});
+const CUSTOM_ORDER_REQUEST_BODY_MAX_BYTES = 24 * 1024;
+
+export async function POST(req: Request) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { userId } = await auth();
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests. Try again later."));
+
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, name: true, email: true, banned: true, deletedAt: true },
+  });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: 403 });
+
+  let parsed;
+  try {
+    parsed = CustomOrderRequestSchema.parse(await readBoundedJson(req, CUSTOM_ORDER_REQUEST_BODY_MAX_BYTES));
+  } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return privateJson({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return privateJson({ error: "Invalid JSON" }, { status: 400 });
+    }
+    if (e instanceof z.ZodError) {
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    throw e;
+  }
+
+  const { sellerUserId, description, dimensions, budget, timeline, listingId } = parsed;
+  const cleanedDescription = truncateText(sanitizeText(description.trim()), 500);
+  const cleanedDimensions = dimensions ? truncateText(sanitizeText(dimensions.trim()), 200) : null;
+
+  if (me.id === sellerUserId) {
+    return privateJson({ error: "Cannot message yourself" }, { status: 400 });
+  }
+
+  // Block check — cannot send custom order request if either user blocked the other
+  const blockExists = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: me.id, blockedId: sellerUserId },
+        { blockerId: sellerUserId, blockedId: me.id },
+      ],
+    },
+  });
+  if (blockExists) {
+    return privateJson({ error: "Unable to send request." }, { status: 403 });
+  }
+
+  const seller = await prisma.user.findUnique({
+    where: { id: sellerUserId },
+    select: {
+      id: true,
+      banned: true,
+      deletedAt: true,
+      sellerProfile: {
+        select: {
+          id: true,
+          acceptsCustomOrders: true,
+          acceptingNewOrders: true,
+          stripeAccountId: true,
+          stripeAccountVersion: true,
+          chargesEnabled: true,
+          vacationMode: true,
+        },
+      },
+    },
+  });
+  if (!seller) return privateJson({ error: "Seller not found" }, { status: 404 });
+  if (seller.banned || seller.deletedAt) return privateJson({ error: "Seller not found" }, { status: 404 });
+  if (!seller.sellerProfile) return privateJson({ error: "This user is not a seller." }, { status: 400 });
+  if (!seller.sellerProfile.acceptsCustomOrders) return privateJson({ error: "This seller is not accepting custom orders." }, { status: 400 });
+  const sellerBlockReason = sellerOrderBlockReason({ ...seller.sellerProfile, user: seller });
+  if (sellerBlockReason) {
+    return privateJson({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
+  }
+  if (!seller.sellerProfile.chargesEnabled || !seller.sellerProfile.stripeAccountId) {
+    return privateJson({ error: "This seller is not accepting new orders right now." }, { status: 400 });
+  }
+
+  if (listingId) {
+    const listing = await prisma.listing.findFirst({
+      where: {
+        id: listingId,
+        sellerId: seller.sellerProfile.id,
+        status: "ACTIVE",
+        isPrivate: false,
+      },
+      select: { id: true, title: true },
+    });
+    if (!listing) {
+      return privateJson({ error: "Invalid listing context." }, { status: 400 });
+    }
+  }
+
+  const budgetCents = budget != null ? parseMoneyInputToCents(budget) : null;
+  if (budget != null && (budgetCents === null || budgetCents <= 0)) {
+    return privateJson({ error: "Budget must be a valid dollar amount." }, { status: 400 });
+  }
+  if (budgetCents !== null && budgetCents > 10_000_000) {
+    return privateJson({ error: "Budget cannot exceed $100,000." }, { status: 400 });
+  }
+  const timelineStr = timeline ?? null;
+  const requestMessage = await createCustomOrderRequestMessage({
+    buyerUserId: me.id,
+    sellerUserId,
+    description: cleanedDescription,
+    dimensions: cleanedDimensions,
+    budgetCents,
+    timeline: timelineStr,
+    listingId: listingId ?? null,
+  });
+  if (!requestMessage.ok) {
+    return privateJson({ error: "Unable to send request." }, { status: 409 });
+  }
+
+  try {
+    await createNotification({
+      userId: sellerUserId,
+      type: "CUSTOM_ORDER_REQUEST",
+      title: `${me.name ?? "A customer"} wants a custom piece!`,
+      body: truncateText(cleanedDescription, 60),
+      link: `/messages/${requestMessage.conversationId}`,
+      relatedUserId: me.id,
+      sourceType: NOTIFICATION_SOURCE_TYPES.MESSAGE,
+      sourceId: requestMessage.messageId,
+    });
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "custom_order_request_notification" },
+      extra: { conversationId: requestMessage.conversationId, buyerId: me.id, sellerUserId },
+    });
+  }
+
+  try {
+    if (await shouldSendEmail(sellerUserId, "EMAIL_CUSTOM_ORDER")) {
+      const sellerUser = await prisma.user.findUnique({
+        where: { id: sellerUserId },
+        select: { name: true, email: true, sellerProfile: { select: { displayName: true } } },
+      });
+      if (sellerUser?.email) {
+        const buyerUser = await prisma.user.findUnique({
+          where: { id: me.id },
+          select: { name: true },
+        });
+        await sendCustomOrderRequest({
+          seller: {
+            displayName: sellerUser.sellerProfile?.displayName ?? sellerUser.name,
+            email: sellerUser.email,
+          },
+          buyerName: buyerUser?.name,
+          description: cleanedDescription,
+          conversationId: requestMessage.conversationId,
+        });
+      }
+    }
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "custom_order_request_email" },
+      extra: { conversationId: requestMessage.conversationId, buyerId: me.id, sellerUserId },
+    });
+  }
+
+  return privateJson({ conversationId: requestMessage.conversationId });
+}

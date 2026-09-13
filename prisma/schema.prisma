@@ -1,0 +1,1915 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Connection setup:
+// - DATABASE_URL (runtime): should use Neon's pooled endpoint (-pooler
+//   suffix in hostname) for connection reuse across serverless functions.
+//   Set in Vercel env vars. PgBouncer multiplexes connections — prevents
+//   connection exhaustion under concurrent load.
+// - DIRECT_URL (migrations only): uses direct endpoint (no pooler).
+//   Required for prisma migrate — PgBouncer doesn't support DDL.
+// Both are configured in prisma.config.ts (Prisma 7 pattern).
+// See: https://neon.tech/docs/connect/connection-pooling
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  EMPLOYEE
+  ADMIN
+}
+
+enum ListingType {
+  MADE_TO_ORDER
+  IN_STOCK
+}
+
+enum Category {
+  FURNITURE
+  KITCHEN
+  DECOR
+  TOOLS
+  TOYS
+  JEWELRY
+  ART
+  OUTDOOR
+  STORAGE
+  OTHER
+}
+
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+  SOLD
+  SOLD_OUT
+  HIDDEN
+  PENDING_REVIEW
+  REJECTED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  clerkId   String    @unique @db.VarChar(255)
+  email     String    @unique @db.VarChar(254)
+  name      String?   @db.VarChar(100)
+  imageUrl  String?   @db.VarChar(2048)
+  role      Role      @default(USER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Compliance / lifecycle
+  termsAcceptedAt    DateTime?
+  termsVersion       String?   @db.VarChar(50)
+  ageAttestedAt      DateTime?
+  welcomeEmailSentAt DateTime?
+
+  // Buyer shipping address
+  shippingName       String? @db.VarChar(100)
+  shippingLine1      String? @db.VarChar(200)
+  shippingLine2      String? @db.VarChar(200)
+  shippingCity       String? @db.VarChar(100)
+  shippingState      String? @db.VarChar(50)
+  shippingPostalCode String? @db.VarChar(20)
+  shippingPhone      String? @db.VarChar(30)
+
+  conversationsAsA Conversation[] @relation("ConvoA")
+  conversationsAsB Conversation[] @relation("ConvoB")
+  messagesSent     Message[]      @relation("MessagesFromUser")
+  messagesReceived Message[]      @relation("MessagesToUser")
+
+  sellerProfile  SellerProfile?
+  favorites      Favorite[]
+  reviews        Review[]
+  emailAddresses UserEmailAddress[]
+
+  // Orders & review votes
+  orders      Order[]      @relation("OrdersByBuyer")
+  reviewVotes ReviewVote[]
+
+  // Cart
+  cart Cart?
+
+  // Cases
+  casesAsBuyer           Case[]                  @relation("CasesByBuyer")
+  casesAsSeller          Case[]                  @relation("CasesBySeller")
+  casesResolved          Case[]                  @relation("CasesResolvedBy")
+  caseMessages           CaseMessage[]           @relation("CaseMessages")
+  caseMessageAttachments CaseMessageAttachment[] @relation("CaseMessageAttachments")
+  caseOpeningsAsBuyer    CaseOpenApplication[]   @relation("CaseOpenApplicationBuyer")
+  caseOpeningsAsSeller   CaseOpenApplication[]   @relation("CaseOpenApplicationSeller")
+  directUploads          DirectUpload[]
+
+  savedSearches      SavedSearch[]
+  stockNotifications StockNotification[]
+
+  reservedListings    Listing[]           @relation("ReservedListings")
+  verificationReviews MakerVerification[] @relation("VerificationReviews")
+  blogPosts           BlogPost[]          @relation("BlogPostsAuthored")
+  blogComments        BlogComment[]       @relation("BlogCommentsAuthored")
+  notifications       Notification[]
+
+  follows                Follow[]            @relation("UserFollows")
+  savedBlogPosts         SavedBlogPost[]
+  commissionRequests     CommissionRequest[] @relation("CommissionRequests")
+  supportRequests        SupportRequest[]
+  supportRequestClosures SupportRequest[]    @relation("SupportRequestClosureEvidence")
+
+  // Raw DB function grainline_notification_preferences_valid() enforces known
+  // boolean keys. Update that migration-managed function when adding keys in
+  // src/lib/notificationPreferenceKeys.ts.
+  notificationPreferences Json      @default("{}")
+  emailPreferenceOptInAt  DateTime?
+
+  banned                     Boolean                     @default(false)
+  bannedAt                   DateTime?
+  banReason                  String?                     @db.VarChar(500)
+  bannedBy                   String?                     @db.VarChar(255)
+  adminActions               AdminAuditLog[]             @relation("AdminActions")
+  orderRefundReconciliations OrderRefundReconciliation[]
+
+  blocks          Block[]      @relation("UserBlocks")
+  blockedBy       Block[]      @relation("UserBlockedBy")
+  reports         UserReport[] @relation("UserReports")
+  reportedBy      UserReport[] @relation("UserReportedBy")
+  reportsResolved UserReport[] @relation("UserReportsResolved")
+
+  @@index([deletedAt])
+}
+
+model UserEmailAddress {
+  id             String   @id @default(cuid())
+  userId         String   @db.VarChar(191)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email          String   @db.VarChar(254)
+  source         String?  @db.VarChar(80)
+  isCurrent      Boolean  @default(false)
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  currentSinceAt DateTime @default(now())
+
+  @@unique([userId, email])
+  @@index([email])
+  @@index([userId, isCurrent])
+}
+
+model SellerProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName           String   @db.VarChar(100)
+  displayNameNormalized String   @db.VarChar(100)
+  bio                   String?  @db.VarChar(500)
+  city                  String?  @db.VarChar(100)
+  state                 String?  @db.VarChar(50)
+  lat                   Float?
+  lng                   Float?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  radiusMeters          Int?
+  publicMapOptIn        Boolean  @default(false)
+
+  // Stripe Connect
+  stripeAccountId                  String? @unique @db.VarChar(255)
+  chargesEnabled                   Boolean @default(false)
+  stripeAccountVersion             String? @db.VarChar(20)
+  stripeControllerType             String? @db.VarChar(100)
+  manualStripeReconciliationNeeded Boolean @default(false)
+  manualStripeReconciliationNote   String? @db.VarChar(1000)
+
+  // Flat-rate shipping (legacy/simple fallback)
+  shippingFlatRateCents Int?
+  freeShippingOverCents Int?
+  allowLocalPickup      Boolean @default(false)
+
+  // 🆕 Ship-from address (used for live-rate quoting/labels)
+  shipFromName    String? @db.VarChar(100)
+  shipFromLine1   String? @db.VarChar(200)
+  shipFromLine2   String? @db.VarChar(200)
+  shipFromCity    String? @db.VarChar(100)
+  shipFromState   String? @db.VarChar(50)
+  shipFromPostal  String? @db.VarChar(20)
+  shipFromCountry String? @default("US") @db.VarChar(2)
+
+  // 🆕 Default package (used when listings don’t specify packaged dims)
+  defaultPkgWeightGrams Int?
+  defaultPkgLengthCm    Float?
+  defaultPkgWidthCm     Float?
+  defaultPkgHeightCm    Float?
+
+  // Use live carrier rates (Shippo) instead of flat rate by default
+  useCalculatedShipping Boolean @default(false)
+
+  // Preferred carriers for shipping quotes (empty = show all)
+  preferredCarriers String[] @default([])
+
+  // Rich profile / personalization
+  tagline                   String?    @db.VarChar(140)
+  bannerImageUrl            String?    @db.VarChar(2048)
+  avatarImageUrl            String?    @db.VarChar(2048)
+  workshopImageUrl          String?    @db.VarChar(2048)
+  storyTitle                String?    @db.VarChar(200)
+  storyBody                 String?    @db.VarChar(2000)
+  instagramUrl              String?    @db.VarChar(2048)
+  facebookUrl               String?    @db.VarChar(2048)
+  pinterestUrl              String?    @db.VarChar(2048)
+  tiktokUrl                 String?    @db.VarChar(2048)
+  websiteUrl                String?    @db.VarChar(2048)
+  yearsInBusiness           Int?
+  acceptsCustomOrders       Boolean    @default(false)
+  acceptingNewOrders        Boolean    @default(true)
+  customOrderTurnaroundDays Int?
+  offersGiftWrapping        Boolean    @default(false)
+  giftWrappingPriceCents    Int?
+  returnPolicy              String?    @db.VarChar(2000)
+  customOrderPolicy         String?    @db.VarChar(2000)
+  shippingPolicy            String?    @db.VarChar(2000)
+  featuredListingIds        String[]   @default([])
+  galleryImageUrls          String[]   @default([])
+  galleryAltTexts           String[]   @default([])
+  isVerifiedMaker           Boolean    @default(false)
+  verifiedAt                DateTime?
+  guildLevel                GuildLevel @default(NONE)
+  guildMemberApprovedAt     DateTime?
+  guildMasterApprovedAt     DateTime?
+  guildMasterAppliedAt      DateTime?
+  guildMasterReviewNotes    String?    @db.VarChar(2000)
+
+  // Guild Phase 3 — revoke tracking
+  consecutiveMetricFailures   Int       @default(0)
+  lastMetricCheckAt           DateTime?
+  metricWarningSentAt         DateTime?
+  listingsBelowThresholdSince DateTime?
+
+  // Seller onboarding wizard
+  onboardingStep     Int     @default(0)
+  onboardingComplete Boolean @default(false)
+
+  // Vacation mode
+  vacationMode       Boolean   @default(false)
+  vacationReturnDate DateTime?
+  vacationMessage    String?   @db.VarChar(500)
+
+  // Analytics
+  profileViews Int @default(0)
+
+  // Admin-featured spotlight (set by admin for 7 days to pin to Meet a Maker)
+  featuredUntil DateTime?
+
+  // Founding Maker badge — auto-granted to the first 250 sellers
+  isFoundingMaker     Boolean             @default(false)
+  foundingMakerNumber Int?                @unique // 1..250 when granted; null otherwise
+  foundingMakerAt     DateTime?
+  foundingMakerGrant  FoundingMakerGrant?
+
+  // Metro geography (set automatically from lat/lng)
+  metroId     String?
+  metro       Metro?  @relation("SellerMetro", fields: [metroId], references: [id])
+  cityMetroId String?
+  cityMetro   Metro?  @relation("SellerCityMetro", fields: [cityMetroId], references: [id])
+
+  listings            Listing[]
+  faqs                SellerFaq[]
+  makerVerification   MakerVerification?
+  blogPosts           BlogPost[]
+  sellerMetrics       SellerMetrics?
+  ratingSummary       SellerRatingSummary?
+  viewDailies         ListingViewDaily[]
+  profileViewDailies  SellerProfileViewDaily[]
+  followers           Follow[]
+  broadcasts          SellerBroadcast[]
+  commissionInterests CommissionInterest[]
+  payoutEvents        SellerPayoutEvent[]
+  ordersBySeller      Order[]                  @relation("OrdersBySeller")
+  orderItemsBySeller  OrderItem[]              @relation("OrderItemsBySeller")
+
+  @@index([featuredUntil])
+  @@index([guildLevel, chargesEnabled, vacationMode])
+  @@index([displayNameNormalized])
+  @@index([metroId])
+  @@index([cityMetroId])
+}
+
+model SellerFaq {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  question        String        @db.VarChar(200)
+  answer          String        @db.VarChar(2000)
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  @@index([sellerProfileId, sortOrder])
+}
+
+model FoundingMakerGrant {
+  id                  String         @id @default(cuid())
+  sellerProfileId     String?        @unique
+  sellerProfile       SellerProfile? @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  foundingMakerNumber Int            @unique
+  grantedAt           DateTime       @default(now())
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([grantedAt])
+}
+
+model Listing {
+  id           String        @id @default(cuid())
+  sellerId     String
+  seller       SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  title        String        @db.VarChar(150)
+  description  String        @db.VarChar(5000)
+  priceCents   Int
+  priceVersion Int           @default(1)
+  currency     String        @default("usd") @db.VarChar(3)
+  status       ListingStatus @default(ACTIVE)
+  videoUrl     String?       @db.VarChar(2048)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Processing time
+  processingTimeMinDays Int?
+  processingTimeMaxDays Int?
+
+  // Listing type & inventory
+  listingType   ListingType @default(MADE_TO_ORDER)
+  stockQuantity Int?
+
+  // Category & analytics
+  category   Category?
+  viewCount  Int       @default(0)
+  clickCount Int       @default(0)
+
+  // SEO/browse tags
+  tags String[] @default([])
+
+  // Ships-within days (IN_STOCK only; used instead of processingTimeMaxDays for delivery estimate)
+  shipsWithinDays Int?
+
+  photos    Photo[]
+  favorites Favorite[]
+  reviews   Review[]
+
+  // purchases
+  orderItems OrderItem[]
+
+  // Cart back-rel
+  cartItems CartItem[]
+
+  // 🆕 Packaged dimensions/weight (final, ready-to-ship per unit)
+  packagedWeightGrams Int?
+  packagedLengthCm    Float?
+  packagedWidthCm     Float?
+  packagedHeightCm    Float?
+
+  contextConversations    Conversation[]      @relation("ConversationContextListing")
+  contextMessages         Message[]           @relation("MessageContextListing")
+  customOrderConversation Conversation?       @relation("ListingCustomOrderConversation", fields: [customOrderConversationId], references: [id], onDelete: SetNull)
+  stockNotifications      StockNotification[]
+  viewDailies             ListingViewDaily[]
+
+  // Custom order fields
+  isPrivate                 Boolean @default(false)
+  reservedForUserId         String?
+  reservedForUser           User?   @relation("ReservedListings", fields: [reservedForUserId], references: [id], onDelete: SetNull)
+  customOrderConversationId String?
+
+  // AI review fields
+  aiReviewFlags   String[]  @default([])
+  aiReviewScore   Float?
+  reviewedByAdmin Boolean   @default(false)
+  reviewedAt      DateTime?
+  rejectionReason String?   @db.VarChar(1000)
+
+  // SEO & product details
+  metaDescription String?  @db.VarChar(320)
+  materials       String[] @default([])
+  productLengthIn Float?
+  productWidthIn  Float?
+  productHeightIn Float?
+
+  // Variants (up to 3 groups × 10 options each)
+  variantGroups ListingVariantGroup[]
+
+  // Quality score (recalculated daily by cron)
+  qualityScore Float @default(0)
+
+  // Metro geography (set automatically on create/update from seller location)
+  metroId     String?
+  metro       Metro?  @relation("ListingMetro", fields: [metroId], references: [id])
+  cityMetroId String?
+  cityMetro   Metro?  @relation("ListingCityMetro", fields: [cityMetroId], references: [id])
+
+  // Supports the raw-managed composite OrderItem seller-authority FK.
+  @@unique([id, sellerId], map: "Listing_id_sellerId_key")
+  @@index([sellerId, status])
+  @@index([status, createdAt])
+  @@index([title])
+  @@index([category, status])
+  @@index([viewCount])
+  @@index([clickCount])
+  @@index([status, createdAt, id])
+  @@index([status, isPrivate, qualityScore])
+  @@index([priceCents])
+  @@index([qualityScore])
+  @@index([sellerId, updatedAt])
+  @@index([reservedForUserId])
+  @@index([customOrderConversationId])
+  @@index([metroId])
+  @@index([cityMetroId])
+}
+
+model Photo {
+  id          String   @id @default(cuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  // Currently-displayed image (may be a re-cropped version of originalUrl)
+  url         String   @db.VarChar(2048)
+  // Pre-crop source preserved so re-crop can zoom back out to the full
+  // original frame. Nullable for legacy photos uploaded before this field
+  // existed — first re-crop after this column lands lazily backfills it
+  // from the current url. New uploads always populate originalUrl = url
+  // since uploads don't crop, only re-crop does.
+  originalUrl String?  @db.VarChar(2048)
+  altText     String?  @db.VarChar(200)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([listingId, sortOrder])
+}
+
+model Favorite {
+  userId    String
+  listingId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, listingId])
+  @@index([listingId])
+}
+
+model Review {
+  id            String    @id @default(cuid())
+  listingId     String
+  listing       Listing   @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  reviewerId    String
+  reviewer      User      @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  ratingX2      Int
+  comment       String?   @db.VarChar(2000)
+  verified      Boolean   @default(false)
+  helpfulCount  Int       @default(0)
+  sellerReply   String?   @db.VarChar(2000)
+  sellerReplyAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  photos ReviewPhoto[]
+  votes  ReviewVote[]
+
+  @@unique([listingId, reviewerId])
+  @@index([listingId])
+  @@index([listingId, createdAt])
+  @@index([reviewerId])
+}
+
+model Conversation {
+  id                  String               @id @default(cuid())
+  userAId             String
+  userBId             String
+  userA               User                 @relation("ConvoA", fields: [userAId], references: [id], onDelete: Restrict)
+  userB               User                 @relation("ConvoB", fields: [userBId], references: [id], onDelete: Restrict)
+  messages            Message[]
+  commissionInterests CommissionInterest[] @relation("CommissionInterestConversation")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  contextListingId       String?
+  contextListing         Listing?  @relation("ConversationContextListing", fields: [contextListingId], references: [id], onDelete: SetNull)
+  customOrderListings    Listing[] @relation("ListingCustomOrderConversation")
+  archivedAAt            DateTime?
+  archivedBAt            DateTime?
+  firstResponseAt        DateTime?
+  lastMessageEmailSentAt DateTime?
+
+  // App code stores participant pairs in canonical order and Prisma needs this
+  // visible unique key for `userAId_userBId` upserts. A raw migration also
+  // enforces unordered uniqueness with LEAST/GREATEST, canonical order, and
+  // participant immutability so swapped/self pairs cannot appear later.
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+  @@index([userAId, updatedAt(sort: Desc), id(sort: Desc)])
+  @@index([userBId, updatedAt(sort: Desc), id(sort: Desc)])
+  @@index([contextListingId])
+  @@index([createdAt])
+}
+
+model Message {
+  id               String       @id @default(cuid())
+  conversationId   String
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId         String
+  sender           User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Restrict)
+  recipientId      String
+  recipient        User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Restrict)
+  contextListingId String?
+  contextListing   Listing?     @relation("MessageContextListing", fields: [contextListingId], references: [id], onDelete: SetNull)
+  body             String       @db.VarChar(5000)
+  kind             String?      @db.VarChar(50)
+  isSystemMessage  Boolean      @default(false)
+  readAt           DateTime?
+  createdAt        DateTime     @default(now())
+
+  // Raw-managed triggers require the exact opposing Conversation participants,
+  // make routing immutable, and monotonically bump/unarchive the parent thread.
+  // Message.body also has a raw-managed pg_trgm GIN index for inbox substring
+  // search; do not model it as a Prisma btree index.
+
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([conversationId, recipientId, readAt])
+  @@index([contextListingId])
+  @@index([senderId])
+  @@index([recipientId, readAt])
+}
+
+model ReviewPhoto {
+  id        String   @id @default(cuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  url       String   @db.VarChar(2048)
+  altText   String?  @db.VarChar(200)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([reviewId, sortOrder])
+}
+
+model ReviewVote {
+  reviewId  String
+  userId    String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  value     Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@id([reviewId, userId])
+}
+
+enum LabelStatus {
+  PURCHASED
+  EXPIRED
+  VOIDED
+}
+
+model Order {
+  id              String         @id @default(cuid())
+  buyerId         String?
+  buyer           User?          @relation("OrdersByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  sellerProfileId String?
+  sellerProfile   SellerProfile? @relation("OrdersBySeller", fields: [sellerProfileId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdAt       DateTime       @default(now())
+  paidAt          DateTime?
+
+  // Stripe idempotency
+  stripeSessionId String? @unique @db.VarChar(255)
+
+  // What Stripe actually charged / decided
+  currency            String  @default("usd") @db.VarChar(3)
+  // Exact total from the retrieved paid Stripe Checkout Session. Nullable for
+  // legacy Orders created before the provider witness was retained.
+  chargedTotalCents   Int?
+  itemsSubtotalCents  Int     @default(0) // items subtotal (excl. shipping & tax)
+  shippingTitle       String? @db.VarChar(200)
+  shippingAmountCents Int     @default(0)
+  taxAmountCents      Int     @default(0)
+
+  // Buyer snapshot. Nullable by design: checkout may omit optional payer fields, and
+  // account deletion / fulfilled-order PII pruning clears these while retaining tax
+  // and fulfillment records.
+  buyerEmail       String? @db.VarChar(254)
+  buyerName        String? @db.VarChar(200)
+  shipToLine1      String? @db.VarChar(200)
+  shipToLine2      String? @db.VarChar(200)
+  shipToCity       String? @db.VarChar(100)
+  shipToState      String? @db.VarChar(50)
+  shipToPostalCode String? @db.VarChar(20)
+  shipToCountry    String? @db.VarChar(2)
+
+  // Stripe references. stripePaymentIntentId and stripeChargeId are enforced by
+  // raw-managed partial unique indexes in migrations because Prisma cannot
+  // model `WHERE ... IS NOT NULL`; do not replace them with plain @unique.
+  stripePaymentIntentId  String? @db.VarChar(255)
+  stripeChargeId         String? @db.VarChar(255)
+  stripeApplicationFeeId String? @db.VarChar(255)
+  stripeTransferId       String? @db.VarChar(255)
+
+  // 🆕 Fulfillment
+  fulfillmentMethod FulfillmentMethod?
+  fulfillmentStatus FulfillmentStatus  @default(PENDING)
+  trackingCarrier   String?            @db.VarChar(100)
+  trackingNumber    String?            @db.VarChar(100)
+  pickupReadyAt     DateTime?
+  pickedUpAt        DateTime?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+  sellerNotes       String?            @db.VarChar(2000)
+
+  items OrderItem[]
+
+  // Delivery estimate fields
+  estimatedDeliveryDate DateTime? // processing + transit shown to buyer
+  processingDeadline    DateTime? // when seller should ship by
+
+  // Case back-relation
+  case                  Case?
+  caseOpenApplication   CaseOpenApplication?
+  // Raw-migration-managed active resolution lease. The private
+  // CaseResolutionClaim table is accessible only through reviewed fixed
+  // database operations; ordinary runtime code must not query it directly.
+  caseResolutionClaimId String?              @unique
+
+  // Snapshot of the *selected* shipping service
+  shippingCarrier String?   @db.VarChar(100) // e.g., "UPS"
+  shippingService String?   @db.VarChar(100) // e.g., "Ground"
+  shippingEta     DateTime? // carrier ETA if provided
+
+  /// What we quoted *before* Checkout (from your site/UI)
+  quotedShippingAmountCents Int?
+
+  /// Flag when Checkout address/rate doesn’t match our quote
+  reviewNeeded Boolean @default(false)
+  reviewNote   String? @db.VarChar(10000)
+
+  /// Tax reversal audit trail (webhook reverses tax portion of seller transfer)
+  taxReversalId          String? @db.VarChar(255)
+  taxReversalAmountCents Int?
+
+  // 👇 NEW: what the buyer typed on your site (used for mismatch detection)
+
+  quotedToLine1               String?   @db.VarChar(200)
+  quotedToLine2               String?   @db.VarChar(200)
+  quotedToCity                String?   @db.VarChar(100)
+  quotedToState               String?   @db.VarChar(50)
+  quotedToPostalCode          String?   @db.VarChar(20)
+  quotedToCountry             String?   @db.VarChar(2)
+  quotedToName                String?   @db.VarChar(200)
+  quotedToPhone               String?   @db.VarChar(30)
+  quotedAt                    DateTime?
+  quotedUseCalculatedShipping Boolean? // what path we used
+
+  // Seller-initiated refund
+  sellerRefundId                  String?   @db.VarChar(255)
+  sellerRefundAmountCents         Int?
+  sellerRefundLockedAt            DateTime?
+  // Compatible generation fence for seller and blocked-checkout provider
+  // refunds. The source tuple is present only while a claim is pending or
+  // awaiting reconciliation; generation remains monotonic across releases.
+  refundClaimId                   String?   @db.VarChar(255)
+  refundClaimGeneration           BigInt    @default(0)
+  refundClaimSource               String?   @db.VarChar(32)
+  refundClaimSourceId             String?   @db.VarChar(255)
+  refundClaimSourceGeneration     BigInt?
+  refundClaimIdempotencyScope     String?   @db.VarChar(191)
+  refundClaimProviderAuthorizedAt DateTime?
+
+  // Database-maintained, anti-forgery payment eligibility projections. These
+  // let ordinary Order consumers enforce refund/dispute eligibility without
+  // reading the private append-only OrderPaymentEvent ledger.
+  paymentRefundBlocked            Boolean @default(false)
+  paymentOpenDisputeBlocked       Boolean @default(false)
+  paymentConversionDisputeBlocked Boolean @default(false)
+
+  // Signed seller deauthorization witness. The raw CHECK constraint requires
+  // both fields together and the partial index serves open affected orders.
+  sellerDeauthorizedAt         DateTime?
+  sellerDeauthorizationEventId String?   @db.VarChar(255)
+
+  // Shippo label
+  shippoShipmentId              String?      @db.VarChar(255)
+  shippoRateObjectId            String?      @db.VarChar(255)
+  shippoTransactionId           String?      @db.VarChar(255)
+  labelUrl                      String?      @db.VarChar(2048)
+  labelCarrier                  String?      @db.VarChar(100)
+  labelTrackingNumber           String?      @db.VarChar(100)
+  labelPurchasedAt              DateTime?
+  labelCostCents                Int?
+  labelStatus                   LabelStatus?
+  labelClawbackStatus           String?      @db.VarChar(50)
+  labelClawbackReversalId       String?      @db.VarChar(255)
+  labelClawbackRetryCount       Int          @default(0)
+  labelClawbackLastAttemptAt    DateTime?
+  labelClawbackNextAttemptAt    DateTime?
+  labelClawbackResolvedAt       DateTime?
+  // Database-derived Shippo purchase lease. The runtime may transport the
+  // opaque claim id, but it cannot choose the rate, amount, currency, target
+  // Order, retry generation, or provider-recovery posture.
+  labelClaimId                  String?      @db.VarChar(255)
+  labelClaimGeneration          BigInt       @default(0)
+  labelClaimStatus              String?      @db.VarChar(32)
+  labelClaimActorUserId         String?      @db.VarChar(191)
+  labelClaimRateObjectId        String?      @db.VarChar(255)
+  labelClaimExpectedAmountCents Int?
+  labelClaimCurrency            String?      @db.VarChar(3)
+  labelClaimStartedAt           DateTime?
+  labelClaimProviderRecordedAt  DateTime?
+  labelClawbackGeneration       BigInt       @default(0)
+
+  // Gift options
+  giftNote               String?   @db.VarChar(500)
+  giftWrapping           Boolean   @default(false)
+  giftWrappingPriceCents Int?
+  buyerDataPurgedAt      DateTime?
+
+  shippingRateQuotes    OrderShippingRateQuote[]
+  paymentEvents         OrderPaymentEvent[]
+  refundReconciliations OrderRefundReconciliation[]
+
+  // Supports the raw-managed same-Order seller-authority FK from OrderItem.
+  @@unique([id, sellerProfileId], map: "Order_id_sellerProfileId_key")
+  @@index([buyerId])
+  @@index([buyerId, createdAt])
+  @@index([paidAt])
+  @@index([createdAt])
+  @@index([fulfillmentStatus])
+  @@index([fulfillmentStatus, createdAt])
+  @@index([sellerRefundId, sellerRefundLockedAt])
+  @@index([refundClaimId, refundClaimGeneration])
+  @@index([labelClawbackStatus, labelClawbackNextAttemptAt])
+  @@index([labelClaimId, labelClaimGeneration])
+  @@index([buyerDataPurgedAt, fulfillmentStatus, deliveredAt, pickedUpAt], map: "Order_buyer_pii_prune_idx")
+  @@index([sellerProfileId, createdAt, id])
+  @@index([sellerProfileId, fulfillmentStatus, createdAt, id])
+}
+
+model OrderShippingRateQuote {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipmentId String   @db.VarChar(255)
+  // Bounded Shippo quote snapshot: array of trimmed rate objects shown for
+  // seller label re-quotes; do not persist raw provider payloads here.
+  rates      Json
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orderId, expiresAt])
+  @@index([expiresAt])
+}
+
+model OrderPaymentEvent {
+  // Retained append-only financial evidence. Compatible database invariants
+  // validate canonical local/signed sources, freeze the parent Order currency,
+  // and reject every row update/delete before policyless RLS activation.
+  id                            String                         @id @default(cuid())
+  orderId                       String
+  order                         Order                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  stripeEventId                 String                         @unique @db.VarChar(255)
+  stripeObjectId                String?                        @db.VarChar(255)
+  stripeObjectType              String?                        @db.VarChar(100)
+  eventType                     String                         @db.VarChar(100)
+  amountCents                   Int?
+  currency                      String                         @default("usd") @db.VarChar(3)
+  status                        String?                        @db.VarChar(100)
+  reason                        String?                        @db.VarChar(255)
+  description                   String?                        @db.VarChar(5000)
+  // Bounded Stripe payment/refund/dispute event context. Store safe ids and
+  // small status details only, not full provider payloads.
+  metadata                      Json?
+  // Signed Stripe ordering. Local/predecessor rows remain nullable until the
+  // compatible writer drain and legacy classification are complete.
+  stripeEventCreatedSeconds     BigInt?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  caseStripeDisputeApplications CaseStripeDisputeApplication[]
+  caseSellerRefundApplications  CaseSellerRefundApplication[]
+
+  // Supports same-Order composite evidence foreign keys managed by raw SQL.
+  @@unique([id, orderId])
+  @@index([orderId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([stripeObjectId])
+  @@index([orderId, eventType, stripeObjectId, stripeEventCreatedSeconds(sort: Desc), id(sort: Desc)], map: "OrderPaymentEvent_order_dispute_event_time_idx")
+}
+
+// Private immutable evidence for manual classification of ambiguous
+// generation-fenced Order refunds. The table is FORCE RLS with no policies;
+// ordinary runtime access exists only through the fixed ADMIN operations.
+model OrderRefundReconciliation {
+  id                     String        @id
+  orderId                String
+  order                  Order         @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  claimId                String        @db.VarChar(255)
+  claimGeneration        BigInt
+  claimSource            String        @db.VarChar(32)
+  claimSourceId          String        @db.VarChar(255)
+  claimSourceGeneration  BigInt?
+  idempotencyScope       String        @db.VarChar(191)
+  action                 String        @db.VarChar(40)
+  actorUserId            String
+  actor                  User          @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  providerInspectedAt    DateTime
+  providerDisposition    String        @db.VarChar(32)
+  providerEvidenceSha256 String        @db.VarChar(64)
+  reason                 String        @db.VarChar(1000)
+  auditLogId             String        @unique
+  auditLog               AdminAuditLog @relation(fields: [auditLogId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt              DateTime      @default(now())
+
+  @@unique([claimId, claimGeneration, action, providerEvidenceSha256], map: "OrderRefundReconciliation_replay_key")
+  @@index([orderId, createdAt(sort: Desc)])
+  @@index([claimId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+}
+
+// Short-lived, one-use authorization handoff from the separately
+// authenticated staff session into the atomic ordinary-runtime ban/unban
+// transaction. Policyless FORCE RLS and zero table grants keep the bearer
+// capability private to its fixed mint and consume operations.
+model OrderStaffCapability {
+  id           String   @id @default(uuid())
+  actorUserId  String
+  targetUserId String
+  operation    String   @db.VarChar(32)
+  payloadHash  String?  @db.VarChar(64)
+  expiresAt    DateTime @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([expiresAt])
+}
+
+model SellerPayoutEvent {
+  id                        String        @id @default(cuid())
+  sellerProfileId           String
+  sellerProfile             SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Restrict)
+  stripePayoutId            String        @unique @db.VarChar(255)
+  status                    String        @db.VarChar(100)
+  amountCents               Int?
+  currency                  String        @default("usd") @db.VarChar(3)
+  failureCode               String?       @db.VarChar(100)
+  failureMessage            String?       @db.VarChar(1000)
+  stripeEventId             String?       @unique @db.VarChar(255)
+  // Signed Stripe event ordering for the mutable latest-state projection.
+  // Required after the policyless activation closes the compatibility window.
+  stripeEventCreatedSeconds BigInt
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  @@index([sellerProfileId, createdAt])
+  @@index([sellerProfileId, stripeEventCreatedSeconds(sort: Desc), id(sort: Desc)], map: "SellerPayoutEvent_seller_event_time_idx")
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id               String         @id @default(cuid())
+  orderId          String
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  listingId        String
+  listing          Listing        @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  sellerProfileId  String?
+  sellerProfile    SellerProfile? @relation("OrderItemsBySeller", fields: [sellerProfileId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  quantity         Int            @default(1)
+  priceCents       Int
+  // Bounded checkout-time listing snapshot for retained order history.
+  listingSnapshot  Json?
+  selectedVariants Json? // [{ groupName, optionLabel, priceAdjustCents }]
+  createdAt        DateTime       @default(now())
+
+  @@index([orderId])
+  @@index([listingId])
+  @@index([listingId, orderId])
+  @@index([sellerProfileId, createdAt, id])
+}
+
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CartItem[]
+}
+
+model CartItem {
+  id                       String   @id @default(cuid())
+  cartId                   String
+  cart                     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  listingId                String
+  listing                  Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  quantity                 Int      @default(1)
+  priceCents               Int
+  priceVersion             Int      @default(1)
+  selectedVariantOptionIds String[] @default([])
+  variantKey               String   @default("") @db.VarChar(255) // sorted option IDs, for unique constraint
+  createdAt                DateTime @default(now())
+
+  @@unique([cartId, listingId, variantKey])
+  @@index([cartId])
+  @@index([listingId])
+}
+
+model CheckoutStockReservation {
+  id                  String    @id @default(cuid())
+  checkoutLockKey     String    @db.VarChar(255)
+  checkoutGroupId     String?   @db.VarChar(100)
+  payloadHash         String    @db.VarChar(64)
+  buyerId             String?   @db.VarChar(191)
+  sellerId            String?   @db.VarChar(191)
+  stripeSessionId     String?   @unique @db.VarChar(255)
+  status              String    @default("RESERVED") @db.VarChar(32)
+  reservedItems       Json      @default("[]")
+  expiresAt           DateTime
+  restoredAt          DateTime?
+  restoreReason       String?   @db.VarChar(100)
+  repairGeneration    BigInt    @default(0)
+  repairClaimedAt     DateTime?
+  repairClaimKind     String?   @db.VarChar(32)
+  lastRepairError     String?   @db.VarChar(100)
+  lastRepairAttemptAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  // Complete locked checkout source used by the fixed paid-order writer.
+  sourceSnapshot      Json?
+
+  @@index([checkoutLockKey])
+  @@index([buyerId, checkoutGroupId])
+  @@index([status, expiresAt])
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
+  @@index([status, expiresAt, repairClaimedAt, id], map: "CheckoutStockReservation_repair_claim_idx")
+}
+
+/// Private immutable replay ledger for signed Stripe seller deauthorization.
+/// Runtime has no direct table privileges; only its fixed application function
+/// may write, and a raw trigger rejects UPDATE and DELETE.
+model SellerDeauthorizationApplication {
+  eventId                 String   @id @db.VarChar(255)
+  sourceAccountId         String   @db.VarChar(255)
+  sellerProfileId         String?  @db.VarChar(191)
+  eventCreatedAt          DateTime
+  appliedAt               DateTime
+  publicVisibilityChanged Boolean
+  orderCount              Int
+
+  @@index([sourceAccountId, appliedAt(sort: Desc), eventId], map: "SellerDeauthorizationApplication_sourceAccountId_appliedAt_idx")
+}
+
+model ListingVariantGroup {
+  id        String                 @id @default(cuid())
+  listingId String
+  listing   Listing                @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  name      String                 @db.VarChar(100) // seller-defined: "Size", "Wood Type", "Finish", etc.
+  sortOrder Int                    @default(0)
+  options   ListingVariantOption[]
+
+  @@index([listingId, sortOrder])
+}
+
+model ListingVariantOption {
+  id               String              @id @default(cuid())
+  groupId          String
+  group            ListingVariantGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  label            String              @db.VarChar(100) // seller-defined: "Large", "Walnut", "Dark Stain", etc.
+  priceAdjustCents Int                 @default(0) // +5000 = +$50, -2000 = -$20, 0 = no change; DB CHECK bounds each option to +/- $100,000 and app validation bounds final unit price
+  sortOrder        Int                 @default(0)
+  inStock          Boolean             @default(true)
+
+  @@index([groupId, sortOrder])
+}
+
+model SiteConfig {
+  id                    Int @id @default(1)
+  fallbackShippingCents Int @default(1500)
+}
+
+enum FulfillmentMethod {
+  PICKUP
+  SHIPPING
+}
+
+enum FulfillmentStatus {
+  PENDING // default after payment
+  READY_FOR_PICKUP // seller marked ready (pickup flow)
+  PICKED_UP // buyer received (pickup flow)
+  SHIPPED // label purchased / handed to carrier
+  DELIVERED // delivered confirmation
+}
+
+enum CaseReason {
+  NOT_RECEIVED
+  NOT_AS_DESCRIBED
+  DAMAGED
+  WRONG_ITEM
+  OTHER
+}
+
+enum CaseStatus {
+  OPEN
+  IN_DISCUSSION
+  PENDING_CLOSE
+  UNDER_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum CaseResolution {
+  REFUND_FULL
+  REFUND_PARTIAL
+  DISMISSED
+}
+
+enum CaseResolutionClaimStatus {
+  LOCAL_READY
+  PROVIDER_PENDING
+  PROVIDER_RECORDED
+  RECONCILIATION_REQUIRED
+  FINALIZED
+  RELEASED_NO_PROVIDER_EFFECT
+}
+
+enum CaseMessageAuthorKind {
+  BUYER
+  SELLER
+  STAFF
+}
+
+model Case {
+  id                        String                         @id @default(cuid())
+  orderId                   String                         @unique
+  order                     Order                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  buyerId                   String?
+  buyer                     User?                          @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  sellerId                  String
+  seller                    User                           @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  reason                    CaseReason
+  description               String                         @db.VarChar(5000)
+  status                    CaseStatus                     @default(OPEN)
+  resolution                CaseResolution?
+  refundAmountCents         Int?
+  stripeRefundId            String?                        @db.VarChar(255)
+  sellerRespondBy           DateTime
+  discussionStartedAt       DateTime?
+  escalateUnlocksAt         DateTime?
+  buyerMarkedResolved       Boolean                        @default(false)
+  sellerMarkedResolved      Boolean                        @default(false)
+  resolvedAt                DateTime?
+  resolvedById              String?
+  resolvedBy                User?                          @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  // Nullable during the compatibility release. The fixed Stripe-dispute
+  // operation later derives this exact same-Order event inside PostgreSQL.
+  openedByPaymentEventId    String?                        @unique
+  stripeDisputeApplications CaseStripeDisputeApplication[]
+  sellerRefundApplications  CaseSellerRefundApplication[]
+  openApplication           CaseOpenApplication?
+  messages                  CaseMessage[]
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+
+  // Supports private claim same-Order binding managed by raw SQL.
+  @@unique([id, orderId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([resolvedById])
+  @@index([status, createdAt])
+}
+
+// Private service ledger for staff Case resolution/provider reconciliation.
+// Raw migration SQL owns its composite foreign keys, partial unique indexes,
+// deferred Order lease and FORCE/zero-policy posture. Runtime table access is
+// intentionally absent; reviewed fixed functions are the only access path.
+model CaseResolutionClaim {
+  id                   String                    @id
+  caseId               String
+  orderId              String
+  staffActorId         String
+  resolution           CaseResolution
+  refundAmountCents    Int?
+  currency             String                    @db.VarChar(3)
+  stockRestorePlan     Json                      @default("[]")
+  status               CaseResolutionClaimStatus
+  idempotencyScope     String?                   @unique @db.VarChar(191)
+  orderPaymentEventId  String?                   @unique
+  providerRecordedAt   DateTime?
+  finalizedAt          DateTime?
+  reconciledAt         DateTime?
+  reconciledById       String?
+  reconciliationAction String?                   @db.VarChar(40)
+  reconciliationReason String?                   @db.VarChar(1000)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// Private immutable replay ledger for the fixed Stripe-dispute Case
+// operation. Runtime table access is intentionally absent; the reviewed
+// SECURITY DEFINER operation is its only application path.
+model CaseStripeDisputeApplication {
+  paymentEventId String            @id
+  paymentEvent   OrderPaymentEvent @relation(fields: [paymentEventId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  caseId         String
+  orderId        String
+  case           Case              @relation(fields: [caseId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  action         String            @db.VarChar(10)
+  createdAt      DateTime          @default(now())
+
+  @@index([caseId, createdAt])
+  @@index([orderId])
+}
+
+// Private immutable replay ledger for the fixed seller-refund Case
+// operation. Runtime table access is intentionally absent; the reviewed
+// SECURITY DEFINER operation is its only application path.
+model CaseSellerRefundApplication {
+  paymentEventId String            @id
+  paymentEvent   OrderPaymentEvent @relation(fields: [paymentEventId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  caseId         String
+  orderId        String
+  case           Case              @relation(fields: [caseId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  action         String            @db.VarChar(10)
+  createdAt      DateTime          @default(now())
+
+  @@index([caseId, createdAt])
+  @@index([orderId])
+}
+
+// Private immutable replay ledger for the fixed buyer Case-opening operation.
+// Runtime table access is intentionally absent; the reviewed SECURITY
+// DEFINER operation is its only application path.
+model CaseOpenApplication {
+  orderId           String        @id
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  caseId            String        @unique
+  case              Case          @relation(fields: [caseId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  buyerUserId       String
+  buyerUser         User          @relation("CaseOpenApplicationBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  sellerUserId      String
+  sellerUser        User          @relation("CaseOpenApplicationSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  openingMessageId  String        @unique
+  openingMessage    CaseMessage   @relation(fields: [openingMessageId], references: [id], onDelete: Restrict)
+  reason            CaseReason
+  descriptionSha256 String        @db.VarChar(64)
+  auditLogId        String        @unique
+  auditLog          AdminAuditLog @relation(fields: [auditLogId], references: [id], onDelete: Restrict)
+  createdAt         DateTime      @default(now())
+
+  @@unique([caseId, orderId])
+  @@index([buyerUserId, createdAt])
+  @@index([sellerUserId, createdAt])
+}
+
+model CaseMessage {
+  id                 String                  @id @default(cuid())
+  caseId             String
+  case               Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId           String
+  author             User                    @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
+  authorKind         CaseMessageAuthorKind?
+  body               String                  @db.VarChar(5000)
+  createdAt          DateTime                @default(now())
+  attachments        CaseMessageAttachment[]
+  openingApplication CaseOpenApplication?
+
+  @@index([caseId, createdAt, id])
+  @@index([authorId])
+}
+
+model CaseMessageAttachment {
+  id             String       @id @default(cuid())
+  caseMessageId  String
+  caseMessage    CaseMessage  @relation(fields: [caseMessageId], references: [id], onDelete: Cascade)
+  uploaderId     String
+  uploader       User         @relation("CaseMessageAttachments", fields: [uploaderId], references: [id], onDelete: Restrict)
+  directUploadId String       @unique
+  directUpload   DirectUpload @relation(fields: [directUploadId], references: [id], onDelete: Restrict)
+  contentType    String       @db.VarChar(100)
+  byteSize       Int
+  createdAt      DateTime     @default(now())
+
+  @@index([caseMessageId, createdAt, id])
+  @@index([uploaderId])
+}
+
+model SavedSearch {
+  id              String       @id @default(cuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  query           String?      @db.VarChar(200)
+  category        Category?
+  listingType     ListingType?
+  shipsWithinDays Int?
+  minRating       Int?
+  lat             Float?
+  lng             Float?
+  radiusMiles     Int?
+  sort            String?      @db.VarChar(50)
+  minPrice        Int?
+  maxPrice        Int?
+  tags            String[]     @default([])
+  notifyEmail     Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+
+  @@index([userId])
+}
+
+model StockNotification {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([listingId, userId])
+  @@index([listingId])
+  @@index([userId])
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  GUILD_MASTER_PENDING
+  GUILD_MASTER_APPROVED
+  GUILD_MASTER_REJECTED
+}
+
+enum GuildLevel {
+  NONE
+  GUILD_MEMBER
+  GUILD_MASTER
+}
+
+model MakerVerification {
+  id                       String             @id @default(cuid())
+  sellerProfileId          String             @unique
+  sellerProfile            SellerProfile      @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  craftDescription         String             @db.VarChar(1000)
+  guildMasterCraftBusiness String?            @db.VarChar(1000)
+  yearsExperience          Int
+  portfolioUrl             String?            @db.VarChar(2048)
+  status                   VerificationStatus @default(PENDING)
+  reviewedById             String?
+  reviewedBy               User?              @relation("VerificationReviews", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewNotes              String?            @db.VarChar(2000)
+  appliedAt                DateTime           @default(now())
+  reviewedAt               DateTime?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  @@index([reviewedById])
+  @@index([status, appliedAt, id])
+}
+
+enum BlogPostType {
+  STANDARD
+  MAKER_SPOTLIGHT
+  BEHIND_THE_BUILD
+  GIFT_GUIDE
+  WOOD_EDUCATION
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BlogAuthorType {
+  STAFF
+  MAKER
+}
+
+model BlogPost {
+  id                 String          @id @default(cuid())
+  slug               String          @unique @db.VarChar(255)
+  title              String          @db.VarChar(200)
+  excerpt            String?         @db.VarChar(500)
+  body               String          @db.VarChar(50000)
+  materialDisclosure String?         @db.VarChar(500)
+  coverImageUrl      String?         @db.VarChar(2048)
+  videoUrl           String?         @db.VarChar(2048)
+  authorId           String?
+  author             User?           @relation("BlogPostsAuthored", fields: [authorId], references: [id], onDelete: SetNull)
+  authorType         BlogAuthorType
+  sellerProfileId    String?
+  sellerProfile      SellerProfile?  @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  type               BlogPostType    @default(STANDARD)
+  status             BlogPostStatus  @default(DRAFT)
+  featuredListingIds String[]        @default([])
+  tags               String[]        @default([])
+  metaDescription    String?         @db.VarChar(320)
+  readingTimeMinutes Int?
+  publishedAt        DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  comments           BlogComment[]
+  savedBy            SavedBlogPost[]
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@index([sellerProfileId])
+  @@index([title])
+  @@index([tags])
+}
+
+model BlogComment {
+  id        String        @id @default(cuid())
+  postId    String
+  post      BlogPost      @relation(fields: [postId], references: [id], onDelete: Restrict)
+  authorId  String
+  author    User          @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+  body      String        @db.VarChar(2000)
+  approved  Boolean       @default(false)
+  parentId  String?
+  parent    BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies   BlogComment[] @relation("CommentReplies")
+  createdAt DateTime      @default(now())
+
+  @@index([postId])
+  @@index([postId, createdAt])
+  @@index([authorId])
+  @@index([parentId])
+  @@index([approved, createdAt, id])
+}
+
+model NewsletterSubscriber {
+  id                    String    @id @default(cuid())
+  email                 String    @unique @db.VarChar(254)
+  name                  String?   @db.VarChar(200)
+  subscribedAt          DateTime  @default(now())
+  active                Boolean   @default(false)
+  confirmedAt           DateTime?
+  confirmationTokenHash String?   @db.VarChar(64)
+  confirmationExpiresAt DateTime?
+  confirmationSentAt    DateTime?
+
+  @@index([confirmationTokenHash])
+  @@index([active, confirmedAt])
+}
+
+enum EmailSuppressionReason {
+  BOUNCE
+  COMPLAINT
+  MANUAL
+}
+
+model EmailSuppression {
+  id        String                 @id @default(cuid())
+  email     String                 @unique @db.VarChar(254)
+  reason    EmailSuppressionReason
+  source    String?                @db.VarChar(100)
+  eventId   String?                @db.VarChar(255)
+  // Bounded hashed/safe webhook context for suppression troubleshooting.
+  details   Json                   @default("{}")
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  @@index([reason])
+  @@index([createdAt])
+}
+
+model ResendWebhookEvent {
+  svixId              String    @id @db.VarChar(255)
+  type                String    @db.VarChar(100)
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  lastError           String?   @db.VarChar(2000)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([type, createdAt])
+  @@index([processedAt])
+}
+
+model ClerkWebhookEvent {
+  svixId              String    @id @db.VarChar(255)
+  type                String    @db.VarChar(100)
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  lastError           String?   @db.VarChar(2000)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([type, createdAt])
+  @@index([processedAt])
+}
+
+model CronRun {
+  id          String    @id @db.VarChar(160)
+  jobName     String    @db.VarChar(100)
+  bucket      String    @db.VarChar(32)
+  status      String    @default("RUNNING") @db.VarChar(32)
+  // Bounded cron summary payload for ops health/debugging.
+  result      Json?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([jobName, startedAt])
+  @@index([status, startedAt])
+}
+
+model DirectUpload {
+  id                    String                  @id @default(cuid())
+  key                   String                  @unique @db.VarChar(500)
+  endpoint              String                  @db.VarChar(40)
+  userId                String                  @db.VarChar(191)
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  publicUrl             String?                 @db.VarChar(2048)
+  storageClass          String                  @default("PUBLIC") @db.VarChar(20)
+  contentType           String                  @db.VarChar(100)
+  expectedSize          Int
+  status                String                  @default("PRESIGNED") @db.VarChar(20)
+  cleanupAfter          DateTime?
+  verifiedAt            DateTime?
+  claimedAt             DateTime?
+  claimedByType         String?                 @db.VarChar(80)
+  claimedById           String?                 @db.VarChar(191)
+  deletedAt             DateTime?
+  attempts              Int                     @default(0)
+  cleanupLeaseId        String?                 @db.VarChar(64)
+  cleanupLeaseAt        DateTime?
+  lastError             String?                 @db.VarChar(1000)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  references            DirectUploadReference[]
+  caseMessageAttachment CaseMessageAttachment?
+
+  @@index([status, cleanupAfter])
+  @@index([userId, endpoint])
+  @@index([claimedByType, claimedById])
+}
+
+model DirectUploadReference {
+  id             String       @id @default(cuid())
+  directUploadId String
+  directUpload   DirectUpload @relation(fields: [directUploadId], references: [id], onDelete: Restrict)
+  sourceType     String       @db.VarChar(50)
+  sourceId       String       @db.VarChar(191)
+  // Raw trigger-managed from DirectUpload.storageClass. Callers cannot choose
+  // whether a lifecycle reference is exclusive.
+  exclusive      Boolean
+  createdAt      DateTime     @default(now())
+  releasedAt     DateTime?
+  releaseReason  String?      @db.VarChar(200)
+
+  @@index([directUploadId, releasedAt])
+  @@index([sourceType, sourceId, releasedAt])
+  @@index([releasedAt, createdAt])
+}
+
+model SystemAuditLog {
+  id         String   @id @default(cuid())
+  actorType  String   @db.VarChar(40)
+  actorId    String?  @db.VarChar(255)
+  action     String   @db.VarChar(100)
+  targetType String   @db.VarChar(100)
+  targetId   String   @db.VarChar(255)
+  reason     String?  @db.VarChar(1000)
+  // Bounded system/cron/webhook action metadata and user-workflow evidence; keep bulky evidence in
+  // purpose-built ledgers such as OrderPaymentEvent or CronRun.
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([actorType, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+model EmailFailureCount {
+  email         String   @id @db.VarChar(254)
+  count         Int      @default(0)
+  firstFailedAt DateTime @default(now())
+  lastFailedAt  DateTime @default(now())
+  lastEventId   String?  @db.VarChar(255)
+
+  @@index([lastFailedAt])
+}
+
+model EmailOutbox {
+  id              String    @id @default(cuid())
+  recipientEmail  String    @db.VarChar(254)
+  userId          String?   @db.VarChar(191)
+  preferenceKey   String?   @db.VarChar(80)
+  templateName    String    @default("unknown") @db.VarChar(80)
+  templateVersion Int       @default(1)
+  sourceType      String?   @db.VarChar(80)
+  sourceId        String?   @db.VarChar(191)
+  subject         String    @db.VarChar(300)
+  html            String    @db.VarChar(200000)
+  dedupKey        String    @unique @db.VarChar(128)
+  // Raw CHECK-constrained to PENDING/PROCESSING/SENT/FAILED/SKIPPED/DEAD by migration.
+  status          String    @default("PENDING") @db.VarChar(20)
+  attempts        Int       @default(0)
+  nextAttemptAt   DateTime? @default(now())
+  sentAt          DateTime?
+  lastError       String?   @db.VarChar(1000)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([status, updatedAt])
+  @@index([userId, preferenceKey])
+  @@index([recipientEmail, createdAt])
+  @@index([templateName, createdAt])
+  @@index([sourceType, sourceId])
+}
+
+model AccountDeletionSideEffect {
+  id            String    @id @default(cuid())
+  userId        String    @db.VarChar(191)
+  kind          String    @db.VarChar(40)
+  dedupKey      String    @unique @db.VarChar(300)
+  payload       Json      @default("{}")
+  status        String    @default("PENDING") @db.VarChar(20)
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime? @default(now())
+  processedAt   DateTime?
+  lastError     String?   @db.VarChar(1000)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([status, processedAt])
+  @@index([userId, kind])
+}
+
+enum SupportRequestKind {
+  SUPPORT
+  DATA_REQUEST
+}
+
+enum SupportRequestStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+model SupportRequest {
+  id                  String               @id @default(cuid())
+  userId              String?
+  user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kind                SupportRequestKind
+  status              SupportRequestStatus @default(OPEN)
+  name                String?              @db.VarChar(100)
+  email               String               @db.VarChar(254)
+  topic               String               @db.VarChar(80)
+  orderId             String?              @db.VarChar(80)
+  listingId           String?              @db.VarChar(80)
+  message             String               @db.VarChar(4000)
+  slaDueAt            DateTime
+  emailSentAt         DateTime?
+  emailLastError      String?              @db.VarChar(1000)
+  closedAt            DateTime?
+  closureEvidence     String?              @db.VarChar(4000)
+  closureEvidenceAt   DateTime?
+  closureEvidenceById String?
+  closureEvidenceBy   User?                @relation("SupportRequestClosureEvidence", fields: [closureEvidenceById], references: [id], onDelete: SetNull)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([kind, status, slaDueAt])
+  @@index([userId, createdAt])
+  @@index([closureEvidenceById])
+  @@index([email, createdAt])
+  @@index([orderId])
+  @@index([listingId])
+  @@index([status, createdAt])
+  @@index([status, closedAt])
+}
+
+model StripeWebhookEvent {
+  id                  String    @id @db.VarChar(255)
+  type                String    @db.VarChar(100)
+  sourceObjectId      String?   @db.VarChar(255)
+  claimGeneration     BigInt    @default(0)
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  lastError           String?   @db.VarChar(2000)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([type, createdAt])
+  @@index([processedAt])
+}
+
+model SellerMetrics {
+  id                  String        @id @default(cuid())
+  sellerProfileId     String        @unique
+  sellerProfile       SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  calculatedAt        DateTime      @default(now())
+  periodMonths        Int           @default(3)
+  averageRating       Float         @default(0)
+  reviewCount         Int           @default(0)
+  onTimeShippingRate  Float         @default(0)
+  responseRate        Float         @default(0)
+  totalSalesCents     BigInt        @default(0)
+  completedOrderCount Int           @default(0)
+  activeCaseCount     Int           @default(0)
+  accountAgeDays      Int           @default(0)
+}
+
+model SellerRatingSummary {
+  sellerProfileId String        @id
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  averageRating   Float         @default(0)
+  reviewCount     Int           @default(0)
+  updatedAt       DateTime      @updatedAt
+
+  @@index([averageRating, reviewCount])
+}
+
+model SiteMetricsSnapshot {
+  id            Int      @id @default(1)
+  avgConversion Float    @default(0)
+  avgCtr        Float    @default(0)
+  avgRating     Float    @default(3)
+  calculatedAt  DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  NEW_ORDER
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  CASE_OPENED
+  CASE_MESSAGE
+  CASE_RESOLVED
+  REFUND_ISSUED
+  CUSTOM_ORDER_REQUEST
+  CUSTOM_ORDER_LINK
+  VERIFICATION_APPROVED
+  VERIFICATION_REJECTED
+  BACK_IN_STOCK
+  NEW_REVIEW
+  LOW_STOCK
+  NEW_FAVORITE
+  NEW_BLOG_COMMENT
+  BLOG_COMMENT_REPLY
+  NEW_FOLLOWER
+  FOLLOWED_MAKER_NEW_LISTING
+  FOLLOWED_MAKER_NEW_BLOG
+  SELLER_BROADCAST
+  COMMISSION_INTEREST
+  LISTING_APPROVED
+  LISTING_REJECTED
+  ACCOUNT_WARNING
+  LISTING_FLAGGED_BY_USER
+  PAYMENT_DISPUTE
+  PAYOUT_FAILED
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedUserId String?
+  type          NotificationType
+  title         String           @db.VarChar(200)
+  body          String           @db.VarChar(1000)
+  link          String?          @db.VarChar(2048)
+  sourceType    String?          @db.VarChar(80)
+  sourceId      String?          @db.VarChar(191)
+  dedupKey      String           @default(dbgenerated("md5(random()::text || clock_timestamp()::text)")) @db.VarChar(64)
+  read          Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+
+  @@unique([userId, type, dedupKey])
+  @@index([userId, read])
+  @@index([userId, read, createdAt])
+  @@index([userId, createdAt])
+  @@index([read, createdAt])
+  @@index([sourceType, sourceId])
+  @@index([relatedUserId])
+}
+
+model ListingViewDaily {
+  id              String        @id @default(cuid())
+  listingId       String
+  listing         Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  date            DateTime // stored as midnight UTC of that day
+  views           Int           @default(0)
+  clicks          Int           @default(0)
+
+  @@unique([listingId, date])
+  @@index([sellerProfileId, date])
+  @@index([date])
+}
+
+model SellerProfileViewDaily {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  date            DateTime // stored as midnight UTC of that day
+  views           Int           @default(0)
+
+  @@unique([sellerProfileId, date])
+  @@index([sellerProfileId, date])
+  @@index([date])
+}
+
+model Follow {
+  id              String        @id @default(cuid())
+  followerId      String
+  follower        User          @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@unique([followerId, sellerProfileId])
+  @@index([sellerProfileId])
+  @@index([followerId])
+}
+
+model SavedBlogPost {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blogPostId String
+  blogPost   BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, blogPostId])
+  @@index([userId])
+  @@index([blogPostId])
+}
+
+model SellerBroadcast {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  message         String        @db.VarChar(500)
+  imageUrl        String?       @db.VarChar(2048)
+  sentAt          DateTime      @default(now())
+  recipientCount  Int           @default(0)
+
+  @@index([sellerProfileId])
+  @@index([sentAt])
+}
+
+enum CommissionStatus {
+  OPEN
+  IN_PROGRESS
+  FULFILLED
+  CLOSED
+  EXPIRED
+}
+
+model CommissionRequest {
+  id                 String           @id @default(cuid())
+  buyerId            String
+  buyer              User             @relation("CommissionRequests", fields: [buyerId], references: [id], onDelete: Restrict)
+  title              String           @db.VarChar(150)
+  description        String           @db.VarChar(5000)
+  category           Category?
+  budgetMinCents     Int?
+  budgetMaxCents     Int?
+  timeline           String?          @db.VarChar(200)
+  referenceImageUrls String[]         @default([])
+  status             CommissionStatus @default(OPEN)
+  interestedCount    Int              @default(0)
+  expiresAt          DateTime?
+  isNational         Boolean          @default(true)
+  lat                Float?
+  lng                Float?
+  radiusMeters       Int?             @default(80000)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  interests CommissionInterest[]
+
+  // Metro geography (set automatically on create from buyer location)
+  metroId     String?
+  metro       Metro?  @relation("CommissionMetro", fields: [metroId], references: [id])
+  cityMetroId String?
+  cityMetro   Metro?  @relation("CommissionCityMetro", fields: [cityMetroId], references: [id])
+
+  @@index([buyerId])
+  @@index([status, createdAt])
+  @@index([category])
+  @@index([metroId])
+  @@index([cityMetroId])
+}
+
+model CommissionInterest {
+  id                  String            @id @default(cuid())
+  commissionRequestId String
+  commissionRequest   CommissionRequest @relation(fields: [commissionRequestId], references: [id], onDelete: Cascade)
+  sellerProfileId     String
+  sellerProfile       SellerProfile     @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  conversationId      String?
+  conversation        Conversation?     @relation("CommissionInterestConversation", fields: [conversationId], references: [id], onDelete: SetNull)
+  createdAt           DateTime          @default(now())
+
+  @@unique([commissionRequestId, sellerProfileId])
+  @@index([sellerProfileId])
+  @@index([conversationId])
+}
+
+model Metro {
+  id          String   @id @default(cuid())
+  slug        String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(100)
+  state       String   @db.VarChar(50)
+  latitude    Float
+  longitude   Float
+  radiusMiles Int      @default(45)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Self-relation: child metros roll up to a parent major metro
+  parentMetroId String?
+  parentMetro   Metro?  @relation("MetroChildren", fields: [parentMetroId], references: [id])
+  childMetros   Metro[] @relation("MetroChildren")
+
+  // Back-relations
+  listings             Listing[]           @relation("ListingMetro")
+  listingCityMetros    Listing[]           @relation("ListingCityMetro")
+  commissions          CommissionRequest[] @relation("CommissionMetro")
+  commissionCityMetros CommissionRequest[] @relation("CommissionCityMetro")
+  sellerProfiles       SellerProfile[]     @relation("SellerMetro")
+  sellerCityProfiles   SellerProfile[]     @relation("SellerCityMetro")
+
+  @@index([slug])
+  @@index([parentMetroId])
+  @@index([state, isActive])
+}
+
+model AdminAuditLog {
+  id                        String                     @id @default(cuid())
+  adminId                   String
+  admin                     User                       @relation("AdminActions", fields: [adminId], references: [id])
+  caseOpenApplication       CaseOpenApplication?
+  orderRefundReconciliation OrderRefundReconciliation?
+  action                    String                     @db.VarChar(100)
+  targetType                String                     @db.VarChar(100)
+  targetId                  String                     @db.VarChar(255)
+  reason                    String?                    @db.VarChar(1000)
+  // Bounded action metadata; keep bulky evidence in purpose-built tables.
+  metadata                  Json                       @default("{}")
+  undone                    Boolean                    @default(false)
+  undoneAt                  DateTime?
+  undoneBy                  String?                    @db.VarChar(255)
+  undoneReason              String?                    @db.VarChar(1000)
+  createdAt                 DateTime                   @default(now())
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@index([undone])
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("UserBlocks", fields: [blockerId], references: [id], onDelete: Restrict)
+  blocked User @relation("UserBlockedBy", fields: [blockedId], references: [id], onDelete: Restrict)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
+
+model UserReport {
+  id             String    @id @default(cuid())
+  reporterId     String
+  reportedId     String
+  reason         String    @db.VarChar(100)
+  details        String?   @db.VarChar(2000)
+  targetType     String?   @db.VarChar(100)
+  targetId       String?   @db.VarChar(255)
+  resolved       Boolean   @default(false)
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolutionNote String?   @db.VarChar(500)
+  createdAt      DateTime  @default(now())
+
+  reporter   User  @relation("UserReports", fields: [reporterId], references: [id], onDelete: Restrict)
+  reported   User  @relation("UserReportedBy", fields: [reportedId], references: [id], onDelete: Restrict)
+  resolvedBy User? @relation("UserReportsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([reporterId])
+  @@index([reportedId])
+  @@index([resolved])
+  @@index([resolvedById])
+  @@index([resolved, createdAt, id])
+  @@index([createdAt, reporterId])
+}

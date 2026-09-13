@@ -1,0 +1,886 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("payment and fulfillment side-effect observability", () => {
+  it("keeps fulfillment mutations from being masked by notification or email failures", () => {
+    const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const finalization = source("src/lib/orderFulfillmentFinalization.ts");
+
+    assert.match(route, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(finalization, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(finalization, /createNotificationOrThrow\(\{/);
+    assert.match(finalization, /enqueueEmailOutboxOnce\(\{/);
+    assert.match(finalization, /dedupKey: `order-fulfillment:\$\{result\.auditLogId\}`/);
+    assert.match(finalization, /processEmailOutboxJobById\(committed\.emailOutboxId\)/);
+    assert.doesNotMatch(route, /fulfillment_notification|fulfillment_email|notifyBuyer/);
+    assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+  });
+
+  it("makes seller-refund buyer notification and email reservation transactional", () => {
+    const route = source("src/app/api/orders/[id]/refund/route.ts");
+    const finalization = source("src/lib/orderRefundFinalization.ts");
+
+    assert.match(route, /finalizeSellerOrderRefund\(\{/);
+    assert.match(finalization, /recordSellerOrderRefund\(input, tx\)/);
+    assert.match(finalization, /createNotificationOrThrow\(\{/);
+    assert.match(finalization, /enqueueEmailOutboxOnce\(\s*\{/);
+    assert.match(finalization, /preferenceKey: "EMAIL_REFUND_ISSUED"/);
+    assert.doesNotMatch(route, /seller_refund_notification|seller_refund_email/);
+    assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+  });
+
+  it("makes Case-resolution notifications and email reservation transactional", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const finalization = source("src/lib/caseStaffResolutionFinalization.ts");
+
+    assert.match(route, /finalizeCaseStaffResolutionWithSideEffects\(/);
+    assert.match(finalization, /finalizeCaseStaffResolution\([\s\S]*tx,/);
+    assert.equal(
+      (finalization.match(/createNotificationOrThrow\(\{/g) ?? []).length,
+      2,
+    );
+    assert.match(finalization, /enqueueEmailOutboxOnce\(\s*\{/);
+    assert.match(finalization, /dedupKey: `case-resolution:\$\{result\.claimId\}`/);
+    assert.match(finalization, /templateName: "case_resolved"/);
+    assert.doesNotMatch(route, /case_resolved_notification|case_resolved_email/);
+    assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+  });
+
+  it("keeps case create and message responses from being masked by notification failures", () => {
+    const createRoute = source("src/app/api/cases/route.ts");
+    const messageRoute = source("src/app/api/cases/[id]/messages/route.ts");
+
+    assert.match(createRoute, /source: "case_open_notification"/);
+    assert.match(createRoute, /source: "case_open_email"/);
+    assert.match(createRoute, /notificationError/);
+
+    assert.match(messageRoute, /source: "case_staff_message_notification"/);
+    assert.match(messageRoute, /source: "case_party_message_notification"/);
+    assert.match(messageRoute, /source: "case_staff_message_email"/);
+    assert.match(messageRoute, /source: "case_party_message_email"/);
+    assert.match(messageRoute, /Promise\.all\(notifications\)/);
+
+    for (const route of [createRoute, messageRoute]) {
+      assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+    }
+  });
+
+  it("records seller refunds only while the refund lock is still held", () => {
+    const route = source("src/app/api/orders/[id]/refund/route.ts");
+    const authority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
+    const reconciliationAuthority = source(
+      "prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority/migration.sql",
+    );
+
+    assert.match(route, /claimSellerOrderRefund\(\{/);
+    assert.match(route, /finalizeSellerOrderRefund\(\{/);
+    assert.match(route, /markOrderRefundClaimAmbiguous\(\{/);
+    assert.match(
+      reconciliationAuthority,
+      /orders\."refundClaimId" = p_claim_id[\s\S]*orders\."refundClaimGeneration" = p_claim_generation[\s\S]*FOR UPDATE/,
+    );
+    assert.match(authority, /orders\."refundClaimGeneration" = p_claim_generation/);
+    assert.match(authority, /"refundClaimProviderAuthorizedAt" IS NULL/);
+    assert.match(authority, /"manualStripeReconciliationNeeded" = true/);
+    assert.match(authority, /grainline_case_seller_refund_apply/);
+    assert.match(authority, /IF case_action = 'terminal' THEN/);
+    assert.match(authority, /Case auto-resolution did not update because Case state changed/);
+    assert.doesNotMatch(route, /(?:prisma|tx)\.case\./);
+  });
+
+  it("records staff case refunds only while the refund lock is still held", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const authority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
+
+    assert.match(route, /canReverseTransfer: prepared\.canReverseTransfer/);
+    assert.doesNotMatch(route, /refundMayRestoreStock/);
+    assert.match(authority, /"caseResolutionClaimId" = claim_id/);
+    assert.match(authority, /"sellerRefundId" = CASE/);
+    assert.match(authority, /ELSE 'pending'/);
+    assert.match(
+      authority,
+      /WHERE orders\.id = locked_order\.id[\s\S]*orders\."sellerRefundId" IS NULL/,
+    );
+    assert.match(
+      authority,
+      /locked_order\."caseResolutionClaimId"[\s\S]*IS DISTINCT FROM locked_claim\.id/,
+    );
+    assert.match(
+      authority,
+      /locked_order\."sellerRefundId" IS DISTINCT FROM 'pending'/,
+    );
+    assert.match(authority, /Case staff-resolution lease acquisition failed/);
+    assert.match(authority, /Case provider-record refund lease was lost/);
+    assert.doesNotMatch(route, /Boolean\(caseRecord\.order\.stripeTransferId\)/);
+  });
+
+  it("keeps seller and case provider results retryable until local state is durable", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+
+    assert.match(sellerRoute, /source: "seller_refund_finalize_retry"/);
+    assert.match(sellerRoute, /source: "seller_refund_finalize_retry_failed"/);
+    assert.ok(
+      (sellerRoute.match(/finalizeSellerOrderRefund\(\{/g) ?? []).length >= 2,
+      "seller provider evidence must retry through the same fixed finalizer",
+    );
+    assert.doesNotMatch(sellerRoute, /orphanRecovery|orphanRecord|recordLocalRefundEvidence/);
+
+    assert.match(caseRoute, /source: "case_refund_provider_record_failed"/);
+    assert.match(
+      caseRoute,
+      /await recordCaseStaffResolutionProvider\([\s\S]*refund\.primaryRefundId[\s\S]*refund\.refundIds/,
+    );
+    assert.match(
+      caseRoute,
+      /authorityFailureResponse\(error, "provider"\)[\s\S]*throw error/,
+    );
+    assert.doesNotMatch(caseRoute, /case_refund_orphaned_review_update_failed/);
+  });
+
+  it("marks no-refund-id Stripe failures as ambiguous instead of reopening refund attempts", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const reconciliationAuthority = source(
+      "prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority/migration.sql",
+    );
+
+    assert.match(sellerRoute, /seller_refund_ambiguous_record_failed/);
+    assert.match(sellerRoute, /reason: "SELLER_PROVIDER_AMBIGUOUS"/);
+    assert.match(
+      reconciliationAuthority,
+      /'SELLER_PROVIDER_AMBIGUOUS'[\s\S]*Seller refund attempt has an ambiguous Stripe outcome/,
+    );
+    assert.doesNotMatch(sellerRoute, /source: "seller_refund_lock_release_failed"/);
+
+    assert.match(caseRoute, /case_refund_ambiguous_record_failed/);
+    assert.match(
+      caseRoute,
+      /catch \(stripeError\)[\s\S]*recordAmbiguousCaseStaffResolutionProvider\([\s\S]*throw stripeError/,
+    );
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /'RECONCILIATION_REQUIRED'::public\."CaseResolutionClaimStatus"/,
+    );
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /Ambiguous provider outcome cannot assert evidence/,
+    );
+  });
+
+  it("derives first-party refund reversal eligibility from the order transfer", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const providerReconciliation = source(
+      "src/lib/orderRefundProviderReconciliation.ts",
+    );
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const sellerAuthority = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
+
+    assert.match(
+      providerReconciliation,
+      /canReverseTransfer: claim\.canReverseTransfer/,
+    );
+    assert.match(
+      sellerRoute,
+      /resolveOrderRefundProviderOutcome\(refundClaim\)/,
+    );
+    assert.match(
+      sellerAuthority,
+      /'canReverseTransfer', locked_order\."stripeTransferId" IS NOT NULL/,
+    );
+    assert.match(caseRoute, /canReverseTransfer: prepared\.canReverseTransfer/);
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /'canReverseTransfer', locked_order\."stripeTransferId" IS NOT NULL/,
+    );
+
+    assert.doesNotMatch(sellerRoute, /stripeAccountId: true/);
+    assert.doesNotMatch(sellerRoute, /Boolean\(seller\.stripeAccountId\)/);
+    assert.doesNotMatch(caseRoute, /stripeAccountId: true/);
+    assert.doesNotMatch(caseRoute, /Boolean\(caseRecord\.order\.stripeTransferId\)/);
+  });
+
+  it("records transfer-reversal accounting evidence for first-party refunds", () => {
+    const helper = source("src/lib/marketplaceRefunds.ts");
+    const recordHelper = source("src/lib/orderRefundRecordAuthority.ts");
+    const recordAuthority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const webhookRoute = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(helper, /expand: \["transfer_reversal"\]/);
+    assert.match(helper, /transferReversalId/);
+    assert.match(helper, /transferReversalAmountCents/);
+    assert.match(helper, /platformFundedRefundCents/);
+    assert.match(helper, /originalTransferAmountCents/);
+
+    for (const route of [sellerRoute, webhookRoute]) {
+      assert.match(route, /orderRefundProviderEvidence\(refund\)/);
+    }
+    assert.match(recordHelper, /accounting\.transferReversalId/);
+    assert.match(recordHelper, /accounting\.transferReversalAmountCents/);
+    assert.match(recordAuthority, /'transferReversalId', p_transfer_reversal_id/);
+    assert.match(
+      recordAuthority,
+      /'transferReversalAmountCents', p_transfer_reversal_amount_cents/,
+    );
+    assert.match(recordAuthority, /'platformFundedRefundCents', platform_funded_refund_cents/);
+    assert.match(
+      caseRoute,
+      /transferReversalId:\s*refund\.accountingEvidence\.transferReversalId/,
+    );
+    assert.match(
+      caseRoute,
+      /transferReversalAmountCents:\s*refund\.accountingEvidence\.transferReversalAmountCents/,
+    );
+    const caseAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
+    assert.match(caseAuthority, /'transferReversalId', p_transfer_reversal_id/);
+    assert.match(
+      caseAuthority,
+      /'transferReversalAmountCents',\s*p_transfer_reversal_amount_cents/,
+    );
+  });
+
+  it("serializes staff case refunds and dismissals before Stripe moves money", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const authority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    ).replace(/\s+/g, " ");
+    const prepareStart = route.indexOf("await prepareCaseStaffResolution(");
+    const stripeStart = route.indexOf("await createMarketplaceRefund(");
+    const finalizeStart = route.indexOf(
+      "await finalizeCaseStaffResolutionWithSideEffects(",
+    );
+
+    assert.ok(prepareStart >= 0 && stripeStart > prepareStart);
+    assert.ok(finalizeStart > stripeStart);
+    assert.match(
+      authority,
+      /FROM public\."Order" AS orders WHERE orders\.id = source_order_id FOR UPDATE[\s\S]*FROM public\."Case" AS case_row[\s\S]*FOR UPDATE/,
+    );
+    assert.match(
+      authority,
+      /orders\."caseResolutionClaimId" IS NULL[\s\S]*orders\."sellerRefundId" IS NULL[\s\S]*orders\."sellerRefundLockedAt" IS NULL/,
+    );
+    assert.match(
+      authority,
+      /Case staff-resolution Order has refund activity/,
+    );
+    assert.doesNotMatch(route, /prisma\.\$transaction/);
+  });
+
+  it("keeps seller and staff refund entrypoints single-refund per order", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const sellerAuthority = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
+    const sellerPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
+
+    assert.match(sellerPreflight, /locked_order\."paymentRefundBlocked"/);
+    assert.match(sellerPreflight, /locked_order\."paymentOpenDisputeBlocked"/);
+    assert.doesNotMatch(sellerRoute, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
+    assert.match(sellerRoute, /sellerRefundPreflightConflictResponse/);
+    assert.match(sellerRoute, /claimSellerOrderRefund\(\{/);
+    assert.doesNotMatch(sellerRoute, /\.\$executeRaw`[\s\S]*SET "sellerRefundId"/);
+
+    assert.match(
+      sellerRoute,
+      /const initialDecision = await sellerRefundPreflight\(\{/,
+    );
+    assert.match(
+      sellerAuthority,
+      /FROM public\."Order" AS orders[\s\S]*FOR UPDATE[\s\S]*locked_order\."sellerRefundId" IS NOT NULL/,
+    );
+    assert.match(sellerAuthority, /payment_event\."eventType" = 'REFUND'/);
+    assert.match(sellerAuthority, /latest_dispute/);
+    assert.match(
+      sellerAuthority,
+      /WHERE orders\.id = locked_order\.id[\s\S]*orders\."sellerRefundId" IS NULL[\s\S]*orders\."refundClaimId" IS NULL/,
+    );
+    assert.doesNotMatch(caseRoute, /blockingRefundLedgerWhere/);
+    assert.doesNotMatch(caseRoute, /sellerRefundConflictResponse/);
+    assert.doesNotMatch(caseRoute, /orderHasRefundLedger/);
+    const caseAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
+    assert.match(
+      caseAuthority,
+      /WHERE orders\.id = locked_order\.id[\s\S]*orders\."sellerRefundId" IS NULL[\s\S]*Case staff-resolution lease acquisition failed/,
+    );
+    assert.match(
+      caseAuthority,
+      /FROM public\."OrderPaymentEvent" AS refund_event[\s\S]*refund_event\."eventType" = 'REFUND'/,
+    );
+  });
+
+  it("co-writes local refund ledger and system audit evidence for first-party refunds", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const webhookRoute = source("src/app/api/stripe/webhook/route.ts");
+    const helper = source("src/lib/localRefundEvidence.ts");
+    const helperCore = source("src/lib/localRefundEvidenceCore.ts");
+    const refundAuthority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
+
+    assert.doesNotMatch(helper, /client\.orderPaymentEvent|createMany|skipDuplicates/);
+    assert.doesNotMatch(helper, /logSystemActionOrThrow/);
+
+    assert.match(helperCore, /eventType: "REFUND"/);
+    assert.match(helper, /export \{ localRefundEvidenceEventId \}/);
+    assert.match(helperCore, /localRefundEvidenceEventId\(action, refundId\)/);
+
+    assert.match(sellerRoute, /finalizeSellerOrderRefund\(\{/);
+    assert.match(webhookRoute, /finalizeBlockedCheckoutOrderRefund\(\{/);
+    assert.doesNotMatch(sellerRoute, /recordLocalRefundEvidence/);
+    assert.doesNotMatch(webhookRoute, /recordLocalRefundEvidence/);
+    for (const action of [
+      "SELLER_REFUND_RECORDED",
+      "BLOCKED_CHECKOUT_REFUND_RECORDED",
+    ]) {
+      assert.match(
+        refundAuthority,
+        new RegExp(`INSERT INTO public\\.\"OrderPaymentEvent\"[\\s\\S]*'${action}'[\\s\\S]*INSERT INTO public\\.\"SystemAuditLog\"`),
+      );
+    }
+    const caseAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
+    assert.match(caseRoute, /await recordCaseStaffResolutionProvider\(/);
+    assert.match(
+      caseAuthority,
+      /INSERT INTO public\."OrderPaymentEvent"[\s\S]*'CASE_REFUND_RECORDED'[\s\S]*INSERT INTO public\."SystemAuditLog"/,
+    );
+    assert.match(refundAuthority, /UPDATE public\."Listing" AS listing[\s\S]*INSERT INTO public\."SystemAuditLog"/);
+  });
+
+  it("keeps refund and label-purchase locks aligned", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
+    const sellerAuthority = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
+    const labelAuthority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
+    const providerClaimExclusion = source(
+      "docs/rls-drafts/order-provider-claim-exclusion.sql",
+    );
+    const sellerPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
+
+    assert.match(sellerRoute, /freshDecision !== "LABEL_BLOCKED"/);
+    assert.match(
+      source("src/lib/refundRouteState.ts"),
+      /Cannot refund while a shipping label purchase is active or completed/,
+    );
+    assert.match(
+      sellerAuthority,
+      /locked_order\."labelStatus"::text = 'PURCHASED'/,
+    );
+    assert.match(sellerPreflight, /locked_order\."labelStatus"::text = 'PURCHASED'/);
+    assert.match(sellerPreflight, /'PROVIDER_PENDING'/);
+
+    assert.doesNotMatch(caseRoute, /orderHasPurchasedLabel/);
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /locked_order\."labelStatus" =\s*'PURCHASED'::public\."LabelStatus"/,
+    );
+
+    assert.match(labelRoute, /sellerLabelPreflight/);
+    assert.match(labelRoute, /claimSellerLabelPurchase/);
+    assert.doesNotMatch(labelRoute, /releaseStaleRefundLocks|prisma\.order/);
+    assert.match(labelAuthority, /locked_order\."sellerRefundId" IS NOT NULL/);
+    assert.match(labelAuthority, /locked_order\."sellerRefundLockedAt" IS NOT NULL/);
+    assert.match(labelAuthority, /FOR UPDATE OF candidate/);
+    assert.match(labelAuthority, /FROM public\."Case" AS source_case/);
+    assert.doesNotMatch(labelRoute, /SELECT 1 FROM "Case" c/);
+    assert.doesNotMatch(labelRoute, /\bACTIVE_CASE_STATUSES\b/);
+    assert.match(labelAuthority, /locked_order\."paymentRefundBlocked"/);
+    assert.match(labelAuthority, /locked_order\."paymentOpenDisputeBlocked"/);
+    assert.doesNotMatch(labelRoute, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
+
+    assert.match(
+      providerClaimExclusion,
+      /"labelClaimStatus" IN \([\s\S]*'PROVIDER_PENDING'[\s\S]*'PROVIDER_AMBIGUOUS'[\s\S]*'PROVIDER_RECORDED'/,
+    );
+    assert.match(
+      providerClaimExclusion,
+      /"sellerRefundId" IS NOT NULL[\s\S]*"refundClaimId" IS NOT NULL/,
+    );
+    assert.doesNotMatch(providerClaimExclusion, /ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY|GRANT|REVOKE/);
+  });
+
+  it("keeps seller refund copy honest when transfer reversal needs manual reconciliation", () => {
+    const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
+
+    assert.match(salesPage, /manualStripeReconciliationNeeded: true/);
+    assert.match(salesPage, /staff may need to reconcile the connected-account transfer manually/);
+    assert.match(salesPage, /This amount has been deducted from your Stripe balance/);
+  });
+
+  it("blocks fulfillment state changes on database-maintained payment projections", () => {
+    const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
+
+    assert.match(route, /Resolve the open Stripe dispute before changing fulfillment/);
+    assert.match(authority, /locked_order\."paymentRefundBlocked"/);
+    assert.match(authority, /locked_order\."paymentOpenDisputeBlocked"/);
+    assert.match(
+      authority,
+      /UPDATE public\."Order" AS target_order[\s\S]*"fulfillmentStatus" = 'SHIPPED'::public\."FulfillmentStatus"/,
+    );
+    assert.match(
+      authority,
+      /UPDATE public\."Order" AS target_order[\s\S]*"fulfillmentStatus" = 'READY_FOR_PICKUP'::public\."FulfillmentStatus"/,
+    );
+    assert.doesNotMatch(route, /id:\s*\{\s*in: Prisma\.sql/);
+    assert.doesNotMatch(route, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
+  });
+
+  it("limits seller self-service to full cancellation refunds", () => {
+    const route = source("src/app/api/orders/[id]/refund/route.ts");
+    const panel = source("src/components/SellerRefundPanel.tsx");
+    const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
+
+    assert.match(route, /restoreStock:\s*z\s*\.array/);
+    assert.match(
+      route,
+      /if \(refundParsed\.type === "PARTIAL"\)[\s\S]*Seller partial refunds require Grainline staff review/,
+    );
+    assert.match(route, /const type = "FULL" as const/);
+    assert.match(route, /finalizeSellerOrderRefund\(\{/);
+    assert.doesNotMatch(route, /(?:prisma|tx)\.listing\.(?:update|updateMany)/);
+    assert.match(
+      source("prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql"),
+      /locked_order\."fulfillmentStatus"::text[\s\S]*FROM public\."OrderItem" AS item[\s\S]*UPDATE public\."Listing" AS listing/,
+    );
+    assert.match(panel, /JSON\.stringify\(\{ type: "FULL" \}\)/);
+    assert.match(panel, /Partial refunds require Grainline staff review/);
+    assert.doesNotMatch(panel, /Partial Refund|partialAmount|restoreQuantities/);
+    assert.doesNotMatch(salesPage, /restorableRefundItems|canRestoreRefundStock/);
+  });
+
+  it("allows staff case partial refunds to restore only explicitly requested purchased stock", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const panel = source("src/components/CaseResolutionPanel.tsx");
+    const adminCasePage = source("src/app/admin/cases/[id]/page.tsx");
+
+    assert.match(route, /restoreStock: z\.array/);
+    assert.match(
+      route,
+      /resolution !== "REFUND_PARTIAL" && requestedStockRestores\.length > 0/,
+    );
+    assert.match(
+      route,
+      /stockRestoreDecision:[\s\S]*resolution === "REFUND_PARTIAL"\s*\?\s*requestedStockRestores\s*:\s*\[\]/,
+    );
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /p_stock_restore_decision <> '\[\]'::jsonb[\s\S]*locked_order\."fulfillmentStatus" IN[\s\S]*Stock cannot be restored after fulfillment/,
+    );
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /FROM pg_catalog\.jsonb_array_elements\(\s*p_stock_restore_decision[\s\S]*LEFT JOIN available USING \(listing_id\)[\s\S]*Stock-restoration target or quantity is invalid/,
+    );
+    assert.match(panel, /Restore inventory \(optional\)/);
+    assert.match(
+      panel,
+      /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/,
+    );
+    assert.match(adminCasePage, /restorableRefundItems/);
+    assert.match(adminCasePage, /canRestoreStock=\{canRestoreRefundStock\}/);
+  });
+
+  it("sanitizes Stripe webhook console error output before logging", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const v2Route = source("src/app/api/stripe/webhook/v2/route.ts");
+
+    assert.match(route, /sanitizeEmailOutboxError\(retrieveErr\)/);
+    assert.match(route, /sanitizeEmailOutboxError\(err\)/);
+    assert.match(v2Route, /sanitizeEmailOutboxError\(err\)/);
+    assert.doesNotMatch(
+      route,
+      /console\.error\("Webhook: failed to retrieve full event:", retrieveErr\)/,
+    );
+    assert.doesNotMatch(
+      route,
+      /console\.error\("Stripe webhook handler error:", err\)/,
+    );
+    assert.doesNotMatch(
+      route,
+      /console\.error\("Stripe webhook signature verification failed:", \(err as \{ message\?: string \}\)\?\.message\)/,
+    );
+    assert.doesNotMatch(
+      v2Route,
+      /console\.error\("Stripe v2 webhook signature verification failed:", \(err as \{ message\?: string \}\)\?\.message\)/,
+    );
+  });
+
+  it("sanitizes label clawback Stripe errors before console logging", () => {
+    const route = source("src/app/api/orders/[id]/label/route.ts");
+
+    assert.match(route, /labelClawbackErrorMessage\(error\)/);
+    assert.doesNotMatch(
+      route,
+      /console\.warn\(\s*`Stripe label cost clawback failed for order \$\{id\}:`,\s*stripeErr,?\s*\)/,
+    );
+  });
+
+  it("persists Stripe order emails to the outbox before any direct send", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+
+    const enqueueIndex = route.indexOf(
+      "enqueued = await enqueueEmailOutboxOnce",
+    );
+    const directSendIndex = route.indexOf("await sendRenderedEmail(email, {");
+
+    assert.notEqual(enqueueIndex, -1);
+    assert.notEqual(directSendIndex, -1);
+    assert.ok(
+      enqueueIndex < directSendIndex,
+      "order emails must reserve the outbox dedup row before direct send",
+    );
+    assert.match(route, /throw outboxError/);
+    assert.match(route, /status: "SENT"/);
+    assert.match(
+      route,
+      /emailOutboxFailureState\(enqueued\.job\.attempts \+ 1\)/,
+    );
+    assert.match(route, /idempotencyKey: enqueued\.job\.dedupKey/);
+  });
+
+  it("skips post-payment side effects for refunded or blocked checkout orders", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const postpaymentSql = source("docs/rls-drafts/order-checkout-postpayment-authority.sql");
+    const existingSql = source("docs/rls-drafts/order-checkout-existing-authority.sql");
+
+    const refundReviewSql = source(
+      "docs/rls-drafts/order-checkout-refund-review-authority.sql",
+    );
+    assert.match(route, /if \(result\.outcome === "blocked"\) return/);
+    assert.match(postpaymentSql, /source_order\."sellerRefundId" IS NOT NULL/);
+    assert.match(postpaymentSql, /source_order\."paymentRefundBlocked"/);
+    assert.match(postpaymentSql, /Order was held for staff review\./);
+    const existingOrderBranch = route.slice(
+      route.indexOf("const existingOrder = await readExistingCheckoutOrder"),
+      route.indexOf("// Retrieve with expansions"),
+    );
+    assert.doesNotMatch(existingOrderBranch, /prisma\.order\./);
+    assert.match(existingOrderBranch, /existingOrder\.outcome === "retry"/);
+    assert.match(existingOrderBranch, /existingOrder\.outcome === "processing"/);
+    assert.match(existingOrderBranch, /throw new Error\("Blocked checkout automatic refund is still in progress\."\)/);
+    assert.match(existingOrderBranch, /enqueueOrderPostPaymentSideEffects\(sessionId/);
+    assert.match(existingSql, /source_order\."refundClaimId" IS NOT NULL/);
+    assert.match(existingSql, /source_order\."refundClaimSourceId" = p_event_id/);
+    assert.match(existingSql, /source_order\."sellerRefundLockedAt" < \(\s*pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'\s*\) - INTERVAL '15 minutes'/);
+    assert.ok(
+      route.indexOf("readExistingCheckoutOrder({") <
+        route.indexOf("stripe.checkout.sessions.retrieve"),
+      "existing blocked-checkout retries should be detected before retrieving Stripe session details",
+    );
+    const existingRetryBranch = route.slice(
+      route.indexOf("if (existingBlockedCheckoutRetry)"),
+      route.indexOf("const cartId: string"),
+    );
+    assert.match(existingRetryBranch, /await releaseCheckoutLock\(checkoutLockKey, sessionId\)/);
+    assert.match(existingRetryBranch, /await refundBlockedCheckout\(\{/);
+    assert.match(existingRetryBranch, /reason: existingBlockedCheckoutRetry\.retryReason/);
+    assert.doesNotMatch(existingRetryBranch, /lineItems:/);
+    const blockedRefundHelper = route.slice(
+      route.indexOf("async function refundBlockedCheckout"),
+      route.indexOf("if (existingBlockedCheckoutRetry)"),
+    );
+    assert.doesNotMatch(blockedRefundHelper, /input\.lineItems/);
+    assert.match(blockedRefundHelper, /finalizeBlockedCheckoutOrderRefund\(/);
+    assert.match(existingRetryBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
+    assert.match(route, /recordCheckoutRefundReview\(\{/);
+    assert.match(refundReviewSql, /Order was held for staff review\./);
+    assert.doesNotMatch(refundReviewSql, /p_reason|p_review_note|p_message/);
+
+    const invalidBranch = route.slice(
+      route.indexOf("if (createdOrder.invalidReason)"),
+      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdOrder.orderId"),
+    );
+    assert.match(invalidBranch, /await refundBlockedCheckout\(\{/);
+    assert.match(invalidBranch, /reason: createdOrder\.invalidReason/);
+    assert.match(invalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
+  });
+
+  it("uses a source-bound generation claim before automatic blocked-checkout refunds", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const providerReconciliation = source(
+      "src/lib/orderRefundProviderReconciliation.ts",
+    );
+    const authority = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
+    const recordAuthority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
+
+    assert.match(route, /releaseBlockedCheckoutLegacyRefundLock\(\{/);
+    assert.match(
+      route,
+      /eventId: event\.id,[\s\S]*eventClaimGeneration: claimGeneration,[\s\S]*sessionId,[\s\S]*orderId: input\.orderId/,
+    );
+    assert.match(route, /claimBlockedCheckoutOrderRefund\(\{/);
+    assert.match(route, /eventClaimGeneration: claimGeneration/);
+    assert.match(route, /sessionId,[\s\S]*orderId: input\.orderId/);
+    assert.match(route, /resolveOrderRefundProviderOutcome\(refundClaim\)/);
+    assert.match(
+      providerReconciliation,
+      /idempotencyKeyBase: claim\.idempotencyScope/,
+    );
+    assert.match(route, /finalizeBlockedCheckoutOrderRefund\(\{/);
+    assert.match(
+      route,
+      /Blocked checkout refund completed without a primary refund identifier/,
+    );
+    assert.doesNotMatch(route, /refund\s*=\s*await stripe\.refunds\.create/);
+    assert.ok(
+      route.indexOf("claimBlockedCheckoutOrderRefund({") <
+        route.indexOf("resolveOrderRefundProviderOutcome(refundClaim)"),
+      "blocked-checkout refunds must acquire the source-bound claim before the Stripe helper",
+    );
+    assert.doesNotMatch(route, /clearedOrderRefundClaimData|orderRefundClaimEvidence/);
+    assert.match(recordAuthority, /grainline_blocked_checkout_refund_claim_resume/);
+    assert.match(recordAuthority, /"refundClaimSourceGeneration" = locked_event\."claimGeneration"/);
+    assert.match(recordAuthority, /orders\."refundClaimGeneration" = p_claim_generation/);
+    assert.match(
+      route,
+      /stripe_webhook_blocked_checkout_refund_ambiguous_record_failed/,
+    );
+    assert.match(
+      route,
+      /reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/,
+    );
+    assert.match(authority, /locked_event\."claimGeneration" IS DISTINCT FROM p_event_claim_generation/);
+    assert.match(authority, /locked_event\."sourceObjectId" IS DISTINCT FROM p_session_id/);
+    assert.match(authority, /locked_order\."stripeSessionId" IS DISTINCT FROM p_session_id/);
+    assert.match(authority, /claim_amount IS DISTINCT FROM p_expected_amount_cents/);
+  });
+
+  it("keeps blocked-checkout refund recovery retryable until local state is durable", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const finalization = source("src/lib/orderRefundFinalization.ts");
+    const retrySource = 'source: "stripe_webhook_blocked_checkout_finalize_retry"';
+    const retryFailedSource = 'source: "stripe_webhook_blocked_checkout_finalize_retry_failed"';
+    const lockReleaseSource = 'source: "stripe_webhook_blocked_checkout_refund_ambiguous_record_failed"';
+
+    const retryStart = route.indexOf(retrySource);
+    assert.ok(retryStart > 0, "blocked-checkout fixed finalization retries should be observable");
+    assert.match(finalization, /recordBlockedCheckoutOrderRefund\(input, tx\)[\s\S]*createNotificationOrThrow\(\{/);
+    assert.doesNotMatch(route, /stripe_webhook_blocked_checkout_refund_notification/);
+
+    assert.match(route, new RegExp(retryFailedSource.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.ok(
+      (route.match(/finalizeBlockedCheckoutOrderRefund\(\{/g) ?? []).length >= 2,
+      "blocked-checkout provider evidence must retry through the same fixed finalizer",
+    );
+    assert.doesNotMatch(route, /orphanRecovery|orphanRecord|recordLocalRefundEvidence/);
+
+    const lockReleaseStart = route.indexOf(lockReleaseSource);
+    const noRefundIdBranch = route.slice(
+      route.lastIndexOf("} else {", lockReleaseStart),
+      route.indexOf("} catch (refundError) {", lockReleaseStart + 1),
+    );
+    const lockReleaseBlock = route.slice(
+      route.lastIndexOf("try {", lockReleaseStart),
+      route.indexOf("Sentry.captureException(refundError", lockReleaseStart),
+    );
+    assert.match(lockReleaseBlock, /Sentry\.captureException\(dbError/);
+    assert.match(lockReleaseBlock, /throw dbError/);
+    assert.match(lockReleaseBlock, /markOrderRefundClaimAmbiguous\(\{/);
+    assert.match(
+      lockReleaseBlock,
+      /reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/,
+    );
+    assert.match(noRefundIdBranch, /retryBlockedCheckoutRefund = true/);
+    assert.match(noRefundIdBranch, /throw refundError/);
+
+    const blockedRefundEnd = route.indexOf("if (existingBlockedCheckoutRetry)");
+    const outerCatchStart = route.lastIndexOf(
+      "} catch (refundError) {",
+      blockedRefundEnd,
+    );
+    const outerCatch = route.slice(outerCatchStart, blockedRefundEnd);
+    assert.match(outerCatch, /if \(refundId \|\| retryBlockedCheckoutRefund\) \{\s*throw refundError;\s*\}/);
+    assert.match(outerCatch, /recordCheckoutRefundReview\(\{/);
+    assert.match(outerCatch, /action: "provider_failure"/);
+  });
+
+  it("does not tag ordinary staff case refunds as fraudulent Stripe refunds", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const refundStart = route.indexOf("await createMarketplaceRefund({");
+    const refundEnd = route.indexOf("});", refundStart);
+    const refundCall = route.slice(refundStart, refundEnd);
+
+    assert.ok(refundStart >= 0, "case resolution route must use the shared marketplace refund helper");
+    assert.match(refundCall, /reason: "requested_by_customer"/);
+    assert.doesNotMatch(refundCall, /fraudulent/);
+  });
+
+  it("preserves fresh refund locks when terminal Stripe dispute events arrive", () => {
+    const signedAuthority = source(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+    );
+
+    assert.match(signedAuthority, /orders\."sellerRefundId" = 'pending'/);
+    assert.match(signedAuthority, /orders\."refundClaimId" IS NULL/);
+    assert.match(signedAuthority, /orders\."sellerRefundLockedAt" < source_now - INTERVAL '15 minutes'/);
+    assert.match(signedAuthority, /THEN NULL\s+ELSE orders\."sellerRefundLockedAt"/);
+  });
+
+  it("serializes Stripe dispute Case promotion inside the fixed database operation", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const signedAuthority = source(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+    );
+    const caseAuthority = source(
+      "prisma/migrations/20260729043000_prepare_case_stripe_dispute_authority/migration.sql",
+    );
+    const disputeBranch = route.slice(
+      route.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))"),
+      route.indexOf('if (event.type === "payout.failed")'),
+    );
+
+    assert.match(disputeBranch, /applySignedDisputeWebhook\(tx,/);
+    assert.doesNotMatch(disputeBranch, /tx\.case\.(?:create|update|updateMany)\(/);
+    assert.match(signedAuthority, /grainline_case_stripe_dispute_apply\(payment_event_id\)/);
+    assert.match(
+      caseAuthority,
+      /FROM public\."Case" AS case_row\s+WHERE case_row\."orderId" = locked_order\.id\s+FOR UPDATE;/,
+    );
+    assert.match(caseAuthority, /RAISE EXCEPTION 'Case Stripe dispute target disappeared'\s+USING ERRCODE = '40001'/);
+  });
+
+  it("deduplicates seller dispute notifications across webhook retries", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const disputeNotificationStart = route.indexOf('type: "PAYMENT_DISPUTE"');
+    assert.ok(disputeNotificationStart > 0, "Stripe dispute branch should notify the seller");
+    const disputeNotification = route.slice(
+      disputeNotificationStart,
+      route.indexOf("});", disputeNotificationStart),
+    );
+
+    assert.match(disputeNotification, /dedupScope: `stripe-dispute:\$\{disputeId\}:created`/);
+  });
+
+  it("fails paid checkout webhooks instead of creating partial or unrouted orders", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = source("docs/rls-drafts/order-paid-checkout-authority.sql");
+
+    assert.match(route, /if \(paidItems\.length === 0\) \{[\s\S]*throw new Error\("Paid checkout had no source-bound listing line items"\)/);
+    assert.match(paidCheckoutAuthority, /jsonb_array_length\(source_items\) <>[\s\S]*jsonb_array_length\(p_provider->'paidItems'\)/);
+    assert.match(paidCheckoutAuthority, /Paid checkout provider item keys are invalid/);
+    assert.match(paidCheckoutAuthority, /Paid checkout provider item is invalid/);
+
+    const metadataStart = route.indexOf("Stripe checkout completion missing routing metadata");
+    const metadataBranch = route.slice(metadataStart, route.indexOf("if (!paymentIntentId", metadataStart));
+    assert.match(metadataBranch, /level: "error"/);
+    assert.match(metadataBranch, /throw new Error\("Stripe checkout completion missing routing metadata"\)/);
+    assert.doesNotMatch(metadataBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
+  });
+
+  it("keeps shipping-label orphan paths observable without full label URLs", () => {
+    const route = source("src/app/api/orders/[id]/label/route.ts");
+    const labelClawback = source("src/lib/labelClawbackRetry.ts");
+
+    assert.match(route, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
+    assert.match(route, /sanitizeShippoProviderErrorBody/);
+    assert.match(route, /status: 202/);
+    assert.match(route, /status: HTTP_STATUS\.BAD_GATEWAY/);
+    assert.match(route, /source: "shippo_label_purchase_ambiguous"/);
+    assert.match(route, /source: "shippo_label_ambiguous_record_failed"/);
+    assert.match(route, /source: "shippo_label_success_validation"/);
+    assert.match(route, /finalizeSellerLabelProviderResult\(\{[\s\S]*outcome: "AMBIGUOUS"/);
+    assert.doesNotMatch(
+      route,
+      /extra: \{ orderId: id, purchasedLabelDetails \}/,
+    );
+    assert.doesNotMatch(
+      route,
+      /source: "shippo_label_orphan_record_failed"[\s\S]*labelUrl: purchasedLabelDetails/s,
+    );
+    assert.doesNotMatch(route, /Shippo label purchase failed: \$\{msgs/);
+    assert.doesNotMatch(route, /labelUrl:\s*recorded|order:\s*updated|prisma\.order/);
+    assert.match(route, /sellerLabelDownload/);
+    assert.match(labelClawback, /claimLabelClawbackBatch\(1\)/);
+    assert.match(labelClawback, /finalizeLabelClawback/);
+  });
+
+  it("captures best-effort checkout stock restoration failures", () => {
+    const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
+    const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
+
+    assert.match(sellerCheckout, /logServerError\(err, \{/);
+    assert.match(singleCheckout, /logServerError\(err, \{/);
+    assert.match(sellerCheckout, /Server error creating checkout session/);
+    assert.match(singleCheckout, /Server error creating checkout session/);
+    assert.doesNotMatch(sellerCheckout, /err instanceof Error \? err\.message/);
+    assert.doesNotMatch(singleCheckout, /err instanceof Error \? err\.message/);
+    assert.doesNotMatch(
+      sellerCheckout,
+      /console\.error\("POST \/api\/cart\/checkout-seller error:", err\)/,
+    );
+    assert.doesNotMatch(
+      singleCheckout,
+      /console\.error\("POST \/api\/cart\/checkout\/single error:", err\)/,
+    );
+    assert.match(
+      sellerCheckout,
+      /source: "checkout_stock_restore_failed", route: "cart_checkout_seller"/,
+    );
+    assert.match(sellerCheckout, /isCheckoutStockUnavailableDatabaseError\(reservationError\)/);
+    assert.match(sellerCheckout, /createSnapshotCartCheckoutStockReservation/);
+    assert.match(sellerCheckout, /abortCheckoutStockReservation/);
+    assert.match(sellerCheckout, /restoreBuyerExpiredCheckoutStockOnce/);
+    assert.match(sellerCheckout, /reason: "checkout_create_error"/);
+    assert.match(
+      singleCheckout,
+      /source: "checkout_stock_restore_failed", route: "cart_checkout_single"/,
+    );
+    assert.match(singleCheckout, /isCheckoutStockUnavailableDatabaseError\(reservationError\)/);
+    assert.match(singleCheckout, /createSnapshotSingleCheckoutStockReservation/);
+    assert.match(singleCheckout, /abortCheckoutStockReservation/);
+    assert.match(singleCheckout, /restoreBuyerExpiredCheckoutStockOnce/);
+    assert.match(singleCheckout, /reason: "checkout_create_error"/);
+    assert.doesNotMatch(sellerCheckout, /\.catch\(\(\) => \{\}\)/);
+    assert.doesNotMatch(singleCheckout, /\.catch\(\(\) => \{\}\)/);
+  });
+});

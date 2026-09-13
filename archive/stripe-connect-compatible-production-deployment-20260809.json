@@ -1,0 +1,81 @@
+{
+  "generatedAt": "2026-08-09T19:16:16Z",
+  "phase": "stripe-connect-compatible-production-deployment",
+  "status": "passed",
+  "commit": "69c14c0618ea7ab9c74756422273d17d66db7efa",
+  "ciRunId": "31329961638",
+  "deployment": {
+    "id": "dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP",
+    "url": "grainline-luhwmzddm-drew-youngs-projects.vercel.app",
+    "readyState": "READY",
+    "target": "production",
+    "aliases": [
+      "thegrainline.com",
+      "www.thegrainline.com",
+      "grainline.vercel.app",
+      "grainline-drew-youngs-projects.vercel.app",
+      "grainline-drewyoung910-drew-youngs-projects.vercel.app"
+    ],
+    "canonicalAssetMarker": "dpl=dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP"
+  },
+  "runtimeDatabase": {
+    "verified": true,
+    "provider": "vercel",
+    "environment": "production",
+    "runtimeRole": "grainline_app_runtime",
+    "databaseName": "neondb",
+    "endpointId": "ep-plain-river-aaqg8gj4",
+    "region": "westus3.azure"
+  },
+  "http": {
+    "canonicalHomepageStatus": 200,
+    "canonicalHealthStatus": 200,
+    "canonicalHealthBody": {
+      "ok": true
+    },
+    "wwwRedirectStatus": 308
+  },
+  "signatureIsolation": [
+    {
+      "probe": "missing-signature",
+      "status": 400,
+      "error": "Missing Stripe signature"
+    },
+    {
+      "probe": "wrong-signature",
+      "status": 400,
+      "error": "Invalid signature"
+    },
+    {
+      "probe": "platform-secret-cross-route",
+      "status": 400,
+      "error": "Invalid signature"
+    }
+  ],
+  "stripe": {
+    "endpointIdSha256": "ad8e20cc2af6c378350f4a181252df03eb34a2a15571ad162a21fb2d90063357",
+    "url": "https://thegrainline.com/api/stripe/webhook/connect-bootstrap-disabled",
+    "status": "disabled",
+    "livemode": false,
+    "enabledEvents": [
+      "payout.failed"
+    ]
+  },
+  "vercel": {
+    "environment": "production",
+    "name": "STRIPE_CONNECT_WEBHOOK_SECRET",
+    "classification": "Sensitive",
+    "valuePersistedInEvidence": false
+  },
+  "changes": {
+    "applicationDeployed": true,
+    "stripeEndpointMoved": false,
+    "stripeEndpointEnabled": false,
+    "providerVariablesChanged": false,
+    "migrationsRun": false,
+    "rlsChanged": false,
+    "grantsChanged": false,
+    "liveModeStripeChanged": false
+  },
+  "nextBoundary": "move the disabled test-mode Connect endpoint to the canonical URL, reverify scope and event set, then enable it for a separately authorized signed delivery"
+}

@@ -1,0 +1,149 @@
+// src/app/api/blog/search/suggestions/route.ts
+import { NextRequest } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { getIP, rateLimitResponse, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { getBlockedIdsFor } from "@/lib/blocks";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import {
+  BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY,
+  normalizeSearchSuggestionQuery,
+} from "@/lib/searchSuggestionState";
+import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
+import { getPopularBlogTags } from "@/lib/popularBlogTags";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+
+export type BlogSuggestion = {
+  type: "post" | "tag" | "author";
+  label: string;
+  slug?: string;
+  tag?: string;
+  sellerProfileId?: string;
+};
+
+async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], blockedSellerIds: string[]) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT set_config('pg_trgm.similarity_threshold', ${String(BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY)}, true)
+    `;
+    const blockedAuthorPredicate = blockedUserIds.length > 0
+      ? Prisma.sql`AND bp."authorId" != ALL(${blockedUserIds})`
+      : Prisma.empty;
+    const blockedSellerPredicate = blockedSellerIds.length > 0
+      ? Prisma.sql`AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))`
+      : Prisma.empty;
+    return tx.$queryRaw<Array<{ slug: string; title: string }>>(Prisma.sql`
+      SELECT bp.slug, bp.title
+      FROM "BlogPost" bp
+      INNER JOIN "User" u ON u.id = bp."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+      WHERE bp.status = 'PUBLISHED'
+        AND bp."publishedAt" IS NOT NULL
+        AND bp."publishedAt" <= NOW()
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND (
+          bp."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND sp."vacationMode" = false
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
+        ${blockedAuthorPredicate}
+        ${blockedSellerPredicate}
+        AND bp.title % ${q}
+        AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
+      ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
+      LIMIT 5
+    `);
+  });
+}
+
+export async function GET(req: NextRequest) {
+  const rl = await safeRateLimit(searchRatelimit, getIP(req));
+  if (!rl.success) return privateResponse(rateLimitResponse(rl.reset, "Too many blog searches."));
+
+  const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));
+  if (q.length < 2) return privateJson({ suggestions: [] });
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    try {
+      const me = await ensureUserByClerkId(userId);
+      meDbId = me.id;
+    } catch (err) {
+      const accountResponse = accountAccessErrorResponse(err);
+      if (accountResponse) return accountResponse;
+      throw err;
+    }
+  }
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
+  const blockedUserIdList = [...blockedUserIds];
+  const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
+  const qLower = q.toLowerCase();
+
+  const [postRows, tagRows, authorRows] = await Promise.all([
+    // Fuzzy title matches
+    blogFuzzySuggestionRows(q, blockedUserIdList, blockedSellerIds),
+
+    // Tag partial matches
+    getPopularBlogTags(200).then((tags) =>
+      tags
+        .filter((tag) => tag.toLowerCase().includes(qLower))
+        .slice(0, 5)
+        .map((tag) => ({ tag }))
+    ),
+
+    // Author / seller display name matches
+    prisma.sellerProfile.findMany({
+      where: activeSellerProfileWhere({
+        OR: [
+          { displayName: { contains: q, mode: "insensitive" } },
+          ...(normalizedDisplayNameQuery
+            ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
+            : []),
+        ],
+        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
+      }),
+      select: { id: true, displayName: true },
+      take: 3,
+      orderBy: [{ displayNameNormalized: "asc" }, { id: "asc" }],
+    }),
+  ]);
+
+  const suggestions: BlogSuggestion[] = [];
+  const seen = new Set<string>();
+
+  for (const r of postRows) {
+    const key = `post:${r.slug}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      suggestions.push({ type: "post", label: r.title, slug: r.slug });
+    }
+  }
+
+  for (const r of tagRows) {
+    const key = `tag:${r.tag.toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      suggestions.push({ type: "tag", label: r.tag, tag: r.tag.toLowerCase() });
+    }
+  }
+
+  for (const r of authorRows) {
+    const key = `author:${r.displayName.toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      suggestions.push({ type: "author", label: r.displayName, sellerProfileId: r.id });
+    }
+  }
+
+  return privateJson({ suggestions: suggestions.slice(0, 8) });
+}

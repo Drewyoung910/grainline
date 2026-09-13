@@ -1,0 +1,252 @@
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+import { stripe } from "@/lib/stripe";
+import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
+import {
+  beginStripeWebhookEvent,
+  markStripeWebhookEventFailed,
+  markStripeWebhookEventProcessed,
+} from "@/lib/stripeWebhookEvents";
+import {
+  isStripeConnectV2AccountEvent,
+  stripeConnectV2AccountIdFromNotification,
+  stripeWebhookCreatedSeconds,
+  type StripeConnectV2AccountNotification,
+} from "@/lib/stripeConnectV2";
+import { isStaleStripeEvent } from "@/lib/stripeWebhookState";
+import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { applyStripeSellerDeauthorization } from "@/lib/orderSellerDeauthorizationAuthority";
+import { expireCheckoutSessionsForClosedAccount } from "@/lib/checkoutSessionExpiry";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
+
+export const runtime = "nodejs";
+export const maxDuration = 30;
+
+const STRIPE_V2_WEBHOOK_BODY_MAX_BYTES = 512 * 1024;
+const STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS = 30;
+
+type StripeConnectV2NotificationEnvelope = StripeConnectV2AccountNotification & {
+  id?: unknown;
+  type?: unknown;
+  created?: unknown;
+};
+
+export async function POST(req: Request) {
+  const signature = (await headers()).get("stripe-signature");
+  const secret = process.env.STRIPE_V2_WEBHOOK_SECRET;
+
+  if (!secret) {
+    Sentry.captureMessage("Stripe v2 webhook secret is not configured", {
+      level: "fatal",
+      tags: { source: "stripe_v2_webhook_config" },
+    });
+    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "config", status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
+    return NextResponse.json(
+      { error: "Webhook temporarily unavailable" },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
+    );
+  }
+  if (!signature) {
+    Sentry.captureMessage("Stripe v2 webhook signature header missing", {
+      level: "warning",
+      tags: { source: "stripe_v2_webhook_signature" },
+    });
+    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json({ error: "Missing Stripe signature" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  let body = "";
+  try {
+    body = await readBoundedText(req, STRIPE_V2_WEBHOOK_BODY_MAX_BYTES);
+  } catch (err) {
+    if (isRequestBodyTooLargeError(err)) {
+      Sentry.captureMessage("Stripe v2 webhook payload is too large", {
+        level: "warning",
+        tags: { source: "stripe_v2_webhook_payload" },
+        extra: { maxBytes: err.maxBytes },
+      });
+      await recordWebhookFailureSpike({
+        webhook: "stripe_v2",
+        kind: "payload",
+        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
+      });
+      return NextResponse.json({ error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+    }
+    throw err;
+  }
+
+  let notification: StripeConnectV2NotificationEnvelope;
+  try {
+    notification = stripe.parseEventNotification(body, signature, secret) as StripeConnectV2NotificationEnvelope;
+  } catch (err: unknown) {
+    console.error("Stripe v2 webhook signature verification failed:", sanitizeEmailOutboxError(err));
+    Sentry.captureException(err, { tags: { source: "stripe_v2_webhook_signature" } });
+    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  const eventId = typeof notification.id === "string" ? notification.id : null;
+  const eventType = typeof notification.type === "string" ? notification.type : null;
+  if (!eventId || !eventType) {
+    Sentry.captureMessage("Stripe v2 webhook notification missing id or type", {
+      level: "warning",
+      tags: { source: "stripe_v2_webhook_payload" },
+      extra: { hasEventId: Boolean(eventId), eventType },
+    });
+    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "payload", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json({ error: "Invalid Stripe notification" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+  const stripeEventId = eventId;
+  const stripeEventType = eventType;
+
+  const eventCreatedSeconds = stripeWebhookCreatedSeconds(
+    typeof notification.created === "number" || typeof notification.created === "string"
+      ? notification.created
+      : undefined,
+  );
+  if (eventCreatedSeconds == null || isStaleStripeEvent(eventCreatedSeconds)) {
+    Sentry.captureMessage("Stripe v2 webhook event is too old", {
+      level: "warning",
+      tags: { source: "stripe_v2_webhook_stale_event" },
+      extra: { stripeEventId, stripeEventType, stripeEventCreated: notification.created },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "stripe_v2",
+      kind: "stale_event",
+      status: HTTP_STATUS.BAD_REQUEST,
+      extra: { stripeEventId, stripeEventType },
+    });
+    return NextResponse.json({ error: "Stale Stripe event" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  if (!isStripeConnectV2AccountEvent(stripeEventType)) {
+    return NextResponse.json({ received: true, ignored: true });
+  }
+  const sourceObjectId = stripeConnectV2AccountIdFromNotification(notification);
+  if (!sourceObjectId) {
+    Sentry.captureMessage("Stripe v2 account notification missing account id", {
+      level: "warning",
+      tags: { source: "stripe_v2_webhook_account_id" },
+      extra: { stripeEventId, stripeEventType },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "stripe_v2",
+      kind: "payload",
+      status: HTTP_STATUS.BAD_REQUEST,
+      extra: { stripeEventId, stripeEventType },
+    });
+    return NextResponse.json({ error: "Invalid Stripe notification" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  let reservation: Awaited<ReturnType<typeof beginStripeWebhookEvent>>;
+  try {
+    reservation = await beginStripeWebhookEvent(
+      stripeEventId,
+      stripeEventType,
+      sourceObjectId,
+    );
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { source: "stripe_v2_webhook_reservation" },
+      extra: { stripeEventId, stripeEventType },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "stripe_v2",
+      kind: "reservation",
+      status: HTTP_STATUS.SERVICE_UNAVAILABLE,
+      extra: { stripeEventId, stripeEventType },
+    });
+    return NextResponse.json(
+      { error: "Webhook temporarily unavailable" },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
+  }
+  if (reservation.action === "processed") return NextResponse.json({ received: true });
+  if (reservation.action === "in_progress") {
+    return NextResponse.json(
+      { received: false, status: reservation.action },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS) } },
+    );
+  }
+  const claimGeneration = reservation.claimGeneration;
+
+  async function markCurrentStripeWebhookEventFailed(handlerErr: unknown) {
+    try {
+      await markStripeWebhookEventFailed(stripeEventId, claimGeneration, handlerErr);
+    } catch (markErr) {
+      Sentry.captureException(markErr, {
+        tags: { source: "stripe_v2_webhook_mark_failed" },
+        extra: { stripeEventId, stripeEventType },
+      });
+    }
+  }
+
+  async function processIdempotentEvent(handler: () => Promise<NextResponse>): Promise<NextResponse> {
+    try {
+      const response = await handler();
+      await markStripeWebhookEventProcessed(stripeEventId, claimGeneration);
+      return response;
+    } catch (handlerErr) {
+      await markCurrentStripeWebhookEventFailed(handlerErr);
+      throw handlerErr;
+    }
+  }
+
+  try {
+    return await processIdempotentEvent(async () => {
+      // Grainline sellers use Accounts v2 with an Express dashboard. The
+      // terminal account.closed notification is therefore the reachable,
+      // separately signed authority for disconnecting a seller. The classic
+      // account.application.deauthorized event belongs to OAuth applications
+      // and is not part of Grainline's provider subscription.
+      if (stripeEventType === "v2.core.account.closed") {
+        const deauthorization = await applyStripeSellerDeauthorization({
+          eventId: stripeEventId,
+          claimGeneration,
+          accountId: sourceObjectId,
+          eventCreatedAt: new Date(eventCreatedSeconds * 1000),
+        });
+        if (deauthorization.publicVisibilityChanged) {
+          revalidatePublicSellerVisibilityCaches();
+        }
+        if (deauthorization.sellerProfileId) {
+          await expireCheckoutSessionsForClosedAccount({
+            sellerId: deauthorization.sellerProfileId,
+            stripeAccountId: sourceObjectId,
+          });
+        }
+        return NextResponse.json({ received: true });
+      }
+
+      const account = await stripe.accounts.retrieve(sourceObjectId);
+      await mirrorStripeChargesEnabled({
+        accountId: sourceObjectId,
+        chargesEnabled: Boolean(account.charges_enabled),
+        route: "/api/stripe/webhook/v2",
+        actorType: "webhook",
+        actorId: stripeEventId,
+      });
+
+      return NextResponse.json({ received: true });
+    });
+  } catch (handlerErr) {
+    Sentry.captureException(handlerErr, {
+      tags: { source: "stripe_v2_webhook_handler" },
+      extra: { stripeEventId, stripeEventType },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "stripe_v2",
+      kind: "handler",
+      status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      extra: { stripeEventId, stripeEventType },
+    });
+    return NextResponse.json(
+      { error: "Webhook handler failed" },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
+    );
+  }
+}

@@ -1,0 +1,92 @@
+"use client";
+
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from "react";
+
+type ToastType = "success" | "error" | "info";
+
+type Toast = {
+  id: number;
+  message: string;
+  type: ToastType;
+};
+
+const ToastContext = createContext<{
+  toast: (message: string, type?: ToastType) => void;
+}>({ toast: () => {} });
+
+export function useToast() {
+  return useContext(ToastContext);
+}
+
+let nextId = 0;
+const TOAST_EVENT = "grainline:toast";
+
+export function emitToast(message: string, type: ToastType = "info") {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<{ message: string; type: ToastType }>(TOAST_EVENT, {
+      detail: { message, type },
+    }),
+  );
+}
+
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+
+  const toast = useCallback((message: string, type: ToastType = "info") => {
+    const id = nextId++;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    const timer = setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+    timers.current.push(timer);
+  }, []);
+
+  useEffect(() => {
+    const activeTimers = timers.current;
+    return () => {
+      for (const timer of activeTimers) clearTimeout(timer);
+      activeTimers.length = 0;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onToast = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string; type?: ToastType }>).detail;
+      if (!detail?.message) return;
+      toast(detail.message, detail.type ?? "info");
+    };
+    window.addEventListener(TOAST_EVENT, onToast);
+    return () => window.removeEventListener(TOAST_EVENT, onToast);
+  }, [toast]);
+
+  const value = useMemo(() => ({ toast }), [toast]);
+
+  return (
+    <ToastContext.Provider value={value}>
+      {children}
+      <div
+        className="fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[9999] space-y-2 pointer-events-none sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-4 sm:top-auto"
+        aria-live="polite"
+        aria-atomic="false"
+      >
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            role={t.type === "error" ? "alert" : "status"}
+            className={`pointer-events-auto animate-slide-down rounded-md px-4 py-2.5 text-sm font-medium shadow-lg sm:min-w-72 ${
+              t.type === "error"
+                ? "bg-red-600 text-white"
+                : t.type === "success"
+                  ? "bg-green-600 text-white"
+                  : "bg-neutral-900 text-white"
+            }`}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}

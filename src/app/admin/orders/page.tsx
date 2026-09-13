@@ -1,0 +1,179 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
+import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { readStaffOrderPage } from "@/lib/orderStaffReadAuthority";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+
+const PAGE_SIZE = 25;
+
+function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
+  if (cents == null) return "—";
+  return formatCurrencyCents(cents, currency);
+}
+
+export default async function AllOrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
+  const { page: pageParam } = await searchParams;
+  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
+
+  const result = await readStaffOrderPage(
+    staff.id,
+    "ALL",
+    requestedPage,
+    PAGE_SIZE,
+    getOrderStaffReadClient(),
+  );
+  if (!result) notFound();
+  const { totalCount: total, safePage, orders } = result;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  return (
+    <div>
+      <h1 className="text-xl font-semibold mb-1">All Orders</h1>
+      <p className="text-sm text-neutral-500 mb-6">{total} orders total</p>
+
+      {total === 0 ? (
+        <div className="rounded-xl border border-neutral-200 bg-white px-6 py-16 text-center text-neutral-500">
+          No orders yet
+        </div>
+      ) : (
+        <>
+          <div className="rounded-xl border border-neutral-200 bg-white overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Admin order list</caption>
+              <thead className="border-b border-neutral-100 bg-neutral-50 text-left">
+                <tr>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Order</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Date</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Buyer</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Seller</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500 text-right">Total</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500 text-right">Quoted Ship</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500 text-right">Actual Ship</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Status</th>
+                  <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {orders.map((order) => {
+                  const rowTotal = orderTotalCents({
+                    chargedTotalCents: order.chargedTotalCents,
+                    itemsSubtotalCents: order.itemsSubtotalCents,
+                    shippingAmountCents: order.shippingAmountCents,
+                    taxAmountCents: order.taxAmountCents,
+                    giftWrappingPriceCents: order.giftWrappingPriceCents,
+                  });
+                  const sellerName = order.sellerLabel;
+                  const itemSummary = order.items
+                    .slice(0, 3)
+                    .map((item) => `${item.quantity}× ${item.title}`)
+                    .join(", ");
+                  const remainingItems = Math.max(0, order.itemCount - 3);
+                  const buyer = order.buyerLabel;
+                  const buyerEmail = order.buyerEmail;
+                  return (
+                    <tr key={order.id} className="hover:bg-neutral-50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-neutral-500">
+                            #{order.id.slice(-8)}
+                          </span>
+                          {order.reviewNeeded && (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                              Review
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-neutral-500 whitespace-nowrap">
+                        {order.createdAt.toLocaleDateString("en-US")}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-neutral-800">{buyer}</div>
+                        {buyerEmail && buyerEmail !== buyer && (
+                          <div className="text-xs text-neutral-500">{buyerEmail}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-700">
+                        <div className="font-medium">{sellerName}</div>
+                        <div className="mt-0.5 max-w-xs text-xs text-neutral-500">
+                          {itemSummary}
+                          {remainingItems > 0 ? `, +${remainingItems} more` : ""}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium">
+                        {fmtMoney(rowTotal, order.currency)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-neutral-500">
+                        {fmtMoney(order.quotedShippingAmountCents, order.currency)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {fmtMoney(order.shippingAmountCents, order.currency)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-neutral-500">
+                          {fulfillmentStatusLabel(order.fulfillmentStatus)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/admin/orders/${order.id}`}
+                          className="text-blue-600 hover:underline text-xs whitespace-nowrap"
+                        >
+                          View →
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="mt-4 flex items-center justify-between text-sm text-neutral-500">
+            <span>
+              {total} order{total !== 1 ? "s" : ""} · Page {safePage} of {totalPages}
+            </span>
+            <div className="flex gap-2">
+              {safePage > 1 ? (
+                <Link
+                  href={`?page=${safePage - 1}`}
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                >
+                  Previous
+                </Link>
+              ) : (
+                <span className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-300 cursor-not-allowed">
+                  Previous
+                </span>
+              )}
+              {safePage < totalPages ? (
+                <Link
+                  href={`?page=${safePage + 1}`}
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                >
+                  Next
+                </Link>
+              ) : (
+                <span className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-300 cursor-not-allowed">
+                  Next
+                </span>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

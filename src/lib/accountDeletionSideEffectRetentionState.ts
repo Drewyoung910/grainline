@@ -1,0 +1,9 @@
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_DAYS = 90;
+export const ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_BATCH_SIZE = 1000;
+export const ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_TIME_BUDGET_MS = 45_000;
+
+export function accountDeletionSideEffectDoneRetentionCutoff(now = new Date()) {
+  return new Date(now.getTime() - ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_DAYS * DAY_MS);
+}

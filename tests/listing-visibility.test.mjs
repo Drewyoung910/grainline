@@ -1,0 +1,223 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+import { ListingStatus } from "@prisma/client";
+import { STRIPE_CONNECT_ACCOUNT_VERSION } from "../src/lib/stripeConnectV2State.ts";
+
+const {
+  canViewListingDetail,
+  isPublicListing,
+  isPublicListingDetail,
+  publicListingDetailWhere,
+  publicListingWhere,
+} = await import("../src/lib/listingVisibility.ts");
+
+function listing(overrides = {}) {
+  return {
+    status: ListingStatus.ACTIVE,
+    isPrivate: false,
+    reservedForUserId: null,
+    seller: {
+      userId: "user_1",
+      chargesEnabled: true,
+      vacationMode: false,
+      user: {
+        id: "user_1",
+        clerkId: "clerk_1",
+        banned: false,
+        deletedAt: null,
+      },
+    },
+    ...overrides,
+  };
+}
+
+describe("listing visibility", () => {
+  it("does not let public-only metadata reject authorized private listing views", () => {
+    const page = readFileSync("src/app/listing/[id]/page.tsx", "utf8");
+    const metadataStart = page.indexOf("export async function generateMetadata");
+    const pageStart = page.indexOf("export default async function ListingPage");
+    const metadata = page.slice(metadataStart, pageStart);
+
+    assert.match(metadata, /if \(!isPublicListingDetail\(listing\)\) \{[\s\S]*Private listing — Grainline/);
+    assert.match(metadata, /robots: \{ index: false, follow: false \}/);
+    assert.doesNotMatch(metadata, /if \(!isPublicListingDetail\(listing\)\) \{\s*notFound\(\)/);
+    assert.match(page.slice(pageStart), /canViewListingDetail\(listing, \{/);
+  });
+
+  it("composes public listing safety filters so callers cannot override them", () => {
+    assert.deepEqual(publicListingWhere({ sellerId: "seller_1" }), {
+      AND: [
+        {
+          status: ListingStatus.ACTIVE,
+          isPrivate: false,
+          seller: {
+            chargesEnabled: true,
+            OR: [
+              { stripeAccountVersion: null },
+              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
+            ],
+            vacationMode: false,
+            user: { banned: false, deletedAt: null },
+          },
+        },
+        { sellerId: "seller_1" },
+      ],
+    });
+
+    assert.deepEqual(publicListingWhere({ seller: { id: "seller_1" } }), {
+      AND: [
+        {
+          status: ListingStatus.ACTIVE,
+          isPrivate: false,
+          seller: {
+            chargesEnabled: true,
+            OR: [
+              { stripeAccountVersion: null },
+              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
+            ],
+            vacationMode: false,
+            user: { banned: false, deletedAt: null },
+          },
+        },
+        { seller: { id: "seller_1" } },
+      ],
+    });
+  });
+
+  it("composes public listing detail filters for active and sold-out public pages", () => {
+    assert.deepEqual(publicListingDetailWhere({ sellerId: "seller_1" }), {
+      AND: [
+        {
+          status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
+          isPrivate: false,
+          seller: {
+            chargesEnabled: true,
+            OR: [
+              { stripeAccountVersion: null },
+              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
+            ],
+            vacationMode: false,
+            user: { banned: false, deletedAt: null },
+          },
+        },
+        { sellerId: "seller_1" },
+      ],
+    });
+  });
+
+  it("requires active, public, payable, non-vacation, non-banned seller state", () => {
+    assert.equal(isPublicListing(listing()), true);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: null } })), true);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: "v2" } })), true);
+    assert.equal(isPublicListing(listing({ status: ListingStatus.HIDDEN })), false);
+    assert.equal(isPublicListing(listing({ isPrivate: true })), false);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, chargesEnabled: false } })), false);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: "legacy-v1" } })), false);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, vacationMode: true } })), false);
+    assert.equal(
+      isPublicListing(listing({ seller: { ...listing().seller, user: { ...listing().seller.user, banned: true } } })),
+      false,
+    );
+    assert.equal(
+      isPublicListing(listing({ seller: { ...listing().seller, user: { ...listing().seller.user, deletedAt: new Date() } } })),
+      false,
+    );
+  });
+
+  it("allows owners and reserved buyers without bypassing seller account safety", () => {
+    assert.equal(canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), { clerkUserId: "clerk_1" }), true);
+    assert.equal(canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), { dbUserId: "user_1" }), true);
+    assert.equal(
+      canViewListingDetail(
+        listing({
+          status: ListingStatus.HIDDEN,
+          seller: { ...listing().seller, user: { ...listing().seller.user, clerkId: undefined } },
+        }),
+        { dbUserId: "user_1", preview: true },
+      ),
+      true,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({
+          status: ListingStatus.HIDDEN,
+          seller: {
+            ...listing().seller,
+            user: { banned: false, deletedAt: null },
+          },
+        }),
+        { dbUserId: "user_1", preview: true },
+      ),
+      true,
+    );
+    assert.equal(
+      canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), { dbUserId: "user_1", banned: true }),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({ status: ListingStatus.HIDDEN }),
+        { dbUserId: "user_1", deletedAt: new Date("2026-06-14T00:00:00.000Z") },
+      ),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(listing(), { dbUserId: "user_1", banned: true }),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({ isPrivate: true, reservedForUserId: "buyer_1" }),
+        { dbUserId: "buyer_1" },
+      ),
+      true,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({
+          isPrivate: true,
+          reservedForUserId: "buyer_1",
+          seller: { ...listing().seller, user: { ...listing().seller.user, banned: true } },
+        }),
+        { dbUserId: "buyer_1" },
+      ),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({ isPrivate: true, reservedForUserId: "buyer_1" }),
+        { dbUserId: "buyer_1", banned: true },
+      ),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({ isPrivate: true, reservedForUserId: "buyer_1" }),
+        { dbUserId: "buyer_2" },
+      ),
+      false,
+    );
+  });
+
+  it("allows explicit staff preview without changing public listing visibility", () => {
+    const pending = listing({
+      status: ListingStatus.PENDING_REVIEW,
+      seller: { ...listing().seller, chargesEnabled: false },
+    });
+
+    assert.equal(isPublicListingDetail(pending), false);
+    assert.equal(canViewListingDetail(pending, {}), false);
+    assert.equal(canViewListingDetail(pending, { staffPreview: true }), false);
+    assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "USER" }), false);
+    assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "ADMIN", banned: true }), false);
+    assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "EMPLOYEE" }), true);
+  });
+
+  it("allows sold-out public listing detail pages without making them generally sellable", () => {
+    assert.equal(isPublicListing(listing({ status: ListingStatus.SOLD_OUT })), false);
+    assert.equal(isPublicListingDetail(listing({ status: ListingStatus.SOLD_OUT })), true);
+    assert.equal(canViewListingDetail(listing({ status: ListingStatus.SOLD_OUT }), {}), true);
+    assert.equal(isPublicListingDetail(listing({ status: ListingStatus.SOLD })), false);
+  });
+});

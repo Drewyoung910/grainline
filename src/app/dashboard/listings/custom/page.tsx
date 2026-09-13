@@ -1,0 +1,479 @@
+// src/app/dashboard/listings/custom/page.tsx
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/db";
+import { ensureSeller } from "@/lib/ensureSeller";
+import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
+import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
+import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
+import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
+import ActionForm from "@/components/ActionForm";
+import PhotoManager from "@/components/PhotoManager";
+import ListingTypeFields from "@/components/ListingTypeFields";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+import { Palette } from "@/components/icons";
+import { ListingStatus, type ListingType } from "@prisma/client";
+import type { AIReviewResult } from "@/lib/ai-review";
+import { publicListingPath } from "@/lib/publicPaths";
+import { parseJsonArrayField, parseJsonObjectField } from "@/lib/formJson";
+import { parseMoneyInputToCents } from "@/lib/money";
+import { listingPriceMaxError } from "@/lib/listingPrice";
+import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
+import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
+import {
+  findLatestActorCustomOrderRequest,
+  getActorConversation,
+} from "@/lib/conversationMessageAuthority";
+
+// unit converters
+const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
+const lbToG = (v: number) => Math.round(v * 453.59237);
+
+async function createCustomListing(_prevState: unknown, formData: FormData) {
+  "use server";
+
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in?redirect_url=/dashboard");
+  const { success: rlOk } = await safeRateLimit(listingCreateRatelimit, userId);
+  if (!rlOk) return { ok: false, error: "You can create up to 20 listings per day. Try again tomorrow." };
+
+  const { me, seller } = await ensureSeller();
+
+  const conversationId = String(formData.get("conversationId") ?? "").trim();
+  const reservedForUserId = String(formData.get("reservedForUserId") ?? "").trim();
+
+  if (!conversationId || !reservedForUserId) {
+    return { ok: false, error: "Missing conversation or buyer context." };
+  }
+
+  // Guard: seller must have Stripe connected and not be on vacation/banned
+  if (!seller.chargesEnabled) {
+    return { ok: false, error: "Connect your bank account in Shop Settings to create listings." };
+  }
+  if (seller.vacationMode) {
+    return { ok: false, error: "Turn off vacation mode before creating listings." };
+  }
+
+  // Verify seller is a participant in this conversation
+  const convo = await getActorConversation(me.id, conversationId);
+  const isParticipant = convo
+    && (convo.userAId === me.id || convo.userBId === me.id);
+  if (!isParticipant) return { ok: false, error: "Conversation not found." };
+
+  // Validate reservedForUserId is the OTHER participant in this conversation
+  const otherUserId = convo.userAId === me.id ? convo.userBId : convo.userAId;
+  if (reservedForUserId !== otherUserId) {
+    return { ok: false, error: "Reserved user must be the conversation participant." };
+  }
+
+  const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
+  const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
+  const priceCents = parseMoneyInputToCents(formData.get("price"));
+
+  if (!title || priceCents === null || priceCents <= 0) {
+    return { ok: false, error: "Please fill title and price." };
+  }
+  const priceMaxError = listingPriceMaxError(priceCents);
+  if (priceMaxError) return { ok: false, error: priceMaxError };
+
+  // Photos (optional for custom listings)
+  let imageUrls: string[] = [];
+  const json = formData.get("imageUrlsJson");
+  const imageUrlsResult = parseJsonArrayField(json);
+  if (imageUrlsResult.ok) {
+    imageUrls = imageUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+  } else {
+    console.warn("[custom-listing] invalid imageUrlsJson:", imageUrlsResult.error);
+  }
+  if (imageUrls.length === 0) {
+    imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
+  }
+  imageUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: imageUrls,
+    max: 10,
+    clerkUserId: userId,
+    accountUserId: seller.userId,
+    allowedEndpoints: ["listingImage"],
+  });
+
+  // Original (pre-crop) URLs paired by index with imageUrls — same
+  // validation, used so the seller can re-crop from the full original.
+  let imageOriginalUrls: string[] = [];
+  const originalJson = formData.get("imageOriginalUrlsJson");
+  const imageOriginalUrlsResult = parseJsonArrayField(originalJson);
+  if (imageOriginalUrlsResult.ok) {
+    imageOriginalUrls = imageOriginalUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+  } else {
+    console.warn("[custom-listing] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
+  }
+  imageOriginalUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: imageOriginalUrls,
+    max: 10,
+    clerkUserId: userId,
+    accountUserId: seller.userId,
+    allowedEndpoints: ["listingImage"],
+  });
+
+  let imageAltTexts: string[] = [];
+  const altJson = formData.get("imageAltTextsJson");
+  const imageAltTextsResult = parseJsonArrayField(altJson);
+  if (imageAltTextsResult.ok) {
+    imageAltTexts = imageAltTextsResult.value.filter((value): value is string => typeof value === "string");
+  } else {
+    console.warn("[custom-listing] invalid imageAltTextsJson:", imageAltTextsResult.error);
+  }
+
+  // Packaged dims
+  const lenIn = Number(String(formData.get("pkgLengthIn") ?? "").trim());
+  const widIn = Number(String(formData.get("pkgWidthIn") ?? "").trim());
+  const hgtIn = Number(String(formData.get("pkgHeightIn") ?? "").trim());
+  const wtLb = Number(String(formData.get("pkgWeightLb") ?? "").trim());
+
+  const packagedLengthCm = Number.isFinite(lenIn) && lenIn > 0 ? inToCm(lenIn) : null;
+  const packagedWidthCm = Number.isFinite(widIn) && widIn > 0 ? inToCm(widIn) : null;
+  const packagedHeightCm = Number.isFinite(hgtIn) && hgtIn > 0 ? inToCm(hgtIn) : null;
+  const packagedWeightGrams = Number.isFinite(wtLb) && wtLb > 0 ? lbToG(wtLb) : null;
+
+  // Listing type
+  const listingTypeRaw = String(formData.get("listingType") ?? "MADE_TO_ORDER");
+  const listingType: ListingType = listingTypeRaw === "IN_STOCK" ? "IN_STOCK" : "MADE_TO_ORDER";
+  const stockQuantityRaw = parseInt(String(formData.get("stockQuantity") ?? ""), 10);
+  const stockQuantity =
+    listingType === "IN_STOCK" && Number.isFinite(stockQuantityRaw) && stockQuantityRaw > 0
+      ? stockQuantityRaw
+      : null;
+  if (listingType === "IN_STOCK" && stockQuantity === null) {
+    return { ok: false, error: "In-stock custom listings need a stock quantity greater than zero." };
+  }
+  if (stockQuantity !== null && stockQuantity > MAX_MANUAL_STOCK_QUANTITY) {
+    return { ok: false, error: `Stock quantity cannot exceed ${MAX_MANUAL_STOCK_QUANTITY}.` };
+  }
+  const shipsWithinDaysRaw = parseInt(String(formData.get("shipsWithinDays") ?? ""), 10);
+  const shipsWithinDays =
+    listingType === "IN_STOCK" && Number.isFinite(shipsWithinDaysRaw) && shipsWithinDaysRaw > 0
+      ? shipsWithinDaysRaw
+      : null;
+  const minDaysRaw = parseInt(String(formData.get("processingTimeMinDays") ?? ""), 10);
+  const maxDaysRaw = parseInt(String(formData.get("processingTimeMaxDays") ?? ""), 10);
+  const processingTimeMinDays =
+    listingType === "MADE_TO_ORDER" && Number.isFinite(minDaysRaw) && minDaysRaw > 0
+      ? minDaysRaw
+      : null;
+  const processingTimeMaxDays =
+    listingType === "MADE_TO_ORDER" && Number.isFinite(maxDaysRaw) && maxDaysRaw > 0
+      ? maxDaysRaw
+      : null;
+
+  const created = await prisma.$transaction(async (tx) => {
+    const listing = await tx.listing.create({
+      data: {
+        sellerId: seller.id,
+        title,
+        description,
+        priceCents,
+        status: ListingStatus.PENDING_REVIEW,
+        isPrivate: true,
+        reservedForUserId,
+        customOrderConversationId: conversationId,
+        listingType,
+        stockQuantity,
+        shipsWithinDays,
+        processingTimeMinDays,
+        processingTimeMaxDays,
+        packagedLengthCm,
+        packagedWidthCm,
+        packagedHeightCm,
+        packagedWeightGrams,
+        photos: { create: imageUrls.map((url, i) => ({
+          url,
+          originalUrl: imageOriginalUrls[i] ?? url,
+          sortOrder: i,
+          altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
+        })) },
+      },
+    });
+    await syncListingDirectUploadReferences({
+      client: tx,
+      userId: seller.userId,
+      listingId: listing.id,
+      requireAllTracked: true,
+    });
+    return listing;
+  });
+
+  const sellerInfo = await prisma.sellerProfile.findUnique({
+    where: { id: seller.id },
+    select: { displayName: true, _count: { select: { listings: true } } },
+  });
+  const { reviewListingWithAI } = await import("@/lib/ai-review");
+  const aiResult = await reviewListingWithAI({
+    listingId: created.id,
+    sellerId: seller.id,
+    title: created.title,
+    description: created.description,
+    priceCents: created.priceCents,
+    currency: created.currency,
+    category: created.category ?? null,
+    tags: created.tags,
+    sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
+    listingCount: sellerInfo?._count.listings ?? 0,
+    imageUrls,
+  }).catch((): AIReviewResult => ({
+    approved: false,
+    flags: ["AI review error"],
+    confidence: 0,
+    reason: "AI error — sending to admin review",
+    altTexts: [],
+  }));
+  const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
+
+  await backfillEmptyAltTexts(created.id, aiResult.altTexts);
+
+  if (shouldHold) {
+    const held = await prisma.listing.updateMany({
+      where: { id: created.id, updatedAt: created.updatedAt, status: ListingStatus.PENDING_REVIEW },
+      data: {
+        status: ListingStatus.PENDING_REVIEW,
+        aiReviewFlags: aiResult.flags,
+        aiReviewScore: aiResult.confidence,
+      },
+    });
+    if (held.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+    revalidatePath(`/messages/${conversationId}`);
+    redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
+  }
+
+  const activated = await prisma.listing.updateMany({
+    where: { id: created.id, updatedAt: created.updatedAt, status: ListingStatus.PENDING_REVIEW },
+    data: {
+      status: ListingStatus.ACTIVE,
+      aiReviewFlags: aiResult.flags,
+      aiReviewScore: aiResult.confidence,
+    },
+  });
+  if (activated.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+  await prisma.$executeRaw`
+    UPDATE "Listing"
+    SET status = 'SOLD_OUT'
+    WHERE id = ${created.id}
+      AND "sellerId" = ${seller.id}
+      AND "listingType" = 'IN_STOCK'
+      AND COALESCE("stockQuantity", 0) <= 0
+      AND status = 'ACTIVE'
+  `;
+
+  await sendCustomOrderReadyLink({
+    listingId: created.id,
+  });
+
+  revalidatePath(`/messages/${conversationId}`);
+  redirect(`/messages/${conversationId}`);
+}
+
+export default async function CustomListingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ conversationId?: string; buyerId?: string }>;
+}) {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in?redirect_url=/dashboard");
+
+  const { me } = await ensureSeller();
+  const { conversationId, buyerId } = await searchParams;
+
+  if (!conversationId || !buyerId) redirect("/messages");
+
+  // Fetch conversation + find the custom order request message
+  const convo = await getActorConversation(me.id, conversationId);
+  const isParticipant = convo
+    && (convo.userAId === me.id || convo.userBId === me.id);
+  if (!isParticipant) redirect("/messages");
+
+  // Verify reservedForUserId matches the other conversation participant
+  const otherParticipant = convo.userAId === me.id ? convo.userBId : convo.userAId;
+  if (buyerId !== otherParticipant) {
+    redirect("/dashboard");
+  }
+
+  // Find the most recent custom_order_request message from the buyer
+  const requestMsg = await findLatestActorCustomOrderRequest(
+    me.id,
+    conversationId,
+    buyerId,
+  );
+
+  let requestData: {
+    description?: string;
+    dimensions?: string | null;
+    budget?: number | null;
+    timelineLabel?: string | null;
+    listingTitle?: string | null;
+  } | null = null;
+  if (requestMsg) {
+    const requestResult = parseJsonObjectField(requestMsg.body);
+    if (requestResult.ok) {
+      requestData = requestResult.value;
+    } else {
+      console.warn("[custom-listing] invalid custom request message body:", requestResult.error);
+    }
+  }
+
+  // Fetch buyer info for display
+  const buyer = await prisma.user.findUnique({
+    where: { id: buyerId },
+    select: { name: true, email: true, deletedAt: true },
+  });
+
+  return (
+    <main className="mx-auto max-w-2xl p-8">
+      <h1 className="font-display text-2xl font-semibold mb-2">Create a Custom Listing</h1>
+      <p className="text-sm text-neutral-500 mb-6">
+        This listing will be private and reserved for{" "}
+        <span className="font-medium">{sellerFacingUserLabel(buyer, "the buyer")}</span>. Once
+        you create it, a link will be sent to them in the conversation.
+      </p>
+
+      {/* Buyer's request context */}
+      {requestData && (
+        <div className="mb-6 space-y-2 rounded-md border border-amber-200 bg-amber-50 p-4">
+          <div className="text-sm font-semibold text-amber-800 flex items-center gap-1.5"><Palette size={14} /> Buyer&apos;s Request</div>
+          <p className="text-sm text-amber-900">{requestData.description}</p>
+          {requestData.dimensions && (
+            <p className="text-xs text-amber-700">
+              <span className="font-medium">Dimensions:</span> {requestData.dimensions}
+            </p>
+          )}
+          {requestData.budget && (
+            <p className="text-xs text-amber-700">
+              <span className="font-medium">Budget:</span> ${requestData.budget}
+            </p>
+          )}
+          {requestData.timelineLabel && (
+            <p className="text-xs text-amber-700">
+              <span className="font-medium">Timeline:</span> {requestData.timelineLabel}
+            </p>
+          )}
+          {requestData.listingTitle && (
+            <p className="text-xs text-amber-700">
+              <span className="font-medium">Inspired by:</span> {requestData.listingTitle}
+            </p>
+          )}
+        </div>
+      )}
+
+      <ActionForm action={createCustomListing} className="space-y-4">
+        {/* Hidden fields */}
+        <input type="hidden" name="conversationId" value={conversationId} />
+        <input type="hidden" name="reservedForUserId" value={buyerId} />
+
+        <div>
+          <label className="block text-sm mb-1">Title</label>
+          <input
+            name="title"
+            required
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+            placeholder="e.g. Custom walnut dining table"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm mb-1">Price (USD)</label>
+          <input
+            name="price"
+            type="text"
+            inputMode="decimal"
+            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
+            required
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm mb-1">Description</label>
+          <textarea
+            name="description"
+            rows={4}
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-none"
+            placeholder="Describe what you're making and any specifics…"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm mb-1">Photos (optional for custom orders)</label>
+          <PhotoManager max={10} />
+        </div>
+
+        <div className="card-section p-4">
+          <div className="font-medium mb-2">Listing type</div>
+          <ListingTypeFields />
+        </div>
+
+        <div className="card-section p-4">
+          <div className="font-medium mb-2">Packaged size &amp; weight (for calculated shipping)</div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-sm">
+              <div className="mb-1">Length (in)</div>
+              <input
+                name="pkgLengthIn"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="0"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                placeholder="e.g. 24"
+              />
+            </label>
+            <label className="text-sm">
+              <div className="mb-1">Width (in)</div>
+              <input
+                name="pkgWidthIn"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="0"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                placeholder="e.g. 12"
+              />
+            </label>
+            <label className="text-sm">
+              <div className="mb-1">Height (in)</div>
+              <input
+                name="pkgHeightIn"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="0"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                placeholder="e.g. 8"
+              />
+            </label>
+            <label className="text-sm">
+              <div className="mb-1">Weight (lb)</div>
+              <input
+                name="pkgWeightLb"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="0"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                placeholder="e.g. 5.5"
+              />
+            </label>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="min-h-[44px] rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+        >
+          Create Custom Listing &amp; Notify Buyer
+        </button>
+      </ActionForm>
+    </main>
+  );
+}

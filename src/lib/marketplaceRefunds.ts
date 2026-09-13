@@ -1,0 +1,317 @@
+import type Stripe from "stripe";
+import { calculateCheckoutAmounts } from "./checkoutAmounts.ts";
+
+type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL";
+type CreatedRefund = Pick<Stripe.Refund, "id" | "status"> & {
+  transfer_reversal?: Stripe.Refund["transfer_reversal"];
+};
+type RefundCreator = (
+  params: Stripe.RefundCreateParams,
+  requestOptions: { idempotencyKey: string },
+) => Promise<CreatedRefund>;
+
+type MarketplaceRefundOptions = {
+  paymentIntentId: string;
+  resolution: RefundResolution;
+  amountCents: number;
+  itemsSubtotalCents: number;
+  shippingAmountCents: number;
+  giftWrappingPriceCents: number | null;
+  taxAmountCents: number;
+  canReverseTransfer: boolean;
+  idempotencyKeyBase: string;
+  claimMetadata?: OrderRefundClaimProviderMetadata;
+  reason?: Stripe.RefundCreateParams.Reason;
+};
+
+export type OrderRefundClaimProviderMetadata = {
+  claimId: string;
+  claimGeneration: bigint;
+  source: "SELLER" | "BLOCKED_CHECKOUT";
+};
+
+type RefundIdempotencyScope =
+  | "seller-refund"
+  | "case-resolve"
+  | "blocked-checkout-refund";
+
+const REFUND_IDEMPOTENCY_BASE_PATTERN =
+  /^(?:seller-refund|case-resolve|blocked-checkout-refund):[A-Za-z0-9_-]+:(?:FULL|PARTIAL|REFUND_FULL|REFUND_PARTIAL):[1-9]\d*$/;
+
+export function refundIdempotencyKeyBase({
+  scope,
+  id,
+  resolution,
+  amountCents,
+}: {
+  scope: RefundIdempotencyScope;
+  id: string;
+  resolution: RefundResolution;
+  amountCents: number;
+}) {
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    throw new Error("Refund idempotency amount must be a positive integer.");
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    throw new Error("Refund idempotency id contains unsupported characters.");
+  }
+  return `${scope}:${id}:${resolution}:${amountCents}`;
+}
+
+function assertRefundIdempotencyKeyBase(
+  value: string,
+  opts: Pick<MarketplaceRefundOptions, "resolution" | "amountCents">,
+) {
+  if (!REFUND_IDEMPOTENCY_BASE_PATTERN.test(value)) {
+    throw new Error(
+      "Refund idempotency key base must include scope, id, resolution, and positive amount.",
+    );
+  }
+  if (!value.endsWith(`:${opts.resolution}:${opts.amountCents}`)) {
+    throw new Error(
+      "Refund idempotency key base must match the refund resolution and amount.",
+    );
+  }
+}
+
+function refundClaimMetadata(
+  opts: MarketplaceRefundOptions,
+  component: string,
+): Stripe.MetadataParam | undefined {
+  const claim = opts.claimMetadata;
+  if (!claim) return undefined;
+  const expectedScope = claim.source === "SELLER"
+    ? "seller-refund"
+    : "blocked-checkout-refund";
+  if (
+    !/^order_refund_claim_[0-9a-f-]{36}$/.test(claim.claimId)
+    || claim.claimGeneration < 1n
+    || !opts.idempotencyKeyBase.startsWith(
+      `${expectedScope}:${claim.claimId}:`,
+    )
+  ) {
+    throw new Error("Refund claim provider metadata is inconsistent.");
+  }
+  return {
+    grainline_refund_claim_id: claim.claimId,
+    grainline_refund_claim_generation: claim.claimGeneration.toString(),
+    grainline_refund_claim_source: claim.source,
+    grainline_refund_idempotency_scope: opts.idempotencyKeyBase,
+    grainline_refund_component: component,
+  };
+}
+
+function assertCreatedRefundUsable(refund: CreatedRefund) {
+  if (refund.status === "failed" || refund.status === "canceled") {
+    throw new Error(
+      `Stripe refund ${refund.id} returned ${refund.status} status.`,
+    );
+  }
+}
+
+function refundNeedsManualFollowUp(refund: CreatedRefund) {
+  return refund.status === "pending" || refund.status === "requires_action";
+}
+
+function transferReversalEvidence({
+  refund,
+  expectedTransferReversal,
+  buyerRefundAmountCents,
+  chargeAmountCents,
+  originalTransferAmountCents,
+}: {
+  refund: CreatedRefund;
+  expectedTransferReversal: boolean;
+  buyerRefundAmountCents: number;
+  chargeAmountCents: number;
+  originalTransferAmountCents: number;
+}) {
+  const reversal = refund.transfer_reversal ?? null;
+  const transferReversalId =
+    typeof reversal === "string" ? reversal : reversal?.id ?? null;
+  const transferReversalAmountCents =
+    typeof reversal === "object" && reversal ? reversal.amount : null;
+
+  return {
+    buyerRefundAmountCents,
+    chargeAmountCents,
+    originalTransferAmountCents,
+    expectedTransferReversal,
+    transferReversalId,
+    transferReversalAmountCents,
+    platformFundedRefundCents:
+      transferReversalAmountCents == null
+        ? expectedTransferReversal
+          ? null
+          : buyerRefundAmountCents
+        : Math.max(0, buyerRefundAmountCents - transferReversalAmountCents),
+  };
+}
+
+export async function createMarketplaceRefundWithCreator(
+  opts: MarketplaceRefundOptions,
+  createStripeRefund: RefundCreator,
+) {
+  if (opts.amountCents <= 0) {
+    throw new Error("Refund amount must be positive.");
+  }
+
+  const sellerPortionCents = Math.max(
+    0,
+    opts.itemsSubtotalCents +
+      opts.shippingAmountCents +
+      (opts.giftWrappingPriceCents ?? 0),
+  );
+  const taxAmountCents = Math.max(0, opts.taxAmountCents);
+  const maxRefundCents = sellerPortionCents + taxAmountCents;
+  const originalTransferAmountCents = calculateCheckoutAmounts({
+    itemsSubtotalCents: opts.itemsSubtotalCents,
+    shippingAmountCents: opts.shippingAmountCents,
+    giftWrapCents: opts.giftWrappingPriceCents ?? 0,
+  }).sellerTransferAmountCents;
+  const isFullRefund =
+    opts.resolution === "FULL" || opts.resolution === "REFUND_FULL";
+  if (opts.amountCents > maxRefundCents) {
+    throw new Error("Refund amount exceeds order total.");
+  }
+  assertRefundIdempotencyKeyBase(opts.idempotencyKeyBase, opts);
+
+  const createRefund = async (
+    params: Stripe.RefundCreateParams,
+    suffix: string,
+  ) => {
+    const metadata = refundClaimMetadata(opts, suffix);
+    const refund = await createStripeRefund(
+      metadata ? { ...params, metadata } : params,
+      {
+      idempotencyKey: `${opts.idempotencyKeyBase}:${suffix}`,
+      },
+    );
+    assertCreatedRefundUsable(refund);
+    return refund;
+  };
+
+  if (!opts.canReverseTransfer) {
+    const refund = await createRefund(
+      {
+        payment_intent: opts.paymentIntentId,
+        amount: opts.amountCents,
+        ...(opts.reason ? { reason: opts.reason } : {}),
+      },
+      "platform",
+    );
+    return {
+      primaryRefundId: refund.id,
+      refundIds: [refund.id],
+      refundStatuses: [refund.status ?? null],
+      requiresManualFollowUp: refundNeedsManualFollowUp(refund),
+      sellerPortionCents: 0,
+      taxAmountCents,
+      accountingEvidence: transferReversalEvidence({
+        refund,
+        expectedTransferReversal: false,
+        buyerRefundAmountCents: opts.amountCents,
+        chargeAmountCents: maxRefundCents,
+        originalTransferAmountCents,
+      }),
+      requiresManualTransferReconciliation: true,
+      usedPlatformOnly: true,
+    };
+  }
+
+  if (isFullRefund && sellerPortionCents === 0) {
+    const refund = await createRefund(
+      {
+        payment_intent: opts.paymentIntentId,
+        amount: opts.amountCents,
+        ...(opts.reason ? { reason: opts.reason } : {}),
+      },
+      "tax-only",
+    );
+
+    return {
+      primaryRefundId: refund.id,
+      refundIds: [refund.id],
+      refundStatuses: [refund.status ?? null],
+      requiresManualFollowUp: refundNeedsManualFollowUp(refund),
+      sellerPortionCents: 0,
+      taxAmountCents,
+      accountingEvidence: transferReversalEvidence({
+        refund,
+        expectedTransferReversal: false,
+        buyerRefundAmountCents: opts.amountCents,
+        chargeAmountCents: maxRefundCents,
+        originalTransferAmountCents,
+      }),
+      requiresManualTransferReconciliation: false,
+      usedPlatformOnly: true,
+    };
+  }
+
+  if (isFullRefund) {
+    const refund = await createRefund(
+      {
+        payment_intent: opts.paymentIntentId,
+        amount: opts.amountCents,
+        reverse_transfer: true,
+        expand: ["transfer_reversal"],
+        ...(opts.reason ? { reason: opts.reason } : {}),
+      },
+      "full",
+    );
+
+    return {
+      primaryRefundId: refund.id,
+      refundIds: [refund.id],
+      refundStatuses: [refund.status ?? null],
+      requiresManualFollowUp: refundNeedsManualFollowUp(refund),
+      sellerPortionCents,
+      taxAmountCents,
+      accountingEvidence: transferReversalEvidence({
+        refund,
+        expectedTransferReversal: true,
+        buyerRefundAmountCents: opts.amountCents,
+        chargeAmountCents: maxRefundCents,
+        originalTransferAmountCents,
+      }),
+      requiresManualTransferReconciliation: false,
+      usedPlatformOnly: false,
+    };
+  }
+
+  const refund = await createRefund(
+    {
+      payment_intent: opts.paymentIntentId,
+      amount: opts.amountCents,
+      reverse_transfer: true,
+      expand: ["transfer_reversal"],
+      ...(opts.reason ? { reason: opts.reason } : {}),
+    },
+    "seller",
+  );
+
+  return {
+    primaryRefundId: refund.id,
+    refundIds: [refund.id],
+    refundStatuses: [refund.status ?? null],
+    requiresManualFollowUp: refundNeedsManualFollowUp(refund),
+    sellerPortionCents: opts.amountCents,
+    taxAmountCents: 0,
+    accountingEvidence: transferReversalEvidence({
+      refund,
+      expectedTransferReversal: true,
+      buyerRefundAmountCents: opts.amountCents,
+      chargeAmountCents: maxRefundCents,
+      originalTransferAmountCents,
+    }),
+    requiresManualTransferReconciliation: false,
+    usedPlatformOnly: false,
+  };
+}
+
+export async function createMarketplaceRefund(opts: MarketplaceRefundOptions) {
+  const { stripe } = await import("@/lib/stripe");
+  return createMarketplaceRefundWithCreator(opts, (params, requestOptions) =>
+    stripe.refunds.create(params, requestOptions),
+  );
+}

@@ -1,0 +1,272 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
+import type { FeedItem } from "@/app/api/account/feed/route";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import FavoriteButton from "@/components/FavoriteButton";
+import SaveBlogButton from "@/components/SaveBlogButton";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { FeedSkeleton } from "@/components/RouteSkeletons";
+
+export default function FeedClient() {
+  const [items, setItems] = useState<FeedItem[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
+  const feedAbortRef = useRef<AbortController | null>(null);
+  const feedRequestRef = useRef(0);
+
+  const loadMore = useCallback(async () => {
+    if (loading || !hasMore) return;
+    feedAbortRef.current?.abort();
+    const controller = new AbortController();
+    feedAbortRef.current = controller;
+    const requestId = ++feedRequestRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const url = `/api/account/feed?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+      const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+      if (!res.ok) throw new Error("Failed to load feed");
+      const data = await res.json();
+      if (!mountedRef.current || controller.signal.aborted || requestId !== feedRequestRef.current) return;
+      if (!cursor) setEmptyMessage(typeof data.message === "string" ? data.message : null);
+      setItems((prev) => [...prev, ...data.items]);
+      setCursor(data.nextCursor);
+      setHasMore(data.hasMore);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (!mountedRef.current || requestId !== feedRequestRef.current) return;
+      setError("Failed to load feed. Please try again.");
+    } finally {
+      if (!mountedRef.current || controller.signal.aborted || requestId !== feedRequestRef.current) return;
+      setLoading(false);
+      setInitialLoading(false);
+    }
+  }, [loading, hasMore, cursor]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      feedAbortRef.current?.abort();
+    };
+  }, []);
+
+  // Load first batch on mount
+  useEffect(() => {
+    loadMore();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loading && hasMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loading, hasMore, loadMore]);
+
+  if (initialLoading) {
+    return <FeedSkeleton />;
+  }
+
+  if (!initialLoading && items.length === 0 && !error) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16">
+        <div className="card-section p-8 text-center sm:p-10">
+        <h1 className="mb-3 text-2xl font-semibold font-display text-neutral-900">Your feed is empty</h1>
+        <p className="mx-auto mb-6 max-w-md text-sm text-neutral-500">
+          {emptyMessage ?? "Follow some makers to see their latest listings and posts here."}
+        </p>
+        <Link
+          href="/map"
+          className="inline-flex min-h-10 items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+        >
+          Browse Makers →
+        </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+        ← My Account
+      </Link>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold font-display">Your Feed</h1>
+        <Link href="/account/following" className="text-sm text-neutral-500 hover:underline">
+          Manage following →
+        </Link>
+      </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loading}
+            className="inline-flex min-h-10 items-center justify-center border border-red-300 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+          >
+            {loading ? "Retrying..." : "Retry"}
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {items.map((item, idx) => (
+          <FeedCard key={`${item.kind}-${item.id ?? item.slug ?? idx}`} item={item} />
+        ))}
+      </div>
+
+      {/* Sentinel for infinite scroll */}
+      <div ref={sentinelRef} className="h-4" />
+
+      {loading && !initialLoading && (
+        <div className="py-8 text-center text-sm text-neutral-500">Loading more...</div>
+      )}
+
+      {!hasMore && items.length > 0 && (
+        <div className="py-8 text-center text-sm text-neutral-500">You&apos;re all caught up!</div>
+      )}
+    </div>
+  );
+}
+
+function timeAgo(dateStr: string): string {
+  const date = new Date(dateStr);
+  const timestamp = date.getTime();
+  if (!Number.isFinite(timestamp)) return "recently";
+  const diff = Date.now() - timestamp;
+  if (diff < -60000) return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function FeedCard({ item }: { item: FeedItem }) {
+  const sellerHref = item.sellerProfileId ? publicSellerPath(item.sellerProfileId, item.sellerName) : "#";
+
+  if (item.kind === "listing") {
+    const listingHref = item.id ? publicListingPath(item.id, item.title) : "#";
+    return (
+      <article className="card-listing overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-2">
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+            New Listing
+          </span>
+          <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
+            {item.sellerName}
+          </Link>
+          <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
+        </div>
+        <div className="relative">
+          <Link href={listingHref} className="block">
+            {item.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.imageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
+            )}
+            <div className="p-4">
+              <p className="font-medium text-neutral-900 line-clamp-2">{item.title}</p>
+              {item.priceCents != null && (
+                <p className="text-sm text-neutral-600 mt-1">
+                  {formatCurrencyCents(item.priceCents, item.currency ?? DEFAULT_CURRENCY)}
+                </p>
+              )}
+            </div>
+          </Link>
+          {item.id && (
+            <FavoriteButton listingId={item.id} initialSaved={!!item.isSaved} />
+          )}
+        </div>
+      </article>
+    );
+  }
+
+  if (item.kind === "blog") {
+    return (
+      <article className="card-listing overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-2">
+          <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+            New Post
+          </span>
+          <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
+            {item.sellerName}
+          </Link>
+          <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
+        </div>
+        <div className="relative">
+          <Link href={`/blog/${item.slug}`} className="block">
+            {item.coverImageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.coverImageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
+            )}
+            <div className="p-4">
+              <p className="font-medium text-neutral-900 line-clamp-2">{item.title}</p>
+              {item.excerpt && (
+                <p className="text-sm text-neutral-500 mt-1 line-clamp-2">{item.excerpt}</p>
+              )}
+            </div>
+          </Link>
+          {item.slug && (
+            <div className="absolute top-2 right-2 z-10">
+              <SaveBlogButton slug={item.slug} initialSaved={!!item.isSaved} />
+            </div>
+          )}
+        </div>
+      </article>
+    );
+  }
+
+  if (item.kind === "broadcast") {
+    return (
+      <article className="card-section overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-2">
+          <span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">Shop Update</span>
+          <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
+            {item.sellerName}
+          </Link>
+          <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
+        </div>
+        <div className="p-4">
+          <p className="text-sm text-neutral-700">{item.message}</p>
+          {item.broadcastImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.broadcastImageUrl}
+              alt="Shop update"
+              loading="lazy"
+              className="mt-3 w-full rounded-lg aspect-[4/3] object-cover"
+            />
+          )}
+        </div>
+      </article>
+    );
+  }
+
+  return null;
+}

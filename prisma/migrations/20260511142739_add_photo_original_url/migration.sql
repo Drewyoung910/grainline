@@ -1,0 +1,11 @@
+-- Add Photo.originalUrl — preserves the pre-crop source so re-crop can
+-- zoom back out to the full original frame instead of treating the
+-- currently-displayed (possibly already-cropped) `url` as the source.
+--
+-- Nullable on purpose: legacy photos uploaded before this column existed
+-- have no preserved original. The application code lazily backfills
+-- originalUrl on first re-crop (saving the current url as originalUrl
+-- before overwriting url with the new cropped version), so subsequent
+-- re-crops on legacy photos still work correctly within whatever the
+-- current url is.
+ALTER TABLE "Photo" ADD COLUMN "originalUrl" VARCHAR(2048);
