@@ -1,3 +1,5 @@
+// Historical workflow assertions use the byte-pinned predecessor fixture.
+// Current Order workflow boundaries are exercised in order-handoff-workflow.test.mjs.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -193,7 +195,7 @@ test("keeps OrderPaymentEvent RLS and predecessor grants unchanged while staging
     /(?:GRANT|REVOKE)[\s\S]*ON TABLE public\."OrderPaymentEvent"/,
   );
   const productionWorkflow = readFileSync(
-    ".github/workflows/production-migrations.yml",
+    "tests/fixtures/order-handoff/historical-production-migrations.yml.txt",
     "utf8",
   );
   const migrationPath =

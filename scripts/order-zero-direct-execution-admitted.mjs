@@ -1,5 +1,5 @@
-// Dormant internal composition. The worker owns all capabilities; no CLI,
-// public production command, credential loading or workflow wiring exists.
+// Internal composition. The worker owns all capabilities; its fixed prefix
+// transport cannot supply arbitrary SQL, commands or serialized admission.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";

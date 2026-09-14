@@ -1,3 +1,5 @@
+// Historical workflow assertions use the byte-pinned predecessor fixture.
+// Current Order workflow boundaries are exercised in order-handoff-workflow.test.mjs.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -17,7 +19,7 @@ const release = fs.readFileSync(
   "utf8",
 );
 const workflow = fs.readFileSync(
-  ".github/workflows/production-migrations.yml",
+  "tests/fixtures/order-handoff/historical-production-migrations.yml.txt",
   "utf8",
 );
 const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));

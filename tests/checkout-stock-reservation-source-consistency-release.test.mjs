@@ -1,3 +1,5 @@
+// Historical workflow assertions use the byte-pinned predecessor fixture.
+// Current Order workflow boundaries are exercised in order-handoff-workflow.test.mjs.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -164,7 +166,7 @@ test("CI proves the successor before isolating it and then seals the predecessor
 
 test("production wiring preserves source consistency as the sealed activation predecessor", () => {
   const workflow = fs.readFileSync(
-    ".github/workflows/production-migrations.yml",
+    "tests/fixtures/order-handoff/historical-production-migrations.yml.txt",
     "utf8",
   );
   const isolateActivation = workflow.indexOf(

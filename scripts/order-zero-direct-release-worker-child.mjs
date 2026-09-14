@@ -205,8 +205,8 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
       prisma: async (bound, args, verify) => prismaModule.runOrderPrefixPrisma({ sourceRoot: root,
         parent: path.join(session, "artifacts"), databaseUrl: await freshAdmission(bound), args, checkpoint: verify }),
     });
-    // Private dormant capability only: no production IPC command or workflow
-    // can reach it. Source fixtures may exercise this closure explicitly.
+    // Only the fixed admitted-prefix transport can reach this capability.
+    // Its live guards remain inside this prepared worker.
     graph.executeAdmitted = async bound => {
       assert.equal(state, "prepared"); state = "executing-admitted"; checkpoint();
       const result = await execute(bound);
@@ -301,8 +301,7 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
     assert.deepEqual(Object.keys(payload).sort(), ["databaseUrl", "githubActions"]);
     assert.equal(typeof payload.githubActions, "boolean");
     toolchainCheck();
-    // There is deliberately no production execute command. The adapter admits
-    // only numeric loopback ci/grainline_ci/PostgreSQL 16 and verifies the server
+    // This separate disposable adapter admits only numeric loopback ci/grainline_ci/PostgreSQL 16 and verifies the server
     // before writing. Its credentials never reach preparation children.
     const { runDisposableOrderExecution } = await import(pathToFileURL(path.join(root, "scripts/order-zero-direct-execution-disposable.mjs")).href);
     state = "executing-disposable"; checkpoint();
@@ -337,7 +336,8 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
       else if (message.command === "inspect") result = await inspect(message.payload);
       else if (message.command === "revalidate") result = await revalidate(message.payload);
       else if (message.command === "execute-disposable") result = await executeDisposable(message.payload);
-      else throw new Error(FAILURE); // No production execute/migrate/resolve.
+      else if (message.command === "execute-prefix") result = await graph.executeAdmitted(message.payload);
+      else throw new Error(FAILURE); // No generic SQL/migrate/resolve.
       process.send({ id: message.id, ok: true, result }); busy = false;
     } catch { fail(); }
   });

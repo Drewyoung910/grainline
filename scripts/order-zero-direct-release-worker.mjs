@@ -1,5 +1,5 @@
 // Parent transport only. The release graph and all admission state live in the
-// child. No CLI, credential loader, workflow dispatch or mutation command.
+// child. Fixed admitted-prefix transport only; no CLI or credential loader.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -90,7 +90,7 @@ export async function startOrderZeroDirectWorker({ directory, reviewed: input })
       if (closed || pending) return Promise.reject(new Error(FAILURE));
       return new Promise((resolve, reject) => {
         const id = ++sequence;
-        const timer = setTimeout(invalidate, ["prepare", "execute-disposable"].includes(command) ? 600000 : 180000);
+        const timer = setTimeout(invalidate, ["prepare", "execute-disposable", "execute-prefix"].includes(command) ? 600000 : 180000);
         pending = { id, resolve, reject, timer };
         child.send({ id, command, payload }, error => { if (error) invalidate(); });
       });
@@ -104,6 +104,7 @@ export async function startOrderZeroDirectWorker({ directory, reviewed: input })
       inspect: payload => request("inspect", payload),
       revalidate: payload => request("revalidate", payload),
       executeDisposable: payload => request("execute-disposable", payload),
+      executePrefix: payload => request("execute-prefix", payload),
       close: async () => { invalidate(); await exited; },
     });
   } catch { child?.kill("SIGKILL"); throw new Error(FAILURE); }

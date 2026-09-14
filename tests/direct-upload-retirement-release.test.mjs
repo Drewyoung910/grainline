@@ -1,3 +1,5 @@
+// Historical workflow assertions use the byte-pinned predecessor fixture.
+// Current Order workflow boundaries are exercised in order-handoff-workflow.test.mjs.
 import assert from "node:assert/strict";
 import {
   mkdirSync,
@@ -130,7 +132,7 @@ describe("DirectUpload compatibility-key retirement release", () => {
 
     for (const workflowPath of [
       ".github/workflows/ci.yml",
-      ".github/workflows/production-migrations.yml",
+      "tests/fixtures/order-handoff/historical-production-migrations.yml.txt",
     ]) {
       const workflow = readFileSync(workflowPath, "utf8");
       const verifier = workflow.indexOf(

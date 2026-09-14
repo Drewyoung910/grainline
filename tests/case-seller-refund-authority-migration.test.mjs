@@ -1,3 +1,5 @@
+// Historical workflow assertions use the byte-pinned predecessor fixture.
+// Current Order workflow boundaries are exercised in order-handoff-workflow.test.mjs.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
@@ -25,7 +27,7 @@ test("Case seller-refund authority is a compatible private-ledger release", () =
 test("Case seller-refund packaging remains included through Case FORCE", () => {
   const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const productionWorkflow = fs.readFileSync(
-    ".github/workflows/production-migrations.yml",
+    "tests/fixtures/order-handoff/historical-production-migrations.yml.txt",
     "utf8",
   );
   assert.match(

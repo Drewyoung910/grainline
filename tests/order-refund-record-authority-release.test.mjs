@@ -1,3 +1,5 @@
+// Historical workflow assertions use the byte-pinned predecessor fixture.
+// Current Order workflow boundaries are exercised in order-handoff-workflow.test.mjs.
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
@@ -117,7 +119,7 @@ test("CI isolates the record release, replays the sealed claim, then proves the 
     "record-authority proof must not read a later migration hidden by CI",
   );
   const production = readFileSync(
-    ".github/workflows/production-migrations.yml",
+    "tests/fixtures/order-handoff/historical-production-migrations.yml.txt",
     "utf8",
   );
   const migrationPath =
