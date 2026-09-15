@@ -21,10 +21,11 @@ import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecur
 import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
 import { emailSuppressionAddressKeys } from "@/lib/emailSuppression";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
+import { isRequestBodyTooLargeError, readBoundedWebhookText as readBoundedText } from "@/lib/requestBody";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { prepareClerkSentinelReceipt } from "@/lib/clerkWebhookReceipt.mjs";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
@@ -158,6 +159,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
+  const sentinelReceipt = prepareClerkSentinelReceipt({ body, svixId, svixTimestamp, verifiedEvent: event, secret: webhookSecret });
   let reservation: Awaited<ReturnType<typeof reserveClerkWebhookEvent>>;
   try {
     reservation = await reserveClerkWebhookEvent(svixId, event.type);
@@ -178,7 +180,8 @@ export async function POST(req: Request) {
     );
   }
   if (reservation === "processed") {
-    return NextResponse.json({ ok: true });
+    const receipt = sentinelReceipt?.("duplicate");
+    return NextResponse.json({ ok: true, ...(receipt ? { receipt } : {}) });
   }
   if (reservation === "in_progress") {
     return NextResponse.json(
@@ -215,7 +218,8 @@ export async function POST(req: Request) {
         );
       }
       await markClerkWebhookProcessed(svixId);
-      return NextResponse.json({ ok: true });
+      const receipt = "userAbsent" in anonymized && anonymized.userAbsent === true ? sentinelReceipt?.("absent-user") : null;
+      return NextResponse.json({ ok: true, ...(receipt ? { receipt } : {}) });
     }
 
     if (event.type !== "user.created" && event.type !== "user.updated") {
