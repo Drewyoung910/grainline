@@ -81,10 +81,10 @@ export function assertKnownContentLengthUnder(request: Request, maxBytes: number
   }
 }
 
-export async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
+async function readBoundedBytes(request: Request, maxBytes: number): Promise<Uint8Array> {
   assertContentLengthUnder(request, maxBytes);
 
-  if (!request.body) return "";
+  if (!request.body) return new Uint8Array();
 
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -108,7 +108,17 @@ export async function readBoundedText(request: Request, maxBytes: number): Promi
     offset += chunk.byteLength;
   }
 
-  return new TextDecoder().decode(body);
+  return body;
+}
+
+export async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
+  return new TextDecoder().decode(await readBoundedBytes(request, maxBytes));
+}
+
+// Signed webhook bytes must survive decoding unchanged. Reject malformed UTF-8
+// and preserve a BOM so it cannot be silently removed before signature/hash use.
+export async function readBoundedWebhookText(request: Request, maxBytes: number): Promise<string> {
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await readBoundedBytes(request, maxBytes));
 }
 
 export async function readBoundedJson(request: Request, maxBytes: number): Promise<unknown> {

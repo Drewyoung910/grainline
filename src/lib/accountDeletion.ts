@@ -1750,7 +1750,7 @@ export async function anonymizeUserAccountByClerkId(clerkId: string) {
     where: { clerkId },
     select: { id: true, deletedAt: true },
   });
-  if (!user) return { ok: true, alreadyDeleted: true };
+  if (!user) return { ok: true, alreadyDeleted: true, userAbsent: true };
   if (user.deletedAt) return { ok: true, alreadyDeleted: true };
 
   const blockers = await getAccountDeletionBlockers(user.id);
