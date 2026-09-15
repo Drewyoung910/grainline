@@ -2,8 +2,9 @@
 
 This candidate adds signed sentinel receipts to the existing Clerk webhook on
 the current-main application. It lets Clerk credential recovery precede the
-database-dependent Order application release. It is a private source candidate;
-its commit is not a main/CI release pin or permission to deploy.
+database-dependent Order application release. PR #434 published the initial
+candidate and its full CI passed. This follow-up matches the actual managed
+provider example; it requires fresh source/CI review before merge or deployment.
 
 ## Exact source boundary
 
@@ -13,10 +14,9 @@ That CI covers the base only, not this patch.
 
 The last accepted deployed source is
 `d7859d5d1aaab5fbfbd77e973bf196a063493a62` at deployment
-`dpl_HHLuG4Snq6vqitPjxUdabLqXfFSF`. A fresh metadata verification on September
-14 stopped because the existing Vercel credential no longer satisfied its expiry
-check. No refresh, migration or provider mutation followed. This historical
-deployment must be freshly verified before selecting a live predecessor.
+`dpl_HHLuG4Snq6vqitPjxUdabLqXfFSF`. A normal renewal of the existing Vercel login permitted fresh metadata
+verification at 2026-09-15T02:49:49.854Z; this deployment still owns all four
+canonical aliases. Deployment identity must be refreshed before a cutover.
 
 Between that deployed source and the main base, the application/package delta
 contains nine files: seven map files and the package/lock files. The application
@@ -27,8 +27,9 @@ this candidate preserves them and requires matching release build/CI acceptance.
 The Clerk patch imports only the four application changes and focused route test
 from private receipt commit `e05be3d150b3a1a09d72065561d5f42273980045`:
 
-- The webhook emits a receipt after a verified absent-user sentinel or processed
-  duplicate, preserving ordinary event responses and existing idempotency.
+- The webhook emits a receipt after a verified absent-user proof event or its
+  processed duplicate. It accepts the exact custom sentinel or the pinned static
+  user.deleted provider example. Ordinary event responses and idempotency remain.
 - The receipt helper binds message, exact bytes, canonical payload, sentinel,
   outcome and time using a domain-separated MAC under the signing secret.
 - Strict bounded webhook decoding preserves signature bytes and rejects malformed
@@ -42,7 +43,7 @@ module initializes SQL fragments at load time. Its database and business-side-ef
 dependencies remain mocked; the test performs no database connection.
 
 There is no new migration, schema change, RPC call, dependency, environment key,
-workflow or deployment trigger. The four application changes are already present
+workflow or deployment trigger. The initial versions of the four application changes are present
 in the dormant Order candidate `552ae2622beecb4ab4289d60ccafd41a98d78aba`.
 Do not deploy that Order candidate as the Clerk-first replacement: it contains
 pending database-dependent Order and staff changes.
@@ -88,3 +89,30 @@ matching lockfile and generates a client from this candidate's own Prisma schema
 Only synthetic build configuration is supplied; no local production environment
 file or real provider credential is loaded. Existing Order dependencies and
 checkpoints are preserved.
+
+
+## Managed provider example follow-up
+
+Clerk's actual production webhook app is in Svix region EU. Its supported portal
+flow sends an event-type example to one endpoint. The existing custom-message
+publisher requires separate authority; it is not assumed usable with an app
+portal token. The provider's static user.deleted schema example contains extra
+metadata and a fixed example ID, so the initial custom-sentinel-only receipt
+would not attest that delivery.
+
+The receipt now also recognizes only this exact observed schema example:
+canonical payload SHA-256 `96aee0fb9d16f052ecb336457856fb14ab6dd84dac6177cb27346ca5c9997cfe`,
+user-ID SHA-256 `9a5d23d9b2e4917a244acd51831e2ceb4d1051dfa6d7cc5503064d101e1c2382`.
+Any altered ID, payload field, metadata or timestamp is rejected for receipt
+purposes. Ordinary signed webhook handling is unchanged. Real current Svix
+verification and absent-user completion remain mandatory; a schema-example ID
+is not assumed absent and the operator must freshly verify it before any send.
+A receipt never independently authorizes a production delivery or deployment.
+
+Operator preparation uses endpoint send-example with index zero, rechecks the
+actual schema before each initial send, records an idempotency key and saves the
+returned message ID before credential postchecks. An initial lost response
+cannot be recovered merely by selecting a similar message: example responses
+lack the operation event ID used by custom publication. Automatic resend and
+payload/time-only recovery remain forbidden. Real provider/runtime acceptance
+and independent incident closure remain separate release gates.

@@ -11,12 +11,34 @@ function mac(secret, value) {
   finally { bytes.fill(0); }
 }
 const validSecret = secret => typeof secret === "string" && /^whsec_[A-Za-z0-9+/]{20,1024}={0,2}$/.test(secret);
-const sentinel = value => typeof value === "string" && /^user_grainline_webhook_sentinel_[a-f0-9]{32}$/.test(value);
-function canonical(id) { return { data: { deleted: true, id, object: "user" }, object: "event", type: "user.deleted" }; }
+const synthetic = value => typeof value === "string" && /^user_grainline_webhook_sentinel_[a-f0-9]{32}$/.test(value);
+// Exact static user.deleted example read from Clerk's managed Svix schema.
+// This identifies a proof candidate, never permission to delete or send. A fresh
+// runtime absence check is still mandatory before an operator sends it.
+export const CLERK_PROVIDER_EXAMPLE_USER_SHA256 = "9a5d23d9b2e4917a244acd51831e2ceb4d1051dfa6d7cc5503064d101e1c2382";
+export const CLERK_PROVIDER_EXAMPLE_PAYLOAD_SHA256 = "96aee0fb9d16f052ecb336457856fb14ab6dd84dac6177cb27346ca5c9997cfe";
+export const isClerkReceiptUserId = value => synthetic(value) || (typeof value === "string"
+  && /^user_[A-Za-z0-9_-]{8,128}$/.test(value) && digest(value) === CLERK_PROVIDER_EXAMPLE_USER_SHA256);
+const sentinel = isClerkReceiptUserId;
+export function clerkReceiptCanonicalPayload(id) {
+  if (!sentinel(id)) throw new Error("Clerk receipt candidate is not pinned.");
+  const data = { deleted: true, id, object: "user" };
+  if (synthetic(id)) return { data, object: "event", type: "user.deleted" };
+  return { data, event_attributes: { http_request: { client_ip: "0.0.0.0",
+    user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36" } },
+    object: "event", timestamp: 1661861640000, type: "user.deleted" };
+}
+const canonical = clerkReceiptCanonicalPayload;
+const ordered = value => Array.isArray(value) ? value.map(ordered) : value && typeof value === "object"
+  ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+export function isClerkReceiptPayload(value, id) {
+  try { return sentinel(id) && JSON.stringify(ordered(value)) === JSON.stringify(canonical(id)); }
+  catch { return false; }
+}
 
-// Called only after the route's real Svix verification. Ordinary events never
-// acquire a receipt. It describes one successful handler invocation, excluding
-// its explicitly required ClerkWebhookEvent reservation/processing writes.
+// Called only after the route's real Svix verification, for the exact custom
+// sentinel or pinned provider example. Describes one successful invocation,
+// excluding its required ClerkWebhookEvent reservation/processing writes.
 export function prepareClerkSentinelReceipt({ body, svixId, svixTimestamp, verifiedEvent, secret }) {
   try {
     if (typeof body !== "string" || Buffer.byteLength(body) > 512 * 1024 || !validSecret(secret)
@@ -24,9 +46,7 @@ export function prepareClerkSentinelReceipt({ body, svixId, svixTimestamp, verif
       || typeof svixTimestamp !== "string" || !/^[1-9][0-9]{9,11}$/.test(svixTimestamp)) return null;
     const event = JSON.parse(body);
     for (const value of [event, verifiedEvent]) {
-      if (!exact(value, ["data", "object", "type"]) || !exact(value.data, ["deleted", "id", "object"])
-        || value.type !== "user.deleted" || value.object !== "event" || value.data.deleted !== true
-        || value.data.object !== "user" || !sentinel(value.data.id)) return null;
+      if (!isClerkReceiptPayload(value, value?.data?.id)) return null;
     }
     if (event.data.id !== verifiedEvent.data.id) return null;
     const selected = Object.freeze({ schemaVersion: 1, operation: "clerk-sentinel-delivery",
