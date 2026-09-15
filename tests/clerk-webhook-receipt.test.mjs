@@ -146,6 +146,9 @@ test("the actual deletion helper distinguishes absent and already deleted users 
     const prisma = { user: { findUnique: async () => { reads++; return user; } } };
     new Function("require", "module", "exports", compiled.outputText)(name => {
       if (name === "@/lib/db") return { prisma };
+      // The deployed-main helper builds static SQL fragments at module load.
+      // Use Prisma's real value helpers while keeping all database I/O mocked.
+      if (name === "@prisma/client") return require(name);
       if (name === "node:crypto" || name === "crypto") return require(name);
       return new Proxy({}, { get: (_, key) => key === "__esModule" ? false : () => { throw new Error(`Unexpected dependency: ${name}`); } });
     }, mod, mod.exports);

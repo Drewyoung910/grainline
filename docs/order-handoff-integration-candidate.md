@@ -1,5 +1,23 @@
 # Private Order handoff integration candidate
 
+## Main integration after Clerk PR 434
+
+The approved main merge `f2bf570b4759ee41bc18f8d353abc25a0b339a6d`
+is integrated into the dormant Order branch. Its receipt helper, webhook route,
+bounded-body reader and test now match main. Order's account-deletion logic is
+preserved, including its absent-user marker; it is not replaced with main's
+older database-dependent implementation. The sole test conflict retained main's
+real Prisma SQL helpers with database I/O mocked. The three focused receipt,
+body and disabled-workflow suites pass 27 tests without failures or skips.
+
+The production workflow, toolchain pins, schema, migrations and package inputs
+are byte-identical to the preceding dormant Order candidate `bb7b83e5`.
+This source integration does not publish or activate the dormant workflow,
+establish final Order main CI, or authorize production changes. The standalone
+Clerk main remains the candidate for Clerk recovery before the Order release.
+
+## Earlier implementation and acceptance history
+
 This candidate atomically replaces the historical generic production-migrations
 operator with the fixed Order compatible-prefix handoff. The job is disabled
 with private vendor-verified action and Linux Node/npm pins recorded in
