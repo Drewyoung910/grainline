@@ -4,6 +4,57 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Finish the bounded Order release (2026-09-07)
+
+After the bounded broad audit, Drew resumed solo implementation (no agents).
+Follow `docs/order-audit-resume-triage-20260907.md` for the newly recorded stock,
+label retry, staff step-up, Case and scale obligations. Runtime-proof and staff
+candidate CI have passed; label replay also passed CI at `00c570b8` / `34183133619`.
+Stock consistency is implemented as an isolated candidate in
+`docs/listing-stock-consistency-correction.md`: separate content/stock saves and
+atomically retain retry receipts rather than undo checkout decrements. Keep unrelated product fixes in cohesive packages; audit findings
+are not fixed merely because they were documented.
+
+Stock candidate CI/native schedules passed at `d4d51324` / `34186946233`.
+The active follow-up is CASE-04/05 in `docs/case-lifecycle-correction.md`: preserve
+early-receipt complaint access and pending-close objections without weakening
+refund guards or messaging restrictions. Existing no-objection expiry and the
+separate legal deadline-alignment decisions remain explicit, not silently revised.
+
+Case code/native proof is now accepted at `1f29f630` / CI `34190781473`.
+Reservation-repair full-schema/runtime-login CI is accepted at `58e8a2ad` /
+`34198555971`. The active bounded package is the proof-only final composition
+manifest in `docs/order-correction-composition-proof.md`; all six existing
+drafts must coexist without authority/schema drift, while their production
+release boundaries remain separate. `docs/order-release-readiness-20260908.md`
+maps accepted code, unapplied drafts and remaining release gates; do not repeat
+closed Case/stock implementation or treat a CI proof as production acceptance.
+
+The final composition passed full/native CI `34203109385` at `99f6e8cb`.
+Continue the source-only package in `docs/order-correction-release-package.md`:
+251 exact predecessors, six proposed successors, three separate release
+boundaries and ledger/body restart checks. Keep Case reader-first and label
+DB-first sequencing explicit. No migration staging/execution is inferred from
+this packaging component; complete scope, credential and runtime/provider gates
+remain before activation. Update status in cohesive commits, not docs-only CI
+loops, and do not reopen the accepted composition work without new evidence.
+
+Late label-deduction automation is deliberately not inferred from historical
+Order/amount metadata. Preserve exact replay within the safe window and manual
+reconciliation afterward. A future long-lived provider-intent design must bind
+the exact label and prove legacy compatibility; do not mint fresh retry keys.
+Future audit retention and support tooling must preserve in-window stock receipts
+and reconcile lost browser identity; session storage is not a cross-device backup.
+
+The active non-production work is the Order candidate, not another RLS domain
+or a general refactor. Follow `docs/order-rls-completion-plan-20260907.md` for
+ordered exit gates: reliable historical/candidate CI, closure of verified
+activation blockers, credential-recovery acceptance, compatible release and
+authenticated product proof, predecessor drain, then separate ENABLE/FORCE.
+The current candidate is not activation-ready. Keep unrelated improvements
+tracked with closure criteria, and do not waive incident or production gates
+to meet a timeline. This sequencing note does not authorize production actions.
+
 ### Comprehensive credential containment before Order RLS resumes (2026-09-02)
 
 The comprehensive credential incident pauses new Order RLS mutations until
@@ -159,6 +210,35 @@ The target remains policyless ENABLE plus direct-grant revocation, followed by
 a distinct FORCE release. Do not create broad buyer/seller Order policies, a
 generic caller-directed update function, or a generic repository wrapper that
 merely hides broad runtime CRUD.
+
+The 2026-09-05 focused security pass found one additional pre-activation
+correctness gate: a Shippo label claim could already be provider-pending when
+the seller refund family acquired a Stripe refund claim. The isolated additive
+draft intended for successor
+`20260905010000_enforce_order_provider_claim_exclusion` places the mutual
+exclusion on the shared Order row, covers seller/Case/blocked-checkout refund
+writers, preserves predecessor grants/RLS, and fails closed on legacy overlap.
+It stays outside the Prisma migration tree until a separate byte-pinned release
+can preserve every historical seal. Complete its local proof, aggregate-only
+production inspection and compatible application/migration release before
+Order Phase A; do not let the new gate expand into a redesign of either
+provider workflow.
+
+The same pass began the zero-direct-access conversion without widening that
+fix: refund-provider replay needs only the provider-authorized clock for one
+exact active claim. The isolated fixed projection in
+`docs/order-refund-claim-clock-authority.md` reduces the executable inventory
+from 16 to 15 files and returns no Order, actor, money or provider identifiers.
+Its database function must be released and runtime-proven before the stacked
+application change is eligible to deploy.
+
+The next stacked conversion removes the seller refund route's redundant broad
+Order reads and seller-directed stale-lock update. The actor-bound preflight in
+`docs/order-seller-refund-preflight-authority.md` preserves the User, durable
+SellerProfile and Order lock order, returns only a closed decision, and never
+ages out Case or generation-fenced claims. The existing claim remains the sole
+provider-authority transition. This reduces the candidate inventory from 15 to
+14, again with a mandatory database-first release.
 
 ### OrderPaymentEvent FORCE acceptance (2026-08-31)
 
@@ -2500,6 +2580,17 @@ membership-free NOBYPASSRLS login, isolating its credential, proving zero base
 table access and then granting only the reviewed functions are separate gates
 before app conversion. See `docs/order-staff-read-authority.md`.
 
+Prelaunch execution should batch compatible work without weakening those
+boundaries: apply the reviewed additive Order prefix as one compatible release,
+provision the dedicated login before application conversion, then smoke and
+remove exact incompatible predecessors without an arbitrary long drain window.
+ENABLE and FORCE remain separate verified migrations but can run in one
+release session. Reuse established provider evidence unless the code changes
+the relevant provider/connection/locking behavior. Webhooks and cron still
+require deployment compatibility even with no active human users. Exact
+sequencing and pending gates live in
+`docs/order-zero-direct-compatible-packaging-plan.md`.
+
 ### Core Order participant export decision (2026-08-31)
 
 Account export must use bounded actor-scoped Order projections before
@@ -2656,6 +2747,16 @@ cleanup is still not route acceptance. A fresh full authenticated smoke remains
 the prerequisite to predecessor drain and Order direct-authority retirement;
 neither the partial first attempt nor its successful cleanup is Order RLS
 evidence.
+
+### Terminal seller-account closure and checkout repair
+
+The 2026-09-07 Order follow-through review also requires a precise terminal
+seller-account closure path (ORD-A24). The isolated candidate uses a server-written
+destination-account witness and strict bounded Session expiry, retaining native
+expiry and the existing reservation worker for historical/late repair. Keep the
+durable account-bound work queue as a scale-triggered follow-up in
+`docs/deferred-launch-backlog.md`; do not treat a bounded synchronous sweep as
+proof of unlimited provider throughput. Fresh route smoke remains a release gate.
 
 ### 2026-09-02 credential incident temporarily precedes Order RLS
 

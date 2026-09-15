@@ -63,6 +63,16 @@ import {
   ORDER_LABEL_PRIVATE_FUNCTIONS,
   ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/order-label-authority-catalog.mjs";
+import {
+  ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES,
+} from "../scripts/verify-order-staff-read-charged-total-correction.mjs";
+import {
+  ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTION_NAMES,
+} from "../scripts/verify-order-account-deletion-authority.mjs";
+import {
+  ORDER_ZERO_DIRECT_COMPATIBLE_NEW_FUNCTION_NAMES,
+  ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
+} from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
@@ -510,6 +520,8 @@ describe("database grant inventory guardrails", () => {
       "CaseOpenApplication",
       "DirectUploadReference",
       "OrderRefundReconciliation",
+      "OrderStaffCapability",
+      "SellerDeauthorizationApplication",
     ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
       "CaseResolutionClaim",
@@ -518,6 +530,8 @@ describe("database grant inventory guardrails", () => {
       "CaseOpenApplication",
       "DirectUploadReference",
       "OrderRefundReconciliation",
+      "OrderStaffCapability",
+      "SellerDeauthorizationApplication",
     ]);
     assert.equal(
       directUploadRlsActivationExpected(directUploadActivationInventory),
@@ -650,9 +664,11 @@ describe("database grant inventory guardrails", () => {
         "CaseStripeDisputeApplication",
         "CaseSellerRefundApplication",
         "CaseOpenApplication",
-        "DirectUploadReference",
-        "OrderRefundReconciliation",
-        "DirectUpload",
+      "DirectUploadReference",
+      "OrderRefundReconciliation",
+      "OrderStaffCapability",
+      "SellerDeauthorizationApplication",
+      "DirectUpload",
       ],
     );
     assert.deepEqual(
@@ -662,9 +678,11 @@ describe("database grant inventory guardrails", () => {
         "CaseStripeDisputeApplication",
         "CaseSellerRefundApplication",
         "CaseOpenApplication",
-        "DirectUploadReference",
-        "OrderRefundReconciliation",
-        "DirectUpload",
+      "DirectUploadReference",
+      "OrderRefundReconciliation",
+      "OrderStaffCapability",
+      "SellerDeauthorizationApplication",
+      "DirectUpload",
         "Case",
         "CaseMessage",
         "CaseMessageAttachment",
@@ -708,6 +726,10 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
+      "grainline_checkout_reservation_listing_snapshot_witness",
+      "grainline_seller_deauthorization_application_immutable",
+      "grainline_order_staff_detail_v2",
+      "grainline_order_staff_page_v2",
     ]) {
       assert.equal(
         RUNTIME_PRIVATE_FUNCTIONS.includes(functionName),
@@ -1434,7 +1456,7 @@ describe("database grant inventory guardrails", () => {
         (entry) => inventory.functions.includes(entry.name),
       );
 
-    assert.equal(inventory.tables.length, 65);
+    assert.equal(inventory.tables.length, 67);
     assert.equal(inventory.enums.length, 22);
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
@@ -1500,6 +1522,9 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_STAFF_READ_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
+      ...ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES,
+      ...ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTION_NAMES,
+      ...ORDER_ZERO_DIRECT_COMPATIBLE_NEW_FUNCTION_NAMES,
       ...ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
@@ -1579,6 +1604,9 @@ describe("database grant inventory guardrails", () => {
         + ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS.length
         + ORDER_PARTICIPANT_DETAIL_AUTHORITY_FUNCTIONS.length
         + ORDER_STAFF_READ_AUTHORITY_FUNCTIONS.length
+        + ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES.length
+        + ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTION_NAMES.length
+        + ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT
         + ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS.length
         + ORDER_ELIGIBILITY_AUTHORITY_FUNCTIONS.length
         + ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS.length
@@ -1737,6 +1765,24 @@ describe("database grant inventory guardrails", () => {
         `${functionName} must revoke PUBLIC execution in the staff read-authority migration`,
       );
     }
+    for (const functionName of ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES) {
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the staff read correction`,
+      );
+    }
+    for (const functionName of ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTION_NAMES) {
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the account-deletion authority migration`,
+      );
+    }
     for (const identity of ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS) {
       const functionName = identity.slice(0, identity.indexOf("("));
       assert.equal(
@@ -1871,7 +1917,9 @@ describe("database grant inventory guardrails", () => {
         "Notification",
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
+        "OrderStaffCapability",
         "SavedSearch",
+        "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
       ],
@@ -1894,7 +1942,9 @@ describe("database grant inventory guardrails", () => {
         "Notification",
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
+        "OrderStaffCapability",
         "SavedSearch",
+        "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
       ],
@@ -2577,11 +2627,85 @@ describe("database grant inventory guardrails", () => {
     mkdirSync(migrationDirectory, { recursive: true });
     writeFileSync(
       join(migrationDirectory, "migration.sql"),
+      "SELECT 1;",
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
       'CREATE TABLE public."OrderRefundReconciliation" (id text PRIMARY KEY);',
     );
     assert.deepEqual(
       deriveGrantInventory(root).tables,
       ["OrderRefundReconciliation"],
+    );
+  });
+
+  it("does not demand the staged seller-deauthorization ledger before its exact migration is restored", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-deauthorization-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model SellerDeauthorizationApplication {",
+        "  eventId String @id",
+        "}",
+      ].join("\n"),
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    const migrationDirectory = join(
+      root,
+      "prisma",
+      "migrations",
+      "20260905120000_prepare_order_seller_deauthorization_authority",
+    );
+    mkdirSync(migrationDirectory, { recursive: true });
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
+      'CREATE TABLE public."SellerDeauthorizationApplication" ("eventId" text PRIMARY KEY);',
+    );
+    assert.deepEqual(
+      deriveGrantInventory(root).tables,
+      ["SellerDeauthorizationApplication"],
+    );
+  });
+
+  it("does not demand the staged staff capability before its exact migration is restored", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-staff-capability-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model OrderStaffCapability {",
+        "  id String @id",
+        "}",
+      ].join("\n"),
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    const wrongDirectory = join(root, "prisma", "migrations", "0001_wrong");
+    mkdirSync(wrongDirectory, { recursive: true });
+    writeFileSync(
+      join(wrongDirectory, "migration.sql"),
+      'CREATE TABLE public."OrderStaffCapability" (id text PRIMARY KEY);',
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    const migrationDirectory = join(
+      root,
+      "prisma",
+      "migrations",
+      "20260905100000_prepare_order_ban_review_authority",
+    );
+    mkdirSync(migrationDirectory, { recursive: true });
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
+      'CREATE TABLE public."OrderStaffCapability" (id text PRIMARY KEY);',
+    );
+    assert.deepEqual(
+      deriveGrantInventory(root).tables,
+      ["OrderStaffCapability"],
     );
   });
 

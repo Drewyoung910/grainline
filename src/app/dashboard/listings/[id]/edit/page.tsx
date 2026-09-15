@@ -32,6 +32,9 @@ import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
+import { randomUUID } from "node:crypto";
+import InventoryQuantityControl from "@/components/InventoryQuantityControl";
+import { lockListingStock, prepareListingStockMutation, recordListingStockMutation, StockMutationConflict } from "@/lib/listingStockMutation";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -168,6 +171,7 @@ function parsePhotoManifestField(
 
 async function updateListing(
   listingId: string,
+  stockContext: { listingType: ListingType; mutationId: string; issuedAt: number },
   _prev: unknown,
   formData: FormData
 ): Promise<SaveResult> {
@@ -267,7 +271,7 @@ async function updateListing(
   if (priceMaxError) return { ok: false, error: priceMaxError };
   const variantPriceError = validateVariantGroupsForBasePrice(variantGroups, priceCents);
   if (variantPriceError) return { ok: false, error: variantPriceError };
-  if (listingType === "IN_STOCK" && stockQuantity === null) {
+  if (listingType === "IN_STOCK" && stockContext.listingType !== listingType && stockQuantity === null) {
     return { ok: false, error: "In-stock listings need a stock quantity greater than zero." };
   }
   if (stockQuantity !== null && stockQuantity < 0) return { ok: false, error: "Stock quantity cannot be negative." };
@@ -352,7 +356,7 @@ async function updateListing(
   const needsPublicContentReview =
     listing.status === ListingStatus.ACTIVE ||
     listing.status === ListingStatus.SOLD_OUT;
-  const approvedPublicStatus =
+  let approvedPublicStatus =
     listing.status === ListingStatus.ACTIVE &&
     listingType === "IN_STOCK" &&
     (stockQuantity ?? 0) <= 0
@@ -362,6 +366,25 @@ async function updateListing(
   let updatedListing: { title: string; updatedAt: Date };
   try {
     updatedListing = await prisma.$transaction(async (tx) => {
+      // Ordinary content saves never rewrite stock. A listing-type conversion
+      // is an explicit, separately identified inventory operation in this same
+      // transaction, so replay cannot recreate stock after a later conversion.
+      const scope = { listingId, sellerId: listing.sellerId, actorId: listing.seller.userId };
+      const modeMutation = listingType !== stockContext.listingType
+        ? await prepareListingStockMutation(tx, scope, stockContext, {
+            kind: "listing-type", previousType: stockContext.listingType, listingType, stockQuantity,
+          })
+        : null;
+      if (modeMutation?.replayed) throw new StockMutationConflict("This listing-type change was already saved. Refresh the listing before editing again.");
+      const locked = modeMutation?.listing ?? await lockListingStock(tx, scope);
+      if (!locked || locked.listingType !== stockContext.listingType || locked.status !== listing.status) {
+        throw new StockMutationConflict("Listing state changed. Refresh before saving; newer stock was preserved.");
+      }
+      const lockedBlockReason = listingEditBlockReason({ ...locked, status: locked.status as ListingStatus });
+      if (lockedBlockReason) throw new StockMutationConflict(lockedBlockReason);
+      const nextStock = listingType === stockContext.listingType ? locked.stockQuantity : stockQuantity;
+      approvedPublicStatus = locked.status === ListingStatus.ACTIVE && listingType === "IN_STOCK" && (nextStock ?? 0) <= 0
+        ? ListingStatus.SOLD_OUT : listing.status;
       const updated = await tx.listing.update({
         where: { id: listingId },
         data: {
@@ -381,7 +404,7 @@ async function updateListing(
           packagedWeightGrams,
           category,
           listingType,
-          stockQuantity,
+          ...(listingType !== stockContext.listingType ? { stockQuantity } : {}),
           shipsWithinDays,
           processingTimeMinDays,
           processingTimeMaxDays,
@@ -453,13 +476,15 @@ async function updateListing(
         listingId,
       });
 
+      if (modeMutation) await recordListingStockMutation(tx, modeMutation, { listingType, stockQuantity });
+
       return updated;
     });
     if (needsPublicContentReview && listing.status === ListingStatus.ACTIVE) {
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_pending_review");
     }
   } catch (error) {
-    if (error instanceof ListingPhotoConflictError) {
+    if (error instanceof ListingPhotoConflictError || error instanceof StockMutationConflict) {
       // The transaction left new uploads unreferenced. The fenced lifecycle
       // worker removes them without racing a valid public reuse.
       return { ok: false, error: error.message };
@@ -716,7 +741,9 @@ export default async function EditListingPage(props: {
         </div>
       )}
 
-      <ActionForm action={updateListing.bind(null, id)} className="space-y-4 mb-10" preventEnterSubmit preserveOnError>
+      <ActionForm action={updateListing.bind(null, id, {
+        listingType: listing.listingType, mutationId: randomUUID(), issuedAt: Date.now(),
+      })} className="space-y-4 mb-10" preventEnterSubmit preserveOnError>
         {/* Section order intentionally mirrors the create-listing page:
             Title → Description → Meta → Materials → Product dimensions →
             Price → Tags → Listing type/variants → Packaged dimensions.
@@ -802,6 +829,8 @@ export default async function EditListingPage(props: {
           minDays={listing.processingTimeMinDays}
           maxDays={listing.processingTimeMaxDays}
           stockQuantity={listing.stockQuantity}
+          stockQuantityEditor={listing.listingType === "IN_STOCK"
+            ? <InventoryQuantityControl listing={listing} actorScope={userId} /> : undefined}
           shipsWithinDays={listing.shipsWithinDays}
           category={listing.category}
           initialVariantGroups={listing.variantGroups.map((g) => ({

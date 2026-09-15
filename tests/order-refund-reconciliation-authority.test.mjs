@@ -15,6 +15,10 @@ const marketplaceRefunds = readFileSync(
   "utf8",
 );
 const webhook = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+const refundClaimAuthority = readFileSync(
+  "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+  "utf8",
+);
 const sellerRefund = readFileSync(
   "src/app/api/orders/[id]/refund/route.ts",
   "utf8",
@@ -98,7 +102,7 @@ test("uses one fixed exact-claim ambiguous transition from every provider failur
   );
   assert.match(migration, /p_reason_code NOT IN \(/);
   assert.doesNotMatch(migration, /review_note\s*:=\s*p_/);
-  assert.match(sellerRefund, /reason: "SELLER_CLAIM_DRIFT"/);
+  assert.doesNotMatch(sellerRefund, /reason: "SELLER_CLAIM_DRIFT"/);
   assert.match(sellerRefund, /reason: "SELLER_PROVIDER_AMBIGUOUS"/);
   assert.match(webhook, /reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/);
   assert.doesNotMatch(
@@ -172,9 +176,10 @@ test("anchors provider requests and recovery scans to the database claim", () =>
   assert.match(provider, /plausibleUntagged\.length > 0/);
   assert.match(provider, /providerAuthorizedAtSeconds - 5 \* 60/);
   assert.match(provider, /SAFE_IDEMPOTENCY_RETRY_MS = 23/);
+  assert.match(webhook, /claimBlockedCheckoutOrderRefund\(\{[\s\S]*eventId: event\.id/);
   assert.match(
-    webhook,
-    /order\.refundClaimSource === "BLOCKED_CHECKOUT"[\s\S]*order\.refundClaimSourceId === eventId/,
+    refundClaimAuthority,
+    /locked_order\."refundClaimSource" = 'BLOCKED_CHECKOUT'[\s\S]*locked_order\."refundClaimSourceId" = locked_event\.id/,
   );
 });
 

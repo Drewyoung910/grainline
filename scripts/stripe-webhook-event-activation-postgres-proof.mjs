@@ -11,6 +11,9 @@ import {
   STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS,
   stripeWebhookEventFunctionSourceSha256,
 } from "./stripe-webhook-event-function-source-catalog.mjs";
+import {
+  STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+} from "./stage-stripe-webhook-event-activation-migration.mjs";
 
 const { Client } = pg;
 const PROOF_ENV = "STRIPE_WEBHOOK_EVENT_ACTIVATION_PROOF_DATABASE_URL";
@@ -184,7 +187,9 @@ export async function proveStripeWebhookEventCatalog(
   const expectedByName = new Map(
     STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map((entry) => [entry.name, entry]),
   );
-  const sourceHashes = stripeWebhookEventFunctionSourceSha256();
+  const sourceHashes = stripeWebhookEventFunctionSourceSha256(undefined, {
+    throughMigration: STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+  });
   for (const row of functions.rows) {
     const expected = expectedByName.get(row.function_name);
     assert.ok(expected, row.function_name);

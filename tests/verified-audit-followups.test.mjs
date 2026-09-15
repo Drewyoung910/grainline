@@ -206,10 +206,12 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(labelRoute, /claimSellerLabelPurchase/);
     assert.match(authority, /FOR UPDATE OF candidate/);
     assert.match(authority, /"labelClaimStatus" = 'PROVIDER_PENDING'/);
-    assert.match(labelRoute, /labelClawbackIdempotencyKey/);
+    assert.match(labelRoute, /settleLabelClawback/);
+    assert.match(source("src/lib/labelClawbackProvider.ts"), /labelClawbackIdempotencyKey/);
     assert.match(labelRoute, /finalizeLabelClawback/);
     const retryLib = source("src/lib/labelClawbackRetry.ts");
-    assert.match(retryLib, /claimLabelClawbackBatch\(take\)/);
+    assert.match(retryLib, /claimLabelClawbackBatch\(1\)/);
+    assert.match(retryLib, /settleLabelClawback/);
     assert.match(retryLib, /finalizeLabelClawback/);
     assert.match(authority, /FOR UPDATE OF source_order SKIP LOCKED/);
     assert.match(authority, /"labelClawbackRetryCount" = target_order\."labelClawbackRetryCount" \+ 1/);

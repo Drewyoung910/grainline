@@ -5,8 +5,8 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import {
   labelClawbackErrorMessage,
-  labelClawbackIdempotencyKey,
 } from "@/lib/labelClawbackState";
+import { settleLabelClawback } from "@/lib/labelClawbackProvider";
 import { finalizeSellerLabelProviderResult } from "@/lib/orderLabelFinalization";
 import {
   claimSellerLabelPurchase,
@@ -349,31 +349,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
 
       if (recorded.clawbackStatus === "RETRYING" && recorded.stripeTransferId) {
-        try {
-          const reversal = await stripe.transfers.createReversal(
-            recorded.stripeTransferId,
-            { amount: recorded.amountCents, metadata: { orderId, reason: "label_cost_deduction" } },
-            { idempotencyKey: labelClawbackIdempotencyKey({
-              orderId, shippoTransactionId: recorded.transactionId,
-              shippoRateObjectId: recorded.rateObjectId, amountCents: recorded.amountCents,
-            }) },
-          );
-          await finalizeLabelClawback({
-            orderId, claimId: recorded.claimId,
-            claimGeneration: recorded.claimGeneration,
-            clawbackGeneration: recorded.clawbackGeneration,
-            outcome: "SUCCESS", reversalId: reversal.id,
-          });
-        } catch (error) {
-          await finalizeLabelClawback({
-            orderId, claimId: recorded.claimId,
-            claimGeneration: recorded.claimGeneration,
-            clawbackGeneration: recorded.clawbackGeneration,
-            outcome: "FAILED", errorSummary: labelClawbackErrorMessage(error),
-          });
-          Sentry.captureException(error, {
+        const { finalized, providerFailed, providerError } = await settleLabelClawback(
+          { ...recorded, stripeTransferId: recorded.stripeTransferId }, stripe, finalizeLabelClawback,
+        );
+        if (providerFailed) {
+          Sentry.captureException(providerError, {
             tags: { source: "label_cost_clawback" }, extra: { orderId, claimId: recorded.claimId },
           });
+        }
+        if (finalized.outcome !== "finalized" && finalized.outcome !== "recorded_failure") {
+          throw new Error("Label reversal acknowledgement changed claim state");
         }
       }
 

@@ -2,13 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import {
+  buildOrderReconciliationInputCorrection,
+  orderReconciliationInputDefinitions,
+} from "../scripts/build-order-reconciliation-input-corrections.mjs";
+
+const typeCorrection = readFileSync("docs/rls-drafts/order-receipt-notification-type-correction.sql", "utf8");
 
 const migration = readFileSync(
   "prisma/migrations/20260901120000_prepare_order_receipt_notification_authority/migration.sql",
   "utf8",
 );
 
-async function createDatabase() {
+async function createReceiptDatabase({ corrected }) {
   const database = new PGlite();
   await database.exec(`
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
@@ -107,6 +113,7 @@ async function createDatabase() {
        '{"action":"picked_up","fulfillmentMethod":"PICKUP","previousStatus":"READY_FOR_PICKUP","newStatus":"PICKED_UP"}');
   `);
   await database.exec(migration);
+  if (corrected) await database.exec(typeCorrection);
   await database.exec(`
     CREATE FUNCTION public.grainline_notification_create_order_event(
       p_notification_id text,
@@ -153,7 +160,48 @@ async function asRuntime(database, sql, params = []) {
   }
 }
 
-describe("Order buyer-receipt Notification authority in PostgreSQL", () => {
+for (const corrected of [false, true]) {
+describe(`Order buyer-receipt Notification (${corrected ? "corrected draft" : "historical"})`, () => {
+  const createDatabase = (options = {}) => createReceiptDatabase({ corrected, ...options });
+
+  it("pins the draft to only explicit NULL type rejection", () => {
+    assert.equal(typeCorrection.trimEnd(), buildOrderReconciliationInputCorrection("notification").trimEnd());
+    const [{ before, after, tag }] = orderReconciliationInputDefinitions("notification");
+    assert.equal(after.split(tag)[1], before.split(tag)[1]
+      .replace("IF (p_source_type = 'blog_comment'", "IF p_type IS NULL OR (p_source_type = 'blog_comment'"));
+  });
+
+  it("rejects NULL explicitly after correction, preserving historical receipt-source containment", async () => {
+    const database = await createDatabase();
+    try {
+      const call = () => asRuntime(database, `SELECT public.grainline_notification_create_order_event(
+        '11111111-1111-4111-8111-111111111111', 'seller-user-1', NULL,
+        'order_fulfillment', 'audit-delivery', 'buyer-1') AS id`);
+      if (corrected) await assert.rejects(call(), /notification source does not match notification type/);
+      else assert.deepEqual((await call()).rows, [{ id: null }]);
+      assert.deepEqual((await database.query('SELECT * FROM public."Notification"')).rows, []);
+    } finally { await database.close(); }
+  });
+
+  if (corrected) it("refuses a source change or an exposed private core without replacing it", async () => {
+    for (const drift of ["source", "public-execute", "runtime-execute"]) {
+      const database = await createDatabase({ corrected: false });
+      try {
+        const [definition] = orderReconciliationInputDefinitions("notification");
+        if (drift === "source") await database.exec(definition.before.replace(
+          `AS ${definition.tag}`, `AS ${definition.tag}\n-- unexpected predecessor`));
+        else await database.exec(`GRANT EXECUTE ON FUNCTION public.${definition.name}(${definition.args})
+          TO ${drift === "public-execute" ? "PUBLIC" : "grainline_app_runtime"}`);
+        const snapshot = async () => (await database.query(`SELECT prosrc, proacl::text FROM pg_proc
+          WHERE oid = to_regprocedure($1)`, [`public.${definition.name}(${definition.args})`])).rows;
+        const before = await snapshot();
+        await assert.rejects(database.exec(typeCorrection), /notification input before authority drifted/);
+        await database.exec("ROLLBACK");
+        assert.deepEqual(await snapshot(), before);
+      } finally { await database.close(); }
+    }
+  });
+
   it("derives a seller delivery notice from buyer evidence and replays once", async () => {
     const database = await createDatabase();
     try {
@@ -230,3 +278,4 @@ describe("Order buyer-receipt Notification authority in PostgreSQL", () => {
     }
   });
 });
+}

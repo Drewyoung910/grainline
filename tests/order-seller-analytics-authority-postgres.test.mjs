@@ -7,6 +7,18 @@ const migration = readFileSync(
   "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
   "utf8",
 );
+const compositionCorrection = readFileSync(
+  "docs/rls-drafts/order-authority-composition-correction.sql",
+  "utf8",
+);
+
+function correctedFunction(name) {
+  const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const endMarker = `$${name}$;`;
+  const end = compositionCorrection.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
+  return compositionCorrection.slice(start, end + endMarker.length);
+}
 
 async function createDatabase() {
   const database = new PGlite();
@@ -47,6 +59,7 @@ async function createDatabase() {
       "fulfillmentStatus" public."FulfillmentStatus" NOT NULL,
       "sellerRefundId" text,
       "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
+      "paymentConversionDisputeBlocked" boolean NOT NULL DEFAULT false,
       "stripeSessionId" text,
       "stripePaymentIntentId" text,
       "stripeChargeId" text,
@@ -127,6 +140,14 @@ async function createDatabase() {
       ('order-later', 'buyer-1', 'seller-1', '2026-08-12', '2026-08-12', NULL, 'PENDING', NULL, false, 'cs_later', 400, 0, 0, 'usd', 'Buyer One', 'one@example.com', NULL),
       ('order-deleted', 'buyer-deleted', 'seller-1', '2026-08-13', '2026-08-13', NULL, 'PICKED_UP', NULL, false, 'cs_deleted', 200, 0, 0, 'usd', 'Deleted Buyer', 'deleted@example.com', '2026-08-20'),
       ('order-other', 'buyer-2', 'seller-2', '2026-08-01', '2026-08-01', NULL, 'DELIVERED', NULL, false, 'cs_other', 7000, 0, 0, 'usd', 'Other Buyer', 'other@example.com', NULL);
+    INSERT INTO public."Order" (
+      id, "buyerId", "sellerProfileId", "createdAt", "paidAt",
+      "fulfillmentStatus", "paymentConversionDisputeBlocked",
+      "stripeSessionId", "itemsSubtotalCents", currency, "buyerName", "buyerEmail"
+    ) VALUES (
+      'order-disputed', 'buyer-2', 'seller-1', '2026-08-14', '2026-08-14',
+      'DELIVERED', true, 'cs_disputed', 2000, 'usd', 'Buyer Two', 'two@example.com'
+    );
     INSERT INTO public."OrderItem" (
       id, "orderId", "listingId", "sellerProfileId", quantity, "priceCents",
       "listingSnapshot", "createdAt"
@@ -139,6 +160,13 @@ async function createDatabase() {
       ('item-later', 'order-later', 'listing-1', 'seller-1', 1, 400, '{}', '2026-08-12'),
       ('item-deleted', 'order-deleted', 'listing-2', 'seller-1', 1, 200, '{}', '2026-08-13'),
       ('item-other', 'order-other', 'listing-other', 'seller-2', 1, 7000, '{}', '2026-08-01');
+    INSERT INTO public."OrderItem" (
+      id, "orderId", "listingId", "sellerProfileId", quantity, "priceCents",
+      "listingSnapshot", "createdAt"
+    ) VALUES (
+      'item-disputed', 'order-disputed', 'listing-1', 'seller-1', 1, 2000,
+      '{"title":"Disputed chair"}', '2026-08-14'
+    );
     INSERT INTO public."Cart" (id, "userId") VALUES
       ('cart-1', 'buyer-1'), ('cart-2', 'buyer-2');
     INSERT INTO public."CartItem" (id, "cartId", "listingId", "createdAt") VALUES
@@ -157,6 +185,15 @@ async function createDatabase() {
       ('stock-1', 'buyer-2', 'listing-2', '2026-08-05');
   `);
   await database.exec(migration);
+  for (const name of [
+    "grainline_order_seller_analytics_summary",
+    "grainline_order_seller_analytics_buckets",
+    "grainline_order_seller_analytics_top_listings",
+    "grainline_order_seller_recent_sales",
+    "grainline_order_seller_completed_count",
+  ]) {
+    await database.exec(correctedFunction(name));
+  }
   return database;
 }
 

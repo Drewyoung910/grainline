@@ -92,7 +92,7 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/orders/[id]/refund/route.ts", [
       "await auth()",
       "readBoundedJson(req",
-      "prisma.order.findUnique",
+      "sellerRefundPreflight({",
       "claimSellerOrderRefund({",
       "resolveOrderRefundProviderOutcome(refundClaim)",
     ]);
@@ -106,8 +106,8 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/cases/[id]/resolve/route.ts", [
       "await auth()",
       "await requireStaffAdminPinForApi(",
-      "releaseStaleRefundLocks()",
       "readBoundedJson(req",
+      "releaseCaseLegacyRefundLock({",
       "prepareCaseStaffResolution({",
       "createMarketplaceRefund({",
     ]);
@@ -161,7 +161,7 @@ describe("request origin guard", () => {
       "safeRateLimit(",
       "readBoundedJson(req",
       "prisma.listing.findUnique",
-      "createConsistentSingleCheckoutStockReservation({",
+      "createSnapshotSingleCheckoutStockReservation({",
       "stripe.checkout.sessions.create",
     ]);
     assertGuardBefore("src/app/api/cart/checkout-seller/route.ts", [
@@ -169,7 +169,7 @@ describe("request origin guard", () => {
       "safeRateLimit(",
       "readBoundedJson(req",
       "ownerCartForCheckoutSeller(me.id)",
-      "createConsistentCartCheckoutStockReservation({",
+      "createSnapshotCartCheckoutStockReservation({",
       "stripe.checkout.sessions.create",
     ]);
     assertGuardBefore("src/app/api/cart/checkout/rollback/route.ts", [

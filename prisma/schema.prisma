@@ -686,6 +686,11 @@ model Order {
   paymentOpenDisputeBlocked       Boolean @default(false)
   paymentConversionDisputeBlocked Boolean @default(false)
 
+  // Signed seller deauthorization witness. The raw CHECK constraint requires
+  // both fields together and the partial index serves open affected orders.
+  sellerDeauthorizedAt         DateTime?
+  sellerDeauthorizationEventId String?   @db.VarChar(255)
+
   // Shippo label
   shippoShipmentId              String?      @db.VarChar(255)
   shippoRateObjectId            String?      @db.VarChar(255)
@@ -824,6 +829,22 @@ model OrderRefundReconciliation {
   @@index([actorUserId, createdAt(sort: Desc)])
 }
 
+// Short-lived, one-use authorization handoff from the separately
+// authenticated staff session into the atomic ordinary-runtime ban/unban
+// transaction. Policyless FORCE RLS and zero table grants keep the bearer
+// capability private to its fixed mint and consume operations.
+model OrderStaffCapability {
+  id           String   @id @default(uuid())
+  actorUserId  String
+  targetUserId String
+  operation    String   @db.VarChar(32)
+  payloadHash  String?  @db.VarChar(64)
+  expiresAt    DateTime @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([expiresAt])
+}
+
 model SellerPayoutEvent {
   id                        String        @id @default(cuid())
   sellerProfileId           String
@@ -915,6 +936,8 @@ model CheckoutStockReservation {
   lastRepairAttemptAt DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  // Complete locked checkout source used by the fixed paid-order writer.
+  sourceSnapshot      Json?
 
   @@index([checkoutLockKey])
   @@index([buyerId, checkoutGroupId])
@@ -922,6 +945,21 @@ model CheckoutStockReservation {
   @@index([buyerId, createdAt])
   @@index([sellerId, createdAt])
   @@index([status, expiresAt, repairClaimedAt, id], map: "CheckoutStockReservation_repair_claim_idx")
+}
+
+/// Private immutable replay ledger for signed Stripe seller deauthorization.
+/// Runtime has no direct table privileges; only its fixed application function
+/// may write, and a raw trigger rejects UPDATE and DELETE.
+model SellerDeauthorizationApplication {
+  eventId                 String   @id @db.VarChar(255)
+  sourceAccountId         String   @db.VarChar(255)
+  sellerProfileId         String?  @db.VarChar(191)
+  eventCreatedAt          DateTime
+  appliedAt               DateTime
+  publicVisibilityChanged Boolean
+  orderCount              Int
+
+  @@index([sourceAccountId, appliedAt(sort: Desc), eventId], map: "SellerDeauthorizationApplication_sourceAccountId_appliedAt_idx")
 }
 
 model ListingVariantGroup {

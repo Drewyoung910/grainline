@@ -3,8 +3,12 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from './db'
 import { adminUndoActorBlockReason, adminUndoWindowBlockReason } from './adminAuditUndoState'
 import { listingUndoCurrentStatusWhere, listingUndoDataFromMetadata } from './adminListingUndoState'
-import { readBanAuditMetadata, type BanOpenOrderSnapshot } from './banAuditMetadata'
-import { restoreOrderReviewStateAfterBan } from './banOrderReviewState'
+import { readBanAuditMetadata } from './banAuditMetadata'
+import {
+  mintBanReviewCapability,
+  restoreBannedSellerOrderReviews,
+} from './orderBanReviewAuthority'
+import { getOrderStaffReadClient } from './orderStaffReadDb'
 import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
@@ -41,40 +45,6 @@ export function isUndoableAdminAction(action: string): boolean {
 
 export function sanitizeAdminAuditReason(reason: string | null | undefined): string | null | undefined {
   return reason ? truncateText(sanitizeText(reason), 500) || null : undefined
-}
-
-async function restoreBannedSellerOrderReviewState(
-  tx: Pick<Prisma.TransactionClient, 'order'>,
-  snapshots: BanOpenOrderSnapshot[],
-) {
-  if (snapshots.length === 0) return 0
-  const currentOrders = await tx.order.findMany({
-    where: { id: { in: snapshots.map((snapshot) => snapshot.id) } },
-    select: { id: true, reviewNeeded: true, reviewNote: true },
-  })
-  const currentById = new Map(currentOrders.map((order) => [order.id, order]))
-
-  let restored = 0
-  for (const snapshot of snapshots) {
-    const current = currentById.get(snapshot.id)
-    if (!current) continue
-    const restoration = restoreOrderReviewStateAfterBan({
-      currentReviewNeeded: current.reviewNeeded,
-      currentReviewNote: current.reviewNote,
-      snapshot,
-    })
-    if (!restoration) continue
-    const updated = await tx.order.updateMany({
-      where: {
-        id: snapshot.id,
-        reviewNeeded: current.reviewNeeded,
-        reviewNote: current.reviewNote,
-      },
-      data: restoration,
-    })
-    restored += updated.count
-  }
-  return restored
 }
 
 function originalActionIdFromMetadata(metadata: unknown) {
@@ -332,6 +302,15 @@ export async function undoAdminAction({
         select: { clerkId: true },
       })
     : null
+  const banReviewCapability = log.action === 'BAN_USER'
+    ? await mintBanReviewCapability(
+        adminId,
+        log.targetId,
+        'BAN_REVIEW_RESTORE',
+        banMetadata?.flaggedOpenOrders ?? [],
+        getOrderStaffReadClient(),
+      )
+    : null
 
   await prisma.$transaction(async (tx) => {
     // Atomic lock: only one undo can succeed, and the flag rolls back if the
@@ -344,6 +323,15 @@ export async function undoAdminAction({
 
     switch (log.action) {
       case 'BAN_USER': {
+        if (!banReviewCapability) {
+          throw new Error('Ban review authorization capability is missing')
+        }
+        await restoreBannedSellerOrderReviews(
+          banReviewCapability,
+          log.targetId,
+          banMetadata?.flaggedOpenOrders ?? [],
+          tx,
+        )
         const unbanned = await tx.user.updateMany({
           where: {
             id: log.targetId,
@@ -372,9 +360,6 @@ export async function undoAdminAction({
               })
             )
           )
-        }
-        if (banMetadata?.flaggedOpenOrders.length) {
-          await restoreBannedSellerOrderReviewState(tx, banMetadata.flaggedOpenOrders)
         }
         break
       }

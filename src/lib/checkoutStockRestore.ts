@@ -314,12 +314,6 @@ async function restoreLegacyUnorderedCheckoutStockOnce(input: {
   const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
     await lockCheckoutSessionMutation(tx, input.sessionId);
 
-    const orderExists = await tx.order.findFirst({
-      where: { stripeSessionId: input.sessionId },
-      select: { id: true },
-    });
-    if (orderExists) return 0;
-
     let items = restorableStockItemsFromLineItems(input.lineItems ?? []);
     if (items.length === 0) {
       items = restorableStockItemsFromMetadata(input.metadata);

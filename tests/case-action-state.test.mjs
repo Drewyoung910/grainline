@@ -18,10 +18,10 @@ describe("case action state", () => {
     assert.equal(isResolvableCaseStatus("CLOSED"), false);
   });
 
-  it("limits escalation to discussion states before pending-close or review", () => {
+  it("limits escalation to pre-review active states with separate availability gating", () => {
     assert.equal(isEscalatableCaseStatus("OPEN"), true);
     assert.equal(isEscalatableCaseStatus("IN_DISCUSSION"), true);
-    assert.equal(isEscalatableCaseStatus("PENDING_CLOSE"), false);
+    assert.equal(isEscalatableCaseStatus("PENDING_CLOSE"), true);
     assert.equal(isEscalatableCaseStatus("UNDER_REVIEW"), false);
     assert.equal(isEscalatableCaseStatus("CLOSED"), false);
   });
@@ -37,7 +37,12 @@ describe("case action state", () => {
     assert.equal(caseEscalationAvailable("IN_DISCUSSION", future, now, true), true);
     assert.equal(caseEscalationAvailable("OPEN", null, now, true), true);
     assert.equal(caseEscalationAvailable("OPEN", null, now, false), false);
-    assert.equal(caseEscalationAvailable("PENDING_CLOSE", past, now, true), false);
+    assert.equal(caseEscalationAvailable("PENDING_CLOSE", past, now, true), true);
+    assert.equal(caseEscalationAvailable("PENDING_CLOSE", null, now, true), true);
+    assert.equal(caseEscalationAvailable("PENDING_CLOSE", past, now, false), false);
+    for (const status of [null, "UNDER_REVIEW", "RESOLVED", "CLOSED", "invalid"]) {
+      assert.equal(caseEscalationAvailable(status, past, now, true), false);
+    }
   });
 
   it("uses stable user-facing messages from the resulting status", () => {

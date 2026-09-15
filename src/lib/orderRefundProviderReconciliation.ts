@@ -286,22 +286,27 @@ export async function inspectOrderRefundProviderEffect(
 
 async function activeClaimProviderAuthorizedAt(claim: OrderRefundClaim) {
   const { prisma } = await import("@/lib/db");
-  const order = await prisma.order.findFirst({
-    where: {
-      refundClaimId: claim.claimId,
-      refundClaimGeneration: claim.claimGeneration,
-      refundClaimSource: claim.source,
-      refundClaimSourceId: claim.sourceId,
-      refundClaimSourceGeneration: claim.sourceGeneration,
-      refundClaimIdempotencyScope: claim.idempotencyScope,
-      refundClaimProviderAuthorizedAt: { not: null },
-    },
-    select: { refundClaimProviderAuthorizedAt: true },
-  });
-  if (!order?.refundClaimProviderAuthorizedAt) {
+  const rows = await prisma.$queryRaw<Array<{
+    provider_authorized_at: Date;
+  }>>`
+    SELECT provider_authorized_at
+      FROM public.grainline_order_refund_claim_provider_clock(
+        ${claim.claimId},
+        ${claim.claimGeneration},
+        ${claim.source},
+        ${claim.sourceId},
+        ${claim.sourceGeneration},
+        ${claim.idempotencyScope}
+      )
+  `;
+  if (
+    rows.length !== 1
+    || !(rows[0]?.provider_authorized_at instanceof Date)
+    || Number.isNaN(rows[0].provider_authorized_at.getTime())
+  ) {
     throw new Error("Order refund claim provider clock is no longer active");
   }
-  return order.refundClaimProviderAuthorizedAt;
+  return rows[0].provider_authorized_at;
 }
 
 export async function resolveOrderRefundProviderOutcome(

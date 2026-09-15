@@ -31,6 +31,7 @@ describe("deferred launch backlog", () => {
       "High-scale BigInt and counters",
       "Historical shipping-rate currency drift",
       "Clerk staff/security controls",
+      "Ban/unban Clerk desired-state convergence",
       "Buyer-deletion Stripe replay proof",
       "Founding Maker concurrency",
       "Sentry cron alerting",
@@ -52,5 +53,10 @@ describe("deferred launch backlog", () => {
     assert.match(source("CLAUDE.md"), /docs\/deferred-launch-backlog\.md/);
     assert.match(source("docs/launch-checklist.md"), /canonical master launch-readiness checklist/);
     assert.match(source("docs/launch-checklist.md"), /docs\/deferred-launch-backlog\.md/);
+  });
+
+  it("tracks final Clerk state convergence for opposing ban and unban actions", () => {
+    assert.match(backlog, /durable per-user lifecycle generation or desired-state outbox/);
+    assert.match(backlog, /Keep this separate from Order RLS activation/);
   });
 });

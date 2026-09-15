@@ -34,14 +34,8 @@ describe("admin server action guardrails", () => {
     }
   });
 
-  it("blocks suspended or deleted staff accounts inside admin pages and APIs", () => {
+  it("blocks suspended or deleted staff accounts inside admin APIs", () => {
     for (const path of [
-      "src/app/admin/audit/page.tsx",
-      "src/app/admin/support/page.tsx",
-      "src/app/admin/review/page.tsx",
-      "src/app/admin/users/page.tsx",
-      "src/app/admin/reports/page.tsx",
-      "src/app/admin/reviews/page.tsx",
       "src/app/api/admin/listings/[id]/route.ts",
       "src/app/api/admin/listings/[id]/review/route.ts",
       "src/app/api/admin/users/[id]/ban/route.ts",
@@ -77,26 +71,40 @@ describe("admin server action guardrails", () => {
     assert.match(helper, /deletedAt:\s*true/);
     assert.match(helper, /user\.banned\s*\|\|\s*user\.deletedAt/);
     assert.match(helper, /user\.role !== "EMPLOYEE" && user\.role !== "ADMIN"/);
+    assert.match(helper, /verifyAdminPinCookieValue\(/);
+    assert.match(helper, /cookieStore\.get\(ADMIN_PIN_COOKIE_NAME\)/);
+    assert.match(helper, /sessionId/);
 
     for (const [path, queryNeedle] of [
-      ["src/app/admin/orders/page.tsx", "prisma.order.findMany"],
-      ["src/app/admin/orders/[id]/page.tsx", "prisma.order.findUnique"],
-      ["src/app/admin/flagged/page.tsx", "prisma.order.findMany"],
+      ["src/app/admin/orders/page.tsx", "readStaffOrderPage("],
+      ["src/app/admin/orders/[id]/page.tsx", "readStaffOrderDetail("],
+      ["src/app/admin/flagged/page.tsx", "readStaffOrderPage("],
       ["src/app/admin/cases/page.tsx", "getStaffCaseQueue"],
       ["src/app/admin/cases/[id]/page.tsx", "getVisibleCaseById"],
       ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
       ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
       ["src/app/admin/verification/page.tsx", "prisma.makerVerification.findMany"],
+      ["src/app/admin/audit/page.tsx", "prisma.adminAuditLog.count"],
+      ["src/app/admin/users/page.tsx", "prisma.user.count"],
+      ["src/app/admin/reviews/page.tsx", "prisma.review.count"],
+      ["src/app/admin/review/page.tsx", "prisma.listing.count"],
+      ["src/app/admin/reports/page.tsx", "prisma.userReport.findMany"],
+      ["src/app/admin/support/page.tsx", "prisma.supportRequest."],
     ]) {
       const text = source(path);
       const pageStart = text.indexOf("export default async function");
       const pageText = text.slice(pageStart);
       assert.match(text, /requireAdminPageAccess/, `${path} must import/call the admin page guard`);
+      const accessCall = /\/admin\/(?:audit|users)\//.test(path)
+        ? 'await requireAdminPageAccess("ADMIN")' : "await requireAdminPageAccess()";
       assert.ok(
-        pageText.indexOf("await requireAdminPageAccess()") >= 0 &&
-          pageText.indexOf("await requireAdminPageAccess()") < pageText.indexOf(queryNeedle),
+        pageText.indexOf(accessCall) >= 0 &&
+          pageText.indexOf(accessCall) < pageText.indexOf(queryNeedle),
         `${path} must guard admin page access before sensitive data queries`,
       );
+      const challenge = pageText.indexOf("if (!staff) return <AdminPinGate />;");
+      assert.ok(challenge > pageText.indexOf(accessCall) && challenge < pageText.indexOf(queryNeedle),
+        `${path} must withhold data and retain the PIN challenge`);
     }
   });
 
@@ -125,10 +133,13 @@ describe("admin server action guardrails", () => {
     const page = source("src/app/admin/orders/[id]/page.tsx");
 
     assert.match(actions, /export async function recordLabelVoided/);
-    assert.match(actions, /labelStatus !== "PURCHASED"/);
-    assert.match(actions, /labelClawbackStatus === "RETRY_PENDING" \|\| order\.labelClawbackStatus === "RETRYING"/);
-    assert.match(actions, /labelStatus: "VOIDED"/);
-    assert.match(actions, /action: "RECORD_LABEL_VOIDED"/);
+    assert.match(actions, /recordStaffOrderLabelVoided\([\s\S]*?admin\.id,[\s\S]*?orderId,[\s\S]*?getOrderStaffReadClient\(\)/);
+    assert.match(actions, /verifyAdminPinCookieValue/);
+    const authority = source("docs/rls-drafts/order-staff-mutation-authority.sql");
+    assert.match(authority, /"labelStatus" IS DISTINCT FROM 'PURCHASED'/);
+    assert.match(authority, /"labelClawbackStatus" IN \('RETRY_PENDING', 'RETRYING'\)/);
+    assert.match(authority, /"labelStatus" = 'VOIDED'/);
+    assert.match(authority, /'RECORD_LABEL_VOIDED'/);
     assert.match(actions, /source: "admin_order_record_label_voided"/);
     assert.match(panel, /recordLabelVoided/);
     assert.match(panel, /Only use this after staff has voided or reconciled the carrier label outside Grainline/);

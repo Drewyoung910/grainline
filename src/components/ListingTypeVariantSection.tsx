@@ -9,6 +9,7 @@ export default function ListingTypeVariantSection({
   minDays,
   maxDays,
   stockQuantity,
+  stockQuantityEditor,
   shipsWithinDays,
   category,
   initialVariantGroups = [],
@@ -17,6 +18,7 @@ export default function ListingTypeVariantSection({
   minDays?: number | null;
   maxDays?: number | null;
   stockQuantity?: number | null;
+  stockQuantityEditor?: React.ReactNode;
   shipsWithinDays?: number | null;
   category?: string | null;
   initialVariantGroups?: VariantGroupData[];
@@ -32,6 +34,7 @@ export default function ListingTypeVariantSection({
           minDays={minDays}
           maxDays={maxDays}
           stockQuantity={stockQuantity}
+          stockQuantityEditor={stockQuantityEditor}
           shipsWithinDays={shipsWithinDays}
           category={category}
           onListingTypeChange={setType}

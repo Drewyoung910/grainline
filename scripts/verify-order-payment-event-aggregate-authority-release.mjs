@@ -38,6 +38,15 @@ import {
 import {
   ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
 } from "./order-participant-list-projection-correction-catalog.mjs";
+import {
+  appendReviewedOrderStaffReadChargedTotalCorrection,
+  ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+} from "./verify-order-staff-read-charged-total-correction.mjs";
+import {
+  appendReviewedOrderAccountDeletionAuthority,
+  ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+} from "./verify-order-account-deletion-authority.mjs";
+import { appendReviewedOrderZeroDirectCompatibleSuccessors } from "./stage-order-zero-direct-compatible-prefix.mjs";
 
 export const ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_PHASE =
   "order-payment-event-aggregate-authority-reviewed";
@@ -108,6 +117,24 @@ export function verifyOrderPaymentEventAggregateAuthorityRelease(
     );
     reviewedSuccessors.push(CASE_CORRECTNESS_MIGRATION);
   }
+  appendReviewedOrderStaffReadChargedTotalCorrection({
+    root,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: CASE_CORRECTNESS_MIGRATION,
+  });
+  appendReviewedOrderAccountDeletionAuthority({
+    root,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION,
+  });
+  appendReviewedOrderZeroDirectCompatibleSuccessors({
+    root,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+  });
   assert.deepEqual(
     laterMigrations,
     reviewedSuccessors,

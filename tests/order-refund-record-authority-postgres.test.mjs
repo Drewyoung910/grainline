@@ -11,6 +11,18 @@ const recordMigration = readFileSync(
   "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
   "utf8",
 );
+const compositionCorrection = readFileSync(
+  "docs/rls-drafts/order-authority-composition-correction.sql",
+  "utf8",
+);
+
+function correctedFunction(name) {
+  const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const endMarker = `$${name}$;`;
+  const end = compositionCorrection.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
+  return compositionCorrection.slice(start, end + endMarker.length);
+}
 
 async function createDatabase() {
   const database = new PGlite();
@@ -61,6 +73,7 @@ async function createDatabase() {
       "sellerRefundAmountCents" integer,
       "sellerRefundLockedAt" timestamp(3) without time zone,
       "labelStatus" text,
+      "labelClaimStatus" text,
       "fulfillmentStatus" text NOT NULL DEFAULT 'PENDING',
       "reviewNeeded" boolean NOT NULL DEFAULT false,
       "reviewNote" text
@@ -144,6 +157,8 @@ async function createDatabase() {
   `);
   await database.exec(claimMigration);
   await database.exec(recordMigration);
+  await database.exec(correctedFunction("grainline_blocked_checkout_refund_claim"));
+  await database.exec(correctedFunction("grainline_blocked_checkout_refund_record_core"));
   await database.exec(`
     INSERT INTO public."User" (id) VALUES
       ('seller-user'),
@@ -362,6 +377,99 @@ test("blocked-checkout claim hands off to a later signed lease and records once"
         FROM public."Listing" WHERE id = $1
       `, [listingId])).rows[0],
       { stockQuantity: 2, status: "ACTIVE" },
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("blocked-checkout refund stays fenced from fulfillment and label state", async () => {
+  const database = await createDatabase();
+  try {
+    for (const [index, state] of [
+      "READY_FOR_PICKUP", "SHIPPED", "DELIVERED", "PICKED_UP",
+    ].entries()) {
+      const orderId = `order-state-${index}`;
+      const sessionId = `cs_state_${index}`;
+      const eventId = `evt_state_${index}`;
+      await seedOrder(database, { id: orderId, sessionId, transferId: null });
+      await database.query(
+        `UPDATE public."Order" SET "fulfillmentStatus" = $2 WHERE id = $1`,
+        [orderId, state],
+      );
+      await database.query(`
+        INSERT INTO public."StripeWebhookEvent" (
+          id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+        ) VALUES ($1, 'checkout.session.completed', $2, 1, CURRENT_TIMESTAMP)
+      `, [eventId, sessionId]);
+      assert.equal(await blockedClaim(database, {
+        eventId,
+        eventGeneration: 1,
+        sessionId,
+        orderId,
+      }), null, state);
+    }
+
+    await seedOrder(database, {
+      id: "order-labeled",
+      sessionId: "cs_labeled",
+      transferId: null,
+    });
+    await database.exec(`
+      UPDATE public."Order" SET "labelStatus" = 'PURCHASED'
+       WHERE id = 'order-labeled';
+      INSERT INTO public."StripeWebhookEvent" (
+        id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+      ) VALUES (
+        'evt_labeled', 'checkout.session.completed', 'cs_labeled', 1,
+        CURRENT_TIMESTAMP
+      )
+    `);
+    assert.equal(await blockedClaim(database, {
+      eventId: "evt_labeled",
+      eventGeneration: 1,
+      sessionId: "cs_labeled",
+      orderId: "order-labeled",
+    }), null);
+
+    const listingId = await seedOrder(database, {
+      id: "order-record-race",
+      sessionId: "cs_record_race",
+      transferId: null,
+    });
+    await database.exec(`
+      INSERT INTO public."StripeWebhookEvent" (
+        id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+      ) VALUES (
+        'evt_record_race', 'checkout.session.completed', 'cs_record_race', 1,
+        CURRENT_TIMESTAMP
+      )
+    `);
+    const claim = await blockedClaim(database, {
+      eventId: "evt_record_race",
+      eventGeneration: 1,
+      sessionId: "cs_record_race",
+      orderId: "order-record-race",
+    });
+    await database.exec(`
+      UPDATE public."Order" SET "fulfillmentStatus" = 'SHIPPED'
+       WHERE id = 'order-record-race'
+    `);
+    await assert.rejects(
+      database.query(`
+        SELECT public.grainline_blocked_checkout_refund_record(
+          'evt_record_race', 1, $1, $2, 're_RecordRace',
+          'succeeded', NULL, NULL
+        )
+      `, [claim.claimId, claim.claimGeneration]),
+      /claim is no longer active/,
+    );
+    assert.deepEqual(
+      (await database.query(`
+        SELECT "stockQuantity", status::text AS status
+          FROM public."Listing" WHERE id = $1
+      `, [listingId])).rows[0],
+      { stockQuantity: 0, status: "SOLD_OUT" },
     );
   } finally {
     await database.close();
