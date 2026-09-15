@@ -10,6 +10,8 @@ const SECRET = "whsec_" + Buffer.alloc(32, 17).toString("base64");
 const OTHER = "whsec_" + Buffer.alloc(32, 18).toString("base64");
 const ID = "msg_synthetic_receipt_message", SENTINEL = "user_grainline_webhook_sentinel_" + "1".repeat(32);
 const payload = () => ({ data: { deleted: true, id: SENTINEL, object: "user" }, object: "event", type: "user.deleted" });
+// Static provider schema example, not a production delivery or user fixture.
+const providerExample = () => ({"data":{"deleted":true,"id":"user_29wBMCtzATuFJut8jO2VNTVekS4","object":"user"},"event_attributes":{"http_request":{"client_ip":"0.0.0.0","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"}},"object":"event","timestamp":1661861640000,"type":"user.deleted"});
 const sha = v => createHash("sha256").update(v).digest("hex");
 const bodyModule = { exports: {} };
 new Function("require", "module", "exports", ts.transpileModule(readFileSync("src/lib/requestBody.ts", "utf8"),
@@ -32,7 +34,7 @@ function route(controls = {}) {
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     "@/lib/db": { prisma }, "@/lib/clerkWebhookReceipt.mjs": receipts,
     "@/lib/accountDeletion": { anonymizeUserAccountByClerkId: async id => {
-      counts.anonymize++; assert.equal(id, controls.ordinary ? "user_ordinary" : SENTINEL);
+      counts.anonymize++; assert.equal(id, controls.proofUserId ?? (controls.ordinary ? "user_ordinary" : SENTINEL));
       return controls.anonymized ?? { ok: true, alreadyDeleted: true, userAbsent: true };
     } },
     "@/lib/requestBody": { ...bodyModule.exports, readBoundedWebhookText: async (req, limit) => {
@@ -149,5 +151,42 @@ test("the actual deletion helper distinguishes absent and already deleted users 
     }, mod, mod.exports);
     const result = await mod.exports.anonymizeUserAccountByClerkId(SENTINEL);
     assert.equal(result.userAbsent, user === null ? true : undefined); assert.equal(reads, 1);
+  }
+});
+
+
+test("actual verified provider example receives exact raw and canonical receipts after absence, including retry", async () => {
+  const example = providerExample(), proofUserId = example.data.id;
+  assert.equal(sha(JSON.stringify(example)), "96aee0fb9d16f052ecb336457856fb14ab6dd84dac6177cb27346ca5c9997cfe");
+  assert.equal(sha(proofUserId), "9a5d23d9b2e4917a244acd51831e2ceb4d1051dfa6d7cc5503064d101e1c2382");
+  for (const duplicate of [false, true]) {
+    const f = route({ proofUserId, duplicate }), body = JSON.stringify(Object.fromEntries(Object.entries(example).reverse()), null, 2);
+    const result = await f.run(body);
+    assert.equal(result.status, 200);
+    const receipt = verify(result.body.receipt, { sentinelClerkId: proofUserId, outcome: duplicate ? "duplicate" : "absent-user" });
+    assert.equal(receipt.canonicalPayloadSha256, sha(JSON.stringify(example)));
+    assert.equal(receipt.rawPayloadSha256, sha(body));
+    assert.deepEqual(f.counts, { reserve: 1, mark: duplicate ? 0 : 1, anonymize: duplicate ? 0 : 1, unexpected: 0 });
+  }
+});
+
+test("provider example shape, user, metadata and timestamp are pinned; another verified payload cannot acquire its receipt", () => {
+  for (const change of [e => { e.data.id += "x"; }, e => { e.timestamp++; }, e => { e.event_attributes.http_request.client_ip = "192.0.2.1"; },
+    e => { e.event_attributes.http_request.user_agent += "x"; }, e => { delete e.event_attributes; }, e => { e.data.deleted = false; },
+    e => { e.extra = true; }, e => { e.type = "user.updated"; }]) {
+    const original = providerExample(), changed = providerExample(); change(changed);
+    for (const [body, verifiedEvent] of [[changed, changed], [original, changed], [changed, original]]) {
+      assert.equal(receipts.prepareClerkSentinelReceipt({ body: JSON.stringify(body), verifiedEvent, svixId: ID,
+        svixTimestamp: String(Math.floor(Date.now() / 1000)), secret: SECRET }), null);
+    }
+  }
+});
+
+test("provider example still requires current Svix signature and absent-user completion", async () => {
+  const example = providerExample();
+  for (const controls of [{ wrongKey: true }, { stale: true }, { anonymized: { ok: true, alreadyDeleted: true } },
+    { anonymized: { ok: true } }, { inProgress: true }]) {
+    const result = await route({ ...controls, proofUserId: example.data.id }).run(JSON.stringify(example));
+    assert.equal(result.body.receipt, undefined);
   }
 });
