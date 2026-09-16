@@ -30,7 +30,6 @@ describe("admin audit durability", () => {
 
   it("co-commits high-risk admin mutations with their audit rows", () => {
     for (const path of [
-      "src/app/admin/actions.ts",
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/support/actions.ts",
@@ -48,5 +47,22 @@ describe("admin audit durability", () => {
         `${path} must audit inside the mutation transaction`,
       );
     }
+
+    const orderActions = source("src/app/admin/actions.ts");
+    const orderAuthority = source("docs/rls-drafts/order-staff-mutation-authority.sql");
+    assert.match(orderActions, /markStaffOrderReviewed\(admin\.id, orderId\)/);
+    assert.match(orderActions, /recordStaffOrderLabelVoided\(admin\.id, orderId\)/);
+    assert.match(orderActions, /appendStaffOrderNote\(admin\.id, orderId, note\)/);
+    assert.doesNotMatch(orderActions, /prisma\.order\.(?:update|updateMany)/);
+    assert.equal(
+      (orderAuthority.match(/INSERT INTO public\."AdminAuditLog"/g) ?? []).length,
+      3,
+      "each fixed staff Order mutation must co-commit one audit row",
+    );
+    assert.equal(
+      (orderAuthority.match(/SELECT source_order\.\* INTO locked_order[\s\S]*?FOR UPDATE;/g) ?? []).length,
+      3,
+      "each fixed staff Order mutation must lock its source row",
+    );
   });
 });

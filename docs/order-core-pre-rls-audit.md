@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 20 source files still touch Order authority directly
+### ORD-A05: 14 runtime/proof source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -141,10 +141,6 @@ Staff and administrative reads/transitions:
 
 Participant/service mutation routes:
 
-- `src/app/api/orders/[id]/confirm-delivery/route.ts`
-- `src/app/api/orders/[id]/fulfillment/route.ts`
-- `src/app/api/orders/[id]/label/route.ts`
-- `src/app/api/orders/[id]/refund/route.ts`
 - `src/app/api/stripe/webhook/route.ts`
 
 Lifecycle, repair and retention readers/writers:
@@ -152,11 +148,21 @@ Lifecycle, repair and retention readers/writers:
 - `src/lib/accountDeletion.ts`
 - `src/lib/audit.ts`
 - `src/lib/ban.ts`
-- `src/lib/caseLifecycleLocks.ts`
-- `src/lib/checkoutStockRestore.ts`
-- `src/lib/labelClawbackRetry.ts`
-- `src/lib/orderRefundProviderReconciliation.ts`
-- `src/lib/refundLocks.ts`
+
+At that audit checkpoint this list became executable rather than prose-only:
+`tests/order-direct-access-inventory.test.mjs` scans both Prisma delegates and
+direct raw-SQL relation references and fails on either a new unclassified file
+or an undocumented conversion. Later checkpoint sections below advance those
+inventories without rewriting this historical baseline.
+The first follow-on conversion replaces
+`src/lib/orderRefundProviderReconciliation.ts`'s full-credential Order read
+with a fixed exact-claim projection that returns only the provider-authorized
+timestamp. Its SQL remains a compatibility draft pending a separate database-
+first release, so the application change must not deploy before that function.
+The remaining work divides cleanly into seven staff/admin consumers, one
+provider route and six lifecycle/maintenance modules; it does not
+require reopening already-converted fulfillment, buyer-receipt or label route
+authority.
 
 ### ORD-A06: the development Order creator is retired
 
@@ -331,6 +337,17 @@ does not independently authenticate Stripe or Shippo. The application-held
 provider secrets remain the ingress trust boundary; fixed functions bind an
 accepted source event/claim to narrow local effects.
 
+2026-09-05 paid-checkout authority checkpoint: the isolated fixed operation
+now derives Order/OrderItem source facts from the complete retained reservation
+snapshot and has real PostgreSQL single/cart, replay, forged-input, direct-grant
+denial and rollback proof. The audit corrected currency binding, duplicate
+source/variant handling, single-versus-cart processing floors, fulfillment
+validation, quoted address-line retention and bounded audit text before any
+route conversion. The webhook's predecessor writers remain intentionally in
+place until the compatible database dependency is packaged first; therefore
+this checkpoint proves the candidate but does not reduce the direct-access
+inventory or authorize deployment/RLS.
+
 ### ORD-A10: compatible nullable seller keys are not the final invariant
 
 Production inspection previously found no seller-key derivation ambiguity,
@@ -440,6 +457,161 @@ activation. Aggregate production inspection for duplicate Shippo transaction
 identities and legacy package-fallback counts also remains required. No
 migration, deployment, RLS/grant or production state changed.
 
+2026-09-05 legacy refund-lock authority checkpoint: the generic runtime
+`Order.updateMany` cleanup is removed from the stacked candidate. Its three
+callers now use separate fixed operations: the blocked-checkout path must prove
+the exact active signed Stripe event generation and Checkout Session; the Case
+path must prove the active staff actor plus nonterminal Case-to-Order source;
+and the cron path can release only a 100-row `FOR UPDATE SKIP LOCKED` batch.
+Every operation clears only a stale pre-generation `pending` sentinel with no
+Case or modern refund claim. Invalid Case input no longer triggers a global
+cleanup. This reduces the candidate direct Order inventory from 14 to 13. The
+SQL remains a database-first draft, so none of the application changes may
+deploy before the fixed functions. See
+`docs/order-legacy-refund-lock-authority.md`.
+
+2026-09-05 proof-lock retirement checkpoint: the remaining raw Order lock in
+`src/lib/caseLifecycleLocks.ts` had no application callsite; only the
+disposable Case concurrency harness imported it. The primitive and its
+database-clock helper now live inside that harness, while the tracked source
+path remains an inert historical marker. This does not change the proof or any
+runtime behavior and avoids creating a fixed database operation for dead code.
+The candidate direct Order inventory falls from 13 to 12.
+
+2026-09-05 legacy stock-restore fence checkpoint: unordered-checkout recovery
+previously took the shared Checkout Session advisory lock, queried `Order`
+directly, and then called the fixed legacy restore claim. The source-consistent
+replacement performs the exact `stripeSessionId` existence check inside that
+fixed operation while holding the same transaction-scoped advisory lock used
+by compatible Order creation. The runtime transaction therefore retains the
+lock through stock restoration, and neither side can pass an absence check and
+commit concurrently. The candidate direct Order inventory falls from 12 to 11.
+The replacement SQL is database-first and must deploy before the application.
+See `docs/order-legacy-stock-restore-fence.md`.
+
+2026-09-05 refund-reconciliation commit-proof checkpoint: the administrator
+recovery catch path no longer infers success from any `re_` refund on an Order.
+It asks one fixed operation whether the exact Order, claim id and claim
+generation have an immutable retry/provider-effect reconciliation and have
+reached the corresponding finalized Order state. A no-effect reconciliation,
+an older generation, a different claim or an unfinished finalization all
+return false. This removes a false-success edge and reduces the candidate
+direct Order inventory from 11 to 10. The SQL remains database-first and must
+deploy before the application. See
+`docs/order-refund-reconciliation-commit-proof.md`.
+
+2026-09-05 Guild Member verification conversion checkpoint: the staff
+approval path no longer joins `Order`, `OrderItem`, and mutable `Listing`
+ownership directly to compute completed sales. It reuses the already prepared
+and PostgreSQL-proven seller-metrics projection, which attributes historical
+sales through durable Order and OrderItem seller keys and preserves the paid,
+completed, non-refunded and non-blocked filters. Unknown or mismatched sellers
+fail closed instead of being treated as zero sales. This reduces the candidate
+direct Order inventory from 10 to 9 and direct OrderItem inventory from 4 to 3
+without changing the published Guild threshold. See
+`docs/order-seller-metrics-authority.md`.
+
+2026-09-05 staff mutation authority checkpoint: mark-reviewed, external-label
+voiding and staff-note append now use three actor-bound fixed operations. Each
+revalidates the active EMPLOYEE/ADMIN row, locks one exact Order, derives its
+database timestamp, enforces the active label-clawback and 10,000-character
+review-note boundaries, and co-commits its immutable AdminAuditLog row. The
+application no longer performs read/compare/write sequences or supplies audit
+metadata and timestamp authority. This reduces the candidate direct Order
+inventory from 9 to 8. The SQL is database-first and must deploy before the
+application. See `docs/order-staff-mutation-authority.md`.
+
+2026-09-05 seller-ban review authority checkpoint: ban, manual unban and
+audited ban undo no longer select or mutate Order review state through the
+ordinary table delegate. Two actor-bound fixed operations derive the banned
+seller, lock and recheck exact open/no-refund Orders, return only hashed
+restoration snapshots, and restore only a byte-authenticated marker suffix on
+Orders belonging to that seller. The product audit also removed a silent
+5,000-character truncation of staff notes: an existing note is now preserved
+when the fixed marker cannot fit under the 10,000-character contract. This
+reduces the candidate direct Order inventory from 8 to 6. The SQL is
+database-first and must deploy before the application. See
+`docs/order-ban-review-authority.md`.
+
+2026-09-05 staff read application checkpoint: the all-Orders queue,
+review-needed queue and Order detail page now use the fixed staff projections
+through a lazy server-only client that can authenticate only with the separate
+`grainline_staff_read_runtime` credential. There is no ordinary-runtime
+fallback, the pool is capped independently at two connections, and the Vercel
+guard requires the staff URL to be pooled and bound to the same reviewed
+database. Both queues now render immutable checkout snapshots rather than the
+flagged queue drifting through mutable current Listing identity. This reduces
+the candidate direct Order inventory from 6 to 3. The local branch is
+intentionally not deployable until the database-first login, function grants
+and production secret are separately provisioned and proved. See
+`docs/order-staff-read-authority.md`.
+
+2026-09-05 staff Case composition checkpoint: the admin Case detail no longer
+reads `Order` or participant `User` rows directly. It combines the existing
+fixed Case result with the corrected staff Order detail through the dedicated
+staff credential, rejects any buyer/seller relationship mismatch, uses the
+signed charged total when available, and shows immutable purchased-item titles
+while consulting only current listing type for stock-restoration eligibility.
+This reduces the candidate direct Order inventory from 3 to 2. The only
+remaining direct Order sources are the Stripe webhook service path and the
+account-deletion path.
+
+2026-09-05 account-deletion authority checkpoint: the lifecycle path now uses
+two actor-bound fixed operations for blocker counts and PII scrubbing. The
+audit corrected mutable `OrderItem -> Listing` seller reconstruction, changed
+full-refund comparison to prefer provider-signed `chargedTotalCents`, removed
+caller-supplied clock authority, and added an in-transaction blocker recheck
+after the deleting User is locked. Checkout reservation and final Stripe Order
+creation take the same buyer/seller User locks, so the recheck serializes with
+new paid Orders. The migration is additive and locally PostgreSQL-proven; it
+has not been merged, applied or deployed. This reduces the candidate direct
+Order inventory from 2 to 1, the OrderItem inventory from 3 to 2, and the quote
+inventory from 1 to 0. Stripe webhook remains the only direct Order source. See
+`docs/order-account-deletion-authority.md`.
+
+2026-09-05 final webhook product-audit checkpoint: before sealing the last
+direct Order/OrderItem runtime source, the paid-checkout path was reviewed as
+a payment and fulfillment state machine rather than mechanically wrapped. Two
+correctness defects were found and corrected in the isolated candidate. New
+Orders now use the already age-validated, signed Stripe event timestamp for
+`paidAt` instead of webhook handler time, so provider delay and replay do not
+shift review windows or sales analytics. The first-sale email count now
+excludes refunded, payment-blocked, and blocked-checkout review Orders, so a
+failed first checkout cannot consume the first legitimate sale milestone.
+The listing-page review hint also reuses the fixed actor-bound eligibility
+operation, reducing direct `OrderItem` access to the webhook alone. These are
+application-only candidate corrections; they are not deployed and do not
+authorize Order activation.
+
+2026-09-05 Stripe-webhook authority completion checkpoint: the final direct
+Order source is now converted across four distinct, source-bound operations.
+Paid creation derives protected rows from the retained checkout snapshot;
+exact-session replay returns a closed idempotency decision; post-payment work
+receives only a bounded delivery/stock/first-sale projection; and blocked
+refund review writes use fixed PostgreSQL-derived messages bound to the active
+signed event generation and exact Order/session. The final operation accepts
+only three closed action codes, derives refund/dispute precedence itself, and
+cannot accept caller review text. This reduces the candidate direct Order
+inventory from 1 to 0 while preserving the existing generation-fenced refund
+claim and finalization authorities. Disposable PostgreSQL proves direct-table
+denial, forged identity rejection, closed outcomes and rollback-safe writes.
+All work remains isolated compatibility code, not a migration or activation.
+
+2026-09-05 paid-checkout application conversion checkpoint: the cart and
+single-listing direct writers now converge on the one fixed
+`grainline_stripe_checkout_order_create(...)` candidate. The route supplies a
+bounded Stripe-authenticated projection; PostgreSQL binds it to the active
+event generation and complete retained reservation snapshot, revalidates the
+buyer/seller/listings under locks, derives every protected Order/OrderItem
+field, creates history, marks sold-out listings, completes the reservation and
+removes only retained paid CartItems atomically. The duplicated 976-line
+writer is gone, direct runtime `OrderItem` access is now zero, and the one
+remaining direct `Order` source file is still the webhook because its exact
+idempotency, blocked-refund and post-payment reads are separate named
+operations. The combined app/SQL work remains a local, intentionally
+undeployable candidate until its database-first compatible migration is
+packaged and proved; it does not authorize Order or OrderItem activation.
+
 2026-09-01 label authority hardening continuation: the bounded staff
 reconciliation path is now implemented and proven locally rather than left as
 future cleanup. Runtime can no longer falsely release an ambiguous claim as a
@@ -476,6 +648,10 @@ debt that should be fixed before Order RLS:
 - seller fulfillment and buyer receipt semantics are product-corrected so a
   seller cannot assert pickup completion or start the buyer's Case window, and
   their isolated fixed operations close the Notification/email crash gap;
+- a fresh route audit found that label-provider and refund-provider claims
+  could overlap in one direction; the isolated shared Order constraint closes
+  that race but remains unapplied pending its own inspection and compatibility
+  release;
 - the incomplete development Order fixture is retired; and
 - the nullable seller keys and historical non-package snapshot shape still
   need final convergence.
@@ -546,6 +722,9 @@ fresh `OrderItem` audit/activation work, followed by
 - snapshot history and legacy fallback are defined and production-classified;
 - every write/maintenance family has a source-validating operation and lock
   proof;
+- the provider-claim mutual-exclusion successor is PostgreSQL-proven,
+  production-inspected, applied and exercised before either claim family is
+  relied on under RLS;
 - seller keys and other authority-relevant invariants pass fresh inspection;
 - the compatible app is deployed and predecessor overlap is drained;
 - the migration, grants, rollback and separate-login PostgreSQL proofs pass;

@@ -84,3 +84,13 @@ compatible stack in disposable PostgreSQL.
 This candidate reduces the current direct source inventory from 29 to 28
 Order files and from 5 to 4 OrderItem files. It does not activate Order RLS,
 revoke predecessor CRUD, migrate `SellerMetrics`, deploy, or touch production.
+
+## 2026-09-05 application continuation
+
+The Guild Member staff approval path now reuses this fixed projection instead
+of joining Order, OrderItem and mutable Listing ownership directly. Its $250
+completed-sales requirement is unchanged, while historical seller attribution
+now matches the same durable keys used by Guild Master scoring. A missing or
+mismatched projection fails closed. In the stacked Order candidate this moves
+the direct inventories from 10 to 9 Order files and from 4 to 3 OrderItem
+files. No migration, deployment, RLS posture or production state changed.

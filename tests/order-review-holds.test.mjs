@@ -37,11 +37,19 @@ describe("order review holds", () => {
     );
   });
 
-  it("uses the shared deauthorization note in the Stripe webhook", () => {
+  it("keeps the legacy note as database compatibility while the webhook uses fixed authority", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const deauthorizationAuthority = source(
+      "docs/rls-drafts/order-seller-deauthorization-authority.sql",
+    );
 
-    assert.match(webhook, /DEAUTHORIZED_SELLER_REVIEW_NOTE/);
+    assert.match(webhook, /applyStripeSellerDeauthorization/);
+    assert.doesNotMatch(webhook, /DEAUTHORIZED_SELLER_REVIEW_NOTE/);
     assert.doesNotMatch(webhook, /reviewNote: "Seller Stripe account was deauthorized after payment/);
+    assert.match(
+      deauthorizationAuthority,
+      /Seller Stripe account was deauthorized after payment\./,
+    );
   });
 
   it("blocks deauthorized orders in fulfillment prechecks and final predicates", () => {

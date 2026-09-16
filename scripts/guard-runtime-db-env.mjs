@@ -15,6 +15,13 @@ export const REVIEWED_PRODUCTION_RUNTIME_IDENTITY = Object.freeze({
   role: "grainline_app_runtime",
 });
 
+export const REVIEWED_PRODUCTION_STAFF_READ_IDENTITY = Object.freeze({
+  ...REVIEWED_PRODUCTION_RUNTIME_IDENTITY,
+  role: "grainline_staff_read_runtime",
+});
+
+export const ORDER_STAFF_READ_DATABASE_ENV = "ORDER_STAFF_READ_DATABASE_URL";
+
 const OWNER_ENVIRONMENT_KEY_PATTERNS = Object.freeze([
   /(?:^|_)DIRECT_URL$/,
   /(?:^|_)ADMIN_DATABASE_URL$/,
@@ -33,6 +40,7 @@ export function unreviewedPostgresUrlEnvironmentKeys(env) {
   return Object.entries(env ?? {})
     .filter(([key, value]) => (
       key !== "DATABASE_URL"
+      && key !== ORDER_STAFF_READ_DATABASE_ENV
       && typeof value === "string"
       && /^postgres(?:ql)?:\/\//i.test(value.trim())
     ))
@@ -59,7 +67,10 @@ export function parseVercelRuntimeDatabaseIdentity(value, label = "DATABASE_URL"
   });
 }
 
-export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
+export function assertVercelRuntimeDatabaseIsolation(
+  env = process.env,
+  { requireOrderStaffReadDatabase = false } = {},
+) {
   assertDeterministicPostgresEnvironment(env, "Vercel runtime database isolation");
   if (env.VERCEL !== "1") {
     return Object.freeze({ enforced: false, provider: null, environment: null });
@@ -82,7 +93,13 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
   }
 
   const databaseUrl = env.DATABASE_URL;
+  const staffReadDatabaseUrl = env[ORDER_STAFF_READ_DATABASE_ENV];
   if (env.VERCEL_ENV !== "production" && !databaseUrl) {
+    if (staffReadDatabaseUrl) {
+      throw new Error(
+        `Vercel ${ORDER_STAFF_READ_DATABASE_ENV} must be absent when DATABASE_URL is absent`,
+      );
+    }
     return Object.freeze({
       enforced: true,
       provider: "vercel",
@@ -98,6 +115,31 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
     throw new Error("Vercel DATABASE_URL must not authenticate as the migration owner");
   }
 
+  let staffReadIdentity = null;
+  if (staffReadDatabaseUrl) {
+    staffReadIdentity = parseVercelRuntimeDatabaseIdentity(
+      staffReadDatabaseUrl,
+      ORDER_STAFF_READ_DATABASE_ENV,
+    );
+    if (!staffReadIdentity.isPooler) {
+      throw new Error(`Vercel ${ORDER_STAFF_READ_DATABASE_ENV} must use a pooled Neon endpoint`);
+    }
+    if (staffReadIdentity.username !== REVIEWED_PRODUCTION_STAFF_READ_IDENTITY.role) {
+      throw new Error(
+        `Vercel ${ORDER_STAFF_READ_DATABASE_ENV} must authenticate as the reviewed staff read role`,
+      );
+    }
+    if (
+      staffReadIdentity.endpointId !== identity.endpointId
+      || staffReadIdentity.region !== identity.region
+      || staffReadIdentity.databaseName !== identity.databaseName
+    ) {
+      throw new Error(
+        `Vercel ${ORDER_STAFF_READ_DATABASE_ENV} must identify the same reviewed database as DATABASE_URL`,
+      );
+    }
+  }
+
   if (env.VERCEL_ENV === "production") {
     const reviewed = REVIEWED_PRODUCTION_RUNTIME_IDENTITY;
     if (
@@ -108,6 +150,25 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
       || identity.databaseName !== reviewed.databaseName
     ) {
       throw new Error("production Vercel DATABASE_URL or RUNTIME_DB_ROLE does not match the reviewed runtime identity");
+    }
+    if (requireOrderStaffReadDatabase && !staffReadIdentity) {
+      throw new Error(
+        `production Vercel ${ORDER_STAFF_READ_DATABASE_ENV} is required for staff Order reads`,
+      );
+    }
+    const reviewedStaff = REVIEWED_PRODUCTION_STAFF_READ_IDENTITY;
+    if (
+      staffReadIdentity
+      && (
+      staffReadIdentity.username !== reviewedStaff.role
+      || staffReadIdentity.endpointId !== reviewedStaff.endpointId
+      || staffReadIdentity.region !== reviewedStaff.region
+      || staffReadIdentity.databaseName !== reviewedStaff.databaseName
+      )
+    ) {
+      throw new Error(
+        `production Vercel ${ORDER_STAFF_READ_DATABASE_ENV} does not match the reviewed staff read identity`,
+      );
     }
   }
 
@@ -120,6 +181,7 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
     databaseName: identity.databaseName,
     region: identity.region,
     runtimeRole: identity.username,
+    staffReadRole: staffReadIdentity?.username ?? null,
   });
 }
 
@@ -131,6 +193,9 @@ export function runtimeDatabaseIsolationFailureCode(error) {
     [/VERCEL_ENV/, "VERCEL_ENV"],
     [/privileged database environment keys/, "PRIVILEGED_DATABASE_KEYS"],
     [/PostgreSQL URLs outside DATABASE_URL/, "ALIASED_DATABASE_URL"],
+    [/ORDER_STAFF_READ_DATABASE_URL.*non-empty PostgreSQL URL|ORDER_STAFF_READ_DATABASE_URL.*valid PostgreSQL URL|ORDER_STAFF_READ_DATABASE_URL.*postgres\/postgresql protocol|ORDER_STAFF_READ_DATABASE_URL.*explicit database host|ORDER_STAFF_READ_DATABASE_URL.*explicit port|ORDER_STAFF_READ_DATABASE_URL.*database path segment|ORDER_STAFF_READ_DATABASE_URL.*invalid URL encoding/, "STAFF_DATABASE_URL_SHAPE"],
+    [/ORDER_STAFF_READ_DATABASE_URL.*pooled Neon endpoint/, "STAFF_DATABASE_URL_NOT_POOLED"],
+    [/ORDER_STAFF_READ_DATABASE_URL.*reviewed staff read role|ORDER_STAFF_READ_DATABASE_URL.*reviewed database|ORDER_STAFF_READ_DATABASE_URL.*reviewed staff read identity|ORDER_STAFF_READ_DATABASE_URL.*required for staff Order reads|ORDER_STAFF_READ_DATABASE_URL.*absent when DATABASE_URL is absent/, "STAFF_DATABASE_IDENTITY"],
     [/connection parameters|sslmode=verify-full|channel_binding/, "DATABASE_URL_PARAMETERS"],
     [/non-empty PostgreSQL URL|valid PostgreSQL URL|postgres\/postgresql protocol|explicit database host|explicit port|database path segment|invalid URL encoding/, "DATABASE_URL_SHAPE"],
     [/pooled Neon endpoint/, "DATABASE_URL_NOT_POOLED"],
@@ -152,7 +217,9 @@ export function runtimeDatabaseIsolationFailureDetail(code, env = process.env) {
 
 function main() {
   try {
-    const result = assertVercelRuntimeDatabaseIsolation(process.env);
+    const result = assertVercelRuntimeDatabaseIsolation(process.env, {
+      requireOrderStaffReadDatabase: true,
+    });
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
     const code = runtimeDatabaseIsolationFailureCode(error);

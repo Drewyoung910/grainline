@@ -10,7 +10,13 @@ const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 const MAX_EPOCH_MILLIS = 253402300799999;
 const MAX_CENTS = Number.MAX_SAFE_INTEGER;
 const FULFILLMENT_METHODS = new Set(["PICKUP", "SHIPPING"]);
-const FULFILLMENT_STATUSES = new Set([
+type StaffOrderFulfillmentStatus =
+  | "PENDING"
+  | "READY_FOR_PICKUP"
+  | "PICKED_UP"
+  | "SHIPPED"
+  | "DELIVERED";
+const FULFILLMENT_STATUSES: ReadonlySet<string> = new Set([
   "PENDING", "READY_FOR_PICKUP", "PICKED_UP", "SHIPPED", "DELIVERED",
 ]);
 const REFUND_STATES = new Set<SellerRefundDisplayState>([
@@ -83,12 +89,13 @@ export type StaffOrderPageEntry = Readonly<{
   id: string;
   createdAt: Date;
   currency: string;
+  chargedTotalCents: number | null;
   itemsSubtotalCents: number;
   shippingAmountCents: number;
   taxAmountCents: number;
   giftWrappingPriceCents: number | null;
   quotedShippingAmountCents: number | null;
-  fulfillmentStatus: string;
+  fulfillmentStatus: StaffOrderFulfillmentStatus;
   reviewNeeded: boolean;
   reviewNote: string | null;
   buyerLabel: string;
@@ -133,12 +140,13 @@ function pageEntry(value: unknown): StaffOrderPageEntry {
     id: id(value.id, "page order id"),
     createdAt: date(value.createdAtEpochMillis, "page created time"),
     currency,
+    chargedTotalCents: optionalInteger(value.chargedTotalCents, "page charged total", 0, MAX_CENTS),
     itemsSubtotalCents: integer(value.itemsSubtotalCents, "page subtotal", 0, MAX_CENTS),
     shippingAmountCents: integer(value.shippingAmountCents, "page shipping amount", 0, MAX_CENTS),
     taxAmountCents: integer(value.taxAmountCents, "page tax amount", 0, MAX_CENTS),
     giftWrappingPriceCents: optionalInteger(value.giftWrappingPriceCents, "page gift amount", 0, MAX_CENTS),
     quotedShippingAmountCents: optionalInteger(value.quotedShippingAmountCents, "page quoted shipping", 0, MAX_CENTS),
-    fulfillmentStatus,
+    fulfillmentStatus: fulfillmentStatus as StaffOrderFulfillmentStatus,
     reviewNeeded: boolean(value.reviewNeeded, "page review flag"),
     reviewNote: optionalText(value.reviewNote, "page review note", 10_000),
     buyerLabel: text(value.buyerLabel, "page buyer label", 254),
@@ -224,12 +232,13 @@ export type StaffOrderDetail = Readonly<{
   createdAt: Date;
   paidAt: Date | null;
   currency: string;
+  chargedTotalCents: number | null;
   itemsSubtotalCents: number;
   shippingTitle: string | null;
   shippingAmountCents: number;
   taxAmountCents: number;
   fulfillmentMethod: "PICKUP" | "SHIPPING" | null;
-  fulfillmentStatus: string;
+  fulfillmentStatus: StaffOrderFulfillmentStatus;
   trackingCarrier: string | null;
   trackingNumber: string | null;
   pickupReadyAt: Date | null;
@@ -263,6 +272,9 @@ export type StaffOrderDetail = Readonly<{
   quotedUseCalculatedShipping: boolean | null;
   sellerProfileId: string | null;
   sellerDisplayName: string;
+  sellerUserId: string | null;
+  sellerUserName: string | null;
+  sellerUserEmail: string | null;
   sellerRefundState: SellerRefundDisplayState;
   sellerRefundId: string | null;
   sellerRefundAmountCents: number | null;
@@ -303,12 +315,13 @@ export function staffOrderDetailFromRows(rows: Array<Record<string, unknown>>): 
     createdAt: date(row.created_at_epoch_millis, "detail created time"),
     paidAt: optionalDate(row.paid_at_epoch_millis, "detail paid time"),
     currency,
+    chargedTotalCents: optionalInteger(row.charged_total_cents, "detail charged total", 0, MAX_CENTS),
     itemsSubtotalCents: integer(row.items_subtotal_cents, "detail subtotal", 0, MAX_CENTS),
     shippingTitle: optionalText(row.shipping_title, "shipping title", 200),
     shippingAmountCents: integer(row.shipping_amount_cents, "shipping amount", 0, MAX_CENTS),
     taxAmountCents: integer(row.tax_amount_cents, "tax amount", 0, MAX_CENTS),
     fulfillmentMethod: fulfillmentMethod as StaffOrderDetail["fulfillmentMethod"],
-    fulfillmentStatus,
+    fulfillmentStatus: fulfillmentStatus as StaffOrderFulfillmentStatus,
     trackingCarrier: optionalText(row.tracking_carrier, "tracking carrier", 100),
     trackingNumber: optionalText(row.tracking_number, "tracking number", 100),
     pickupReadyAt: optionalDate(row.pickup_ready_at_epoch_millis, "pickup ready time"),
@@ -342,6 +355,9 @@ export function staffOrderDetailFromRows(rows: Array<Record<string, unknown>>): 
     quotedUseCalculatedShipping: optionalBoolean(row.quoted_use_calculated_shipping, "quoted calculation flag"),
     sellerProfileId: row.seller_profile_id == null ? null : id(row.seller_profile_id, "seller id"),
     sellerDisplayName: text(row.seller_display_name, "seller display name", 200),
+    sellerUserId: row.seller_user_id == null ? null : id(row.seller_user_id, "seller user id"),
+    sellerUserName: optionalText(row.seller_user_name, "seller user name", 200),
+    sellerUserEmail: optionalText(row.seller_user_email, "seller user email", 254),
     sellerRefundState: refundState as SellerRefundDisplayState,
     sellerRefundId,
     sellerRefundAmountCents,
