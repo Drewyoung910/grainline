@@ -53,6 +53,31 @@ describe("Stripe webhook state helpers", () => {
     }
   });
 
+  it("stamps new Orders with the signed Stripe event time", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /if \(eventCreatedSeconds == null \|\| isStaleStripeEvent\(eventCreatedSeconds\)\)/);
+    assert.match(source, /const signedPaymentTime = new Date\(eventCreatedSeconds \* 1000\)/);
+    assert.equal((source.match(/paidAt: signedPaymentTime/g) ?? []).length, 1);
+    assert.doesNotMatch(source, /paidAt: new Date\(\)/);
+  });
+
+  it("does not let a blocked or refunded checkout consume first-sale congratulations", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const sql = readFileSync(
+      "docs/rls-drafts/order-checkout-postpayment-authority.sql",
+      "utf8",
+    );
+    assert.match(source, /if \(order\.isFirstLegitimateSale\)/);
+    assert.match(sql, /candidate\."sellerProfileId" = source_seller\.id/);
+    assert.match(sql, /candidate\."paidAt" IS NOT NULL/);
+    assert.match(sql, /candidate\."sellerRefundId" IS NULL/);
+    assert.match(sql, /NOT candidate\."paymentRefundBlocked"/);
+    assert.match(sql, /NOT candidate\."reviewNeeded"/);
+    assert.match(sql, /candidate\."reviewNote" IS NULL/);
+    assert.match(sql, /Order was held for staff review\./);
+  });
+
   it("keeps checkout session shipping-address casting centralized in the webhook", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
 

@@ -117,16 +117,16 @@ describe("public cache invalidation guardrails", () => {
 
   it("invalidates listing search caches when stock-driven visibility flips", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = source("docs/rls-drafts/order-paid-checkout-authority.sql");
     const refund = source("src/app/api/orders/[id]/refund/route.ts");
     const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
     const stockRestore = source("src/lib/checkoutStockRestore.ts");
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
 
     assert.match(webhook, /revalidateFeaturedMakerCaches,[\s\S]*revalidateListingSearchCaches,[\s\S]*revalidatePublicSellerVisibilityCaches,/);
-    assert.match(webhook, /const soldOutCount = await tx\.\$executeRaw`[\s\S]*SET status = 'SOLD_OUT'/);
-    assert.match(webhook, /listingSearchCacheInvalidationNeeded = Number\(soldOutCount\) > 0/);
-    assert.match(webhook, /createdCartOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(webhook, /createdSingleOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(paidCheckoutAuthority, /UPDATE public\."Listing" AS listing[\s\S]*SET status = 'SOLD_OUT'/);
+    assert.match(paidCheckoutAuthority, /source_listing_visibility_changed := source_listing_visibility_changed OR FOUND/);
+    assert.match(webhook, /createdOrder\.listingVisibilityChanged[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
     assert.match(refund, /refundRecordResult = await finalizeSellerOrderRefund\(\{/);
     assert.doesNotMatch(refund, /(?:prisma|tx)\.listing\.(?:update|updateMany)/);

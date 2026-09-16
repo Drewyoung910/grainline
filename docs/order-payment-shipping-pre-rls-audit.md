@@ -54,12 +54,13 @@ through fixed source-bound authorities or database-maintained `Order`
 projections. The two remaining matches are the intentionally retained fixed
 refund-authority helpers in `orderRefundFinalization.ts` and
 `orderRefundRecordAuthority.ts`; neither grants generic table lookup or write
-authority. The separate current 32-file semantic inventory remains authoritative for
+authority. The separate current 25-file semantic matcher remains authoritative for
 nested projections, event-identity helpers, fixed Case/Notification functions,
 cron and provider side effects, so this smaller direct-access floor cannot hide
 semantic consumers. The release-time application inventory was 33 files; the
-current `src` inventory is 32 after Guild payment predicates moved into a
-byte-pinned database authority migration. It includes converted application callsites and
+inventory reached 32 after Guild payment predicates moved into a byte-pinned
+database authority migration, and subsequent fixed-operation conversions now
+place the matcher at 25. It includes converted application callsites and
 `src/lib/orderEligibilityAuthority.ts` and
 `src/lib/orderPublicAggregateAuthority.ts`; the direct-access floor no longer
 counts the nine consumers routed through those eight source-bound functions.
@@ -493,12 +494,12 @@ or migration yet.
 | Stripe delivery reservation | `src/lib/stripeWebhookEvents.ts` | begin/reclaim, complete and fail transitions; no direct table read/delete |
 | Seller-scoped checkout Order + items | `src/app/api/stripe/webhook/route.ts` | one transaction deriving durable seller, buyer, listing, totals, snapshot, provider replay source and reservation completion |
 | Stripe refund/dispute evidence | `src/app/api/stripe/webhook/route.ts`, `src/lib/localRefundEvidence.ts`, `src/lib/refundLedgerSql.ts` | append-only payment evidence plus separately locked Order/Case application |
-| Seller refund | `src/app/api/orders/[id]/refund/route.ts`, `src/lib/orderRefundFinalization.ts`, `src/lib/orderRefundProviderReconciliation.ts`, `src/lib/refundLocks.ts` | seller-authorized refund claim and exact provider finalizers; bounded provider-outcome recovery; source-bound participant notification plus email-outbox reservation commit with the refund record; stale-claim release is an operator/cron transition |
+| Seller refund | `src/app/api/orders/[id]/refund/route.ts`, `src/lib/orderRefundFinalization.ts`, `src/lib/orderRefundProviderReconciliation.ts`, `src/lib/orderLegacyRefundLockAuthority.ts` | seller-authorized refund claim and exact provider finalizers; bounded provider-outcome recovery; source-bound participant notification plus email-outbox reservation commit with the refund record; source-bound or bounded legacy stale-claim release |
 | Fulfillment and buyer delivery | `src/app/api/orders/[id]/fulfillment/route.ts`, `src/app/api/orders/[id]/confirm-delivery/route.ts` | seller/buyer-specific monotonic transitions under the Order lock |
 | Shippo quote and label purchase | `src/app/api/orders/[id]/label/route.ts` | seller-authorized quote replacement and label claim/finalize operations with bounded provider snapshots |
 | Label clawback retry | `src/lib/labelClawbackRetry.ts` | bounded batch claim plus generation-checked success/failure finalizers |
 | Checkout stock lifecycle | `src/lib/checkoutStockRestore.ts`, `src/app/api/cart/checkout/resume/route.ts` | reserve, bind session, complete, restore, repair and terminal-prune transitions with one lock order |
-| Account deletion and PII expiry | `src/lib/accountDeletion.ts` | bounded account-owned reservation cleanup, Order PII purge, quote deletion and seller-history anonymization |
+| Account deletion and PII expiry | `src/lib/accountDeletion.ts` | actor-bound blocker and scrub operations derive durable buyer/seller ownership, signed charged totals and the database clock; lock/recheck before Order PII purge, quote deletion and seller-history anonymization |
 | Admin reconciliation | `src/app/admin/actions.ts`, `src/app/admin/orders/[id]/refundReconciliationActions.ts` | staff-authorized review, evidence-bound ambiguous-refund classification, void/reconcile and append-note transitions with durable audit evidence |
 | Payout failure state | `src/app/api/stripe/webhook/route.ts`, `src/app/api/stripe/webhook/connect/route.ts`, `src/lib/stripePayoutWebhook.ts` | separately signed platform/Connect compatibility routes share one webhook-bound monotonic payout-state upsert; seller receives only a bounded projection |
 | Seller deauthorization review flag | `src/app/api/stripe/webhook/route.ts` | exact affected-seller batch operation using the durable Order seller key, not live Listing ownership |
@@ -560,8 +561,8 @@ Service, safety and aggregate consumers:
 - PII expiry/account lifecycle: `src/lib/accountDeletion.ts`;
 - staff ban/undo and listing-retention blockers: `src/lib/ban.ts`,
   `src/lib/audit.ts` and `src/lib/listingSoftDelete.ts`;
-- shared lock/refund/label helpers: `src/lib/caseLifecycleLocks.ts`,
-  `src/lib/refundLocks.ts`, `src/lib/localRefundEvidence.ts`,
+- shared lock/refund/label helpers: `src/lib/orderLegacyRefundLockAuthority.ts`,
+  `src/lib/localRefundEvidence.ts`,
   `src/lib/refundLedgerSql.ts`, `src/lib/orderRefundFinalization.ts` and
   `src/lib/labelClawbackRetry.ts`;
 - public and staff-safe aggregates: `src/lib/homepageStats.ts`,

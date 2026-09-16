@@ -6,8 +6,6 @@ const read = (file) => fs.readFileSync(file, "utf8");
 const record = read("docs/order-core-history-compatibility.md");
 
 const historicalRenderers = [
-  "src/app/admin/orders/[id]/page.tsx",
-  "src/app/admin/orders/page.tsx",
   "src/app/api/seller/analytics/recent-sales/route.ts",
 ];
 
@@ -28,7 +26,6 @@ const boundedSellerSummaryRenderers = [
 
 const durableSellerConsumers = [
   "src/app/api/account/export/route.ts",
-  "src/app/api/orders/[id]/refund/route.ts",
   "src/app/api/stripe/webhook/route.ts",
   "src/lib/accountDeletion.ts",
   "src/lib/ban.ts",
@@ -43,6 +40,15 @@ describe("core Order historical compatibility", () => {
       assert.match(source, /readHistoricalOrderItemSnapshot/, file);
       assert.match(source, /listingSnapshot|firstItemListingSnapshot/, file);
       assert.doesNotMatch(source, /\.listing\.title|\.listing\.photos|\.listing\.seller\.displayName/, file);
+    }
+    for (const file of [
+      "src/app/admin/orders/[id]/page.tsx",
+      "src/app/admin/orders/page.tsx",
+      "src/app/admin/flagged/page.tsx",
+    ]) {
+      const source = read(file);
+      assert.match(source, /readStaffOrder(?:Detail|Page)/, file);
+      assert.doesNotMatch(source, /prisma\.order|listingSnapshot|\.listing\.title/, file);
     }
     const checkoutReceipt = read("src/app/checkout/success/page.tsx");
     assert.match(checkoutReceipt, /readBuyerCheckoutReceipts/);
@@ -85,6 +91,17 @@ describe("core Order historical compatibility", () => {
         file,
       );
     }
+    const sellerRefundPreflight = read(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
+    assert.match(
+      sellerRefundPreflight,
+      /locked_order\."sellerProfileId" IS DISTINCT FROM locked_seller\.id/,
+    );
+    assert.doesNotMatch(
+      read("src/app/api/orders/[id]/refund/route.ts"),
+      /\bprisma\.order\b/,
+    );
 
     assert.match(read("src/app/account/page.tsx"), /countSellerCompletedOrders\(me\.id\)/);
     assert.match(
@@ -135,18 +152,24 @@ describe("core Order historical compatibility", () => {
 
   it("writes the expanded snapshot in both paid webhook families", () => {
     const webhook = read("src/app/api/stripe/webhook/route.ts");
+    const paidCheckoutAuthority = read("docs/rls-drafts/order-paid-checkout-authority.sql");
+    const postpaymentAuthority = read("docs/rls-drafts/order-checkout-postpayment-authority.sql");
     for (const field of [
       "listingType",
       "processingTimeMinDays",
       "processingTimeMaxDays",
       "shipsWithinDays",
     ]) {
-      assert.equal(webhook.match(new RegExp(`${field}:`, "g"))?.length >= 2, true, field);
+      assert.match(paidCheckoutAuthority, new RegExp(`'${field}'`), field);
     }
-    assert.match(webhook, /sellerProfileId: cartSellerProfileId/);
-    assert.match(webhook, /sellerProfileId: singleSellerProfileId/);
-    assert.match(webhook, /const seller = order\.sellerProfile/);
-    assert.match(webhook, /where: \{ sellerProfileId: seller\.id \}/);
+    assert.match(webhook, /createOrderFromPaidCheckout\(/);
+    assert.match(paidCheckoutAuthority, /source_seller_id, source_now, p_paid_at, p_session_id/);
+    assert.match(paidCheckoutAuthority, /source_order_id, source_listing_id,[\s\S]*source_seller_id/);
+    assert.match(webhook, /readCheckoutPostpaymentProjection\(\{/);
+    assert.match(postpaymentAuthority, /candidate\."sellerProfileId" = source_seller\.id/);
+    assert.match(postpaymentAuthority, /candidate\."paidAt" IS NOT NULL/);
+    assert.match(postpaymentAuthority, /candidate\."sellerRefundId" IS NULL/);
+    assert.match(postpaymentAuthority, /NOT candidate\."paymentRefundBlocked"/);
     assert.doesNotMatch(webhook, /order\.items\[0\]\?\.listing\.seller/);
   });
 

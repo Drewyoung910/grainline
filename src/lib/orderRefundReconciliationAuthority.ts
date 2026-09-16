@@ -315,3 +315,24 @@ export async function markOrderRefundClaimAmbiguous(
   }
   return { action: row.action } as const;
 }
+
+export async function orderRefundReconciliationCommitted(
+  input: {
+    orderId: string;
+    claimId: string;
+    claimGeneration: bigint;
+  },
+  client: ReconciliationClient = prisma,
+) {
+  const rows = await client.$queryRaw<Array<{ committed: unknown }>>`
+    SELECT public.grainline_order_refund_reconciliation_committed(
+      ${input.orderId}::text,
+      ${input.claimId}::text,
+      ${input.claimGeneration}::bigint
+    ) AS committed
+  `;
+  if (rows.length !== 1 || typeof rows[0]?.committed !== "boolean") {
+    throw new TypeError("Order refund reconciliation commit proof returned an invalid result");
+  }
+  return rows[0].committed;
+}

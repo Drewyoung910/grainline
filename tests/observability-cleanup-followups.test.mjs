@@ -56,9 +56,10 @@ describe("observability cleanup follow-ups", () => {
   });
 
   it("keeps staff order totals on the gift-wrap-aware helper", () => {
-    assert.match(source("src/app/admin/flagged/page.tsx"), /orderTotalCents\(order\)/);
+    assert.match(source("src/app/admin/flagged/page.tsx"), /orderTotalCents\(\{/);
     const casePage = source("src/app/admin/cases/[id]/page.tsx");
-    assert.match(casePage, /giftWrappingPriceCents: true/);
+    assert.match(casePage, /readStaffOrderDetail\(/);
+    assert.match(source("src/lib/orderStaffReadState.ts"), /chargedTotalCents/);
     assert.match(casePage, /label="Gift wrapping"/);
     assert.match(casePage, /orderTotalCents\(caseRecord\.order\)/);
   });

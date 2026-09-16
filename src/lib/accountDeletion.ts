@@ -31,7 +31,6 @@ import {
   redactAccountDeletionAuditMetadata,
   redactAccountDeletionText,
 } from "@/lib/accountDeletionAuditRedaction";
-import { REFUND_LOCK_SENTINEL } from "@/lib/refundLockState";
 import {
   ACCOUNT_DELETION_SIDE_EFFECT_KIND,
   type AccountDeletionAuditRedactionUpdate,
@@ -55,6 +54,10 @@ import {
   getCaseAccountDeletionBlockerCount,
   redactCaseDataForAccountDeletion,
 } from "@/lib/caseAccountDeletionAuthority";
+import {
+  getOrderAccountDeletionBlockerCounts,
+  scrubOrderDataForAccountDeletion,
+} from "@/lib/orderAccountDeletionAuthority";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -100,12 +103,6 @@ function accountDeletionLockKey(userId: string) {
   return `account-delete:${userId}`;
 }
 
-function accountDeletionTerminalCutoff(now = new Date()) {
-  return new Date(
-    now.getTime() - ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS * 24 * 60 * 60 * 1000,
-  );
-}
-
 function providerDeletedAccountDataRequestMessage(input: {
   userId: string;
   blockers: AccountDeletionBlocker[];
@@ -120,39 +117,6 @@ function providerDeletedAccountDataRequestMessage(input: {
     `Deletion blockers: ${blockerSummary || "unknown"}.`,
     "Keep this data request open until blockers clear and local anonymization has been completed or replayed. Record provider, counsel, or completion evidence before closing.",
   ].join("\n");
-}
-
-const ACCOUNT_DELETION_FULL_REFUND_SQL = Prisma.sql`
-  o."sellerRefundId" IS NOT NULL
-  AND o."sellerRefundId" <> ${REFUND_LOCK_SENTINEL}
-  AND COALESCE(o."sellerRefundAmountCents", 0) > 0
-  AND COALESCE(o."sellerRefundAmountCents", 0) >= (
-    COALESCE(o."itemsSubtotalCents", 0) +
-    COALESCE(o."shippingAmountCents", 0) +
-    COALESCE(o."giftWrappingPriceCents", 0) +
-    COALESCE(o."taxAmountCents", 0)
-  )
-`;
-
-function accountDeletionFulfillmentBlockerSql(terminalCutoff: Date) {
-  return Prisma.sql`
-    (
-      o."fulfillmentStatus" IN ('PENDING', 'READY_FOR_PICKUP', 'SHIPPED')
-      OR (
-        o."fulfillmentStatus" = 'DELIVERED'
-        AND (o."deliveredAt" IS NULL OR o."deliveredAt" >= ${terminalCutoff})
-      )
-      OR (
-        o."fulfillmentStatus" = 'PICKED_UP'
-        AND (o."pickedUpAt" IS NULL OR o."pickedUpAt" >= ${terminalCutoff})
-      )
-    )
-    AND NOT (${ACCOUNT_DELETION_FULL_REFUND_SQL})
-  `;
-}
-
-function rawCount(rows: Array<{ count: bigint | number | string }>) {
-  return Number(rows[0]?.count ?? 0);
 }
 
 export async function acquireAccountDeletionLock(userId: string): Promise<AccountDeletionLock | null> {
@@ -422,49 +386,6 @@ async function cleanupDeletedSellerFanoutRows(
   );
 }
 
-async function redactOrderReviewNotesForDeletedAccount(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sellerProfileId: string | null | undefined,
-  sensitiveValues: string[],
-) {
-  const where: Prisma.OrderWhereInput = {
-    reviewNote: { not: null },
-    OR: [
-      { buyerId: deletedUserId },
-      ...(sellerProfileId
-        ? [{ sellerProfileId }]
-        : []),
-    ],
-  };
-  let cursor: string | undefined;
-
-  for (;;) {
-    const orders = await tx.order.findMany({
-      where,
-      select: { id: true, reviewNote: true },
-      orderBy: { id: "asc" },
-      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-
-    for (const order of orders) {
-      if (!order.reviewNote) continue;
-      const reviewNote = redactAccountDeletionText(order.reviewNote, sensitiveValues);
-      if (!reviewNote.changed) continue;
-
-      await tx.order.update({
-        where: { id: order.id },
-        data: { reviewNote: reviewNote.text },
-      });
-    }
-
-    if (orders.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-    cursor = orders[orders.length - 1]?.id;
-    if (!cursor) break;
-  }
-}
-
 async function redactSupportRequestsForDeletedAccount(
   tx: Prisma.TransactionClient,
   deletedUserId: string,
@@ -638,62 +559,36 @@ async function archiveBlogPostsForDeletedAccount(
   }
 }
 
-export async function getAccountDeletionBlockers(userId: string): Promise<AccountDeletionBlocker[]> {
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId },
-    select: { id: true },
+async function getAccountDeletionBlockersInTransaction(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<AccountDeletionBlocker[]> {
+  // Keep these sequential: app.user_id is transaction-local on this one
+  // interactive-transaction connection.
+  const orderCounts = await getOrderAccountDeletionBlockerCounts(
+    { actorUserId: userId },
+    tx,
+  );
+  const openCases = await getCaseAccountDeletionBlockerCount(userId, tx);
+  const activeCommissions = await tx.commissionRequest.count({
+    where: {
+      buyerId: userId,
+      status: { in: [...ACTIVE_COMMISSION_STATUSES] },
+    },
   });
-  const fulfillmentBlockerSql = accountDeletionFulfillmentBlockerSql(accountDeletionTerminalCutoff());
-
-  const [buyerOrders, sellerOrders, openCases, activeCommissions] = await Promise.all([
-    prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(*) AS count
-      FROM "Order" o
-      WHERE o."buyerId" = ${userId}
-        AND ${fulfillmentBlockerSql}
-    `.then(rawCount),
-    seller
-      ? prisma.$queryRaw<Array<{ count: bigint }>>`
-          SELECT COUNT(DISTINCT o.id) AS count
-          FROM "Order" o
-          WHERE ${fulfillmentBlockerSql}
-            AND EXISTS (
-              SELECT 1
-              FROM "OrderItem" oi
-              JOIN "Listing" l ON l.id = oi."listingId"
-              WHERE oi."orderId" = o.id
-                AND l."sellerId" = ${seller.id}
-            )
-            AND NOT EXISTS (
-              SELECT 1
-              FROM "OrderItem" oi
-              JOIN "Listing" l ON l.id = oi."listingId"
-              WHERE oi."orderId" = o.id
-                AND l."sellerId" <> ${seller.id}
-            )
-        `.then(rawCount)
-      : Promise.resolve(0),
-    getCaseAccountDeletionBlockerCount(userId),
-    prisma.commissionRequest.count({
-      where: {
-        buyerId: userId,
-        status: { in: [...ACTIVE_COMMISSION_STATUSES] },
-      },
-    }),
-  ]);
 
   const blockers: AccountDeletionBlocker[] = [];
-  if (buyerOrders > 0) {
+  if (orderCounts.buyerOrders > 0) {
     blockers.push({
       code: "buyer_orders",
-      count: buyerOrders,
+      count: orderCounts.buyerOrders,
       message: "You have buyer orders that are still open or within the case window. Wait until the case window closes or a refund is issued before deleting your account.",
     });
   }
-  if (sellerOrders > 0) {
+  if (orderCounts.sellerOrders > 0) {
     blockers.push({
       code: "seller_orders",
-      count: sellerOrders,
+      count: orderCounts.sellerOrders,
       message: "You have sales that are still open or within the case window. Fulfill, refund, or wait until the case window closes before deleting your account.",
     });
   }
@@ -713,6 +608,16 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
   }
 
   return blockers;
+}
+
+export async function getAccountDeletionBlockers(
+  userId: string,
+): Promise<AccountDeletionBlocker[]> {
+  return withDbUserContext(
+    userId,
+    (tx) => getAccountDeletionBlockersInTransaction(tx, userId),
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
 }
 
 function messageAttachmentUrl(body: string): string | null {
@@ -1206,6 +1111,17 @@ export async function anonymizeUserAccount(
     if (user.deletedAt) return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
 
     const now = new Date();
+    const lockedBlockers = await getAccountDeletionBlockersInTransaction(
+      tx,
+      user.id,
+    );
+    if (lockedBlockers.length > 0) {
+      throw new Error(
+        `Account deletion obligations changed after lock: ${lockedBlockers
+          .map((blocker) => `${blocker.code}:${blocker.count}`)
+          .join(",")}`,
+      );
+    }
     const deletedEmail = `deleted+${user.id}@deleted.thegrainline.local`;
     const deletedClerkId = `deleted:${user.id}:${now.getTime()}`;
     const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
@@ -1300,11 +1216,12 @@ export async function anonymizeUserAccount(
       where: { authorId: user.id },
       data: { body: "[Comment deleted]", approved: false },
     });
-    await redactOrderReviewNotesForDeletedAccount(
+    await scrubOrderDataForAccountDeletion(
+      {
+        actorUserId: user.id,
+        additionalSensitiveValues: accountSensitiveValues,
+      },
       tx,
-      user.id,
-      user.sellerProfile?.id ?? null,
-      accountSensitiveValues,
     );
     await tx.review.updateMany({
       where: { reviewerId: user.id },
@@ -1312,54 +1229,6 @@ export async function anonymizeUserAccount(
     });
     await tx.reviewPhoto.deleteMany({
       where: { review: { reviewerId: user.id } },
-    });
-    await tx.order.updateMany({
-      where: { buyerId: user.id },
-      data: {
-        buyerEmail: null,
-        buyerName: null,
-        shipToLine1: null,
-        shipToLine2: null,
-        shipToCity: null,
-        shipToState: null,
-        shipToPostalCode: null,
-        shipToCountry: null,
-        quotedToLine1: null,
-        quotedToLine2: null,
-        quotedToCity: null,
-        quotedToState: null,
-        quotedToPostalCode: null,
-        quotedToCountry: null,
-        quotedToName: null,
-        quotedToPhone: null,
-        trackingCarrier: null,
-        trackingNumber: null,
-        sellerNotes: null,
-        shippoShipmentId: null,
-        shippoRateObjectId: null,
-        shippoTransactionId: null,
-        labelUrl: null,
-        labelCarrier: null,
-        labelTrackingNumber: null,
-        giftNote: null,
-        buyerDataPurgedAt: now,
-      },
-    });
-    await tx.orderShippingRateQuote.deleteMany({
-      where: {
-        OR: [
-          { order: { buyerId: user.id } },
-          ...(user.sellerProfile
-            ? [
-                {
-                  order: {
-                    sellerProfileId: user.sellerProfile.id,
-                  },
-                },
-              ]
-            : []),
-        ],
-      },
     });
     await tx.userReport.updateMany({
       where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
@@ -1534,20 +1403,6 @@ export async function anonymizeUserAccount(
       });
       await tx.sellerFaq.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
-      });
-      await tx.order.updateMany({
-        where: { sellerProfileId: user.sellerProfile.id },
-        data: {
-          trackingCarrier: null,
-          trackingNumber: null,
-          sellerNotes: null,
-          shippoShipmentId: null,
-          shippoRateObjectId: null,
-          shippoTransactionId: null,
-          labelUrl: null,
-          labelCarrier: null,
-          labelTrackingNumber: null,
-        },
       });
       await tx.sellerProfile.update({
         where: { id: user.sellerProfile.id },

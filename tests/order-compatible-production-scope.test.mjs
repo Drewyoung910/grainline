@@ -10,6 +10,7 @@ import {
 import {
   assertOrderCompatibleProductionLedger,
   assertOrderCompatibleProductionScope,
+  ORDER_COMPATIBLE_REVIEWED_SUCCESSORS,
   parseOrderCompatibleProductionScopeEnvironment,
   verifyOrderCompatibleProductionScope,
 } from "../scripts/verify-order-compatible-production-scope.mjs";
@@ -60,6 +61,11 @@ test("catalog is ordered, unique, and byte-pinned", () => {
   assert.equal(new Set(names).size, names.length);
   assert.equal(names.length, 18);
   assert.equal(ORDER_COMPATIBLE_PRODUCTION_CHARGED_TOTAL_PREFIX_LENGTH, 17);
+  assert.equal(ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.length, 17);
+  assert.deepEqual(
+    ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.map(({ name }) => name),
+    [...ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.map(({ name }) => name)].sort(),
+  );
   for (const migration of ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS) {
     const sql = readFileSync(
       `prisma/migrations/${migration.name}/migration.sql`,
@@ -124,11 +130,27 @@ test("ledger accepts every exact prefix and rejects drift", () => {
   }
   assert.equal(
     assertOrderCompatibleProductionLedger(
-      ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(applied),
+      [
+        ...ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS,
+        ...ORDER_COMPATIBLE_REVIEWED_SUCCESSORS,
+      ].map(applied),
       "after",
     ),
     18,
   );
+  for (
+    let prefix = 0;
+    prefix <= ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.length;
+    prefix += 1
+  ) {
+    assert.equal(
+      assertOrderCompatibleProductionLedger([
+        ...ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(applied),
+        ...ORDER_COMPATIBLE_REVIEWED_SUCCESSORS.slice(0, prefix).map(applied),
+      ], "after"),
+      18,
+    );
+  }
   const gap = [
     applied(ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS[0]),
     applied(ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS[2]),
@@ -152,6 +174,26 @@ test("ledger accepts every exact prefix and rejects drift", () => {
     }], "restart")
   );
   assert.throws(() => assertOrderCompatibleProductionLedger([], "after"));
+  assert.throws(() =>
+    assertOrderCompatibleProductionLedger([
+      ...ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(applied),
+      applied(ORDER_COMPATIBLE_REVIEWED_SUCCESSORS[1]),
+    ], "after")
+  );
+  const driftedSuccessor = applied(ORDER_COMPATIBLE_REVIEWED_SUCCESSORS[0]);
+  driftedSuccessor.checksum = "f".repeat(64);
+  assert.throws(() =>
+    assertOrderCompatibleProductionLedger([
+      ...ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(applied),
+      driftedSuccessor,
+    ], "after")
+  );
+  assert.throws(() =>
+    assertOrderCompatibleProductionLedger([
+      applied(ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS[0]),
+      applied(ORDER_COMPATIBLE_REVIEWED_SUCCESSORS[0]),
+    ], "restart")
+  );
 });
 
 test("scope accepts restart prefixes and exact final posture", async () => {
