@@ -84,19 +84,19 @@ describe("seller-facing user labels", () => {
   it("keeps admin order views from bypassing purged order buyer identity", () => {
     const adminOrders = source("src/app/admin/orders/page.tsx");
     const adminOrderDetail = source("src/app/admin/orders/[id]/page.tsx");
+    const staffReadState = source("src/lib/orderStaffReadState.ts");
 
     for (const text of [adminOrders, adminOrderDetail]) {
-      assert.match(text, /order\.buyerDataPurgedAt[\s\S]*?\? "Buyer data purged"/);
-      assert.match(text, /order\.buyerEmail \?\? order\.buyer\?\.email/);
+      assert.match(text, /readStaffOrder(?:Page|Detail)/);
+      assert.doesNotMatch(text, /prisma\.order|order\.buyer\?\./);
     }
 
-    assert.match(adminOrders, /order\.buyerName \?\? order\.buyerEmail \?\? order\.buyer\?\.name/);
-    assert.match(adminOrderDetail, /order\.buyerName \?\? order\.buyer\?\.name/);
-    assert.match(adminOrders, /const buyerEmail = order\.buyerDataPurgedAt[\s\S]*?\? null/);
+    assert.match(adminOrders, /const buyer = order\.buyerLabel/);
     assert.match(adminOrders, /buyerEmail && buyerEmail !== buyer/);
+    assert.match(adminOrderDetail, /order\.buyerDataPurgedAt[\s\S]*?\? "Buyer data purged"/);
+    assert.match(adminOrderDetail, /order\.buyerDataPurgedAt \? null : order\.buyerEmail/);
     assert.match(adminOrderDetail, /<Field label="Stripe email" value=\{order\.buyerDataPurgedAt \? null : order\.buyerEmail\} \/>/);
-    assert.doesNotMatch(adminOrderDetail, /<Field label="Name" value=\{order\.buyer\?\.name/);
-    assert.doesNotMatch(adminOrderDetail, /<Field label="Email" value=\{order\.buyer\?\.email/);
+    assert.match(staffReadState, /Staff Order purged buyer data is inconsistent/);
   });
 
   it("uses retained order snapshots and hides purged buyer identity", () => {

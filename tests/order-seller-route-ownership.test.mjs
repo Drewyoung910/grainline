@@ -9,11 +9,16 @@ function source(path) {
 describe("seller order mutation ownership guardrails", () => {
   it("requires seller routes to bind the checkout-owned Order seller", () => {
     const refund = source("src/app/api/orders/[id]/refund/route.ts");
+    const refundPreflight = source(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+    );
     assert.match(
       refund,
-      /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id(?:,|\s*\})/s,
-      "seller refund must bind the Order's durable seller key in the lookup",
+      /sellerRefundPreflight\(\{\s*actorUserId: me\.id,\s*orderId/s,
+      "seller refund must use the actor-bound database preflight",
     );
+    assert.match(refundPreflight, /locked_order\."sellerProfileId" IS DISTINCT FROM locked_seller\.id/);
+    assert.doesNotMatch(refund, /\bprisma\.order\b/);
     assert.doesNotMatch(
       refund,
       /order\.items\.(?:some|every)\(\(it\) => it\.listing\.sellerId === seller\.id\)/,

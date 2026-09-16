@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
-import { releaseStaleRefundLocks } from "@/lib/refundLocks";
+import { pruneLegacyRefundLocks } from "@/lib/orderLegacyRefundLockAuthority";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { pruneEmailOutboxRetention } from "@/lib/emailOutboxRetention";
 import { NOTIFICATION_RETENTION_BATCH_SIZE, NOTIFICATION_RETENTION_TIME_BUDGET_MS } from "@/lib/notificationRetentionState";
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
 
 async function releaseStaleRefundLocksForPrune(): Promise<{ count: number; failed: boolean }> {
   try {
-    const result = await releaseStaleRefundLocks();
+    const result = await pruneLegacyRefundLocks();
     return { count: result.count, failed: false };
   } catch (error) {
     Sentry.captureException(error, { tags: { source: "cron_refund_lock_release" } });

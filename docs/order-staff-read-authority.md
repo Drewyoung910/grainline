@@ -1,8 +1,9 @@
 # Order staff read authority
 
-Status: isolated dormant compatibility candidate. It has not been merged,
-applied, granted to a login role, deployed or used by application pages.
-`Order` RLS remains off.
+Status: isolated database-first application-conversion candidate. It has not been merged,
+applied, granted to a login role or deployed. `Order` RLS remains off. The
+converted pages intentionally cannot run until the separately proven credential
+boundary is installed.
 
 Prepared: 2026-08-31
 
@@ -32,6 +33,15 @@ controls. The dedicated database role is an additional credential boundary:
 ordinary marketplace queries and SQL mistakes using `DATABASE_URL` cannot call
 staff projections. Arbitrary code execution that can exfiltrate every
 application secret remains outside what database RLS alone can solve.
+
+The original functions predate the later nullable, signed
+`Order.chargedTotalCents` witness. Migration
+`20260905010000_correct_order_staff_read_charged_total` adds dormant `*_v2`
+wrappers which preserve the original fixed projections and include that exact
+witness. The wrappers grant nothing; the original variants remain revoked and
+are not application entry points. This avoids editing a previously applied
+migration while preventing staff pages from silently falling back to a
+component reconstruction when provider evidence exists.
 
 ## Fixed exposure boundary
 
@@ -76,7 +86,136 @@ Before application conversion, a separate release must:
 5. bind the PIN-gated pages to a dedicated client with bounded pooling; and
 6. rotate/revoke and remove that credential if the isolated proof aborts.
 
+## 2026-09-05 application conversion checkpoint
+
+The all-Orders queue, review-needed queue and staff Order detail page now call
+the corrected `*_v2` fixed projections through a lazy, server-only Prisma client
+backed only by `ORDER_STAFF_READ_DATABASE_URL`. The client requires a direct
+`grainline_staff_read_runtime` login on the same pooled database as the
+ordinary runtime and has an independent two-connection cap. It has no fallback
+to `DATABASE_URL`; missing or malformed credential state fails closed.
+
+The Vercel database isolation guard now treats this one exact additional URL as
+reviewed only when it is pooled, authenticates as the dedicated role and maps
+to the same reviewed endpoint, region and database as `DATABASE_URL`.
+Production builds require it. Every other PostgreSQL URL-shaped variable and
+all owner/migration variables remain rejected.
+
+This conversion also makes the two queues consistent: both render title and
+seller identity from the immutable checkout snapshot. Previously the flagged
+queue joined mutable current Listings while the ordinary admin queue used the
+snapshot. Detail links are offered only when the current Listing is still
+active, while historical display data remains snapshot-backed.
+
+The conversion preserves exact payment display semantics: both queues and the
+detail screen prefer the signed nullable `chargedTotalCents` witness and use
+the legacy component reconstruction only when that witness is absent. This was
+caught during the pre-RLS functionality audit before the converted application
+was committed or deployed.
+
+The three ordinary staff Order screens reduce the candidate direct `Order`
+source inventory from six to three. The staff Case detail now composes the
+already-protected Case read with the same corrected staff Order detail, checks
+the buyer/seller relationship across both results, and uses immutable item
+titles plus current inventory type only for restoration eligibility. That
+reduces the inventory again from three to two. The remaining sources are the
+Stripe webhook service path and account-deletion path; each needs a distinct
+fixed authority rather than access through the staff credential.
+
+The required release sequence remains database first: provision and prove the
+login, grant only the two corrected functions, install the production secret, merge and
+deploy the converted application, exercise both queues and detail through the
+actual pooled session, drain predecessors, then revoke superseded direct
+authority. This local checkpoint does not authorize any of those operations.
+
 State-changing admin actions, refund reconciliation, participant export,
 eligibility and aggregate operations remain separate O2/O3 families. This
 candidate does not authorize a role, credential, migration run, deployment,
 RLS activation, table-grant change or provider mutation.
+
+## 2026-09-05 role-grant convergence checkpoint
+
+`scripts/provision-order-staff-read-role.sql` now stages the credential-free
+half of the dedicated-role release. It refuses a missing, colliding, inherited,
+privileged or membership-bearing login; permits only Neon's exact non-effective
+`cloud_admin` bootstrap member edge; removes direct table, column, sequence and
+function grants; rejects default-privilege authority; and grants only the two
+corrected `*_v2` projections. It also proves that `PUBLIC` and
+`grainline_app_runtime` cannot execute those projections and that the staff
+role cannot execute any other `SECURITY DEFINER` function.
+
+This script intentionally cannot create the role or set its password. A
+separate restart-safe provider operator must generate the credential, create
+and authenticate the exact `LOGIN NOINHERIT NOBYPASSRLS` role, install only the
+sensitive Production `ORDER_STAFF_READ_DATABASE_URL`, and retain sanitized
+evidence. The projection functions must exist before grant convergence, so the
+production order is: create the authority-free login and install its secret;
+apply the compatible Order prefix; converge the two grants; deploy and smoke
+the converted application. No action in this checkpoint changes production.
+
+The real-PostgreSQL proof at
+`tests/order-staff-read-role-provision-postgres.test.mjs` creates the restricted
+role only after validating the exact loopback `ci`/`grainline_ci` connection
+and checking database/session identity, runs the
+convergence SQL, authenticates through the separate login, proves direct Order
+denial and the exact empty result for an unknown staff actor, and removes the role.
+It also checks successful replay, attribute/membership/PUBLIC-execution drift,
+and transactional grant rollback after a default-privilege refusal. It is skipped
+unless `ORDER_STAFF_READ_ROLE_PROVISION_PROOF_DATABASE_URL` is explicitly set.
+CI wiring uses a literal loopback URL for its PostgreSQL 16 service, not a
+production variable. Host/service overrides and non-CI credentials are refused;
+psql startup files and ambient database/provider environment are not inherited.
+
+The initial harness did not enforce its documented disposable target and
+accepted unexpected SQL errors from the staff projection. Both were corrected
+before CI execution. The grant script also now resolves PUBLIC authority using
+ACL grantee zero, protects sequence privilege checks with a CASE expression,
+and rejects substituted staff/runtime role names. A separate PGlite test
+executes the actual final catalog query against minimal fixtures; it does not
+substitute for the network-login proof. No production grant or credential has
+been changed by this preparation. Full CI execution remains a release gate.
+
+Validation checkpoint `dafe0c6c` is pushed on
+`agent/order-staff-read-role-preparation-20260905`. Local full-suite validation
+reported 4,223 tests: 4,212 passed, 11 skipped, zero failures. The newly added
+catalog regression was run separately alongside the focused target/grant
+tests (six passed, zero failures). TypeScript and lint passed; the helper,
+which the default lint configuration ignores, was also linted with
+`--no-ignore`. The network-login proof remains skipped locally because there
+is no disposable PostgreSQL server. Do not describe it as passed.
+
+PR #429 remains draft at `2958fbb1fd0b2d3bcc70f6ba57d7a3e9358653d6`;
+CI `33977320851` was reverified successful for that exact predecessor.
+At that checkpoint, the permission reviewer allowed pushing the follow-up branch but rejected
+opening its draft PR, citing publication authorization. No follow-up PR or CI
+run was created. Next: open the isolated follow-up draft with authorization,
+obtain successful PostgreSQL 16 login/convergence proof, then finish review
+before any merge or production credential/grant work. The existing security
+plugin scan was not completed and provides no security approval.
+
+### Accepted disposable CI proof
+
+Following Drew's approval, draft PR #430 was opened from exact head
+`4e3a9ffcdb265e7c41701e53a346dbe04e104d15`, including the unmerged #429
+candidate. CI `34009391239` completed successfully. The real PostgreSQL 16
+staff-login/convergence step reported one passed test, zero failures and zero
+skips. The full suite reported 4,224 tests: 4,217 passed, seven skipped, zero
+failures. TypeScript, lint, dependency audit, production build and the historical
+database proofs also passed. This is disposable CI evidence, not a production
+staff-login or pooled-provider proof.
+
+The failed Vercel Preview `dpl_5aUaszWuMLedbeqMYx9Chr6f9PNw` was inspected
+read-only using the cached reviewed CLI. Its build log explicitly reports
+`DATABASE_URL env var is required in production` during page-data collection
+for `/_not-found`. No Preview variable was installed or guard weakened.
+
+The release plan's stale grant-before-function ordering was corrected to match
+the actual dependency: create the authority-free login, apply the compatible
+prefix, then converge the two grants and prove both login boundaries before
+application deployment. These recording/ordering edits are documentation-only
+successors to the accepted code head. PR #430 remains draft; neither PR was
+merged, and no production credentials, grants, migrations or deployment changed.
+
+The next isolated bootstrap core and its explicit remaining production-adapter
+gate are tracked in `docs/order-staff-read-bootstrap-plan.md`. It does not yet
+provide an executable production provisioning command.

@@ -256,11 +256,18 @@ call sites. The 2026-09-01 seller-analytics successor then moves the three
 seller-private payment predicates out of application source and into a
 byte-pinned fixed-function migration. The later Guild Order-facts successor
 moves `src/lib/metrics.ts` behind another byte-pinned fixed projection. The
-current `src` semantic inventory is therefore 32 files; the removed source
+semantic inventory at that checkpoint was therefore 32 files; the removed source
 matches are authority conversions, not deleted payment semantics. This
 inventory is intentionally broader than the older seven-file direct-access
 floor; semantic wrapper references remain after their underlying base-table
 access is removed.
+
+The 2026-09-05 blocked-checkout review conversion removes the webhook from the
+current source-level payment-semantic matcher because refund/dispute state is
+now derived inside the source-bound database operation. The pinned current
+matcher floor is therefore 25 files; the webhook behavior remains covered by
+the fixed-operation SQL, wrapper and real PostgreSQL authority proofs rather
+than disappearing from the audit.
 
 ### Participant and staff projections
 
@@ -775,7 +782,7 @@ The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
 - the historical 34-source semantic baseline converts to zero runtime
-  base-table access while the current 32-file `src` inventory retains the
+  base-table access while the current 25-file `src` matcher retains the
   fixed Order eligibility and public-aggregate authority hubs and the
   byte-pinned seller-analytics and seller-metrics migrations retain their
   payment predicates;

@@ -15,6 +15,7 @@ const sourceConsistencySql = source(
   "docs/rls-drafts/checkout-stock-reservation-source-consistency.sql",
 );
 const authorityClient = source("src/lib/checkoutStockReservationAuthority.ts");
+const paidCheckoutSql = source("docs/rls-drafts/order-paid-checkout-authority.sql");
 
 describe("durable checkout stock reservation guardrails", () => {
   it("preserves the predecessor schema and adds draft-only repair invariants", () => {
@@ -57,11 +58,11 @@ describe("durable checkout stock reservation guardrails", () => {
     const routes = [
       {
         path: "src/app/api/cart/checkout/single/route.ts",
-        create: /createConsistentSingleCheckoutStockReservation\(\{/,
+        create: /createSnapshotSingleCheckoutStockReservation\(\{/,
       },
       {
         path: "src/app/api/cart/checkout-seller/route.ts",
-        create: /createConsistentCartCheckoutStockReservation\(\{/,
+        create: /createSnapshotCartCheckoutStockReservation\(\{/,
       },
     ];
 
@@ -86,7 +87,7 @@ describe("durable checkout stock reservation guardrails", () => {
       "src/app/api/cart/checkout-seller/route.ts",
     ]) {
       const route = source(routePath);
-      const sourceMatch = route.indexOf("SourceWitness(");
+      const sourceMatch = route.indexOf("SnapshotWitness(");
       const stripeCreate = route.indexOf("stripe.checkout.sessions.create(");
 
       assert.doesNotMatch(route, /prisma\.\$transaction\(async \(tx\) =>/);
@@ -97,8 +98,8 @@ describe("durable checkout stock reservation guardrails", () => {
       assert.notEqual(stripeCreate, -1);
       assert.ok(sourceMatch < stripeCreate, `${routePath} must compare the locked source before Stripe creation`);
     }
-    assert.match(authorityClient, /createConsistentCartCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
-    assert.match(authorityClient, /createConsistentSingleCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
+    assert.match(authorityClient, /createSnapshotCartCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
+    assert.match(authorityClient, /createSnapshotSingleCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
     assert.match(sourceConsistencySql, /grainline_checkout_reservation_create_cart_consistent/);
     assert.match(sourceConsistencySql, /grainline_checkout_reservation_create_single_consistent/);
     assert.match(sourceConsistencySql, /source_witness IS DISTINCT FROM p_expected_source/);
@@ -216,9 +217,9 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(authoritySql, /grainline_stripe_webhook_begin\([\s\S]*p_source_object_id text[\s\S]*grainline_stripe_webhook_bind_source/);
     assert.match(authoritySql, /source_event\."sourceObjectId" IS DISTINCT FROM p_source_object_id/);
     assert.match(authoritySql, /event\."sourceObjectId" = p_session_id/g);
-    assert.match(webhook, /markCheckoutStockReservationCompleted\(tx, \{[\s\S]*eventId: event\.id[\s\S]*claimGeneration/);
-    assert.match(webhook, /payloadHash: sessionMeta\.checkoutPayloadHash/g);
-    assert.match(webhook, /buyerId: sessionMeta\.buyerId/g);
+    assert.match(webhook, /createOrderFromPaidCheckout\(\{[\s\S]*eventId: event\.id,[\s\S]*claimGeneration,[\s\S]*reservationId,[\s\S]*sessionId,/);
+    assert.match(paidCheckoutSql, /source_event\."sourceObjectId" IS DISTINCT FROM p_session_id/);
+    assert.match(paidCheckoutSql, /grainline_checkout_reservation_complete\([\s\S]*p_event_id, p_claim_generation, p_reservation_id, p_session_id/);
     assert.match(
       restore,
       /if \(input\.reservationId && input\.payloadHash\) \{[\s\S]*bindCheckoutStockReservationSession\(\{[\s\S]*reservationId: input\.reservationId,[\s\S]*buyerId: input\.buyerId,[\s\S]*payloadHash: input\.payloadHash,[\s\S]*sessionId: input\.sessionId,[\s\S]*\}, tx\);[\s\S]*completeCheckoutStockReservation\(tx, input\)/,
@@ -304,8 +305,8 @@ describe("durable checkout stock reservation guardrails", () => {
 
   it("exposes only fixed reservation operations through the application authority module", () => {
     for (const operation of [
-      "createConsistentCartCheckoutStockReservation",
-      "createConsistentSingleCheckoutStockReservation",
+      "createSnapshotCartCheckoutStockReservation",
+      "createSnapshotSingleCheckoutStockReservation",
       "bindCheckoutStockReservationSession",
       "completeCheckoutStockReservation",
       "abortCheckoutStockReservation",

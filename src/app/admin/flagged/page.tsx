@@ -1,9 +1,11 @@
-import { prisma } from "@/lib/db";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { readStaffOrderPage } from "@/lib/orderStaffReadAuthority";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 const PAGE_SIZE = 25;
 
@@ -17,34 +19,20 @@ export default async function FlaggedOrdersPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  await requireAdminPageAccess();
+  const staff = await requireAdminPageAccess();
   const { page: pageParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 
-  const where = { reviewNeeded: true } as const;
-
-  const total = await prisma.order.count({ where });
+  const result = await readStaffOrderPage(
+    staff.id,
+    "REVIEW_NEEDED",
+    requestedPage,
+    PAGE_SIZE,
+    getOrderStaffReadClient(),
+  );
+  if (!result) notFound();
+  const { totalCount: total, safePage, orders } = result;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const safePage = Math.min(requestedPage, totalPages);
-  const orders = await prisma.order.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (safePage - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    include: {
-      buyer: { select: { name: true, email: true } },
-      items: {
-        include: {
-          listing: {
-            select: {
-              title: true,
-              seller: { select: { id: true, displayName: true } },
-            },
-          },
-        },
-      },
-    },
-  });
 
   return (
     <div>
@@ -76,21 +64,19 @@ export default async function FlaggedOrdersPage({
               </thead>
               <tbody className="divide-y divide-neutral-100">
                 {orders.map((order) => {
-                  const total = orderTotalCents(order);
-                  const sellers = Array.from(
-                    new Map(
-                      order.items.map((item) => [
-                        item.listing.seller.id,
-                        item.listing.seller.displayName ?? "Unnamed seller",
-                      ]),
-                    ).values(),
-                  );
+                  const total = orderTotalCents({
+                    chargedTotalCents: order.chargedTotalCents,
+                    itemsSubtotalCents: order.itemsSubtotalCents,
+                    shippingAmountCents: order.shippingAmountCents,
+                    taxAmountCents: order.taxAmountCents,
+                    giftWrappingPriceCents: order.giftWrappingPriceCents,
+                  });
                   const itemSummary = order.items
                     .slice(0, 3)
-                    .map((item) => `${item.quantity}× ${item.listing.title}`)
+                    .map((item) => `${item.quantity}× ${item.title}`)
                     .join(", ");
-                  const remainingItems = Math.max(0, order.items.length - 3);
-                  const buyer = order.buyer?.name ?? order.buyer?.email ?? "Deleted user";
+                  const remainingItems = Math.max(0, order.itemCount - 3);
+                  const buyer = order.buyerLabel;
                   return (
                     <tr key={order.id} className="hover:bg-neutral-50">
                       <td className="px-4 py-3 font-mono text-xs text-neutral-500">
@@ -98,12 +84,12 @@ export default async function FlaggedOrdersPage({
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-neutral-800">{buyer}</div>
-                        {order.buyerEmail && order.buyer?.name && (
+                        {order.buyerEmail && order.buyerEmail !== buyer && (
                           <div className="text-xs text-neutral-500">{order.buyerEmail}</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-neutral-700">
-                        <div className="font-medium">{sellers.length > 0 ? sellers.join(", ") : "—"}</div>
+                        <div className="font-medium">{order.sellerLabel}</div>
                         <div className="mt-0.5 max-w-xs text-xs text-neutral-500">
                           {itemSummary}
                           {remainingItems > 0 ? `, +${remainingItems} more` : ""}

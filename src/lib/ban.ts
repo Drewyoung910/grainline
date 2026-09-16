@@ -1,6 +1,5 @@
 import { prisma } from './db'
 import { stripe } from './stripe'
-import { Prisma } from '@prisma/client'
 import { buildBanAuditMetadata } from './banAuditMetadata'
 import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
@@ -9,25 +8,16 @@ import { NOTIFICATION_SOURCE_TYPES } from './notificationSources'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
 import { revalidatePublicSellerVisibilityCaches } from './searchCache'
 import { invalidateAccountStateCache } from './accountStateCache'
+import { readBanAuditMetadata } from './banAuditMetadata'
 import {
-  appendBannedSellerReviewNote,
-  restoreOrderReviewStateAfterBan,
-} from './banOrderReviewState'
-import { readBanAuditMetadata, type BanOpenOrderSnapshot } from './banAuditMetadata'
+  flagBannedSellerOpenOrders,
+  restoreBannedSellerOrderReviews,
+} from './orderBanReviewAuthority'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { sanitizeAdminAuditReason } from './audit'
 import * as Sentry from '@sentry/nextjs'
 
-const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
 const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
-const BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE = 100
-
-type FlaggedOpenOrderForBan = {
-  id: string
-  previousReviewNeeded: boolean
-  previousReviewNote: string | null
-  reviewNote: string
-}
 
 export class BanUserPolicyError extends Error {
   status: number;
@@ -118,70 +108,6 @@ async function notifyBuyersOfBannedSellerOrders(
   })
 }
 
-async function restoreBannedSellerOrderReviewState(
-  tx: Pick<Prisma.TransactionClient, 'order'>,
-  snapshots: BanOpenOrderSnapshot[],
-) {
-  if (snapshots.length === 0) return 0
-  const currentOrders = await tx.order.findMany({
-    where: { id: { in: snapshots.map((snapshot) => snapshot.id) } },
-    select: { id: true, reviewNeeded: true, reviewNote: true },
-  })
-  const currentById = new Map(currentOrders.map((order) => [order.id, order]))
-
-  let restored = 0
-  for (const snapshot of snapshots) {
-    const current = currentById.get(snapshot.id)
-    if (!current) continue
-    const restoration = restoreOrderReviewStateAfterBan({
-      currentReviewNeeded: current.reviewNeeded,
-      currentReviewNote: current.reviewNote,
-      snapshot,
-    })
-    if (!restoration) continue
-    const updated = await tx.order.updateMany({
-      where: {
-        id: snapshot.id,
-        reviewNeeded: current.reviewNeeded,
-        reviewNote: current.reviewNote,
-      },
-      data: restoration,
-    })
-    restored += updated.count
-  }
-  return restored
-}
-
-async function flagBannedSellerOpenOrders(
-  tx: Pick<Prisma.TransactionClient, '$executeRaw'>,
-  flaggedOpenOrders: FlaggedOpenOrderForBan[],
-) {
-  let updatedCount = 0
-  for (let index = 0; index < flaggedOpenOrders.length; index += BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE) {
-    const chunk = flaggedOpenOrders.slice(index, index + BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE)
-    const rows = chunk.map((order) => Prisma.sql`(
-      ${order.id}::text,
-      ${order.reviewNote}::text,
-      ${order.previousReviewNote}::text,
-      ${order.previousReviewNeeded}::boolean
-    )`)
-    const updated = await tx.$executeRaw`
-      UPDATE "Order" AS o
-      SET "reviewNeeded" = true,
-          "reviewNote" = data."reviewNote"
-      FROM (VALUES ${Prisma.join(rows)}) AS data("id", "reviewNote", "previousReviewNote", "previousReviewNeeded")
-      WHERE o."id" = data."id"
-        AND o."reviewNeeded" = data."previousReviewNeeded"
-        AND o."reviewNote" IS NOT DISTINCT FROM data."previousReviewNote"
-    `
-    updatedCount += Number(updated)
-  }
-  if (updatedCount !== flaggedOpenOrders.length) {
-    throw new BanUserPolicyError("Open order review state changed while banning user. Refresh and try again.", 409)
-  }
-  return updatedCount
-}
-
 function revalidateAccountStateSearchCaches(source: string, userId: string) {
   try {
     revalidatePublicSellerVisibilityCaches()
@@ -215,22 +141,6 @@ export async function banUser({ userId, adminId, reason }: {
         select: { id: true, status: true },
       }),
     ])
-    const openSellerOrders = sellerProfile
-      ? await tx.order.findMany({
-          where: {
-            fulfillmentStatus: { in: [...OPEN_SELLER_ORDER_STATUSES] },
-            sellerRefundId: null,
-            paymentRefundBlocked: false,
-            sellerProfileId: sellerProfile.id,
-          },
-          select: {
-            id: true,
-            buyerId: true,
-            reviewNeeded: true,
-            reviewNote: true,
-          },
-        })
-      : []
     const bannedAt = new Date()
     const banResult = await tx.user.updateMany({
       where: { id: userId, role: { not: "ADMIN" } },
@@ -246,22 +156,11 @@ export async function banUser({ userId, adminId, reason }: {
       const cleanup = await removeSellerCommissionInterests(tx, sellerProfile.id)
       removedCommissionInterestRequestIds = cleanup.commissionRequestIds
     }
-    const flaggedOpenOrders = openSellerOrders.map((order) => {
-      const reviewNoteState = appendBannedSellerReviewNote(order.reviewNote)
-      return {
-        id: order.id,
-        buyerId: order.buyerId,
-        previousReviewNeeded: order.reviewNeeded,
-        previousReviewNote: order.reviewNote,
-        reviewNote: reviewNoteState.reviewNote,
-        addedReviewNote: reviewNoteState.addedReviewNote,
-      }
-    })
     await tx.commissionRequest.updateMany({
       where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
       data: { status: 'CLOSED' }
     })
-    await flagBannedSellerOpenOrders(tx, flaggedOpenOrders)
+    const flaggedOpenOrders = await flagBannedSellerOpenOrders(adminId, userId, tx)
     const banAuditLog = await tx.adminAuditLog.create({
       data: {
         adminId,
@@ -273,7 +172,7 @@ export async function banUser({ userId, adminId, reason }: {
           ...buildBanAuditMetadata({
             sellerProfile,
             commissionRequests,
-            openOrders: flaggedOpenOrders,
+            openOrderSnapshots: flaggedOpenOrders,
             appliedBannedAt: bannedAt,
           }),
           removedCommissionInterestRequestIds,
@@ -402,9 +301,11 @@ export async function unbanUser({ userId, adminId, reason }: {
     ])
     if (!previousUser) throw new BanUserPolicyError("User not found", 404)
     const banMetadata = readBanAuditMetadata(latestBanLog?.metadata)
-    const restoredFlaggedOrderReviews = await restoreBannedSellerOrderReviewState(
-      tx,
+    const restoredFlaggedOrderReviews = await restoreBannedSellerOrderReviews(
+      adminId,
+      userId,
       banMetadata.flaggedOpenOrders,
+      tx,
     )
     await tx.user.update({
       where: { id: userId },
