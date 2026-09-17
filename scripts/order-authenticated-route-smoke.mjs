@@ -429,6 +429,21 @@ export function verifyVercelDeployment(binding = RELEASE_BINDING) {
   return Object.freeze({ ...deployment, aliases: Object.freeze(aliases) });
 }
 
+// Keep application and operator provenance independent. Both CI bindings must
+// pass before any credential file is read or fixture/client is created.
+export function verifyOperatorRelease(config, {
+  readGit = readGitState,
+  verifyCi = verifyGitHubCi,
+  verifyDeployment = verifyVercelDeployment,
+} = {}) {
+  if (!config?.release) throw new Error("authenticated Order smoke release is missing");
+  const release = assertReleaseBinding(config.release);
+  assertGitState(readGit(), config.operatorCommit);
+  verifyCi(config.operatorCommit, config.operatorCiRunId);
+  verifyCi(release.commit, release.ciRunId);
+  return verifyDeployment(release);
+}
+
 async function boundedText(response, maxBytes) {
   const value = await response.text();
   if (Buffer.byteLength(value, "utf8") > maxBytes) {
@@ -557,8 +572,9 @@ async function revokeCanarySessions(clerk, clerkUserId) {
   return after.totalCount === 0 && after.data.length === 0;
 }
 
-async function verifyDeploymentBoundary() {
-  const health = await fetch(`${PRODUCTION_ORIGIN}/api/health`, {
+export async function verifyDeploymentBoundary(binding = RELEASE_BINDING, request = fetch) {
+  const release = assertReleaseBinding(binding);
+  const health = await request(`${PRODUCTION_ORIGIN}/api/health`, {
     headers: { "cache-control": "no-store" },
     redirect: "manual",
     signal: AbortSignal.timeout(30_000),
@@ -567,13 +583,13 @@ async function verifyDeploymentBoundary() {
   if (health.status !== 200 || healthBody.ok !== true) {
     throw new Error("production health check failed");
   }
-  const page = await fetch(PRODUCTION_ORIGIN, {
+  const page = await request(PRODUCTION_ORIGIN, {
     headers: { "cache-control": "no-store" },
     redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
   const pageBody = await boundedText(page, MAX_PAGE_BYTES);
-  if (page.status !== 200 || !pageBody.includes(`dpl=${RELEASE_BINDING.deploymentId}`)) {
+  if (page.status !== 200 || !pageBody.includes(`dpl=${release.deploymentId}`)) {
     throw new Error("canonical alias is not serving the reviewed deployment marker");
   }
   return Object.freeze({ canonicalDeploymentMarker: true, healthStatus: 200 });
@@ -715,8 +731,13 @@ export function buildFixtureIds(marker) {
   });
 }
 
-export function validateRestartState(state, config, binding = RELEASE_BINDING) {
+export function validateRestartState(state, config, binding = RELEASE_BINDING,
+  { allowLegacyCleanupRecovery = true } = {}) {
   const exact = assertReleaseBinding(binding);
+  if (typeof allowLegacyCleanupRecovery !== "boolean"
+    || (!allowLegacyCleanupRecovery && (state?.version === 1 || state?.recoveredFromOperator !== undefined))) {
+    throw new Error("authenticated Order smoke historical cleanup is unavailable for this successor");
+  }
   const validTimestamp = (value) => value === null
     || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
   const validRequiredTimestamp = (value) => typeof value === "string"
@@ -853,7 +874,9 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING) {
   return validated;
 }
 
-function createInitialState(config, canary, checkoutSeller) {
+export function createInitialState(config, canary, checkoutSeller) {
+  if (!config?.release) throw new Error("authenticated Order smoke release is missing");
+  const release = assertReleaseBinding(config.release);
   const marker = randomBytes(16).toString("hex");
   return {
     version: 2,
@@ -861,9 +884,9 @@ function createInitialState(config, canary, checkoutSeller) {
     stage: "prepared",
     operatorCommit: config.operatorCommit,
     operatorCiRunId: config.operatorCiRunId,
-    deployedCommit: RELEASE_BINDING.commit,
-    deployedCiRunId: RELEASE_BINDING.ciRunId,
-    deploymentId: RELEASE_BINDING.deploymentId,
+    deployedCommit: release.commit,
+    deployedCiRunId: release.ciRunId,
+    deploymentId: release.deploymentId,
     marker,
     fixtureIds: buildFixtureIds(marker),
     canary: {
@@ -2378,11 +2401,13 @@ function finalizeCleanedState({ config, database, provider, state }) {
   return finalizeEvidence({ config, database, evidence, provider, state });
 }
 
-export async function runOperator() {
-  const config = validateConfiguration();
-  assertGitState(readGitState(), config.operatorCommit);
-  verifyGitHubCi(config.operatorCommit, config.operatorCiRunId);
-  verifyVercelDeployment(config.release);
+export async function runOperator({ releaseBinding = RELEASE_BINDING,
+  allowLegacyCleanupRecovery = true } = {}) {
+  if (typeof allowLegacyCleanupRecovery !== "boolean") {
+    throw new Error("authenticated Order smoke cleanup selection is invalid");
+  }
+  const config = validateConfiguration(process.env, releaseBinding);
+  verifyOperatorRelease(config);
   const localValues = loadPrivateEnvironment(LOCAL_ENV_PATH, "local environment file");
   const ownerValues = loadPrivateEnvironment(OWNER_ENV_PATH, "migration-owner environment file");
   const database = parseDatabaseUrls(localValues, ownerValues);
@@ -2398,11 +2423,12 @@ export async function runOperator() {
     await owner.connect();
     await runtime.connect();
     stage = "verify-boundaries";
-    await verifyDeploymentBoundary();
+    await verifyDeploymentBoundary(config.release);
     await verifyDatabaseIdentity(owner, runtime);
     const restartExists = existsSync(STATE_PATH);
     if (restartExists) {
-      state = validateRestartState(readPrivateJson(STATE_PATH, "Order smoke restart state"), config);
+      state = validateRestartState(readPrivateJson(STATE_PATH, "Order smoke restart state"), config,
+        config.release, { allowLegacyCleanupRecovery });
       await loadRestartCanary(clerk, owner, stripe, state);
       if (existsSync(config.evidencePath) && state.stage !== "cleaned") {
         throw new Error("authenticated Order smoke evidence exists before terminal cleanup");

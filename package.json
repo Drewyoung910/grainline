@@ -35,6 +35,7 @@
     "ops:order-payment-shipping-compatible-postflight": "node scripts/order-payment-shipping-compatible-production-postflight.mjs",
     "ops:order-compatible-runtime-postflight": "node scripts/order-compatible-runtime-postflight.mjs",
     "ops:order-authenticated-route-smoke": "node scripts/order-authenticated-route-smoke.mjs",
+    "ops:order-authenticated-route-smoke-successor": "node scripts/order-authenticated-route-smoke-successor.mjs",
     "ops:stripe-webhook-event-activation-postflight": "node scripts/stripe-webhook-event-activation-production-postflight.mjs",
     "ops:stripe-webhook-event-force-postflight": "node scripts/stripe-webhook-event-force-production-postflight.mjs",
     "ops:checkout-stock-reservation-activation-postflight": "node scripts/checkout-stock-reservation-activation-production-postflight.mjs",
