@@ -3,7 +3,8 @@
   "buildCommand": "npm run guard:runtime-db-env && npm run build",
   "git": {
     "deploymentEnabled": {
-      "main": false
+      "main": false,
+      "codex/r2-github-consumer-integration-20260921": false
     }
   },
   "regions": ["sfo1"],
