@@ -60,3 +60,17 @@ authorize credential rotation, old-key retirement, deployment or Order RLS.
 References verified September 21:
 [GitHub Actions secret API](https://docs.github.com/en/rest/actions/secrets)
 and [manual workflow triggers](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+# Failure diagnostics
+
+Failed comparisons still exit nonzero and create no successful artifact. The CLI
+now prints one fixed failure code after its generic refusal. Codes distinguish
+execution/source binding, run identity, review shape/freshness, credential boundary
+or format, field mismatch, pair mismatch, and artifact output failure. A field
+code contains only one of the five predefined setting names; no actual/expected
+values, hashes, provider error text or arbitrary environment keys are printed.
+This does not relax any acceptance condition or substitute a failed run for proof.
+
+The first live comparison, run 35646359166, failed with all five settings populated
+and no artifact. Its generic refusal did not establish a settings mismatch or
+identify a runner failure. Preserve that result; diagnostics enable a corrected
+future attempt to identify the cause without guessing or exposing credentials.
