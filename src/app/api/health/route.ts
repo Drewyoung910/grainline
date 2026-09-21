@@ -8,6 +8,7 @@ import {
   type HealthCheckResult,
 } from "@/lib/healthState";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { probeR2Health } from "@/lib/r2Health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
@@ -35,14 +36,20 @@ async function runHealthChecks(): Promise<HealthCheckResult> {
     checks.redis = "fail";
   }
 
-  // R2 check
+  // Check every configured application bucket using the application's client.
+  // Preview and Development intentionally configure only the public bucket.
+  const privateBucket = process.env.CLOUDFLARE_R2_PRIVATE_BUCKET_NAME;
   try {
     const { HeadBucketCommand } = await import("@aws-sdk/client-s3");
     const { r2, R2_BUCKET } = await import("@/lib/r2");
-    await r2.send(new HeadBucketCommand({ Bucket: R2_BUCKET }));
-    checks.r2 = "ok";
+    Object.assign(checks, await probeR2Health({
+      publicBucket: R2_BUCKET,
+      privateBucket,
+      headBucket: (bucket) => r2.send(new HeadBucketCommand({ Bucket: bucket })),
+    }));
   } catch {
     checks.r2 = "fail";
+    if (privateBucket) checks.r2Private = "fail";
   }
 
   const allOk = Object.values(checks).every((v) => v === "ok");
