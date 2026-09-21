@@ -5,7 +5,8 @@
     "deploymentEnabled": {
       "main": false,
       "codex/r2-github-consumer-integration-20260921": false,
-      "codex/r2-private-health-20260921": false
+      "codex/r2-private-health-20260921": false,
+      "codex/r2-cleanup-key-identity-20260921": false
     }
   },
   "regions": ["sfo1"],
