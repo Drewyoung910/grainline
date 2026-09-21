@@ -1,0 +1,56 @@
+name: R2 Application Consumer Fingerprint Proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed 40-character main commit
+        required: true
+        type: string
+      review_json:
+        description: Fresh reviewed fingerprints, snapshot digest and unique nonce; no credential values
+        required: true
+        type: string
+      confirmation:
+        description: Type prove-reviewed-r2-application-consumer
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r2-application-consumer-fingerprint-proof
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      - name: Compare only application R2 credential fingerprints
+        run: node scripts/r2-application-github-consumer-proof.mjs
+        env:
+          R2_CONSUMER_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          R2_CONSUMER_REVIEW_JSON: ${{ inputs.review_json }}
+          R2_CONSUMER_CONFIRM: ${{ inputs.confirmation }}
+          CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+          CLOUDFLARE_R2_PUBLIC_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_URL }}
+      - name: Save only the successful fingerprint comparison
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r2-application-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/r2-application-consumer-${{ github.run_id }}-${{ github.run_attempt }}.json
+          if-no-files-found: error
+          retention-days: 7
