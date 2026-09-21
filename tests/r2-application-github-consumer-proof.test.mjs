@@ -79,7 +79,61 @@ test("CLI refuses an unreviewed local invocation with only a sanitized diagnosti
   const result = spawnSync(process.execPath, [new URL("../scripts/r2-application-github-consumer-proof.mjs", import.meta.url).pathname], {
     env: { PATH: process.env.PATH, ...fixture().options.environment }, encoding: "utf8", timeout: 10000,
   });
-  assert.equal(result.status, 1); assert.equal(result.stdout, ""); assert.equal(result.stderr.trim(), FAIL);
+  assert.equal(result.status, 1); assert.equal(result.stdout, "");
+  assert.equal(result.stderr.trim(), FAIL + "\nR2 consumer failure code: source-binding");
+});
+
+for (const key of ["ACCOUNT_ID", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "BUCKET_NAME", "PUBLIC_URL"]) {
+  test(`diagnostic identifies only the fixed name of mismatched ${key}`, () => {
+    const f = fixture(); f.review.valueSha256[PREFIX + key] = hash("different expected value");
+    f.options.environment.R2_CONSUMER_REVIEW_JSON = JSON.stringify(f.review);
+    assert.throws(() => makeR2GitHubConsumerEvidence(f.options), error => {
+      assert.equal(error.message, FAIL); assert.equal(error.failureCode, `field-mismatch:${PREFIX}${key}`);
+      assert.equal(error.cause, undefined);
+      for (const value of Object.values(f.values)) assert.equal(JSON.stringify(error).includes(value), false);
+      return true;
+    });
+  });
+  test(`diagnostic identifies only the fixed name of malformed ${key}`, () => {
+    const f = fixture(); f.options.environment[PREFIX + key] += "\n";
+    assert.throws(() => makeR2GitHubConsumerEvidence(f.options), error =>
+      error.message === FAIL && error.failureCode === `field-format:${PREFIX}${key}`);
+  });
+}
+
+for (const [code, change] of [
+  ["execution-context", f => { f.options.environment.GITHUB_JOB = "other"; }],
+  ["source-binding", f => { f.options.checkoutCommit = "b".repeat(40); }],
+  ["run-identity", f => { f.options.environment.GITHUB_RUN_ID = "0"; }],
+  ["review-input", f => { f.options.environment.R2_CONSUMER_REVIEW_JSON = "{"; }],
+  ["review-shape", f => { f.review.rawSecret = "sensitive"; }],
+  ["review-freshness", f => { f.options.now = NOW + 300001; }],
+  ["credential-boundary", f => { f.options.environment.DATABASE_URL = "sensitive"; }],
+  ["credential-format", f => { f.options.environment.CLOUDFLARE_R2_ACCOUNT_ID = "invalid"; }],
+  ["credential-pair-mismatch", f => { f.review.pairSha256 = hash("different pair"); }],
+]) test(`safe failure stage distinguishes ${code}`, () => {
+  const f = fixture(); change(f);
+  if (code !== "review-input") f.options.environment.R2_CONSUMER_REVIEW_JSON = JSON.stringify(f.review);
+  assert.throws(() => makeR2GitHubConsumerEvidence(f.options), error => error.message === FAIL && error.failureCode === code);
+});
+
+test("exception text and forged diagnostic properties cannot escape comparison validation", () => {
+  const f = fixture();
+  Object.defineProperty(f.options.environment, "GITHUB_ACTIONS", { get() {
+    throw Object.assign(new Error(f.values.SECRET_ACCESS_KEY), { failureCode: f.values.SECRET_ACCESS_KEY });
+  } });
+  assert.throws(() => makeR2GitHubConsumerEvidence(f.options), error =>
+    error.message === FAIL && error.failureCode === "execution-context" && error.cause === undefined);
+});
+
+test("writer retains safe mismatch diagnosis and creates no success artifact", t => {
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "r2-github-failed-proof-")));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const f = fixture(); f.options.environment.RUNNER_TEMP = directory;
+  f.options.environment.CLOUDFLARE_R2_PUBLIC_URL = "https://different.example.test";
+  assert.throws(() => writeR2GitHubConsumerEvidence(f.options), error =>
+    error.message === FAIL && error.failureCode === "field-mismatch:CLOUDFLARE_R2_PUBLIC_URL");
+  assert.throws(() => readFileSync(join(directory, "r2-application-consumer-123456789-1.json")), { code: "ENOENT" });
 });
 
 test("manual-only workflow isolates five application secrets to the comparison step", () => {
