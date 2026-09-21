@@ -3921,6 +3921,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     const {
       [CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH]: providerProofDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
+      "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
       ...productionDeploymentPolicy
     } = vercel.git.deploymentEnabled;
     assert.ok(
@@ -3931,6 +3932,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       r2ConsumerProofDeployment,
       false,
       "the exact R2 credential-proof review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      r2PrivateHealthDeployment,
+      false,
+      "the exact private R2 health review branch must remain deployment-disabled",
     );
     assert.deepEqual(productionDeploymentPolicy, { main: false });
     assert.equal(buildCommand.includes(guardedMigrationCommand), false);
