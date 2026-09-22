@@ -20,7 +20,7 @@ describe("signed webhook body bounds", () => {
     }
     assert.ok(
       legacy.indexOf("readBoundedText(req, STRIPE_WEBHOOK_BODY_MAX_BYTES)") <
-        legacy.indexOf("stripe.webhooks.constructEvent(body, signature, secret)"),
+        legacy.indexOf("constructPrimaryStripeWebhookEvent({ body, signature, primarySecret: secret"),
     );
     assert.ok(
       connect.indexOf("readBoundedText(req, STRIPE_CONNECT_WEBHOOK_BODY_MAX_BYTES)") <
