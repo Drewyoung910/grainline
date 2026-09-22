@@ -1,0 +1,29 @@
+name: Order zero-direct production scope (disabled)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  inspect_order_zero_direct:
+    name: Inspect Order zero-direct production scope
+    # Deliberately unreachable until a separate release reviews the operator,
+    # protected inputs, credential incidents and production admission.
+    if: false
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 20
+    steps:
+      - run: echo 'Order zero-direct production invocation is disabled'

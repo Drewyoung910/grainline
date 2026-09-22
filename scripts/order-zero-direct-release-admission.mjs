@@ -5,7 +5,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const REPOSITORY = "Drewyoung910/grainline";
-const WORKFLOW = ".github/workflows/production-migrations.yml";
+// The historical migration workflow can run unrelated migrations and must
+// never authorize the isolated Order zero-direct worker.
+const WORKFLOW = ".github/workflows/order-zero-direct-production.yml";
+const JOB = "Inspect Order zero-direct production scope";
 export const ORDER_RELEASE_SERIALIZATION_GROUP = "production-database-migrations";
 
 async function read(resource, token) {
@@ -56,7 +59,7 @@ export async function observeOrderReleaseAdmission({ releaseCommit, admission, g
       assert.ok(String(job.id) === admission.jobId && String(job.run_id) === admission.runId
         && String(job.run_attempt) === admission.runAttempt && job.head_sha === releaseCommit
         && job.status === "in_progress" && job.conclusion === null
-        && job.name === "Guarded production migration" && Number.isSafeInteger(job.runner_id) && job.runner_id > 0);
+        && job.name === JOB && Number.isSafeInteger(job.runner_id) && job.runner_id > 0);
     }
     return Object.freeze({ group: ORDER_RELEASE_SERIALIZATION_GROUP, cancelInProgress: false,
       productionExecutionAuthorized: false });

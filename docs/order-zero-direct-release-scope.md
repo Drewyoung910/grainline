@@ -1,7 +1,34 @@
 # Order compatibility prefix: dormant release scope
 
-Current source behavior is recorded in [Dormant admitted execution composition](#dormant-admitted-execution-composition--september-12).
+Current source behavior is recorded in [Dormant invocation contract](#dormant-invocation-contract--september-22).
 The earlier dated sections retain component history and superseded remaining-work notes.
+
+## Dormant invocation contract — September 22
+
+The next source slice separates Order from the historical
+`production-migrations.yml` workflow. The live admission observer now requires
+the exact future `order-zero-direct-production.yml` workflow and its named job;
+the historical workflow can no longer satisfy Order admission. Both workflows
+retain the same global `production-database-migrations` serialization group.
+The new Order workflow has `if: false`, contains no owner credential, and has
+no release command. It cannot run a production migration.
+
+`order-zero-direct-production-invocation.mjs` binds a future manually
+dispatched main job, exact source/CI/job attempt, and protected owner URL digest
+before creating a worker. It composes only `prepare`, `load`, `inspect`, and
+`revalidate` in one worker lifetime, closes the worker on success or failure,
+and returns only a bounded prefix/obligation summary. It exposes no CLI,
+provider mutation, migration execution, or production authorization. The
+GitHub API admission observer and worker source fence remain separate checks;
+caller-supplied environment fields alone do not prove job authenticity.
+
+The focused tests exercise legacy-workflow denial, pre-worker context/digest
+failure, read-only operation order, scope drift and cleanup. No live main CI,
+production database, provider or authenticated application proof follows from
+these fixture tests. The next separately reviewed change must supply the
+operator/job wiring, current incident acceptance and protected inputs before
+lifting the workflow's disabled gate. The dormant admitted executor remains
+private and unreachable from this wrapper. Core Order RLS remains OFF.
 
 ## Persistent worker successor — September 9
 
