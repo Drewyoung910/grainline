@@ -1,5 +1,25 @@
 # Stripe test API and primary webhook incident: current read-only boundary
 
+## September 22 source-only signing-secret overlap successor
+
+The primary platform webhook route has an optional
+`STRIPE_WEBHOOK_SECRET_NEXT` verifier for a coordinated signing-secret
+cutover. With the variable absent, the existing single-secret behavior is
+unchanged. With a distinct nonempty value, either the current or replacement
+secret can authenticate the same raw Stripe payload; the route does not reveal
+which one matched. Empty or duplicate overlap configuration fails closed. The
+Connect and V2 webhook routes remain separate and unchanged. Real Stripe SDK
+signature tests cover current, replacement, unrelated and tampered payloads;
+TypeScript and explicit lint pass. This candidate is isolated, not deployed,
+and the new environment row has not been created.
+
+This source support does not establish Stripe's overlap timing, a value match
+between the provider and Vercel, delivery to the exact reviewed endpoint, or
+safe predecessor revocation. A provider cutover still needs an exact staged
+deployment/secret sequence, signed test delivery and replay/drain evidence,
+followed by removal of the temporary second verifier. Existing immutable
+deployments and their bypass access remain a separate release gate.
+
 On 2026-09-22 a native read-only Stripe API call authenticated the test key held
 in the ignored root `.env.local` and found exactly two test-mode classic webhook
 endpoints. The reviewed primary platform endpoint remains enabled at
