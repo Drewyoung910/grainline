@@ -7,7 +7,8 @@
       "codex/r2-github-consumer-integration-20260921": false,
       "codex/r2-private-health-20260921": false,
       "codex/r2-cleanup-key-identity-20260921": false,
-      "codex/admin-runner-proof-integration-20260921": false
+      "codex/admin-runner-proof-integration-20260921": false,
+      "codex/stripe-incident-readonly-20260922": false
     }
   },
   "regions": ["sfo1"],
