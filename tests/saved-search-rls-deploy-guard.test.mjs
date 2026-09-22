@@ -3925,6 +3925,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/r2-cleanup-key-identity-20260921": r2CleanupIdentityDeployment,
       "codex/admin-runner-proof-integration-20260921": adminRunnerProofDeployment,
       "codex/stripe-incident-readonly-20260922": stripeIncidentProofDeployment,
+      "codex/stripe-primary-dual-secret-20260922": stripePrimaryOverlapDeployment,
       ...productionDeploymentPolicy
     } = vercel.git.deploymentEnabled;
     assert.ok(
@@ -3955,6 +3956,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       stripeIncidentProofDeployment,
       false,
       "the exact Stripe credential review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      stripePrimaryOverlapDeployment,
+      false,
+      "the exact primary webhook overlap review branch must remain deployment-disabled",
     );
     assert.deepEqual(productionDeploymentPolicy, { main: false });
     assert.equal(buildCommand.includes(guardedMigrationCommand), false);
