@@ -9,6 +9,8 @@ const REPOSITORY = "Drewyoung910/grainline";
 const WORKFLOW = ".github/workflows/order-zero-direct-production.yml";
 const WORKFLOW_REF = `${REPOSITORY}/${WORKFLOW}@refs/heads/main`;
 const JOB = "inspect_order_zero_direct";
+const EXECUTE_WORKFLOW_REF = `${REPOSITORY}/.github/workflows/order-zero-direct-execute.yml@refs/heads/main`;
+const EXECUTE_JOB = "execute_order_zero_direct";
 const FINAL_STEPS = Object.freeze([
   "reinspect-exact-complete-prefix", "converge-reviewed-runtime-grants",
   "migration-status", "global-grant-and-RLS-audit", "final-read-only-prefix-scope",
@@ -20,7 +22,7 @@ function numeric(value) {
 }
 
 export function assertOrderProductionInvocationContext({ env, reviewed, admission, ci,
-  ownerUrl, ownerUrlSha256, reportStage = () => {} }) {
+  ownerUrl, ownerUrlSha256, reportStage = () => {}, mode = "inspect" }) {
   assert.ok(env && reviewed && admission && ci);
   assert.deepEqual(Object.keys(admission).sort(), ["jobId", "runAttempt", "runId"]);
   assert.deepEqual(Object.keys(ci).sort(), ["ciRunAttempt", "ciRunId"]);
@@ -32,15 +34,17 @@ export function assertOrderProductionInvocationContext({ env, reviewed, admissio
   assert.equal(env.GITHUB_REPOSITORY, REPOSITORY);
   assert.equal(env.GITHUB_REF, "refs/heads/main");
   assert.equal(env.GITHUB_SHA, reviewed.releaseCommit);
-  assert.equal(env.GITHUB_WORKFLOW_REF, WORKFLOW_REF);
-  assert.equal(env.GITHUB_JOB, JOB);
+  assert.ok(mode === "inspect" || mode === "execute");
+  assert.equal(env.GITHUB_WORKFLOW_REF, mode === "inspect" ? WORKFLOW_REF : EXECUTE_WORKFLOW_REF);
+  assert.equal(env.GITHUB_JOB, mode === "inspect" ? JOB : EXECUTE_JOB);
   assert.equal(env.GITHUB_RUN_ID, admission.runId);
   assert.equal(env.GITHUB_RUN_ATTEMPT, admission.runAttempt);
   reportStage("owner-digest");
   assert.equal(typeof ownerUrl, "string");
   assert.match(ownerUrlSha256, /^[a-f0-9]{64}$/u);
   assert.equal(createHash("sha256").update(ownerUrl, "utf8").digest("hex"), ownerUrlSha256);
-  return Object.freeze({ workflow: WORKFLOW, releaseCommit: reviewed.releaseCommit,
+  return Object.freeze({ workflow: mode === "inspect" ? WORKFLOW : ".github/workflows/order-zero-direct-execute.yml",
+    releaseCommit: reviewed.releaseCommit,
     runId: admission.runId, runAttempt: admission.runAttempt, jobId: admission.jobId,
     ciRunId: ci.ciRunId, ciRunAttempt: ci.ciRunAttempt,
     completeProductionScope: false, productionExecutionAuthorized: false });

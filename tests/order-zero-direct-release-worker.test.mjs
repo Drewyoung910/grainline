@@ -63,7 +63,7 @@ verify(h){assert.ok(handles.has(h));assert.equal(fs.readFileSync(${JSON.stringif
 export async function collectOrderZeroDirectCiBinding(){log({event:'ci'});assert.ok(state().ci);if(state().removeClaim)fs.rmdirSync(state().removeClaim);}
 `);
   write("scripts/order-zero-direct-release-admission.mjs", `${helper}
-export async function observeOrderReleaseAdmission(){log({event:'admission'});assert.ok(state().admission);}
+export async function observeOrderReleaseAdmission({mode='inspect'}={}){log({event:'admission',mode});assert.ok(state().admission);}
 `);
   write("scripts/guard-production-migration-runner.mjs", `${helper}
 export function parseProductionMigrationEnvironment(env){log({event:'owner-validation'});assert.equal(env.DIRECT_URL,'postgresql://fixture.invalid/never-connect');return {directUrl:env.DIRECT_URL};}
@@ -206,16 +206,17 @@ test("one persistent worker prepares before graph import and excludes ambient cr
 });
 
 test("internal worker composition binds fresh admission to separate scope and owner clients", async t => {
-  const f = fixture(t, { admitted: true }), worker = await f.start(); await worker.prepare();
+  const f = fixture(t, { admitted: true }), worker = await f.start({ mode: "execute" }); await worker.prepare();
   const result = await worker.executeAdmittedFixture(f.payload);
   assert.equal(result.state, "admitted-complete"); assert.equal(result.productionExecutionAuthorized, false);
   assert.equal(result.execution.fixtureOnly, true);
   assert.deepEqual(f.events().filter(e => e.event === "client-kind").map(e => e.mutator), [false, true]);
+  assert.ok(f.events().filter(e => e.event === "admission").every(e => e.mode === "execute"));
   assert.ok(f.events().some(e => e.event === "prisma-fixture" && e.pid === worker.pid));
   await assert.rejects(worker.executeAdmittedFixture(f.payload));
 });
 test("internal composition refuses a runtime owner substitute before the command adapter", async t => {
-  const f = fixture(t, { admitted: true }), worker = await f.start(); await worker.prepare(); f.change({ wrongOwner: true });
+  const f = fixture(t, { admitted: true }), worker = await f.start({ mode: "execute" }); await worker.prepare(); f.change({ wrongOwner: true });
   await assert.rejects(worker.executeAdmittedFixture(f.payload));
   assert.ok(!f.events().some(e => e.event === "prisma-fixture"));
 });
@@ -226,7 +227,7 @@ test("the actual dispatcher rejects the unsupported test-only command before dat
 });
 test("lifetime admission, CI and host-claim loss terminate a waiting worker and its child process", async t => {
   for (const reason of ["admission", "ci", "claim"]) {
-    const f = fixture(t, { admitted: true }), worker = await f.start(); await worker.prepare(); f.change({ holdCommand: true });
+    const f = fixture(t, { admitted: true }), worker = await f.start({ mode: "execute" }); await worker.prepare(); f.change({ holdCommand: true });
     const running = assert.rejects(worker.executeAdmittedFixture(f.payload));
     let pending;
     const deadline = Date.now() + 15000;
@@ -596,7 +597,7 @@ test('workflow steps retain a quota-refused pre-handoff attempt for collection',
 
 // Real transport with a modeled executor; no native or production authority claim.
 test("proposed transport uses the prepared worker and cannot replay its completed attempt", async t => {
-  const f = fixture(t), worker = await f.start(); await worker.prepare();
+  const f = fixture(t), worker = await f.start({ mode: "execute" }); await worker.prepare();
   const result = await worker.executePrefix(f.payload);
   assert.equal(result.workerPid, worker.pid); assert.equal(result.state, "admitted-complete");
   assert.equal(result.productionExecutionAuthorized, false); assert.equal(result.execution.fixtureOnly, true);
@@ -605,18 +606,18 @@ test("proposed transport uses the prepared worker and cannot replay its complete
   assert.equal(f.events().filter(e => e.event === "admitted-fixture").length, 1);
 });
 test("proposed transport refuses use before preparation", async t => {
-  const f = fixture(t), worker = await f.start();
+  const f = fixture(t), worker = await f.start({ mode: "execute" });
   await assert.rejects(worker.executePrefix(f.payload)); assert.deepEqual(f.events(), []);
 });
 test("proposed transport refuses serialized authority and arbitrary execution fields", async t => {
   for (const extra of [{ admitted: true }, { sql: "SELECT 1" }, { args: ["migrate", "resolve"] }, { artifact: "/not-authority" }]) {
-    const f = fixture(t), worker = await f.start(); await worker.prepare();
+    const f = fixture(t), worker = await f.start({ mode: "execute" }); await worker.prepare();
     await assert.rejects(worker.executePrefix({ ...f.payload, ...extra }));
     assert.ok(!f.events().some(e => e.event === "connect" || e.event === "prisma-fixture"));
   }
 });
 test("proposed transport cannot promote an earlier inspected artifact into execution", async t => {
-  const f = fixture(t), worker = await f.start(); await worker.prepare(); await worker.inspect(f.payload);
+  const f = fixture(t), worker = await f.start({ mode: "execute" }); await worker.prepare(); await worker.inspect(f.payload);
   const connections = f.events().filter(e => e.event === "connect").length;
   await assert.rejects(worker.executePrefix(f.payload));
   assert.equal(f.events().filter(e => e.event === "connect").length, connections);
@@ -624,8 +625,14 @@ test("proposed transport cannot promote an earlier inspected artifact into execu
 });
 test("proposed transport still requires live admission and CI before opening an owner connection", async t => {
   for (const changes of [{ admission: false }, { ci: false }]) {
-    const f = fixture(t), worker = await f.start(); await worker.prepare(); f.change(changes);
+    const f = fixture(t), worker = await f.start({ mode: "execute" }); await worker.prepare(); f.change(changes);
     await assert.rejects(worker.executePrefix(f.payload));
     assert.ok(!f.events().some(e => e.event === "connect" || e.event === "prisma-fixture"));
   }
+});
+
+test("read-only worker mode cannot invoke the production prefix", async t => {
+  const f = fixture(t), worker = await f.start(); await worker.prepare();
+  await assert.rejects(worker.executePrefix(f.payload));
+  assert.ok(!f.events().some(e => e.event === "connect" || e.event === "prisma-fixture"));
 });

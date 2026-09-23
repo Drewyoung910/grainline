@@ -11,11 +11,14 @@ const SHA256 = /^[a-f0-9]{64}$/u;
 const SHA = /^[a-f0-9]{40}$/u;
 const ID = /^[1-9][0-9]{0,15}$/u;
 
-export function parseOrderZeroDirectRunnerInputs(env, directory, execPath = process.execPath) {
+export function parseOrderZeroDirectRunnerInputs(env, directory, execPath = process.execPath,
+  expectedConfirmation = "inspect-reviewed-order-zero-direct-from-main") {
   try {
     assert.ok(env && path.isAbsolute(directory) && path.resolve(directory) === directory);
     assert.ok(!("ORDER_NPM_CLI" in env));
-    assert.equal(env.ORDER_CONFIRMATION, "inspect-reviewed-order-zero-direct-from-main");
+    assert.ok(["inspect-reviewed-order-zero-direct-from-main",
+      "apply-reviewed-order-zero-direct-prefix-from-main"].includes(expectedConfirmation));
+    assert.equal(env.ORDER_CONFIRMATION, expectedConfirmation);
     assert.match(env.ORDER_RELEASE_COMMIT, SHA);
     assert.equal(env.ORDER_RELEASE_COMMIT, env.GITHUB_SHA);
     for (const key of ["ORDER_SOURCE_CATALOG_SHA256", "ORDER_SOURCE_FENCE_SHA256",

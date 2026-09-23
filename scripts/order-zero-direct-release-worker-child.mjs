@@ -49,6 +49,7 @@ function installedIdentities(root) {
 }
 
 export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
+  assert.ok(reviewed.mode === "inspect" || reviewed.mode === "execute");
   const root = process.cwd(), node = fs.realpathSync(process.execPath);
   const allowed = ["LANG", "LC_ALL", "PATH", "TZ"];
   if (process.platform === "darwin" && process.env.__CF_USER_TEXT_ENCODING !== undefined) {
@@ -208,6 +209,7 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
     // Only the fixed admitted-prefix transport can reach this capability.
     // Its live guards remain inside this prepared worker.
     graph.executeAdmitted = async bound => {
+      assert.equal(reviewed.mode, "execute");
       assert.equal(state, "prepared"); state = "executing-admitted"; checkpoint();
       const result = await execute(bound);
       state = "admitted-complete"; checkpoint(); return { ...summary(), execution: result };
@@ -231,7 +233,8 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
     assert.deepEqual(Object.keys(payload).sort(), ["admission", "ci", "githubToken", "ownerUrl", "ownerUrlSha256"]);
     toolchainCheck();
     assert.deepEqual(Object.keys(payload.ci).sort(), ["ciRunAttempt", "ciRunId"]);
-    await graph.admission({ releaseCommit: reviewed.releaseCommit, admission: payload.admission, githubToken: payload.githubToken });
+    await graph.admission({ releaseCommit: reviewed.releaseCommit, admission: payload.admission,
+      githubToken: payload.githubToken, mode: reviewed.mode });
     // GitHub serializes runs globally; this exclusive per-run/attempt host claim
     // rejects two worker processes inside the same admitted job/run. It is not
     // a replacement for GitHub's shared concurrency group. Never steal a claim.
@@ -250,7 +253,8 @@ export async function runOrderZeroDirectWorker({ reviewed, fence, source }) {
     checkClaim();
     await graph.ci({ directory: root, reviewed: { ...payload.ci, releaseCommit: reviewed.releaseCommit,
       sourceCatalogSha256: reviewed.sourceCatalogSha256 }, githubToken: payload.githubToken });
-    await graph.admission({ releaseCommit: reviewed.releaseCommit, admission: payload.admission, githubToken: payload.githubToken });
+    await graph.admission({ releaseCommit: reviewed.releaseCommit, admission: payload.admission,
+      githubToken: payload.githubToken, mode: reviewed.mode });
     checkClaim();
     toolchainCheck();
     const environment = graph.parseEnvironment({ GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch",
