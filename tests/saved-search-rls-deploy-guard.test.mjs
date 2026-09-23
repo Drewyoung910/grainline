@@ -3922,6 +3922,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       [CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH]: providerProofDeployment,
       "codex/order-final-source-integration-20260922": orderFinalIntegrationDeployment,
       "codex/order-smoke-current-binding-20260923": orderSmokeReviewDeployment,
+      "codex/order-live-path-correction-20260923": orderLivePathReviewDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -3944,6 +3945,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderSmokeReviewDeployment,
       false,
       "the exact Order smoke review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderLivePathReviewDeployment,
+      false,
+      "the exact Order live-path review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,
