@@ -49,6 +49,16 @@ test("successor deployment and aliases accept only the selected source and deplo
   }
 });
 
+test("current Vercel deployment shape uses GitHub SHA and checks aliases separately", () => {
+  const current = { ...deployment(successor),
+    meta: { githubCommitSha: successor.commit },
+    aliases: ["grainline-immutable.vercel.app"] };
+  assert.equal(parseVercelDeployment(current, successor).sourceCommit, successor.commit);
+  assert.throws(() => parseVercelDeployment({ ...current,
+    meta: { githubCommitSha: successor.commit, gitCommitSha: RELEASE_BINDING.commit } }, successor));
+  assert.throws(() => parseVercelDeployment({ ...current, aliases: [{}] }, successor));
+});
+
 test("source admission verifies operator CI, application CI, then selected deployment", () => {
   const calls = [];
   const result = verifyOperatorRelease(config(successor), {

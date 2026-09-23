@@ -79,6 +79,7 @@ export const REQUIRED_ALIASES = Object.freeze([
   "grainline.vercel.app",
   "www.thegrainline.com",
   "grainline-drew-youngs-projects.vercel.app",
+  "grainline-git-main-drew-youngs-projects.vercel.app",
 ]);
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 export const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
@@ -282,14 +283,19 @@ export function parseVercelDeployment(raw, binding = RELEASE_BINDING) {
   const exact = assertReleaseBinding(binding);
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
   const aliases = value?.alias ?? value?.aliases ?? [];
+  const sourceShas = [value?.meta?.githubCommitSha, value?.meta?.gitCommitSha]
+    .filter(sha => sha !== undefined);
   if (
     value?.id !== exact.deploymentId
     || value.target !== "production"
     || value.readyState !== "READY"
-    || value.meta?.gitCommitSha !== exact.commit
+    || sourceShas.length === 0
+    || sourceShas.some(sha => sha !== exact.commit)
     || value.project?.id !== REVIEWED_PROJECT.projectId
     || value.team?.id !== REVIEWED_PROJECT.orgId
-    || !aliases.includes("grainline-drew-youngs-projects.vercel.app")
+    || !Array.isArray(aliases)
+    || aliases.length === 0
+    || aliases.some(alias => typeof alias !== "string")
   ) {
     throw new Error("authenticated Order smoke deployment binding drifted");
   }

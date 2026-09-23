@@ -2,14 +2,13 @@
 import { pathToFileURL } from "node:url";
 import { PRODUCTION_ORIGIN, runOperator } from "./order-authenticated-route-smoke.mjs";
 
-// Accepted Clerk application, not the dormant Order application candidate.
-// This exact source/CI/deployment was accepted on September 15. If credential
-// recovery deploys another application, review and repin before execution.
-// Nothing here asserts incident closure or authorizes a production smoke.
+// Current production application as read back on September 23. If a new
+// application is promoted, review and repin before executing the smoke.
+// This binding does not assert incident closure or authorize production writes.
 export const SUCCESSOR_RELEASE_BINDING = Object.freeze({
-  commit: "f2bf570b4759ee41bc18f8d353abc25a0b339a6d",
-  ciRunId: 34926985573,
-  deploymentId: "dpl_316SCJK2AtaGPsSVQ5rTK42qC8oD",
+  commit: "c2db186049a2239c7b2bd69b7dff1a5a1e247667",
+  ciRunId: 35662393815,
+  deploymentId: "dpl_25vtLCWQonogcTEBaGh6PqxR5Azk",
   origin: PRODUCTION_ORIGIN,
 });
 
