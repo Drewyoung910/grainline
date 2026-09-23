@@ -13,8 +13,10 @@ not a current claim that source integration is unfinished.
 
 The next actionable boundary is to enable and run the existing **read-only**
 Order production-scope inspection under exact-main/protected-owner admission.
-Its workflow is currently `if: false`, four non-secret protected Node/npm
-variables are absent, and the job has no migration command. Separately, the
+Its workflow is currently `if: false` on main and has no migration command.
+The four non-secret protected Node/npm variables were absent when this review
+began and were then installed with exact reviewed pin values in the Production
+environment; they have no effect until a job runs. Separately, the
 worker contains a dormant admitted prefix executor, but no public production
 workflow caller reaches it. These are missing release implementations; another
 unchanged-source CI run or replacement-key reminder cannot apply the prefix.
