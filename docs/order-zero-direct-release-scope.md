@@ -5,6 +5,15 @@ The earlier dated sections retain component history and superseded remaining-wor
 
 ## Dormant invocation contract — September 22
 
+The read-only runner adapter now discovers its numeric job ID from GitHub's
+attempt-specific jobs endpoint after the job starts. It requires exactly one
+in-progress job with the reviewed name, source commit, run/attempt and current
+runner name. The existing admission observer then rechecks that exact ID and
+the running workflow twice before each scope operation. Malformed, ambiguous,
+completed or mismatched responses fail before the worker starts; provider
+response bodies are not exposed. This solves job-ID binding without a
+caller-supplied dispatch input. No workflow or CLI calls the adapter yet.
+
 The next source slice separates Order from the historical
 `production-migrations.yml` workflow. The live admission observer now requires
 the exact future `order-zero-direct-production.yml` workflow and its named job;

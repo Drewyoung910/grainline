@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { startOrderZeroDirectWorker } from "./order-zero-direct-release-worker.mjs";
+import { discoverOrderReleaseJobId } from "./order-zero-direct-release-admission.mjs";
 
 const REPOSITORY = "Drewyoung910/grainline";
 const WORKFLOW = ".github/workflows/order-zero-direct-production.yml";
@@ -81,4 +82,31 @@ export async function observeOrderZeroDirectProductionInvocation({ env, director
     try { await worker?.close(); }
     catch { throw new Error("Order production invocation unavailable; no execution admission"); }
   }
+}
+
+// Future workflow adapter. The numeric job ID is observed from GitHub after
+// this run attempt has started, never guessed or accepted as a dispatch input.
+// The job and current run are checked again inside the worker's read-only
+// admission observer before any database connection can be opened.
+export async function observeOrderZeroDirectProductionInvocationFromRunner({ env, directory,
+  reviewed, ci, githubToken, ownerUrl, ownerUrlSha256,
+  workerFactory = startOrderZeroDirectWorker,
+  discoverJobId = discoverOrderReleaseJobId }) {
+  try {
+    assert.ok(env && numeric(env.GITHUB_RUN_ID) && numeric(env.GITHUB_RUN_ATTEMPT));
+    assert.ok(typeof env.RUNNER_NAME === "string" && env.RUNNER_NAME.length > 0);
+    assert.ok(typeof githubToken === "string" && githubToken.length > 0);
+    // Cheap context/digest checks precede the GitHub lookup and worker start.
+    const provisional = { runId: env.GITHUB_RUN_ID, runAttempt: env.GITHUB_RUN_ATTEMPT,
+      jobId: "1" };
+    assertOrderProductionInvocationContext({ env, reviewed, admission: provisional,
+      ci, ownerUrl, ownerUrlSha256 });
+    const jobId = await discoverJobId({ releaseCommit: reviewed.releaseCommit,
+      runId: provisional.runId, runAttempt: provisional.runAttempt,
+      runnerName: env.RUNNER_NAME, githubToken });
+    assert.ok(numeric(jobId));
+    return await observeOrderZeroDirectProductionInvocation({ env, directory, reviewed,
+      admission: { ...provisional, jobId }, ci, githubToken, ownerUrl, ownerUrlSha256,
+      workerFactory });
+  } catch { throw new Error("Order production invocation unavailable; no execution admission"); }
 }

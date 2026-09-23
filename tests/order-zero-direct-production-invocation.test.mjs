@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   assertOrderProductionInvocationContext,
   observeOrderZeroDirectProductionInvocation,
+  observeOrderZeroDirectProductionInvocationFromRunner,
 } from "../scripts/order-zero-direct-production-invocation.mjs";
 
 const commit = "a".repeat(40), sourceCatalogSha256 = "b".repeat(64);
@@ -17,7 +18,8 @@ const env = { GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch",
   GITHUB_REPOSITORY: "Drewyoung910/grainline", GITHUB_REF: "refs/heads/main",
   GITHUB_SHA: commit, GITHUB_WORKFLOW_REF:
     "Drewyoung910/grainline/.github/workflows/order-zero-direct-production.yml@refs/heads/main",
-  GITHUB_JOB: "inspect_order_zero_direct", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2" };
+  GITHUB_JOB: "inspect_order_zero_direct", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2",
+  RUNNER_NAME: "Hosted Runner" };
 const input = { env, directory: "/fixture/checkout", reviewed, admission, ci,
   githubToken: "fixture-token", ownerUrl, ownerUrlSha256 };
 const steps = ["apply-only-remaining-prefix", "reinspect-exact-complete-prefix",
@@ -90,4 +92,37 @@ test("late scope drift fails closed and always closes the worker", async () => {
   await assert.rejects(observeOrderZeroDirectProductionInvocation({ ...input, workerFactory }),
     /unavailable; no execution admission/u);
   assert.equal(closed, 1);
+});
+
+test("runner discovers its numeric job before starting the read-only worker", async () => {
+  const calls = [];
+  const discoverJobId = async request => {
+    calls.push("discover");
+    assert.deepEqual(request, { releaseCommit: commit, runId: "123", runAttempt: "2",
+      runnerName: "Hosted Runner", githubToken: "fixture-token" });
+    return "456";
+  };
+  const workerFactory = async () => {
+    calls.push("start");
+    return { prepare: async () => ({ productionExecutionAuthorized: false }),
+      load: async () => ({ productionExecutionAuthorized: false }),
+      inspect: async payload => {
+        assert.equal(payload.admission.jobId, "456");
+        return { productionExecutionAuthorized: false, freshDatabaseScopeObserved: true,
+          prefixLength: 4, remainingMemberCount: 13, steps };
+      },
+      revalidate: async () => ({ productionExecutionAuthorized: false,
+        freshDatabaseScopeObserved: true, prefixLength: 4 }),
+      close: async () => { calls.push("close"); } };
+  };
+  const args = { ...input, discoverJobId, workerFactory };
+  assert.equal((await observeOrderZeroDirectProductionInvocationFromRunner(args)).jobId, "456");
+  assert.deepEqual(calls, ["discover", "start", "close"]);
+  calls.length = 0;
+  await assert.rejects(observeOrderZeroDirectProductionInvocationFromRunner({ ...args,
+    env: { ...env, GITHUB_SHA: "c".repeat(40) } }), /unavailable; no execution admission/u);
+  assert.deepEqual(calls, []);
+  await assert.rejects(observeOrderZeroDirectProductionInvocationFromRunner({ ...args,
+    discoverJobId: async () => "not-an-id" }), /unavailable; no execution admission/u);
+  assert.deepEqual(calls, []);
 });

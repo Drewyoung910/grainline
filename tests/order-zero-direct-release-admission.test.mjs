@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { observeOrderReleaseAdmission } from "../scripts/order-zero-direct-release-admission.mjs";
+import { discoverOrderReleaseJobId, observeOrderReleaseAdmission } from "../scripts/order-zero-direct-release-admission.mjs";
 
 function fixture(t) {
   const releaseCommit = "a".repeat(40), admission = { runId: "123", runAttempt: "2", jobId: "456" };
@@ -43,4 +43,33 @@ test("lost admission between repeated observations and transport failures invali
   f.set([f.run, f.job, { ...f.run, status: "completed", conclusion: "cancelled" }]); await assert.rejects(f.observe());
   f.set([new Response("fixture-private-error", { status: 403 })]);
   await assert.rejects(f.observe(), error => !error.message.includes("fixture-private-error"));
+});
+
+test("running Order job ID is discovered only from the exact current attempt and runner", async t => {
+  const releaseCommit = "a".repeat(40), input = { releaseCommit, runId: "123",
+    runAttempt: "2", runnerName: "Hosted Runner", githubToken: "fixture-token" };
+  const job = { id: 456, run_id: 123, run_attempt: 2, head_sha: releaseCommit,
+    status: "in_progress", conclusion: null, name: "Inspect Order zero-direct production scope",
+    runner_name: "Hosted Runner", runner_id: 789 };
+  const calls = []; let response = { total_count: 1, jobs: [job] };
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({ url, options }); return response instanceof Response ? response : Response.json(response);
+  });
+  assert.equal(await discoverOrderReleaseJobId(input), "456");
+  assert.equal(calls[0].url,
+    "https://api.github.com/repos/Drewyoung910/grainline/actions/runs/123/attempts/2/jobs?per_page=100");
+  assert.equal(calls[0].options.method, "GET");
+  assert.equal(calls[0].options.redirect, "error");
+  for (const invalid of [
+    { total_count: 2, jobs: [job] },
+    { total_count: 1, jobs: [{ ...job, run_attempt: 1 }] },
+    { total_count: 1, jobs: [{ ...job, runner_name: "another runner" }] },
+    { total_count: 1, jobs: [{ ...job, status: "completed", conclusion: "success" }] },
+    { total_count: 1, jobs: [{ ...job, head_sha: "b".repeat(40) }] },
+    new Response("private provider body", { status: 403 }),
+  ]) {
+    response = invalid;
+    await assert.rejects(discoverOrderReleaseJobId(input),
+      error => error.message === "Order running job identity unavailable; no execution admission");
+  }
 });

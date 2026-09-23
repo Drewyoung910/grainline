@@ -10,6 +10,8 @@ const REPOSITORY = "Drewyoung910/grainline";
 const WORKFLOW = ".github/workflows/order-zero-direct-production.yml";
 const JOB = "Inspect Order zero-direct production scope";
 export const ORDER_RELEASE_SERIALIZATION_GROUP = "production-database-migrations";
+const positiveId = value => typeof value === "string" && /^[1-9][0-9]{0,15}$/u.test(value)
+  && Number.isSafeInteger(Number(value));
 
 async function read(resource, token) {
   const controller = new AbortController();
@@ -33,6 +35,27 @@ async function read(resource, token) {
     clearTimeout(timer); controller.abort();
     if (reader) { try { await reader.cancel(); } catch { /* Sanitized by caller. */ } }
   }
+}
+
+// A workflow_dispatch caller cannot know its numeric job ID before GitHub
+// starts the job. Discover exactly the one running job for this run attempt;
+// the existing admission observer then re-reads that ID twice independently.
+export async function discoverOrderReleaseJobId({ releaseCommit, runId, runAttempt,
+  runnerName, githubToken }) {
+  try {
+    assert.match(releaseCommit, /^[a-f0-9]{40}$/u);
+    assert.ok(positiveId(runId) && positiveId(runAttempt));
+    assert.ok(typeof runnerName === "string" && runnerName.length > 0 && runnerName.length <= 256);
+    assert.match(githubToken, /^[\x21-\x7e]{8,4096}$/u);
+    const result = await read(`actions/runs/${runId}/attempts/${runAttempt}/jobs?per_page=100`, githubToken);
+    assert.ok(result && result.total_count === 1 && Array.isArray(result.jobs) && result.jobs.length === 1);
+    const job = result.jobs[0];
+    assert.ok(job && positiveId(String(job.id)) && String(job.run_id) === runId
+      && String(job.run_attempt) === runAttempt && job.head_sha === releaseCommit
+      && job.status === "in_progress" && job.conclusion === null && job.name === JOB
+      && job.runner_name === runnerName && Number.isSafeInteger(job.runner_id) && job.runner_id > 0);
+    return String(job.id);
+  } catch { throw new Error("Order running job identity unavailable; no execution admission"); }
 }
 
 export async function observeOrderReleaseAdmission({ releaseCommit, admission, githubToken }) {
