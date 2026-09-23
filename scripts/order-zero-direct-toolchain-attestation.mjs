@@ -20,6 +20,10 @@ export function attestOrderZeroDirectToolchain({
     new URL("../docs/order-toolchain-variable-candidates-20260923.json", import.meta.url),
     "utf8",
   )),
+  pins = JSON.parse(fs.readFileSync(
+    new URL("../docs/order-handoff-toolchain-pins.json", import.meta.url),
+    "utf8",
+  )),
 } = {}) {
   try {
     assert.equal(platform, "linux");
@@ -36,6 +40,13 @@ export function attestOrderZeroDirectToolchain({
       "ORDER_ZERO_DIRECT_NPM_CLI_SHA256",
       "ORDER_ZERO_DIRECT_NPM_VERSION",
     ]);
+    assert.equal(pins.runner.label, "ubuntu-24.04");
+    assert.equal(pins.runner.platform, "linux");
+    assert.equal(pins.runner.architecture, "x64");
+    assert.equal(candidate.ORDER_ZERO_DIRECT_NODE_VERSION, pins.toolchain.nodeVersion);
+    assert.equal(candidate.ORDER_ZERO_DIRECT_NODE_SHA256, pins.toolchain.nodeSha256);
+    assert.equal(candidate.ORDER_ZERO_DIRECT_NPM_CLI_SHA256, pins.toolchain.npmCliSha256);
+    assert.equal(candidate.ORDER_ZERO_DIRECT_NPM_VERSION, pins.toolchain.npmVersion);
     // The preflight rejects a protected owner URL, GitHub token, or an npm CLI
     // path override before it checks the exact regular-file bytes and version.
     preflightOrderZeroDirectToolchain({

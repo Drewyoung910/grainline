@@ -31,9 +31,13 @@ test("attestation proves exact runner bytes without a protected credential", () 
         ORDER_ZERO_DIRECT_NPM_VERSION: "10.9.8",
       },
     };
+    const pins = { runner: { label: "ubuntu-24.04", platform: "linux", architecture: "x64" },
+      toolchain: { nodeVersion: "v22.23.2", nodeSha256: digest("fixture-node"),
+        npmCliSha256: digest("fixture-npm"), npmVersion: "10.9.8" } };
     const args = {
       env: { GITHUB_SHA: "a".repeat(40), RUNNER_OS: "Linux", RUNNER_ARCH: "X64" },
-      execPath: nodePath, nodeVersion: "v22.23.2", platform: "linux", arch: "x64", candidates,
+      execPath: nodePath, nodeVersion: "v22.23.2", platform: "linux", arch: "x64",
+      candidates, pins,
     };
     const result = attestOrderZeroDirectToolchain(args);
     assert.equal(result.verified, true);
@@ -47,6 +51,7 @@ test("attestation proves exact runner bytes without a protected credential", () 
       { env: { ...args.env, ORDER_NPM_CLI: "/unreviewed/npm-cli.js" } },
       { candidates: { ...candidates, variables: {
         ...candidates.variables, ORDER_ZERO_DIRECT_NODE_SHA256: "0".repeat(64) } } },
+      { pins: { ...pins, toolchain: { ...pins.toolchain, npmCliSha256: "0".repeat(64) } } },
     ]) assert.throws(() => attestOrderZeroDirectToolchain({ ...args, ...bad }),
       /attestation unavailable; no execution admission/u);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }

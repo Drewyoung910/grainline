@@ -34,9 +34,10 @@ or bytes. A further private successor therefore adds
 `.github/workflows/order-zero-direct-toolchain-attestation.yml`: when a future
 source revision containing it reaches a PR or main, that path-filtered job
 uses the same runner label and action pins as the disabled Order job. It reads
-the checked-in four candidate values and invokes the same credential-free
-preflight against the selected Node executable, derived npm CLI and npm
-package. A successful hosted job would report the selected paths and verified
+the checked-in four candidate values, requires them to match the independently
+reviewed pin file, then invokes the same credential-free preflight against the
+selected Node executable, derived npm CLI and npm package. A successful
+hosted job would report the selected paths and verified
 digests; a mismatch fails closed. It has no protected environment, secrets,
 database URL or production mutation. It has **not** run on a hosted runner,
 so the candidate JSON's false evidence flags remain false. It does not make
