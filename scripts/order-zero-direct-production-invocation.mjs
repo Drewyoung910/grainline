@@ -1,6 +1,5 @@
-// Read-only composition for a future, separately reviewed Order workflow.
-// There is no CLI or workflow caller. In particular, this module cannot reach
-// the worker's private admitted executor or issue a migration command.
+// Read-only composition for the protected Order workflow. This module cannot
+// reach the worker's private admitted executor or issue a migration command.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { startOrderZeroDirectWorker } from "./order-zero-direct-release-worker.mjs";
@@ -21,7 +20,7 @@ function numeric(value) {
 }
 
 export function assertOrderProductionInvocationContext({ env, reviewed, admission, ci,
-  ownerUrl, ownerUrlSha256 }) {
+  ownerUrl, ownerUrlSha256, reportStage = () => {} }) {
   assert.ok(env && reviewed && admission && ci);
   assert.deepEqual(Object.keys(admission).sort(), ["jobId", "runAttempt", "runId"]);
   assert.deepEqual(Object.keys(ci).sort(), ["ciRunAttempt", "ciRunId"]);
@@ -37,6 +36,7 @@ export function assertOrderProductionInvocationContext({ env, reviewed, admissio
   assert.equal(env.GITHUB_JOB, JOB);
   assert.equal(env.GITHUB_RUN_ID, admission.runId);
   assert.equal(env.GITHUB_RUN_ATTEMPT, admission.runAttempt);
+  reportStage("owner-digest");
   assert.equal(typeof ownerUrl, "string");
   assert.match(ownerUrlSha256, /^[a-f0-9]{64}$/u);
   assert.equal(createHash("sha256").update(ownerUrl, "utf8").digest("hex"), ownerUrlSha256);
@@ -48,19 +48,24 @@ export function assertOrderProductionInvocationContext({ env, reviewed, admissio
 
 export async function observeOrderZeroDirectProductionInvocation({ env, directory, reviewed,
   admission, ci, githubToken, ownerUrl, ownerUrlSha256,
-  workerFactory = startOrderZeroDirectWorker }) {
+  workerFactory = startOrderZeroDirectWorker, reportStage = () => {} }) {
   let worker;
   try {
     const context = assertOrderProductionInvocationContext({ env, reviewed, admission, ci,
-      ownerUrl, ownerUrlSha256 });
+      ownerUrl, ownerUrlSha256, reportStage });
     assert.ok(typeof githubToken === "string" && githubToken.length > 0);
+    reportStage("worker-start");
     worker = await workerFactory({ directory, reviewed });
+    reportStage("worker-prepare");
     const prepared = await worker.prepare();
     assert.equal(prepared.productionExecutionAuthorized, false);
+    reportStage("worker-load");
     const loaded = await worker.load({ ci, githubToken });
     assert.equal(loaded.productionExecutionAuthorized, false);
     const payload = { admission, ci, githubToken, ownerUrl, ownerUrlSha256 };
+    reportStage("scope-inspect");
     const inspected = await worker.inspect(payload);
+    reportStage("scope-revalidate");
     const revalidated = await worker.revalidate(payload);
     assert.equal(inspected.productionExecutionAuthorized, false);
     assert.equal(revalidated.productionExecutionAuthorized, false);
@@ -84,14 +89,14 @@ export async function observeOrderZeroDirectProductionInvocation({ env, director
   }
 }
 
-// Future workflow adapter. The numeric job ID is observed from GitHub after
+// Workflow adapter. The numeric job ID is observed from GitHub after
 // this run attempt has started, never guessed or accepted as a dispatch input.
 // The job and current run are checked again inside the worker's read-only
 // admission observer before any database connection can be opened.
 export async function observeOrderZeroDirectProductionInvocationFromRunner({ env, directory,
   reviewed, ci, githubToken, ownerUrl, ownerUrlSha256,
   workerFactory = startOrderZeroDirectWorker,
-  discoverJobId = discoverOrderReleaseJobId }) {
+  discoverJobId = discoverOrderReleaseJobId, reportStage = () => {} }) {
   try {
     assert.ok(env && numeric(env.GITHUB_RUN_ID) && numeric(env.GITHUB_RUN_ATTEMPT));
     assert.ok(typeof env.RUNNER_NAME === "string" && env.RUNNER_NAME.length > 0);
@@ -100,13 +105,14 @@ export async function observeOrderZeroDirectProductionInvocationFromRunner({ env
     const provisional = { runId: env.GITHUB_RUN_ID, runAttempt: env.GITHUB_RUN_ATTEMPT,
       jobId: "1" };
     assertOrderProductionInvocationContext({ env, reviewed, admission: provisional,
-      ci, ownerUrl, ownerUrlSha256 });
+      ci, ownerUrl, ownerUrlSha256, reportStage });
+    reportStage("job-discovery");
     const jobId = await discoverJobId({ releaseCommit: reviewed.releaseCommit,
       runId: provisional.runId, runAttempt: provisional.runAttempt,
       runnerName: env.RUNNER_NAME, githubToken });
     assert.ok(numeric(jobId));
     return await observeOrderZeroDirectProductionInvocation({ env, directory, reviewed,
       admission: { ...provisional, jobId }, ci, githubToken, ownerUrl, ownerUrlSha256,
-      workerFactory });
+      workerFactory, reportStage });
   } catch { throw new Error("Order production invocation unavailable; no execution admission"); }
 }

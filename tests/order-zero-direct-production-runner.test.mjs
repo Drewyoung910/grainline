@@ -98,3 +98,16 @@ test("read-only runner emits a bounded result and suppresses observer values and
     observe: async () => ({ ...result, productionExecutionAuthorized: true }) }),
   /unavailable; no execution admission/u);
 });
+
+test("production failure reports only a fixed stage, never observer or credential text", async () => {
+  const diagnostics = [];
+  await assert.rejects(runOrderZeroDirectReadOnlyRunner({ env: { ...env, GITHUB_ACTIONS: "true" },
+    directory, emitDiagnostic: value => diagnostics.push(value),
+    observe: ({ reportStage }) => {
+      reportStage(ownerUrl); // An unrecognized, potentially sensitive value is ignored.
+      reportStage("job-discovery");
+      throw new Error(`provider body ${ownerUrl}`);
+    },
+  }), /unavailable; no execution admission/u);
+  assert.deepEqual(diagnostics, ["Order read-only stop stage: job-discovery\n"]);
+});

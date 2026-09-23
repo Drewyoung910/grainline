@@ -1,6 +1,5 @@
-// Source-only adapter for a future, separately reviewed Order inspection job.
-// The disabled workflow does not call this entry point. No mutation command is
-// exposed; the worker can only prepare, load, inspect and revalidate.
+// Read-only adapter for the protected Order inspection job. No mutation command
+// is exposed; the worker can only prepare, load, inspect and revalidate.
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,10 +48,20 @@ export function parseOrderZeroDirectRunnerInputs(env, directory, execPath = proc
 }
 
 export async function runOrderZeroDirectReadOnlyRunner({ env, directory,
-  observe = observeOrderZeroDirectProductionInvocationFromRunner }) {
+  observe = observeOrderZeroDirectProductionInvocationFromRunner,
+  emitDiagnostic = value => process.stderr.write(value) }) {
+  // A fixed stage label helps diagnose a fail-closed production refusal without
+  // logging credentials, URLs, GitHub responses, or worker errors.
+  const stages = new Set(["inputs", "github-context", "owner-digest", "job-discovery",
+    "worker-start", "worker-prepare", "worker-load", "scope-inspect",
+    "scope-revalidate", "result"]);
+  let stage = "inputs";
+  const reportStage = value => { if (stages.has(value)) stage = value; };
   try {
     const input = parseOrderZeroDirectRunnerInputs(env, directory);
-    const result = await observe(input);
+    reportStage("github-context");
+    const result = await observe({ ...input, reportStage });
+    reportStage("result");
     assert.ok(result && result.productionExecutionAuthorized === false
       && result.completeProductionScope === false
       && result.freshDatabaseScopeObserved === true
@@ -71,7 +80,10 @@ export async function runOrderZeroDirectReadOnlyRunner({ env, directory,
       prefixLength: result.prefixLength, remainingMemberCount: result.remainingMemberCount,
       freshDatabaseScopeObserved: true, completeProductionScope: false,
       productionExecutionAuthorized: false });
-  } catch { throw new Error(FAILURE); }
+  } catch {
+    if (env?.GITHUB_ACTIONS === "true") emitDiagnostic(`Order read-only stop stage: ${stage}\n`);
+    throw new Error(FAILURE);
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
