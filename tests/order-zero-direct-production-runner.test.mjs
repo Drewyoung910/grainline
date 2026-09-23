@@ -23,7 +23,19 @@ const directory = "/fixture/clean-checkout";
 
 test("production workflow wires the read-only runner behind an unreachable job", () => {
   const workflow = fs.readFileSync(".github/workflows/order-zero-direct-production.yml", "utf8");
+  const pins = JSON.parse(fs.readFileSync("docs/order-handoff-toolchain-pins.json", "utf8"));
   assert.match(workflow, /^    if: false$/mu);
+  assert.match(workflow, /^    runs-on: ubuntu-24\.04$/mu);
+  assert.match(workflow, new RegExp(`actions/checkout@${pins.actions.checkout.commit}`, "u"));
+  assert.match(workflow, new RegExp(`actions/setup-node@${pins.actions["setup-node"].commit}`, "u"));
+  assert.match(workflow, /^          node-version: '22\.23\.2'$/mu);
+  assert.match(workflow, /^          architecture: x64$/mu);
+  assert.match(workflow, /^          check-latest: false$/mu);
+  assert.match(workflow, /^          package-manager-cache: false$/mu);
+  assert.match(workflow, /^          token: ''$/mu);
+  assert.equal(pins.toolchain.nodeVersion, "v22.23.2");
+  assert.equal(pins.runner.actualRunnerIdentityVerified, false);
+  assert.equal(pins.toolchain.linuxExecutionProven, false);
   assert.match(workflow, /node scripts\/order-zero-direct-production-runner\.mjs/u);
   assert.match(workflow, /PRODUCTION_MIGRATION_DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/u);
   assert.doesNotMatch(workflow, /(?:migrate deploy|execute-admitted|order-zero-direct-execution-admitted)/u);

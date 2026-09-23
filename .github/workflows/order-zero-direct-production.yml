@@ -42,17 +42,21 @@ jobs:
     # Deliberately unreachable until a separate release reviews protected
     # toolchain inputs, credential incidents and production admission.
     if: false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: Production
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: '22.23.2'
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ''
       - name: Inspect exact Order prefix read-only
         run: node scripts/order-zero-direct-production-runner.mjs
         env:
