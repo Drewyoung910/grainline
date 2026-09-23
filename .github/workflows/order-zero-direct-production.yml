@@ -7,6 +7,26 @@ on:
         description: Exact reviewed main commit
         required: true
         type: string
+      main_ci_run_id:
+        description: Successful full CI run for the exact main commit
+        required: true
+        type: string
+      main_ci_run_attempt:
+        description: Exact successful CI run attempt
+        required: true
+        type: string
+      source_catalog_sha256:
+        description: Reviewed tracked-source catalog digest
+        required: true
+        type: string
+      source_fence_sha256:
+        description: Reviewed source-fence file digest
+        required: true
+        type: string
+      confirmation:
+        description: Type inspect-reviewed-order-zero-direct-from-main
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -19,11 +39,34 @@ concurrency:
 jobs:
   inspect_order_zero_direct:
     name: Inspect Order zero-direct production scope
-    # Deliberately unreachable until a separate release reviews the operator,
-    # protected inputs, credential incidents and production admission.
+    # Deliberately unreachable until a separate release reviews protected
+    # toolchain inputs, credential incidents and production admission.
     if: false
     runs-on: ubuntu-latest
     environment: Production
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
-      - run: echo 'Order zero-direct production invocation is disabled'
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Inspect exact Order prefix read-only
+        run: node scripts/order-zero-direct-production-runner.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ORDER_CONFIRMATION: ${{ inputs.confirmation }}
+          ORDER_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          ORDER_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          ORDER_MAIN_CI_RUN_ATTEMPT: ${{ inputs.main_ci_run_attempt }}
+          ORDER_SOURCE_CATALOG_SHA256: ${{ inputs.source_catalog_sha256 }}
+          ORDER_SOURCE_FENCE_SHA256: ${{ inputs.source_fence_sha256 }}
+          ORDER_NODE_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NODE_VERSION }}
+          ORDER_NODE_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NODE_SHA256 }}
+          ORDER_NPM_CLI: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI }}
+          ORDER_NPM_CLI_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI_SHA256 }}
+          ORDER_NPM_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NPM_VERSION }}
+          PRODUCTION_MIGRATION_DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}

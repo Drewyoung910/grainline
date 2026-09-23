@@ -34,7 +34,7 @@ test("historical migration workflow cannot admit an Order invocation", () => {
   assert.match(source, /^  group: production-database-migrations$/mu);
   assert.match(source, /^  cancel-in-progress: false$/mu);
   assert.match(source, /^    if: false$/mu);
-  assert.doesNotMatch(source, /(?:migrate deploy|execute-admitted|DIRECT_URL|PRODUCTION_MIGRATION_DIRECT_URL)/u);
+  assert.doesNotMatch(source, /(?:migrate deploy|execute-admitted|order-zero-direct-execution-admitted)/u);
 });
 
 test("invocation binds exact main, job attempt and protected credential digest before worker creation", async () => {

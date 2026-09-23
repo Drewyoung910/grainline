@@ -14,17 +14,21 @@ completed or mismatched responses fail before the worker starts; provider
 response bodies are not exposed. This solves job-ID binding without a
 caller-supplied dispatch input. The source-only
 `order-zero-direct-production-runner.mjs` CLI maps explicit reviewed source,
-toolchain, CI and owner inputs into this adapter and emits only a bounded
-read-only summary. Its errors are sanitized. The disabled workflow does not
-call the CLI, and no production job has supplied these inputs.
+toolchain, CI and owner inputs into this adapter, requires a manual confirmation
+phrase and emits only a bounded read-only summary. Its errors are sanitized.
+The disabled workflow contains the proposed call, but no production job has
+supplied these inputs or executed the CLI.
 
-The next source slice separates Order from the historical
+The current source slice separates Order from the historical
 `production-migrations.yml` workflow. The live admission observer now requires
 the exact future `order-zero-direct-production.yml` workflow and its named job;
 the historical workflow can no longer satisfy Order admission. Both workflows
 retain the same global `production-database-migrations` serialization group.
-The new Order workflow has `if: false`, contains no owner credential, and has
-no release command. It cannot run a production migration.
+The new Order workflow retains job-level `if: false`. Its unreachable job
+statically wires the read-only runner, the existing protected owner secret and
+digest, explicit exact-main CI/source inputs, and separately reviewed Node/npm
+pins. It has no migration, grant-write or production-execution step. No secret
+is read while the job is disabled; it cannot run an Order inspection or migration.
 
 `order-zero-direct-production-invocation.mjs` binds a future manually
 dispatched main job, exact source/CI/job attempt, and protected owner URL digest
@@ -36,12 +40,13 @@ authorization. The
 GitHub API admission observer and worker source fence remain separate checks;
 caller-supplied environment fields alone do not prove job authenticity.
 
-The focused tests exercise legacy-workflow denial, pre-worker context/digest
-failure, read-only operation order, scope drift and cleanup. No live main CI,
+The focused tests exercise legacy-workflow denial, disabled-job wiring,
+pre-worker context/digest failure, read-only operation order, scope drift and
+cleanup. No live main CI,
 production database, provider or authenticated application proof follows from
-these fixture tests. The next separately reviewed change must supply the
-disabled-job wiring, current incident acceptance and protected inputs before
-lifting the workflow's disabled gate. The dormant admitted executor remains
+these fixture tests. A separate release must accept current credential incidents
+and protected toolchain-input provenance before lifting the workflow's disabled
+gate. The dormant admitted executor remains
 private and unreachable from this wrapper. Core Order RLS remains OFF.
 
 ## Persistent worker successor — September 9

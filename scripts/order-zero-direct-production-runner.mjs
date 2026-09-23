@@ -14,6 +14,7 @@ const ID = /^[1-9][0-9]{0,15}$/u;
 export function parseOrderZeroDirectRunnerInputs(env, directory) {
   try {
     assert.ok(env && path.isAbsolute(directory) && path.resolve(directory) === directory);
+    assert.equal(env.ORDER_CONFIRMATION, "inspect-reviewed-order-zero-direct-from-main");
     assert.match(env.ORDER_RELEASE_COMMIT, SHA);
     assert.equal(env.ORDER_RELEASE_COMMIT, env.GITHUB_SHA);
     for (const key of ["ORDER_SOURCE_CATALOG_SHA256", "ORDER_SOURCE_FENCE_SHA256",

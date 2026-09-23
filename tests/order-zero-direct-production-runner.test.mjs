@@ -10,6 +10,7 @@ import {
 const releaseCommit = "a".repeat(40);
 const ownerUrl = "postgresql://fixture.invalid/never-connect";
 const env = { GITHUB_SHA: releaseCommit, ORDER_RELEASE_COMMIT: releaseCommit,
+  ORDER_CONFIRMATION: "inspect-reviewed-order-zero-direct-from-main",
   GITHUB_RUN_ID: "456", GITHUB_RUN_ATTEMPT: "2",
   ORDER_SOURCE_CATALOG_SHA256: "b".repeat(64), ORDER_SOURCE_FENCE_SHA256: "c".repeat(64),
   ORDER_NODE_SHA256: "d".repeat(64), ORDER_NPM_CLI_SHA256: "e".repeat(64),
@@ -20,10 +21,12 @@ const env = { GITHUB_SHA: releaseCommit, ORDER_RELEASE_COMMIT: releaseCommit,
   PRODUCTION_MIGRATION_DIRECT_URL_SHA256: createHash("sha256").update(ownerUrl).digest("hex") };
 const directory = "/fixture/clean-checkout";
 
-test("production workflow remains disabled and does not call the source-only runner", () => {
+test("production workflow wires the read-only runner behind an unreachable job", () => {
   const workflow = fs.readFileSync(".github/workflows/order-zero-direct-production.yml", "utf8");
   assert.match(workflow, /^    if: false$/mu);
-  assert.doesNotMatch(workflow, /order-zero-direct-production-runner|PRODUCTION_MIGRATION_DIRECT_URL/u);
+  assert.match(workflow, /node scripts\/order-zero-direct-production-runner\.mjs/u);
+  assert.match(workflow, /PRODUCTION_MIGRATION_DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/u);
+  assert.doesNotMatch(workflow, /(?:migrate deploy|execute-admitted|order-zero-direct-execution-admitted)/u);
 });
 
 test("read-only runner maps only explicit reviewed source, toolchain, CI and owner inputs", () => {
@@ -41,6 +44,7 @@ test("missing or drifted reviewed inputs fail before the observer", async () => 
   let called = 0;
   const observe = () => { called++; throw new Error("should not run"); };
   for (const bad of [
+    { ORDER_CONFIRMATION: "wrong" },
     { ORDER_RELEASE_COMMIT: "f".repeat(40) },
     { ORDER_SOURCE_CATALOG_SHA256: "wrong" },
     { ORDER_MAIN_CI_RUN_ID: "0" },
