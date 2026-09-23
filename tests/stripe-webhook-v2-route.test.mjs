@@ -32,7 +32,8 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(legacyRoute, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(legacyRoute, /process\.env\.STRIPE_WEBHOOK_SECRET/);
     assert.match(legacyRoute, /readBoundedText\(req, STRIPE_WEBHOOK_BODY_MAX_BYTES\)/);
-    assert.match(legacyRoute, /stripe\.webhooks\.constructEvent\(body, signature, secret\)/);
+    assert.match(legacyRoute, /constructPrimaryStripeWebhookEvent\(\{ body, signature, primarySecret: secret,/);
+    assert.match(legacyRoute, /stripe\.webhooks\.constructEvent\(payload, header, key\)/);
     assert.doesNotMatch(legacyRoute, /parseEventNotification/);
     assert.doesNotMatch(legacyRoute, /STRIPE_V2_WEBHOOK_SECRET/);
     assert.doesNotMatch(legacyRoute, /STRIPE_CONNECT_WEBHOOK_SECRET/);

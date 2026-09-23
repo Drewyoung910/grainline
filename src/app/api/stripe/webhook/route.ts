@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
+import { constructPrimaryStripeWebhookEvent } from "@/lib/stripeWebhookSignatureRotation.mjs";
 import { prisma } from "@/lib/db";
 import {
   createNotificationOrThrow,
@@ -126,9 +127,10 @@ const STRIPE_DISPUTE_EVENT_TYPES = new Set([
 export async function POST(req: Request) {
   const signature = (await headers()).get("stripe-signature");
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const nextSecret = process.env.STRIPE_WEBHOOK_SECRET_NEXT;
   let event: Stripe.Event;
 
-  if (!secret) {
+  if (!secret || (nextSecret !== undefined && (!nextSecret || nextSecret === secret))) {
     Sentry.captureMessage("Stripe webhook secret is not configured", {
       level: "fatal",
       tags: { source: "stripe_webhook_config" },
@@ -169,7 +171,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    event = stripe.webhooks.constructEvent(body, signature, secret);
+    event = constructPrimaryStripeWebhookEvent({ body, signature, primarySecret: secret,
+      nextSecret, constructEvent: (payload, header, key) => stripe.webhooks.constructEvent(payload, header, key) });
   } catch (err: unknown) {
     console.error("Stripe webhook signature verification failed:", sanitizeEmailOutboxError(err));
     Sentry.captureException(err, { tags: { source: "stripe_webhook_signature" } });

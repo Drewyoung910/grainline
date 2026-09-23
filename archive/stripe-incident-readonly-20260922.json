@@ -1,0 +1,21 @@
+{
+  "recordedAtUtc": "2026-09-22T22:08:53Z",
+  "sourceCommit": "c2db186049a2239c7b2bd69b7dff1a5a1e247667",
+  "credentialSource": "ignored root .env.local STRIPE_SECRET_KEY",
+  "credentialMode": "test",
+  "providerRequest": "GET https://api.stripe.com/v1/webhook_endpoints",
+  "providerResponseAccepted": true,
+  "primaryEndpointId": "we_1TG9607dFPHZMTngXaWRazjq",
+  "primaryEndpointUrl": "https://thegrainline.com/api/stripe/webhook",
+  "primaryEndpointEnabled": true,
+  "primaryEndpointTestMode": true,
+  "primaryEventSetMatchesReviewed": true,
+  "endpointInventoryCount": 2,
+  "providerMutationPerformed": false,
+  "replacementKeyAuthenticated": false,
+  "webhookSecretEqualityVerified": false,
+  "signedReplacementDeliveryVerified": false,
+  "predecessorRevoked": false,
+  "credentialIncidentAccepted": false,
+  "orderRlsActivated": false
+}
