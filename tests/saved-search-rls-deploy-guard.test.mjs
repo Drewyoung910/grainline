@@ -3923,6 +3923,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/order-final-source-integration-20260922": orderFinalIntegrationDeployment,
       "codex/order-smoke-current-binding-20260923": orderSmokeReviewDeployment,
       "codex/order-live-path-correction-20260923": orderLivePathReviewDeployment,
+      "codex/order-inspection-failclosed-20260923": orderInspectionReviewDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -3950,6 +3951,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderLivePathReviewDeployment,
       false,
       "the exact Order live-path review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderInspectionReviewDeployment,
+      false,
+      "the exact Order inspection review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,

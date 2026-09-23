@@ -3,20 +3,21 @@
 ## September 23 release-path correction
 
 The source candidate and authenticated-smoke correction have since merged to
-main `e83c3d40a4c405274442ea1a7c6f7b52b35a36d4`, with successful
-merged-main CI `35905182475`. Production still serves the older `c2db1860`
+main; the read-only inspection workflow followed in merge `e32c6441`, with
+successful exact-main CI `35914481649`. Production still serves the older `c2db1860`
 application; the 17-member zero-direct compatible prefix, matching app,
 Order ENABLE and FORCE are not live. The current short execution queue is the
 private `RELEASE-ACTION-QUEUE-20260923.md` in the Order recovery checkpoint.
 The older dated status and exit gates below remain useful history, but are
 not a current claim that source integration is unfinished.
 
-The next actionable boundary is to enable and run the existing **read-only**
-Order production-scope inspection under exact-main/protected-owner admission.
-Its workflow is currently `if: false` on main and has no migration command.
-The four non-secret protected Node/npm variables were absent when this review
-began and were then installed with exact reviewed pin values in the Production
-environment; they have no effect until a job runs. Separately, the
+The **read-only** Order production-scope inspection is enabled for exact-main
+manual dispatch under required Production review, and still has no migration
+command. Run `35917127136` passed toolchain preflight but its protected runner
+failed closed before yielding a scope result. Its generic error intentionally
+does not expose the refusal stage; a bounded, non-secret stage diagnostic is
+being added before another exact-source run. The four non-secret protected
+Node/npm variables are installed at reviewed pin values. Separately, the
 worker contains a dormant admitted prefix executor, but no public production
 workflow caller reaches it. These are missing release implementations; another
 unchanged-source CI run or replacement-key reminder cannot apply the prefix.

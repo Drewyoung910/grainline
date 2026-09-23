@@ -1,9 +1,11 @@
 # Order compatibility prefix: dormant release scope
 
-September 23 operational status: source is on main `e83c3d40` and full
-merged-main CI passed. The public-main workflow remains disabled and read-only.
-Its four non-secret Production toolchain variables were absent at the initial
-environment read and are now installed at the reviewed pin values. The
+September 23 operational status: read-only inspection source is on main
+`e32c6441` with successful exact-main CI `35914481649`. The protected manual
+job ran once as `35917127136`: toolchain preflight passed, but the read-only
+runner refused and returned no database scope. The workflow has no mutation
+step. Its four non-secret Production toolchain variables are installed at the
+reviewed pin values. The
 worker's fixed admitted `executePrefix` IPC is dormant:
 `order-zero-direct-production-invocation.mjs` calls only prepare/load/inspect/
 revalidate, and the workflow has no execution step. Thus the next work is
