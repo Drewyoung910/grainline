@@ -100,15 +100,20 @@ export function buildBanAuditMetadata({
   sellerProfile,
   commissionRequests,
   openOrders = [],
+  openOrderSnapshots = [],
   appliedBannedAt,
   externalSyncVersion = 1,
 }: {
   sellerProfile: BanSellerProfileSnapshot | null;
   commissionRequests: BanCommissionRequestSnapshot[];
   openOrders?: BanOpenOrderInput[];
+  openOrderSnapshots?: BanOpenOrderSnapshot[];
   appliedBannedAt?: Date;
   externalSyncVersion?: number;
 }): BanAuditMetadata {
+  if (openOrders.length > 0 && openOrderSnapshots.length > 0) {
+    throw new TypeError("Ban audit metadata accepts one Order snapshot source");
+  }
   return {
     appliedBannedAt: appliedBannedAt?.toISOString() ?? null,
     externalSyncVersion,
@@ -123,13 +128,15 @@ export function buildBanAuditMetadata({
       id: request.id,
       status: request.status,
     })),
-    flaggedOpenOrders: openOrders.map((order) => ({
-      id: order.id,
-      buyerId: order.buyerId,
-      previousReviewNeeded: order.previousReviewNeeded,
-      ...(typeof order.addedReviewNote === "boolean" ? { addedReviewNote: order.addedReviewNote } : {}),
-      ...reviewNoteSnapshot(order.previousReviewNote ?? null),
-    })),
+    flaggedOpenOrders: openOrderSnapshots.length > 0
+      ? openOrderSnapshots.map((order) => ({ ...order }))
+      : openOrders.map((order) => ({
+          id: order.id,
+          buyerId: order.buyerId,
+          previousReviewNeeded: order.previousReviewNeeded,
+          ...(typeof order.addedReviewNote === "boolean" ? { addedReviewNote: order.addedReviewNote } : {}),
+          ...reviewNoteSnapshot(order.previousReviewNote ?? null),
+        })),
   };
 }
 

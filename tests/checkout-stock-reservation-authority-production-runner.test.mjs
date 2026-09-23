@@ -1,3 +1,5 @@
+// Historical workflow assertions use the byte-pinned predecessor fixture.
+// Current Order workflow boundaries are exercised in order-handoff-workflow.test.mjs.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
@@ -6,7 +8,7 @@ const workflow = fs.readFileSync(
   ".github/workflows/checkout-stock-reservation-authority-production.yml",
   "utf8",
 );
-const generic = fs.readFileSync(".github/workflows/production-migrations.yml", "utf8");
+const generic = fs.readFileSync("tests/fixtures/order-handoff/historical-production-migrations.yml.txt", "utf8");
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
 test("dedicated runner binds exact main CI and same-commit fresh inspection", () => {

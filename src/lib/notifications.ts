@@ -117,8 +117,8 @@ export async function createNotification(
 /**
  * Creates one source-validated notification and preserves failure semantics
  * for callers whose durable operation is expected to retry. Exact source
- * deduplication still returns null without throwing when the notification was
- * already created by an earlier attempt.
+ * deduplication returns the existing row id without inserting a duplicate when
+ * the notification was already created by an earlier attempt.
  */
 export async function createNotificationOrThrow(
   input: CreateNotificationInput,

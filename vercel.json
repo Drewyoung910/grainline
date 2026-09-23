@@ -4,6 +4,8 @@
   "git": {
     "deploymentEnabled": {
       "main": false,
+      "codex/order-final-source-integration-20260922": false,
+      "codex/order-main-catchup-20260922": false,
       "codex/r2-github-consumer-integration-20260921": false,
       "codex/r2-private-health-20260921": false,
       "codex/r2-cleanup-key-identity-20260921": false,

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import type { CaseStatus } from "@prisma/client";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { redirect } from "next/navigation";
@@ -52,6 +53,7 @@ export default async function AdminCasesPage({
   searchParams: Promise<{ page?: string; status?: string }>;
 }) {
   const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
   const { page: pageParam, status: statusParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 

@@ -1,6 +1,5 @@
 import { prisma } from './db'
 import { stripe } from './stripe'
-import { Prisma } from '@prisma/client'
 import { buildBanAuditMetadata } from './banAuditMetadata'
 import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
@@ -9,25 +8,18 @@ import { NOTIFICATION_SOURCE_TYPES } from './notificationSources'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
 import { revalidatePublicSellerVisibilityCaches } from './searchCache'
 import { invalidateAccountStateCache } from './accountStateCache'
+import { readBanAuditMetadata } from './banAuditMetadata'
 import {
-  appendBannedSellerReviewNote,
-  restoreOrderReviewStateAfterBan,
-} from './banOrderReviewState'
-import { readBanAuditMetadata, type BanOpenOrderSnapshot } from './banAuditMetadata'
+  flagBannedSellerOpenOrders,
+  mintBanReviewCapability,
+  restoreBannedSellerOrderReviews,
+} from './orderBanReviewAuthority'
+import { getOrderStaffReadClient } from './orderStaffReadDb'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { sanitizeAdminAuditReason } from './audit'
 import * as Sentry from '@sentry/nextjs'
 
-const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
 const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
-const BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE = 100
-
-type FlaggedOpenOrderForBan = {
-  id: string
-  previousReviewNeeded: boolean
-  previousReviewNote: string | null
-  reviewNote: string
-}
 
 export class BanUserPolicyError extends Error {
   status: number;
@@ -44,6 +36,26 @@ export class BanUserExternalSyncError extends BanUserPolicyError {
     super(message, 503);
     this.name = "BanUserExternalSyncError";
   }
+}
+
+async function requireBanReviewTarget(
+  userId: string,
+  operation: 'ban' | 'unban',
+) {
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, deletedAt: true, banned: true, clerkId: true },
+  })
+  if (!target || target.deletedAt) {
+    throw new BanUserPolicyError('User not found', 404)
+  }
+  if (target.role === 'ADMIN') {
+    throw new BanUserPolicyError(`Cannot ${operation} admin accounts`)
+  }
+  // This preserves the existing HTTP error contract only. The staff-session
+  // capability mint and consumer repeat target validation and remain the
+  // source-validating authority boundary across concurrent state changes.
+  return target
 }
 
 async function logClerkSyncResult({
@@ -85,6 +97,43 @@ async function logClerkSyncResult({
   }
 }
 
+async function convergeAlreadyUnbannedClerkTarget({
+  userId,
+  adminId,
+  clerkId,
+}: {
+  userId: string
+  adminId: string
+  clerkId: string
+}) {
+  await invalidateAccountStateCache(clerkId, 'unban_user_account_state_cache_invalidate')
+  try {
+    await unbanClerkUser(clerkId)
+    await logClerkSyncResult({
+      adminId,
+      action: 'UNBAN_USER_CLERK_SYNC',
+      targetId: userId,
+      metadata: { clerkUserId: clerkId, idempotentConvergence: true },
+    })
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: 'unban_user_clerk_sync' },
+      extra: { userId, adminId, clerkUserId: clerkId, idempotentConvergence: true },
+    })
+    await logClerkSyncResult({
+      adminId,
+      action: 'UNBAN_USER_CLERK_SYNC_FAILED',
+      targetId: userId,
+      metadata: {
+        clerkUserId: clerkId,
+        idempotentConvergence: true,
+        error: sanitizeEmailOutboxError(error),
+      },
+    })
+    throw new BanUserExternalSyncError("User is unbanned locally, but Clerk still could not be updated. Try the unban action again or contact support.")
+  }
+}
+
 async function notifyBuyersOfBannedSellerOrders(
   orders: Array<{ id: string; buyerId: string | null }>,
   banAuditLogId: string,
@@ -118,70 +167,6 @@ async function notifyBuyersOfBannedSellerOrders(
   })
 }
 
-async function restoreBannedSellerOrderReviewState(
-  tx: Pick<Prisma.TransactionClient, 'order'>,
-  snapshots: BanOpenOrderSnapshot[],
-) {
-  if (snapshots.length === 0) return 0
-  const currentOrders = await tx.order.findMany({
-    where: { id: { in: snapshots.map((snapshot) => snapshot.id) } },
-    select: { id: true, reviewNeeded: true, reviewNote: true },
-  })
-  const currentById = new Map(currentOrders.map((order) => [order.id, order]))
-
-  let restored = 0
-  for (const snapshot of snapshots) {
-    const current = currentById.get(snapshot.id)
-    if (!current) continue
-    const restoration = restoreOrderReviewStateAfterBan({
-      currentReviewNeeded: current.reviewNeeded,
-      currentReviewNote: current.reviewNote,
-      snapshot,
-    })
-    if (!restoration) continue
-    const updated = await tx.order.updateMany({
-      where: {
-        id: snapshot.id,
-        reviewNeeded: current.reviewNeeded,
-        reviewNote: current.reviewNote,
-      },
-      data: restoration,
-    })
-    restored += updated.count
-  }
-  return restored
-}
-
-async function flagBannedSellerOpenOrders(
-  tx: Pick<Prisma.TransactionClient, '$executeRaw'>,
-  flaggedOpenOrders: FlaggedOpenOrderForBan[],
-) {
-  let updatedCount = 0
-  for (let index = 0; index < flaggedOpenOrders.length; index += BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE) {
-    const chunk = flaggedOpenOrders.slice(index, index + BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE)
-    const rows = chunk.map((order) => Prisma.sql`(
-      ${order.id}::text,
-      ${order.reviewNote}::text,
-      ${order.previousReviewNote}::text,
-      ${order.previousReviewNeeded}::boolean
-    )`)
-    const updated = await tx.$executeRaw`
-      UPDATE "Order" AS o
-      SET "reviewNeeded" = true,
-          "reviewNote" = data."reviewNote"
-      FROM (VALUES ${Prisma.join(rows)}) AS data("id", "reviewNote", "previousReviewNote", "previousReviewNeeded")
-      WHERE o."id" = data."id"
-        AND o."reviewNeeded" = data."previousReviewNeeded"
-        AND o."reviewNote" IS NOT DISTINCT FROM data."previousReviewNote"
-    `
-    updatedCount += Number(updated)
-  }
-  if (updatedCount !== flaggedOpenOrders.length) {
-    throw new BanUserPolicyError("Open order review state changed while banning user. Refresh and try again.", 409)
-  }
-  return updatedCount
-}
-
 function revalidateAccountStateSearchCaches(source: string, userId: string) {
   try {
     revalidatePublicSellerVisibilityCaches()
@@ -197,6 +182,14 @@ function revalidateAccountStateSearchCaches(source: string, userId: string) {
 export async function banUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
+  await requireBanReviewTarget(userId, 'ban')
+  const banReviewCapability = await mintBanReviewCapability(
+    adminId,
+    userId,
+    'BAN_REVIEW_FLAG',
+    null,
+    getOrderStaffReadClient(),
+  )
   const clerkSync = await prisma.$transaction(async (tx) => {
     const target = await tx.user.findUnique({
       where: { id: userId },
@@ -215,22 +208,6 @@ export async function banUser({ userId, adminId, reason }: {
         select: { id: true, status: true },
       }),
     ])
-    const openSellerOrders = sellerProfile
-      ? await tx.order.findMany({
-          where: {
-            fulfillmentStatus: { in: [...OPEN_SELLER_ORDER_STATUSES] },
-            sellerRefundId: null,
-            paymentRefundBlocked: false,
-            sellerProfileId: sellerProfile.id,
-          },
-          select: {
-            id: true,
-            buyerId: true,
-            reviewNeeded: true,
-            reviewNote: true,
-          },
-        })
-      : []
     const bannedAt = new Date()
     const banResult = await tx.user.updateMany({
       where: { id: userId, role: { not: "ADMIN" } },
@@ -246,22 +223,15 @@ export async function banUser({ userId, adminId, reason }: {
       const cleanup = await removeSellerCommissionInterests(tx, sellerProfile.id)
       removedCommissionInterestRequestIds = cleanup.commissionRequestIds
     }
-    const flaggedOpenOrders = openSellerOrders.map((order) => {
-      const reviewNoteState = appendBannedSellerReviewNote(order.reviewNote)
-      return {
-        id: order.id,
-        buyerId: order.buyerId,
-        previousReviewNeeded: order.reviewNeeded,
-        previousReviewNote: order.reviewNote,
-        reviewNote: reviewNoteState.reviewNote,
-        addedReviewNote: reviewNoteState.addedReviewNote,
-      }
-    })
     await tx.commissionRequest.updateMany({
       where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
       data: { status: 'CLOSED' }
     })
-    await flagBannedSellerOpenOrders(tx, flaggedOpenOrders)
+    const flaggedOpenOrders = await flagBannedSellerOpenOrders(
+      banReviewCapability,
+      userId,
+      tx,
+    )
     const banAuditLog = await tx.adminAuditLog.create({
       data: {
         adminId,
@@ -273,7 +243,7 @@ export async function banUser({ userId, adminId, reason }: {
           ...buildBanAuditMetadata({
             sellerProfile,
             commissionRequests,
-            openOrders: flaggedOpenOrders,
+            openOrderSnapshots: flaggedOpenOrders,
             appliedBannedAt: bannedAt,
           }),
           removedCommissionInterestRequestIds,
@@ -360,6 +330,15 @@ export async function banUser({ userId, adminId, reason }: {
 export async function unbanUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
+  const target = await requireBanReviewTarget(userId, 'unban')
+  if (!target.banned) {
+    await convergeAlreadyUnbannedClerkTarget({
+      userId,
+      adminId,
+      clerkId: target.clerkId,
+    })
+    return { sellerRestoreWarning: null }
+  }
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId }, select: { id: true, stripeAccountId: true }
   })
@@ -384,6 +363,19 @@ export async function unbanUser({ userId, adminId, reason }: {
       })
     }
   }
+  const latestBanForCapability = await prisma.adminAuditLog.findFirst({
+    where: { action: 'BAN_USER', targetType: 'USER', targetId: userId },
+    orderBy: { createdAt: 'desc' },
+    select: { metadata: true },
+  })
+  const capabilityBanMetadata = readBanAuditMetadata(latestBanForCapability?.metadata)
+  const banReviewCapability = await mintBanReviewCapability(
+    adminId,
+    userId,
+    'BAN_REVIEW_RESTORE',
+    capabilityBanMetadata.flaggedOpenOrders,
+    getOrderStaffReadClient(),
+  )
   const clerkSync = await prisma.$transaction(async (tx) => {
     const [previousUser, previousSellerProfile, latestBanLog] = await Promise.all([
       tx.user.findUnique({
@@ -402,9 +394,11 @@ export async function unbanUser({ userId, adminId, reason }: {
     ])
     if (!previousUser) throw new BanUserPolicyError("User not found", 404)
     const banMetadata = readBanAuditMetadata(latestBanLog?.metadata)
-    const restoredFlaggedOrderReviews = await restoreBannedSellerOrderReviewState(
-      tx,
+    const restoredFlaggedOrderReviews = await restoreBannedSellerOrderReviews(
+      banReviewCapability,
+      userId,
       banMetadata.flaggedOpenOrders,
+      tx,
     )
     await tx.user.update({
       where: { id: userId },
@@ -419,7 +413,7 @@ export async function unbanUser({ userId, adminId, reason }: {
         }
       })
     }
-    await tx.adminAuditLog.create({
+    const unbanAuditLog = await tx.adminAuditLog.create({
       data: {
         adminId,
         action: 'UNBAN_USER',
@@ -443,7 +437,11 @@ export async function unbanUser({ userId, adminId, reason }: {
         },
       }
     })
-    return { clerkId: previousUser.clerkId, sellerRestoreWarning }
+    return {
+      clerkId: previousUser.clerkId,
+      sellerRestoreWarning,
+      unbanAuditLogId: unbanAuditLog.id,
+    }
   })
 
   await invalidateAccountStateCache(clerkSync.clerkId, 'unban_user_account_state_cache_invalidate')
@@ -455,6 +453,7 @@ export async function unbanUser({ userId, adminId, reason }: {
       adminId,
       action: 'UNBAN_USER_CLERK_SYNC',
       targetId: userId,
+      originalActionId: clerkSync.unbanAuditLogId,
       metadata: { clerkUserId: clerkSync.clerkId },
     })
   } catch (error) {
@@ -466,6 +465,7 @@ export async function unbanUser({ userId, adminId, reason }: {
       adminId,
       action: 'UNBAN_USER_CLERK_SYNC_FAILED',
       targetId: userId,
+      originalActionId: clerkSync.unbanAuditLogId,
       metadata: {
         clerkUserId: clerkSync.clerkId,
         error: sanitizeEmailOutboxError(error),

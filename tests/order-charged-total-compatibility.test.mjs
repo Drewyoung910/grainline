@@ -25,10 +25,12 @@ describe("Order charged-total compatibility", () => {
   it("keeps schema, webhook, and release record aligned", () => {
     const schema = readFileSync("prisma/schema.prisma", "utf8");
     const webhook = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const paidCheckoutAuthority = readFileSync("docs/rls-drafts/order-paid-checkout-authority.sql", "utf8");
     const audit = readFileSync("docs/order-charged-total-refund-state-audit.md", "utf8");
     assert.match(schema, /chargedTotalCents\s+Int\?/);
     assert.match(webhook, /requireCheckoutChargedTotalCents\(s\.amount_total\)/);
-    assert.equal((webhook.match(/\n\s+chargedTotalCents,\n\s+itemsSubtotalCents,/g) ?? []).length, 4);
+    assert.equal((webhook.match(/\n\s+chargedTotalCents,\n\s+itemsSubtotalCents,/g) ?? []).length, 1);
+    assert.match(paidCheckoutAuthority, /\(p_provider->>'chargedTotalCents'\)::integer/);
     assert.match(audit, /legacy Orders remain nullable/i);
   });
 

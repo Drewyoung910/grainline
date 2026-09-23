@@ -1,0 +1,41 @@
+name: Order Account Deletion Concurrency Proof
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  review-note-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: account_deletion_proof_owner
+          POSTGRES_PASSWORD: ci-owner
+          POSTGRES_DB: grainline_account_deletion_concurrency_proof
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U account_deletion_proof_owner -d grainline_account_deletion_concurrency_proof"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Prove concurrent staff-note preservation during account deletion
+        run: >-
+          node --test
+          tests/order-account-deletion-review-note-concurrency-proof.test.mjs
+        env:
+          ORDER_ACCOUNT_DELETION_CONCURRENCY_PROOF: loopback-ci-postgres16
+          ORDER_ACCOUNT_DELETION_CONCURRENCY_PROOF_DATABASE_URL: postgresql://account_deletion_proof_owner:ci-owner@127.0.0.1:5432/grainline_account_deletion_concurrency_proof

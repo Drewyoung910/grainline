@@ -1,10 +1,9 @@
 "use client";
-import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Eye, Heart, Bell, MousePointer } from "@/components/icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
+import InventoryQuantityControl from "@/components/InventoryQuantityControl";
 
 type Listing = {
   id: string;
@@ -19,61 +18,12 @@ type Listing = {
   _count: { favorites: number; stockNotifications: number };
 };
 
-export default function InventoryRow({ listing }: { listing: Listing }) {
-  const router = useRouter();
-  const [qty, setQty] = React.useState<string>(String(listing.stockQuantity ?? 0));
-  const [saving, setSaving] = React.useState(false);
-  const [saved, setSaved] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const savingRef = React.useRef(false);
-  const expectedQuantityRef = React.useRef(listing.stockQuantity ?? 0);
-
+export default function InventoryRow({ listing, actorScope }: { listing: Listing; actorScope: string }) {
   const thumb = listing.photos[0]?.url;
   const titleHref = listing.status === "PENDING_REVIEW"
     ? `${publicListingPath(listing.id, listing.title)}?preview=1`
     : `/dashboard/listings/${listing.id}/edit`;
 
-  React.useEffect(() => {
-    expectedQuantityRef.current = listing.stockQuantity ?? 0;
-    setQty(String(listing.stockQuantity ?? 0));
-  }, [listing.stockQuantity]);
-
-  async function handleSave() {
-    if (savingRef.current) return;
-    const quantity = parseInt(qty, 10);
-    if (!Number.isFinite(quantity) || quantity < 0) {
-      setError("Enter a valid quantity (0 or more).");
-      return;
-    }
-    savingRef.current = true;
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const res = await fetch(`/api/listings/${listing.id}/stock`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ quantity, expectedQuantity: expectedQuantityRef.current }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Save failed");
-      }
-      const data = (await res.json().catch(() => null)) as { stockQuantity?: number | null } | null;
-      if (typeof data?.stockQuantity === "number") {
-        expectedQuantityRef.current = data.stockQuantity;
-        setQty(String(data.stockQuantity));
-      }
-      setSaved(true);
-      router.refresh();
-      setTimeout(() => setSaved(false), 2000);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
-  }
 
   return (
     <li className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center">
@@ -126,28 +76,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
         </div>
       </div>
 
-      <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
-        {error && <span className="text-xs text-red-600">{error}</span>}
-        {saved && <span className="text-xs text-green-600">Saved</span>}
-        <input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          step="1"
-          value={qty}
-          disabled={saving}
-          onChange={(e) => { setQty(e.target.value); setSaved(false); setError(null); }}
-          className="w-20 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-right shadow-sm outline-none transition focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 disabled:bg-neutral-50 disabled:text-neutral-500"
-          aria-label="Stock quantity"
-        />
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
+      <InventoryQuantityControl listing={listing} actorScope={actorScope} />
     </li>
   );
 }

@@ -1,5 +1,5 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import AdminPinGate from "@/components/AdminPinGate";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -30,14 +30,8 @@ function isSellerProfileReportTarget(targetType: string | null) {
 }
 
 export default async function AdminReportsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/");
-
-  const admin = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { role: true, banned: true, deletedAt: true },
-  });
-  if (!admin || admin.banned || admin.deletedAt || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) redirect("/");
+  const staff = await requireAdminPageAccess();
+  if (!staff) return <AdminPinGate />;
 
   const reports = await prisma.userReport.findMany({
     where: { resolved: false },

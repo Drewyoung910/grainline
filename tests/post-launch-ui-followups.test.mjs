@@ -239,8 +239,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(webhook, /renderOrderConfirmedSellerEmail/);
     assert.match(webhook, /renderFirstSaleCongratsEmail/);
     assert.match(webhook, /shouldSendEmail\(sellerUserId, "EMAIL_NEW_ORDER"\)/);
-    assert.match(webhook, /dedupKey: `order-confirmed-buyer:\$\{order\.id\}`/);
-    assert.match(webhook, /dedupKey: `order-confirmed-seller:\$\{order\.id\}`/);
+    assert.match(webhook, /dedupKey: `order-confirmed-buyer:\$\{order\.orderId\}`/);
+    assert.match(webhook, /dedupKey: `order-confirmed-seller:\$\{order\.orderId\}`/);
+    assert.match(webhook, /dedupKey: firstSaleCongratsDedupKey\(order\.sellerProfileId\)/);
   });
 
   it("supports workshop gallery alt text, reordering, and buyer-facing alt attributes", () => {

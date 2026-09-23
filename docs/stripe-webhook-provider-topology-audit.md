@@ -104,6 +104,14 @@ only the necessary events to the separate Connect route; otherwise document
 their retirement while the v2 account path and reconciliation cron remain the
 account-state controls.
 
+The isolated Order candidate made that decision on 2026-09-07 without changing
+production: it retires the unreachable classic OAuth deauthorization branch
+and binds terminal seller-account loss to the provider-subscribed
+`v2.core.account.closed` notification on the separately signed Accounts-v2
+route. The classic `account.updated` compatibility mirror remains distinct and
+nonterminal. This candidate still requires its database-first compatible
+release, authenticated closure proof and predecessor drain before deployment.
+
 ## Compatible implementation checkpoint
 
 PR #169 merged exact implementation head

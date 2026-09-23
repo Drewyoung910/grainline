@@ -1,3 +1,5 @@
+// Historical workflow assertions use the byte-pinned predecessor fixture.
+// Current Order workflow boundaries are exercised in order-handoff-workflow.test.mjs.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
@@ -37,7 +39,7 @@ describe("OrderPaymentEvent transition-authority release", () => {
   it("isolates the successor from generic production runs and applies it last in CI", () => {
     const ci = readFileSync(".github/workflows/ci.yml", "utf8");
     const production = readFileSync(
-      ".github/workflows/production-migrations.yml",
+      "tests/fixtures/order-handoff/historical-production-migrations.yml.txt",
       "utf8",
     );
     const transitionProduction = readFileSync(

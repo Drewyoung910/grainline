@@ -128,12 +128,12 @@ describe("order-state audit follow-up guardrails", () => {
     const consistency = source("docs/rls-drafts/checkout-stock-reservation-source-consistency.sql")
       .replace(/\s+/g, " ");
 
-    assert.match(singleCheckout, /createConsistentSingleCheckoutStockReservation\(\{/);
+    assert.match(singleCheckout, /createSnapshotSingleCheckoutStockReservation\(\{/);
     assert.match(singleCheckout, /listingId: listing\.id,[\s\S]*quantity: body\.quantity,[\s\S]*selectedVariantOptionIds: body\.selectedVariantOptionIds,[\s\S]*sourceWitness: pricedSourceWitness/);
     assert.doesNotMatch(singleCheckout, /prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(singleCheckout, /checkoutStockReservationMetadata\(checkoutReservationId/);
 
-    assert.match(sellerCheckout, /createConsistentCartCheckoutStockReservation\(\{/);
+    assert.match(sellerCheckout, /createSnapshotCartCheckoutStockReservation\(\{/);
     assert.match(sellerCheckout, /cartId: cart\.id,[\s\S]*sellerProfileId: sellerId,[\s\S]*checkoutGroupId: body\.checkoutGroupId,[\s\S]*sourceWitness: pricedSourceWitness/);
     assert.doesNotMatch(sellerCheckout, /prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId/);

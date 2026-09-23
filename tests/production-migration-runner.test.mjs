@@ -88,6 +88,21 @@ function runtimeRole() {
   };
 }
 
+function staffReadRole() {
+  return {
+    rolname: "grainline_staff_read_runtime",
+    rolsuper: false,
+    rolcreatedb: false,
+    rolcreaterole: false,
+    rolinherit: false,
+    rolcanlogin: true,
+    rolreplication: false,
+    rolbypassrls: false,
+    memberships: [],
+    membership_options: [],
+  };
+}
+
 function databaseState() {
   return {
     identity: {
@@ -137,6 +152,7 @@ describe("isolated production migration runner", () => {
       databaseName: "neondb",
       ownerRole: "neondb_owner",
       runtimeRole: "grainline_app_runtime",
+      staffReadRolePresent: false,
       savedSearchRlsEnabled: true,
       savedSearchRlsForced: true,
       savedSearchPolicyCount: 3,
@@ -153,6 +169,41 @@ describe("isolated production migration runner", () => {
       const drifted = databaseState();
       mutate(drifted);
       assert.throws(() => assertProductionMigrationDatabaseState(drifted), /drifted/);
+    }
+  });
+
+  it("accepts only the exact optional staff-read bootstrap posture", () => {
+    const withStaff = databaseState();
+    withStaff.staffReadRole = staffReadRole();
+    withStaff.ownerRole.memberships.splice(
+      2,
+      0,
+      "grainline_staff_read_runtime",
+    );
+    withStaff.ownerRole.membership_options.splice(2, 0, {
+      role: "grainline_staff_read_runtime",
+      adminOption: true,
+      inheritOption: false,
+      setOption: false,
+    });
+    assert.equal(
+      assertProductionMigrationDatabaseState(withStaff).staffReadRolePresent,
+      true,
+    );
+
+    for (const mutate of [
+      (state) => { state.staffReadRole.rolinherit = true; },
+      (state) => { state.staffReadRole.memberships = ["grainline_app_runtime"]; },
+      (state) => { state.ownerRole.membership_options[2].setOption = true; },
+      (state) => { state.ownerRole.memberships.splice(2, 1); },
+      (state) => { delete state.staffReadRole; },
+    ]) {
+      const drifted = structuredClone(withStaff);
+      mutate(drifted);
+      assert.throws(
+        () => assertProductionMigrationDatabaseState(drifted),
+        /drifted/,
+      );
     }
   });
 
@@ -198,6 +249,18 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /vars\.PRODUCTION_MIGRATION_DIRECT_URL_SHA256/);
     assert.doesNotMatch(workflow, /secrets\.(?:DIRECT_URL|DATABASE_URL)\b/);
     assert.match(workflow, /cancel-in-progress: false/);
+    assert.match(workflow, /order-handoff-launch\.mjs/);
+    assert.match(workflow, /order-handoff-client\.mjs/);
+    assert.match(workflow, /order-handoff-evidence\.mjs/);
+    assert.doesNotMatch(workflow, /npx prisma|psql |SAVED_SEARCH_RLS_DEPLOY_PHASE/);
+    assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
+    assert.doesNotMatch(vercel.buildCommand, /migrat/i);
+    assert.match(runtimeSource, /requiredProductionEnv\("DATABASE_URL"\)/);
+    assert.doesNotMatch(runtimeSource, /DIRECT_URL|MIGRATION_DB_ROLE/);
+  });
+
+  it("retains the historical generic operator boundary against its pinned fixture", () => {
+    const workflow = fs.readFileSync("tests/fixtures/order-handoff/historical-production-migrations.yml.txt", "utf8");
     assert.match(workflow, /guard-production-migration-runner\.mjs[\s\S]*prisma migrate deploy[\s\S]*prisma migrate status[\s\S]*audit:db-grants/);
     const jobEnvironment = workflow.slice(
       workflow.indexOf("    env:"),
@@ -286,10 +349,6 @@ describe("isolated production migration runner", () => {
     );
     assert.match(workflow, /20260815060001_force_checkout_stock_reservation_rls/u);
     assert.match(workflow, /20260822180000_enable_seller_payout_event_rls/u);
-    assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
-    assert.doesNotMatch(vercel.buildCommand, /migrat/i);
-    assert.match(runtimeSource, /requiredProductionEnv\("DATABASE_URL"\)/);
-    assert.doesNotMatch(runtimeSource, /DIRECT_URL|MIGRATION_DB_ROLE/);
   });
 
   it("attests one applied FORCE row and an absent reservation successor", async () => {

@@ -11,6 +11,7 @@ import {
 import { logServerError } from '@/lib/serverErrorLogger'
 import { privateJson, privateResponse } from '@/lib/privateResponse'
 import { HTTP_STATUS } from '@/lib/httpStatus'
+import { requireStaffAdminPinForApi } from '@/lib/adminPinApi'
 import { z } from 'zod'
 
 const UndoSchema = z.object({
@@ -22,13 +23,15 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth()
+  const { userId, sessionId } = await auth()
   if (!userId) return privateJson({ error: 'Unauthorized' }, { status: HTTP_STATUS.UNAUTHORIZED })
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true }
   })
   if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return privateJson({ error: 'Forbidden' }, { status: HTTP_STATUS.FORBIDDEN })
+  const pinResponse = await requireStaffAdminPinForApi(request, userId, sessionId)
+  if (pinResponse) return pinResponse
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
   if (!success) return privateResponse(rateLimitResponse(reset, 'Too many admin actions.'))
   const { id } = await params

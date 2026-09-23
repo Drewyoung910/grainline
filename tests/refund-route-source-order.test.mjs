@@ -3,27 +3,25 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 describe("seller refund route source-order guardrails", () => {
-  it("releases stale refund locks only after durable Order ownership is established", () => {
-    const source = readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
-
-    const ownershipCheck = source.search(
-      /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s,
+  it("releases stale refund locks only inside durable seller authority", () => {
+    const route = readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
+    const authority = readFileSync(
+      "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
+      "utf8",
     );
-    const lockRelease = "const staleLocksReleased = await releaseStaleRefundLocks(orderId);";
-    const disputeCheck = "if (order.paymentOpenDisputeBlocked)";
+    const actorLock = authority.indexOf('FROM public."User" AS actor');
+    const sellerLock = authority.indexOf('FROM public."SellerProfile" AS seller');
+    const orderLock = authority.indexOf('FROM public."Order" AS source_order');
+    const lockRelease = authority.indexOf('UPDATE public."Order" AS source_order');
 
-    assert.match(source, /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s);
-    assert.doesNotMatch(source, /order\.items\.(?:some|every)\(\(it\) => it\.listing\.sellerId === seller\.id\)/);
-    assert.notEqual(ownershipCheck, -1);
-    assert.notEqual(source.indexOf(lockRelease), -1);
-    assert.notEqual(source.indexOf(disputeCheck), -1);
+    assert.match(route, /sellerRefundPreflight\(\{/);
+    assert.doesNotMatch(route, /releaseStaleRefundLocks|\bprisma\.order\b/);
+    assert.match(authority, /locked_order\."sellerProfileId" IS DISTINCT FROM locked_seller\.id/);
     assert.ok(
-      ownershipCheck < source.indexOf(lockRelease),
+      actorLock >= 0 && actorLock < sellerLock && sellerLock < orderLock && orderLock < lockRelease,
       "refund lock cleanup must not run before durable Order ownership is verified",
     );
-    assert.ok(
-      source.indexOf(lockRelease) < source.indexOf(disputeCheck),
-      "stale lock cleanup should still run before the database-maintained dispute check",
-    );
+    assert.match(authority, /"caseResolutionClaimId" IS NULL/);
+    assert.match(authority, /"refundClaimId" IS NULL/);
   });
 });

@@ -7,6 +7,10 @@ const migration = readFileSync(
   "prisma/migrations/20260901020000_prepare_order_staff_read_authority/migration.sql",
   "utf8",
 );
+const correction = readFileSync(
+  "prisma/migrations/20260905010000_correct_order_staff_read_charged_total/migration.sql",
+  "utf8",
+);
 
 async function createDatabase() {
   const database = new PGlite();
@@ -39,6 +43,7 @@ async function createDatabase() {
       "paidAt" timestamp(3) without time zone,
       currency varchar(3) NOT NULL DEFAULT 'usd',
       "itemsSubtotalCents" integer NOT NULL DEFAULT 0,
+      "chargedTotalCents" integer,
       "shippingTitle" varchar(200),
       "shippingAmountCents" integer NOT NULL DEFAULT 0,
       "taxAmountCents" integer NOT NULL DEFAULT 0,
@@ -104,7 +109,7 @@ async function createDatabase() {
       ('listing-1', 'ACTIVE', 'IN_STOCK');
     INSERT INTO public."Order" (
       id, "buyerId", "sellerProfileId", "createdAt", "paidAt", currency,
-      "itemsSubtotalCents", "shippingTitle", "shippingAmountCents", "taxAmountCents",
+      "itemsSubtotalCents", "chargedTotalCents", "shippingTitle", "shippingAmountCents", "taxAmountCents",
       "fulfillmentMethod", "fulfillmentStatus", "trackingCarrier", "trackingNumber",
       "shippedAt", "estimatedDeliveryDate", "processingDeadline", "shippingCarrier",
       "shippingService", "reviewNeeded", "reviewNote", "giftNote", "giftWrapping",
@@ -115,7 +120,7 @@ async function createDatabase() {
       "refundClaimId", "labelStatus", "labelClawbackStatus"
     ) VALUES (
       'order-1', 'buyer-1', 'seller-1', '2026-08-31 10:00:00', '2026-08-31 10:01:00', 'usd',
-      500, 'Ground', 100, 50, 'SHIPPING', 'SHIPPED', 'UPS', 'track-1',
+      500, 701, 'Ground', 100, 50, 'SHIPPING', 'SHIPPED', 'UPS', 'track-1',
       '2026-08-31 11:00:00', '2026-09-04 11:00:00', '2026-09-02 11:00:00',
       'UPS', 'Ground', true, 'Private staff review note', 'Private gift note', true,
       25, 'Buyer One', 'buyer@example.test', '1 Main', 'Austin', 'TX', '78701', 'US',
@@ -133,10 +138,11 @@ async function createDatabase() {
     );
   `);
   await database.exec(migration);
+  await database.exec(correction);
   await database.exec(`
-    GRANT EXECUTE ON FUNCTION public.grainline_order_staff_page(text, text, integer, integer)
+    GRANT EXECUTE ON FUNCTION public.grainline_order_staff_page_v2(text, text, integer, integer)
       TO grainline_staff_read_runtime;
-    GRANT EXECUTE ON FUNCTION public.grainline_order_staff_detail(text, text)
+    GRANT EXECUTE ON FUNCTION public.grainline_order_staff_detail_v2(text, text)
       TO grainline_staff_read_runtime;
   `);
   return database;
@@ -148,13 +154,13 @@ describe("Order staff read authority", () => {
     try {
       await database.exec("SET SESSION AUTHORIZATION grainline_app_runtime");
       await assert.rejects(
-        database.query("SELECT * FROM public.grainline_order_staff_detail('employee-1', 'order-1')"),
+        database.query("SELECT * FROM public.grainline_order_staff_detail_v2('employee-1', 'order-1')"),
         /permission denied/i,
       );
       const privileges = await database.query(`
         SELECT pg_catalog.has_function_privilege(
           'grainline_app_runtime',
-          'public.grainline_order_staff_detail(text,text)',
+          'public.grainline_order_staff_detail_v2(text,text)',
           'EXECUTE'
         ) AS runtime_execute
       `);
@@ -169,28 +175,32 @@ describe("Order staff read authority", () => {
     try {
       await database.exec("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
       const page = await database.query(
-        "SELECT * FROM public.grainline_order_staff_page($1, $2, $3, $4)",
+        "SELECT * FROM public.grainline_order_staff_page_v2($1, $2, $3, $4)",
         ["employee-1", "REVIEW_NEEDED", 1, 25],
       );
       assert.equal(Number(page.rows[0].total_count), 1);
       assert.equal(page.rows[0].orders.length, 1);
       assert.equal(page.rows[0].orders[0].sellerLabel, "Historical Maker");
+      assert.equal(page.rows[0].orders[0].chargedTotalCents, 701);
       assert.equal(page.rows[0].orders[0].items[0].title, "Historical Table");
       assert.equal(JSON.stringify(page.rows[0]).includes("re_staff_provider_id"), false);
 
       const detail = await database.query(
-        "SELECT * FROM public.grainline_order_staff_detail($1, $2)",
+        "SELECT * FROM public.grainline_order_staff_detail_v2($1, $2)",
         ["admin-1", "order-1"],
       );
       assert.equal(detail.rows.length, 1);
       assert.equal(detail.rows[0].seller_refund_id, "re_staff_provider_id");
+      assert.equal(detail.rows[0].charged_total_cents, 701);
+      assert.equal(detail.rows[0].seller_user_id, "seller-user-1");
+      assert.equal(detail.rows[0].seller_user_email, "seller@example.test");
       assert.equal(detail.rows[0].items[0].currentListingType, "IN_STOCK");
       assert.equal(detail.rows[0].items[0].listingSnapshot.title, "Historical Table");
       assert.equal(JSON.stringify(detail.rows[0]).includes("unexpectedSecret"), false);
 
       for (const actor of ["buyer-1", "banned-staff", "deleted-staff", "missing"]) {
         const denied = await database.query(
-          "SELECT * FROM public.grainline_order_staff_detail($1, $2)",
+          "SELECT * FROM public.grainline_order_staff_detail_v2($1, $2)",
           [actor, "order-1"],
         );
         assert.equal(denied.rows.length, 0, actor);
@@ -222,11 +232,11 @@ describe("Order staff read authority", () => {
       `);
       await database.exec("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
       await assert.rejects(
-        database.query("SELECT * FROM public.grainline_order_staff_page('employee-1', 'RAW', 1, 25)"),
+        database.query("SELECT * FROM public.grainline_order_staff_page_v2('employee-1', 'RAW', 1, 25)"),
         /input is invalid/i,
       );
       await assert.rejects(
-        database.query("SELECT * FROM public.grainline_order_staff_detail('employee-1', 'order-1')"),
+        database.query("SELECT * FROM public.grainline_order_staff_detail_v2('employee-1', 'order-1')"),
         /item count exceeds limit/i,
       );
     } finally {

@@ -3920,6 +3920,8 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.equal(vercel.git.deploymentEnabled.main, false);
     const {
       [CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH]: providerProofDeployment,
+      "codex/order-final-source-integration-20260922": orderFinalIntegrationDeployment,
+      "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
       "codex/r2-cleanup-key-identity-20260921": r2CleanupIdentityDeployment,
@@ -3931,6 +3933,16 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.ok(
       providerProofDeployment === undefined || providerProofDeployment === false,
       "the exact disposable provider-proof branch may only be explicitly deployment-disabled",
+    );
+    assert.equal(
+      orderFinalIntegrationDeployment,
+      false,
+      "the exact final Order source review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderCatchupDeployment,
+      false,
+      "the exact Order integration review branch must remain deployment-disabled",
     );
     assert.equal(
       r2ConsumerProofDeployment,

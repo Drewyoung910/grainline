@@ -36,6 +36,10 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
   inspect exact targets and remove only reproducible caches/build output; never
   prune a worktree, evidence directory, untracked file, or dependency tree
   still used by another worktree merely to satisfy the guard.
+- Keep long-lived source/checkpoints in a persistent worktree, not `/private/tmp`.
+  Disk headroom does not protect temporary files from independent removal. On
+  missing-file incidents, preserve and hash current edits before reconstructing
+  the exact Git base; never treat a missing worktree as permission to prune it.
 
 ### Agent use
 
@@ -55,6 +59,43 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 - Security fixes need tests where practical. If a security property cannot be tested locally, document the manual verification or runtime dependency.
 
 ### Security posture
+
+- Case lifecycle corrections are tracked in `docs/case-lifecycle-correction.md`.
+  Completed buyer handoff satisfies the Case-opening prerequisite, not a waiver
+  of its closing deadline. Pending-close participants with unavailable
+  counterparties must have a staff-review objection path; prior resolution marks
+  must not hide it or survive a pending-close escalation. Preserve exact result
+  validation, actor-bound replay, refund locks and unavailable-recipient denial.
+  The isolated draft needs compatible release acceptance; do not amend sealed
+  migrations or infer that uncommitted objections prevent seven-day auto-close.
+
+- Manual stock saves use `listingStockMutation.ts`: lock the owned Listing,
+  co-commit its exact request receipt in SystemAuditLog, and return saved results
+  on retry without repeating the delta. Never replace uncertain requests with
+  fresh IDs or remove in-window receipts. Existing in-stock quantity is saved
+  separately from listing content; only explicitly identified type conversion
+  may initialize/clear stock in that form. Preserve the versioned transport,
+  client restart state and retention bounds in
+  `docs/listing-stock-consistency-correction.md` when changing either table.
+
+- Label-cost reversal requests use the same `labelClawbackProvider.ts` boundary
+  in the purchase route, retry worker and ambiguous-label operator. Never change
+  metadata or mint a new key to evade Stripe idempotency conflicts. Automatic
+  replay requires an immutable purchase clock inside the 23-hour window; unknown
+  or late attempts retain manual reconciliation. Do not infer exact label identity
+  from historical Order/amount metadata. A failed local success acknowledgement
+  must not be written as provider failure. The isolated clock draft and pending
+  release proofs are recorded in `docs/order-label-clawback-replay-correction.md`.
+
+- Terminal Stripe seller-account closure uses the account-specific throwing
+  `expireCheckoutSessionsForClosedAccount` adapter, not the best-effort
+  vacation/listing sweeps. Both Checkout families write `sellerStripeAccountId`
+  metadata from their actual transfer destination. Closure must match seller
+  and account, reconcile ambiguous expiry before stock restoration, and keep
+  unresolved provider/database failures retryable. Bounded scan completion is
+  not a claim that all historical or future sessions are gone; legacy-session
+  handling and the scale trigger are recorded under ORD-A24 in
+  `docs/order-core-pre-rls-audit.md` and `docs/deferred-launch-backlog.md`.
 
 - Avoid false-confidence language. Say "verified in code", "covered by test", "manual dashboard check required", or "not proven" as appropriate.
 - Prefer defense-in-depth changes that reduce blast radius without creating launch risk: ownership checks, idempotency, bounded inputs, retention, privacy-safe logs, webhook replay handling, and explicit tests.
@@ -4533,7 +4574,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Email address normalization behavior**: durable user email writes, Clerk webhook primary email resolution, newsletter signup, unsubscribe tokens, email suppression writes/lookups, and account-deletion suppression keys all normalize addresses with trim + NFC + lowercase before persistence or signing. Do not reintroduce raw `.trim()`-only user email writes; otherwise NFD/NFC OAuth variants can split accounts or bypass suppression/unsubscribe state.
 - **Email plaintext rendering behavior**: HTML email bodies escape user content through `normalizeUserText()` before rendering. Plain-text fallbacks from `htmlToText()` must also strip decoded bidi, zero-width, and null characters after HTML entity decoding, because numeric entities like `&#x202E;` can otherwise reintroduce invisible spoofing controls into plaintext email. `htmlToText()` must remove `<head>`, `<style>`, `<script>`, and any decoded tags after entity decoding so escaped user text cannot reappear as raw-looking markup in plaintext emails.
 - **Message route/action account-state behavior**: message list/read/stream routes must verify current-user conversation participation before returning message rows. Message thread server actions that mutate thread state or send messages must reject banned/deleted local accounts inside the action, not only through middleware. Normal message-thread sends must re-load conversation participation, sender/counterparty account state, and reciprocal `Block` rows inside the same write transaction before any `tx.message.create`; notification/email side effects must use the recipient id returned by the committed transaction. Empty message submissions with no valid first-party attachments must return an error before conversation lookup/update work so forged posts cannot bump thread `updatedAt`. Thread headers and context cards should render public seller/listing links only when the counterpart/listing is still viewable; use `otherUnavailableReason`, `isSupportedStripeAccountVersion()`, and `canViewListingDetail()` instead of unconditional `publicSellerPath()` / `publicListingPath()` links. Non-critical custom-order/message email failures should be Sentry-captured with conversation/user IDs, not swallowed silently. Staff reported-thread review is read-only for custom-order creation; `ThreadMessages` must receive an explicit `canCreateCustomListings` gate when the viewer is not an ordinary buyer/seller participant. Seller-facing buyer labels in sales/custom-order surfaces should use `sellerFacingUserLabel()` so internal deleted-account placeholder emails never render to sellers.
-- **Case route/UI behavior**: case email/notification side effects, case-resolution audit logging, and refund-lock/orphaned-refund remediation updates are non-blocking, but they must not be silent. Capture failures to Sentry with bounded case/order/refund IDs and no buyer/seller email payloads. Buyer/seller case detail pages must derive escalation-button visibility from `caseEscalationAvailable()`, matching the API rule: `OPEN`/`IN_DISCUSSION` cases can escalate when the timer has unlocked, or immediately when the counterparty account is suspended/deleted/missing; `OPEN` cases must not show mark-resolved controls.
+- **Case route/UI behavior**: case email/notification side effects, case-resolution audit logging, and refund-lock/orphaned-refund remediation updates are non-blocking, but they must not be silent. Capture failures to Sentry with bounded case/order/refund IDs and no buyer/seller email payloads. Buyer/seller case detail pages must derive escalation-button visibility from `caseEscalationAvailable()`, matching the API rule: `OPEN`/`IN_DISCUSSION` cases can escalate when the timer has unlocked, or immediately when the counterparty account is suspended/deleted/missing. The isolated lifecycle correction extends immediate unavailable-counterparty relief to `PENDING_CLOSE`; available participants still object by replying. A prior resolution mark must not hide that relief. `OPEN` cases must not show mark-resolved controls. Preserve the compatible-reader and production release gates in `docs/case-lifecycle-correction.md`.
 - **Resend webhook config behavior**: `/api/resend/webhook` requires both `RESEND_WEBHOOK_SECRET` and `RESEND_API_KEY` through `resendWebhookConfig.ts`; do not restore the `"re_webhook_verify_only"` placeholder because it masks production config drift.
 - **Recently-viewed privacy behavior**: `rv` is a client-readable cookie and must be cleared on account deletion, explicit sign-out, signed-out auth transitions, and signed-in user switches. `RecentlyViewedAuthBoundary` owns the cross-redirect/user-switch cleanup using `RECENTLY_VIEWED_USER_STORAGE_KEY`; sign-out UI should call `clearSignedOutLocalAccountState()` before `signOut()` for immediate cleanup of recently viewed, anonymous cart, and cart session state.
 - **UI/runtime state behavior**: stock notification toggles should trust the server `subscribed` response via `stockNotificationState.ts`; review uploads should route through `reviewPhotoState.ts` so duplicate/capped/empty upload outcomes are visible, and locked review editors must render read-only and disable review-photo uploads because the server will reject changes after a seller reply; message stream preflight failures should be structured JSON and client fallback polling must stop on terminal 401/403/429 states instead of looping silently. `ActionForm` success/error events include `detail.formId`; message-thread refresh and composer clearing must filter to the message composer form id so unrelated forms on the page cannot clear drafts or trigger thread fetches.

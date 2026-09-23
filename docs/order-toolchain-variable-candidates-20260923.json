@@ -1,0 +1,18 @@
+{
+  "schema": "grainline-order-toolchain-variable-candidates-v1",
+  "sourcePinFile": "docs/order-handoff-toolchain-pins.json",
+  "retainedLinuxArchiveSha256": "d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307",
+  "retainedArchiveBytesMatchedPin": true,
+  "variables": {
+    "ORDER_ZERO_DIRECT_NODE_VERSION": "v22.23.2",
+    "ORDER_ZERO_DIRECT_NODE_SHA256": "3517c2df0b2f8cd7f422b4b8450ef81c6889f08eb03e281d6de9079b15e6a327",
+    "ORDER_ZERO_DIRECT_NPM_CLI_SHA256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "ORDER_ZERO_DIRECT_NPM_VERSION": "10.9.8"
+  },
+  "absoluteNpmCliVariableRequired": false,
+  "actualRunnerPlacementVerified": false,
+  "linuxExecutionProven": false,
+  "protectedVariablesInstalled": false,
+  "workflowActivated": false,
+  "productionExecutionAuthorized": false
+}

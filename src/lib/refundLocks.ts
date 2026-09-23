@@ -1,33 +1,9 @@
-import { prisma } from "@/lib/db";
-import { REFUND_LOCK_SENTINEL, refundLockCutoff } from "@/lib/refundLockState";
-
-export {
-  REFUND_AMBIGUOUS_SENTINEL,
-  REFUND_LOCK_SENTINEL,
-  REFUND_LOCK_STALE_MS,
-} from "@/lib/refundLockState";
-
-export async function releaseStaleRefundLocks(orderId?: string) {
-  const cutoff = refundLockCutoff();
-  return prisma.order.updateMany({
-    where: {
-      ...(orderId ? { id: orderId } : {}),
-      sellerRefundId: REFUND_LOCK_SENTINEL,
-      // Case resolution claims are explicit durable leases. They may only be
-      // retried or released by the fixed reconciliation authority, never by
-      // elapsed wall time.
-      caseResolutionClaimId: null,
-      // The provider call for a generation-fenced claim was authorized before
-      // control left PostgreSQL, so age alone cannot prove it had no effect.
-      refundClaimId: null,
-      OR: [
-        { sellerRefundLockedAt: null },
-        { sellerRefundLockedAt: { lt: cutoff } },
-      ],
-    },
-    data: {
-      sellerRefundId: null,
-      sellerRefundLockedAt: null,
-    },
-  });
-}
+/**
+ * Retired compatibility marker.
+ *
+ * Historical release verifiers intentionally pin this tracked path. The broad
+ * direct-Order cleanup implementation has moved to three source-specific fixed
+ * operations in orderLegacyRefundLockAuthority.ts; do not restore an Order
+ * delegate or raw relation query here.
+ */
+export {};
