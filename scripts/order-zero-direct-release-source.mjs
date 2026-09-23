@@ -31,7 +31,11 @@ export function createOrderZeroDirectSourceFence(directory, reviewedCommit) {
     assert.ok(!git(["config", "--name-only", "--list"]).split("\n").some(key => /^filter\./iu.test(key)));
     assert.equal(git(["rev-parse", "--show-object-format"]).trim(), "sha1");
     assert.equal(git(["rev-parse", "--verify", "HEAD"]).trim(), reviewedCommit);
-    assert.ok([`https://github.com/${REPOSITORY}.git`, `git@github.com:${REPOSITORY}.git`].includes(git(["remote", "get-url", "origin"]).trim()));
+    // actions/checkout uses the exact HTTPS URL without a .git suffix on the
+    // hosted runner. Both spellings identify this same repository; do not
+    // accept prefixes, redirects, credentials or lookalike hosts.
+    assert.ok([`https://github.com/${REPOSITORY}`, `https://github.com/${REPOSITORY}.git`,
+      `git@github.com:${REPOSITORY}.git`].includes(git(["remote", "get-url", "origin"]).trim()));
     assert.ok(git(["ls-files", "-v", "-z"]).split("\0").filter(Boolean).every(row => row.startsWith("H ")));
     assert.equal(git(["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"]), "");
   }
