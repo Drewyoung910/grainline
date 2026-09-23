@@ -126,6 +126,17 @@ export async function discoverOrderHandoffJob({context}){log({event:'job-discove
     write(".github/workflows/production-migrations.yml", "concurrency:\n  group: production-database-migrations\n  cancel-in-progress: false\n\njobs:\n");
   }
   if (options.workflow) write(".github/workflows/production-migrations.yml", fs.readFileSync(".github/workflows/production-migrations.yml", "utf8"));
+  if (options.bridgeTransport) {
+    // Keep the retired production bridge inspect-only. Its isolated fixture
+    // opts into execute mode solely to exercise socket handoff and teardown;
+    // real GitHub admission still rejects the historical workflow below.
+    const name = "scripts/order-handoff-supervisor.mjs";
+    const source = fs.readFileSync(path.join(directory, name), "utf8");
+    const anchor = "startOrderZeroDirectWorker({ directory: plan.directory, reviewed: plan.reviewed })";
+    assert.equal(source.split(anchor).length - 1, 1, "unique bridge fixture worker anchor");
+    write(name, source.replace(anchor,
+      'startOrderZeroDirectWorker({ directory: plan.directory, reviewed: plan.reviewed, mode: "execute" })'));
+  }
   const fakePg = `${helper}
 export default {Client:class {
 constructor(options){this.mutator=options.application_name==='grainline-order-prefix-grants';assert.equal(options.options,this.mutator?undefined:'-c default_transaction_read_only=on');log({event:'client-kind',mutator:this.mutator});}
@@ -394,7 +405,7 @@ function bridgeFixture(t, options = {}) {
       await bridgeDelay(50); fs.rmSync(item.channel, { recursive: true, force: true });
     }
   });
-  const f = fixture(t, options);
+  const f = fixture(t, { ...options, bridgeTransport: true });
   const env = { PATH: "/usr/bin:/bin", TZ: "UTC", LANG: "C", LC_ALL: "C", GITHUB_ACTIONS: "true",
     GITHUB_REPOSITORY: "Drewyoung910/grainline", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
     GITHUB_JOB: "migrate", GITHUB_WORKFLOW_REF: "Drewyoung910/grainline/.github/workflows/production-migrations.yml@refs/heads/main",
