@@ -5,15 +5,17 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { observeOrderZeroDirectProductionInvocationFromRunner } from "./order-zero-direct-production-invocation.mjs";
+import { npmCliFromNodeExecPath } from "./order-zero-direct-toolchain-preflight.mjs";
 
 const FAILURE = "Order read-only runner unavailable; no execution admission";
 const SHA256 = /^[a-f0-9]{64}$/u;
 const SHA = /^[a-f0-9]{40}$/u;
 const ID = /^[1-9][0-9]{0,15}$/u;
 
-export function parseOrderZeroDirectRunnerInputs(env, directory) {
+export function parseOrderZeroDirectRunnerInputs(env, directory, execPath = process.execPath) {
   try {
     assert.ok(env && path.isAbsolute(directory) && path.resolve(directory) === directory);
+    assert.ok(!("ORDER_NPM_CLI" in env));
     assert.equal(env.ORDER_CONFIRMATION, "inspect-reviewed-order-zero-direct-from-main");
     assert.match(env.ORDER_RELEASE_COMMIT, SHA);
     assert.equal(env.ORDER_RELEASE_COMMIT, env.GITHUB_SHA);
@@ -27,7 +29,7 @@ export function parseOrderZeroDirectRunnerInputs(env, directory) {
     }
     assert.match(env.ORDER_NODE_VERSION, /^v22\.\d+\.\d+$/u);
     assert.match(env.ORDER_NPM_VERSION, /^\d+\.\d+\.\d+$/u);
-    assert.ok(path.isAbsolute(env.ORDER_NPM_CLI) && path.basename(env.ORDER_NPM_CLI) === "npm-cli.js");
+    const npmCli = npmCliFromNodeExecPath(execPath);
     assert.ok(typeof env.GITHUB_TOKEN === "string" && env.GITHUB_TOKEN.length > 0);
     assert.ok(typeof env.PRODUCTION_MIGRATION_DIRECT_URL === "string"
       && env.PRODUCTION_MIGRATION_DIRECT_URL.length > 0);
@@ -37,7 +39,7 @@ export function parseOrderZeroDirectRunnerInputs(env, directory) {
         sourceCatalogSha256: env.ORDER_SOURCE_CATALOG_SHA256,
         sourceFenceSha256: env.ORDER_SOURCE_FENCE_SHA256,
         nodeSha256: env.ORDER_NODE_SHA256, nodeVersion: env.ORDER_NODE_VERSION,
-        npmCli: env.ORDER_NPM_CLI, npmCliSha256: env.ORDER_NPM_CLI_SHA256,
+        npmCli, npmCliSha256: env.ORDER_NPM_CLI_SHA256,
         npmVersion: env.ORDER_NPM_VERSION },
       ci: { ciRunId: env.ORDER_MAIN_CI_RUN_ID, ciRunAttempt: env.ORDER_MAIN_CI_RUN_ATTEMPT },
       githubToken: env.GITHUB_TOKEN, ownerUrl: env.PRODUCTION_MIGRATION_DIRECT_URL,

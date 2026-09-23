@@ -26,7 +26,7 @@ test("credential-free preflight accepts only matching reviewed Node/npm bytes an
     fs.writeFileSync(npmPackage, JSON.stringify({ name: "npm", version: "10.9.8" }));
     const env = {
       GITHUB_SHA: "a".repeat(40), ORDER_NODE_VERSION: "v22.23.2",
-      ORDER_NODE_SHA256: digest(nodeBytes), ORDER_NPM_CLI: npmCli,
+      ORDER_NODE_SHA256: digest(nodeBytes),
       ORDER_NPM_CLI_SHA256: digest(npmBytes), ORDER_NPM_VERSION: "10.9.8",
     };
     const check = input => preflightOrderZeroDirectToolchain({
@@ -37,7 +37,7 @@ test("credential-free preflight accepts only matching reviewed Node/npm bytes an
       { ORDER_NODE_SHA256: "0".repeat(64) },
       { ORDER_NPM_CLI_SHA256: "0".repeat(64) },
       { ORDER_NPM_VERSION: "10.9.7" },
-      { ORDER_NPM_CLI: "relative/npm-cli.js" },
+      { ORDER_NPM_CLI: "/unreviewed/npm-cli.js" },
       { GITHUB_TOKEN: "fixture-secret" },
       { PRODUCTION_MIGRATION_DIRECT_URL: "fixture-owner-url" },
     ]) assert.throws(() => check(change), /preflight unavailable; no execution admission/u);

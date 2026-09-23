@@ -24,11 +24,22 @@ function digestRegularFile(file, limit) {
   } finally { fs.closeSync(fd); }
 }
 
+// setup-node selects the installation at runner time. Derive the npm CLI from
+// that exact Node installation instead of trusting an operator-supplied
+// absolute runner path; the file's independently reviewed digest is still
+// required below and again inside the persistent worker.
+export function npmCliFromNodeExecPath(execPath) {
+  assert.ok(path.isAbsolute(execPath) && path.basename(execPath) === "node");
+  return path.join(path.dirname(path.dirname(execPath)),
+    "lib", "node_modules", "npm", "bin", "npm-cli.js");
+}
+
 export function preflightOrderZeroDirectToolchain({ env, execPath = process.execPath,
   nodeVersion = process.version }) {
   try {
     assert.ok(env && !("PRODUCTION_MIGRATION_DIRECT_URL" in env)
-      && !("GITHUB_TOKEN" in env) && !("GH_TOKEN" in env));
+      && !("GITHUB_TOKEN" in env) && !("GH_TOKEN" in env)
+      && !("ORDER_NPM_CLI" in env));
     assert.match(env.GITHUB_SHA, /^[a-f0-9]{40}$/u);
     assert.match(env.ORDER_NODE_VERSION, /^v22\.\d+\.\d+$/u);
     assert.match(env.ORDER_NPM_VERSION, /^\d+\.\d+\.\d+$/u);
@@ -36,8 +47,7 @@ export function preflightOrderZeroDirectToolchain({ env, execPath = process.exec
     for (const key of ["ORDER_NODE_SHA256", "ORDER_NPM_CLI_SHA256"]) assert.match(env[key], SHA256);
     assert.ok(path.isAbsolute(execPath));
     assert.equal(digestRegularFile(execPath, 256 * 1024 * 1024).hash, env.ORDER_NODE_SHA256);
-    const npmCli = env.ORDER_NPM_CLI;
-    assert.ok(path.isAbsolute(npmCli) && path.basename(npmCli) === "npm-cli.js");
+    const npmCli = npmCliFromNodeExecPath(execPath);
     assert.equal(digestRegularFile(npmCli, 1024 * 1024).hash, env.ORDER_NPM_CLI_SHA256);
     const npmPackage = path.join(path.dirname(path.dirname(npmCli)), "package.json");
     const npm = JSON.parse(digestRegularFile(npmPackage, 1024 * 1024).bytes.toString("utf8"));

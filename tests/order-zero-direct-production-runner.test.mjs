@@ -15,7 +15,7 @@ const env = { GITHUB_SHA: releaseCommit, ORDER_RELEASE_COMMIT: releaseCommit,
   ORDER_SOURCE_CATALOG_SHA256: "b".repeat(64), ORDER_SOURCE_FENCE_SHA256: "c".repeat(64),
   ORDER_NODE_SHA256: "d".repeat(64), ORDER_NPM_CLI_SHA256: "e".repeat(64),
   ORDER_NODE_VERSION: "v22.16.0", ORDER_NPM_VERSION: "10.9.2",
-  ORDER_NPM_CLI: "/fixture/npm-cli.js", ORDER_MAIN_CI_RUN_ID: "123",
+  ORDER_MAIN_CI_RUN_ID: "123",
   ORDER_MAIN_CI_RUN_ATTEMPT: "1", GITHUB_TOKEN: "fixture-private-token",
   PRODUCTION_MIGRATION_DIRECT_URL: ownerUrl,
   PRODUCTION_MIGRATION_DIRECT_URL_SHA256: createHash("sha256").update(ownerUrl).digest("hex") };
@@ -41,7 +41,7 @@ test("production workflow wires the read-only runner behind an unreachable job",
   assert.ok(preflight > 0 && inspect > preflight);
   const preflightStep = workflow.slice(workflow.lastIndexOf("      - name:", preflight), inspect);
   assert.doesNotMatch(preflightStep, /secrets\.|github\.token|PRODUCTION_MIGRATION_DIRECT_URL/u);
-  for (const key of ["NODE_VERSION", "NODE_SHA256", "NPM_CLI", "NPM_CLI_SHA256", "NPM_VERSION"]) {
+  for (const key of ["NODE_VERSION", "NODE_SHA256", "NPM_CLI_SHA256", "NPM_VERSION"]) {
     assert.match(preflightStep, new RegExp(`vars\\.ORDER_ZERO_DIRECT_${key}`, "u"));
   }
   assert.match(workflow, /node scripts\/order-zero-direct-production-runner\.mjs/u);
@@ -50,11 +50,12 @@ test("production workflow wires the read-only runner behind an unreachable job",
 });
 
 test("read-only runner maps only explicit reviewed source, toolchain, CI and owner inputs", () => {
-  const parsed = parseOrderZeroDirectRunnerInputs(env, directory);
+  const parsed = parseOrderZeroDirectRunnerInputs(env, directory, "/fixture/bin/node");
   assert.deepEqual(Object.keys(parsed.reviewed).sort(), ["nodeSha256", "nodeVersion",
     "npmCli", "npmCliSha256", "npmVersion", "releaseCommit", "sourceCatalogSha256",
     "sourceFenceSha256"]);
   assert.equal(parsed.reviewed.releaseCommit, releaseCommit);
+  assert.equal(parsed.reviewed.npmCli, "/fixture/lib/node_modules/npm/bin/npm-cli.js");
   assert.equal(parsed.ci.ciRunId, "123");
   assert.equal(parsed.ownerUrl, ownerUrl);
   assert.equal(parsed.githubToken, "fixture-private-token");
@@ -68,7 +69,7 @@ test("missing or drifted reviewed inputs fail before the observer", async () => 
     { ORDER_RELEASE_COMMIT: "f".repeat(40) },
     { ORDER_SOURCE_CATALOG_SHA256: "wrong" },
     { ORDER_MAIN_CI_RUN_ID: "0" },
-    { ORDER_NPM_CLI: "relative/npm-cli.js" },
+    { ORDER_NPM_CLI: "/unreviewed/npm-cli.js" },
     { GITHUB_TOKEN: "" },
     { PRODUCTION_MIGRATION_DIRECT_URL: "" },
   ]) await assert.rejects(runOrderZeroDirectReadOnlyRunner({ env: { ...env, ...bad },

@@ -62,7 +62,6 @@ jobs:
         env:
           ORDER_NODE_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NODE_VERSION }}
           ORDER_NODE_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NODE_SHA256 }}
-          ORDER_NPM_CLI: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI }}
           ORDER_NPM_CLI_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI_SHA256 }}
           ORDER_NPM_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NPM_VERSION }}
       - name: Inspect exact Order prefix read-only
@@ -77,7 +76,6 @@ jobs:
           ORDER_SOURCE_FENCE_SHA256: ${{ inputs.source_fence_sha256 }}
           ORDER_NODE_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NODE_VERSION }}
           ORDER_NODE_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NODE_SHA256 }}
-          ORDER_NPM_CLI: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI }}
           ORDER_NPM_CLI_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI_SHA256 }}
           ORDER_NPM_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NPM_VERSION }}
           PRODUCTION_MIGRATION_DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
