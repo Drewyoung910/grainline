@@ -79,6 +79,7 @@ export const REQUIRED_ALIASES = Object.freeze([
   "grainline.vercel.app",
   "www.thegrainline.com",
   "grainline-drew-youngs-projects.vercel.app",
+  "grainline-git-main-drew-youngs-projects.vercel.app",
 ]);
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 export const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
