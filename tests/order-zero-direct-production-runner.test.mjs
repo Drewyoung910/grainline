@@ -36,6 +36,14 @@ test("production workflow wires the read-only runner behind an unreachable job",
   assert.equal(pins.toolchain.nodeVersion, "v22.23.2");
   assert.equal(pins.runner.actualRunnerIdentityVerified, false);
   assert.equal(pins.toolchain.linuxExecutionProven, false);
+  const preflight = workflow.indexOf("run: node scripts/order-zero-direct-toolchain-preflight.mjs");
+  const inspect = workflow.indexOf("run: node scripts/order-zero-direct-production-runner.mjs");
+  assert.ok(preflight > 0 && inspect > preflight);
+  const preflightStep = workflow.slice(workflow.lastIndexOf("      - name:", preflight), inspect);
+  assert.doesNotMatch(preflightStep, /secrets\.|github\.token|PRODUCTION_MIGRATION_DIRECT_URL/u);
+  for (const key of ["NODE_VERSION", "NODE_SHA256", "NPM_CLI", "NPM_CLI_SHA256", "NPM_VERSION"]) {
+    assert.match(preflightStep, new RegExp(`vars\\.ORDER_ZERO_DIRECT_${key}`, "u"));
+  }
   assert.match(workflow, /node scripts\/order-zero-direct-production-runner\.mjs/u);
   assert.match(workflow, /PRODUCTION_MIGRATION_DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/u);
   assert.doesNotMatch(workflow, /(?:migrate deploy|execute-admitted|order-zero-direct-execution-admitted)/u);

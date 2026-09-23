@@ -57,6 +57,14 @@ jobs:
           check-latest: false
           package-manager-cache: false
           token: ''
+      - name: Verify reviewed toolchain before protected credential
+        run: node scripts/order-zero-direct-toolchain-preflight.mjs
+        env:
+          ORDER_NODE_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NODE_VERSION }}
+          ORDER_NODE_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NODE_SHA256 }}
+          ORDER_NPM_CLI: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI }}
+          ORDER_NPM_CLI_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI_SHA256 }}
+          ORDER_NPM_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NPM_VERSION }}
       - name: Inspect exact Order prefix read-only
         run: node scripts/order-zero-direct-production-runner.mjs
         env:
