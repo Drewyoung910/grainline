@@ -12,7 +12,11 @@ runner name. The existing admission observer then rechecks that exact ID and
 the running workflow twice before each scope operation. Malformed, ambiguous,
 completed or mismatched responses fail before the worker starts; provider
 response bodies are not exposed. This solves job-ID binding without a
-caller-supplied dispatch input. No workflow or CLI calls the adapter yet.
+caller-supplied dispatch input. The source-only
+`order-zero-direct-production-runner.mjs` CLI maps explicit reviewed source,
+toolchain, CI and owner inputs into this adapter and emits only a bounded
+read-only summary. Its errors are sanitized. The disabled workflow does not
+call the CLI, and no production job has supplied these inputs.
 
 The next source slice separates Order from the historical
 `production-migrations.yml` workflow. The live admission observer now requires
@@ -26,8 +30,9 @@ no release command. It cannot run a production migration.
 dispatched main job, exact source/CI/job attempt, and protected owner URL digest
 before creating a worker. It composes only `prepare`, `load`, `inspect`, and
 `revalidate` in one worker lifetime, closes the worker on success or failure,
-and returns only a bounded prefix/obligation summary. It exposes no CLI,
-provider mutation, migration execution, or production authorization. The
+and returns only a bounded prefix/obligation summary. The separate dormant
+CLI exposes no provider mutation, migration execution or production
+authorization. The
 GitHub API admission observer and worker source fence remain separate checks;
 caller-supplied environment fields alone do not prove job authenticity.
 
@@ -35,7 +40,7 @@ The focused tests exercise legacy-workflow denial, pre-worker context/digest
 failure, read-only operation order, scope drift and cleanup. No live main CI,
 production database, provider or authenticated application proof follows from
 these fixture tests. The next separately reviewed change must supply the
-operator/job wiring, current incident acceptance and protected inputs before
+disabled-job wiring, current incident acceptance and protected inputs before
 lifting the workflow's disabled gate. The dormant admitted executor remains
 private and unreachable from this wrapper. Core Order RLS remains OFF.
 
