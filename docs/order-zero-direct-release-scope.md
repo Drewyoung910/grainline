@@ -19,6 +19,17 @@ phrase and emits only a bounded read-only summary. Its errors are sanitized.
 The disabled workflow contains the proposed call, but no production job has
 supplied these inputs or executed the CLI.
 
+The dormant job pins Ubuntu 24.04, reviewed checkout/setup-node action
+commits, and Node 22.23.2 x64 without a package-manager cache or latest-version
+lookup. Its preflight step receives no owner credential or explicit GitHub
+token; it checks the five reviewed Node/npm inputs against local executable,
+CLI and package bytes and version before the later inspection step receives
+the protected owner credential. The worker independently checks its own
+toolchain and source fence. The existing vendor-byte record does not prove
+actual hosted-runner placement or Linux execution, and the required protected Order toolchain
+variables are not installed. The job stays disabled until those boundaries
+and the separate release gates are accepted.
+
 The current source slice separates Order from the historical
 `production-migrations.yml` workflow. The live admission observer now requires
 the exact future `order-zero-direct-production.yml` workflow and its named job;
