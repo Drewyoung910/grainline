@@ -33,7 +33,7 @@ test("historical migration workflow cannot admit an Order invocation", () => {
   const source = fs.readFileSync(".github/workflows/order-zero-direct-production.yml", "utf8");
   assert.match(source, /^  group: production-database-migrations$/mu);
   assert.match(source, /^  cancel-in-progress: false$/mu);
-  assert.match(source, /^    if: false$/mu);
+  assert.match(source, /^    if: \$\{\{ github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && inputs\.confirmation == 'inspect-reviewed-order-zero-direct-from-main' \}\}$/mu);
   assert.doesNotMatch(source, /(?:migrate deploy|execute-admitted|order-zero-direct-execution-admitted)/u);
 });
 
