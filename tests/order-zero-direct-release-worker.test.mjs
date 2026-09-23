@@ -475,26 +475,17 @@ test("bridge process kills in-flight work on client disconnect or duplicate hand
     assert.ok(!f.events().some(e => e.event === "admitted-fixture"));
   }
 });
-test("bridge process bounds actual GitHub collector requests and fails on quota without retry", async t => {
-  for (const quotaAfter of [undefined, 5]) {
-    const f = bridgeFixture(t, { realGithub: true }), ready = await f.launch();
-    f.change({ requestDelayMs: 5, ...(quotaAfter === undefined ? {} : { quotaAfter }) });
-    const started = Date.now();
-    if (quotaAfter === undefined) await f.handoff(ready); else await assert.rejects(f.handoff(ready));
-    const requests = f.events().filter(e => e.event === "github-get").map(e => e.resource);
-    assert.ok(requests[0].endsWith('/attempts/1/jobs'));
-    const ci = ['git/ref/heads/main', 'actions/runs/456', 'git/ref/heads/main', 'actions/runs/456'];
-    assert.deepEqual(requests.slice(1,5),ci);
-    if (quotaAfter === undefined) {
-      assert.ok(requests.length > 5 && (requests.length - 5) % 12 === 0);
-      const admission = [`actions/runs/${f.payload.admission.runId}`, 'actions/jobs/123', `actions/runs/${f.payload.admission.runId}`, 'actions/jobs/123'];
-      for (let i=5;i<requests.length;i+=12) assert.deepEqual(requests.slice(i,i+12), [...admission,...ci,...admission]);
-      t.diagnostic(JSON.stringify({ fixtureOnly:true, requestCount:requests.length, admissionObservations:(requests.length-5)/12, elapsedMs:Date.now()-started, simulatedLatencyMs:5 }));
-    } else {
-      assert.equal(requests.length,6); assert.ok(!f.events().some(e=>e.event==='connect'));
-      assert.equal((await bridgeWaitResult(ready)).outcome,'failed');
-    }
-  }
+test("historical migration workflow cannot satisfy real Order admission", async t => {
+  const f = bridgeFixture(t, { realGithub: true }), ready = await f.launch();
+  f.change({ requestDelayMs: 5 });
+  await assert.rejects(f.handoff(ready));
+  const requests = f.events().filter(e => e.event === "github-get").map(e => e.resource);
+  assert.ok(requests[0].endsWith('/attempts/1/jobs'));
+  assert.deepEqual(requests.slice(1), [
+    'git/ref/heads/main', 'actions/runs/456', 'git/ref/heads/main', 'actions/runs/456',
+  ]);
+  assert.ok(!f.events().some(e=>e.event==='connect'));
+  assert.equal((await bridgeWaitResult(ready)).outcome,'failed');
 });
 test("bridge process refuses source or endpoint drift and retains exportable evidence after supervisor loss", async t => {
   for (const reason of ["source", "endpoint", "supervisor"]) {
@@ -564,17 +555,15 @@ function workflowFixture(t, options={}) {
   return{...f,step,control:()=>control,ready:()=>owned,
     exported:()=>{const file=path.join(control,'evidence/manifest.json');return fs.existsSync(file)?JSON.parse(fs.readFileSync(file)):null;}};
 }
-test('workflow steps publish preparation locator and execute through the same worker without secret preparation',async t=>{
+test('historical workflow prepares without secrets but cannot execute Order after admission separation',async t=>{
   const f=workflowFixture(t);assert.equal((await f.step('prepare')).code,0);
   const ready=f.ready();assert.ok(ready.supervisorPid&&ready.workerPid);assert.deepEqual(f.events().map(e=>e.event),['install']);
-  assert.equal((await f.step('execute')).code,0);
-  const result=JSON.parse(fs.readFileSync(path.join(ready.channel,'result.json')));assert.equal(result.outcome,'passed');assert.equal(result.workerPid,ready.workerPid);
-  assert.ok(f.events().filter(e=>e.event==='connect').every(e=>e.pid===ready.workerPid));
-  // The modeled executor produces no native selected artifact. The collector
-  // retains safe status as incomplete and must not allow workflow success.
-  assert.notEqual((await f.step('evidence')).code,0);assert.equal(f.exported()?.outcome,'incomplete');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(f.control(),'evidence/binding.json'))).artifactComplete,false);
-  t.diagnostic(JSON.stringify({fixtureOnly:true,sameWorkerHandoff:true,missingNativeArtifactCannotPass:true}));
+  assert.notEqual((await f.step('execute')).code,0);
+  const result=JSON.parse(fs.readFileSync(path.join(ready.channel,'result.json')));assert.equal(result.outcome,'failed');
+  assert.equal(result.workerPid,ready.workerPid);
+  assert.ok(!f.events().some(e=>e.event==='connect'));
+  assert.notEqual((await f.step('evidence')).code,0);assert.equal(f.exported()?.outcome,'failed');
+  t.diagnostic(JSON.stringify({fixtureOnly:true,historicalWorkflowDenied:true,noDatabaseConnection:true}));
 });
 test('workflow steps retain preparation failure locator and export bounded failed evidence',async t=>{
   const f=workflowFixture(t,{missingEngine:true});const prepare=await f.step('prepare');assert.notEqual(prepare.code,0);assert.ok(f.ready()?.channel);
