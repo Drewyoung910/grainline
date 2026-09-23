@@ -1,5 +1,43 @@
 # Order RLS completion plan — 2026-09-07
 
+## September 23 release-path correction
+
+The source candidate and authenticated-smoke correction have since merged to
+main `e83c3d40a4c405274442ea1a7c6f7b52b35a36d4`, with successful
+merged-main CI `35905182475`. Production still serves the older `c2db1860`
+application; the 17-member zero-direct compatible prefix, matching app,
+Order ENABLE and FORCE are not live. The current short execution queue is the
+private `RELEASE-ACTION-QUEUE-20260923.md` in the Order recovery checkpoint.
+The older dated status and exit gates below remain useful history, but are
+not a current claim that source integration is unfinished.
+
+The next actionable boundary is to enable and run the existing **read-only**
+Order production-scope inspection under exact-main/protected-owner admission.
+Its workflow is currently `if: false`, four non-secret protected Node/npm
+variables are absent, and the job has no migration command. Separately, the
+worker contains a dormant admitted prefix executor, but no public production
+workflow caller reaches it. These are missing release implementations; another
+unchanged-source CI run or replacement-key reminder cannot apply the prefix.
+
+The compatible prefix itself is additive and preserves Order RLS OFF and
+predecessor direct CRUD. An exact production scope read, a distinct guarded
+mutation caller, and a reviewed credential/security admission must precede
+applying it. The broad September 2 incident runbook still requires full
+incident closure before Order RLS activation. For a possible earlier additive
+prefix release, decide explicitly whether Order-relevant containment is enough;
+do not silently treat OpenAI/Sentry rotation as a database dependency or waive
+their separate incident work. Stripe/Upstash are direct inputs to authenticated
+Order smoke, while old immutable deployments reachable with Vercel bypass keys
+must be contained before predecessor drain and direct-grant removal.
+
+After a compatible prefix, deploy the matching zero-direct app and run fresh
+authenticated smoke against *that* deployment before promotion/drain. The
+current smoke successor is pinned to the older serving app and cannot certify
+a new deployment without exact rebinding. Only then admit Order ENABLE with
+direct-grant revocation and actual-runtime proof, followed by separate FORCE
+and owner/runtime postflights. OrderItem and OrderShippingRateQuote remain
+separate releases. No step in this correction authorizes production mutation.
+
 ## Scope and current decision
 
 Finish the current Order candidate, not another RLS domain. The isolated
