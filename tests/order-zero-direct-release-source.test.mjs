@@ -36,6 +36,18 @@ test("real Git checkout binds every tracked file without claiming loaded code, d
   assert.throws(() => createOrderZeroDirectSourceFence(f.directory, f.head).verify(handle));
 });
 
+test("hosted checkout's exact HTTPS origin without .git is admitted; lookalikes are rejected", t => {
+  const f = fixture(t);
+  f.git("remote", "set-url", "origin", "https://github.com/Drewyoung910/grainline");
+  const handle = f.fence.capture();
+  assert.equal(f.fence.verify(handle), handle);
+  for (const url of ["https://github.com/Drewyoung910/grainline-evil",
+    "https://github.com/Drewyoung910/grainline/", "https://github.com@evil.invalid/Drewyoung910/grainline"]) {
+    f.git("remote", "set-url", "origin", url);
+    assert.throws(() => f.fence.capture());
+  }
+});
+
 test("transitive source edits, staged edits and untracked files fail", t => {
   const f = fixture(t); const handle = f.fence.capture(); const bytes = fs.readFileSync(f.file);
   fs.appendFileSync(f.file, "// drift"); assert.throws(() => f.fence.verify(handle));
