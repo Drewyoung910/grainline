@@ -1,4 +1,4 @@
-name: Order zero-direct production scope (disabled)
+name: Order zero-direct production scope (read-only)
 
 on:
   workflow_dispatch:
@@ -39,9 +39,10 @@ concurrency:
 jobs:
   inspect_order_zero_direct:
     name: Inspect Order zero-direct production scope
-    # Deliberately unreachable until a separate release reviews protected
-    # toolchain inputs, credential incidents and production admission.
-    if: false
+    # This manual job can only inspect scope. Production branch policy and a
+    # required environment reviewer guard the owner credential. Prefix
+    # execution has no workflow caller and requires a separate release.
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirmation == 'inspect-reviewed-order-zero-direct-from-main' }}
     runs-on: ubuntu-24.04
     environment: Production
     timeout-minutes: 35

@@ -1,5 +1,17 @@
 # Order compatibility prefix: dormant release scope
 
+September 23 operational status: source is on main `e83c3d40` and full
+merged-main CI passed. The public-main workflow remains disabled and read-only.
+Its four non-secret Production toolchain variables were absent at the initial
+environment read and are now installed at the reviewed pin values. The
+worker's fixed admitted `executePrefix` IPC is dormant:
+`order-zero-direct-production-invocation.mjs` calls only prepare/load/inspect/
+revalidate, and the workflow has no execution step. Thus the next work is
+read-only scope admission followed by a separately reviewed production
+execution caller, not more component proof. The prefix still preserves Order
+RLS OFF and predecessor CRUD. Refer to the September 23 release-path correction
+in `order-rls-completion-plan-20260907.md` before using dated sections below.
+
 Current source behavior is recorded in [Dormant invocation contract](#dormant-invocation-contract--september-22).
 The earlier dated sections retain component history and superseded remaining-work notes.
 

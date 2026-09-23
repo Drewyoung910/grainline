@@ -21,10 +21,10 @@ const env = { GITHUB_SHA: releaseCommit, ORDER_RELEASE_COMMIT: releaseCommit,
   PRODUCTION_MIGRATION_DIRECT_URL_SHA256: createHash("sha256").update(ownerUrl).digest("hex") };
 const directory = "/fixture/clean-checkout";
 
-test("production workflow wires the read-only runner behind an unreachable job", () => {
+test("production workflow wires only the guarded read-only runner", () => {
   const workflow = fs.readFileSync(".github/workflows/order-zero-direct-production.yml", "utf8");
   const pins = JSON.parse(fs.readFileSync("docs/order-handoff-toolchain-pins.json", "utf8"));
-  assert.match(workflow, /^    if: false$/mu);
+  assert.match(workflow, /^    if: \$\{\{ github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && inputs\.confirmation == 'inspect-reviewed-order-zero-direct-from-main' \}\}$/mu);
   assert.match(workflow, /^    runs-on: ubuntu-24\.04$/mu);
   assert.match(workflow, new RegExp(`actions/checkout@${pins.actions.checkout.commit}`, "u"));
   assert.match(workflow, new RegExp(`actions/setup-node@${pins.actions["setup-node"].commit}`, "u"));
