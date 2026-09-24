@@ -322,8 +322,8 @@ export function parseVercelDeployment(raw, binding = RELEASE_BINDING) {
     || !Array.isArray(aliases)
     || (!exact.targetOrigin && aliases.length === 0)
     || aliases.some(alias => typeof alias !== "string")
-    || (exact.targetOrigin && REQUIRED_ALIASES.some(alias =>
-      aliases.includes(alias) !== (alias === exact.stagedAttachedAlias)))
+    || (exact.targetOrigin && (aliases.length !== Number(Boolean(exact.stagedAttachedAlias))
+      || aliases.some(alias => alias !== exact.stagedAttachedAlias)))
   ) {
     throw new Error("authenticated Order smoke deployment binding drifted");
   }

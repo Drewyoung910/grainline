@@ -24,7 +24,9 @@ own clean main commit and CI, the candidate application commit and CI, the
 candidate's exact project/team/source/READY Production metadata and immutable
 URL, and each canonical alias resolving to the pinned predecessor except the
 explicitly bound project alias, which must resolve to the candidate. The
-candidate may not hold any other canonical alias. Health, the deployment
+candidate deployment metadata must contain no other alias at all; an
+unexpected alias requires a new reviewed binding before any fixture runs.
+Health, the deployment
 marker, and authenticated API calls go to the immutable URL with the pinned
 bypass header; POST `Origin` is that same URL because the app's origin guard
 compares it with the request URL. Configured application redirects still point

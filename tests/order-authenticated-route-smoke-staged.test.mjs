@@ -64,6 +64,7 @@ test("staged deployment requires exact READY source and unpromoted aliases", () 
   for (const change of [
     { url: "grainline-other.vercel.app" },
     { aliases: [REQUIRED_ALIASES[0]] },
+    { aliases: ["unexpected-public-alias.example"] },
     { meta: { githubCommitSha: "b".repeat(40) } },
     { readyState: "BUILDING" },
   ]) assert.throws(() => parseVercelDeployment({ ...candidate, ...change }, binding));
@@ -84,6 +85,8 @@ test("staged deployment binds Vercel's observed project alias move exactly", () 
   assert.throws(() => parseVercelDeployment(withAlias, binding));
   assert.throws(() => parseVercelDeployment({ ...withAlias,
     aliases: [STAGED_PROJECT_ALIAS, REQUIRED_ALIASES[0]] }, attached));
+  assert.throws(() => parseVercelDeployment({ ...withAlias,
+    aliases: [STAGED_PROJECT_ALIAS, "unexpected-public-alias.example"] }, attached));
   for (const alias of REQUIRED_ALIASES) {
     const expected = alias === STAGED_PROJECT_ALIAS
       ? binding.deploymentId : binding.predecessorDeploymentId;
