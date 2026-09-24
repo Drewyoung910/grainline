@@ -1,12 +1,40 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-09-02
+Last updated: 2026-09-24
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
 For a plain-English map of RLS operators, deploy phases, common fail-closed
 errors, evidence locations, and safe operation without agent context, read
 `docs/rls-operator-guide.md` before preparing or dispatching an RLS migration.
+
+Core `Order` RLS actual-runtime postflight (prepared, not yet activated):
+
+- Run separately after a reviewed policyless Core `Order` ENABLE migration, and
+  again after its separate FORCE migration. First accept the exact main commit,
+  same-commit CI, corresponding guarded migration run, and production scope.
+  Do not substitute this proof for staged application smoke or predecessor drain.
+- Use only the locally available pooled Production `DATABASE_URL` for
+  `grainline_app_runtime`. Keep owner/direct URLs, staff URL, and other
+  PostgreSQL URLs absent from the process environment. Run from the exact clean
+  main commit named by `ORDER_CORE_RLS_POSTFLIGHT_RELEASE_COMMIT`.
+- Set `ORDER_CORE_RLS_POSTFLIGHT_PHASE` to `enable` or `force`,
+  `ORDER_CORE_RLS_POSTFLIGHT_CONFIRM` to
+  `verify-production-order-core-rls-runtime-read-only`, and supply positive
+  `ORDER_CORE_RLS_POSTFLIGHT_MAIN_CI_RUN_ID` and
+  `ORDER_CORE_RLS_POSTFLIGHT_MIGRATION_RUN_ID`. Independently check both run
+  IDs against the release; the operator records them but does not query GitHub.
+  Set `ORDER_CORE_RLS_POSTFLIGHT_EVIDENCE_PATH` to a fresh private path named
+  `order-core-rls-<phase>-postflight-<exact-commit>.json`, then run
+  `npm run ops:order-core-rls-postflight`.
+- The operator opens a repeatable-read read-only transaction as the actual
+  pooled runtime, requires policyless ENABLE and the selected FORCE posture,
+  zero direct `Order` authority, unchanged child tables, and the six staff
+  functions withheld from ordinary runtime. It proves a zero-row direct
+  `SELECT` is denied with SQLSTATE `42501`, rolls back, and writes sanitized
+  mode-`0600` evidence. It does not apply migrations or alter production.
+  No protected GitHub workflow invokes it; adding one would require a separate
+  reviewed runtime credential boundary.
 
 Vercel staged Production deployment note: do not treat `vercel deploy --prod
 --skip-domain` as proof that the new deployment has no aliases. During the
