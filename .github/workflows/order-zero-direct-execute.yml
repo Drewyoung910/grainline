@@ -1,0 +1,83 @@
+name: Order zero-direct compatible prefix (protected)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full CI run for the exact main commit
+        required: true
+        type: string
+      main_ci_run_attempt:
+        description: Exact successful CI run attempt
+        required: true
+        type: string
+      source_catalog_sha256:
+        description: Reviewed tracked-source catalog digest
+        required: true
+        type: string
+      source_fence_sha256:
+        description: Reviewed source-fence file digest
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-zero-direct-prefix-from-main
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  execute_order_zero_direct:
+    name: Execute reviewed Order zero-direct prefix
+    # This distinct manual job applies only the fixed compatible prefix.
+    # Required Production review and main-only policy guard the owner credential.
+    # Core Order ENABLE/FORCE and application deployment are outside this job.
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirmation == 'apply-reviewed-order-zero-direct-prefix-from-main' }}
+    runs-on: ubuntu-24.04
+    environment: Production
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ''
+      - name: Verify reviewed toolchain before protected credential
+        run: node scripts/order-zero-direct-toolchain-preflight.mjs
+        env:
+          ORDER_NODE_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NODE_VERSION }}
+          ORDER_NODE_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NODE_SHA256 }}
+          ORDER_NPM_CLI_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI_SHA256 }}
+          ORDER_NPM_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NPM_VERSION }}
+      - name: Apply exact reviewed Order compatible prefix
+        run: node scripts/order-zero-direct-production-execute-runner.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ORDER_CONFIRMATION: ${{ inputs.confirmation }}
+          ORDER_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          ORDER_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          ORDER_MAIN_CI_RUN_ATTEMPT: ${{ inputs.main_ci_run_attempt }}
+          ORDER_SOURCE_CATALOG_SHA256: ${{ inputs.source_catalog_sha256 }}
+          ORDER_SOURCE_FENCE_SHA256: ${{ inputs.source_fence_sha256 }}
+          ORDER_NODE_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NODE_VERSION }}
+          ORDER_NODE_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NODE_SHA256 }}
+          ORDER_NPM_CLI_SHA256: ${{ vars.ORDER_ZERO_DIRECT_NPM_CLI_SHA256 }}
+          ORDER_NPM_VERSION: ${{ vars.ORDER_ZERO_DIRECT_NPM_VERSION }}
+          PRODUCTION_MIGRATION_DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}

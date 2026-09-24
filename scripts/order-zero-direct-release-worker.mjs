@@ -44,11 +44,12 @@ try {
 
 // The supplied directory must be a separate clean checkout with NO existing
 // node_modules. Pins are reviewed inputs, never derived here from installed code.
-export async function startOrderZeroDirectWorker({ directory, reviewed: input }) {
+export async function startOrderZeroDirectWorker({ directory, reviewed: input, mode = "inspect" }) {
   let child;
   try {
     const reviewed = structuredClone(input);
     assert.deepEqual(Object.keys(reviewed).sort(), ["nodeSha256", "nodeVersion", "npmCli", "npmCliSha256", "npmVersion", "releaseCommit", "sourceCatalogSha256", "sourceFenceSha256"]);
+    assert.ok(mode === "inspect" || mode === "execute");
     for (const key of ["nodeSha256", "npmCliSha256", "sourceCatalogSha256", "sourceFenceSha256"]) assert.match(reviewed[key], /^[a-f0-9]{64}$/u);
     assert.match(reviewed.releaseCommit, /^[a-f0-9]{40}$/u);
     assert.match(reviewed.nodeVersion, /^v22\.\d+\.\d+$/u);
@@ -60,7 +61,7 @@ export async function startOrderZeroDirectWorker({ directory, reviewed: input })
     assert.equal(path.basename(reviewed.npmCli), "npm-cli.js");
     const node = fs.realpathSync(process.execPath);
     assert.equal(hash(fs.readFileSync(node)), reviewed.nodeSha256);
-    child = spawn(node, ["--input-type=module", "--eval", BOOTSTRAP, JSON.stringify(reviewed)], {
+    child = spawn(node, ["--input-type=module", "--eval", BOOTSTRAP, JSON.stringify({ ...reviewed, mode })], {
       cwd: directory, detached: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
       env: { PATH: "/usr/bin:/bin", TZ: "UTC", LANG: "C", LC_ALL: "C" },
     });

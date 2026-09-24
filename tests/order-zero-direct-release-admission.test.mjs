@@ -73,3 +73,29 @@ test("running Order job ID is discovered only from the exact current attempt and
       error => error.message === "Order running job identity unavailable; no execution admission");
   }
 });
+
+test("execution admission accepts only its distinct protected workflow and running job", async t => {
+  const releaseCommit = "a".repeat(40), admission = { runId: "123", runAttempt: "2", jobId: "456" };
+  const run = { id: 123, run_attempt: 2, repository: { full_name: "Drewyoung910/grainline" },
+    head_repository: { full_name: "Drewyoung910/grainline" }, head_sha: releaseCommit,
+    head_branch: "main", event: "workflow_dispatch", path: ".github/workflows/order-zero-direct-execute.yml",
+    status: "in_progress", conclusion: null };
+  const job = { id: 456, run_id: 123, run_attempt: 2, head_sha: releaseCommit,
+    status: "in_progress", conclusion: null, name: "Execute reviewed Order zero-direct prefix", runner_id: 789,
+    runner_name: "Hosted Runner" };
+  let replies = [run, job, run, job];
+  t.mock.method(globalThis, "fetch", async () => Response.json(replies.shift()));
+  const args = { releaseCommit, admission, githubToken: "fixture-token", mode: "execute" };
+  const accepted = await observeOrderReleaseAdmission(args);
+  assert.equal(accepted.group, "production-database-migrations");
+  replies = [run, { ...job, name: "Inspect Order zero-direct production scope" }];
+  await assert.rejects(observeOrderReleaseAdmission(args), /admission lost/u);
+  replies = [{ ...run, path: ".github/workflows/order-zero-direct-production.yml" }];
+  await assert.rejects(observeOrderReleaseAdmission(args), /admission lost/u);
+  replies = [{ total_count: 1, jobs: [job] }];
+  assert.equal(await discoverOrderReleaseJobId({ releaseCommit, runId: "123", runAttempt: "2",
+    runnerName: "Hosted Runner", githubToken: "fixture-token", mode: "execute" }), "456");
+  replies = [{ total_count: 1, jobs: [{ ...job, name: "Inspect Order zero-direct production scope" }] }];
+  await assert.rejects(discoverOrderReleaseJobId({ releaseCommit, runId: "123", runAttempt: "2",
+    runnerName: "Hosted Runner", githubToken: "fixture-token", mode: "execute" }));
+});

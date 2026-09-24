@@ -1,6 +1,7 @@
 // Fixed executor core. Its owning worker supplies private live guards and
 // connection/command adapters; observations passed through IPC are not guards.
-// Production dispatch remains unavailable. Disposable proof uses this same core.
+// Production dispatch is bound to a distinct protected workflow and worker
+// mode. Disposable proof uses this same core.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
