@@ -2762,6 +2762,66 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Core Order keeps predecessor CRUD only while its own RLS is off. A later
+-- policyless ENABLE release revokes direct authority; reprovisioning must not
+-- reopen the bulk grant above after that boundary. This guard accepts either
+-- the clean predecessor or policyless ENABLE (with or without FORCE), and
+-- refuses every partial or policy-bearing posture.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)::integer
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'Order'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND policy_count = 0) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'Core Order RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS core_order_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_core_order_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_core_order_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :core_order_rls_active
+REVOKE ALL ON TABLE public."Order"
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset core_order_rls_active
+
 -- OrderPaymentEvent becomes a policyless service ledger at Phase A. The bulk
 -- predecessor grant and the two legacy compatibility entry points above are
 -- intentional only while RLS is off. If provisioning is rerun after ENABLE,

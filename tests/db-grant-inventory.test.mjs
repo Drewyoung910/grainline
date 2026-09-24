@@ -2940,6 +2940,14 @@ describe("database grant inventory guardrails", () => {
     );
     assert.match(
       provision,
+      /Core Order RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :core_order_rls_active\s+REVOKE ALL ON TABLE public\."Order"\s+FROM PUBLIC, :"runtime_role";\s+\\endif/,
+    );
+    assert.match(
+      provision,
       /OrderPaymentEvent RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
     );
     assert.match(

@@ -3939,6 +3939,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/order-historical-proof-fence-20260927": orderHistoricalProofFenceDeployment,
       "codex/order-staged-clerk-exchange-20260927": orderStagedClerkExchangeDeployment,
       "codex/order-cutover-predecessor-grants-20260927": orderCutoverPredecessorGrantsDeployment,
+      "codex/order-core-reprovision-guard-20260924": orderCoreReprovisionReviewDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -4046,6 +4047,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderCutoverPredecessorGrantsDeployment,
       false,
       "the exact Order cutover predecessor-grant review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderCoreReprovisionReviewDeployment,
+      false,
+      "the exact Core Order reprovisioning review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,

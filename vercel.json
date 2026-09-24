@@ -23,6 +23,7 @@
       "codex/order-historical-proof-fence-20260927": false,
       "codex/order-staged-clerk-exchange-20260927": false,
       "codex/order-cutover-predecessor-grants-20260927": false,
+      "codex/order-core-reprovision-guard-20260924": false,
       "codex/order-main-catchup-20260922": false,
       "codex/r2-github-consumer-integration-20260921": false,
       "codex/r2-private-health-20260921": false,
