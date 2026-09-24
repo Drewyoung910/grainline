@@ -66,6 +66,15 @@ jobs:
             echo "runtime-role provisioning unexpectedly accepted the migration owner as runtime"
             exit 1
           fi
+      - name: Isolate Production-owner Order buyer correction from historical proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260905180000_correct_order_banned_buyer_completion
+          printf '%s  %s\n' \
+            '2eaaada2dfa9f9ce4e6b28e43542cb0a1220e191847b3d518da8b50ebc2b4228' \
+            "prisma/migrations/$migration/migration.sql" | sha256sum --check --status
+          mv "prisma/migrations/$migration" "$RUNNER_TEMP/$migration"
       - name: Isolate DirectUpload activation until external grants converge
         run: >-
           mv
@@ -96,3 +105,8 @@ jobs:
         run: npm run audit:rls-conversation-message-force-rollback
       - name: Prove FORCE-hardened Conversation and Message authority
         run: npm run audit:rls-conversation-message-recipient
+      - name: Restore reviewed Production-owner Order buyer correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/20260905180000_correct_order_banned_buyer_completion"
+          prisma/migrations/20260905180000_correct_order_banned_buyer_completion
