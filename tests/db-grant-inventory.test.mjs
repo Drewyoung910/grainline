@@ -117,6 +117,7 @@ const {
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   CHECKOUT_STOCK_RESERVATION_TABLE,
+  CORE_ORDER_TABLE,
   ORDER_PAYMENT_EVENT_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   assertGrantAuditConnectionMatches,
@@ -133,6 +134,8 @@ const {
   caseRlsForceExpected,
   checkoutStockReservationRlsActivationExpected,
   checkoutStockReservationRlsForceExpected,
+  coreOrderRlsActivationExpected,
+  coreOrderRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -859,6 +862,33 @@ describe("database grant inventory guardrails", () => {
         "table Notification runtime role has unexpected column privileges: title:UPDATE",
       ],
     );
+  });
+
+  it("keeps Core Order predecessor grants until policyless ENABLE and then audits FORCE separately", () => {
+    const predecessor = {
+      tables: [CORE_ORDER_TABLE],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const enabled = { ...predecessor, rlsEnableTables: [CORE_ORDER_TABLE] };
+    const forced = { ...enabled, rlsForceTables: [CORE_ORDER_TABLE] };
+    assert.equal(coreOrderRlsActivationExpected(predecessor), false);
+    assert.equal(coreOrderRlsActivationExpected(enabled), true);
+    assert.equal(coreOrderRlsForceExpected(enabled), false);
+    assert.equal(coreOrderRlsForceExpected(forced), true);
+    assert.deepEqual(requiredRuntimeTablePrivileges(CORE_ORDER_TABLE, predecessor),
+      REQUIRED_TABLE_PRIVILEGES);
+    assert.deepEqual(requiredRuntimeTablePrivileges(CORE_ORDER_TABLE, enabled), []);
+    assert.equal(policylessServiceRlsTableNames(predecessor).includes(CORE_ORDER_TABLE), false);
+    assert.equal(policylessServiceRlsTableNames(enabled).includes(CORE_ORDER_TABLE), true);
+    assert.deepEqual(collectPolicylessServiceRlsIssues([{ table_name: CORE_ORDER_TABLE,
+      rls_enabled: true, rls_forced: false, policy_count: 0 }], enabled), []);
+    assert.deepEqual(collectPolicylessServiceRlsIssues([{ table_name: CORE_ORDER_TABLE,
+      rls_enabled: true, rls_forced: false, policy_count: 0 }], forced),
+    ["service-only table Order must have FORCE ROW LEVEL SECURITY enabled"]);
+    assert.equal(coreOrderRlsActivationExpected({ ...enabled,
+      rlsPolicyTables: [CORE_ORDER_TABLE] }), false);
   });
 
   it("pins policyless service ledgers to ENABLE plus FORCE", () => {
