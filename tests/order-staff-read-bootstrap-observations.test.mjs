@@ -81,6 +81,24 @@ test("provider Git deployments require source SHA too, with no conflicting metad
   await assert.rejects(collectStaffBootstrapObservations(f.options), /no admission/u);
 });
 
+test("serving CLI deployment admits a matching Git source when custom commit metadata is absent", async () => {
+  const f = fixture();
+  f.rawDeployment.gitSource = { sha: f.release.reviewed.deployedSourceCommit };
+  f.rawDeployment.meta.githubCommitSha = f.release.reviewed.deployedSourceCommit;
+  delete f.rawDeployment.meta.gitCommitSha;
+  assert.equal((await collectStaffBootstrapObservations(f.options)).deployment.sourceCommit,
+    f.release.reviewed.deployedSourceCommit);
+
+  f.rawDeployment.meta.githubCommitSha = "b".repeat(40);
+  await assert.rejects(collectStaffBootstrapObservations(f.options), /no admission/u);
+  f.rawDeployment.meta.githubCommitSha = f.release.reviewed.deployedSourceCommit;
+  delete f.rawDeployment.gitSource;
+  await assert.rejects(collectStaffBootstrapObservations(f.options), /no admission/u);
+  f.rawDeployment.gitSource = { sha: f.release.reviewed.deployedSourceCommit };
+  delete f.rawDeployment.meta.githubCommitSha;
+  await assert.rejects(collectStaffBootstrapObservations(f.options), /no admission/u);
+});
+
 test("both provider tokens are required before requests; no token enters URL or a child process", async () => {
   for (const tokens of [{ github: "fixture-github-token" }, { github: "fixture-github-token", vercel: "header\ninjection" }]) {
     const f = fixture(); f.options.loadProviderTokens = async () => tokens;

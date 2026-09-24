@@ -89,11 +89,14 @@ function runFields(raw, includeAttempt = false) {
 function deploymentFields(raw, reviewed) {
   assert.ok(raw.id === reviewed.deploymentId && raw.projectId === PROJECT && raw.team?.id === TEAM &&
     raw.target === "production" && raw.readyState === "READY");
-  // CLI releases have no gitSource. Their source label is checked against the
-  // independently reviewed exact deployment binding, never used to generate
-  // that binding. This metadata is NOT a proof of uploaded build bytes.
+  // CLI releases can expose gitSource plus GitHub commit metadata even without
+  // our custom gitCommitSha. Require that pair for this fallback, then
+  // cross-check every available SHA against the reviewed deployment binding.
+  // These labels are NOT proof of uploaded build bytes.
   assert.ok(raw.source === "cli" || raw.source === "git");
-  const sourceCommit = raw.source === "cli" ? raw.meta?.gitCommitSha : raw.gitSource?.sha;
+  const sourceCommit = raw.source === "cli"
+    ? raw.meta?.gitCommitSha ?? (raw.gitSource?.sha && raw.meta?.githubCommitSha ? raw.gitSource.sha : undefined)
+    : raw.gitSource?.sha;
   assert.equal(sourceCommit, reviewed.deployedSourceCommit);
   for (const sha of [raw.gitSource?.sha, raw.meta?.gitCommitSha, raw.meta?.githubCommitSha]) {
     if (sha !== undefined) assert.equal(sha, reviewed.deployedSourceCommit);
