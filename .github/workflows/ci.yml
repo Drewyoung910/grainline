@@ -1462,7 +1462,9 @@ jobs:
           git -C "$source" checkout --quiet --detach "$historical"
           test "$(git -C "$source" rev-parse HEAD)" = "$historical"
           git -C "$source" remote set-url origin https://github.com/Drewyoung910/grainline.git
-          ln -s "$GITHUB_WORKSPACE/node_modules" "$source/node_modules"
+          # The bounded executor rejects modules whose real path escapes this
+          # checkout; a symlink to the PR checkout breaks its status phase.
+          cp -a "$GITHUB_WORKSPACE/node_modules/." "$source/node_modules"
           (cd "$source" && node scripts/order-zero-direct-execution-postgres-proof.mjs)
         env:
           ORDER_ZERO_DIRECT_EXECUTION_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci?sslmode=disable
