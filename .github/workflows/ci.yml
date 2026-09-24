@@ -1449,7 +1449,7 @@ jobs:
         run: npm run audit:order-participant-list-projection-correction
       - name: Re-verify compatible Order account-deletion authority
         run: npm run audit:order-account-deletion-authority
-      - name: Apply exact historical Order participant authority
+      - name: Apply compatible Order participant authority
         shell: bash
         run: |
           set -euo pipefail
