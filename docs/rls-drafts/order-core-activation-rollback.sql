@@ -13,7 +13,10 @@ LOCK TABLE public."Order" IN ACCESS EXCLUSIVE MODE;
 
 DO $grainline_order_core_activation_rollback_preflight$
 DECLARE
+  runtime_oid oid;
+  staff_oid oid;
   accepted_table_count integer;
+  child_count integer;
   accepted_staff_functions integer;
 BEGIN
   IF current_user <> session_user
@@ -23,6 +26,18 @@ BEGIN
            AND pg_catalog.current_database() = 'grainline_ci')
      ) THEN
     RAISE EXCEPTION 'Core Order ENABLE rollback requires reviewed owner session';
+  END IF;
+
+  SELECT role.oid INTO runtime_oid
+    FROM pg_catalog.pg_roles AS role
+   WHERE role.rolname = 'grainline_app_runtime'
+     AND NOT role.rolsuper AND NOT role.rolbypassrls;
+  SELECT role.oid INTO staff_oid
+    FROM pg_catalog.pg_roles AS role
+   WHERE role.rolname = 'grainline_staff_read_runtime'
+     AND role.rolcanlogin AND NOT role.rolsuper AND NOT role.rolbypassrls;
+  IF runtime_oid IS NULL OR staff_oid IS NULL OR runtime_oid = staff_oid THEN
+    RAISE EXCEPTION 'Core Order ENABLE rollback role identities drifted';
   END IF;
 
   SELECT pg_catalog.count(*)::integer INTO accepted_table_count
@@ -58,6 +73,22 @@ BEGIN
      );
   IF accepted_table_count <> 1 THEN
     RAISE EXCEPTION 'Core Order ENABLE rollback predecessor drifted';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer INTO child_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname IN ('OrderItem', 'OrderShippingRateQuote')
+     AND class.relkind = 'r'
+     AND NOT class.relrowsecurity AND NOT class.relforcerowsecurity
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = class.oid
+     );
+  IF child_count <> 2 THEN
+    RAISE EXCEPTION 'Core Order ENABLE rollback child-table boundary drifted';
   END IF;
 
   WITH expected(function_identity) AS (

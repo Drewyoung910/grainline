@@ -42,5 +42,6 @@ test("Core Order rollback drafts reverse one posture at a time", () => {
   assert.doesNotMatch(forceRollback, /^GRANT\b|^ALTER TABLE public\."Order" DISABLE/m);
   assert.match(activationRollback, /^ALTER TABLE public\."Order" DISABLE ROW LEVEL SECURITY;$/m);
   assert.match(activationRollback, /^GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public\."Order"\s+TO grainline_app_runtime;$/m);
+  assert.match(activationRollback, /child_count <> 2/);
   assert.doesNotMatch(activationRollback, /^ALTER TABLE public\."Order" NO FORCE/m);
 });
