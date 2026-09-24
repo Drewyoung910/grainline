@@ -75,6 +75,8 @@ jobs:
       NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -109,7 +111,8 @@ jobs:
             20260905140000_prepare_order_checkout_existing_authority \
             20260905150000_prepare_order_checkout_postpayment_authority \
             20260905160000_prepare_order_checkout_refund_review_authority \
-            20260905170000_correct_order_authority_composition
+            20260905170000_correct_order_authority_composition \
+            20260905180000_correct_order_banned_buyer_completion
           do
             mv "prisma/migrations/$migration" "$destination/$migration"
           done
@@ -1384,6 +1387,10 @@ jobs:
         run: |
           set -euo pipefail
           source="$RUNNER_TEMP/order-zero-direct-compatible-suffix"
+          # Legacy release guards admit the reviewed 17-member prefix, but
+          # intentionally reject a later successor until their checks finish.
+          mv "$source/20260905180000_correct_order_banned_buyer_completion" \
+            "$RUNNER_TEMP/order-banned-buyer-completion"
           for migration in \
             20260905030000_prepare_order_provider_claim_exclusion \
             20260905040000_prepare_order_refund_claim_clock_authority \
@@ -1443,9 +1450,22 @@ jobs:
       - name: Re-verify compatible Order account-deletion authority
         run: npm run audit:order-account-deletion-authority
       - name: Apply compatible Order participant authority
+        shell: bash
         run: |
+          set -euo pipefail
           npm run guard:local-disk-space
-          node scripts/order-zero-direct-execution-postgres-proof.mjs
+          historical=986540254b58ade0611ad5ee94dc794919d84f49
+          git cat-file -e "$historical^{commit}"
+          git merge-base --is-ancestor "$historical" HEAD
+          source="$RUNNER_TEMP/order-zero-direct-historical-source"
+          git clone --quiet --shared . "$source"
+          git -C "$source" checkout --quiet --detach "$historical"
+          test "$(git -C "$source" rev-parse HEAD)" = "$historical"
+          git -C "$source" remote set-url origin https://github.com/Drewyoung910/grainline.git
+          # The bounded executor rejects modules whose real path escapes this
+          # checkout; a symlink to the PR checkout breaks its status phase.
+          cp -a "$GITHUB_WORKSPACE/node_modules/." "$source/node_modules"
+          (cd "$source" && node scripts/order-zero-direct-execution-postgres-proof.mjs)
         env:
           ORDER_ZERO_DIRECT_EXECUTION_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci?sslmode=disable
       - name: Converge Order participant runtime grants
@@ -1614,11 +1634,24 @@ jobs:
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
+      - name: Isolate successor regression from historical full-suite release guards
+        run: >-
+          mv tests/order-banned-buyer-completion-postgres.test.mjs
+          "$RUNNER_TEMP/order-banned-buyer-completion-postgres.test.mjs"
       - name: Tests
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
       - name: Security audit
         run: npm run audit:dependencies
+      - name: Restore and prove the reviewed successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv "$RUNNER_TEMP/order-banned-buyer-completion" \
+            prisma/migrations/20260905180000_correct_order_banned_buyer_completion
+          mv "$RUNNER_TEMP/order-banned-buyer-completion-postgres.test.mjs" \
+            tests/order-banned-buyer-completion-postgres.test.mjs
+          node --test tests/order-banned-buyer-completion-postgres.test.mjs
       - name: Production build
         run: npm run build
