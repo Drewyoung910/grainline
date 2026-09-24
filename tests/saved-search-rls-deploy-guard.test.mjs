@@ -3929,6 +3929,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/order-staged-smoke-20260924": orderStagedSmokeReviewDeployment,
       "codex/order-staff-bootstrap-admission-fix-20260924": orderStaffBootstrapReviewDeployment,
       "codex/order-staff-server-hash-20260924": orderStaffServerHashReviewDeployment,
+      "codex/order-stage-alias-owner-20260924": orderStageAliasOwnerReviewDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -3986,6 +3987,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderStaffServerHashReviewDeployment,
       false,
       "the exact staff bootstrap server-hash review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderStageAliasOwnerReviewDeployment,
+      false,
+      "the exact staged Order alias-owner review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,
