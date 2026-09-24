@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { buildOrderCoreRlsCandidates } from "../scripts/build-order-core-rls-candidates.mjs";
 
 const activation = readFileSync("docs/rls-drafts/order-core-activation.sql", "utf8");
 const force = readFileSync("docs/rls-drafts/order-core-force.sql", "utf8");
@@ -44,4 +47,22 @@ test("Core Order rollback drafts reverse one posture at a time", () => {
   assert.match(activationRollback, /^GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public\."Order"\s+TO grainline_app_runtime;$/m);
   assert.match(activationRollback, /child_count <> 2/);
   assert.doesNotMatch(activationRollback, /^ALTER TABLE public\."Order" NO FORCE/m);
+});
+
+test("Core Order review candidate pins SQL bytes without staging a migration", () => {
+  const candidate = buildOrderCoreRlsCandidates();
+  assert.match(candidate.enableMigration, /^-- Reviewed policyless Core Order ENABLE/m);
+  assert.match(candidate.forceMigration, /^-- Reviewed posture-only Core Order FORCE/m);
+  assert.deepEqual(readdirSync("prisma/migrations").filter((name) =>
+    /_(?:enable|force)_order_rls$/.test(name)), []);
+
+  const disposable = mkdtempSync(join(tmpdir(), "grainline-order-core-candidate-"));
+  try {
+    cpSync("docs/rls-drafts", join(disposable, "docs/rls-drafts"), { recursive: true });
+    const draft = join(disposable, "docs/rls-drafts/order-core-activation.sql");
+    writeFileSync(draft, `${readFileSync(draft, "utf8")}\n-- unreviewed change\n`);
+    assert.throws(() => buildOrderCoreRlsCandidates(disposable), /draft bytes or header drifted/);
+  } finally {
+    rmSync(disposable, { recursive: true, force: true });
+  }
 });
