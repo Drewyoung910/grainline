@@ -81,6 +81,7 @@ export const REQUIRED_ALIASES = Object.freeze([
   "grainline-drew-youngs-projects.vercel.app",
   "grainline-git-main-drew-youngs-projects.vercel.app",
 ]);
+export const STAGED_PROJECT_ALIAS = "grainline-drew-youngs-projects.vercel.app";
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 export const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 export const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.local";
@@ -216,6 +217,11 @@ export function loadPrivateEnvironment(filePath, label) {
 }
 
 export function assertReleaseBinding(binding = RELEASE_BINDING) {
+  const staged = binding?.targetOrigin !== undefined;
+  let target;
+  if (staged) {
+    try { target = new URL(binding.targetOrigin); } catch { /* rejected below */ }
+  }
   if (
     !binding
     || typeof binding !== "object"
@@ -224,6 +230,21 @@ export function assertReleaseBinding(binding = RELEASE_BINDING) {
     || binding.ciRunId < 1
     || !/^dpl_[A-Za-z0-9]{20,64}$/.test(binding.deploymentId ?? "")
     || binding.origin !== PRODUCTION_ORIGIN
+    || (staged && (
+      target?.protocol !== "https:"
+      || target.origin !== binding.targetOrigin
+      || target.port !== ""
+      || !/^[a-z0-9][a-z0-9-]*\.vercel\.app$/.test(target.hostname)
+      || REQUIRED_ALIASES.includes(target.hostname)
+      || !/^dpl_[A-Za-z0-9]{20,64}$/.test(binding.predecessorDeploymentId ?? "")
+      || binding.predecessorDeploymentId === binding.deploymentId
+      || !/^[a-f0-9]{64}$/.test(binding.bypassSha256 ?? "")
+      || (binding.stagedAttachedAlias !== undefined
+        && binding.stagedAttachedAlias !== STAGED_PROJECT_ALIAS)
+    ))
+    || (!staged && (binding.predecessorDeploymentId !== undefined
+      || binding.bypassSha256 !== undefined
+      || binding.stagedAttachedAlias !== undefined))
   ) {
     throw new Error("authenticated Order smoke remains deployment-disabled");
   }
@@ -232,6 +253,10 @@ export function assertReleaseBinding(binding = RELEASE_BINDING) {
     commit: binding.commit,
     deploymentId: binding.deploymentId,
     origin: binding.origin,
+    ...(staged ? { targetOrigin: binding.targetOrigin,
+      predecessorDeploymentId: binding.predecessorDeploymentId,
+      bypassSha256: binding.bypassSha256,
+      ...(binding.stagedAttachedAlias ? { stagedAttachedAlias: binding.stagedAttachedAlias } : {}) } : {}),
   });
 }
 
@@ -293,9 +318,12 @@ export function parseVercelDeployment(raw, binding = RELEASE_BINDING) {
     || sourceShas.some(sha => sha !== exact.commit)
     || value.project?.id !== REVIEWED_PROJECT.projectId
     || value.team?.id !== REVIEWED_PROJECT.orgId
+    || (exact.targetOrigin && value.url !== new URL(exact.targetOrigin).hostname)
     || !Array.isArray(aliases)
-    || aliases.length === 0
+    || (!exact.targetOrigin && aliases.length === 0)
     || aliases.some(alias => typeof alias !== "string")
+    || (exact.targetOrigin && (aliases.length !== Number(Boolean(exact.stagedAttachedAlias))
+      || aliases.some(alias => alias !== exact.stagedAttachedAlias)))
   ) {
     throw new Error("authenticated Order smoke deployment binding drifted");
   }
@@ -310,13 +338,15 @@ export function parseVercelDeployment(raw, binding = RELEASE_BINDING) {
 export function parseVercelAliasInspection(raw, alias, binding = RELEASE_BINDING) {
   const exact = assertReleaseBinding(binding);
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const expectedDeploymentId = alias === exact.stagedAttachedAlias
+    ? exact.deploymentId : exact.predecessorDeploymentId ?? exact.deploymentId;
   if (
     !REQUIRED_ALIASES.includes(alias)
-    || value?.id !== exact.deploymentId
+    || value?.id !== expectedDeploymentId
     || value.target !== "production"
     || value.readyState !== "READY"
   ) throw new Error(`authenticated Order smoke alias binding drifted for ${alias}`);
-  return Object.freeze({ alias, deploymentId: exact.deploymentId, ready: true });
+  return Object.freeze({ alias, deploymentId: expectedDeploymentId, ready: true });
 }
 
 export function validateConfiguration(env = process.env, binding = RELEASE_BINDING) {
@@ -466,17 +496,34 @@ async function boundedJson(response) {
   return value;
 }
 
+export function assertStagedBypass(binding, bypassSecret) {
+  const exact = assertReleaseBinding(binding);
+  if (!exact.targetOrigin) {
+    if (bypassSecret !== undefined) throw new Error("canonical Order smoke refuses a bypass credential");
+    return undefined;
+  }
+  if (typeof bypassSecret !== "string" || bypassSecret.length < 24
+    || createHash("sha256").update(bypassSecret, "utf8").digest("hex") !== exact.bypassSha256) {
+    throw new Error("staged Order smoke bypass credential does not match the reviewed digest");
+  }
+  return bypassSecret;
+}
+
 async function fetchRoute(pathname, token, {
   body,
   method = "GET",
   origin = PRODUCTION_ORIGIN,
   expectJson = true,
+  targetOrigin = PRODUCTION_ORIGIN,
+  bypassSecret,
+  request = fetch,
 } = {}) {
-  const response = await fetch(`${PRODUCTION_ORIGIN}${pathname}`, {
+  const response = await request(`${targetOrigin}${pathname}`, {
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: {
       authorization: `Bearer ${token}`,
       "cache-control": "no-store",
+      ...(bypassSecret ? { "x-vercel-protection-bypass": bypassSecret } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
       ...(origin ? { origin } : {}),
     },
@@ -489,6 +536,18 @@ async function fetchRoute(pathname, token, {
     headers: response.headers,
     status: response.status,
   };
+}
+
+export function createRouteRequest(binding, bypassSecret, request = fetch) {
+  const exact = assertReleaseBinding(binding);
+  const bypass = assertStagedBypass(exact, bypassSecret);
+  return (pathname, token, options = {}) => fetchRoute(pathname, token, {
+    ...options,
+    origin: options.origin === undefined ? exact.targetOrigin ?? PRODUCTION_ORIGIN : options.origin,
+    targetOrigin: exact.targetOrigin ?? PRODUCTION_ORIGIN,
+    bypassSecret: bypass,
+    request,
+  });
 }
 
 function absorbClerkResponseCookies(response, jar) {
@@ -578,10 +637,15 @@ async function revokeCanarySessions(clerk, clerkUserId) {
   return after.totalCount === 0 && after.data.length === 0;
 }
 
-export async function verifyDeploymentBoundary(binding = RELEASE_BINDING, request = fetch) {
+export async function verifyDeploymentBoundary(binding = RELEASE_BINDING, request = fetch,
+  bypassSecret) {
   const release = assertReleaseBinding(binding);
-  const health = await request(`${PRODUCTION_ORIGIN}/api/health`, {
-    headers: { "cache-control": "no-store" },
+  const bypass = assertStagedBypass(release, bypassSecret);
+  const targetOrigin = release.targetOrigin ?? PRODUCTION_ORIGIN;
+  const headers = { "cache-control": "no-store",
+    ...(bypass ? { "x-vercel-protection-bypass": bypass } : {}) };
+  const health = await request(`${targetOrigin}/api/health`, {
+    headers,
     redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
@@ -589,16 +653,19 @@ export async function verifyDeploymentBoundary(binding = RELEASE_BINDING, reques
   if (health.status !== 200 || healthBody.ok !== true) {
     throw new Error("production health check failed");
   }
-  const page = await request(PRODUCTION_ORIGIN, {
-    headers: { "cache-control": "no-store" },
+  const page = await request(targetOrigin, {
+    headers,
     redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
   const pageBody = await boundedText(page, MAX_PAGE_BYTES);
   if (page.status !== 200 || !pageBody.includes(`dpl=${release.deploymentId}`)) {
-    throw new Error("canonical alias is not serving the reviewed deployment marker");
+    throw new Error("Order smoke target is not serving the reviewed deployment marker");
   }
-  return Object.freeze({ canonicalDeploymentMarker: true, healthStatus: 200 });
+  return Object.freeze({
+    ...(release.targetOrigin ? { stagedDeploymentMarker: true } : { canonicalDeploymentMarker: true }),
+    healthStatus: 200,
+  });
 }
 
 async function verifyDatabaseIdentity(owner, runtime) {
@@ -794,6 +861,9 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING,
     || state.deployedCommit !== exact.commit
     || state.deployedCiRunId !== exact.ciRunId
     || state.deploymentId !== exact.deploymentId
+    || state.targetOrigin !== exact.targetOrigin
+    || state.bypassSha256 !== exact.bypassSha256
+    || state.stagedAttachedAlias !== exact.stagedAttachedAlias
     || !/^[a-f0-9]{32}$/.test(state.marker ?? "")
     || !STAGES.includes(state.stage)
     || state.fixtureIds == null
@@ -893,6 +963,9 @@ export function createInitialState(config, canary, checkoutSeller) {
     deployedCommit: release.commit,
     deployedCiRunId: release.ciRunId,
     deploymentId: release.deploymentId,
+    ...(release.targetOrigin ? { targetOrigin: release.targetOrigin,
+      bypassSha256: release.bypassSha256,
+      ...(release.stagedAttachedAlias ? { stagedAttachedAlias: release.stagedAttachedAlias } : {}) } : {}),
     marker,
     fixtureIds: buildFixtureIds(marker),
     canary: {
@@ -1552,7 +1625,7 @@ function checkoutRate(rate) {
   };
 }
 
-async function quoteSingle(token, state, quantity) {
+async function quoteSingle(token, state, quantity, routeRequest) {
   const expectedSubjectHash = shippingRateSubjectHash({
     mode: "single",
     listingId: state.fixtureIds.checkoutListingId,
@@ -1565,7 +1638,7 @@ async function quoteSingle(token, state, quantity) {
     width: 10,
     height: 10,
   });
-  const response = await fetchRoute("/api/shipping/quote", token, {
+  const response = await routeRequest("/api/shipping/quote", token, {
     body: {
       mode: "single",
       listingId: state.fixtureIds.checkoutListingId,
@@ -1599,9 +1672,9 @@ async function waitForSignedExpiry(owner, sessionId) {
   throw new Error("signed Stripe expiry delivery did not reach the reviewed ledger in time");
 }
 
-async function runBuyerPhase({ owner, redis, state, stripe, token }) {
+async function runBuyerPhase({ owner, redis, state, stripe, token, routeRequest }) {
   await seedBuyerFixture(owner, redis, state);
-  const crossOrigin = await fetchRoute("/api/shipping/quote", token, {
+  const crossOrigin = await routeRequest("/api/shipping/quote", token, {
     body: {
       mode: "single",
       listingId: state.fixtureIds.checkoutListingId,
@@ -1617,8 +1690,8 @@ async function runBuyerPhase({ owner, redis, state, stripe, token }) {
   if (crossOrigin.status !== 403 || crossOrigin.body.error !== "Forbidden") {
     throw new Error("shipping quote did not reject explicit cross-origin input");
   }
-  const quantityOne = await quoteSingle(token, state, 1);
-  const quantityTwo = await quoteSingle(token, state, 2);
+  const quantityOne = await quoteSingle(token, state, 1, routeRequest);
+  const quantityTwo = await quoteSingle(token, state, 2, routeRequest);
   if (quantityOne.subjectHash === quantityTwo.subjectHash) {
     throw new Error("quantity-one and quantity-two shipping subjects collided");
   }
@@ -1633,7 +1706,7 @@ async function runBuyerPhase({ owner, redis, state, stripe, token }) {
   };
   let sessionId = state.checkout.stripeSessionId;
   if (!sessionId) {
-    const created = await fetchRoute("/api/cart/checkout/single", token, { body, method: "POST" });
+    const created = await routeRequest("/api/cart/checkout/single", token, { body, method: "POST" });
     sessionId = assertCheckoutRouteResult(created);
     state.checkout.stripeSessionId = sessionId;
     saveState(state);
@@ -1672,9 +1745,9 @@ async function runBuyerPhase({ owner, redis, state, stripe, token }) {
     saveState(state);
   }
   if (session.status === "open") {
-    const retry = await fetchRoute("/api/cart/checkout/single", token, { body, method: "POST" });
+    const retry = await routeRequest("/api/cart/checkout/single", token, { body, method: "POST" });
     assertCheckoutRouteResult({ ...retry, expectedSessionId: sessionId });
-    const rollback = await fetchRoute("/api/cart/checkout/rollback", token, {
+    const rollback = await routeRequest("/api/cart/checkout/rollback", token, {
       body: { sessionIds: [sessionId] },
       method: "POST",
     });
@@ -1737,7 +1810,7 @@ async function assertRouteSideEffects(owner, {
   return result.rows[0];
 }
 
-async function runSellerLabelPhase({ owner, state, token }) {
+async function runSellerLabelPhase({ owner, state, token, routeRequest }) {
   const ids = state.fixtureIds;
   const current = await owner.query(`
     SELECT "labelStatus"::text, "fulfillmentStatus"::text, "shippoTransactionId",
@@ -1748,7 +1821,7 @@ async function runSellerLabelPhase({ owner, state, token }) {
   if (current.rows[0].labelStatus !== "PURCHASED") {
     let rateObjectId = current.rows[0].shippoRateObjectId;
     if (!rateObjectId) {
-      const quote = await fetchRoute(`/api/orders/${ids.labelOrderId}/label`, token, {
+      const quote = await routeRequest(`/api/orders/${ids.labelOrderId}/label`, token, {
         body: {},
         method: "POST",
       });
@@ -1760,7 +1833,7 @@ async function runSellerLabelPhase({ owner, state, token }) {
       || rateObjectId === "fallback"
       || rateObjectId.startsWith("quote-only:")
     ) throw new Error("seller label restart rate identity drifted");
-    const purchased = await fetchRoute(`/api/orders/${ids.labelOrderId}/label`, token, {
+    const purchased = await routeRequest(`/api/orders/${ids.labelOrderId}/label`, token, {
       body: { rateObjectId },
       method: "POST",
     });
@@ -1788,7 +1861,7 @@ async function runSellerLabelPhase({ owner, state, token }) {
     notificationType: "ORDER_SHIPPED",
     orderId: ids.labelOrderId,
   });
-  const download = await fetchRoute(`/api/orders/${ids.labelOrderId}/label`, token, {
+  const download = await routeRequest(`/api/orders/${ids.labelOrderId}/label`, token, {
     expectJson: false,
   });
   assertPrivateLabelRedirect({
@@ -1802,9 +1875,9 @@ async function runSellerLabelPhase({ owner, state, token }) {
   return Object.freeze({ passed: true });
 }
 
-async function runSellerFulfillmentPhase({ owner, state, token }) {
+async function runSellerFulfillmentPhase({ owner, state, token, routeRequest }) {
   const ids = state.fixtureIds;
-  const nonBuyer = await fetchRoute(`/api/orders/${ids.fulfillmentOrderId}/confirm-delivery`, token, {
+  const nonBuyer = await routeRequest(`/api/orders/${ids.fulfillmentOrderId}/confirm-delivery`, token, {
     body: {},
     method: "POST",
   });
@@ -1817,7 +1890,7 @@ async function runSellerFulfillmentPhase({ owner, state, token }) {
   `, [ids.fulfillmentOrderId]);
   if (status.rows[0]?.status === "PENDING") {
     if (typeof status.rows[0].notes !== "string" || !status.rows[0].notes.includes(state.marker)) {
-      const notes = await fetchRoute(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
+      const notes = await routeRequest(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
         body: { action: "update_notes", sellerNotes: `<script>unsafe</script> ${state.marker}` },
         method: "POST",
       });
@@ -1834,14 +1907,14 @@ async function runSellerFulfillmentPhase({ owner, state, token }) {
       || !persisted.rows[0].notes.includes(state.marker)
       || /<script>|<\/script>/i.test(persisted.rows[0].notes)
     ) throw new Error("seller note sanitization drifted");
-    const invalid = await fetchRoute(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
+    const invalid = await routeRequest(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
       body: { action: "shipped", trackingCarrier: "UPS", trackingNumber: "bad" },
       method: "POST",
     });
     if (invalid.status !== 400 || invalid.body.error !== "Invalid tracking number.") {
       throw new Error("seller fulfillment accepted invalid tracking evidence");
     }
-    const shipped = await fetchRoute(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
+    const shipped = await routeRequest(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
       body: { action: "shipped", trackingCarrier: "UPS", trackingNumber: "1Z999AA10123456784" },
       method: "POST",
     });
@@ -1851,7 +1924,7 @@ async function runSellerFulfillmentPhase({ owner, state, token }) {
       status: shipped.status,
     });
   }
-  const replay = await fetchRoute(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
+  const replay = await routeRequest(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
     body: { action: "shipped", trackingCarrier: "UPS", trackingNumber: "1Z999AA10123456784" },
     method: "POST",
   });
@@ -1878,13 +1951,13 @@ async function runSellerFulfillmentPhase({ owner, state, token }) {
   return Object.freeze({ passed: true });
 }
 
-async function runBuyerReceiptPhase({ owner, state, token }) {
+async function runBuyerReceiptPhase({ owner, state, token, routeRequest }) {
   const ids = state.fixtureIds;
   const current = await owner.query(`
     SELECT "fulfillmentStatus"::text AS status FROM public."Order" WHERE id = $1
   `, [ids.receiptOrderId]);
   if (current.rows[0]?.status === "SHIPPED") {
-    const confirmed = await fetchRoute(`/api/orders/${ids.receiptOrderId}/confirm-delivery`, token, {
+    const confirmed = await routeRequest(`/api/orders/${ids.receiptOrderId}/confirm-delivery`, token, {
       body: {},
       method: "POST",
     });
@@ -1894,7 +1967,7 @@ async function runBuyerReceiptPhase({ owner, state, token }) {
       status: confirmed.status,
     });
   }
-  const replay = await fetchRoute(`/api/orders/${ids.receiptOrderId}/confirm-delivery`, token, {
+  const replay = await routeRequest(`/api/orders/${ids.receiptOrderId}/confirm-delivery`, token, {
     body: {},
     method: "POST",
   });
@@ -2414,6 +2487,18 @@ export async function runOperator({ releaseBinding = RELEASE_BINDING,
   }
   const config = validateConfiguration(process.env, releaseBinding);
   verifyOperatorRelease(config);
+  const bypassPath = process.env.ORDER_AUTH_ROUTE_SMOKE_BYPASS_FILE;
+  if (!config.release.targetOrigin && bypassPath) {
+    throw new Error("canonical Order smoke refuses a bypass file");
+  }
+  if (config.release.targetOrigin && !path.isAbsolute(bypassPath ?? "")) {
+    throw new Error("staged Order smoke bypass file path must be absolute");
+  }
+  const bypassSecret = config.release.targetOrigin
+    ? required(loadPrivateEnvironment(bypassPath, "staged Order bypass file"),
+    "ORDER_STAGED_BYPASS_SECRET")
+    : undefined;
+  const routeRequest = createRouteRequest(config.release, bypassSecret);
   const localValues = loadPrivateEnvironment(LOCAL_ENV_PATH, "local environment file");
   const ownerValues = loadPrivateEnvironment(OWNER_ENV_PATH, "migration-owner environment file");
   const database = parseDatabaseUrls(localValues, ownerValues);
@@ -2429,7 +2514,7 @@ export async function runOperator({ releaseBinding = RELEASE_BINDING,
     await owner.connect();
     await runtime.connect();
     stage = "verify-boundaries";
-    await verifyDeploymentBoundary(config.release);
+    await verifyDeploymentBoundary(config.release, fetch, bypassSecret);
     await verifyDatabaseIdentity(owner, runtime);
     const restartExists = existsSync(STATE_PATH);
     if (restartExists) {
@@ -2465,15 +2550,15 @@ export async function runOperator({ releaseBinding = RELEASE_BINDING,
     }
     const token = await canaryToken(clerk, state);
     stage = "buyer-quote-checkout";
-    await runBuyerPhase({ owner, redis, state, stripe, token });
+    await runBuyerPhase({ owner, redis, state, stripe, token, routeRequest });
     stage = "seed-order-fixtures";
     await seedOrderFixtures(owner, state);
     stage = "seller-label";
-    await runSellerLabelPhase({ owner, state, token });
+    await runSellerLabelPhase({ owner, state, token, routeRequest });
     stage = "seller-fulfillment";
-    await runSellerFulfillmentPhase({ owner, state, token });
+    await runSellerFulfillmentPhase({ owner, state, token, routeRequest });
     stage = "buyer-receipt";
-    await runBuyerReceiptPhase({ owner, state, token });
+    await runBuyerReceiptPhase({ owner, state, token, routeRequest });
     stage = "cleanup";
     state.routePhasesPassed = true;
     state.stage = "cleanup";
