@@ -77,12 +77,17 @@ test("staged deployment requires exact READY source and unpromoted aliases", () 
   }
 });
 
-test("staged deployment binds Vercel's observed project alias move exactly", () => {
+test("staged deployment uses live project alias ownership when metadata is stale", () => {
   const attached = { ...binding, stagedAttachedAlias: STAGED_PROJECT_ALIAS };
   const withAlias = { ...candidate, aliases: [STAGED_PROJECT_ALIAS] };
   assert.equal(parseVercelDeployment(withAlias, attached).deploymentId, binding.deploymentId);
-  assert.throws(() => parseVercelDeployment(candidate, attached));
-  assert.throws(() => parseVercelDeployment(withAlias, binding));
+  assert.equal(parseVercelDeployment(candidate, attached).deploymentId, binding.deploymentId);
+  assert.equal(parseVercelDeployment(withAlias, binding).deploymentId, binding.deploymentId);
+  assert.equal(parseVercelAliasInspection({ id: binding.predecessorDeploymentId,
+    target: "production", readyState: "READY" }, STAGED_PROJECT_ALIAS, binding).deploymentId,
+  binding.predecessorDeploymentId);
+  assert.throws(() => parseVercelAliasInspection({ id: binding.deploymentId,
+    target: "production", readyState: "READY" }, STAGED_PROJECT_ALIAS, binding));
   assert.throws(() => parseVercelDeployment({ ...withAlias,
     aliases: [STAGED_PROJECT_ALIAS, REQUIRED_ALIASES[0]] }, attached));
   assert.throws(() => parseVercelDeployment({ ...withAlias,

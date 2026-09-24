@@ -322,8 +322,12 @@ export function parseVercelDeployment(raw, binding = RELEASE_BINDING) {
     || !Array.isArray(aliases)
     || (!exact.targetOrigin && aliases.length === 0)
     || aliases.some(alias => typeof alias !== "string")
-    || (exact.targetOrigin && (aliases.length !== Number(Boolean(exact.stagedAttachedAlias))
-      || aliases.some(alias => alias !== exact.stagedAttachedAlias)))
+    // Vercel's deployment alias metadata can lag actual alias ownership. For a
+    // staged candidate it may list the project alias even while that alias
+    // still resolves to the predecessor. Keep the metadata allowlist narrow;
+    // the five live alias owners are checked individually below.
+    || (exact.targetOrigin && (aliases.length > 1
+      || aliases.some(alias => alias !== STAGED_PROJECT_ALIAS)))
   ) {
     throw new Error("authenticated Order smoke deployment binding drifted");
   }
