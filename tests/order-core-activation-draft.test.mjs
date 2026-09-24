@@ -4,6 +4,10 @@ import test from "node:test";
 
 const activation = readFileSync("docs/rls-drafts/order-core-activation.sql", "utf8");
 const force = readFileSync("docs/rls-drafts/order-core-force.sql", "utf8");
+const activationRollback = readFileSync(
+  "docs/rls-drafts/order-core-activation-rollback.sql", "utf8");
+const forceRollback = readFileSync(
+  "docs/rls-drafts/order-core-force-rollback.sql", "utf8");
 
 test("Core Order ENABLE and FORCE stay separate draft-only table postures", () => {
   for (const source of [activation, force]) {
@@ -24,4 +28,19 @@ test("Core Order ENABLE and FORCE stay separate draft-only table postures", () =
   assert.doesNotMatch(force, /^REVOKE\b|^ALTER TABLE public\."Order" ENABLE/m);
   assert.deepEqual(readdirSync("prisma/migrations").filter((name) =>
     /_(?:enable|force)_order_rls$/.test(name)), []);
+});
+
+test("Core Order rollback drafts reverse one posture at a time", () => {
+  for (const source of [forceRollback, activationRollback]) {
+    assert.match(source, /^-- DRAFT ONLY\. Do not apply to any persistent database\./);
+    assert.equal((source.match(/^BEGIN;$/gm) ?? []).length, 1);
+    assert.equal((source.match(/^COMMIT;$/gm) ?? []).length, 1);
+    assert.doesNotMatch(source, /\bCREATE\s+POLICY\b/i);
+    assert.doesNotMatch(source, /^ALTER TABLE public\."(?:OrderItem|OrderShippingRateQuote)"/m);
+  }
+  assert.match(forceRollback, /^ALTER TABLE public\."Order" NO FORCE ROW LEVEL SECURITY;$/m);
+  assert.doesNotMatch(forceRollback, /^GRANT\b|^ALTER TABLE public\."Order" DISABLE/m);
+  assert.match(activationRollback, /^ALTER TABLE public\."Order" DISABLE ROW LEVEL SECURITY;$/m);
+  assert.match(activationRollback, /^GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public\."Order"\s+TO grainline_app_runtime;$/m);
+  assert.doesNotMatch(activationRollback, /^ALTER TABLE public\."Order" NO FORCE/m);
 });
