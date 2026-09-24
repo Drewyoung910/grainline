@@ -1616,17 +1616,26 @@ jobs:
         run: npm run audit:rls-conversation-message-recipient
         env:
           CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Restore banned-buyer successor for final source checks
-        run: >-
-          mv "$RUNNER_TEMP/order-banned-buyer-completion"
-          prisma/migrations/20260905180000_correct_order_banned_buyer_completion
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
+      - name: Isolate successor regression from historical full-suite release guards
+        run: >-
+          mv tests/order-banned-buyer-completion-postgres.test.mjs
+          "$RUNNER_TEMP/order-banned-buyer-completion-postgres.test.mjs"
       - name: Tests
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
+      - name: Restore and prove the reviewed successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv "$RUNNER_TEMP/order-banned-buyer-completion" \
+            prisma/migrations/20260905180000_correct_order_banned_buyer_completion
+          mv "$RUNNER_TEMP/order-banned-buyer-completion-postgres.test.mjs" \
+            tests/order-banned-buyer-completion-postgres.test.mjs
+          node --test tests/order-banned-buyer-completion-postgres.test.mjs
       - name: Security audit
         run: npm run audit:dependencies
       - name: Production build
