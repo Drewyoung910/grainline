@@ -56,10 +56,16 @@ function mockTransport(state, injected = {}) {
     on() {}
     async connect() { this.calls.push("connect"); if (injected.connect) throw new Error(state.password); }
     async end() { this.calls.push("end"); if (injected.end) throw new Error(state.password); }
-    async query(sql) {
+    async query(sql, params) {
       this.calls.push(sql);
       if (sql.includes("AS actor")) return { rows: [{ actor: "neondb_owner", login: "neondb_owner",
         database: "neondb", version: 160000, ...injected.identity }] };
+      if (sql.includes("set_config('grainline.staff_bootstrap_password'")) {
+        assert.deepEqual(params, [state.password]);
+        if (injected.install) throw new Error(state.password);
+        return { rows: [{ installed: injected.installFalse !== true }] };
+      }
+      if (sql === "COMMIT" && injected.commit) throw new Error(state.password);
       if (sql.includes("DO $staff_bootstrap$")) {
         if (injected.sql) throw new Error(state.password);
         return { rows: [] };
@@ -83,6 +89,8 @@ test("each owner or pooled staff proof uses a fresh client and closes it", async
   assert.equal(snapshot.currentUser, STAFF_BOOTSTRAP_ROLE);
   assert.equal(mock.clients.length, 3);
   assert.ok(mock.clients.every(client => client.calls.at(-1) === "end"));
+  assert.ok(mock.clients[0].calls.includes("BEGIN") && mock.clients[0].calls.includes("COMMIT"));
+  assert.ok(mock.clients[0].calls.every(sql => !sql.includes(state.password) && !sql.includes(state.verifier)));
   assert.equal(mock.clients[1].config.host, "ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech");
   assert.equal(mock.clients[1].config.user, STAFF_BOOTSTRAP_ROLE);
   assert.ok(mock.clients[1].config.password === state.password);
@@ -92,7 +100,8 @@ test("each owner or pooled staff proof uses a fresh client and closes it", async
 
 test("identity drift never reaches creation; SQL failure rolls back and discards even when rollback fails", async () => {
   for (const injected of [{ identity: { login: "ci" } }, { identity: { database: "other" } },
-    { identity: { version: 150000 } }, { sql: true }, { sql: true, rollback: true }, { connect: true }, { end: true }]) {
+    { identity: { version: 150000 } }, { install: true }, { installFalse: true },
+    { sql: true }, { sql: true, rollback: true }, { commit: true }, { connect: true }, { end: true }]) {
     const state = newStaffBootstrapState(binding);
     const mock = mockTransport(state, injected);
     const operations = staffBootstrapConnectionOperations({ ownerUrl, state, binding, env: {}, Client: mock.Client });
@@ -104,8 +113,10 @@ test("identity drift never reaches creation; SQL failure rolls back and discards
     });
     const calls = mock.clients[0].calls;
     assert.equal(calls.at(-1), "end");
-    if (injected.identity || injected.connect) assert.ok(!calls.some(sql => sql.includes("DO $staff_bootstrap$")));
-    if (injected.sql) assert.equal(calls.at(-2), "ROLLBACK");
+    if (injected.identity || injected.connect || injected.install || injected.installFalse) {
+      assert.ok(!calls.some(sql => sql.includes("DO $staff_bootstrap$")));
+    }
+    if (injected.sql || injected.commit || injected.install || injected.installFalse) assert.equal(calls.at(-2), "ROLLBACK");
   }
 });
 

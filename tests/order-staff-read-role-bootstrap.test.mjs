@@ -109,14 +109,16 @@ test("completion persistence failure remains recoverable without password replac
   assert.equal(f.getSaved().stage, "create-pending");
 });
 
-test("bootstrap SQL contains only SCRAM, fixed role creation and no grants or reset", () => {
+test("bootstrap SQL asks PostgreSQL to hash a bound secret and contains no grants or reset", () => {
   const state = newStaffBootstrapState(binding);
   const sql = buildStaffBootstrapSql(state, binding);
   assert.ok(!sql.includes(state.password));
-  assert.ok(sql.includes(state.verifier));
+  assert.ok(!sql.includes(state.verifier));
   assert.doesNotMatch(sql, /\b(?:ALTER ROLE|DROP ROLE|GRANT|REVOKE)\b/u);
   assert.match(sql, /pg_advisory_xact_lock/u);
-  assert.match(sql, /BEGIN;[\s\S]*COMMIT;/u);
+  assert.ok(!sql.startsWith("BEGIN;") && !sql.endsWith("COMMIT;"));
+  assert.match(sql, /SET LOCAL password_encryption = 'scram-sha-256'/u);
+  assert.match(sql, /current_setting\('grainline.staff_bootstrap_password', true\)/u);
   assert.match(sql, /SET LOCAL lock_timeout/u);
 });
 

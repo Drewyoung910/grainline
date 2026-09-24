@@ -115,7 +115,18 @@ export function staffBootstrapConnectionOperations({ ownerUrl, state: rawState, 
         assert.ok(result.rows.length === 1 && row.actor === "neondb_owner" && row.login === "neondb_owner" &&
           row.database === TARGET.databaseName && Number.isInteger(row.version) && row.version >= 160000,
         "staff bootstrap owner identity or server version is invalid");
-        try { await client.query(sql); }
+        try {
+          await client.query("BEGIN");
+          // Bind the private password without placing it in query text, argv,
+          // evidence or client error output. Only this transaction can read it.
+          const installed = await client.query(
+            "SELECT pg_catalog.set_config('grainline.staff_bootstrap_password', $1, true) IS NOT NULL AS installed",
+            [state.password],
+          );
+          assert.ok(installed.rows.length === 1 && installed.rows[0].installed === true);
+          await client.query(sql);
+          await client.query("COMMIT");
+        }
         catch {
           try { await client.query("ROLLBACK"); } catch { /* Fresh client is discarded below. */ }
           throw stopped();
