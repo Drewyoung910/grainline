@@ -114,9 +114,10 @@ export async function readStaffBootstrapLoginSnapshot(client) {
 
 export function buildStaffBootstrapSql(state, binding) {
   validateStaffBootstrapState(state, binding);
-  // Only validated UUID, hex and SCRAM alphabets enter SQL literals. The raw
-  // password never enters SQL, argv, evidence or a provider error message.
-  return `BEGIN;
+  // The owner adapter binds the password into a transaction-local setting
+  // before this body executes. PostgreSQL hashes it with SCRAM during CREATE
+  // ROLE. Neither the password nor a client-built verifier enters SQL text.
+  return `SET LOCAL password_encryption = 'scram-sha-256';
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '15s';
 SELECT pg_catalog.pg_advisory_xact_lock(182735, 60906);
@@ -128,9 +129,15 @@ BEGIN
   END IF;
   SELECT * INTO existing_role FROM pg_catalog.pg_roles WHERE rolname = '${STAFF_BOOTSTRAP_ROLE}';
   IF existing_role IS NULL THEN
-    CREATE ROLE ${STAFF_BOOTSTRAP_ROLE}
-      LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION
-      PASSWORD '${state.verifier}';
+    IF coalesce(pg_catalog.current_setting('grainline.staff_bootstrap_password', true), '')
+      !~ '^[0-9a-f]{64}$' THEN
+      RAISE EXCEPTION 'staff bootstrap transaction-local password is invalid';
+    END IF;
+    EXECUTE pg_catalog.format(
+      'CREATE ROLE %I LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L',
+      '${STAFF_BOOTSTRAP_ROLE}',
+      pg_catalog.current_setting('grainline.staff_bootstrap_password', true)
+    );
     COMMENT ON ROLE ${STAFF_BOOTSTRAP_ROLE} IS '${staffBootstrapMarker(state)}';
   ELSE
     SELECT pg_catalog.shobj_description(existing_role.oid, 'pg_authid') INTO marker;
@@ -148,8 +155,7 @@ BEGIN
     RAISE EXCEPTION 'staff bootstrap role owns objects or default grants'; END IF;
   IF proof_snapshot.has_application_authority IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'staff bootstrap role retains application authority'; END IF;
-END $staff_bootstrap$;
-COMMIT;`;
+END $staff_bootstrap$;`;
 }
 
 export function assertStaffBootstrapLogin(snapshot, marker) {

@@ -3928,6 +3928,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/order-prefix-caller-20260923": orderPrefixCallerReviewDeployment,
       "codex/order-staged-smoke-20260924": orderStagedSmokeReviewDeployment,
       "codex/order-staff-bootstrap-admission-fix-20260924": orderStaffBootstrapReviewDeployment,
+      "codex/order-staff-server-hash-20260924": orderStaffServerHashReviewDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -3980,6 +3981,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderStaffBootstrapReviewDeployment,
       false,
       "the exact staff bootstrap admission review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderStaffServerHashReviewDeployment,
+      false,
+      "the exact staff bootstrap server-hash review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,
