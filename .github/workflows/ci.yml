@@ -1385,6 +1385,10 @@ jobs:
         run: |
           set -euo pipefail
           source="$RUNNER_TEMP/order-zero-direct-compatible-suffix"
+          # Legacy release guards admit the reviewed 17-member prefix, but
+          # intentionally reject a later successor until their checks finish.
+          mv "$source/20260905180000_correct_order_banned_buyer_completion" \
+            "$RUNNER_TEMP/order-banned-buyer-completion"
           for migration in \
             20260905030000_prepare_order_provider_claim_exclusion \
             20260905040000_prepare_order_refund_claim_clock_authority \
@@ -1400,8 +1404,7 @@ jobs:
             20260905140000_prepare_order_checkout_existing_authority \
             20260905150000_prepare_order_checkout_postpayment_authority \
             20260905160000_prepare_order_checkout_refund_review_authority \
-            20260905170000_correct_order_authority_composition \
-            20260905180000_correct_order_banned_buyer_completion
+            20260905170000_correct_order_authority_composition
           do
             mv "$source/$migration" "prisma/migrations/$migration"
           done
@@ -1613,6 +1616,10 @@ jobs:
         run: npm run audit:rls-conversation-message-recipient
         env:
           CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore banned-buyer successor for final source checks
+        run: >-
+          mv "$RUNNER_TEMP/order-banned-buyer-completion"
+          prisma/migrations/20260905180000_correct_order_banned_buyer_completion
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
