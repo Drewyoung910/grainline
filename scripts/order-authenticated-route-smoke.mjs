@@ -81,6 +81,7 @@ export const REQUIRED_ALIASES = Object.freeze([
   "grainline-drew-youngs-projects.vercel.app",
   "grainline-git-main-drew-youngs-projects.vercel.app",
 ]);
+export const STAGED_PROJECT_ALIAS = "grainline-drew-youngs-projects.vercel.app";
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 export const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 export const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.local";
@@ -238,9 +239,12 @@ export function assertReleaseBinding(binding = RELEASE_BINDING) {
       || !/^dpl_[A-Za-z0-9]{20,64}$/.test(binding.predecessorDeploymentId ?? "")
       || binding.predecessorDeploymentId === binding.deploymentId
       || !/^[a-f0-9]{64}$/.test(binding.bypassSha256 ?? "")
+      || (binding.stagedAttachedAlias !== undefined
+        && binding.stagedAttachedAlias !== STAGED_PROJECT_ALIAS)
     ))
     || (!staged && (binding.predecessorDeploymentId !== undefined
-      || binding.bypassSha256 !== undefined))
+      || binding.bypassSha256 !== undefined
+      || binding.stagedAttachedAlias !== undefined))
   ) {
     throw new Error("authenticated Order smoke remains deployment-disabled");
   }
@@ -251,7 +255,8 @@ export function assertReleaseBinding(binding = RELEASE_BINDING) {
     origin: binding.origin,
     ...(staged ? { targetOrigin: binding.targetOrigin,
       predecessorDeploymentId: binding.predecessorDeploymentId,
-      bypassSha256: binding.bypassSha256 } : {}),
+      bypassSha256: binding.bypassSha256,
+      ...(binding.stagedAttachedAlias ? { stagedAttachedAlias: binding.stagedAttachedAlias } : {}) } : {}),
   });
 }
 
@@ -317,7 +322,8 @@ export function parseVercelDeployment(raw, binding = RELEASE_BINDING) {
     || !Array.isArray(aliases)
     || (!exact.targetOrigin && aliases.length === 0)
     || aliases.some(alias => typeof alias !== "string")
-    || (exact.targetOrigin && aliases.some(alias => REQUIRED_ALIASES.includes(alias)))
+    || (exact.targetOrigin && REQUIRED_ALIASES.some(alias =>
+      aliases.includes(alias) !== (alias === exact.stagedAttachedAlias)))
   ) {
     throw new Error("authenticated Order smoke deployment binding drifted");
   }
@@ -332,7 +338,8 @@ export function parseVercelDeployment(raw, binding = RELEASE_BINDING) {
 export function parseVercelAliasInspection(raw, alias, binding = RELEASE_BINDING) {
   const exact = assertReleaseBinding(binding);
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
-  const expectedDeploymentId = exact.predecessorDeploymentId ?? exact.deploymentId;
+  const expectedDeploymentId = alias === exact.stagedAttachedAlias
+    ? exact.deploymentId : exact.predecessorDeploymentId ?? exact.deploymentId;
   if (
     !REQUIRED_ALIASES.includes(alias)
     || value?.id !== expectedDeploymentId
@@ -856,6 +863,7 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING,
     || state.deploymentId !== exact.deploymentId
     || state.targetOrigin !== exact.targetOrigin
     || state.bypassSha256 !== exact.bypassSha256
+    || state.stagedAttachedAlias !== exact.stagedAttachedAlias
     || !/^[a-f0-9]{32}$/.test(state.marker ?? "")
     || !STAGES.includes(state.stage)
     || state.fixtureIds == null
@@ -956,7 +964,8 @@ export function createInitialState(config, canary, checkoutSeller) {
     deployedCiRunId: release.ciRunId,
     deploymentId: release.deploymentId,
     ...(release.targetOrigin ? { targetOrigin: release.targetOrigin,
-      bypassSha256: release.bypassSha256 } : {}),
+      bypassSha256: release.bypassSha256,
+      ...(release.stagedAttachedAlias ? { stagedAttachedAlias: release.stagedAttachedAlias } : {}) } : {}),
     marker,
     fixtureIds: buildFixtureIds(marker),
     canary: {

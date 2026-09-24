@@ -8,6 +8,7 @@ import {
   PRODUCTION_ORIGIN,
   REQUIRED_ALIASES,
   REVIEWED_PROJECT,
+  STAGED_PROJECT_ALIAS,
   assertReleaseBinding,
   assertStagedBypass,
   createInitialState,
@@ -51,6 +52,7 @@ test("staged binding pins immutable host, predecessor, and bypass digest", () =>
     { targetOrigin: `https://${REQUIRED_ALIASES[1]}` },
     { predecessorDeploymentId: binding.deploymentId },
     { bypassSha256: "invalid" },
+    { stagedAttachedAlias: REQUIRED_ALIASES[0] },
   ]) assert.throws(() => assertReleaseBinding({ ...binding, ...change }));
   assert.equal(assertStagedBypass(binding, bypass), bypass);
   assert.throws(() => assertStagedBypass(binding, "wrong-synthetic-bypass-value"));
@@ -72,6 +74,37 @@ test("staged deployment requires exact READY source and unpromoted aliases", () 
     assert.throws(() => parseVercelAliasInspection({ id: binding.deploymentId,
       target: "production", readyState: "READY" }, alias, binding));
   }
+});
+
+test("staged deployment binds Vercel's observed project alias move exactly", () => {
+  const attached = { ...binding, stagedAttachedAlias: STAGED_PROJECT_ALIAS };
+  const withAlias = { ...candidate, aliases: [STAGED_PROJECT_ALIAS] };
+  assert.equal(parseVercelDeployment(withAlias, attached).deploymentId, binding.deploymentId);
+  assert.throws(() => parseVercelDeployment(candidate, attached));
+  assert.throws(() => parseVercelDeployment(withAlias, binding));
+  assert.throws(() => parseVercelDeployment({ ...withAlias,
+    aliases: [STAGED_PROJECT_ALIAS, REQUIRED_ALIASES[0]] }, attached));
+  for (const alias of REQUIRED_ALIASES) {
+    const expected = alias === STAGED_PROJECT_ALIAS
+      ? binding.deploymentId : binding.predecessorDeploymentId;
+    assert.equal(parseVercelAliasInspection({ id: expected, target: "production",
+      readyState: "READY" }, alias, attached).deploymentId, expected);
+    const wrong = alias === STAGED_PROJECT_ALIAS
+      ? binding.predecessorDeploymentId : binding.deploymentId;
+    assert.throws(() => parseVercelAliasInspection({ id: wrong,
+      target: "production", readyState: "READY" }, alias, attached));
+  }
+  const config = { operatorCommit: "c".repeat(40), operatorCiRunId: 9999, release: attached };
+  const canary = { id: "synthetic-canary", clerkUserId: "user_synthetic", role: "USER",
+    termsAcceptedAt: null, termsVersion: null, ageAttestedAt: null,
+    notificationPreferences: {}, emailPreferenceOptInAt: null };
+  const seller = { id: "synthetic-seller", userId: "synthetic-user", stripeAccountId: "acct_synthetic" };
+  const state = createInitialState(config, canary, seller);
+  assert.equal(state.stagedAttachedAlias, STAGED_PROJECT_ALIAS);
+  assert.deepEqual(validateRestartState(state, config, attached,
+    { allowLegacyCleanupRecovery: false }), state);
+  assert.throws(() => validateRestartState({ ...state, stagedAttachedAlias: undefined },
+    config, attached, { allowLegacyCleanupRecovery: false }));
 });
 
 test("staged health and route requests stay on exact immutable host with bypass", async () => {
