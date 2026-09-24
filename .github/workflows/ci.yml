@@ -75,6 +75,8 @@ jobs:
       NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -1447,10 +1449,21 @@ jobs:
         run: npm run audit:order-participant-list-projection-correction
       - name: Re-verify compatible Order account-deletion authority
         run: npm run audit:order-account-deletion-authority
-      - name: Apply compatible Order participant authority
+      - name: Apply exact historical Order participant authority
+        shell: bash
         run: |
+          set -euo pipefail
           npm run guard:local-disk-space
-          node scripts/order-zero-direct-execution-postgres-proof.mjs
+          historical=986540254b58ade0611ad5ee94dc794919d84f49
+          git cat-file -e "$historical^{commit}"
+          git merge-base --is-ancestor "$historical" HEAD
+          source="$RUNNER_TEMP/order-zero-direct-historical-source"
+          git clone --quiet --shared . "$source"
+          git -C "$source" checkout --quiet --detach "$historical"
+          test "$(git -C "$source" rev-parse HEAD)" = "$historical"
+          git -C "$source" remote set-url origin https://github.com/Drewyoung910/grainline.git
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$source/node_modules"
+          (cd "$source" && node scripts/order-zero-direct-execution-postgres-proof.mjs)
         env:
           ORDER_ZERO_DIRECT_EXECUTION_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci?sslmode=disable
       - name: Converge Order participant runtime grants
