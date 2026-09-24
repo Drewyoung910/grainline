@@ -1642,6 +1642,8 @@ jobs:
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
+      - name: Security audit
+        run: npm run audit:dependencies
       - name: Restore and prove the reviewed successor
         shell: bash
         run: |
@@ -1651,7 +1653,5 @@ jobs:
           mv "$RUNNER_TEMP/order-banned-buyer-completion-postgres.test.mjs" \
             tests/order-banned-buyer-completion-postgres.test.mjs
           node --test tests/order-banned-buyer-completion-postgres.test.mjs
-      - name: Security audit
-        run: npm run audit:dependencies
       - name: Production build
         run: npm run build
