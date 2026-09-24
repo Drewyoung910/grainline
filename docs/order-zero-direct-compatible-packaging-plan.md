@@ -1,9 +1,20 @@
 # Order zero-direct compatible packaging plan
 
-Status: isolated compatible-prefix candidate, updated September 8. All seventeen
-byte-pinned migration members are staged in source, including the composition
-successor. This document is not a current production inspection or permission
-to apply them. The release must retain predecessor Order CRUD with RLS/FORCE off.
+Current release note, September 24: the 17-member compatible prefix has
+completed in Production while Core `Order` RLS remains OFF and predecessor
+runtime CRUD is retained. The dedicated staff login and six reviewed function
+grants are proved; its Production application URL is not installed. The five
+live aliases still serve the predecessor application. Core `Order` ENABLE,
+FORCE and their rollbacks exist only as private drafts outside Prisma's
+migration tree, pending staged application smoke, predecessor drain,
+full-schema review, and distinct activation decisions. The historical plan
+below describes preparation and must not be read as current production state.
+
+Historical September 8 status: isolated compatible-prefix candidate. All
+seventeen byte-pinned migration members are staged in source, including the
+composition successor. This document is not a current production inspection
+or permission to apply them. The release must retain predecessor Order CRUD
+with RLS/FORCE off.
 Current dormant scope preparation is `order-zero-direct-release-scope.md`.
 
 Prepared: 2026-09-05 from isolated branch
@@ -336,9 +347,10 @@ execution is:
   ordered;
 - remove exact predecessor deployments immediately after the fresh smoke rather
   than waiting through a traffic-drain window with no users;
-- dispatch the already separate ENABLE and FORCE migrations in one controlled
-  release session, with the engine-read-only activation postflight between
-  them; and
+- after the staged app and predecessor drain pass, package and review separate
+  Core `Order` ENABLE and FORCE migrations with their rollback boundaries;
+  only then dispatch them in one controlled release session, with the
+  engine-read-only activation postflight between them; and
 - run immutable historical proofs independently from the active Order proof so
   CI can execute them in parallel instead of replaying one 400-step serial job
   for every small correction.
