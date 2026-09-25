@@ -1607,19 +1607,32 @@ export function assertPrivateLabelRedirect({ cacheControl, location, pragma, sta
   return Object.freeze({ privateNoStore: true, status: 302 });
 }
 
-export function assertFulfillmentRedirect({ location, orderId, status }) {
-  if (
-    status !== 303
-    || location !== `${PRODUCTION_ORIGIN}/dashboard/sales/${orderId}`
-  ) throw new Error("seller fulfillment redirect drifted");
+function redirectDriftClass({ location, expected, status, targetOrigin }) {
+  if (status !== 303) return "status";
+  if (typeof location !== "string") return "missing-location";
+  let actual;
+  try {
+    actual = new URL(location);
+  } catch {
+    return "invalid-location";
+  }
+  if (actual.origin !== PRODUCTION_ORIGIN) {
+    return actual.origin === targetOrigin ? "staged-origin" : "other-origin";
+  }
+  return location === expected ? null : "canonical-path";
+}
+
+export function assertFulfillmentRedirect({ location, orderId, status, targetOrigin }) {
+  const drift = redirectDriftClass({ location,
+    expected: `${PRODUCTION_ORIGIN}/dashboard/sales/${orderId}`, status, targetOrigin });
+  if (drift) throw new Error(`seller fulfillment redirect drifted: ${drift}`);
   return Object.freeze({ orderId, status: 303 });
 }
 
-export function assertReceiptRedirect({ location, orderId, status }) {
-  if (
-    status !== 303
-    || location !== `${PRODUCTION_ORIGIN}/dashboard/orders/${orderId}`
-  ) throw new Error("buyer receipt redirect drifted");
+export function assertReceiptRedirect({ location, orderId, status, targetOrigin }) {
+  const drift = redirectDriftClass({ location,
+    expected: `${PRODUCTION_ORIGIN}/dashboard/orders/${orderId}`, status, targetOrigin });
+  if (drift) throw new Error(`buyer receipt redirect drifted: ${drift}`);
   return Object.freeze({ orderId, status: 303 });
 }
 
@@ -1924,6 +1937,7 @@ async function runSellerFulfillmentPhase({ owner, state, token, routeRequest }) 
         location: notes.headers.get("location"),
         orderId: ids.fulfillmentOrderId,
         status: notes.status,
+        targetOrigin: state.targetOrigin,
       });
     }
     const persisted = await owner.query(`SELECT "sellerNotes" AS notes FROM public."Order" WHERE id = $1`,
@@ -1948,6 +1962,7 @@ async function runSellerFulfillmentPhase({ owner, state, token, routeRequest }) 
       location: shipped.headers.get("location"),
       orderId: ids.fulfillmentOrderId,
       status: shipped.status,
+      targetOrigin: state.targetOrigin,
     });
   }
   const replay = await routeRequest(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
@@ -1991,6 +2006,7 @@ async function runBuyerReceiptPhase({ owner, state, token, routeRequest }) {
       location: confirmed.headers.get("location"),
       orderId: ids.receiptOrderId,
       status: confirmed.status,
+      targetOrigin: state.targetOrigin,
     });
   }
   const replay = await routeRequest(`/api/orders/${ids.receiptOrderId}/confirm-delivery`, token, {

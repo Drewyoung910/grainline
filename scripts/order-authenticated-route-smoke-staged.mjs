@@ -25,9 +25,16 @@ export function runStagedOperator() {
   return runOperator({ releaseBinding: binding, allowLegacyCleanupRecovery: false });
 }
 
+export function stagedFailureMessage(error) {
+  const message = error instanceof Error ? error.message : "";
+  if (/^(seller fulfillment|buyer receipt) redirect drifted: (status|missing-location|invalid-location|staged-origin|other-origin|canonical-path)$/.test(message)
+    || message === "seller note sanitization drifted") return message;
+  return "Staged authenticated Order smoke stopped; preserve any private restart journal.";
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runStagedOperator().catch(() => {
-    console.error("Staged authenticated Order smoke stopped; preserve any private restart journal.");
+  runStagedOperator().catch((error) => {
+    console.error(stagedFailureMessage(error));
     process.exitCode = 1;
   });
 }

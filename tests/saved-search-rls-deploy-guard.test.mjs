@@ -3929,6 +3929,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/order-staged-smoke-20260924": orderStagedSmokeReviewDeployment,
       "codex/order-staged-pickup-smoke-20260924": orderStagedPickupReviewDeployment,
       "codex/order-staged-label-outbox-20260924": orderStagedLabelOutboxReviewDeployment,
+      "codex/order-staged-fulfillment-diagnostic-20260924": orderStagedFulfillmentDiagnosticReviewDeployment,
       "codex/order-staff-bootstrap-admission-fix-20260924": orderStaffBootstrapReviewDeployment,
       "codex/order-staff-server-hash-20260924": orderStaffServerHashReviewDeployment,
       "codex/order-stage-alias-owner-20260924": orderStageAliasOwnerReviewDeployment,
@@ -3990,6 +3991,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderStagedLabelOutboxReviewDeployment,
       false,
       "the exact staged Order label outbox review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderStagedFulfillmentDiagnosticReviewDeployment,
+      false,
+      "the exact staged Order fulfillment diagnostic branch must remain deployment-disabled",
     );
     assert.equal(
       orderStaffBootstrapReviewDeployment,
