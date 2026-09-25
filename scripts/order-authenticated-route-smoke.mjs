@@ -913,6 +913,9 @@ export function validateRestartState(state, config, binding = RELEASE_BINDING,
     || !(state.checkout?.stripeSessionId === null
       || /^cs_test_[A-Za-z0-9_]+$/.test(state.checkout.stripeSessionId))
     || typeof state.checkout?.signedExpiryObserved !== "boolean"
+    || !(state.checkout?.buyerQuoteMode === null
+      || state.checkout?.buyerQuoteMode === undefined
+      || new Set(["calculated-shipping", "pickup-only"]).has(state.checkout?.buyerQuoteMode))
     || !(state.provider?.shippoTransactionId === null
       || validId(state.provider.shippoTransactionId, 255))
     || !cleanupValid
@@ -993,6 +996,7 @@ export function createInitialState(config, canary, checkoutSeller) {
       redisKeys: [],
       stripeSessionId: null,
       signedExpiryObserved: false,
+      buyerQuoteMode: null,
     },
     provider: { shippoTransactionId: null },
     routePhasesPassed: false,
@@ -1496,11 +1500,20 @@ export function assertBuyerQuote(body, expectedSubjectHash) {
     || body.rates.length > 12
     || !/^[A-Za-z0-9_-]{32}$/.test(expectedSubjectHash ?? "")
   ) throw new Error("buyer shipping quote shape drifted");
-  const rate = body.rates.find((candidate) =>
+  const shippingRate = body.rates.find((candidate) =>
     candidate?.objectId !== "pickup"
     && typeof candidate?.objectId === "string"
     && candidate.objectId.startsWith("quote-only:")
   );
+  // A seller's preferred carriers can exclude every test-mode Shippo rate.
+  // The application then offers its explicitly enabled, signed local-pickup
+  // option. Accept only that exact pickup-only response, and expose the mode
+  // in evidence so it is never mistaken for a calculated-shipping proof.
+  const pickupOnly = !shippingRate
+    && body.pickupOnly === true
+    && body.rates.length === 1
+    && body.rates[0]?.objectId === "pickup";
+  const rate = shippingRate ?? (pickupOnly ? body.rates[0] : null);
   if (
     !rate
     || rate.subjectHash !== expectedSubjectHash
@@ -1517,6 +1530,8 @@ export function assertBuyerQuote(body, expectedSubjectHash) {
       || (Number.isSafeInteger(rate.estDays) && rate.estDays >= 1 && rate.estDays <= 60))
     || !/^[a-f0-9]{64}$/.test(rate.token ?? "")
     || !Number.isSafeInteger(rate.expiresAt)
+    || (pickupOnly && (rate.amountCents !== 0
+      || rate.carrier !== "pickup" || rate.estDays !== null))
   ) throw new Error("buyer shipping quote did not bind the reviewed package");
   return Object.freeze({ ...rate });
 }
@@ -1699,6 +1714,12 @@ async function runBuyerPhase({ owner, redis, state, stripe, token, routeRequest 
   if (quantityOne.subjectHash === quantityTwo.subjectHash) {
     throw new Error("quantity-one and quantity-two shipping subjects collided");
   }
+  const quoteMode = quantityTwo.objectId === "pickup" ? "pickup-only" : "calculated-shipping";
+  if ((quantityOne.objectId === "pickup") !== (quantityTwo.objectId === "pickup")) {
+    throw new Error("quantity-one and quantity-two shipping modes drifted");
+  }
+  state.checkout.buyerQuoteMode = quoteMode;
+  saveState(state);
   const body = {
     listingId: state.fixtureIds.checkoutListingId,
     quantity: 2,
@@ -2375,6 +2396,7 @@ export function sanitizedEvidence({ binding, cleanup, operator, result, status }
     status,
     result: {
       buyerQuantityTwoCheckoutPassed: result?.buyerQuantityTwoCheckoutPassed === true,
+      buyerQuoteMode: result?.buyerQuoteMode ?? null,
       sellerLabelPassed: result?.sellerLabelPassed === true,
       sellerFulfillmentPassed: result?.sellerFulfillmentPassed === true,
       buyerReceiptPassed: result?.buyerReceiptPassed === true,
@@ -2401,6 +2423,7 @@ export function sanitizedEvidence({ binding, cleanup, operator, result, status }
 function evidenceResultForState(state, passed) {
   return {
     buyerQuantityTwoCheckoutPassed: passed,
+    buyerQuoteMode: state.checkout?.buyerQuoteMode ?? null,
     sellerLabelPassed: passed,
     sellerFulfillmentPassed: passed,
     buyerReceiptPassed: passed,
