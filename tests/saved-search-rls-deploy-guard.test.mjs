@@ -3931,6 +3931,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/order-staff-server-hash-20260924": orderStaffServerHashReviewDeployment,
       "codex/order-stage-alias-owner-20260924": orderStageAliasOwnerReviewDeployment,
       "codex/order-banned-buyer-completion-20260924": orderBannedBuyerReviewDeployment,
+      "codex/order-staged-provider-inputs-20260924": orderStagedProviderReviewDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -3998,6 +3999,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderBannedBuyerReviewDeployment,
       false,
       "the exact banned-buyer Order correction review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderStagedProviderReviewDeployment,
+      false,
+      "the exact staged Order provider-input review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,
