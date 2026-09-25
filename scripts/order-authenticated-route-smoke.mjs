@@ -85,6 +85,8 @@ export const STAGED_PROJECT_ALIAS = "grainline-drew-youngs-projects.vercel.app";
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 export const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 export const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.local";
+export const STAGED_STRIPE_INPUT_PATH = "/Users/drewyoung/grainline/recovery-checkpoints/order-zero-direct-authority-20260908/stripe-replacement-inputs-20260922/api/.env.local";
+export const STAGED_UPSTASH_INPUT_PATH = "/Users/drewyoung/grainline/recovery-checkpoints/order-zero-direct-authority-20260908/upstash-replacement-inputs-20260923/.env.local";
 export const STATE_PATH = path.join(
   EVIDENCE_DIRECTORY,
   "order-authenticated-route-smoke-state.json",
@@ -441,6 +443,33 @@ export function validateProviderCredentials(localValues) {
     redisUrl,
     shippoApiKey,
     stripeSecret,
+  });
+}
+
+// Keep staged test/provider credentials separate from the root local environment.
+// The canonical smoke retains its existing inputs and never reads these files.
+export function withStagedProviderReplacements(localValues, stripeValues, upstashValues) {
+  const oldRedisUrl = required(localValues, "UPSTASH_REDIS_REST_URL");
+  const oldRedisToken = required(localValues, "UPSTASH_REDIS_REST_TOKEN");
+  const replacementRedisUrl = required(upstashValues, "UPSTASH_REPLACEMENT_REST_URL");
+  const replacementRedisToken = required(upstashValues, "UPSTASH_REPLACEMENT_REST_TOKEN");
+  let oldOrigin;
+  let replacementOrigin;
+  try {
+    oldOrigin = new URL(oldRedisUrl).origin;
+    replacementOrigin = new URL(replacementRedisUrl).origin;
+  } catch {
+    throw new Error("staged Upstash endpoint identity is invalid");
+  }
+  if (oldOrigin !== replacementOrigin || replacementOrigin.startsWith("https://") === false
+    || oldRedisToken === replacementRedisToken) {
+    throw new Error("staged Upstash replacement must use the same endpoint with a new token");
+  }
+  return Object.freeze({
+    ...localValues,
+    STRIPE_SECRET_KEY: required(stripeValues, "STRIPE_REPLACEMENT_TEST_SECRET_KEY"),
+    UPSTASH_REDIS_REST_URL: replacementRedisUrl,
+    UPSTASH_REDIS_REST_TOKEN: replacementRedisToken,
   });
 }
 
@@ -2506,7 +2535,12 @@ export async function runOperator({ releaseBinding = RELEASE_BINDING,
   const localValues = loadPrivateEnvironment(LOCAL_ENV_PATH, "local environment file");
   const ownerValues = loadPrivateEnvironment(OWNER_ENV_PATH, "migration-owner environment file");
   const database = parseDatabaseUrls(localValues, ownerValues);
-  const provider = validateProviderCredentials(localValues);
+  const providerValues = config.release.targetOrigin
+    ? withStagedProviderReplacements(localValues,
+      loadPrivateEnvironment(STAGED_STRIPE_INPUT_PATH, "staged Stripe input file"),
+      loadPrivateEnvironment(STAGED_UPSTASH_INPUT_PATH, "staged Upstash input file"))
+    : localValues;
+  const provider = validateProviderCredentials(providerValues);
   const owner = new Client({ connectionString: database.ownerDatabaseUrl });
   const runtime = new Client({ connectionString: database.runtimeDatabaseUrl });
   const stripe = new Stripe(provider.stripeSecret);

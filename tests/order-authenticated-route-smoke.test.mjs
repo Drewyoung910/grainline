@@ -36,6 +36,7 @@ import {
   validateConfiguration,
   validateProviderCredentials,
   validateRestartState,
+  withStagedProviderReplacements,
 } from "../scripts/order-authenticated-route-smoke.mjs";
 
 const binding = Object.freeze({
@@ -197,6 +198,49 @@ test("database and provider identities refuse owner-runtime or live-mode drift",
     ...provider,
     STRIPE_SECRET_KEY: "sk_live_forbidden",
   }));
+});
+
+test("staged smoke takes only reviewed replacement provider fields", () => {
+  const local = {
+    DATABASE_URL: runtimeUrl,
+    CLERK_SECRET_KEY: "sk_live_placeholder",
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_live_Y2xlcmsudGhlZ3JhaW5saW5lLmNvbSQ",
+    SHIPPO_API_KEY: "shippo_test_placeholder",
+    STRIPE_SECRET_KEY: "sk_live_existing",
+    UPSTASH_REDIS_REST_URL: "https://same.upstash.io",
+    UPSTASH_REDIS_REST_TOKEN: "old-token",
+  };
+  const staged = withStagedProviderReplacements(local,
+    { STRIPE_REPLACEMENT_TEST_SECRET_KEY: "sk_test_replacement" },
+    {
+      UPSTASH_REPLACEMENT_REST_URL: "https://same.upstash.io",
+      UPSTASH_REPLACEMENT_REST_TOKEN: "x".repeat(32),
+    });
+  assert.equal(staged.STRIPE_SECRET_KEY, "sk_test_replacement");
+  assert.equal(staged.UPSTASH_REDIS_REST_URL, "https://same.upstash.io");
+  assert.equal(staged.DATABASE_URL, runtimeUrl);
+  assert.equal(local.STRIPE_SECRET_KEY, "sk_live_existing");
+  assert.equal(validateProviderCredentials(staged).redisUrl, "https://same.upstash.io");
+  assert.throws(() => withStagedProviderReplacements(local,
+    { STRIPE_REPLACEMENT_TEST_SECRET_KEY: "" },
+    { UPSTASH_REPLACEMENT_REST_URL: "https://same.upstash.io",
+      UPSTASH_REPLACEMENT_REST_TOKEN: "x".repeat(32) }),
+  /missing required STRIPE_REPLACEMENT_TEST_SECRET_KEY/);
+  assert.throws(() => validateProviderCredentials(withStagedProviderReplacements(local,
+    { STRIPE_REPLACEMENT_TEST_SECRET_KEY: "sk_live_forbidden" },
+    { UPSTASH_REPLACEMENT_REST_URL: "https://same.upstash.io",
+      UPSTASH_REPLACEMENT_REST_TOKEN: "x".repeat(32) })),
+  /non-test Stripe/);
+  assert.throws(() => withStagedProviderReplacements(local,
+    { STRIPE_REPLACEMENT_TEST_SECRET_KEY: "sk_test_replacement" },
+    { UPSTASH_REPLACEMENT_REST_URL: "https://other.upstash.io",
+      UPSTASH_REPLACEMENT_REST_TOKEN: "x".repeat(32) }),
+  /same endpoint/);
+  assert.throws(() => withStagedProviderReplacements(local,
+    { STRIPE_REPLACEMENT_TEST_SECRET_KEY: "sk_test_replacement" },
+    { UPSTASH_REPLACEMENT_REST_URL: "https://same.upstash.io",
+      UPSTASH_REPLACEMENT_REST_TOKEN: "old-token" }),
+  /new token/);
 });
 
 test("restart state is marker-bound, exact-release-bound and monotonic", () => {
