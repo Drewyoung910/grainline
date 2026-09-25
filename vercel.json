@@ -13,6 +13,7 @@
       "codex/order-staged-smoke-20260924": false,
       "codex/order-staged-pickup-smoke-20260924": false,
       "codex/order-staged-label-outbox-20260924": false,
+      "codex/order-staged-fulfillment-diagnostic-20260924": false,
       "codex/order-staff-bootstrap-admission-fix-20260924": false,
       "codex/order-staff-server-hash-20260924": false,
       "codex/order-stage-alias-owner-20260924": false,

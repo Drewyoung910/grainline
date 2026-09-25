@@ -20,7 +20,10 @@ import {
   validateRestartState,
   verifyDeploymentBoundary,
 } from "../scripts/order-authenticated-route-smoke.mjs";
-import { loadStagedReleaseBinding } from "../scripts/order-authenticated-route-smoke-staged.mjs";
+import {
+  loadStagedReleaseBinding,
+  stagedFailureMessage,
+} from "../scripts/order-authenticated-route-smoke-staged.mjs";
 
 const bypass = "synthetic-staged-bypass-value-for-tests-only";
 const binding = Object.freeze({
@@ -143,7 +146,23 @@ test("staged API redirects retain the configured canonical site URL", () => {
   assert.deepEqual(assertReceiptRedirect({ location: `${PRODUCTION_ORIGIN}/dashboard/orders/ord_1`,
     orderId: "ord_1", status: 303 }), { orderId: "ord_1", status: 303 });
   assert.throws(() => assertFulfillmentRedirect({ location: `${binding.targetOrigin}/dashboard/sales/ord_1`,
-    orderId: "ord_1", status: 303 }));
+    orderId: "ord_1", status: 303, targetOrigin: binding.targetOrigin }),
+  /seller fulfillment redirect drifted: staged-origin/);
+  assert.throws(() => assertFulfillmentRedirect({ location: `${PRODUCTION_ORIGIN}/dashboard/sales/other`,
+    orderId: "ord_1", status: 303, targetOrigin: binding.targetOrigin }),
+  /seller fulfillment redirect drifted: canonical-path/);
+  assert.throws(() => assertFulfillmentRedirect({ location: null,
+    orderId: "ord_1", status: 303, targetOrigin: binding.targetOrigin }),
+  /seller fulfillment redirect drifted: missing-location/);
+  assert.throws(() => assertReceiptRedirect({ location: "https://unrelated.example/orders/ord_1",
+    orderId: "ord_1", status: 303, targetOrigin: binding.targetOrigin }),
+  /buyer receipt redirect drifted: other-origin/);
+  assert.equal(stagedFailureMessage(new Error("seller fulfillment redirect drifted: staged-origin")),
+    "seller fulfillment redirect drifted: staged-origin");
+  assert.equal(stagedFailureMessage(new Error("seller note sanitization drifted")),
+    "seller note sanitization drifted");
+  assert.equal(stagedFailureMessage(new Error("provider said secret-key-goes-here")),
+    "Staged authenticated Order smoke stopped; preserve any private restart journal.");
 });
 
 test("staged restart cannot switch host or bypass digest at the same deployment", () => {
