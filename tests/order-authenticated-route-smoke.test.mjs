@@ -465,6 +465,18 @@ test("route-result contracts bind the exact noncharging buyer quote and retry", 
   }] }, subjectHash);
   assert.equal(rate.amountCents, 1234);
   assert.throws(() => assertBuyerQuote({ rates: [{ ...rate, subjectHash: "X".repeat(32) }] }, subjectHash));
+  const pickup = assertBuyerQuote({ pickupOnly: true, rates: [{
+    ...rate,
+    objectId: "pickup",
+    amountCents: 0,
+    carrier: "pickup",
+    estDays: null,
+  }] }, subjectHash);
+  assert.equal(pickup.objectId, "pickup");
+  assert.throws(() => assertBuyerQuote({ rates: [pickup] }, subjectHash));
+  assert.throws(() => assertBuyerQuote({ pickupOnly: true, rates: [
+    { ...pickup, amountCents: 100 },
+  ] }, subjectHash));
   const sessionId = "cs_test_exact";
   assert.equal(assertCheckoutRouteResult({
     body: { clientSecret: `${sessionId}_secret_test`, reused: true, sessionId },
