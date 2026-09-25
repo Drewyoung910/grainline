@@ -1883,6 +1883,7 @@ async function runSellerLabelPhase({ owner, state, token, routeRequest }) {
   saveState(state);
   await assertRouteSideEffects(owner, {
     auditAction: "ORDER_FULFILLMENT_TRANSITION",
+    expectedEmailStatus: "SKIPPED",
     notificationType: "ORDER_SHIPPED",
     orderId: ids.labelOrderId,
   });
