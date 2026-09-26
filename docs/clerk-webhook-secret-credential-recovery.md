@@ -116,17 +116,46 @@ consumer set without proving provider delivery. The prepared application patch
 removes that injection. After exact-main CI succeeds, delete the GitHub
 repository secret rather than retaining an unused copy.
 
-The active provider endpoint inventory is not yet accepted. Before any mutation,
-the Clerk dashboard/Svix portal must record the exact current endpoint id, URL,
-enabled state, event subscriptions, creation state, and predecessor-secret
-digest without persisting the portal fragment or raw secret. An unavailable or
-ambiguous portal is a stop condition, not permission to create another endpoint.
+The read-only active provider inventory is complete and remains
+`review-required`. Production contains exactly one endpoint, id
+`ep_3BYqcYhmWuf9JB9JL2nl81plJsq`, at the canonical URL. It is enabled, has no
+description, and the dashboard displays its creation time as `March 28, 2026
+at 12:40 AM` in the operator's `America/Chicago` time zone. Because the UI
+exposes only minute precision, normalized evidence retains the exact UTC
+interval `[2026-03-28T05:40:00.000Z, 2026-03-28T05:41:00.000Z)` rather than
+inventing seconds. The masked endpoint secret was not revealed. Independent
+hash-only comparison of the ignored mode-`0600` local value confirmed the
+pinned predecessor digest above. Retain sanitized mode-`0600` evidence
+`clerk-webhook-provider-inventory-20260904.json`, captured at
+`2026-09-04T20:07:55.836Z`, SHA-256
+`ccacd59f72cce28f81987840d9698c8a0a858a03ae387342e14439026d45c091`.
+It records `mutationAuthorized=false` and changed no provider or production
+state.
+
+The endpoint subscribes to exactly `user.created` and `user.updated`; it omits
+`user.deleted`. This is a real lifecycle gap, not merely inventory noise: the
+application has a retry-safe, tested `user.deleted` branch that anonymizes the
+local account, but Clerk cannot invoke it without the provider subscription.
+The replacement endpoint must therefore use the explicitly reviewed handled
+set `user.created`, `user.deleted`, and `user.updated`. This is a narrow repair
+of the provider configuration, not an instruction to silently clone the
+deficient predecessor. The provider remains unchanged until the parallel
+endpoint creation boundary is separately confirmed.
+
+This subscription repair is prospective. It does not prove that earlier Clerk
+deletions reached local anonymization. Before declaring lifecycle synchronization
+complete, classify any active local account whose Clerk identity no longer
+exists through a separately reviewed aggregate-only reconciliation. Do not
+bulk-replay old deletion events or mutate accounts based only on a missing
+subscription. This is an unresolved historical-data question, not evidence
+that any specific account is affected.
 
 The isolated read-only inventory contract lives in
 `scripts/clerk-webhook-provider-inventory.mjs`. It accepts only the exact
 Production Clerk instance, canonical `https://thegrainline.com/api/clerk/webhook`
-route, one matching endpoint, bounded total endpoint count, exact UTC creation
-and capture timestamps, a valid enabled/disabled state, unique event names and
+route, one matching endpoint, bounded total endpoint count, exact UTC capture
+timestamp, a source-preserving minute-precision Chicago creation interval, a
+valid enabled/disabled state, unique event names and
 the independently pinned predecessor-secret digest. It emits only sanitized
 inventory evidence with `mutationAuthorized=false`. A disabled predecessor or
 any subscription set other than `user.created`, `user.updated` and
@@ -248,10 +277,45 @@ event carries the same `svix-id` across two parallel endpoint deliveries; the
 database key provides delivery-id replay safety, not proven cross-endpoint
 logical deduplication.
 
+## Retire deployments that retain the exposed signing secret
+
+Endpoint deletion alone does not revoke a signing secret inside an existing
+application deployment. The public Clerk route verifies its own
+`process.env.CLERK_WEBHOOK_SECRET`; it does not consult the provider endpoint
+inventory. Vercel environment changes apply only to new deployments, as
+documented in [Vercel environment variables](https://vercel.com/docs/environment-variables).
+A callable predecessor with the exposed secret and working database credential
+can therefore still accept a forged request after the provider endpoint is
+deleted. This is a cutover-plan gap; rotation has not been executed.
+
+Before creating the replacement, capture the complete deployment inventory
+for the current database-credential epoch and seal every exact predecessor ID,
+source, target and URL. Reject incomplete pagination or an unexpected
+deployment. The previously accepted single hardened deployment is the expected
+baseline, not permission to skip this fresh inventory.
+
+After the new endpoint's genuine signed delivery and replay pass and all four
+canonical aliases resolve to the replacement, wait the reviewed in-flight
+drain of at least 330 seconds. Revalidate the alias and deployment inventory,
+remove only the sealed predecessor deployments, and verify each is gone while
+the replacement remains READY and healthy. Then retire the old provider
+endpoint and shared consumers. Record deployment retirement and endpoint
+retirement independently; neither substitutes for the other. Rollback after
+retirement must rebuild reviewed compatible source with the replacement secret.
+
 ## Restart-safe cutover
 
+Implementation checkpoint: the provider inventory helper and its tests are
+complete; an executable webhook cutover operator is not yet implemented.
+Prepare and test the private journal, consumer/deployment convergence, signed
+delivery verification and restart paths before creating another endpoint or
+revealing its secret. The accepted server-key recovery supplies reusable
+patterns, but its different key, consumer and provider protocol cannot be
+executed as a webhook-secret rotation.
+
 1. Require the accepted Clerk server-key evidence, exact current deployment,
-   aliases, health, and absence of its private journal.
+   aliases, health, absence of its private journal, and complete sealed
+   deployment inventory for the current database-credential epoch.
 2. Merge and deploy the application hardening: no unsafe-metadata legal writes,
    atomic legal audit, no unauthenticated shared telemetry, and no CI webhook
    secret consumer.
@@ -269,7 +333,9 @@ logical deduplication.
 5. Inventory the exact predecessor endpoint and subscriptions through the
    Clerk/Svix portal without printing or storing its portal URL fragment.
 6. Create one distinctly named parallel endpoint with the same canonical URL
-   and event subscriptions. An ambiguous creation is restart state.
+   and the reviewed handled set `user.created`, `user.deleted`, and
+   `user.updated`; do not copy the predecessor's missing deletion subscription.
+   An ambiguous creation is restart state.
 7. Capture the replacement secret once, fsync it to a mode-`0600` journal,
    clear only that clipboard value, and require a digest distinct from the
    predecessor.
@@ -280,8 +346,10 @@ logical deduplication.
    and verify READY status, source provenance and health.
 10. Send the genuine provider-signed safe delivery through the new endpoint,
    then retry the exact delivery and prove the lifecycle/replay boundary.
-11. Keep overlap bounded. After the reviewed in-flight drain, disable and delete
-    only the exact predecessor endpoint. Reverify new-endpoint delivery.
+11. Keep overlap bounded. After the reviewed in-flight drain and successful
+    replacement delivery/replay, remove only the sealed predecessor application
+    deployments, prove their removal and replacement health, then disable and
+    delete only the exact predecessor endpoint. Reverify new-endpoint delivery.
 12. Delete exact shared Vercel row `env_COJQFcpzr4XLmfRZl1sPYGux`, delete the
     now-unused GitHub secret, remove the local production value, and prove the
     project-local Production row is the sole production consumer.
@@ -301,6 +369,9 @@ logical deduplication.
 - Unexpected endpoint counts, URLs, subscriptions, Vercel shadows, consumer
   copies, delivery ids, audit-provenance counts, or deployment inventory stop
   the operation.
+- Final acceptance requires zero callable deployments retaining the exposed
+  signing secret and a still-valid production database credential. Deleting
+  the Clerk endpoint or changing canonical aliases alone is insufficient.
 - This credential recovery runs no RLS migration and does not resume Order RLS.
   After all exposed credential families are accepted, the full authenticated
   Order smoke runs before Order RLS work resumes.
