@@ -165,6 +165,24 @@ test("staged API redirects retain the configured canonical site URL", () => {
     "Staged authenticated Order smoke stopped; preserve any private restart journal.");
 });
 
+test("empty-body fulfillment redirects are inspected through headers without JSON parsing", async () => {
+  const location = `${PRODUCTION_ORIGIN}/dashboard/sales/ord_1`;
+  const route = createRouteRequest(binding, bypass, async () =>
+    new Response(null, { status: 303, headers: { location } }));
+  const response = await route("/api/orders/ord_1/fulfillment", "synthetic-jwt", {
+    body: { action: "update_notes", sellerNotes: "synthetic note" },
+    expectJson: false,
+    method: "POST",
+  });
+  assert.equal(response.body, null);
+  assert.deepEqual(assertFulfillmentRedirect({
+    location: response.headers.get("location"),
+    orderId: "ord_1",
+    status: response.status,
+    targetOrigin: binding.targetOrigin,
+  }), { orderId: "ord_1", status: 303 });
+});
+
 test("staged restart cannot switch host or bypass digest at the same deployment", () => {
   const config = { operatorCommit: "c".repeat(40), operatorCiRunId: 9999, release: binding };
   const canary = { id: "synthetic-canary", clerkUserId: "user_synthetic", role: "USER",

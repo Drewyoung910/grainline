@@ -1931,6 +1931,7 @@ async function runSellerFulfillmentPhase({ owner, state, token, routeRequest }) 
     if (typeof status.rows[0].notes !== "string" || !status.rows[0].notes.includes(state.marker)) {
       const notes = await routeRequest(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
         body: { action: "update_notes", sellerNotes: `<script>unsafe</script> ${state.marker}` },
+        expectJson: false,
         method: "POST",
       });
       assertFulfillmentRedirect({
@@ -1956,6 +1957,7 @@ async function runSellerFulfillmentPhase({ owner, state, token, routeRequest }) 
     }
     const shipped = await routeRequest(`/api/orders/${ids.fulfillmentOrderId}/fulfillment`, token, {
       body: { action: "shipped", trackingCarrier: "UPS", trackingNumber: "1Z999AA10123456784" },
+      expectJson: false,
       method: "POST",
     });
     assertFulfillmentRedirect({
@@ -2000,6 +2002,7 @@ async function runBuyerReceiptPhase({ owner, state, token, routeRequest }) {
   if (current.rows[0]?.status === "SHIPPED") {
     const confirmed = await routeRequest(`/api/orders/${ids.receiptOrderId}/confirm-delivery`, token, {
       body: {},
+      expectJson: false,
       method: "POST",
     });
     assertReceiptRedirect({
