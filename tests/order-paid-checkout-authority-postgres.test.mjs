@@ -10,6 +10,10 @@ const candidate = fs.readFileSync(
   "docs/rls-drafts/order-paid-checkout-authority.sql",
   "utf8",
 );
+const boundReservationCorrection = fs.readFileSync(
+  "prisma/migrations/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql",
+  "utf8",
+);
 const rows = (result) => result.rows;
 let db;
 let dataDirectory;
@@ -41,6 +45,20 @@ describe("Order paid-checkout authority", () => {
     paidAt = rows(await db.query(`
       SELECT (CURRENT_TIMESTAMP - interval '1 minute')::timestamp AS paid_at
     `))[0].paid_at;
+    await db.exec("BEGIN");
+    try {
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await assert.rejects(
+        apply("evt_paid_order", 1n),
+        /Paid checkout reservation authority is invalid/,
+      );
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
+    await db.exec(boundReservationCorrection).catch((error) => {
+      error.message = `bound-reservation correction failed to install: ${error.message}`;
+      throw error;
+    });
   });
 
   after(async () => {
@@ -177,7 +195,7 @@ describe("Order paid-checkout authority", () => {
         await db.query(`
           INSERT INTO public."CheckoutStockReservation" (
             id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
-          ) VALUES ($1, $2, 'RESERVED', $3, 'seller-1', $4::jsonb)
+          ) VALUES ($1, $2, 'SESSION_CREATED', $3, 'seller-1', $4::jsonb)
         `, [`reserved-${suffix}`, `cs_reserved_${suffix}`, buyerId, JSON.stringify(snapshot)]);
       }
       for (const suffix of ["first", "second"]) {
@@ -373,7 +391,7 @@ describe("Order paid-checkout authority", () => {
       INSERT INTO public."CheckoutStockReservation" (
         id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
       ) VALUES (
-        'reservation-rollback', 'cs_test_rollback', 'RESERVED',
+        'reservation-rollback', 'cs_test_rollback', 'SESSION_CREATED',
         'buyer-1', 'seller-1', $1::jsonb
       )
     `, [JSON.stringify(snapshot)]);
@@ -402,7 +420,7 @@ describe("Order paid-checkout authority", () => {
     assert.equal(rows(await db.query(`
       SELECT status FROM public."CheckoutStockReservation"
        WHERE id = 'reservation-rollback'
-    `))[0].status, "RESERVED");
+    `))[0].status, "SESSION_CREATED");
     assert.equal(rows(await db.query(`
       SELECT status FROM public."Listing" WHERE id = 'listing-rollback'
     `))[0].status, "ACTIVE");
@@ -450,7 +468,7 @@ describe("Order paid-checkout authority", () => {
       INSERT INTO public."CheckoutStockReservation" (
         id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
       ) VALUES (
-        'reservation-cart', 'cs_test_cart', 'RESERVED',
+        'reservation-cart', 'cs_test_cart', 'SESSION_CREATED',
         'buyer-1', 'seller-1', $1::jsonb
       )
     `, [JSON.stringify(snapshot)]);

@@ -15,6 +15,10 @@ const migration = fs.readFileSync(
   "prisma/migrations/20260905130000_prepare_order_paid_checkout_authority/migration.sql",
   "utf8",
 );
+const correction = fs.readFileSync(
+  "prisma/migrations/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql",
+  "utf8",
+);
 const predecessor = fs.readFileSync(
   "prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority/migration.sql",
   "utf8",
@@ -25,7 +29,10 @@ const workflowSource = fs.readFileSync(
 );
 
 function functionSql(source, name) {
-  const start = source.indexOf(`CREATE FUNCTION public.${name}(`);
+  let start = source.indexOf(`CREATE FUNCTION public.${name}(`);
+  if (start < 0) {
+    start = source.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  }
   const endTag = `$${name}$;`;
   const end = source.indexOf(endTag, start);
   assert.ok(start >= 0 && end > start, `missing ${name}`);
@@ -82,6 +89,23 @@ describe("Order paid-checkout/repair lock proof", () => {
       "pg_catalog.pg_advisory_xact_lock(",
       'FROM public."CheckoutStockReservation" AS reservation',
     ]);
+    const correctedPaidCheckout = functionSql(
+      correction,
+      "grainline_stripe_checkout_order_create",
+    );
+    assertOrder(correctedPaidCheckout, [
+      'FROM public."StripeWebhookEvent" AS event',
+      "pg_catalog.pg_advisory_xact_lock(",
+      'FROM public."CheckoutStockReservation" AS reservation',
+    ]);
+    assert.match(
+      correctedPaidCheckout,
+      /status NOT IN \('SESSION_CREATED', 'COMPLETED'\)/u,
+    );
+    assert.match(
+      fs.readFileSync("scripts/order-paid-repair-lock-postgres-proof.mjs", "utf8"),
+      /20260926011000_correct_order_paid_checkout_bound_reservation[\s\S]*?SESSION_CREATED/u,
+    );
     assertOrder(functionSql(predecessor, "grainline_checkout_reservation_complete"), [
       'FROM public."StripeWebhookEvent" AS event',
       "pg_catalog.pg_advisory_xact_lock(913337",

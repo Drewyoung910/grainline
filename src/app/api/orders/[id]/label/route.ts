@@ -365,7 +365,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return privateJson({ ok: true, order: {
         id: recorded.orderId, labelStatus: "PURCHASED",
         labelCarrier: recorded.carrier, labelTrackingNumber: recorded.trackingNumber,
-        labelPurchasedAt: recorded.labelPurchasedAt, fulfillmentStatus: "SHIPPED",
+        labelPurchasedAt: recorded.labelPurchasedAt,
+        fulfillmentStatus: recorded.fulfillmentStatus,
       } });
     } catch (error) {
       await finalizeSellerLabelProviderResult({

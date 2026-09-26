@@ -90,6 +90,12 @@ jobs:
           tests/order-zero-direct-compatible-prefix.test.mjs
           tests/order-zero-direct-compatible-prefix-postgres.test.mjs
           tests/order-authority-composition-correction.test.mjs
+      - name: Verify Order correction and checkout-cutover release wiring
+        run: >-
+          node --test
+          tests/order-release-corrections-production-workflow.test.mjs
+          tests/order-checkout-legacy-creator-retirement-postgres.test.mjs
+          tests/order-checkout-source-cutover-production-workflow.test.mjs
       - name: Isolate Order zero-direct suffix until every predecessor passes
         shell: bash
         run: |
@@ -112,7 +118,13 @@ jobs:
             20260905150000_prepare_order_checkout_postpayment_authority \
             20260905160000_prepare_order_checkout_refund_review_authority \
             20260905170000_correct_order_authority_composition \
-            20260905180000_correct_order_banned_buyer_completion
+            20260905180000_correct_order_banned_buyer_completion \
+            20260926010000_correct_order_provider_terminal_reconciliation \
+            20260926011000_correct_order_paid_checkout_bound_reservation \
+            20260926012000_correct_order_seller_deauthorization_fulfillment \
+            20260926012100_correct_order_seller_deauthorization_label \
+            20260926012200_correct_order_seller_deauthorization_projection \
+            20260926012300_retire_legacy_checkout_reservation_creators
           do
             mv "prisma/migrations/$migration" "$destination/$migration"
           done
@@ -1392,6 +1404,16 @@ jobs:
           mv "$source/20260905180000_correct_order_banned_buyer_completion" \
             "$RUNNER_TEMP/order-banned-buyer-completion"
           for migration in \
+            20260926010000_correct_order_provider_terminal_reconciliation \
+            20260926011000_correct_order_paid_checkout_bound_reservation \
+            20260926012000_correct_order_seller_deauthorization_fulfillment \
+            20260926012100_correct_order_seller_deauthorization_label \
+            20260926012200_correct_order_seller_deauthorization_projection \
+            20260926012300_retire_legacy_checkout_reservation_creators
+          do
+            mv "$source/$migration" "$RUNNER_TEMP/$migration"
+          done
+          for migration in \
             20260905030000_prepare_order_provider_claim_exclusion \
             20260905040000_prepare_order_refund_claim_clock_authority \
             20260905050000_prepare_order_seller_refund_preflight_authority \
@@ -1533,7 +1555,6 @@ jobs:
           tests/order-participant-list-authority-postgres.test.mjs
           tests/order-participant-list-authority-release.test.mjs
           tests/order-participant-read-state.test.mjs
-          tests/order-participant-detail-authority-postgres.test.mjs
           tests/order-participant-detail-authority-contract.test.mjs
           tests/order-participant-detail-authority-release.test.mjs
           tests/order-participant-detail-state.test.mjs
@@ -1571,7 +1592,6 @@ jobs:
           tests/order-participant-cursor-authority-app.test.mjs
           tests/order-participant-cursor-authority-release.test.mjs
           tests/order-participant-detail-authority-contract.test.mjs
-          tests/order-participant-detail-authority-postgres.test.mjs
           tests/order-participant-detail-projection-app.test.mjs
           tests/order-participant-detail-projection-release.test.mjs
           tests/order-participant-detail-state.test.mjs
@@ -1583,9 +1603,7 @@ jobs:
           tests/order-receipt-notification-authority-release.test.mjs
           tests/order-receipt-notification-authority-postgres.test.mjs
           tests/order-fulfillment-authority-release.test.mjs
-          tests/order-fulfillment-authority-postgres.test.mjs
           tests/order-label-authority-release.test.mjs
-          tests/order-label-authority-postgres.test.mjs
           tests/order-label-ambiguous-reconciliation-operator.test.mjs
           tests/order-payment-event-aggregate-authority-app.test.mjs
           tests/order-payment-event-transition-authority-app.test.mjs
@@ -1634,24 +1652,66 @@ jobs:
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
-      - name: Isolate successor regression from historical full-suite release guards
-        run: >-
-          mv tests/order-banned-buyer-completion-postgres.test.mjs
-          "$RUNNER_TEMP/order-banned-buyer-completion-postgres.test.mjs"
+      - name: Isolate successor regressions from historical full-suite release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-release-correction-tests"
+          mkdir "$holding"
+          for test_file in \
+            tests/order-banned-buyer-completion-postgres.test.mjs \
+            tests/order-provider-terminal-reconciliation-postgres.test.mjs \
+            tests/order-paid-checkout-authority-postgres.test.mjs \
+            tests/order-paid-repair-lock-proof.test.mjs \
+            tests/order-fulfillment-authority-postgres.test.mjs \
+            tests/order-label-authority-postgres.test.mjs \
+            tests/order-participant-detail-authority-postgres.test.mjs \
+            tests/order-review-holds.test.mjs \
+            tests/order-release-corrections-production-workflow.test.mjs \
+            tests/order-checkout-legacy-creator-retirement-postgres.test.mjs \
+            tests/order-checkout-source-cutover-production-workflow.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Tests
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
       - name: Security audit
         run: npm run audit:dependencies
-      - name: Restore and prove the reviewed successor
+      - name: Restore and prove the reviewed successors
         shell: bash
         run: |
           set -euo pipefail
           mv "$RUNNER_TEMP/order-banned-buyer-completion" \
             prisma/migrations/20260905180000_correct_order_banned_buyer_completion
-          mv "$RUNNER_TEMP/order-banned-buyer-completion-postgres.test.mjs" \
-            tests/order-banned-buyer-completion-postgres.test.mjs
-          node --test tests/order-banned-buyer-completion-postgres.test.mjs
+          for migration in \
+            20260926010000_correct_order_provider_terminal_reconciliation \
+            20260926011000_correct_order_paid_checkout_bound_reservation \
+            20260926012000_correct_order_seller_deauthorization_fulfillment \
+            20260926012100_correct_order_seller_deauthorization_label \
+            20260926012200_correct_order_seller_deauthorization_projection \
+            20260926012300_retire_legacy_checkout_reservation_creators
+          do
+            mv "$RUNNER_TEMP/$migration" "prisma/migrations/$migration"
+          done
+          holding="$RUNNER_TEMP/order-release-correction-tests"
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+          node --test \
+            tests/order-banned-buyer-completion-postgres.test.mjs \
+            tests/order-provider-terminal-reconciliation-postgres.test.mjs \
+            tests/order-paid-checkout-authority-postgres.test.mjs \
+            tests/order-paid-repair-lock-proof.test.mjs \
+            tests/order-fulfillment-authority-postgres.test.mjs \
+            tests/order-label-authority-postgres.test.mjs \
+            tests/order-participant-detail-authority-postgres.test.mjs \
+            tests/order-review-holds.test.mjs \
+            tests/order-release-corrections-production-workflow.test.mjs \
+            tests/order-checkout-legacy-creator-retirement-postgres.test.mjs \
+            tests/order-checkout-source-cutover-production-workflow.test.mjs
       - name: Production build
         run: npm run build

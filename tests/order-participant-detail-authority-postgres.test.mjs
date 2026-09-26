@@ -19,6 +19,10 @@ const receiptMigration = readFileSync(
   "prisma/migrations/20260901110000_prepare_order_checkout_receipt_authority/migration.sql",
   "utf8",
 );
+const deauthorizationProjectionCorrection = readFileSync(
+  "prisma/migrations/20260926012200_correct_order_seller_deauthorization_projection/migration.sql",
+  "utf8",
+);
 
 async function createDatabase() {
   const database = new PGlite();
@@ -69,6 +73,7 @@ async function createDatabase() {
       "shippingService" varchar(100),
       "reviewNeeded" boolean NOT NULL DEFAULT false,
       "reviewNote" text,
+      "sellerDeauthorizedAt" timestamp(3) without time zone,
       "giftNote" varchar(500),
       "giftWrapping" boolean NOT NULL DEFAULT false,
       "giftWrappingPriceCents" integer,
@@ -159,6 +164,11 @@ async function createDatabase() {
     UPDATE public."Order"
        SET "buyerDataPurgedAt" = '2026-08-31 13:00:00'
      WHERE id = 'order-2';
+    UPDATE public."Order"
+       SET "sellerDeauthorizedAt" = '2026-08-31 12:30:00',
+           "reviewNeeded" = false,
+           "reviewNote" = 'Staff replaced the original deauthorization note'
+     WHERE id = 'order-1';
     INSERT INTO public."OrderItem" (
       id, "orderId", "listingId", "priceCents", quantity,
       "listingSnapshot", "selectedVariants", "createdAt"
@@ -186,6 +196,7 @@ async function createDatabase() {
     );
   `);
   await database.exec(migration);
+  await database.exec(deauthorizationProjectionCorrection);
   await database.exec(projectionMigration);
   await database.exec(snapshotCorrectionMigration);
   await database.exec(receiptMigration);

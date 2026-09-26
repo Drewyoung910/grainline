@@ -9,18 +9,13 @@ export const DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE =
   "Staff must review payout and fulfillment state before shipping or purchasing labels.";
 
 export function orderHasDeauthorizedSellerReviewHold(order: {
-  reviewNeeded: boolean | null | undefined;
-  reviewNote: string | null | undefined;
+  sellerDeauthorizedAt: Date | string | null | undefined;
 }) {
-  return Boolean(
-    order.reviewNeeded &&
-      order.reviewNote?.startsWith(DEAUTHORIZED_SELLER_REVIEW_NOTE_PREFIX),
-  );
+  return order.sellerDeauthorizedAt != null;
 }
 
 export function deauthorizedSellerReviewHoldWhere(): Prisma.OrderWhereInput {
   return {
-    reviewNeeded: true,
-    reviewNote: { startsWith: DEAUTHORIZED_SELLER_REVIEW_NOTE_PREFIX },
+    sellerDeauthorizedAt: { not: null },
   };
 }

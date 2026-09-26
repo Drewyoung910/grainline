@@ -19,6 +19,9 @@ import {
 import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_PRIVATE_FUNCTION_NAMES,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION_SHA256,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import {
   ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
@@ -145,6 +148,7 @@ const {
   formatSavedSearchCatalogEvidence,
   normalizeSavedSearchCatalogState,
   parseGrantAuditDatabaseIdentity,
+  readCheckoutStockReservationSourceCutoverState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
@@ -1139,6 +1143,38 @@ describe("database grant inventory guardrails", () => {
         `${functionName} must be runtime-private after reservation activation`,
       );
     }
+    assert.equal(
+      CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES.length,
+      9,
+    );
+    assert.equal(
+      CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_PRIVATE_FUNCTION_NAMES.length,
+      11,
+    );
+    const postCutoverPrivateFunctions = runtimePrivateFunctionNames({
+      ...reservationActivatedInventory,
+      checkoutStockReservationSourceCutoverApplied: true,
+    });
+    for (const functionName of
+      CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_PRIVATE_FUNCTION_NAMES) {
+      assert.equal(
+        postCutoverPrivateFunctions.includes(functionName),
+        true,
+        `${functionName} must be runtime-private after source cutover`,
+      );
+    }
+    assert.equal(
+      postCutoverPrivateFunctions.includes(
+        "grainline_checkout_reservation_create_cart_consistent",
+      ),
+      true,
+    );
+    assert.equal(
+      postCutoverPrivateFunctions.includes(
+        "grainline_checkout_reservation_create_single_consistent",
+      ),
+      true,
+    );
     assert.deepEqual(
       policylessServiceRlsTableNames(reservationActivatedInventory).slice(-2),
       [STRIPE_WEBHOOK_EVENT_TABLE, CHECKOUT_STOCK_RESERVATION_TABLE],
@@ -2251,6 +2287,60 @@ describe("database grant inventory guardrails", () => {
     );
   });
 
+  it("derives the post-cutover function partition only from an exact live ledger", async () => {
+    const absent = await readCheckoutStockReservationSourceCutoverState({
+      async query() {
+        return { rows: [{ migration_table: null }] };
+      },
+    });
+    assert.deepEqual(absent, { applied: false, issues: [] });
+
+    const exactQueries = [];
+    const exact = await readCheckoutStockReservationSourceCutoverState({
+      async query(sql, parameters) {
+        exactQueries.push([sql, parameters]);
+        if (exactQueries.length === 1) {
+          return { rows: [{ migration_table: "_prisma_migrations" }] };
+        }
+        return {
+          rows: [{
+            checksum: CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION_SHA256,
+            finished_at: new Date("2026-09-26T00:00:00Z"),
+            rolled_back_at: null,
+            applied_steps_count: "1",
+          }],
+        };
+      },
+    });
+    assert.deepEqual(exact, { applied: true, issues: [] });
+    assert.deepEqual(exactQueries[1][1], [
+      CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION,
+    ]);
+
+    const drifted = await readCheckoutStockReservationSourceCutoverState({
+      queryCount: 0,
+      async query() {
+        this.queryCount += 1;
+        return this.queryCount === 1
+          ? { rows: [{ migration_table: "_prisma_migrations" }] }
+          : {
+            rows: [{
+              checksum: "0".repeat(64),
+              finished_at: null,
+              rolled_back_at: null,
+              applied_steps_count: "0",
+            }],
+          };
+      },
+    });
+    assert.deepEqual(drifted, {
+      applied: false,
+      issues: [
+        "CheckoutStockReservation source-cutover migration ledger is partial or drifted",
+      ],
+    });
+  });
+
   it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {
     await withAuditFixture({ tableName: "SavedSearch" }, async ({ auditClient, databaseName, inventory, migrationRole, runtimeRole }) => {
       await assertGrantAuditConnectionMatches(auditClient, databaseName, migrationRole);
@@ -2790,7 +2880,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 16);
+    assert.equal(guardResultCount, 17);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,

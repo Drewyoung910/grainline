@@ -1,0 +1,310 @@
+name: Order Release Corrections Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-release-corrections
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply five reviewed Order release corrections
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirmation == 'apply-reviewed-order-release-corrections'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main and completed CI before credential access
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Order correction release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Order correction main/CI readback drifted');
+            }
+      - name: Verify exact correction set and SQL bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260926012300_retire_legacy_checkout_reservation_creators"
+          cat > "$RUNNER_TEMP/order-correction-checksums" <<'CHECKSUMS'
+          6e835d8da110ee53384d1afd898fe0e02a8c9679f48be24a43557173b3651987  prisma/migrations/20260926010000_correct_order_provider_terminal_reconciliation/migration.sql
+          757d579c6ac61a9a3d5b434eb9421c1da2dad24d8051c08b61ce2e2850bb4b36  prisma/migrations/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql
+          de3db869562e4cdbe411efb1652f0cefb2f2a9687a079e15e84b70aaeb740263  prisma/migrations/20260926012000_correct_order_seller_deauthorization_fulfillment/migration.sql
+          75b2c6d00f9f7996c6140a57adbcc91f207cf96e2c495478fb21a9a633f0b29f  prisma/migrations/20260926012100_correct_order_seller_deauthorization_label/migration.sql
+          4b8ed62faa14d9fa32c57c0045847357d04c16889f9a1d2e3b83633a1c482578  prisma/migrations/20260926012200_correct_order_seller_deauthorization_projection/migration.sql
+          6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924  prisma/migrations/20260926012300_retire_legacy_checkout_reservation_creators/migration.sql
+          CHECKSUMS
+          sha256sum --check --status "$RUNNER_TEMP/order-correction-checksums"
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read exact correction predecessor or restart ledger state
+        id: correction_scope
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import { appendFileSync } from 'node:fs';
+          import { Client } from 'pg';
+          const corrections = new Map([
+            ['20260926010000_correct_order_provider_terminal_reconciliation', '6e835d8da110ee53384d1afd898fe0e02a8c9679f48be24a43557173b3651987'],
+            ['20260926011000_correct_order_paid_checkout_bound_reservation', '757d579c6ac61a9a3d5b434eb9421c1da2dad24d8051c08b61ce2e2850bb4b36'],
+            ['20260926012000_correct_order_seller_deauthorization_fulfillment', 'de3db869562e4cdbe411efb1652f0cefb2f2a9687a079e15e84b70aaeb740263'],
+            ['20260926012100_correct_order_seller_deauthorization_label', '75b2c6d00f9f7996c6140a57adbcc91f207cf96e2c495478fb21a9a633f0b29f'],
+            ['20260926012200_correct_order_seller_deauthorization_projection', '4b8ed62faa14d9fa32c57c0045847357d04c16889f9a1d2e3b83633a1c482578'],
+          ]);
+          const cutover = '20260926012300_retire_legacy_checkout_reservation_creators';
+          const client = new Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+                  OR migration_name = $2
+               ORDER BY migration_name
+            `, [[...corrections.keys()], cutover]);
+            const rowsByName = new Map();
+            for (const row of ledger.rows) {
+              assert.equal(rowsByName.has(row.migration_name), false);
+              rowsByName.set(row.migration_name, row);
+            }
+            assert.equal(rowsByName.has(cutover), false);
+            assert.ok(rowsByName.size === 0 || rowsByName.size === corrections.size);
+            for (const [migration, digest] of corrections) {
+              const row = rowsByName.get(migration);
+              if (rowsByName.size === 0) {
+                assert.equal(row, undefined);
+                continue;
+              }
+              assert.ok(row);
+              assert.equal(row.checksum, digest);
+              assert.ok(row.finished_at);
+              assert.equal(row.rolled_back_at, null);
+              assert.equal(Number(row.applied_steps_count), 1);
+            }
+            appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              `state=${rowsByName.size === 0 ? 'predecessor' : 'restart'}\n`,
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Isolate the reviewed correction scope and require no other pending migration
+        shell: bash
+        env:
+          CORRECTION_STATE: ${{ steps.correction_scope.outputs.state }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-release-corrections"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20260926012300_retire_legacy_checkout_reservation_creators \
+            "$holding/20260926012300_retire_legacy_checkout_reservation_creators"
+          if [[ "$CORRECTION_STATE" == "predecessor" ]]; then
+            for migration in \
+              20260926010000_correct_order_provider_terminal_reconciliation \
+              20260926011000_correct_order_paid_checkout_bound_reservation \
+              20260926012000_correct_order_seller_deauthorization_fulfillment \
+              20260926012100_correct_order_seller_deauthorization_label \
+              20260926012200_correct_order_seller_deauthorization_projection
+            do
+              mv "prisma/migrations/$migration" "$holding/$migration"
+            done
+            npx prisma migrate status
+            for migration in \
+              20260926010000_correct_order_provider_terminal_reconciliation \
+              20260926011000_correct_order_paid_checkout_bound_reservation \
+              20260926012000_correct_order_seller_deauthorization_fulfillment \
+              20260926012100_correct_order_seller_deauthorization_label \
+              20260926012200_correct_order_seller_deauthorization_projection
+            do
+              mv "$holding/$migration" "prisma/migrations/$migration"
+            done
+          elif [[ "$CORRECTION_STATE" == "restart" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected Order correction state" >&2
+            exit 1
+          fi
+          test -f "$holding/20260926012300_retire_legacy_checkout_reservation_creators/migration.sql"
+      - name: Apply only the reviewed correction set
+        if: steps.correction_scope.outputs.state == 'predecessor'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledgers, function posture and corrected predicates
+        shell: bash
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import { Client } from 'pg';
+          const expected = new Map([
+            ['20260926010000_correct_order_provider_terminal_reconciliation', '6e835d8da110ee53384d1afd898fe0e02a8c9679f48be24a43557173b3651987'],
+            ['20260926011000_correct_order_paid_checkout_bound_reservation', '757d579c6ac61a9a3d5b434eb9421c1da2dad24d8051c08b61ce2e2850bb4b36'],
+            ['20260926012000_correct_order_seller_deauthorization_fulfillment', 'de3db869562e4cdbe411efb1652f0cefb2f2a9687a079e15e84b70aaeb740263'],
+            ['20260926012100_correct_order_seller_deauthorization_label', '75b2c6d00f9f7996c6140a57adbcc91f207cf96e2c495478fb21a9a633f0b29f'],
+            ['20260926012200_correct_order_seller_deauthorization_projection', '4b8ed62faa14d9fa32c57c0045847357d04c16889f9a1d2e3b83633a1c482578'],
+          ]);
+          const functions = new Map([
+            ['grainline_stripe_checkout_order_create', ['v', 'u', true]],
+            ['grainline_order_seller_fulfillment_transition', ['v', 'u', true]],
+            ['grainline_order_seller_label_preflight', ['s', 's', true]],
+            ['grainline_order_seller_label_quote_replace', ['v', 'u', true]],
+            ['grainline_order_seller_label_claim', ['v', 'u', true]],
+            ['grainline_order_seller_label_provider_record', ['v', 'u', true]],
+            ['grainline_order_label_clawback_finalize', ['v', 'u', true]],
+            ['grainline_order_seller_detail', ['s', 's', false]],
+          ]);
+          const client = new Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[...expected.keys()]]);
+            assert.equal(ledger.rows.length, expected.size);
+            for (const row of ledger.rows) {
+              assert.equal(row.checksum, expected.get(row.migration_name));
+              assert.ok(row.finished_at);
+              assert.equal(row.rolled_back_at, null);
+              assert.equal(Number(row.applied_steps_count), 1);
+            }
+            const catalog = await client.query(`
+              SELECT p.proname, pg_catalog.pg_get_userbyid(p.proowner) AS owner,
+                     p.prosecdef AS security_definer, p.provolatile AS volatility,
+                     p.proparallel AS parallel_safety,
+                     'search_path=pg_catalog' = ANY(p.proconfig) AS fixed_search_path,
+                     pg_catalog.has_function_privilege(
+                       'grainline_app_runtime', p.oid, 'EXECUTE'
+                     ) AS runtime_execute,
+                     pg_catalog.has_function_privilege('public', p.oid, 'EXECUTE')
+                       AS public_execute,
+                     p.prosrc
+                FROM pg_catalog.pg_proc AS p
+               WHERE p.proname = ANY($1::name[])
+            `, [[...functions.keys()]]);
+            assert.equal(catalog.rows.length, functions.size);
+            for (const row of catalog.rows) {
+              const [volatility, parallelSafety, runtimeExecute] = functions.get(row.proname);
+              assert.equal(row.owner, 'neondb_owner');
+              assert.equal(row.security_definer, true);
+              assert.equal(row.volatility, volatility);
+              assert.equal(row.parallel_safety, parallelSafety);
+              assert.equal(row.fixed_search_path, true);
+              assert.equal(row.runtime_execute, runtimeExecute);
+              assert.equal(row.public_execute, false);
+              if (row.proname === 'grainline_stripe_checkout_order_create') {
+                assert.match(row.prosrc, /status NOT IN \('SESSION_CREATED', 'COMPLETED'\)/);
+                assert.match(row.prosrc, /status <> 'SESSION_CREATED'/);
+              } else if (row.proname === 'grainline_order_seller_label_provider_record') {
+                assert.match(row.prosrc, /p_outcome IS NULL OR p_outcome NOT IN/);
+                assert.match(row.prosrc, /refund_recorded/);
+                assert.match(row.prosrc, /ORDER_LABEL_REFUND_RACE_RECORDED/);
+              } else if (row.proname === 'grainline_order_label_clawback_finalize') {
+                assert.match(row.prosrc, /p_outcome IS NULL OR p_outcome NOT IN/);
+              } else if (row.proname !== 'grainline_order_seller_detail') {
+                assert.match(row.prosrc, /"sellerDeauthorizedAt" IS NOT NULL/);
+              } else {
+                assert.match(row.prosrc, /source_order\."sellerDeauthorizedAt" IS NOT NULL/);
+              }
+            }
+            const constraint = await client.query(`
+              SELECT pg_catalog.pg_get_constraintdef(oid) AS definition,
+                     convalidated
+                FROM pg_catalog.pg_constraint
+               WHERE conrelid = 'public."Order"'::regclass
+                 AND conname = 'Order_provider_claim_mutual_exclusion_check'
+            `);
+            assert.equal(constraint.rows.length, 1);
+            assert.equal(constraint.rows[0].convalidated, true);
+            assert.match(constraint.rows[0].definition, /refundClaimId/);
+            assert.doesNotMatch(constraint.rows[0].definition, /sellerRefundId/);
+            process.stdout.write('Order release corrections applied: exact ledger and catalog posture\n');
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify final Prisma migration status
+        shell: bash
+        run: |
+          set -euo pipefail
+          deferred="$RUNNER_TEMP/order-release-corrections/20260926012300_retire_legacy_checkout_reservation_creators"
+          test -f "$deferred/migration.sql"
+          npx prisma migrate status
+          mv "$deferred" prisma/migrations/
+          rmdir "$RUNNER_TEMP/order-release-corrections"
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

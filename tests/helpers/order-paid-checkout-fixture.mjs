@@ -214,7 +214,7 @@ export function paidCheckoutFixtureSql() {
            SET status = 'COMPLETED'
          WHERE id = p_reservation_id
            AND "stripeSessionId" = p_session_id
-           AND status = 'RESERVED';
+           AND status = 'SESSION_CREATED';
         IF NOT FOUND THEN RETURN 'already_completed'; END IF;
         RETURN 'completed';
       END; $f$;
@@ -237,7 +237,7 @@ export function paidCheckoutFixtureSql() {
       INSERT INTO public."CheckoutStockReservation" (
         id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
       ) VALUES (
-        'reservation-1', 'cs_test_proof', 'RESERVED', 'buyer-1', 'seller-1',
+        'reservation-1', 'cs_test_proof', 'SESSION_CREATED', 'buyer-1', 'seller-1',
         '${JSON.stringify(sourceSnapshot()).replaceAll("'", "''")}'::jsonb
       );
 

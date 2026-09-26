@@ -362,6 +362,7 @@ describe("Order label ambiguous reconciliation operator", () => {
       clawbackStatus: "RETRYING",
       currency: "usd",
       estimatedDeliveryDate: null,
+      fulfillmentStatus: "SHIPPED",
       labelPurchasedAt: new Date().toISOString(),
       orderId: "order-1",
       outcome: "recorded",

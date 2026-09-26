@@ -26,7 +26,10 @@ import {
 } from "./case-invariant-catalog.mjs";
 import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES,
+  CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_PRIVATE_FUNCTION_NAMES,
   CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION_SHA256,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 import {
   ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
@@ -342,11 +345,14 @@ export function runtimePrivateFunctionNames(inventory) {
   const directUploadActivated = directUploadRlsActivationExpected(inventory);
   const reservationActivated =
     checkoutStockReservationRlsActivationExpected(inventory);
+  const reservationSourceCutoverApplied =
+    inventory?.checkoutStockReservationSourceCutoverApplied === true;
   const orderPaymentEventActivated =
     orderPaymentEventRlsActivationExpected(inventory);
   if (
     !directUploadActivated
     && !reservationActivated
+    && !reservationSourceCutoverApplied
     && !orderPaymentEventActivated
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
@@ -358,15 +364,50 @@ export function runtimePrivateFunctionNames(inventory) {
         .filter((entry) => !entry.runtimeExecute)
         .map((entry) => entry.name)
       : []),
-    ...(reservationActivated
-      ? CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES
-      : []),
+    ...(reservationSourceCutoverApplied
+      ? CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_PRIVATE_FUNCTION_NAMES
+      : reservationActivated
+        ? CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES
+        : []),
     ...(orderPaymentEventActivated
       ? ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       )
       : []),
   ]);
+}
+
+export async function readCheckoutStockReservationSourceCutoverState(client) {
+  const relation = await client.query(
+    "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
+  );
+  if (relation.rows[0]?.migration_table === null) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+
+  const result = await client.query(
+    `SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+       FROM public._prisma_migrations
+      WHERE migration_name = $1`,
+    [CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION],
+  );
+  if (result.rows.length === 0) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+
+  const row = result.rows[0];
+  const exact = result.rows.length === 1
+    && row.checksum === CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION_SHA256
+    && row.finished_at !== null
+    && row.finished_at !== undefined
+    && row.rolled_back_at === null
+    && Number(row.applied_steps_count) === 1;
+  return Object.freeze({
+    applied: exact,
+    issues: Object.freeze(exact ? [] : [
+      "CheckoutStockReservation source-cutover migration ledger is partial or drifted",
+    ]),
+  });
 }
 
 export function policylessServiceRlsTableNames(inventory) {
@@ -1633,6 +1674,15 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   const expectedRlsPolicyTables = new Set(inventory.rlsPolicyTables ?? []);
   const expectedRlsForceTables = new Set(inventory.rlsForceTables ?? []);
 
+  const reservationSourceCutover =
+    await readCheckoutStockReservationSourceCutoverState(client);
+  issues.push(...reservationSourceCutover.issues);
+  const liveAuthorityInventory = {
+    ...inventory,
+    checkoutStockReservationSourceCutoverApplied:
+      reservationSourceCutover.applied,
+  };
+
   const roleResult = await client.query(
     `SELECT
         rolname,
@@ -2186,7 +2236,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   );
   const functionNames = sortedUnique(functionResult.rows.map((row) => row.function_name));
   const runtimePrivateFunctionNameSet = new Set(
-    runtimePrivateFunctionNames(inventory),
+    runtimePrivateFunctionNames(liveAuthorityInventory),
   );
   issues.push(...collectRuntimeFunctionGrantOptionIssues(functionResult.rows));
   issues.push(

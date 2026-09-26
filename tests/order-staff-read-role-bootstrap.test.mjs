@@ -119,6 +119,8 @@ test("bootstrap SQL asks PostgreSQL to hash a bound secret and contains no grant
   assert.ok(!sql.startsWith("BEGIN;") && !sql.endsWith("COMMIT;"));
   assert.match(sql, /SET LOCAL password_encryption = 'scram-sha-256'/u);
   assert.match(sql, /current_setting\('grainline.staff_bootstrap_password', true\)/u);
+  assert.match(sql, /EXCEPTION WHEN OTHERS THEN[^]*RAISE EXCEPTION 'staff bootstrap role creation failed'\s+USING ERRCODE = 'P0001'/u);
+  assert.doesNotMatch(sql, /EXCEPTION WHEN OTHERS THEN[^]*\bRAISE;/u);
   assert.match(sql, /SET LOCAL lock_timeout/u);
 });
 

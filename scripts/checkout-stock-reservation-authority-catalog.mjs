@@ -90,3 +90,46 @@ export const CHECKOUT_STOCK_RESERVATION_ACTIVATED_RUNTIME_FUNCTION_SIGNATURES =
       .filter((entry) => entry.runtimeExecute)
       .map((entry) => `public."${entry.name}"(${entry.argumentTypes})`),
   );
+
+// The snapshot-source cutover is later than the accepted policyless FORCE
+// release above. It also retires the two source-consistent creators from direct
+// runtime use; the snapshot SECURITY DEFINER functions retain owner-internal
+// access to them. Keep this state distinct so historical release proofs remain
+// byte- and count-stable while current grant audits can attest the narrower
+// post-cutover surface.
+export const CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION =
+  "20260926012300_retire_legacy_checkout_reservation_creators";
+export const CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_MIGRATION_SHA256 =
+  "6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924";
+export const CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_RETIRED_FUNCTION_NAMES =
+  Object.freeze([
+    ...CHECKOUT_STOCK_RESERVATION_RETIRED_CREATION_FUNCTION_NAMES,
+    "grainline_checkout_reservation_create_cart_consistent",
+    "grainline_checkout_reservation_create_single_consistent",
+  ]);
+
+const SOURCE_CUTOVER_RETIRED_FUNCTION_NAME_SET = new Set(
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CUTOVER_RETIRED_FUNCTION_NAMES,
+);
+
+export const CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_FUNCTIONS = Object.freeze(
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS.map((entry) => (
+    SOURCE_CUTOVER_RETIRED_FUNCTION_NAME_SET.has(entry.name)
+      ? Object.freeze({ ...entry, runtimeExecute: false })
+      : entry
+  )),
+);
+
+export const CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_PRIVATE_FUNCTION_NAMES =
+  Object.freeze(
+    CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_FUNCTIONS
+      .filter((entry) => !entry.runtimeExecute)
+      .map((entry) => entry.name),
+  );
+
+export const CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_RUNTIME_FUNCTION_SIGNATURES =
+  Object.freeze(
+    CHECKOUT_STOCK_RESERVATION_POST_CUTOVER_FUNCTIONS
+      .filter((entry) => entry.runtimeExecute)
+      .map((entry) => `public."${entry.name}"(${entry.argumentTypes})`),
+  );

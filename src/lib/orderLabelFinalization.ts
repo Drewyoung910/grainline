@@ -17,15 +17,21 @@ function optionalDate(value: string | null) {
 /**
  * Records the source-bound Shippo result. Its fixed database operation
  * co-commits the normal shipped Notification from the immutable Order seller
- * relationship; this wrapper co-commits the deterministic email reservation.
- * A provider rejection or ambiguous response produces no buyer-visible event.
+ * relationship; this wrapper co-commits the deterministic email reservation
+ * only when the database also completed the SHIPPED transition. A provider
+ * rejection, ambiguous response, or refund-race evidence record produces no
+ * buyer-visible event.
  */
 export async function finalizeSellerLabelProviderResult(
   input: Parameters<typeof recordSellerLabelProviderResult>[0],
 ): Promise<SellerLabelProviderRecordResult> {
   const committed = await prisma.$transaction(async (tx) => {
     const result = await recordSellerLabelProviderResult(input, tx);
-    if (result.outcome !== "recorded" || !result.buyerUserId) {
+    if (
+      result.outcome !== "recorded"
+      || result.fulfillmentStatus !== "SHIPPED"
+      || !result.buyerUserId
+    ) {
       return { result, emailOutboxId: null };
     }
 

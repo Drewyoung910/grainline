@@ -13,7 +13,7 @@ const correctionMigration = fs.readFileSync(
   "utf8",
 );
 const paidCheckoutMigration = fs.readFileSync(
-  "prisma/migrations/20260905130000_prepare_order_paid_checkout_authority/migration.sql",
+  "prisma/migrations/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql",
   "utf8",
 );
 

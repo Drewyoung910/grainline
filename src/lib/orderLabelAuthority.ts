@@ -98,6 +98,7 @@ export type SellerLabelProviderRecordResult =
       carrier: string;
       trackingNumber: string | null;
       labelPurchasedAt: string;
+      fulfillmentStatus: "PENDING" | "SHIPPED";
       auditLogId: string;
       buyerUserId: string | null;
       buyerName: string | null;
@@ -371,6 +372,14 @@ export async function recordSellerLabelProviderResult(
   if (!["NOT_REQUIRED", "RETRYING", "MANUAL_REVIEW", "REVERSED"].includes(clawbackStatus)) {
     throw new TypeError("Order label clawback status is invalid");
   }
+  const fulfillmentStatus = string(
+    row.fulfillmentStatus,
+    "Order fulfillment status",
+    32,
+  );
+  if (fulfillmentStatus !== "PENDING" && fulfillmentStatus !== "SHIPPED") {
+    throw new TypeError("Order label fulfillment status is invalid");
+  }
   return {
     outcome: "recorded", orderId,
     claimId: string(row.claimId, "Order label claim id", 255),
@@ -385,6 +394,7 @@ export async function recordSellerLabelProviderResult(
     carrier: string(row.carrier, "Order label carrier", 100),
     trackingNumber: nullableString(row.trackingNumber, "Order label tracking", 100),
     labelPurchasedAt: string(row.labelPurchasedAt, "Order label purchased at", 64),
+    fulfillmentStatus,
     auditLogId: id(row.auditLogId, "Order label audit id"),
     buyerUserId: nullableString(row.buyerUserId, "Order buyer user", 191),
     buyerName: nullableString(row.buyerName, "Order buyer name", 200),
