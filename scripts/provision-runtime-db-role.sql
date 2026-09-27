@@ -1572,7 +1572,7 @@ WITH cutover_ledger AS (
   SELECT
     pg_catalog.count(*)::integer AS row_count,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = '6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924'
+      WHERE checksum = 'f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count = 1

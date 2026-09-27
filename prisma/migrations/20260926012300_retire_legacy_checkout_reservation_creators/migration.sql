@@ -31,13 +31,13 @@ BEGIN
 
   FOR expected IN
     SELECT * FROM (VALUES
-      ('public.grainline_checkout_reservation_create_cart(text,text,text,text,text)', true),
-      ('public.grainline_checkout_reservation_create_single(text,text,integer,text)', true),
+      ('public.grainline_checkout_reservation_create_cart(text,text,text,text,text)', false),
+      ('public.grainline_checkout_reservation_create_single(text,text,integer,text)', false),
       ('public.grainline_checkout_reservation_create_cart_consistent(text,text,text,text,text,jsonb)', true),
       ('public.grainline_checkout_reservation_create_single_consistent(text,text,integer,text[],text,jsonb)', true),
-      ('public.grainline_checkout_reservation_create_cart_snapshot(text,text,text,text,text,jsonb)', false),
-      ('public.grainline_checkout_reservation_create_single_snapshot(text,text,integer,text[],text,jsonb)', false)
-    ) AS required(signature, legacy)
+      ('public.grainline_checkout_reservation_create_cart_snapshot(text,text,text,text,text,jsonb)', true),
+      ('public.grainline_checkout_reservation_create_single_snapshot(text,text,integer,text[],text,jsonb)', true)
+    ) AS required(signature, runtime_execute)
   LOOP
     SELECT * INTO source_function
       FROM pg_catalog.pg_proc
@@ -54,9 +54,9 @@ BEGIN
        OR source_function.proparallel <> 'u'
        OR source_function.proconfig IS DISTINCT FROM
          ARRAY['search_path=pg_catalog']::text[]
-       OR NOT pg_catalog.has_function_privilege(
+       OR pg_catalog.has_function_privilege(
          'grainline_app_runtime', source_function.oid, 'EXECUTE'
-       )
+       ) IS DISTINCT FROM expected.runtime_execute
        OR pg_catalog.has_function_privilege(
          'public', source_function.oid, 'EXECUTE'
        )
@@ -69,7 +69,13 @@ BEGIN
           WHERE acl.privilege_type = 'EXECUTE'
             AND (
               acl.grantee NOT IN (source_function.proowner, runtime_role)
-              OR (acl.grantee = runtime_role AND acl.is_grantable)
+              OR (
+                acl.grantee = runtime_role
+                AND (
+                  NOT expected.runtime_execute
+                  OR acl.is_grantable
+                )
+              )
             )
        ) THEN
       RAISE EXCEPTION 'Legacy checkout retirement predecessor drifted: %',

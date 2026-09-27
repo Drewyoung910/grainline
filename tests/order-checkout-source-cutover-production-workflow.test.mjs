@@ -10,7 +10,7 @@ const workflow = readFileSync(
 const migration =
   "prisma/migrations/20260926012300_retire_legacy_checkout_reservation_creators/migration.sql";
 const digest =
-  "6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924";
+  "f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61";
 
 test("cutover workflow binds one migration to exact main, CI and correction acceptance", () => {
   assert.match(

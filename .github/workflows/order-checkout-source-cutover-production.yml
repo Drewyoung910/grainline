@@ -100,7 +100,7 @@ jobs:
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
           test "$latest" = "prisma/migrations/20260926012300_retire_legacy_checkout_reservation_creators"
           printf '%s  %s\n' \
-            '6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924' \
+            'f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61' \
             'prisma/migrations/20260926012300_retire_legacy_checkout_reservation_creators/migration.sql' \
             > "$RUNNER_TEMP/order-checkout-cutover-checksum"
           sha256sum --check --status "$RUNNER_TEMP/order-checkout-cutover-checksum"
@@ -125,7 +125,7 @@ jobs:
             ['20260926012200_correct_order_seller_deauthorization_projection', '4b8ed62faa14d9fa32c57c0045847357d04c16889f9a1d2e3b83633a1c482578'],
           ]);
           const cutover = '20260926012300_retire_legacy_checkout_reservation_creators';
-          const cutoverDigest = '6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924';
+          const cutoverDigest = 'f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61';
           const client = new Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();
@@ -208,7 +208,7 @@ jobs:
           import assert from 'node:assert/strict';
           import { Client } from 'pg';
           const migration = '20260926012300_retire_legacy_checkout_reservation_creators';
-          const digest = '6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924';
+          const digest = 'f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61';
           const legacy = [
             'grainline_checkout_reservation_create_cart(text,text,text,text,text)',
             'grainline_checkout_reservation_create_single(text,text,integer,text)',
