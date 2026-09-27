@@ -1,0 +1,289 @@
+name: Core Order ENABLE production (protected)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      cutover_run_id:
+        description: Exact successful checkout-source cutover run
+        required: true
+        type: string
+      confirmation:
+        description: Type enable-reviewed-core-order-rls
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  enable_core_order:
+    name: Enable policyless Core Order RLS
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirmation == 'enable-reviewed-core-order-rls'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind ENABLE to exact main, CI and completed checkout cutover
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_CUTOVER_RUN_ID: ${{ inputs.cutover_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const cutoverValue = process.env.REVIEWED_CUTOVER_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                cutoverValue !== '36330287044') {
+              throw new Error('Core Order ENABLE binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const cutoverRunId = Number(cutoverValue);
+            if (!Number.isSafeInteger(ciRunId) || !Number.isSafeInteger(cutoverRunId)) {
+              throw new Error('Core Order ENABLE run id is unsafe');
+            }
+            const [{data: main}, {data: ci}, {data: cutover}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: cutoverRunId}),
+            ]);
+            if (main.commit.sha !== sha ||
+                ci.name !== 'CI' || ci.event !== 'push' ||
+                ci.head_branch !== 'main' || ci.head_sha !== sha ||
+                ci.status !== 'completed' || ci.conclusion !== 'success' ||
+                cutover.name !== 'Order checkout source cutover (protected)' ||
+                cutover.event !== 'workflow_dispatch' ||
+                cutover.head_branch !== 'main' ||
+                cutover.head_sha !== '5a073252b55bd940210b57db58dcf27ab9dfb8b1' ||
+                cutover.status !== 'completed' || cutover.conclusion !== 'success') {
+              throw new Error('Core Order ENABLE main/run readback drifted');
+            }
+      - name: Verify exact ENABLE release bytes and phase boundary
+        run: node scripts/verify-order-core-enable-release.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read exact predecessor or restart ledger state
+        id: enable_scope
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import { appendFileSync } from 'node:fs';
+          import { Client } from 'pg';
+          const cutover = Object.freeze({
+            name: '20260926012300_retire_legacy_checkout_reservation_creators',
+            digest: 'f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61',
+          });
+          const enable = Object.freeze({
+            name: '20260927090000_enable_order_rls',
+            digest: '350567d0141601fd858dcc2df99f59b085d1f66573560b027148e66278a1eec8',
+          });
+          const client = new Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[cutover.name, enable.name]]);
+            const rows = new Map(ledger.rows.map(row => [row.migration_name, row]));
+            assert.equal(rows.size, ledger.rows.length);
+            const accepted = (row, digest) => row && row.checksum === digest &&
+              row.finished_at && row.rolled_back_at === null &&
+              Number(row.applied_steps_count) === 1;
+            assert.equal(accepted(rows.get(cutover.name), cutover.digest), true);
+            const enableRow = rows.get(enable.name);
+            if (enableRow) assert.equal(accepted(enableRow, enable.digest), true);
+            assert.equal(ledger.rows.length, enableRow ? 2 : 1);
+            appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              `state=${enableRow ? 'restart' : 'predecessor'}\n`,
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require no other pending migration for the selected state
+        shell: bash
+        env:
+          ENABLE_STATE: ${{ steps.enable_scope.outputs.state }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          if [[ "$ENABLE_STATE" == "predecessor" ]]; then
+            deferred="$RUNNER_TEMP/20260927090000_enable_order_rls"
+            restore_enable() {
+              if [[ -d "$deferred" ]]; then
+                mv "$deferred" prisma/migrations/
+              fi
+            }
+            trap restore_enable EXIT
+            mv prisma/migrations/20260927090000_enable_order_rls "$deferred"
+            npx prisma migrate status
+            restore_enable
+            trap - EXIT
+          elif [[ "$ENABLE_STATE" == "restart" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected Core Order ENABLE state" >&2
+            exit 1
+          fi
+      - name: Apply only Core Order ENABLE and direct-grant revocation
+        if: steps.enable_scope.outputs.state == 'predecessor'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify ENABLE ledger and owner-visible posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import { Client } from 'pg';
+          const migration = '20260927090000_enable_order_rls';
+          const digest = '350567d0141601fd858dcc2df99f59b085d1f66573560b027148e66278a1eec8';
+          const staff = [
+            'grainline_order_staff_page_v2(text,text,integer,integer)',
+            'grainline_order_staff_detail_v2(text,text)',
+            'grainline_order_staff_mark_reviewed(text,text)',
+            'grainline_order_staff_record_label_voided(text,text)',
+            'grainline_order_staff_append_note(text,text,text)',
+            'grainline_order_staff_capability_mint(text,text,text,jsonb)',
+          ];
+          const client = new Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, digest);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+            const posture = await client.query(`
+              SELECT current_user::text AS actor,
+                     session_user::text AS login,
+                     class.relrowsecurity AS enabled,
+                     class.relforcerowsecurity AS forced,
+                     (SELECT count(*)::integer FROM pg_catalog.pg_policy AS policy
+                       WHERE policy.polrelid = class.oid) AS policy_count,
+                     pg_catalog.has_table_privilege(
+                       'grainline_app_runtime', class.oid,
+                       'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+                     ) AS runtime_table,
+                     pg_catalog.has_any_column_privilege(
+                       'grainline_app_runtime', class.oid,
+                       'SELECT,INSERT,UPDATE,REFERENCES'
+                     ) AS runtime_column,
+                     pg_catalog.has_table_privilege(
+                       'grainline_staff_read_runtime', class.oid,
+                       'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+                     ) AS staff_table,
+                     (SELECT count(*)::integer
+                        FROM pg_catalog.aclexplode(
+                          COALESCE(class.relacl,
+                                   pg_catalog.acldefault('r', class.relowner))
+                        ) AS acl
+                       WHERE acl.grantee <> class.relowner
+                         AND acl.privilege_type IN (
+                           'SELECT','INSERT','UPDATE','DELETE',
+                           'TRUNCATE','REFERENCES','TRIGGER'
+                         )) AS unexpected_acl_count,
+                     (SELECT count(*)::integer
+                        FROM pg_catalog.pg_class AS child
+                        JOIN pg_catalog.pg_namespace AS namespace
+                          ON namespace.oid = child.relnamespace
+                       WHERE namespace.nspname = 'public'
+                         AND child.relname IN ('OrderItem','OrderShippingRateQuote')
+                         AND child.relkind = 'r'
+                         AND NOT child.relrowsecurity
+                         AND NOT child.relforcerowsecurity
+                         AND NOT EXISTS (
+                           SELECT 1 FROM pg_catalog.pg_policy AS policy
+                            WHERE policy.polrelid = child.oid
+                         )) AS unchanged_children
+                FROM pg_catalog.pg_class AS class
+               WHERE class.oid = 'public."Order"'::pg_catalog.regclass
+            `);
+            assert.deepEqual(posture.rows, [{
+              actor: 'neondb_owner', login: 'neondb_owner', enabled: true,
+              forced: false, policy_count: 0, runtime_table: false,
+              runtime_column: false, staff_table: false,
+              unexpected_acl_count: 0, unchanged_children: 2,
+            }]);
+            for (const signature of staff) {
+              const grants = await client.query(`
+                SELECT pg_catalog.has_function_privilege(
+                         'grainline_staff_read_runtime', $1::regprocedure, 'EXECUTE'
+                       ) AS staff_execute,
+                       pg_catalog.has_function_privilege(
+                         'grainline_app_runtime', $1::regprocedure, 'EXECUTE'
+                       ) AS runtime_execute,
+                       pg_catalog.has_function_privilege(
+                         'public', $1::regprocedure, 'EXECUTE'
+                       ) AS public_execute
+              `, [`public.${signature}`]);
+              assert.deepEqual(grants.rows, [{
+                staff_execute: true, runtime_execute: false, public_execute: false,
+              }]);
+            }
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Audit post-ENABLE runtime grants and global RLS catalog
+        run: npm run audit:db-grants -- --require-direct-url
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify final Prisma migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
