@@ -14,6 +14,33 @@ import {
   verifyConversationMessageForceRelease,
 } from "../scripts/verify-conversation-message-force-release.mjs";
 
+const ORDER_RELEASE_SUCCESSORS = Object.freeze([
+  [
+    "20260926010000_correct_order_provider_terminal_reconciliation",
+    "6e835d8da110ee53384d1afd898fe0e02a8c9679f48be24a43557173b3651987",
+  ],
+  [
+    "20260926011000_correct_order_paid_checkout_bound_reservation",
+    "757d579c6ac61a9a3d5b434eb9421c1da2dad24d8051c08b61ce2e2850bb4b36",
+  ],
+  [
+    "20260926012000_correct_order_seller_deauthorization_fulfillment",
+    "de3db869562e4cdbe411efb1652f0cefb2f2a9687a079e15e84b70aaeb740263",
+  ],
+  [
+    "20260926012100_correct_order_seller_deauthorization_label",
+    "75b2c6d00f9f7996c6140a57adbcc91f207cf96e2c495478fb21a9a633f0b29f",
+  ],
+  [
+    "20260926012200_correct_order_seller_deauthorization_projection",
+    "4b8ed62faa14d9fa32c57c0045847357d04c16889f9a1d2e3b83633a1c482578",
+  ],
+  [
+    "20260926012300_retire_legacy_checkout_reservation_creators",
+    "6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924",
+  ],
+]);
+
 function fixtureRoot() {
   const root = mkdtempSync(
     path.join(os.tmpdir(), "conversation-message-force-release-"),
@@ -138,6 +165,37 @@ describe("Conversation and Message FORCE release artifact", () => {
       "utf8",
     );
     assert.match(workflow, /image: postgres:16/);
+    const successorFence = workflow.indexOf(
+      "Isolate reviewed Order release successors from historical proof",
+    );
+    const compatibleApply = workflow.indexOf(
+      "Apply compatible migrations including Conversation and Message FORCE",
+    );
+    const currentApply = workflow.indexOf(
+      "Apply current migrations including DirectUpload activation",
+    );
+    const conversationProof = workflow.indexOf(
+      "Prove FORCE-hardened Conversation and Message authority",
+    );
+    const successorRestore = workflow.indexOf(
+      "Restore reviewed Order release successors",
+    );
+    assert.ok(successorFence >= 0);
+    assert.ok(successorFence < compatibleApply);
+    assert.ok(successorFence < currentApply);
+    assert.ok(conversationProof < successorRestore);
+    const fenceBlock = workflow.slice(successorFence, compatibleApply);
+    const restoreBlock = workflow.slice(
+      successorRestore,
+      workflow.indexOf(
+        "Restore reviewed Production-owner Order buyer correction",
+        successorRestore,
+      ),
+    );
+    for (const [migration, digest] of ORDER_RELEASE_SUCCESSORS) {
+      assert.match(fenceBlock, new RegExp(`${digest} ${migration}`, "u"));
+      assert.match(restoreBlock, new RegExp(migration, "u"));
+    }
     assert.match(
       workflow,
       /Isolate DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations including Conversation and Message FORCE[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Restore exact DirectUpload activation[\s\S]*Apply current migrations including DirectUpload activation[\s\S]*Reconverge activated production-style runtime grants[\s\S]*Reconverge activated DirectUpload cleanup-worker grants/,
