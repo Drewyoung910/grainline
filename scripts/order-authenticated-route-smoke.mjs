@@ -577,7 +577,13 @@ function clerkCookieHeader(jar) {
   return value;
 }
 
-async function createCanarySession(clerk, clerkUserId) {
+export async function createCanarySession(clerk, clerkUserId, {
+  onSessionCreated = async () => {},
+  request = fetch,
+} = {}) {
+  if (typeof request !== "function" || typeof onSessionCreated !== "function") {
+    throw new Error("Clerk session request hooks are invalid");
+  }
   const signInToken = await clerk.signInTokens.createSignInToken({
     expiresInSeconds: 60,
     userId: clerkUserId,
@@ -586,7 +592,7 @@ async function createCanarySession(clerk, clerkUserId) {
     throw new Error("Clerk did not create the bounded one-use ticket");
   }
   const jar = new Map();
-  const clientResponse = await fetch(`https://${CLERK_FRONTEND_API}/v1/client`, {
+  const clientResponse = await request(`https://${CLERK_FRONTEND_API}/v1/client`, {
     body: "",
     headers: { "content-type": "application/x-www-form-urlencoded", origin: PRODUCTION_ORIGIN },
     method: "POST",
@@ -598,7 +604,7 @@ async function createCanarySession(clerk, clerkUserId) {
   if (clientResponse.status !== 200 || (clientPayload.response ?? clientPayload).object !== "client") {
     throw new Error("Clerk client handshake failed");
   }
-  const exchange = await fetch(`https://${CLERK_FRONTEND_API}/v1/client/sign_ins`, {
+  const exchange = await request(`https://${CLERK_FRONTEND_API}/v1/client/sign_ins`, {
     body: new URLSearchParams({ strategy: "ticket", ticket: signInToken.token }),
     headers: {
       "content-type": "application/x-www-form-urlencoded",
@@ -609,7 +615,6 @@ async function createCanarySession(clerk, clerkUserId) {
     redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
-  absorbClerkResponseCookies(exchange, jar);
   const payload = await boundedJson(exchange);
   const attempt = payload.response ?? payload;
   const sessionId = attempt.created_session_id;
@@ -619,7 +624,13 @@ async function createCanarySession(clerk, clerkUserId) {
     || attempt.status !== "complete"
     || !/^sess_[A-Za-z0-9]+$/.test(String(sessionId ?? ""))
   ) throw new Error("Clerk one-use ticket exchange failed");
-  const token = await clerk.sessions.getToken(sessionId, undefined, 300);
+  await onSessionCreated(Object.freeze({ sessionId, signInTokenId: signInToken.id }));
+  let token;
+  try {
+    token = await clerk.sessions.getToken(sessionId, undefined, 300);
+  } catch {
+    throw new Error("Clerk session token request failed");
+  }
   if (typeof token?.jwt !== "string" || token.jwt.split(".").length !== 3) {
     throw new Error("Clerk session token shape drifted");
   }
@@ -2092,9 +2103,12 @@ async function canaryToken(clerk, state) {
       // Create a new bounded session below if an earlier one expired.
     }
   }
-  const authentication = await createCanarySession(clerk, state.canary.clerkUserId);
-  state.canary.sessionIds.push(authentication.sessionId);
-  saveState(state);
+  const authentication = await createCanarySession(clerk, state.canary.clerkUserId, {
+    onSessionCreated: ({ sessionId }) => {
+      state.canary.sessionIds.push(sessionId);
+      saveState(state);
+    },
+  });
   return authentication.jwt;
 }
 
