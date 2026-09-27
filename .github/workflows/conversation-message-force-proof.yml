@@ -90,7 +90,7 @@ jobs:
           de3db869562e4cdbe411efb1652f0cefb2f2a9687a079e15e84b70aaeb740263 20260926012000_correct_order_seller_deauthorization_fulfillment
           75b2c6d00f9f7996c6140a57adbcc91f207cf96e2c495478fb21a9a633f0b29f 20260926012100_correct_order_seller_deauthorization_label
           4b8ed62faa14d9fa32c57c0045847357d04c16889f9a1d2e3b83633a1c482578 20260926012200_correct_order_seller_deauthorization_projection
-          6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924 20260926012300_retire_legacy_checkout_reservation_creators
+          f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61 20260926012300_retire_legacy_checkout_reservation_creators
           MIGRATIONS
       - name: Isolate DirectUpload activation until external grants converge
         run: >-

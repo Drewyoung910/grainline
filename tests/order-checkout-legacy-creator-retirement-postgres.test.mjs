@@ -66,6 +66,10 @@ async function createDatabase() {
 
     REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
     GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO grainline_app_runtime;
+    REVOKE EXECUTE ON FUNCTION
+      public.grainline_checkout_reservation_create_cart(text, text, text, text, text),
+      public.grainline_checkout_reservation_create_single(text, text, integer, text)
+    FROM grainline_app_runtime;
   `);
   return database;
 }
@@ -94,7 +98,7 @@ describe("legacy checkout creator retirement", () => {
     );
     assert.match(
       provisioning,
-      /6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924/,
+      /f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61/,
     );
     assert.match(
       provisioning,
@@ -190,7 +194,7 @@ describe("legacy checkout creator retirement", () => {
       const privilege = await database.query(`
         SELECT pg_catalog.has_function_privilege(
           'grainline_app_runtime',
-          'public.grainline_checkout_reservation_create_cart(text,text,text,text,text)',
+          'public.grainline_checkout_reservation_create_cart_consistent(text,text,text,text,text,jsonb)',
           'EXECUTE'
         ) AS allowed
       `);
