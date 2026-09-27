@@ -362,6 +362,9 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     const successorFence = workflow.indexOf(
       "Isolate reviewed Order release successors from historical proof",
     );
+    const coreFence = workflow.indexOf(
+      "Isolate staged Core Order ENABLE from historical proof",
+    );
     const compatibleApply = workflow.indexOf(
       "Apply compatible migrations including committed Notification FORCE",
     );
@@ -374,10 +377,13 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     const successorRestore = workflow.indexOf(
       "Restore reviewed Order release successors",
     );
+    const coreRestore = workflow.indexOf("Restore staged Core Order ENABLE");
     assert.ok(successorFence >= 0);
     assert.ok(successorFence < compatibleApply);
     assert.ok(successorFence < currentApply);
+    assert.ok(coreFence > successorFence && coreFence < compatibleApply);
     assert.ok(notificationProof < successorRestore);
+    assert.ok(notificationProof < coreRestore);
     const fenceBlock = workflow.slice(successorFence, compatibleApply);
     const restoreBlock = workflow.slice(
       successorRestore,
@@ -390,6 +396,13 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
       assert.match(fenceBlock, new RegExp(`${digest} ${migration}`, "u"));
       assert.match(restoreBlock, new RegExp(migration, "u"));
     }
+    const coreFenceBlock = workflow.slice(coreFence, compatibleApply);
+    assert.match(coreFenceBlock, /20260927090000_enable_order_rls/u);
+    assert.match(
+      coreFenceBlock,
+      /350567d0141601fd858dcc2df99f59b085d1f66573560b027148e66278a1eec8/u,
+    );
+    assert.ok(coreRestore > successorRestore);
     assert.match(
       workflow,
       /Isolate DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations including committed Notification FORCE[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Restore exact DirectUpload activation[\s\S]*Apply current migrations including DirectUpload activation[\s\S]*Reconverge activated production-style runtime grants[\s\S]*Reconverge activated DirectUpload cleanup-worker grants/,

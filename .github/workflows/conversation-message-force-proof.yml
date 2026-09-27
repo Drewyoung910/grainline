@@ -92,6 +92,15 @@ jobs:
           4b8ed62faa14d9fa32c57c0045847357d04c16889f9a1d2e3b83633a1c482578 20260926012200_correct_order_seller_deauthorization_projection
           f66b5314f6116a2900b06c98e0a5cb0236684ab8c0c712e5d6059a758571ae61 20260926012300_retire_legacy_checkout_reservation_creators
           MIGRATIONS
+      - name: Isolate staged Core Order ENABLE from historical proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260927090000_enable_order_rls
+          printf '%s  %s\n' \
+            '350567d0141601fd858dcc2df99f59b085d1f66573560b027148e66278a1eec8' \
+            "prisma/migrations/$migration/migration.sql" | sha256sum --check --status
+          mv "prisma/migrations/$migration" "$RUNNER_TEMP/$migration"
       - name: Isolate DirectUpload activation until external grants converge
         run: >-
           mv
@@ -141,3 +150,8 @@ jobs:
           mv
           "$RUNNER_TEMP/20260905180000_correct_order_banned_buyer_completion"
           prisma/migrations/20260905180000_correct_order_banned_buyer_completion
+      - name: Restore staged Core Order ENABLE
+        run: >-
+          mv
+          "$RUNNER_TEMP/20260927090000_enable_order_rls"
+          prisma/migrations/20260927090000_enable_order_rls
