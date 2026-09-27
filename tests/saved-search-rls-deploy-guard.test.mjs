@@ -3936,6 +3936,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/order-stage-alias-owner-20260924": orderStageAliasOwnerReviewDeployment,
       "codex/order-banned-buyer-completion-20260924": orderBannedBuyerReviewDeployment,
       "codex/order-release-corrections-20260926": orderReleaseCorrectionsDeployment,
+      "codex/order-historical-proof-fence-20260927": orderHistoricalProofFenceDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -4028,6 +4029,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderReleaseCorrectionsDeployment,
       false,
       "the exact Order release-corrections review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderHistoricalProofFenceDeployment,
+      false,
+      "the exact historical RLS proof-fence review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,
