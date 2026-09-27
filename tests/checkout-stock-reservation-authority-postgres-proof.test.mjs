@@ -1274,6 +1274,15 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       ) AS result
     `, [reservation.id]))[0];
     assert.equal(bound.result, true);
+    const boundReservation = rows(await db.query(`
+      SELECT status, "stripeSessionId"
+        FROM public."CheckoutStockReservation"
+       WHERE id = $1
+    `, [reservation.id]))[0];
+    assert.deepEqual(boundReservation, {
+      status: "SESSION_CREATED",
+      stripeSessionId: "cs_test_boundA",
+    });
     const rebound = rows(await db.query(`
       SELECT public.grainline_checkout_reservation_bind_session(
         $1, 'buyer-a', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'cs_test_boundB'

@@ -4,7 +4,6 @@ import { describe, it } from "node:test";
 
 const {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
-  DEAUTHORIZED_SELLER_REVIEW_NOTE,
   orderHasDeauthorizedSellerReviewHold,
 } = await import("../src/lib/orderReviewHolds.ts");
 
@@ -13,25 +12,16 @@ function source(path) {
 }
 
 describe("order review holds", () => {
-  it("detects only Stripe deauthorization holds, not every reviewNeeded order", () => {
+  it("uses only the durable Stripe deauthorization witness", () => {
     assert.equal(
       orderHasDeauthorizedSellerReviewHold({
-        reviewNeeded: true,
-        reviewNote: DEAUTHORIZED_SELLER_REVIEW_NOTE,
+        sellerDeauthorizedAt: new Date("2026-09-01T00:00:00.000Z"),
       }),
       true,
     );
     assert.equal(
       orderHasDeauthorizedSellerReviewHold({
-        reviewNeeded: true,
-        reviewNote: "Shipping quote mismatch requires staff review.",
-      }),
-      false,
-    );
-    assert.equal(
-      orderHasDeauthorizedSellerReviewHold({
-        reviewNeeded: false,
-        reviewNote: DEAUTHORIZED_SELLER_REVIEW_NOTE,
+        sellerDeauthorizedAt: null,
       }),
       false,
     );
@@ -57,14 +47,14 @@ describe("order review holds", () => {
   it("blocks deauthorized orders in fulfillment prechecks and final predicates", () => {
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
     const authority = source(
-      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+      "prisma/migrations/20260926012000_correct_order_seller_deauthorization_fulfillment/migration.sql",
     );
 
     assert.match(fulfillment, /DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE/);
     assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
     assert.match(
       authority,
-      /COALESCE\(locked_order\."reviewNote", ''\) LIKE\s+'Seller Stripe account was deauthorized after payment\.%'/,
+      /locked_order\."sellerDeauthorizedAt" IS NOT NULL/,
     );
     assert.match(authority, /'reason', 'seller_deauthorized'/);
   });
@@ -72,20 +62,20 @@ describe("order review holds", () => {
   it("blocks deauthorized orders before label purchase and inside the label lock", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
     const labelAuthority = source(
-      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+      "prisma/migrations/20260926012100_correct_order_seller_deauthorization_label/migration.sql",
     );
 
     assert.match(labelRoute, /sellerLabelPreflight/);
     assert.match(labelRoute, /case "seller_deauthorized"/);
-    assert.match(labelAuthority, /COALESCE\(source_order\."reviewNote", ''\) LIKE/);
-    assert.match(labelAuthority, /COALESCE\(locked_order\."reviewNote", ''\) LIKE/);
+    assert.match(labelAuthority, /source_order\."sellerDeauthorizedAt" IS NOT NULL/);
+    assert.match(labelAuthority, /locked_order\."sellerDeauthorizedAt" IS NOT NULL/);
     assert.match(labelAuthority, /'reason', 'seller_deauthorized'/);
   });
 
   it("hides seller fulfillment controls while a deauthorization hold is active", () => {
     const page = source("src/app/dashboard/sales/[orderId]/page.tsx");
     const detailAuthority = source(
-      "prisma/migrations/20260901010000_prepare_order_participant_detail_authority/migration.sql",
+      "prisma/migrations/20260926012200_correct_order_seller_deauthorization_projection/migration.sql",
     );
     const detailProjection = source(
       "prisma/migrations/20260901100000_prepare_order_participant_detail_projection/migration.sql",
@@ -97,7 +87,7 @@ describe("order review holds", () => {
     assert.match(page, /const deauthorizedReviewHold = order\.deauthorizedReviewHold/);
     assert.match(
       detailAuthority,
-      /source_order\."reviewNeeded"\s+AND source_order\."reviewNote" LIKE 'Seller Stripe account was deauthorized after payment\.%'/,
+      /source_order\."sellerDeauthorizedAt" IS NOT NULL/,
     );
     assert.match(detailProjection, /detail\.deauthorized_review_hold/);
     assert.match(actionBlock, /\{deauthorizedReviewHold \? \(/);

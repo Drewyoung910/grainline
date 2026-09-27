@@ -133,11 +133,18 @@ BEGIN
       !~ '^[0-9a-f]{64}$' THEN
       RAISE EXCEPTION 'staff bootstrap transaction-local password is invalid';
     END IF;
-    EXECUTE pg_catalog.format(
-      'CREATE ROLE %I LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L',
-      '${STAFF_BOOTSTRAP_ROLE}',
-      pg_catalog.current_setting('grainline.staff_bootstrap_password', true)
-    );
+    BEGIN
+      EXECUTE pg_catalog.format(
+        'CREATE ROLE %I LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L',
+        '${STAFF_BOOTSTRAP_ROLE}',
+        pg_catalog.current_setting('grainline.staff_bootstrap_password', true)
+      );
+    EXCEPTION WHEN OTHERS THEN
+      -- Replace the dynamic statement failure before it leaves PL/pgSQL. The
+      -- expanded CREATE ROLE text contains the one-time plaintext password.
+      RAISE EXCEPTION 'staff bootstrap role creation failed'
+        USING ERRCODE = 'P0001';
+    END;
     COMMENT ON ROLE ${STAFF_BOOTSTRAP_ROLE} IS '${staffBootstrapMarker(state)}';
   ELSE
     SELECT pg_catalog.shobj_description(existing_role.oid, 'pg_authid') INTO marker;

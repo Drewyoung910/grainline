@@ -150,6 +150,13 @@ export async function runProof(config = proofConfig()) {
       assert.equal(body.rows[0].prosrc, sql.split(`AS $${name}$`)[1].split(`$${name}$;`)[0]);
     }
     await controller.query(fs.readFileSync(path.join(root, "docs/rls-drafts/order-paid-checkout-authority.sql"), "utf8"));
+    await controller.query(fs.readFileSync(
+      path.join(
+        root,
+        "prisma/migrations/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql",
+      ),
+      "utf8",
+    ));
     await controller.query(`
       REVOKE ALL ON FUNCTION public.grainline_checkout_reservation_complete(text,bigint,text,text) FROM PUBLIC;
       REVOKE ALL ON FUNCTION public.grainline_checkout_reservation_repair_finalize(text,bigint,text) FROM PUBLIC;
@@ -219,7 +226,7 @@ export async function runProof(config = proofConfig()) {
     await controller.query(`
       INSERT INTO public."CheckoutStockReservation" (
         id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
-      ) VALUES ($1, $2, 'RESERVED', 'buyer-1', 'seller-1', $3::jsonb)
+      ) VALUES ($1, $2, 'SESSION_CREATED', 'buyer-1', 'seller-1', $3::jsonb)
     `, [
       repairFirst.reservationId,
       repairFirst.sessionId,

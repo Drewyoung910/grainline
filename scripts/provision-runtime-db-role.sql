@@ -1565,6 +1565,46 @@ SELECT format(
 -- grants while adding only the fixed lifecycle surface. The functions may be
 -- absent before that migration, so every convergence statement is catalog-
 -- guarded. Private validation/trigger/source helpers are handled above.
+-- Once the source-cutover migration is complete, provisioning must never
+-- restore runtime access to the four legacy creators. Refuse a partial or
+-- checksum-drifted ledger row before touching any grants.
+WITH cutover_ledger AS (
+  SELECT
+    pg_catalog.count(*)::integer AS row_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = '6bd4f7d1261efd04a8dc003161f8b728483ab9437a99677355b9c6a7e0fb9924'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count = 1
+    )::integer AS exact_count
+  FROM public._prisma_migrations
+  WHERE migration_name =
+    '20260926012300_retire_legacy_checkout_reservation_creators'
+), failure AS (
+  SELECT
+    'legacy checkout retirement ledger drifted; refusing runtime-role provisioning'
+      AS message
+  FROM cutover_ledger
+  WHERE row_count <> 0 AND (row_count <> 1 OR exact_count <> 1)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT exact_count = 1 FROM cutover_ledger), false)
+    AS grainline_checkout_source_cutover_applied;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_reservation_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_reservation_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
 WITH checkout_reservation_service(function_signature) AS (
   VALUES
     ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)'),
@@ -1619,25 +1659,25 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
-WITH checkout_reservation_service(function_signature) AS (
+WITH checkout_reservation_service(function_signature, legacy_creator) AS (
   VALUES
-    ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)'),
-    ('public."grainline_checkout_reservation_create_single"(text, text, integer, text)'),
-    ('public."grainline_checkout_reservation_create_cart_consistent"(text, text, text, text, text, jsonb)'),
-    ('public."grainline_checkout_reservation_create_single_consistent"(text, text, integer, text[], text, jsonb)'),
-    ('public."grainline_checkout_reservation_bind_session"(text, text, text, text)'),
-    ('public."grainline_checkout_reservation_complete"(text, bigint, text, text)'),
-    ('public."grainline_checkout_reservation_checkout_abort"(text, text, text)'),
-    ('public."grainline_checkout_reservation_webhook_restore"(text, bigint, text)'),
-    ('public."grainline_checkout_reservation_buyer_expired_restore"(text, text)'),
-    ('public."grainline_checkout_reservation_seller_expired_restore"(text, text)'),
-    ('public."grainline_checkout_reservation_repair_claim_batch"(integer)'),
-    ('public."grainline_checkout_reservation_account_claim_batch"(text, integer)'),
-    ('public."grainline_checkout_reservation_repair_finalize"(text, bigint, text)'),
-    ('public."grainline_checkout_reservation_prune_batch"(integer)'),
-    ('public."grainline_checkout_reservation_resume"(text, text)'),
-    ('public."grainline_checkout_reservation_export"(text)'),
-    ('public."grainline_checkout_reservation_account_scrub"(text)')
+    ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)', true),
+    ('public."grainline_checkout_reservation_create_single"(text, text, integer, text)', true),
+    ('public."grainline_checkout_reservation_create_cart_consistent"(text, text, text, text, text, jsonb)', true),
+    ('public."grainline_checkout_reservation_create_single_consistent"(text, text, integer, text[], text, jsonb)', true),
+    ('public."grainline_checkout_reservation_bind_session"(text, text, text, text)', false),
+    ('public."grainline_checkout_reservation_complete"(text, bigint, text, text)', false),
+    ('public."grainline_checkout_reservation_checkout_abort"(text, text, text)', false),
+    ('public."grainline_checkout_reservation_webhook_restore"(text, bigint, text)', false),
+    ('public."grainline_checkout_reservation_buyer_expired_restore"(text, text)', false),
+    ('public."grainline_checkout_reservation_seller_expired_restore"(text, text)', false),
+    ('public."grainline_checkout_reservation_repair_claim_batch"(integer)', false),
+    ('public."grainline_checkout_reservation_account_claim_batch"(text, integer)', false),
+    ('public."grainline_checkout_reservation_repair_finalize"(text, bigint, text)', false),
+    ('public."grainline_checkout_reservation_prune_batch"(integer)', false),
+    ('public."grainline_checkout_reservation_resume"(text, text)', false),
+    ('public."grainline_checkout_reservation_export"(text)', false),
+    ('public."grainline_checkout_reservation_account_scrub"(text)', false)
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
@@ -1645,8 +1685,13 @@ SELECT format(
   :'runtime_role'
 )
   FROM checkout_reservation_service
- WHERE to_regprocedure(function_signature) IS NOT NULL;
+ WHERE to_regprocedure(function_signature) IS NOT NULL
+   AND (
+     NOT legacy_creator
+     OR NOT :'grainline_checkout_source_cutover_applied'::boolean
+   );
 \gexec
+\unset grainline_checkout_source_cutover_applied
 
 -- CheckoutStockReservation is a policyless service ledger once Phase A is
 -- active. Refuse partial posture, and ensure the broad compatibility grant

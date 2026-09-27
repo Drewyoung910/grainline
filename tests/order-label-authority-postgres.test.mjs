@@ -14,6 +14,10 @@ const migration = readFileSync(
   "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
   "utf8",
 );
+const deauthorizationCorrection = readFileSync(
+  "prisma/migrations/20260926012100_correct_order_seller_deauthorization_label/migration.sql",
+  "utf8",
+);
 
 async function createLabelDatabase({ corrected }) {
   const database = new PGlite();
@@ -59,6 +63,7 @@ async function createLabelDatabase({ corrected }) {
       "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
       "paymentOpenDisputeBlocked" boolean NOT NULL DEFAULT false,
       "reviewNeeded" boolean NOT NULL DEFAULT false, "reviewNote" text,
+      "sellerDeauthorizedAt" timestamp(3) without time zone,
       "stripeTransferId" text, "shippoShipmentId" text, "shippoRateObjectId" text,
       "shippoTransactionId" text, "labelUrl" text, "labelCarrier" text,
       "labelTrackingNumber" text, "labelPurchasedAt" timestamp(3),
@@ -161,6 +166,41 @@ async function asRuntime(database, sql, params = []) {
 for (const corrected of [false, true]) {
 describe(`Order label fixed authority in PostgreSQL (${corrected ? "corrected draft" : "historical"})`, () => {
   const createDatabase = (options = {}) => createLabelDatabase({ corrected, ...options });
+  it("keeps label preflight, quote, and claim blocked by the durable deauthorization witness", async () => {
+    const database = await createDatabase();
+    try {
+      await database.exec(deauthorizationCorrection);
+      await database.exec(`
+        UPDATE public."Order"
+           SET "sellerDeauthorizedAt" = CURRENT_TIMESTAMP,
+               "reviewNeeded" = false,
+               "reviewNote" = 'Staff replaced the original review note'
+         WHERE id = 'order-1'
+      `);
+      const preflight = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-1', 'order-1'
+        ) AS result
+      `);
+      assert.equal(preflight.rows[0].result.reason, "seller_deauthorized");
+      const quote = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_quote_replace(
+          'seller-user-1', 'order-1', 'shipment-held',
+          '[{"objectId":"rate-held","amountCents":725,"currency":"usd","label":"UPS Ground","carrier":"UPS","service":"Ground"}]'::jsonb
+        ) AS result
+      `);
+      assert.equal(quote.rows[0].result.reason, "state_changed");
+      const claim = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_claim(
+          'seller-user-1', 'order-1', NULL
+        ) AS result
+      `);
+      assert.equal(claim.rows[0].result.reason, "seller_deauthorized");
+    } finally {
+      await database.close();
+    }
+  });
+
   it("pins a draft changing only the two NULL outcome guards", () => {
     assert.equal(outcomeCorrection.trimEnd(), buildOrderLabelOutcomeCorrection().trimEnd());
     for (const { tag, before, after } of orderLabelOutcomeDefinitions()) {
@@ -500,6 +540,60 @@ describe(`Order label fixed authority in PostgreSQL (${corrected ? "corrected dr
         /permission denied/i,
       );
     } finally { await database.close(); }
+  });
+
+  it("records an in-flight Shippo success after a concurrent refund without marking the Order shipped", async () => {
+    const database = await createDatabase();
+    try {
+      await database.exec(deauthorizationCorrection);
+      const claim = await prepareClaim(database);
+      await database.exec(`
+        UPDATE public."Order"
+           SET "sellerRefundId" = 're_concurrentlabel',
+               "paymentRefundBlocked" = true
+         WHERE id = 'order-1'
+      `);
+      const recorded = (await recordOutcome(database, claim, "SUCCESS")).rows[0].result;
+      assert.equal(recorded.outcome, "recorded");
+      assert.equal(recorded.clawbackStatus, "MANUAL_REVIEW");
+      assert.equal(recorded.fulfillmentStatus, "PENDING");
+      await assert.rejects(
+        finalizeOutcome(database, claim, recorded.clawbackGeneration, null),
+        /Order label clawback result input is invalid/,
+      );
+
+      const state = (await database.query(`
+        SELECT "labelStatus"::text AS label_status,
+               "fulfillmentStatus"::text AS fulfillment_status,
+               "shippedAt" AS shipped_at,
+               "labelClawbackStatus" AS clawback_status,
+               "reviewNeeded" AS review_needed,
+               "reviewNote" AS review_note
+          FROM public."Order"
+         WHERE id = 'order-1'
+      `)).rows[0];
+      assert.equal(state.label_status, "PURCHASED");
+      assert.equal(state.fulfillment_status, "PENDING");
+      assert.equal(state.shipped_at, null);
+      assert.equal(state.clawback_status, "MANUAL_REVIEW");
+      assert.equal(state.review_needed, true);
+      assert.match(state.review_note, /already refunded/iu);
+
+      const audit = (await database.query(`
+        SELECT action, metadata ->> 'action' AS metadata_action
+          FROM public."SystemAuditLog"
+         WHERE id = $1
+      `, [recorded.auditLogId])).rows[0];
+      assert.deepEqual(audit, {
+        action: "ORDER_LABEL_REFUND_RACE_RECORDED",
+        metadata_action: "label_refund_race",
+      });
+      assert.equal(Number((await database.query(`
+        SELECT pg_catalog.count(*) AS count FROM public."Notification"
+      `)).rows[0].count), 0);
+    } finally {
+      await database.close();
+    }
   });
 
   it("denies cross-seller access and rejects drifted provider money", async () => {

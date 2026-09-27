@@ -86,6 +86,10 @@ describe("Order label fixed-authority release", () => {
     );
     assert.match(finalization, /prisma\.\$transaction/);
     assert.match(finalization, /recordSellerLabelProviderResult\(input, tx\)/);
+    assert.match(
+      finalization,
+      /result\.outcome !== "recorded"[\s\S]*result\.fulfillmentStatus !== "SHIPPED"[\s\S]*!result\.buyerUserId/,
+    );
     assert.doesNotMatch(finalization, /createNotification(?:OrThrow)?/);
     assert.match(migration, /'ORDER_FULFILLMENT_TRANSITION'/);
     assert.match(migration, /'action', 'shipped', 'newStatus', 'SHIPPED'/);

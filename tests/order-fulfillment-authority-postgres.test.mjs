@@ -7,6 +7,10 @@ const migration = readFileSync(
   "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
   "utf8",
 );
+const deauthorizationCorrection = readFileSync(
+  "prisma/migrations/20260926012000_correct_order_seller_deauthorization_fulfillment/migration.sql",
+  "utf8",
+);
 
 async function createDatabase() {
   const database = new PGlite();
@@ -49,6 +53,7 @@ async function createDatabase() {
       "paymentOpenDisputeBlocked" boolean NOT NULL DEFAULT false,
       "reviewNeeded" boolean NOT NULL DEFAULT false,
       "reviewNote" text,
+      "sellerDeauthorizedAt" timestamp(3) without time zone,
       "labelStatus" public."LabelStatus",
       "buyerDataPurgedAt" timestamp(3) without time zone
     );
@@ -91,6 +96,7 @@ async function createDatabase() {
       VALUES ('case-1', 'blocked-order', 'OPEN');
   `);
   await database.exec(migration);
+  await database.exec(deauthorizationCorrection);
   return database;
 }
 
@@ -104,6 +110,30 @@ async function asRuntime(database, sql) {
 }
 
 describe("Order fulfillment fixed authority in PostgreSQL", () => {
+  it("keeps a seller deauthorization hold after staff edits the mutable review fields", async () => {
+    const database = await createDatabase();
+    try {
+      await database.exec(`
+        UPDATE public."Order"
+           SET "sellerDeauthorizedAt" = CURRENT_TIMESTAMP,
+               "reviewNeeded" = false,
+               "reviewNote" = 'A later staff note replaced the webhook text'
+         WHERE id = 'notes-order'
+      `);
+      const result = await asRuntime(database, `
+        SELECT public.grainline_order_seller_fulfillment_transition(
+          'seller-user-1', 'notes-order', 'shipped', 'UPS', '1Z999AA10123456784'
+        ) AS result
+      `);
+      assert.deepEqual(result.rows[0].result, {
+        outcome: "conflict",
+        reason: "seller_deauthorized",
+      });
+    } finally {
+      await database.close();
+    }
+  });
+
   it("serializes seller shipping and buyer delivery with derived audits", async () => {
     const database = await createDatabase();
     try {
