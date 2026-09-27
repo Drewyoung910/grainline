@@ -15,6 +15,7 @@ import {
   createRouteRequest,
   assertFulfillmentRedirect,
   assertReceiptRedirect,
+  createCanarySession,
   parseVercelAliasInspection,
   parseVercelDeployment,
   validateRestartState,
@@ -181,6 +182,96 @@ test("empty-body fulfillment redirects are inspected through headers without JSO
     status: response.status,
     targetOrigin: binding.targetOrigin,
   }), { orderId: "ord_1", status: 303 });
+});
+
+test("Clerk ticket exchange does not require unused response cookies", async () => {
+  const events = [];
+  const request = async (url) => {
+    events.push(url.endsWith("/sign_ins") ? "exchange" : "client");
+    if (url.endsWith("/sign_ins")) {
+      return new Response(JSON.stringify({
+        response: {
+          created_session_id: "sess_Canary123",
+          object: "sign_in_attempt",
+          status: "complete",
+        },
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ response: { object: "client" } }), {
+      headers: { "set-cookie": "__client=synthetic-client; Path=/; HttpOnly" },
+      status: 200,
+    });
+  };
+  const clerk = {
+    sessions: {
+      getToken: async (sessionId) => {
+        events.push(`token:${sessionId}`);
+        return { jwt: "header.payload.signature" };
+      },
+    },
+    signInTokens: {
+      createSignInToken: async () => ({
+        id: "sit_Canary123",
+        token: "synthetic-ticket",
+        userId: "user_canary",
+      }),
+    },
+  };
+  const result = await createCanarySession(clerk, "user_canary", {
+    onSessionCreated: async ({ sessionId }) => events.push(`saved:${sessionId}`),
+    request,
+  });
+  assert.deepEqual(result, {
+    jwt: "header.payload.signature",
+    sessionId: "sess_Canary123",
+    signInTokenId: "sit_Canary123",
+  });
+  assert.deepEqual(events, [
+    "client",
+    "exchange",
+    "saved:sess_Canary123",
+    "token:sess_Canary123",
+  ]);
+});
+
+test("new Clerk session is checkpointed before a redacted token failure", async () => {
+  let checkpointedSessionId = null;
+  const request = async (url) => new Response(JSON.stringify(url.endsWith("/sign_ins") ? {
+    response: {
+      created_session_id: "sess_Canary456",
+      object: "sign_in_attempt",
+      status: "complete",
+    },
+  } : { response: { object: "client" } }), {
+    headers: url.endsWith("/sign_ins")
+      ? undefined
+      : { "set-cookie": "__client=synthetic-client; Path=/; HttpOnly" },
+    status: 200,
+  });
+  const clerk = {
+    sessions: {
+      getToken: async () => {
+        assert.equal(checkpointedSessionId, "sess_Canary456");
+        throw new Error("provider-secret-diagnostic");
+      },
+    },
+    signInTokens: {
+      createSignInToken: async () => ({
+        id: "sit_Canary456",
+        token: "synthetic-ticket",
+        userId: "user_canary",
+      }),
+    },
+  };
+  await assert.rejects(() => createCanarySession(clerk, "user_canary", {
+    onSessionCreated: async ({ sessionId }) => { checkpointedSessionId = sessionId; },
+    request,
+  }), (error) => {
+    assert.equal(error.message, "Clerk session token request failed");
+    assert.doesNotMatch(error.message, /provider-secret-diagnostic/);
+    return true;
+  });
+  assert.equal(checkpointedSessionId, "sess_Canary456");
 });
 
 test("staged restart cannot switch host or bypass digest at the same deployment", () => {
