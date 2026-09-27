@@ -58,7 +58,7 @@ jobs:
           token: ""
       - run: npm ci --ignore-scripts
       - name: Bind ENABLE to exact main, CI and completed checkout cutover
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
           REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
