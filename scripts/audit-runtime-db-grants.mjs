@@ -78,6 +78,7 @@ export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
+export const CORE_ORDER_TABLE = "Order";
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
 const ORDER_STAFF_CAPABILITY_MIGRATION =
@@ -341,6 +342,17 @@ export function orderPaymentEventRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(ORDER_PAYMENT_EVENT_TABLE);
 }
 
+export function coreOrderRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(CORE_ORDER_TABLE) && !policies.has(CORE_ORDER_TABLE);
+}
+
+export function coreOrderRlsForceExpected(inventory) {
+  return coreOrderRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(CORE_ORDER_TABLE);
+}
+
 export function runtimePrivateFunctionNames(inventory) {
   const directUploadActivated = directUploadRlsActivationExpected(inventory);
   const reservationActivated =
@@ -426,6 +438,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(orderPaymentEventRlsActivationExpected(inventory)
       ? [ORDER_PAYMENT_EVENT_TABLE]
+      : []),
+    ...(coreOrderRlsActivationExpected(inventory)
+      ? [CORE_ORDER_TABLE]
       : []),
   ];
 }
@@ -1302,6 +1317,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === ORDER_PAYMENT_EVENT_TABLE
       && orderPaymentEventRlsActivationExpected(inventory)
     )
+    || (
+      tableName === CORE_ORDER_TABLE
+      && coreOrderRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -1345,6 +1364,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? sellerPayoutEventRlsForceExpected(inventory)
         : tableName === ORDER_PAYMENT_EVENT_TABLE
           ? orderPaymentEventRlsForceExpected(inventory)
+        : tableName === CORE_ORDER_TABLE
+          ? coreOrderRlsForceExpected(inventory)
         : true;
     if (!row) {
       issues.push(
@@ -1977,6 +1998,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       || (
         row.table_name === ORDER_PAYMENT_EVENT_TABLE
         && orderPaymentEventRlsActivationExpected(inventory)
+      )
+      || (
+        row.table_name === CORE_ORDER_TABLE
+        && coreOrderRlsActivationExpected(inventory)
       );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(
