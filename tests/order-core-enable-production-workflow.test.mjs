@@ -5,6 +5,7 @@ import test from "node:test";
 const workflow = readFileSync(
   ".github/workflows/order-core-enable-production.yml", "utf8",
 );
+const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 
 test("Core Order ENABLE workflow is a separate exact protected release", () => {
   assert.match(workflow, /name: Core Order ENABLE production \(protected\)/);
@@ -23,4 +24,30 @@ test("Core Order ENABLE workflow is a separate exact protected release", () => {
   assert.match(workflow, /Audit post-ENABLE runtime grants and global RLS catalog/);
   assert.doesNotMatch(workflow, /FORCE ROW LEVEL SECURITY|force_order_rls/);
   assert.doesNotMatch(workflow, /DATABASE_URL:/);
+});
+
+test("CI proves Core Order ENABLE while preserving historical release guards", () => {
+  const verifyIndex = ciWorkflow.indexOf(
+    "Verify staged Core Order ENABLE source package",
+  );
+  const isolateIndex = ciWorkflow.indexOf(
+    "Isolate Core Order ENABLE until historical release phases pass",
+  );
+  const historicalIndex = ciWorkflow.indexOf(
+    "Verify OrderPaymentEvent activation migration tree",
+  );
+  const restoreIndex = ciWorkflow.indexOf(
+    'mv "$RUNNER_TEMP/order-core-enable-release"',
+  );
+  const buildIndex = ciWorkflow.indexOf("Production build");
+
+  assert.ok(verifyIndex > 0 && verifyIndex < isolateIndex);
+  assert.ok(isolateIndex < historicalIndex);
+  assert.ok(historicalIndex < restoreIndex);
+  assert.ok(restoreIndex < buildIndex);
+  assert.equal(
+    (ciWorkflow.match(/20260927090000_enable_order_rls/gu) ?? []).length,
+    2,
+    "Core ENABLE must appear once in isolation and once in restoration",
+  );
 });

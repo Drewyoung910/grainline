@@ -83,6 +83,19 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify staged Core Order ENABLE source package
+        run: >-
+          node --test
+          tests/order-core-activation-draft.test.mjs
+          tests/order-core-enable-production-workflow.test.mjs
+          tests/order-core-enable-release.test.mjs
+          tests/order-core-rls-production-postflight.test.mjs
+          tests/order-core-rls-runtime-postflight.test.mjs
+      - name: Isolate Core Order ENABLE until historical release phases pass
+        run: >-
+          mv
+          prisma/migrations/20260927090000_enable_order_rls
+          "$RUNNER_TEMP/order-core-enable-release"
       - name: Verify complete Order zero-direct compatible prefix
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -1659,6 +1672,11 @@ jobs:
           holding="$RUNNER_TEMP/order-release-correction-tests"
           mkdir "$holding"
           for test_file in \
+            tests/order-core-activation-draft.test.mjs \
+            tests/order-core-enable-production-workflow.test.mjs \
+            tests/order-core-enable-release.test.mjs \
+            tests/order-core-rls-production-postflight.test.mjs \
+            tests/order-core-rls-runtime-postflight.test.mjs \
             tests/order-banned-buyer-completion-postgres.test.mjs \
             tests/order-provider-terminal-reconciliation-postgres.test.mjs \
             tests/order-paid-checkout-authority-postgres.test.mjs \
@@ -1683,6 +1701,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mv "$RUNNER_TEMP/order-core-enable-release" \
+            prisma/migrations/20260927090000_enable_order_rls
           mv "$RUNNER_TEMP/order-banned-buyer-completion" \
             prisma/migrations/20260905180000_correct_order_banned_buyer_completion
           for migration in \
@@ -1702,6 +1722,11 @@ jobs:
           done
           rmdir "$holding"
           node --test \
+            tests/order-core-activation-draft.test.mjs \
+            tests/order-core-enable-production-workflow.test.mjs \
+            tests/order-core-enable-release.test.mjs \
+            tests/order-core-rls-production-postflight.test.mjs \
+            tests/order-core-rls-runtime-postflight.test.mjs \
             tests/order-banned-buyer-completion-postgres.test.mjs \
             tests/order-provider-terminal-reconciliation-postgres.test.mjs \
             tests/order-paid-checkout-authority-postgres.test.mjs \
