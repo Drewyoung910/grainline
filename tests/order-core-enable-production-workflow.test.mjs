@@ -18,12 +18,21 @@ test("Core Order ENABLE workflow is a separate exact protected release", () => {
   assert.match(workflow, /inputs\.confirmation == 'enable-reviewed-core-order-rls'/);
   assert.match(workflow, /cutoverValue !== '36330287044'/);
   assert.match(workflow, /cutover\.head_sha !== '5a073252b55bd940210b57db58dcf27ab9dfb8b1'/);
+  assert.match(workflow, /production_deployment_id:/);
+  assert.match(workflow, /deploymentId !== 'dpl_FKdRWV3J8XxxrRUSWVdis6P6VWBe'/);
+  assert.match(workflow, /Verify live zero-direct application boundary/);
+  assert.match(workflow, /node scripts\/verify-order-core-live-deployment\.mjs/);
   assert.match(workflow, /node scripts\/verify-order-core-enable-release\.mjs/);
   assert.match(workflow, /Apply only Core Order ENABLE and direct-grant revocation/);
   assert.match(workflow, /steps\.enable_scope\.outputs\.state == 'predecessor'/);
   assert.match(workflow, /Audit post-ENABLE runtime grants and global RLS catalog/);
   assert.doesNotMatch(workflow, /FORCE ROW LEVEL SECURITY|force_order_rls/);
   assert.doesNotMatch(workflow, /DATABASE_URL:/);
+  assert.ok(
+    workflow.indexOf("Verify live zero-direct application boundary") <
+      workflow.indexOf("Verify owner connection boundary"),
+    "the live application gate must pass before Production database access",
+  );
 });
 
 test("CI proves Core Order ENABLE while preserving historical release guards", () => {

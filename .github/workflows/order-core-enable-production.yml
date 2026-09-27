@@ -15,6 +15,10 @@ on:
         description: Exact successful checkout-source cutover run
         required: true
         type: string
+      production_deployment_id:
+        description: Exact reviewed zero-direct Production deployment
+        required: true
+        type: string
       confirmation:
         description: Type enable-reviewed-core-order-rls
         required: true
@@ -63,14 +67,17 @@ jobs:
           REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
           REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
           REVIEWED_CUTOVER_RUN_ID: ${{ inputs.cutover_run_id }}
+          REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
         with:
           script: |
             const sha = process.env.REVIEWED_RELEASE_COMMIT;
             const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
             const cutoverValue = process.env.REVIEWED_CUTOVER_RUN_ID;
+            const deploymentId = process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID;
             if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
                 !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
-                cutoverValue !== '36330287044') {
+                cutoverValue !== '36330287044' ||
+                deploymentId !== 'dpl_FKdRWV3J8XxxrRUSWVdis6P6VWBe') {
               throw new Error('Core Order ENABLE binding drifted');
             }
             const ciRunId = Number(ciValue);
@@ -94,6 +101,10 @@ jobs:
                 cutover.status !== 'completed' || cutover.conclusion !== 'success') {
               throw new Error('Core Order ENABLE main/run readback drifted');
             }
+      - name: Verify live zero-direct application boundary
+        env:
+          ORDER_CORE_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+        run: node scripts/verify-order-core-live-deployment.mjs
       - name: Verify exact ENABLE release bytes and phase boundary
         run: node scripts/verify-order-core-enable-release.mjs
       - name: Verify owner connection boundary
