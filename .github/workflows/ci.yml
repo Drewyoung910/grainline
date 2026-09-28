@@ -83,6 +83,21 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Case refund label-claim correction source package
+        run: >-
+          node --test
+          tests/case-staff-refund-label-claim-correction.test.mjs
+          tests/case-case-message-invariant-postgres-proof.test.mjs
+      - name: Isolate Case refund label-claim correction until predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            prisma/migrations/20260901161000_correct_case_staff_refund_label_claim \
+            "$RUNNER_TEMP/case-staff-refund-label-claim-correction"
+          mv \
+            tests/case-staff-refund-label-claim-correction.test.mjs \
+            "$RUNNER_TEMP/case-staff-refund-label-claim-correction.test.mjs"
       - name: Verify staged Core Order ENABLE source package
         run: >-
           node --test
@@ -1738,5 +1753,37 @@ jobs:
             tests/order-release-corrections-production-workflow.test.mjs \
             tests/order-checkout-legacy-creator-retirement-postgres.test.mjs \
             tests/order-checkout-source-cutover-production-workflow.test.mjs
+      - name: Restore Case refund label-claim correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/case-staff-refund-label-claim-correction" \
+            prisma/migrations/20260901161000_correct_case_staff_refund_label_claim
+          mv \
+            "$RUNNER_TEMP/case-staff-refund-label-claim-correction.test.mjs" \
+            tests/case-staff-refund-label-claim-correction.test.mjs
+      - name: Re-verify Case refund label-claim correction source package
+        run: >-
+          node --test
+          tests/case-staff-refund-label-claim-correction.test.mjs
+          tests/case-case-message-invariant-postgres-proof.test.mjs
+      - name: Apply Case refund label-claim correction in disposable PostgreSQL
+        run: npx prisma migrate deploy
+      - name: Converge runtime grants after Case refund label-claim correction
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Prove Case refund label-claim serialization through runtime login
+        run: npm run audit:rls-case-invariant-drafts
+        env:
+          CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_CORRECTNESS_EXPECTED: "1"
+          CASE_LABEL_CLAIM_CORRECTION_EXPECTED: "1"
+      - name: Verify final Case refund label-claim migration status
+        run: npx prisma migrate status
       - name: Production build
         run: npm run build

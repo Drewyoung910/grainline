@@ -35,6 +35,9 @@ const ids = Object.freeze({
   staffRefundOrder: "case-invariant-proof-order-staff-refund",
   staffRetryOrder: "case-invariant-proof-order-staff-retry",
   staffReleaseOrder: "case-invariant-proof-order-staff-release",
+  staffLabelPendingOrder: "case-invariant-proof-order-staff-label-pending",
+  staffLabelAmbiguousOrder: "case-invariant-proof-order-staff-label-ambiguous",
+  staffLabelRecordedOrder: "case-invariant-proof-order-staff-label-recorded",
   activationOrder: "case-invariant-proof-order-activation",
   ordinaryCase: "case-invariant-proof-case-ordinary",
   sourceCase: "case-invariant-proof-case-source",
@@ -45,6 +48,9 @@ const ids = Object.freeze({
   staffRefundCase: "case-invariant-proof-case-staff-refund",
   staffRetryCase: "case-invariant-proof-case-staff-retry",
   staffReleaseCase: "case-invariant-proof-case-staff-release",
+  staffLabelPendingCase: "case-invariant-proof-case-staff-label-pending",
+  staffLabelAmbiguousCase: "case-invariant-proof-case-staff-label-ambiguous",
+  staffLabelRecordedCase: "case-invariant-proof-case-staff-label-recorded",
   activationCase: "case-invariant-proof-case-activation",
 });
 
@@ -362,6 +368,9 @@ async function seedBaseFixtures(client) {
     ids.staffRefundOrder,
     ids.staffRetryOrder,
     ids.staffReleaseOrder,
+    ids.staffLabelPendingOrder,
+    ids.staffLabelAmbiguousOrder,
+    ids.staffLabelRecordedOrder,
     ids.activationOrder,
   ].entries()) {
     await client.query(`
@@ -1125,14 +1134,38 @@ async function proveSellerRefundAuthority(client) {
 
 async function proveStaffResolutionAuthority(
   client,
-  { correctnessExpected = false } = {},
+  {
+    correctnessExpected = false,
+    labelClaimCorrectionExpected = false,
+  } = {},
 ) {
-  for (const [caseId, orderId, paymentIntentId] of [
+  const staffResolutionFixtures = [
     [ids.staffDismissCase, ids.staffDismissOrder, null],
     [ids.staffRefundCase, ids.staffRefundOrder, "pi_case_staff_refund"],
     [ids.staffRetryCase, ids.staffRetryOrder, "pi_case_staff_retry"],
     [ids.staffReleaseCase, ids.staffReleaseOrder, "pi_case_staff_release"],
-  ]) {
+  ];
+  if (labelClaimCorrectionExpected) {
+    assert.equal(correctnessExpected, true);
+    staffResolutionFixtures.push(
+      [
+        ids.staffLabelPendingCase,
+        ids.staffLabelPendingOrder,
+        "pi_case_staff_label_pending",
+      ],
+      [
+        ids.staffLabelAmbiguousCase,
+        ids.staffLabelAmbiguousOrder,
+        "pi_case_staff_label_ambiguous",
+      ],
+      [
+        ids.staffLabelRecordedCase,
+        ids.staffLabelRecordedOrder,
+        "pi_case_staff_label_recorded",
+      ],
+    );
+  }
+  for (const [caseId, orderId, paymentIntentId] of staffResolutionFixtures) {
     await insertParticipantCase(client, caseId, orderId);
     await client.query(`
       UPDATE public."Order"
@@ -1152,6 +1185,81 @@ async function proveStaffResolutionAuthority(
            "isPrivate" = false
      WHERE id = $1
   `, [ids.listing]);
+
+  if (labelClaimCorrectionExpected) {
+    const labelClaims = [
+      [
+        "PROVIDER_PENDING",
+        ids.staffLabelPendingOrder,
+        ids.staffLabelPendingCase,
+        null,
+      ],
+      [
+        "PROVIDER_AMBIGUOUS",
+        ids.staffLabelAmbiguousOrder,
+        ids.staffLabelAmbiguousCase,
+        null,
+      ],
+      [
+        "PROVIDER_RECORDED",
+        ids.staffLabelRecordedOrder,
+        ids.staffLabelRecordedCase,
+        new Date(),
+      ],
+    ];
+    for (const [status, orderId, caseId, providerRecordedAt] of labelClaims) {
+      await client.query(`
+        UPDATE public."Order"
+           SET "labelClaimId" = 'case-invariant-label-' || $1,
+               "labelClaimGeneration" = "labelClaimGeneration" + 1,
+               "labelClaimStatus" = $1,
+               "labelClaimActorUserId" = $2,
+               "labelClaimRateObjectId" = 'rate-case-invariant-' || $1,
+               "labelClaimExpectedAmountCents" = 500,
+               "labelClaimCurrency" = 'usd',
+               "labelClaimStartedAt" = CURRENT_TIMESTAMP,
+               "labelClaimProviderRecordedAt" = $3
+         WHERE id = $4
+      `, [status, ids.seller, providerRecordedAt, orderId]);
+
+      await client.query("SET LOCAL ROLE grainline_app_runtime");
+      await expectPostgresError(
+        client,
+        `staff_refund_blocked_by_${status.toLowerCase()}`,
+        () => client.query(`
+          SELECT public.grainline_case_staff_resolution_prepare(
+            $1,
+            $2,
+            'REFUND_FULL'::public."CaseResolution",
+            NULL,
+            '[]'::jsonb
+          )
+        `, [ids.staff, caseId]),
+        /Case staff-resolution refund is not eligible/,
+      );
+      await client.query("RESET ROLE");
+    }
+
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+    const dismissalWithPendingLabel = await client.query(`
+      SELECT public.grainline_case_staff_resolution_prepare(
+        $1,
+        $2,
+        'DISMISSED'::public."CaseResolution",
+        NULL,
+        '[]'::jsonb
+      ) AS result
+    `, [ids.staff, ids.staffLabelPendingCase]);
+    assert.equal(
+      dismissalWithPendingLabel.rows[0]?.result?.status,
+      "LOCAL_READY",
+    );
+    assert.equal(
+      dismissalWithPendingLabel.rows[0]?.result?.action,
+      "prepared",
+    );
+    await client.query("RESET ROLE");
+  }
 
   await client.query("SET LOCAL ROLE grainline_app_runtime");
   const dismissPrepare = await client.query(`
@@ -1518,6 +1626,60 @@ async function proveStaffResolutionAuthority(
     `, [ids.foreign, retryClaimId]),
     /Case reconciliation requires a current ADMIN/,
   );
+
+  if (labelClaimCorrectionExpected) {
+    await client.query("RESET ROLE");
+    for (const status of [
+      "PROVIDER_PENDING",
+      "PROVIDER_AMBIGUOUS",
+      "PROVIDER_RECORDED",
+    ]) {
+      await client.query(`
+        UPDATE public."Order"
+           SET "labelClaimId" = 'case-retry-label-' || $1,
+               "labelClaimGeneration" = "labelClaimGeneration" + 1,
+               "labelClaimStatus" = $1,
+               "labelClaimActorUserId" = $2,
+               "labelClaimRateObjectId" = 'rate-case-retry-' || $1,
+               "labelClaimExpectedAmountCents" = 500,
+               "labelClaimCurrency" = 'usd',
+               "labelClaimStartedAt" = CURRENT_TIMESTAMP,
+               "labelClaimProviderRecordedAt" =
+                 CASE WHEN $1 = 'PROVIDER_RECORDED'
+                   THEN CURRENT_TIMESTAMP ELSE NULL END
+         WHERE id = $3
+      `, [status, ids.seller, ids.staffRetryOrder]);
+      await client.query("SET LOCAL ROLE grainline_app_runtime");
+      await expectPostgresError(
+        client,
+        `case_reconciliation_retry_blocked_by_${status.toLowerCase()}`,
+        () => client.query(`
+          SELECT public.grainline_case_staff_resolution_reconcile(
+            $1,
+            $2,
+            'RETRY_EXISTING_SCOPE',
+            'Label provider claim must keep retry authority closed.'
+          )
+        `, [ids.staff, retryClaimId]),
+        /Case reconciliation claim is not retryable/,
+      );
+      await client.query("RESET ROLE");
+    }
+    await client.query(`
+      UPDATE public."Order"
+         SET "labelClaimId" = NULL,
+             "labelClaimStatus" = NULL,
+             "labelClaimActorUserId" = NULL,
+             "labelClaimRateObjectId" = NULL,
+             "labelClaimExpectedAmountCents" = NULL,
+             "labelClaimCurrency" = NULL,
+             "labelClaimStartedAt" = NULL,
+             "labelClaimProviderRecordedAt" = NULL
+       WHERE id = $1
+    `, [ids.staffRetryOrder]);
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+  }
+
   const retry = await client.query(`
     SELECT public.grainline_case_staff_resolution_reconcile(
       $1,
@@ -1528,6 +1690,52 @@ async function proveStaffResolutionAuthority(
   `, [ids.staff, retryClaimId]);
   assert.equal(retry.rows[0]?.result?.idempotencyScope, retryScope);
   assert.equal(retry.rows[0]?.result?.status, "PROVIDER_PENDING");
+
+  if (labelClaimCorrectionExpected) {
+    await client.query("RESET ROLE");
+    await client.query(`
+      UPDATE public."Order"
+         SET "labelClaimId" = 'case-replay-label-provider-pending',
+             "labelClaimGeneration" = "labelClaimGeneration" + 1,
+             "labelClaimStatus" = 'PROVIDER_PENDING',
+             "labelClaimActorUserId" = $1,
+             "labelClaimRateObjectId" = 'rate-case-replay-provider-pending',
+             "labelClaimExpectedAmountCents" = 500,
+             "labelClaimCurrency" = 'usd',
+             "labelClaimStartedAt" = CURRENT_TIMESTAMP,
+             "labelClaimProviderRecordedAt" = NULL
+       WHERE id = $2
+    `, [ids.seller, ids.staffRetryOrder]);
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+    await expectPostgresError(
+      client,
+      "case_pending_refund_replay_blocked_by_label_claim",
+      () => client.query(`
+        SELECT public.grainline_case_staff_resolution_prepare(
+          $1,
+          $2,
+          'REFUND_PARTIAL'::public."CaseResolution",
+          1000,
+          '[]'::jsonb
+        )
+      `, [ids.staff, ids.staffRetryCase]),
+      /Case staff-resolution replay is no longer refund-eligible/,
+    );
+    await client.query("RESET ROLE");
+    await client.query(`
+      UPDATE public."Order"
+         SET "labelClaimId" = NULL,
+             "labelClaimStatus" = NULL,
+             "labelClaimActorUserId" = NULL,
+             "labelClaimRateObjectId" = NULL,
+             "labelClaimExpectedAmountCents" = NULL,
+             "labelClaimCurrency" = NULL,
+             "labelClaimStartedAt" = NULL,
+             "labelClaimProviderRecordedAt" = NULL
+       WHERE id = $1
+    `, [ids.staffRetryOrder]);
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+  }
 
   const retryRecorded = await client.query(`
     SELECT public.grainline_case_staff_resolution_provider_record(
@@ -1564,7 +1772,24 @@ async function proveStaffResolutionAuthority(
       NULL, NULL, false, false
     )
   `, [ids.staff, releaseClaimId]);
-  const released = await client.query(`
+  if (labelClaimCorrectionExpected) {
+    await client.query("RESET ROLE");
+    await client.query(`
+      UPDATE public."Order"
+         SET "labelClaimId" = 'case-release-label-provider-pending',
+             "labelClaimGeneration" = "labelClaimGeneration" + 1,
+             "labelClaimStatus" = 'PROVIDER_PENDING',
+             "labelClaimActorUserId" = $1,
+             "labelClaimRateObjectId" = 'rate-case-release-provider-pending',
+             "labelClaimExpectedAmountCents" = 500,
+             "labelClaimCurrency" = 'usd',
+             "labelClaimStartedAt" = CURRENT_TIMESTAMP,
+             "labelClaimProviderRecordedAt" = NULL
+       WHERE id = $2
+    `, [ids.seller, ids.staffReleaseOrder]);
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+  }
+  const releasedWithActiveLabelClaim = await client.query(`
     SELECT public.grainline_case_staff_resolution_reconcile(
       $1,
       $2,
@@ -1572,7 +1797,10 @@ async function proveStaffResolutionAuthority(
       'Disposable proof confirms no provider refund exists.'
     ) AS result
   `, [ids.staff, releaseClaimId]);
-  assert.equal(released.rows[0]?.result?.status, "RELEASED_NO_PROVIDER_EFFECT");
+  assert.equal(
+    releasedWithActiveLabelClaim.rows[0]?.result?.status,
+    "RELEASED_NO_PROVIDER_EFFECT",
+  );
   await expectPostgresError(
     client,
     "released_claim_cannot_finalize",
@@ -2311,7 +2539,12 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await proveStripeDisputeAuthority(client);
     await proveSellerRefundAuthority(client);
     const correctnessExpected = env.CASE_CORRECTNESS_EXPECTED === "1";
-    await proveStaffResolutionAuthority(client, { correctnessExpected });
+    const labelClaimCorrectionExpected =
+      env.CASE_LABEL_CLAIM_CORRECTION_EXPECTED === "1";
+    await proveStaffResolutionAuthority(client, {
+      correctnessExpected,
+      labelClaimCorrectionExpected,
+    });
     await proveClaimLedger(client);
     await provePrivatePosture(client);
     await provePolicylessActivation(
@@ -2324,7 +2557,11 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: correctnessExpected ? 57 : 55,
+      checks: labelClaimCorrectionExpected
+        ? 65
+        : correctnessExpected
+          ? 57
+          : 55,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
