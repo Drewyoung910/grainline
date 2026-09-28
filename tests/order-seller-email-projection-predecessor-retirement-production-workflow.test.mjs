@@ -17,6 +17,11 @@ test("retirement workflow is manual, exact-main, live-deployment and Production-
   assert.match(workflow, /environment: Production/);
   assert.match(workflow, /group: production-database-migrations/);
   assert.match(workflow, /main\.commit\.sha !== sha[\s\S]*run\.head_sha !== sha[\s\S]*run\.conclusion !== 'success'/);
+  assert.match(workflow, /Verify exact email-free deployment is live before revoking overlap grants/);
+  assert.match(workflow, /dpl=\$\{deploymentId\}/);
+  assert.match(workflow, /grainline-git-main-drew-youngs-projects\.vercel\.app/);
+  assert.match(workflow, /redirect\.status, 308/);
+  assert.match(workflow, /healthBody\.ok, true/);
 });
 
 test("workflow admits only the exact checksummed latest retirement migration", () => {
