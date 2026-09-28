@@ -418,14 +418,19 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(docs, /saveAltTextsAction/);
   });
 
-  it("ThreadMessages silently falls back to polling on SSE error instead of warning the user", () => {
+  it("ThreadMessages reconnects SSE without consuming the message-list polling budget", () => {
     const thread = source("src/components/ThreadMessages.tsx");
-    // es.onerror should NOT call setStreamError(messageStreamStatusMessage(0))
-    // because polling fallback handles the gap silently. Terminal polling
-    // failures (401/403/429) still surface the warning at the polling site.
-    assert.doesNotMatch(thread, /es\.onerror = \(\) => \{\s*es\.close\(\);\s*setStreamError\(messageStreamStatusMessage\(0\)\)/);
-    // Polling site still uses isTerminalMessageStreamStatus to decide.
-    assert.match(thread, /isTerminalMessageStreamStatus\(res\.status\)/);
+    const stream = source("src/app/api/messages/[id]/stream/route.ts");
+
+    assert.match(thread, /es\.addEventListener\("reconnect"/);
+    assert.match(thread, /scheduleReconnect\(100\)/);
+    assert.match(thread, /Math\.min\(1000 \* \(2 \*\* Math\.min\(consecutiveFailures, 5\)\), 30_000\)/);
+    assert.match(thread, /document\.addEventListener\("visibilitychange", onVisibilityChange\)/);
+    assert.match(thread, /if \(closed \|\| document\.hidden\) return/);
+    assert.doesNotMatch(thread, /window\.setInterval/);
+    assert.doesNotMatch(thread, /startPolling/);
+    assert.match(stream, /event: reconnect\\ndata: \{\}\\n\\n/);
+    assert.match(stream, /50_000/);
   });
 
   it("message thread uses card-section styling and shows a friendly empty state", () => {

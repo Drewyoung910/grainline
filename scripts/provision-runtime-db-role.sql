@@ -2446,6 +2446,7 @@ WITH order_seller_analytics_authority(function_signature) AS (
     ('public."grainline_order_seller_analytics_buckets"(text, bigint, bigint, boolean, text)'),
     ('public."grainline_order_seller_analytics_top_listings"(text, bigint, bigint, boolean, boolean)'),
     ('public."grainline_order_seller_recent_sales"(text)'),
+    ('public."grainline_order_seller_recent_sales_v2"(text)'),
     ('public."grainline_order_seller_completed_count"(text)')
 )
 SELECT format(
@@ -2462,6 +2463,7 @@ WITH order_seller_analytics_authority(function_signature) AS (
     ('public."grainline_order_seller_analytics_buckets"(text, bigint, bigint, boolean, text)'),
     ('public."grainline_order_seller_analytics_top_listings"(text, bigint, bigint, boolean, boolean)'),
     ('public."grainline_order_seller_recent_sales"(text)'),
+    ('public."grainline_order_seller_recent_sales_v2"(text)'),
     ('public."grainline_order_seller_completed_count"(text)')
 )
 SELECT format(
@@ -2567,8 +2569,8 @@ SELECT format(
 -- Participant detail v3 preserves v2 actor/contact/link decisions while
 -- restoring the complete allowlisted historical snapshot. Checkout success
 -- uses one bounded paid-receipt projection. Seller v4 removes the raw signed
--- label URL. Keep v2/v3 executable through the compatible deployment overlap;
--- v1 remains runtime-private.
+-- label URL and seller v5 removes buyer email. Keep the predecessors executable
+-- through their compatible deployment overlaps; v1 remains runtime-private.
 WITH order_participant_detail_projection_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_detail"(text, text)'),
@@ -2579,6 +2581,7 @@ WITH order_participant_detail_projection_authority(function_signature) AS (
     ('public."grainline_order_buyer_detail_v4"(text, text)'),
     ('public."grainline_order_seller_detail_v3"(text, text)'),
     ('public."grainline_order_seller_detail_v4"(text, text)'),
+    ('public."grainline_order_seller_detail_v5"(text, text)'),
     ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')
 )
 SELECT format(
@@ -2598,6 +2601,7 @@ WITH order_participant_detail_projection_runtime(function_signature) AS (
     ('public."grainline_order_buyer_detail_v4"(text, text)'),
     ('public."grainline_order_seller_detail_v3"(text, text)'),
     ('public."grainline_order_seller_detail_v4"(text, text)'),
+    ('public."grainline_order_seller_detail_v5"(text, text)'),
     ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')
 )
 SELECT format(

@@ -52,7 +52,6 @@ export type SellerRecentSale = Readonly<{
   firstItemPriceCents: number;
   firstItemListingSnapshot: unknown;
   buyerName: string | null;
-  buyerEmail: string | null;
   buyerDataPurgedAt: Date | null;
   buyerDeletedAt: Date | null;
 }>;
@@ -212,8 +211,7 @@ export function sellerRecentSalesFromRows(values: unknown[]): SellerRecentSale[]
       "Seller recent-sale buyer deletion time",
     );
     const buyerName = optionalText(row.buyer_name, "Seller recent-sale buyer name", 200);
-    const buyerEmail = optionalText(row.buyer_email, "Seller recent-sale buyer email", 254);
-    if ((buyerDataPurgedAt != null || buyerDeletedAt != null) && (buyerName != null || buyerEmail != null)) {
+    if ((buyerDataPurgedAt != null || buyerDeletedAt != null) && buyerName != null) {
       throw new TypeError("Seller recent-sale buyer privacy state is inconsistent");
     }
     return {
@@ -231,7 +229,6 @@ export function sellerRecentSalesFromRows(values: unknown[]): SellerRecentSale[]
       firstItemPriceCents: integer(row.first_item_price_cents, "Seller recent-sale item price"),
       firstItemListingSnapshot: row.first_item_listing_snapshot,
       buyerName,
-      buyerEmail,
       buyerDataPurgedAt,
       buyerDeletedAt,
     };

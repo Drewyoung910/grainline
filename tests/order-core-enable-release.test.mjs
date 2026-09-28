@@ -11,7 +11,7 @@ import {
   verifyOrderCoreEnableRelease,
 } from "../scripts/verify-order-core-enable-release.mjs";
 
-test("Core Order ENABLE is exact, terminal, and excludes FORCE", () => {
+test("Core Order ENABLE is exact and is the sole staged posture migration", () => {
   assert.deepEqual(verifyOrderCoreEnableRelease(), {
     migration: ORDER_CORE_ENABLE_MIGRATION,
     sha256: "350567d0141601fd858dcc2df99f59b085d1f66573560b027148e66278a1eec8",
@@ -19,7 +19,7 @@ test("Core Order ENABLE is exact, terminal, and excludes FORCE", () => {
   });
 });
 
-test("Core Order ENABLE verifier rejects changed bytes and a FORCE successor", () => {
+test("Core Order ENABLE verifier accepts compatible successors and rejects changed bytes or FORCE", () => {
   const root = mkdtempSync(path.join(tmpdir(), "order-core-enable-release-"));
   const drafts = path.join(root, "docs/rls-drafts");
   const migrations = path.join(root, "prisma/migrations");
@@ -44,8 +44,16 @@ test("Core Order ENABLE verifier rejects changed bytes and a FORCE successor", (
     path.join("prisma/migrations", ORDER_CORE_ENABLE_MIGRATION, "migration.sql"),
     "utf8",
   ));
+  mkdirSync(
+    path.join(root, "prisma/migrations/20260928213000_compatible_order_successor"),
+  );
+  assert.deepEqual(verifyOrderCoreEnableRelease(root), {
+    migration: ORDER_CORE_ENABLE_MIGRATION,
+    sha256: "350567d0141601fd858dcc2df99f59b085d1f66573560b027148e66278a1eec8",
+    forceIncluded: false,
+  });
   const force = path.join(root, "prisma/migrations/20260927091000_force_order_rls");
   cpSync(path.join(root, "prisma/migrations", ORDER_CORE_ENABLE_MIGRATION), force, { recursive: true });
-  assert.throws(() => verifyOrderCoreEnableRelease(root), /FORCE must remain outside/);
+  assert.throws(() => verifyOrderCoreEnableRelease(root), /sole staged Core Order posture/);
   rmSync(root, { recursive: true, force: true });
 });

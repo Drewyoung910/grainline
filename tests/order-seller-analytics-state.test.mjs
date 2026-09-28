@@ -59,7 +59,6 @@ describe("Order seller analytics strict result parsing", () => {
       first_item_price_cents: 500,
       first_item_listing_snapshot: { title: "Chair" },
       buyer_name: null,
-      buyer_email: null,
       buyer_data_purged_at_epoch_millis: 2000n,
       buyer_deleted_at_epoch_millis: null,
     }])[0].firstItemPriceCents, 500);
@@ -92,7 +91,6 @@ describe("Order seller analytics strict result parsing", () => {
       first_item_price_cents: 500,
       first_item_listing_snapshot: {},
       buyer_name: "Retained Name",
-      buyer_email: null,
       buyer_data_purged_at_epoch_millis: 2000,
       buyer_deleted_at_epoch_millis: null,
     }]), /privacy state is inconsistent/);

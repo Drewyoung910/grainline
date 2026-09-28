@@ -82,7 +82,6 @@ export type SellerOrderDetail = ParticipantOrderDetailBase & Readonly<{
   deauthorizedReviewHold: boolean;
   buyerId: string | null;
   buyerName: string | null;
-  buyerEmail: string | null;
   buyerDeletedAt: Date | null;
   sellerNotes: string | null;
   labelStatus: "PURCHASED" | "EXPIRED" | "VOIDED" | null;
@@ -332,7 +331,6 @@ export function sellerOrderDetailFromRows(values: unknown[]): SellerOrderDetail 
     ),
     buyerId,
     buyerName: optionalText(value.buyer_name, "buyer name", 200),
-    buyerEmail: optionalText(value.buyer_email, "buyer email", 254),
     buyerDeletedAt: optionalDateFromEpochMillis(
       value.buyer_deleted_at_epoch_millis,
       "buyer deletion time",
@@ -351,7 +349,6 @@ export function sellerOrderDetailFromRows(values: unknown[]): SellerOrderDetail 
     && (
       detail.buyerId != null
       || detail.buyerName != null
-      || detail.buyerEmail != null
     )
   ) {
     throw new TypeError("Order detail buyer identity boundary is inconsistent");

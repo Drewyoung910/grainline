@@ -3,12 +3,14 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import InlineActionButton from "@/components/InlineActionButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Shield, Bell, BarChart, Eye, Heart, MousePointer } from "@/components/icons";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
+import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { archiveListingBlockReason, hideListingBlockReason, withdrawReviewBlockReason } from "@/lib/listingActionState";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
@@ -86,6 +88,14 @@ async function setStatus(
     return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
   }
 
+  after(() =>
+    expireOpenCheckoutSessionsForListing({
+      listingId,
+      sellerId: listing.sellerId,
+      source: nextStatus === ListingStatus.HIDDEN ? "listing_hide" : "listing_mark_sold",
+    }),
+  );
+
   await syncGuildMemberListingThreshold(listing.sellerId);
 
   revalidatePath("/dashboard");
@@ -134,6 +144,14 @@ async function deleteListing(
     });
     return { ok: false, error: "Could not archive this listing. Please try again." };
   }
+
+  after(() =>
+    expireOpenCheckoutSessionsForListing({
+      listingId,
+      sellerId: listing.sellerId,
+      source: "listing_archive",
+    }),
+  );
 
   await syncGuildMemberListingThreshold(listing.sellerId);
 

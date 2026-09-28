@@ -34,6 +34,7 @@ describe("checkout session expiry hardening", () => {
 
   it("expires listing checkout sessions when an active listing leaves public availability", () => {
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
+    const dashboard = source("src/app/dashboard/page.tsx");
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
     assert.match(shopActions, /source,\s*\}\),/);
@@ -41,6 +42,11 @@ describe("checkout session expiry hardening", () => {
     assert.match(shopActions, /"listing_mark_sold"/);
     assert.match(shopActions, /"listing_archive"/);
     assert.match(shopActions, /"listing_ai_hold"/);
+
+    assert.match(dashboard, /expireOpenCheckoutSessionsForListing/);
+    assert.match(dashboard, /"listing_hide"/);
+    assert.match(dashboard, /"listing_mark_sold"/);
+    assert.match(dashboard, /"listing_archive"/);
 
     assert.match(editPage, /"listing_edit_ai_hold"/);
     assert.match(editPage, /"listing_edit_seller_disconnected"/);

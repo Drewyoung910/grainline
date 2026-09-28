@@ -11,6 +11,11 @@ const compositionCorrection = readFileSync(
   "docs/rls-drafts/order-authority-composition-correction.sql",
   "utf8",
 );
+const sellerBuyerEmailProjectionMigration = readFileSync(
+  process.env.ORDER_SELLER_BUYER_EMAIL_PROJECTION_MIGRATION_PATH
+    ?? "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
+  "utf8",
+);
 
 function correctedFunction(name) {
   const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
@@ -18,6 +23,14 @@ function correctedFunction(name) {
   const end = compositionCorrection.indexOf(endMarker, start);
   assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
   return compositionCorrection.slice(start, end + endMarker.length);
+}
+
+function privacyProjectionFunction(name) {
+  const start = sellerBuyerEmailProjectionMigration.indexOf(`CREATE FUNCTION public.${name}(`);
+  const endMarker = `$${name}$;`;
+  const end = sellerBuyerEmailProjectionMigration.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, `missing ${name}`);
+  return sellerBuyerEmailProjectionMigration.slice(start, end + endMarker.length);
 }
 
 async function createDatabase() {
@@ -194,6 +207,13 @@ async function createDatabase() {
   ]) {
     await database.exec(correctedFunction(name));
   }
+  await database.exec(privacyProjectionFunction("grainline_order_seller_recent_sales_v2"));
+  await database.exec(`
+    REVOKE ALL ON FUNCTION public.grainline_order_seller_recent_sales_v2(text)
+      FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.grainline_order_seller_recent_sales_v2(text)
+      TO grainline_app_runtime;
+  `);
   return database;
 }
 
@@ -221,14 +241,15 @@ describe("Order seller analytics authority PostgreSQL proof", () => {
       assert.equal(denied.rows.length, 0);
 
       const recent = await database.query(`
-        SELECT * FROM public.grainline_order_seller_recent_sales('seller-user-1')
+        SELECT * FROM public.grainline_order_seller_recent_sales_v2('seller-user-1')
       `);
       assert.equal(recent.rows.length, 5);
       const firstOrder = recent.rows.find((row) => row.order_id === "order-1");
       assert.equal(firstOrder.first_item_listing_snapshot.title, "Chair");
       const deleted = recent.rows.find((row) => row.order_id === "order-deleted");
       assert.equal(deleted.buyer_name, null);
-      assert.equal(deleted.buyer_email, null);
+      assert.equal("buyer_email" in deleted, false);
+      assert.ok(recent.rows.every((row) => !("buyer_email" in row)));
 
       const completed = await database.query(`
         SELECT public.grainline_order_seller_completed_count('seller-user-1') AS value
@@ -275,6 +296,7 @@ describe("Order seller analytics authority PostgreSQL proof", () => {
         "grainline_order_seller_analytics_buckets(text,bigint,bigint,boolean,text)",
         "grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)",
         "grainline_order_seller_recent_sales(text)",
+        "grainline_order_seller_recent_sales_v2(text)",
         "grainline_order_seller_completed_count(text)",
       ]) {
         const privileges = await database.query(`

@@ -61,7 +61,6 @@ export async function GET() {
         buyerLabel: sellerFacingOrderBuyerLabel(
           {
             buyerName: sale.buyerName,
-            buyerEmail: sale.buyerEmail,
             buyerDataPurgedAt: sale.buyerDataPurgedAt,
             buyer: { deletedAt: sale.buyerDeletedAt },
           },

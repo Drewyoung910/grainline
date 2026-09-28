@@ -15,13 +15,13 @@ export function verifyOrderCoreEnableRelease(root = ROOT) {
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name)
     .sort();
-  assert.equal(
-    directories.some(name => /force_order_rls/u.test(name)),
-    false,
-    "Core Order FORCE must remain outside the ENABLE release",
+  const coreOrderPostureMigrations = directories.filter(name =>
+    /_(?:enable|force)_order_rls$/u.test(name));
+  assert.deepEqual(
+    coreOrderPostureMigrations,
+    [ORDER_CORE_ENABLE_MIGRATION],
+    "Core Order ENABLE must remain the sole staged Core Order posture migration",
   );
-  assert.equal(directories.at(-1), ORDER_CORE_ENABLE_MIGRATION,
-    "Core Order ENABLE must remain the exact terminal migration");
   const candidate = buildOrderCoreRlsCandidates(root);
   const actual = readFileSync(
     path.join(migrations, ORDER_CORE_ENABLE_MIGRATION, "migration.sql"),

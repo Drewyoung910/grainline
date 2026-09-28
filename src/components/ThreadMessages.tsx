@@ -10,7 +10,7 @@ import {
   parseFileMessageBody,
   parseThreadMessagesEvent,
 } from "@/lib/messageBodies";
-import { isTerminalMessageStreamStatus, messageStreamStatusMessage } from "@/lib/messageStreamState";
+import { messageStreamStatusMessage } from "@/lib/messageStreamState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
@@ -245,8 +245,9 @@ export default function ThreadMessages({
     }
 
     let closed = false;
-    let pollId: number | null = null;
-    let pollController: AbortController | null = null;
+    let eventSource: EventSource | null = null;
+    let reconnectId: number | null = null;
+    let consecutiveFailures = 0;
     setStreamError(null);
 
     const apply = (fresh: Msg[]) => {
@@ -259,69 +260,81 @@ export default function ThreadMessages({
       });
     };
 
-    const startPolling = () => {
-      if (closed) return;
-      pollId = window.setInterval(async () => {
-        if (closed || pollController) return;
-        const controller = new AbortController();
-        pollController = controller;
-        try {
-          const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
-          appendCursorParams(u, lastCursorRef.current, "since");
-          const res = await fetch(u.toString(), { cache: "no-store", signal: controller.signal });
-          if (closed) return;
-          if (!res.ok) {
-            if (isTerminalMessageStreamStatus(res.status)) {
-              setStreamError(messageStreamStatusMessage(res.status));
-              if (pollId) window.clearInterval(pollId);
-              pollId = null;
-            }
-            return;
-          }
-          const data = await res.json();
-          if (closed) return;
-          apply(Array.isArray(data?.messages) ? data.messages : []);
-        } catch (error) {
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
-            console.warn("[thread-messages] polling failed", error);
-          }
-        } finally {
-          if (pollController === controller) pollController = null;
-        }
-      }, 3000);
+    const scheduleReconnect = (requestedDelayMs?: number) => {
+      if (closed || document.hidden || reconnectId !== null) return;
+      const delayMs = requestedDelayMs
+        ?? Math.min(1000 * (2 ** Math.min(consecutiveFailures, 5)), 30_000);
+      reconnectId = window.setTimeout(() => {
+        reconnectId = null;
+        connect();
+      }, delayMs);
     };
 
-    try {
-      const u = new URL(`/api/messages/${convoId}/stream`, window.location.origin);
-      appendCursorParams(u, lastCursorRef.current, "since");
-      const es = new EventSource(u.toString());
-      es.onmessage = (ev) => {
-        const messages = parseThreadMessagesEvent(ev.data);
-        if (messages) apply(messages);
-      };
-      es.onerror = () => {
-        // SSE errors are noisy (visibility change, network blips, idle drops).
-        // Silently fall back to polling instead of warning the user every time
-        // the stream drops — only terminal polling failures (401/403/429) set
-        // streamError below, and those are real interruptions worth surfacing.
-        es.close();
-        startPolling();
-      };
-      return () => {
-        closed = true;
-        es.close();
-        if (pollId) window.clearInterval(pollId);
-        pollController?.abort();
-      };
-    } catch (error) {
-      console.warn("[thread-messages] event stream setup failed", error);
-      startPolling();
-      return () => {
-        closed = true;
-        if (pollId) window.clearInterval(pollId);
-        pollController?.abort();
-      };
+    function connect() {
+      if (closed || document.hidden) return;
+      try {
+        const u = new URL(`/api/messages/${convoId}/stream`, window.location.origin);
+        appendCursorParams(u, lastCursorRef.current, "since");
+        const es = new EventSource(u.toString());
+        eventSource = es;
+        es.onopen = () => {
+          if (closed || eventSource !== es) return;
+          consecutiveFailures = 0;
+          setStreamError(null);
+        };
+        es.onmessage = (ev) => {
+          const messages = parseThreadMessagesEvent(ev.data);
+          if (messages) apply(messages);
+        };
+        es.addEventListener("reconnect", () => {
+          if (closed || eventSource !== es) return;
+          es.close();
+          eventSource = null;
+          scheduleReconnect(100);
+        });
+        es.onerror = () => {
+          if (closed || eventSource !== es) return;
+          es.close();
+          eventSource = null;
+          consecutiveFailures += 1;
+          if (consecutiveFailures >= 5) {
+            setStreamError(messageStreamStatusMessage(0));
+          }
+          scheduleReconnect();
+        };
+      } catch (error) {
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= 5) {
+          setStreamError(messageStreamStatusMessage(0));
+        }
+        console.warn("[thread-messages] event stream setup failed", error);
+        scheduleReconnect();
+      }
     }
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        eventSource?.close();
+        eventSource = null;
+        if (reconnectId !== null) {
+          window.clearTimeout(reconnectId);
+          reconnectId = null;
+        }
+        return;
+      }
+      if (!eventSource) connect();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    connect();
+    return () => {
+      closed = true;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      eventSource?.close();
+      if (reconnectId !== null) {
+        window.clearTimeout(reconnectId);
+      }
+    };
   }, [convoId, liveUpdates]);
 
   const boxHeight = typeof height === "number" ? `${height}px` : height ?? "60vh";
