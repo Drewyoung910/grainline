@@ -683,6 +683,18 @@ export async function verifyDeploymentBoundary(binding = RELEASE_BINDING, reques
   });
 }
 
+export function assertDatabaseIdentityRows(ownerRows, runtimeRows, postureRows) {
+  assert.deepEqual(ownerRows, [{ role: "neondb_owner", database: PRODUCTION_DATABASE_NAME }]);
+  assert.deepEqual(runtimeRows, [{ role: RUNTIME_ROLE, database: PRODUCTION_DATABASE_NAME }]);
+  assert.deepEqual(postureRows, [
+    { table_name: "Order", enabled: true, forced: false, owner: "neondb_owner", policies: 0 },
+    { table_name: "OrderItem", enabled: false, forced: false, owner: "neondb_owner", policies: 0 },
+    { table_name: "OrderShippingRateQuote", enabled: false, forced: false,
+      owner: "neondb_owner", policies: 0 },
+  ]);
+  return Object.freeze({ ownerRole: "neondb_owner", runtimeRole: RUNTIME_ROLE });
+}
+
 async function verifyDatabaseIdentity(owner, runtime) {
   const [ownerIdentity, runtimeIdentity, posture] = await Promise.all([
     owner.query("SELECT current_user AS role, current_database() AS database"),
@@ -691,7 +703,10 @@ async function verifyDatabaseIdentity(owner, runtime) {
       SELECT class.relname AS table_name,
              class.relrowsecurity AS enabled,
              class.relforcerowsecurity AS forced,
-             pg_catalog.pg_get_userbyid(class.relowner) AS owner
+             pg_catalog.pg_get_userbyid(class.relowner) AS owner,
+             (SELECT pg_catalog.count(*)::integer
+                FROM pg_catalog.pg_policy AS policy
+               WHERE policy.polrelid = class.oid) AS policies
         FROM pg_catalog.pg_class AS class
         JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
        WHERE namespace.nspname = 'public'
@@ -700,14 +715,7 @@ async function verifyDatabaseIdentity(owner, runtime) {
        ORDER BY class.relname
     `, [["Order", "OrderItem", "OrderShippingRateQuote"]]),
   ]);
-  assert.deepEqual(ownerIdentity.rows, [{ role: "neondb_owner", database: PRODUCTION_DATABASE_NAME }]);
-  assert.deepEqual(runtimeIdentity.rows, [{ role: RUNTIME_ROLE, database: PRODUCTION_DATABASE_NAME }]);
-  assert.deepEqual(posture.rows, [
-    { table_name: "Order", enabled: false, forced: false, owner: "neondb_owner" },
-    { table_name: "OrderItem", enabled: false, forced: false, owner: "neondb_owner" },
-    { table_name: "OrderShippingRateQuote", enabled: false, forced: false, owner: "neondb_owner" },
-  ]);
-  return Object.freeze({ ownerRole: "neondb_owner", runtimeRole: RUNTIME_ROLE });
+  return assertDatabaseIdentityRows(ownerIdentity.rows, runtimeIdentity.rows, posture.rows);
 }
 
 async function selectCanary(clerk, owner) {

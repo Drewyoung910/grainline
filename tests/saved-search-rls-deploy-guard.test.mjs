@@ -3946,6 +3946,8 @@ describe("SavedSearch RLS production deploy guard", () => {
       "codex/order-deauthorized-case-access-20260928": orderDeauthorizedCaseAccessDeployment,
       "codex/order-case-corrections-production-20260928":
         orderCaseCorrectionsProductionDeployment,
+      "codex/order-smoke-post-enable-admission-20260928":
+        orderSmokePostEnableAdmissionDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -4083,6 +4085,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderCaseCorrectionsProductionDeployment,
       false,
       "the exact Order Case corrections production review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderSmokePostEnableAdmissionDeployment,
+      false,
+      "the exact post-ENABLE Order smoke admission branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,

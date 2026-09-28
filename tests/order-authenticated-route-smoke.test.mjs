@@ -28,6 +28,7 @@ import {
   buildFixtureIds,
   legacyLocalTimestampToCanonical,
   parseDatabaseUrls,
+  assertDatabaseIdentityRows,
   parseGitHubCiRun,
   parseVercelAliasInspection,
   parseVercelDeployment,
@@ -37,6 +38,29 @@ import {
   validateProviderCredentials,
   validateRestartState,
 } from "../scripts/order-authenticated-route-smoke.mjs";
+
+test("smoke admits only the live policyless Core Order ENABLE posture", () => {
+  const owner = [{ role: "neondb_owner", database: "neondb" }];
+  const runtime = [{ role: "grainline_app_runtime", database: "neondb" }];
+  const posture = [
+    { table_name: "Order", enabled: true, forced: false, owner: "neondb_owner", policies: 0 },
+    { table_name: "OrderItem", enabled: false, forced: false, owner: "neondb_owner", policies: 0 },
+    { table_name: "OrderShippingRateQuote", enabled: false, forced: false,
+      owner: "neondb_owner", policies: 0 },
+  ];
+  assert.deepEqual(assertDatabaseIdentityRows(owner, runtime, posture), {
+    ownerRole: "neondb_owner",
+    runtimeRole: "grainline_app_runtime",
+  });
+  assert.throws(() => assertDatabaseIdentityRows(owner, runtime,
+    posture.map((row) => row.table_name === "Order" ? { ...row, enabled: false } : row)));
+  assert.throws(() => assertDatabaseIdentityRows(owner, runtime,
+    posture.map((row) => row.table_name === "Order" ? { ...row, forced: true } : row)));
+  assert.throws(() => assertDatabaseIdentityRows(owner, runtime,
+    posture.map((row) => row.table_name === "Order" ? { ...row, policies: 1 } : row)));
+  assert.throws(() => assertDatabaseIdentityRows(owner, runtime,
+    posture.map((row) => row.table_name === "OrderItem" ? { ...row, enabled: true } : row)));
+});
 
 const binding = Object.freeze({
   commit: "a".repeat(40),
