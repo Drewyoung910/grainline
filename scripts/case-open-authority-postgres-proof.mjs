@@ -6,10 +6,16 @@ import pg from "pg";
 
 const { Client } = pg;
 const PROOF_ENV = "CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL";
+const DEAUTHORIZED_CASE_ACCESS_EXPECTED_ENV =
+  "ORDER_DEAUTHORIZED_CASE_ACCESS_EXPECTED";
 const DATABASE_NAME = "grainline_ci";
 const PREFIX = "case-open-authority-proof";
 const DESCRIPTION =
   "Disposable buyer Case-opening authority proof description.";
+const refundEvidence = Object.freeze({
+  eventId: "local:seller_refund_recorded:re_caseopenauthorityproof",
+  refundId: "re_caseopenauthorityproof",
+});
 
 const ids = Object.freeze({
   buyer: `${PREFIX}-buyer`,
@@ -29,6 +35,9 @@ const ids = Object.freeze({
   labelOrder: `${PREFIX}-order-label`,
   futureOrder: `${PREFIX}-order-future`,
   reviewNeededOrder: `${PREFIX}-order-review-needed`,
+  deauthorizedOrder: `${PREFIX}-order-deauthorized`,
+  deauthorizedExpiredOrder: `${PREFIX}-order-deauthorized-expired`,
+  deauthorizedLabelOrder: `${PREFIX}-order-deauthorized-label`,
   expiredOrder: `${PREFIX}-order-expired`,
   malformedReplayOrder: `${PREFIX}-order-malformed-replay`,
   concurrencyOrder: `${PREFIX}-order-concurrency`,
@@ -47,6 +56,11 @@ function safeError(error) {
 export function parseCaseOpenAuthorityProofConfig(env = process.env) {
   const databaseUrl = env[PROOF_ENV];
   assert.ok(databaseUrl, `${PROOF_ENV} is required`);
+  const expectedValue = env[DEAUTHORIZED_CASE_ACCESS_EXPECTED_ENV];
+  assert.ok(
+    expectedValue === undefined || expectedValue === "1",
+    `${DEAUTHORIZED_CASE_ACCESS_EXPECTED_ENV} must be exactly 1 when set`,
+  );
   const parsed = new URL(databaseUrl);
   assert.ok(
     ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname),
@@ -57,7 +71,10 @@ export function parseCaseOpenAuthorityProofConfig(env = process.env) {
     `/${DATABASE_NAME}`,
     `Case-open authority proof requires the ${DATABASE_NAME} database`,
   );
-  return Object.freeze({ databaseUrl });
+  return Object.freeze({
+    databaseUrl,
+    deauthorizedCaseAccessExpected: expectedValue === "1",
+  });
 }
 
 function createClient(databaseUrl, applicationName) {
@@ -178,6 +195,7 @@ async function seedOrder(
     labelStatus = null,
     paid = true,
     reviewNeeded = false,
+    sellerDeauthorized = false,
   } = {},
 ) {
   const estimatedExpression =
@@ -190,6 +208,27 @@ async function seedOrder(
     fulfillmentStatus === "DELIVERED"
       ? estimatedExpression
       : "NULL";
+  const deauthorizationColumns = sellerDeauthorized
+    ? `,
+      "sellerDeauthorizedAt",
+      "sellerDeauthorizationEventId"`
+    : "";
+  const deauthorizationValues = sellerDeauthorized
+    ? `,
+      CURRENT_TIMESTAMP,
+      $7`
+    : "";
+  const parameters = [
+    orderId,
+    ids.buyer,
+    `${PREFIX}-charge-${orderId}`,
+    fulfillmentStatus,
+    labelStatus,
+    reviewNeeded,
+  ];
+  if (sellerDeauthorized) {
+    parameters.push("evt_case_open_deauthorized_proof");
+  }
   await client.query(`
     INSERT INTO public."Order" (
       id,
@@ -203,7 +242,7 @@ async function seedOrder(
       "labelStatus",
       "estimatedDeliveryDate",
       "deliveredAt",
-      "reviewNeeded"
+      "reviewNeeded"${deauthorizationColumns}
     )
     VALUES (
       $1,
@@ -217,16 +256,9 @@ async function seedOrder(
       $5::public."LabelStatus",
       ${estimatedExpression},
       ${deliveredExpression},
-      $6
+      $6${deauthorizationValues}
     )
-  `, [
-    orderId,
-    ids.buyer,
-    `${PREFIX}-charge-${orderId}`,
-    fulfillmentStatus,
-    labelStatus,
-    reviewNeeded,
-  ]);
+  `, parameters);
   await client.query(`
     INSERT INTO public."OrderItem" (
       id, "orderId", "listingId", quantity, "priceCents"
@@ -235,7 +267,7 @@ async function seedOrder(
   `, [`${orderId}-item-primary`, orderId, ids.listing]);
 }
 
-async function seedFixtures(client) {
+async function seedFixtures(client, deauthorizedCaseAccessExpected) {
   await client.query("BEGIN");
   try {
     await seedUsersAndListings(client);
@@ -257,6 +289,27 @@ async function seedFixtures(client) {
       fulfillmentStatus: "PENDING",
       reviewNeeded: true,
     });
+    if (deauthorizedCaseAccessExpected) {
+      await seedOrder(client, ids.deauthorizedOrder, {
+        estimated: "future",
+        fulfillmentStatus: "PENDING",
+        reviewNeeded: false,
+        sellerDeauthorized: true,
+      });
+      await seedOrder(client, ids.deauthorizedExpiredOrder, {
+        estimated: "expired",
+        fulfillmentStatus: "PENDING",
+        reviewNeeded: false,
+        sellerDeauthorized: true,
+      });
+      await seedOrder(client, ids.deauthorizedLabelOrder, {
+        estimated: "future",
+        fulfillmentStatus: "PENDING",
+        labelStatus: "PURCHASED",
+        reviewNeeded: false,
+        sellerDeauthorized: true,
+      });
+    }
     await seedOrder(client, ids.expiredOrder, {
       estimated: "expired",
       fulfillmentStatus: "DELIVERED",
@@ -307,18 +360,25 @@ async function seedFixtures(client) {
         "amountCents",
         currency,
         status,
+        reason,
+        metadata,
         "createdAt",
         "updatedAt"
       )
       VALUES (
-        $1, $2, $3, $4, 'refund', 'REFUND', 1000, 'usd', 'succeeded',
+        $1, $2, $3, $4::varchar, 'refund', 'REFUND', 1000, 'usd', 'succeeded',
+        'seller_refund',
+        pg_catalog.jsonb_build_object(
+          'localAction', 'SELLER_REFUND_RECORDED',
+          'refundIds', pg_catalog.jsonb_build_array($4::varchar)
+        ),
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
     `, [
       `${PREFIX}-refund-event`,
       ids.refundEventOrder,
-      `${PREFIX}-stripe-refund-event`,
-      `${PREFIX}-stripe-refund`,
+      refundEvidence.eventId,
+      refundEvidence.refundId,
     ]);
     await client.query("SET CONSTRAINTS ALL IMMEDIATE");
     await client.query("COMMIT");
@@ -328,9 +388,18 @@ async function seedFixtures(client) {
   }
 }
 
-async function cleanupFixtures(client) {
+async function cleanupFixtures(client, paymentEvidenceImmutable) {
   await client.query("BEGIN");
   try {
+    if (paymentEvidenceImmutable) {
+      // The accepted invariant makes OrderPaymentEvent immutable even to its
+      // owner. This proof is hard-limited to a disposable loopback database,
+      // so table-level cleanup removes synthetic evidence without weakening
+      // the row trigger. Run it before DELETE can queue deferred events.
+      await client.query(
+        'TRUNCATE TABLE public."OrderPaymentEvent" CASCADE',
+      );
+    }
     await client.query(
       'DELETE FROM public."CaseOpenApplication" WHERE "orderId" LIKE $1',
       [`${PREFIX}%`],
@@ -347,10 +416,12 @@ async function cleanupFixtures(client) {
       'DELETE FROM public."Case" WHERE id LIKE $1 OR "orderId" LIKE $1',
       [`${PREFIX}%`],
     );
-    await client.query(
-      'DELETE FROM public."OrderPaymentEvent" WHERE "orderId" LIKE $1',
-      [`${PREFIX}%`],
-    );
+    if (!paymentEvidenceImmutable) {
+      await client.query(
+        'DELETE FROM public."OrderPaymentEvent" WHERE "orderId" LIKE $1',
+        [`${PREFIX}%`],
+      );
+    }
     await client.query(
       'DELETE FROM public."OrderItem" WHERE "orderId" LIKE $1',
       [`${PREFIX}%`],
@@ -520,6 +591,26 @@ async function proveReviewOverride(runtime) {
   assert.equal(result.orderId, ids.reviewNeededOrder);
 }
 
+async function proveDeauthorizedCaseAccess(runtime) {
+  await expectRuntimeError(
+    runtime,
+    "deauthorized_active_label_rejected",
+    "SELECT public.grainline_case_open($1, $2, $3, $4)",
+    [ids.buyer, ids.deauthorizedLabelOrder, "OTHER", DESCRIPTION],
+    /label purchase is active/,
+  );
+  const future = await openCase(runtime, ids.buyer, ids.deauthorizedOrder);
+  assert.equal(future.action, "created");
+  assert.equal(future.orderId, ids.deauthorizedOrder);
+  const expired = await openCase(
+    runtime,
+    ids.buyer,
+    ids.deauthorizedExpiredOrder,
+  );
+  assert.equal(expired.action, "created");
+  assert.equal(expired.orderId, ids.deauthorizedExpiredOrder);
+}
+
 async function proveMalformedReplayAuditRejected(observer, runtime) {
   const created = await openCase(
     runtime,
@@ -653,7 +744,10 @@ async function proveRollback(observer, runtime) {
 }
 
 export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
-  const { databaseUrl } = parseCaseOpenAuthorityProofConfig(env);
+  const {
+    databaseUrl,
+    deauthorizedCaseAccessExpected,
+  } = parseCaseOpenAuthorityProofConfig(env);
   const observer = createClient(databaseUrl, "case-open-proof-observer");
   const runtime = createClient(databaseUrl, "case-open-proof-runtime");
   const first = createClient(databaseUrl, "case-open-proof-first");
@@ -665,16 +759,20 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
     second.connect(),
   ]);
   try {
-    await cleanupFixtures(observer).catch(() => {});
-    await seedFixtures(observer);
+    await cleanupFixtures(observer, deauthorizedCaseAccessExpected)
+      .catch(() => {});
+    await seedFixtures(observer, deauthorizedCaseAccessExpected);
     await proveInputAndSourceDenials(runtime);
     await proveCreateAndReplay(observer, runtime);
     await proveReviewOverride(runtime);
+    if (deauthorizedCaseAccessExpected) {
+      await proveDeauthorizedCaseAccess(runtime);
+    }
     await proveMalformedReplayAuditRejected(observer, runtime);
     await provePrivateLedgerDenied(runtime);
     await proveConcurrentOpen(observer, first, second);
     await proveRollback(observer, runtime);
-    await cleanupFixtures(observer);
+    await cleanupFixtures(observer, deauthorizedCaseAccessExpected);
     const residue = await observer.query(`
       SELECT
         (
@@ -699,7 +797,7 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
       audit_count: 0,
     });
     return Object.freeze({
-      checks: 19,
+      checks: deauthorizedCaseAccessExpected ? 22 : 19,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
@@ -712,7 +810,8 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
       first.query("ROLLBACK"),
       second.query("ROLLBACK"),
     ]);
-    await cleanupFixtures(observer).catch(() => {});
+    await cleanupFixtures(observer, deauthorizedCaseAccessExpected)
+      .catch(() => {});
     await Promise.allSettled([
       observer.end(),
       runtime.end(),

@@ -2576,6 +2576,7 @@ WITH order_participant_detail_projection_authority(function_signature) AS (
     ('public."grainline_order_buyer_detail_v2"(text, text)'),
     ('public."grainline_order_seller_detail_v2"(text, text)'),
     ('public."grainline_order_buyer_detail_v3"(text, text)'),
+    ('public."grainline_order_buyer_detail_v4"(text, text)'),
     ('public."grainline_order_seller_detail_v3"(text, text)'),
     ('public."grainline_order_seller_detail_v4"(text, text)'),
     ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')
@@ -2594,6 +2595,7 @@ WITH order_participant_detail_projection_runtime(function_signature) AS (
     ('public."grainline_order_buyer_detail_v2"(text, text)'),
     ('public."grainline_order_seller_detail_v2"(text, text)'),
     ('public."grainline_order_buyer_detail_v3"(text, text)'),
+    ('public."grainline_order_buyer_detail_v4"(text, text)'),
     ('public."grainline_order_seller_detail_v3"(text, text)'),
     ('public."grainline_order_seller_detail_v4"(text, text)'),
     ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')

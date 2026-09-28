@@ -23,6 +23,20 @@ const deauthorizationProjectionCorrection = readFileSync(
   "prisma/migrations/20260926012200_correct_order_seller_deauthorization_projection/migration.sql",
   "utf8",
 );
+const deauthorizedCaseAccessCorrection = readFileSync(
+  process.env.ORDER_DEAUTHORIZED_CASE_ACCESS_MIGRATION_PATH
+    ?? "prisma/migrations/20260928010000_correct_order_deauthorized_case_access/migration.sql",
+  "utf8",
+);
+
+function correctionFunction(functionName, createMarker) {
+  const marker = `${createMarker} public.${functionName}(`;
+  const start = deauthorizedCaseAccessCorrection.indexOf(marker);
+  const closing = `$${functionName}$;`;
+  const end = deauthorizedCaseAccessCorrection.indexOf(closing, start);
+  assert.ok(start >= 0 && end > start);
+  return deauthorizedCaseAccessCorrection.slice(start, end + closing.length);
+}
 
 async function createDatabase() {
   const database = new PGlite();
@@ -199,6 +213,16 @@ async function createDatabase() {
   await database.exec(deauthorizationProjectionCorrection);
   await database.exec(projectionMigration);
   await database.exec(snapshotCorrectionMigration);
+  await database.exec(correctionFunction(
+    "grainline_order_buyer_detail_v4",
+    "CREATE FUNCTION",
+  ));
+  await database.exec(`
+    REVOKE ALL ON FUNCTION public.grainline_order_buyer_detail_v4(text, text)
+      FROM PUBLIC, grainline_app_runtime;
+    GRANT EXECUTE ON FUNCTION public.grainline_order_buyer_detail_v4(text, text)
+      TO grainline_app_runtime;
+  `);
   await database.exec(receiptMigration);
   return database;
 }
@@ -208,7 +232,7 @@ describe("Order participant detail authority", () => {
     const database = await createDatabase();
     try {
       const result = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v4($1, $2)",
         ["buyer-1", "order-1"],
       );
       assert.equal(result.rows.length, 1);
@@ -216,6 +240,8 @@ describe("Order participant detail authority", () => {
       assert.equal(row.seller_refund_state, "RECORDED");
       assert.equal(row.seller_refund_amount_cents, 500);
       assert.equal(row.seller_user_id, "seller-user-1");
+      assert.equal(row.deauthorized_case_access, true);
+      assert.equal(row.case_open_label_blocked, false);
       assert.equal(JSON.stringify(row).includes("re_secret_provider_id"), false);
       assert.equal(JSON.stringify(row).includes("unexpectedSecret"), false);
       assert.deepEqual(
@@ -228,6 +254,28 @@ describe("Order participant detail authority", () => {
       assert.equal(row.items[0].listingSnapshot.category, "FURNITURE");
       assert.deepEqual(row.items[0].listingSnapshot.tags, ["oak"]);
       assert.equal(row.items[0].listingSnapshot.capturedAt, "2026-08-31T10:00:00.000Z");
+      await database.exec(`
+        UPDATE public."Order"
+           SET "fulfillmentStatus" = 'PENDING'
+         WHERE id = 'order-1'
+      `);
+      const activeLabel = await database.query(
+        "SELECT deauthorized_case_access, case_open_label_blocked FROM public.grainline_order_buyer_detail_v4($1, $2)",
+        ["buyer-1", "order-1"],
+      );
+      assert.equal(activeLabel.rows[0].deauthorized_case_access, false);
+      assert.equal(activeLabel.rows[0].case_open_label_blocked, true);
+      await database.exec(`
+        UPDATE public."Order"
+           SET "labelStatus" = NULL
+         WHERE id = 'order-1'
+      `);
+      const noLabel = await database.query(
+        "SELECT deauthorized_case_access, case_open_label_blocked FROM public.grainline_order_buyer_detail_v4($1, $2)",
+        ["buyer-1", "order-1"],
+      );
+      assert.equal(noLabel.rows[0].deauthorized_case_access, true);
+      assert.equal(noLabel.rows[0].case_open_label_blocked, false);
       assert.deepEqual(row.items[0].selectedVariants, [{
         groupName: "Finish",
         optionLabel: "Natural",
@@ -235,7 +283,7 @@ describe("Order participant detail authority", () => {
       }]);
 
       const foreign = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v4($1, $2)",
         ["buyer-2", "order-1"],
       );
       assert.equal(foreign.rows.length, 0);
@@ -293,7 +341,7 @@ describe("Order participant detail authority", () => {
     try {
       await database.exec(`UPDATE public."User" SET banned = true WHERE id = 'seller-user-1'`);
       const buyerView = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v4($1, $2)",
         ["buyer-1", "order-1"],
       );
       assert.equal(buyerView.rows[0].seller_user_id, null);
@@ -308,7 +356,7 @@ describe("Order participant detail authority", () => {
         UPDATE public."User" SET banned = true WHERE id = 'buyer-1';
       `);
       const inactiveBuyer = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v4($1, $2)",
         ["buyer-1", "order-1"],
       );
       assert.equal(inactiveBuyer.rows.length, 0);
@@ -413,13 +461,14 @@ describe("Order participant detail authority", () => {
     const database = await createDatabase();
     try {
       await assert.rejects(
-        database.query("SELECT * FROM public.grainline_order_buyer_detail_v3('', 'order-1')"),
+        database.query("SELECT * FROM public.grainline_order_buyer_detail_v4('', 'order-1')"),
         /input is invalid/i,
       );
       for (const identity of [
         "grainline_order_buyer_detail_v2(text,text)",
         "grainline_order_seller_detail_v2(text,text)",
         "grainline_order_buyer_detail_v3(text,text)",
+        "grainline_order_buyer_detail_v4(text,text)",
         "grainline_order_seller_detail_v3(text,text)",
         "grainline_order_buyer_receipts_by_sessions(text,text[])",
       ]) {

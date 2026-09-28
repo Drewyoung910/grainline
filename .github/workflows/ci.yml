@@ -83,6 +83,25 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order deauthorized Case-access correction source package
+        run: >-
+          node --test
+          tests/order-deauthorized-case-access-correction.test.mjs
+          tests/case-open-authority-postgres-proof.test.mjs
+      - name: Isolate Order deauthorized Case-access correction until predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          correction="$RUNNER_TEMP/order-deauthorized-case-access-correction"
+          mv \
+            prisma/migrations/20260928010000_correct_order_deauthorized_case_access \
+            "$correction"
+          mv \
+            tests/order-deauthorized-case-access-correction.test.mjs \
+            "$RUNNER_TEMP/order-deauthorized-case-access-correction.test.mjs"
+          echo \
+            "ORDER_DEAUTHORIZED_CASE_ACCESS_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Verify Case refund label-claim correction source package
         run: >-
           node --test
@@ -1797,5 +1816,37 @@ jobs:
           CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           CASE_CORRECTNESS_EXPECTED: "1"
           CASE_LABEL_CLAIM_CORRECTION_EXPECTED: "1"
+      - name: Restore Order deauthorized Case-access correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-deauthorized-case-access-correction" \
+            prisma/migrations/20260928010000_correct_order_deauthorized_case_access
+          mv \
+            "$RUNNER_TEMP/order-deauthorized-case-access-correction.test.mjs" \
+            tests/order-deauthorized-case-access-correction.test.mjs
+      - name: Re-verify Order deauthorized Case-access correction source package
+        run: node --test tests/order-deauthorized-case-access-correction.test.mjs
+      # Apply only the reviewed additive successor after every predecessor and
+      # the Case refund/label-claim correction have passed. This keeps Prisma's
+      # generic pending queue out of the disposable final proof.
+      - name: Apply only Order deauthorized Case-access correction in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20260928010000_correct_order_deauthorized_case_access/migration.sql
+      - name: Converge runtime grants after Order deauthorized Case-access correction
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Prove Order deauthorized Case access through runtime login
+        run: npm run audit:rls-case-open-authority
+        env:
+          CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_DEAUTHORIZED_CASE_ACCESS_EXPECTED: "1"
       - name: Production build
         run: npm run build

@@ -72,6 +72,8 @@ type ParticipantOrderDetailBase = Readonly<{
 }>;
 
 export type BuyerOrderDetail = ParticipantOrderDetailBase & Readonly<{
+  deauthorizedCaseAccess: boolean;
+  caseOpenLabelBlocked: boolean;
   sellerUserId: string | null;
 }>;
 
@@ -293,7 +295,18 @@ export function buyerOrderDetailFromRows(values: unknown[]): BuyerOrderDetail | 
   if (sellerUserId != null && !ID_PATTERN.test(sellerUserId)) {
     throw new TypeError("Order detail seller user id is invalid");
   }
-  return { ...baseDetail(value), sellerUserId };
+  return {
+    ...baseDetail(value),
+    deauthorizedCaseAccess: requiredBoolean(
+      value.deauthorized_case_access,
+      "deauthorized Case access",
+    ),
+    caseOpenLabelBlocked: requiredBoolean(
+      value.case_open_label_blocked,
+      "Case-open label block",
+    ),
+    sellerUserId,
+  };
 }
 
 export function sellerOrderDetailFromRows(values: unknown[]): SellerOrderDetail | null {

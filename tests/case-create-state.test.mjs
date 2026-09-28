@@ -76,7 +76,15 @@ describe("case create state", () => {
     assert.doesNotMatch(route, /isOrderCaseWindowClosed\(order, now\)/);
     assert.doesNotMatch(route, /caseWindowClosedMessage\(caseWindowClosesAt\(order\)\)/);
 
-    assert.match(buyerOrderPage, /const caseWindowClosed = isOrderCaseWindowClosed\(order, now\)/);
+    assert.match(
+      buyerOrderPage,
+      /const deauthorizedPendingCaseAccess =\s*order\.deauthorizedCaseAccess && status === "PENDING"/,
+    );
+    assert.match(
+      buyerOrderPage,
+      /const caseWindowClosed =\s*!deauthorizedPendingCaseAccess && isOrderCaseWindowClosed\(order, now\)/,
+    );
+    assert.match(buyerOrderPage, /\(deliveryPassed \|\| order\.deauthorizedCaseAccess\)/);
     assert.match(buyerOrderPage, /!caseWindowClosed/);
     assert.match(buyerOrderPage, /!hasRefund/);
     assert.match(buyerOrderPage, /caseWindowClosedMessage\(caseWindowClosedAt\)/);
