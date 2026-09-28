@@ -15,7 +15,8 @@ test("buyer and seller detail pages use the fixed participant projections", () =
     assert.match(source, /it\.listingLinkAvailable/u, label);
   }
   assert.match(authority, /grainline_order_buyer_detail_v4/u);
-  assert.match(authority, /grainline_order_seller_detail_v4/u);
+  assert.match(authority, /grainline_order_seller_detail_v5/u);
+  assert.doesNotMatch(state, /buyerEmail|buyer_email/u);
   assert.match(buyer, /deliveryPassed \|\| order\.deauthorizedCaseAccess/u);
   assert.match(buyer, /!order\.caseOpenLabelBlocked/u);
   assert.match(

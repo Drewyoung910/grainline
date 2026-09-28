@@ -54,5 +54,7 @@ describe("order buyer PII retention helpers", () => {
     assert.match(privacy, /shipping-rate quote snapshots/);
     assert.match(privacy, /after <strong>90 days<\/strong>/);
     assert.match(privacy, /Shipping providers\s+and carriers may retain label, tracking, and delivery records/s);
+    assert.match(privacy, /Stripe may retain shipping contact information and\s+gift notes copied into Checkout Session metadata/s);
+    assert.match(privacy, /Shippo\s+receives sender and recipient name, address, and shipping contact phone information/s);
   });
 });

@@ -64,7 +64,7 @@ describe("Order label fixed-authority release", () => {
     assert.doesNotMatch(route, /return privateJson\(\{[\s\S]{0,200}labelUrl/);
     assert.match(component, /href=\{`\/api\/orders\/\$\{orderId\}\/label`\}/);
     assert.doesNotMatch(component, /labelUrl/);
-    assert.match(detailAuthority, /grainline_order_seller_detail_v4/);
+    assert.match(detailAuthority, /grainline_order_seller_detail_v5/);
     assert.doesNotMatch(detailState, /labelUrl|label_url/);
     const v4 = migration.slice(
       migration.indexOf("CREATE FUNCTION public.grainline_order_seller_detail_v4"),

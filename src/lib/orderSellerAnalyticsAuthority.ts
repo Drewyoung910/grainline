@@ -109,7 +109,7 @@ export async function readSellerRecentSales(
 ) {
   const actorUserId = normalizeDbUserContextUserId(actorUserIdInput);
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
-    SELECT * FROM public.grainline_order_seller_recent_sales(${actorUserId})
+    SELECT * FROM public.grainline_order_seller_recent_sales_v2(${actorUserId})
   `;
   return sellerRecentSalesFromRows(rows);
 }

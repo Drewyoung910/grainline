@@ -109,7 +109,7 @@ export default function PrivacyPage() {
           <h3 className="text-base font-semibold mt-6 mb-2">2.3 Transaction Information</h3>
           <p>
             When you make or receive a purchase, we collect information about the transaction including
-            item details, amounts, shipping address, and order status. Payment card data is processed
+            item details, amounts, shipping address, optional shipping phone number, gift note, and order status. Payment card data is processed
             directly by Stripe and is not stored by Grainline. We do store Stripe transaction
             identifiers, payout information, and sales tax records as required by law.
           </p>
@@ -309,7 +309,9 @@ export default function PrivacyPage() {
           <ul className="list-disc pl-6 mt-3 space-y-3">
             <li>
               <strong>Stripe</strong> — Payment processing and Stripe Connect payouts. Stripe receives
-              payment card data, billing information, and transaction details. Stripe is PCI DSS
+              payment card data, billing information, transaction details, and checkout metadata that
+              may include the shipping name, address, phone number, and gift note needed to recover and
+              fulfill an order. Stripe is PCI DSS
               compliant.{" "}
               <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">stripe.com/privacy</a>
             </li>
@@ -320,7 +322,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Shippo</strong> — Shipping label generation and carrier rate quotes. Shippo
-              receives sender and recipient name and address information for orders. Shippo in turn
+              receives sender and recipient name, address, and shipping contact phone information for
+              orders. Shippo in turn
               shares this information with shipping carriers (such as USPS, UPS, and FedEx) to fulfill
               shipping label requests and facilitate delivery. Carriers&apos; use of this information
               is governed by their respective privacy policies.{" "}
@@ -606,7 +609,9 @@ export default function PrivacyPage() {
               active application views after <strong>90 days</strong>, unless a dispute, legal hold,
               fraud investigation, or tax obligation requires longer retention. Shipping providers
               and carriers may retain label, tracking, and delivery records under their own legal
-              and operational retention policies.
+              and operational retention policies. Stripe may retain shipping contact information and
+              gift notes copied into Checkout Session metadata under its own legal and operational
+              retention policies after Grainline removes those fields from active application views.
             </li>
             <li>
               <strong>Sales tax records.</strong> Sales tax records, including transaction details

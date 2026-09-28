@@ -2,36 +2,33 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { isDeletedAccountEmail, sellerFacingOrderBuyerLabel, sellerFacingUserLabel } = await import("../src/lib/sellerFacingUser.ts");
+const { sellerFacingOrderBuyerLabel, sellerFacingUserLabel } = await import("../src/lib/sellerFacingUser.ts");
 
 function source(path) {
   return readFileSync(path, "utf8");
 }
 
 describe("seller-facing user labels", () => {
-  it("hides internal deleted-account email placeholders", () => {
-    assert.equal(isDeletedAccountEmail("deleted+user_123@deleted.thegrainline.local"), true);
-    assert.equal(isDeletedAccountEmail("buyer@example.com"), false);
+  it("uses names or neutral labels without exposing email", () => {
     assert.equal(
-      sellerFacingUserLabel({ name: null, email: "deleted+user_123@deleted.thegrainline.local" }, "Deleted user"),
+      sellerFacingUserLabel({ name: null }, "Deleted user"),
       "Deleted user",
     );
     assert.equal(
-      sellerFacingUserLabel({ name: "Buyer Name", email: "deleted+user_123@deleted.thegrainline.local" }, "Deleted user"),
+      sellerFacingUserLabel({ name: "Buyer Name" }, "Deleted user"),
+      "Buyer Name",
+    );
+    assert.equal(
+      sellerFacingUserLabel({ name: null, deletedAt: new Date() }, "Deleted user"),
       "Deleted user",
     );
     assert.equal(
-      sellerFacingUserLabel({ name: null, email: "buyer@example.com", deletedAt: new Date() }, "Deleted user"),
+      sellerFacingUserLabel({ name: null, deletedAt: null }, "Deleted user"),
       "Deleted user",
-    );
-    assert.equal(
-      sellerFacingUserLabel({ name: null, email: "buyer@example.com", deletedAt: null }, "Deleted user"),
-      "buyer@example.com",
     );
     assert.equal(
       sellerFacingOrderBuyerLabel({
         buyerName: "Former Buyer",
-        buyerEmail: "buyer@example.com",
         buyerDeletedAt: new Date(),
       }, "Deleted user"),
       "Deleted user",
@@ -43,8 +40,8 @@ describe("seller-facing user labels", () => {
     const saleDetail = source("src/app/dashboard/sales/[orderId]/page.tsx");
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
     const recentSalesRoute = source("src/app/api/seller/analytics/recent-sales/route.ts");
-    const recentSalesAuthority = source(
-      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    const sellerProjection = source(
+      "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
     );
     const analyticsPage = source("src/app/dashboard/analytics/page.tsx");
 
@@ -66,14 +63,17 @@ describe("seller-facing user labels", () => {
     assert.doesNotMatch(saleDetail, /buyer: \{ select: \{[^}]*name: true/s);
 
     assert.match(customListing, /sellerFacingUserLabel\(buyer, "the buyer"\)/);
+    assert.match(customListing, /select: \{ name: true, deletedAt: true \}/);
+    assert.doesNotMatch(customListing, /select: \{ name: true, email: true/);
 
     assert.match(recentSalesRoute, /import \{ sellerFacingOrderBuyerLabel \} from "@\/lib\/sellerFacingUser"/);
     assert.match(recentSalesRoute, /readSellerRecentSales\(me\.id\)/);
-    assert.match(recentSalesAuthority, /source_order\."buyerName"/);
-    assert.match(recentSalesAuthority, /source_order\."buyerEmail"/);
-    assert.match(recentSalesAuthority, /source_order\."buyerDataPurgedAt" IS NOT NULL/);
-    assert.match(recentSalesAuthority, /buyer\."deletedAt" IS NOT NULL/);
+    assert.match(sellerProjection, /grainline_order_seller_detail_v5/);
+    assert.match(sellerProjection, /grainline_order_seller_recent_sales_v2/);
+    assert.doesNotMatch(sellerProjection, /detail\.buyer_email/);
+    assert.doesNotMatch(sellerProjection, /sale\.buyer_email/);
     assert.match(recentSalesRoute, /buyerLabel: sellerFacingOrderBuyerLabel/);
+    assert.doesNotMatch(recentSalesRoute, /buyerEmail|buyer_email/);
     assert.doesNotMatch(recentSalesRoute, /buyer: \{ select: \{[^}]*name: true/s);
     assert.doesNotMatch(recentSalesRoute, /buyer: \{ select: \{[^}]*email: true/s);
     assert.match(analyticsPage, /buyerLabel: string/);
@@ -103,7 +103,6 @@ describe("seller-facing user labels", () => {
     assert.equal(
       sellerFacingOrderBuyerLabel({
         buyerName: "Buyer Name",
-        buyerEmail: "buyer@example.com",
         buyerDataPurgedAt: null,
         buyer: { deletedAt: null },
       }, "Deleted user"),
@@ -112,16 +111,14 @@ describe("seller-facing user labels", () => {
     assert.equal(
       sellerFacingOrderBuyerLabel({
         buyerName: null,
-        buyerEmail: "buyer@example.com",
         buyerDataPurgedAt: null,
         buyer: { deletedAt: null },
       }, "Deleted user"),
-      "buyer@example.com",
+      "Deleted user",
     );
     assert.equal(
       sellerFacingOrderBuyerLabel({
         buyerName: "Buyer Name",
-        buyerEmail: "buyer@example.com",
         buyerDataPurgedAt: new Date(),
         buyer: { deletedAt: null },
       }, "Deleted user"),

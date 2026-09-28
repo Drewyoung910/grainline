@@ -28,14 +28,26 @@ const deauthorizedCaseAccessCorrection = readFileSync(
     ?? "prisma/migrations/20260928010000_correct_order_deauthorized_case_access/migration.sql",
   "utf8",
 );
+const labelAuthorityMigration = readFileSync(
+  "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+  "utf8",
+);
+const sellerBuyerEmailProjectionMigration = readFileSync(
+  "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
+  "utf8",
+);
+
+function migrationFunction(source, functionName, createMarker = "CREATE FUNCTION") {
+  const marker = `${createMarker} public.${functionName}(`;
+  const start = source.indexOf(marker);
+  const closing = `$${functionName}$;`;
+  const end = source.indexOf(closing, start);
+  assert.ok(start >= 0 && end > start, `missing ${functionName}`);
+  return source.slice(start, end + closing.length);
+}
 
 function correctionFunction(functionName, createMarker) {
-  const marker = `${createMarker} public.${functionName}(`;
-  const start = deauthorizedCaseAccessCorrection.indexOf(marker);
-  const closing = `$${functionName}$;`;
-  const end = deauthorizedCaseAccessCorrection.indexOf(closing, start);
-  assert.ok(start >= 0 && end > start);
-  return deauthorizedCaseAccessCorrection.slice(start, end + closing.length);
+  return migrationFunction(deauthorizedCaseAccessCorrection, functionName, createMarker);
 }
 
 async function createDatabase() {
@@ -224,6 +236,26 @@ async function createDatabase() {
       TO grainline_app_runtime;
   `);
   await database.exec(receiptMigration);
+  await database.exec(migrationFunction(
+    labelAuthorityMigration,
+    "grainline_order_seller_detail_v4",
+  ));
+  await database.exec(`
+    REVOKE ALL ON FUNCTION public.grainline_order_seller_detail_v4(text, text)
+      FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.grainline_order_seller_detail_v4(text, text)
+      TO grainline_app_runtime;
+  `);
+  await database.exec(migrationFunction(
+    sellerBuyerEmailProjectionMigration,
+    "grainline_order_seller_detail_v5",
+  ));
+  await database.exec(`
+    REVOKE ALL ON FUNCTION public.grainline_order_seller_detail_v5(text, text)
+      FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.grainline_order_seller_detail_v5(text, text)
+      TO grainline_app_runtime;
+  `);
   return database;
 }
 
@@ -292,11 +324,11 @@ describe("Order participant detail authority", () => {
     }
   });
 
-  it("returns durable seller fields, derived holds, and purged buyer data", async () => {
+  it("returns durable seller fields without buyer email, with derived holds and purged buyer data", async () => {
     const database = await createDatabase();
     try {
       const result = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v5($1, $2)",
         ["seller-user-1", "order-1"],
       );
       assert.equal(result.rows.length, 1);
@@ -310,24 +342,25 @@ describe("Order participant detail authority", () => {
       );
       assert.equal(JSON.stringify(row).includes("Staff only details"), false);
       assert.equal(JSON.stringify(row).includes("re_secret_provider_id"), false);
+      assert.equal("buyer_email" in row, false);
 
       const purged = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v5($1, $2)",
         ["seller-user-1", "order-2"],
       );
       assert.equal(purged.rows[0].buyer_name, null);
-      assert.equal(purged.rows[0].buyer_email, null);
+      assert.equal("buyer_email" in purged.rows[0], false);
       assert.equal(purged.rows[0].buyer_id, null);
       assert.equal(purged.rows[0].gift_note, null);
       assert.equal(purged.rows[0].ship_to_line_1, null);
       assert.equal(purged.rows[0].seller_notes, null);
-      assert.equal(purged.rows[0].label_url, null);
+      assert.equal("label_url" in purged.rows[0], false);
       assert.equal(purged.rows[0].label_tracking_number, null);
       assert.equal(purged.rows[0].seller_refund_state, "PROCESSING");
       assert.equal(purged.rows[0].seller_refund_amount_cents, null);
 
       const foreign = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v5($1, $2)",
         ["seller-user-2", "order-1"],
       );
       assert.equal(foreign.rows.length, 0);
@@ -346,7 +379,7 @@ describe("Order participant detail authority", () => {
       );
       assert.equal(buyerView.rows[0].seller_user_id, null);
       const sellerView = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v5($1, $2)",
         ["seller-user-1", "order-1"],
       );
       assert.equal(sellerView.rows.length, 0);
@@ -361,7 +394,7 @@ describe("Order participant detail authority", () => {
       );
       assert.equal(inactiveBuyer.rows.length, 0);
       const sellerWithUnavailableBuyer = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v5($1, $2)",
         ["seller-user-1", "order-1"],
       );
       assert.equal(sellerWithUnavailableBuyer.rows[0].buyer_id, null);
@@ -470,6 +503,8 @@ describe("Order participant detail authority", () => {
         "grainline_order_buyer_detail_v3(text,text)",
         "grainline_order_buyer_detail_v4(text,text)",
         "grainline_order_seller_detail_v3(text,text)",
+        "grainline_order_seller_detail_v4(text,text)",
+        "grainline_order_seller_detail_v5(text,text)",
         "grainline_order_buyer_receipts_by_sessions(text,text[])",
       ]) {
         const privileges = await database.query(`

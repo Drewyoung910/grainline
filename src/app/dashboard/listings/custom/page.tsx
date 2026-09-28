@@ -326,7 +326,7 @@ export default async function CustomListingPage({
   // Fetch buyer info for display
   const buyer = await prisma.user.findUnique({
     where: { id: buyerId },
-    select: { name: true, email: true, deletedAt: true },
+    select: { name: true, deletedAt: true },
   });
 
   return (

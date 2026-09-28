@@ -54,7 +54,12 @@ export async function GET(
       let closed = false;
       let pollDelayMs = 3000;
       let timeout: ReturnType<typeof setTimeout> | null = null;
+      let lifetimeTimeout: ReturnType<typeof setTimeout> | null = null;
       let reportedPollError = false;
+      const clearTimers = () => {
+        if (timeout) clearTimeout(timeout);
+        if (lifetimeTimeout) clearTimeout(lifetimeTimeout);
+      };
       const safeEnqueue = (chunk: string) => {
         if (closed) return false;
         try {
@@ -62,7 +67,7 @@ export async function GET(
           return true;
         } catch {
           closed = true;
-          if (timeout) clearTimeout(timeout);
+          clearTimers();
           return false;
         }
       };
@@ -71,7 +76,7 @@ export async function GET(
       const closeStream = () => {
         if (closed) return;
         closed = true;
-        if (timeout) clearTimeout(timeout);
+        clearTimers();
         try {
           controller.close();
         } catch {
@@ -112,6 +117,10 @@ export async function GET(
       };
 
       timeout = setTimeout(poll, 0);
+      lifetimeTimeout = setTimeout(() => {
+        if (!safeEnqueue("event: reconnect\ndata: {}\n\n")) return;
+        closeStream();
+      }, 50_000);
 
       // close handler
       req.signal?.addEventListener("abort", closeStream, { once: true });
