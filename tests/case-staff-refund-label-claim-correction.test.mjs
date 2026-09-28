@@ -167,20 +167,34 @@ test("reconciliation retries fence label authority without blocking releases", (
   );
 });
 
-test("CI applies only this correction after its predecessor proof", () => {
+test("CI applies the current provider prerequisite and only this correction", () => {
+  const prerequisiteStart = ciWorkflow.indexOf(
+    "Apply exact Order provider-terminal prerequisite in disposable PostgreSQL",
+  );
   const applyStart = ciWorkflow.indexOf(
     "Apply only Case refund label-claim correction in disposable PostgreSQL",
   );
   const buildStart = ciWorkflow.indexOf("- name: Production build", applyStart);
-  assert.ok(applyStart > 0 && buildStart > applyStart);
-  const releaseBlock = ciWorkflow.slice(applyStart, buildStart);
+  assert.ok(
+    prerequisiteStart > 0
+      && applyStart > prerequisiteStart
+      && buildStart > applyStart,
+  );
+  const prerequisiteBlock = ciWorkflow.slice(prerequisiteStart, applyStart);
   assert.match(
-    releaseBlock,
+    prerequisiteBlock,
+    /psql "\$DIRECT_URL"[\s\S]*--set=ON_ERROR_STOP=on[\s\S]*--file=prisma\/migrations\/20260926010000_correct_order_provider_terminal_reconciliation\/migration\.sql/u,
+  );
+  assert.doesNotMatch(prerequisiteBlock, /prisma migrate deploy/u);
+
+  const correctionBlock = ciWorkflow.slice(applyStart, buildStart);
+  assert.match(
+    correctionBlock,
     /psql "\$DIRECT_URL"[\s\S]*--set=ON_ERROR_STOP=on[\s\S]*--file=prisma\/migrations\/20260901161000_correct_case_staff_refund_label_claim\/migration\.sql/u,
   );
-  assert.doesNotMatch(releaseBlock, /prisma migrate deploy/u);
+  assert.doesNotMatch(correctionBlock, /prisma migrate deploy/u);
   assert.match(
-    releaseBlock,
+    correctionBlock,
     /CASE_LABEL_CLAIM_CORRECTION_EXPECTED: "1"/u,
   );
 });

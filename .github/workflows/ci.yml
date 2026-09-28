@@ -1768,10 +1768,17 @@ jobs:
           node --test
           tests/case-staff-refund-label-claim-correction.test.mjs
           tests/case-case-message-invariant-postgres-proof.test.mjs
-      # Later Order corrections are restored above for their focused proof, but
-      # their Production-only owner guards deliberately reject the local `ci`
-      # role. Apply this already source-verified additive correction directly so
-      # the disposable database proves only these reviewed SQL bytes.
+      # Production already has the reviewed provider-terminal correction. Apply
+      # that exact prerequisite directly so the Case proof runs against the same
+      # narrowed provider-claim constraint without executing the pending
+      # Production-only migration queue.
+      - name: Apply exact Order provider-terminal prerequisite in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20260926010000_correct_order_provider_terminal_reconciliation/migration.sql
+      # Apply this already source-verified additive correction directly so the
+      # disposable database proves only these reviewed SQL bytes.
       - name: Apply only Case refund label-claim correction in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"
