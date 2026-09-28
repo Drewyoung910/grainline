@@ -31,6 +31,11 @@ import {
 } from "@/lib/requestBody";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
+import {
+  COMMISSION_LOCATION_MIN_PRIVACY_RADIUS_METERS,
+  isSupportedLocationPoint,
+  privacySafeLocationPoint,
+} from "@/lib/locationPrivacy";
 import { z } from "zod";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
@@ -121,7 +126,12 @@ export async function POST(req: NextRequest) {
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true, sellerProfile: { select: { lat: true, lng: true } } },
+    select: {
+      id: true,
+      banned: true,
+      deletedAt: true,
+      sellerProfile: { select: { lat: true, lng: true, radiusMeters: true } },
+    },
   });
   if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.UNAUTHORIZED });
   if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
@@ -186,6 +196,8 @@ export async function POST(req: NextRequest) {
   let reqLat: number | null = null;
   let reqLng: number | null = null;
   let reqIsNational = true;
+  let metroSourceLat: number | null = null;
+  let metroSourceLng: number | null = null;
 
   if (wantsLocal) {
     const sellerLat = me.sellerProfile?.lat;
@@ -196,8 +208,25 @@ export async function POST(req: NextRequest) {
         { status: HTTP_STATUS.BAD_REQUEST }
       );
     }
-    reqLat = Number(sellerLat);
-    reqLng = Number(sellerLng);
+    metroSourceLat = Number(sellerLat);
+    metroSourceLng = Number(sellerLng);
+    if (!isSupportedLocationPoint(metroSourceLat, metroSourceLng)) {
+      return privateJson(
+        { error: "Please update your seller profile with a valid location before posting a local request" },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+    const profileRadius = Number(me.sellerProfile?.radiusMeters ?? 0);
+    const publicPoint = privacySafeLocationPoint({
+      lat: metroSourceLat,
+      lng: metroSourceLng,
+      radiusMeters: Math.max(
+        Number.isFinite(profileRadius) ? profileRadius : 0,
+        COMMISSION_LOCATION_MIN_PRIVACY_RADIUS_METERS,
+      ),
+    });
+    reqLat = publicPoint.lat;
+    reqLng = publicPoint.lng;
     reqIsNational = false;
   }
 
@@ -228,10 +257,10 @@ export async function POST(req: NextRequest) {
   });
 
   // Assign metro geography — non-fatal
-  if (reqLat != null && reqLng != null) {
+  if (metroSourceLat != null && metroSourceLng != null) {
     try {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
-      const { metroId, cityMetroId } = await findOrCreateMetro(reqLat, reqLng);
+      const { metroId, cityMetroId } = await findOrCreateMetro(metroSourceLat, metroSourceLng);
       if (metroId || cityMetroId) {
         await prisma.commissionRequest.update({ where: { id: request.id }, data: { metroId, cityMetroId } });
       }

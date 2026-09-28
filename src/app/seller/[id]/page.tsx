@@ -8,6 +8,7 @@ import { auth } from "@clerk/nextjs/server";
 import { safeJsonLd } from "@/lib/json-ld";
 import { prisma } from "@/lib/db";
 import DynamicMapCard from "@/components/DynamicMapCard";
+import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
@@ -245,6 +246,15 @@ async function SellerPublicContent({
   const radiusMeters =
     seller.radiusMeters != null ? Number(seller.radiusMeters) : null;
 
+  const pickupMapPoint = lat != null && lng != null && isSupportedLocationPoint(lat, lng)
+    ? publicSellerLocationPoint({
+        lat,
+        lng,
+        radiusMeters,
+        exactLocationOptIn: seller.publicMapOptIn,
+      })
+    : null;
+
   const cityState = [seller.city, seller.state].filter(Boolean).join(", ");
   const nowMs = Date.now();
 
@@ -343,7 +353,7 @@ async function SellerPublicContent({
   const { soldCount, avgShipDays } = publicSellerStats;
   const memberSinceYear = seller.createdAt.getFullYear();
   const isNewSeller = soldCount === 0 && (shopRating?.count ?? 0) === 0;
-  const showPickupMap = seller.allowLocalPickup && lat != null && lng != null;
+  const showPickupMap = seller.allowLocalPickup && pickupMapPoint != null;
 
   const hasMoreCustomerPhotos = customerPhotoRows.length > CUSTOMER_PHOTO_PREVIEW_SIZE;
   const customerPhotos = customerPhotoRows.slice(0, CUSTOMER_PHOTO_PREVIEW_SIZE);
@@ -895,20 +905,20 @@ async function SellerPublicContent({
           )}
 
           {/* Pickup area — full-width when set, with a proper heading */}
-          {showPickupMap && (
+          {showPickupMap && pickupMapPoint && (
             <section>
               <div className="mb-4">
                 <h2 className="text-xl sm:text-2xl font-display font-semibold">Visit this maker</h2>
                 <p className="text-sm text-neutral-500 mt-1">
-                  {radiusMeters
+                  {pickupMapPoint.approximate
                     ? `Approximate area${cityState ? ` near ${cityState}` : ""}. Exact pickup details shared after purchase.`
                     : `Exact pickup point${cityState ? ` in ${cityState}` : ""}. Pickup available at checkout.`}
                 </p>
               </div>
               <div className="rounded-2xl overflow-hidden ring-1 ring-stone-300/70 shadow-sm">
                 <DynamicMapCard
-                  lat={lat}
-                  lng={lng}
+                  displayLat={pickupMapPoint.lat}
+                  displayLng={pickupMapPoint.lng}
                   label={cityState || seller.displayName || "Pickup area"}
                   radiusMeters={radiusMeters ?? null}
                   showPinWithRadius={false}

@@ -30,6 +30,7 @@ import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
 import { DEFAULT_CURRENCY, formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
+import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -72,6 +73,7 @@ const getListingForDetailPage = cache(async (listingId: string) =>
           lat: true,
           lng: true,
           radiusMeters: true,
+          publicMapOptIn: true,
           allowLocalPickup: true,
           chargesEnabled: true,
           stripeAccountVersion: true,
@@ -363,7 +365,15 @@ export default async function ListingPage({
   const lng = listing.seller.lng != null ? Number(listing.seller.lng) : null;
   const radius = Number(listing.seller.radiusMeters ?? 0);
   const cityState = [listing.seller.city, listing.seller.state].filter(Boolean).join(", ");
-  const showPickupMap = listing.seller.allowLocalPickup && lat != null && lng != null;
+  const pickupMapPoint = lat != null && lng != null && isSupportedLocationPoint(lat, lng)
+    ? publicSellerLocationPoint({
+        lat,
+        lng,
+        radiusMeters: radius,
+        exactLocationOptIn: listing.seller.publicMapOptIn,
+      })
+    : null;
+  const showPickupMap = listing.seller.allowLocalPickup && pickupMapPoint != null;
 
   const signedInMessageHref =
     sellerUserId
@@ -799,15 +809,14 @@ export default async function ListingPage({
       )}
 
       {/* ── Pickup area map ───────────────────────────────────────────────── */}
-      {showPickupMap && (
+      {showPickupMap && pickupMapPoint && (
         <section className="mb-10 max-w-2xl">
           <div style={{ position: "relative", zIndex: 0 }}>
             <DynamicMapCard
-              lat={lat}
-              lng={lng}
+              displayLat={pickupMapPoint.lat}
+              displayLng={pickupMapPoint.lng}
               radiusMeters={radius}
               label={cityState || sellerName}
-              seed={listing.seller.id}
             />
           </div>
         </section>

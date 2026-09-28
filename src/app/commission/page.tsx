@@ -16,6 +16,7 @@ import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import { Suspense } from "react";
 import { CommissionRoomSkeleton } from "@/components/RouteSkeletons";
+import { commissionDistanceBucket } from "@/lib/locationPrivacy";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -100,8 +101,6 @@ async function CommissionPageContent({
     referenceImageUrls: string[];
     interestedCount: number;
     createdAt: Date;
-    lat: number | null;
-    lng: number | null;
     isNational: boolean;
     buyer: { name: string | null; imageUrl: string | null };
     distanceMeters?: number;
@@ -131,12 +130,12 @@ async function CommissionPageContent({
         ${categoryConditionCount}
         AND (
           cr."isNational" = true
-          OR (cr.lat IS NOT NULL AND cr.lng IS NOT NULL AND
+          OR (cr.lat BETWEEN -90 AND 90 AND cr.lng BETWEEN -180 AND 180 AND
               6371000 * acos(
                 LEAST(1.0, GREATEST(-1.0,
-                  cos(radians($1)) * cos(radians(cr.lat)) *
-                  cos(radians(cr.lng) - radians($2)) +
-                  sin(radians($1)) * sin(radians(cr.lat))
+                  cos(radians($1)) * cos(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0)))) *
+                  cos(radians(LEAST(179.975, GREATEST(-179.975, (floor(cr.lng::float8 * 20.0) + 0.5) / 20.0))) - radians($2)) +
+                  sin(radians($1)) * sin(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0))))
                 ))
               ) <= $3
           )
@@ -154,15 +153,15 @@ async function CommissionPageContent({
         cr.id, cr.title, cr.description, cr.category,
         cr."budgetMinCents", cr."budgetMaxCents", cr.timeline,
         cr."referenceImageUrls", COALESCE(ci."interestCount", 0)::int AS "interestedCount", cr."createdAt",
-        cr.lat, cr.lng, cr."isNational",
+        cr."isNational",
         u.id AS "buyerId", u.name AS "buyerName", u."imageUrl" AS "buyerImageUrl",
         CASE
-          WHEN cr.lat IS NOT NULL AND cr.lng IS NOT NULL
+          WHEN cr.lat BETWEEN -90 AND 90 AND cr.lng BETWEEN -180 AND 180
           THEN (6371000 * acos(
             LEAST(1.0, GREATEST(-1.0,
-              cos(radians($1)) * cos(radians(cr.lat)) *
-              cos(radians(cr.lng) - radians($2)) +
-              sin(radians($1)) * sin(radians(cr.lat))
+              cos(radians($1)) * cos(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0)))) *
+              cos(radians(LEAST(179.975, GREATEST(-179.975, (floor(cr.lng::float8 * 20.0) + 0.5) / 20.0))) - radians($2)) +
+              sin(radians($1)) * sin(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0))))
             ))
           ))
           ELSE NULL
@@ -189,12 +188,12 @@ async function CommissionPageContent({
         ${categoryConditionSelect}
         AND (
           cr."isNational" = true
-          OR (cr.lat IS NOT NULL AND cr.lng IS NOT NULL AND
+          OR (cr.lat BETWEEN -90 AND 90 AND cr.lng BETWEEN -180 AND 180 AND
               6371000 * acos(
                 LEAST(1.0, GREATEST(-1.0,
-                  cos(radians($3)) * cos(radians(cr.lat)) *
-                  cos(radians(cr.lng) - radians($4)) +
-                  sin(radians($3)) * sin(radians(cr.lat))
+                  cos(radians($3)) * cos(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0)))) *
+                  cos(radians(LEAST(179.975, GREATEST(-179.975, (floor(cr.lng::float8 * 20.0) + 0.5) / 20.0))) - radians($4)) +
+                  sin(radians($3)) * sin(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0))))
                 ))
               ) <= $5
           )
@@ -217,8 +216,6 @@ async function CommissionPageContent({
       referenceImageUrls: string[];
       interestedCount: number;
       createdAt: Date;
-      lat: number | null;
-      lng: number | null;
       isNational: boolean;
       buyerId: string;
       buyerName: string | null;
@@ -241,8 +238,6 @@ async function CommissionPageContent({
       referenceImageUrls: r.referenceImageUrls,
       interestedCount: Number(r.interestedCount),
       createdAt: r.createdAt,
-      lat: r.lat,
-      lng: r.lng,
       isNational: r.isNational,
       buyer: { name: r.buyerName, imageUrl: r.buyerImageUrl },
       distanceMeters: r.distance_m != null ? Number(r.distance_m) : undefined,
@@ -267,8 +262,6 @@ async function CommissionPageContent({
         interestedCount: true,
         _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
         createdAt: true,
-        lat: true,
-        lng: true,
         isNational: true,
         buyer: { select: { name: true, imageUrl: true } },
       },
@@ -497,9 +490,9 @@ async function CommissionPageContent({
                       {/* Interest count */}
                       <span>{r.interestedCount} maker{r.interestedCount !== 1 ? "s" : ""} interested</span>
                       {/* Local distance badge */}
-                      {!r.isNational && r.distanceMeters != null && r.distanceMeters < 80000 && (
+                      {!r.isNational && commissionDistanceBucket(r.distanceMeters) && (
                         <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
-                          <MapPin size={11} /> {Math.round(r.distanceMeters / 1609)} mi away
+                          <MapPin size={11} /> {commissionDistanceBucket(r.distanceMeters)}
                         </span>
                       )}
                       {!r.isNational && r.distanceMeters == null && (

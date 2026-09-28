@@ -6,65 +6,23 @@ import * as maplibregl from "@/lib/maplibreClient";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
 
-// --- deterministic PRNG so jitter stays stable per seed ---
-function xmur3(str: string) {
-  let h = 1779033703 ^ str.length;
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-    h = (h << 13) | (h >>> 19);
-  }
-  return function () {
-    h = Math.imul(h ^ (h >>> 16), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    return (h ^= h >>> 16) >>> 0;
-  };
-}
-function mulberry32(a: number) {
-  return function () {
-    let t = (a += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-function seededRand(seed: string) {
-  const h = xmur3(seed);
-  return mulberry32(h());
-}
-
-// small jitter so the circle center isn't the exact address
-function jitterAround(lat: number, lng: number, radiusMeters: number, seed?: string | null) {
-  const R = 111_111; // m per degree approx
-  const max = Math.min(radiusMeters * 0.4, 800); // cap jitter at 800m
-
-  const rnd = seed ? seededRand(seed) : Math.random;
-  const r = (rnd() * max) / R;
-  const t = rnd() * Math.PI * 2;
-
-  const dLat = r * Math.sin(t);
-  const dLon = (r * Math.cos(t)) / Math.cos((lat * Math.PI) / 180);
-  return { lat: lat + dLat, lng: lng + dLon };
-}
-
 type Props = {
-  lat: number;
-  lng: number;
+  /** Coordinates already reduced to their public precision by the server. */
+  displayLat: number;
+  displayLng: number;
   label?: string;
   radiusMeters?: number | null;
   /** Show a pin even when a radius is present (defaults to false for privacy) */
   showPinWithRadius?: boolean;
-  /** Use a stable seed so jitter doesn't jump (e.g., seller.id) */
-  seed?: string | null;
   className?: string;
 };
 
 export default function MapCard({
-  lat,
-  lng,
+  displayLat: lat,
+  displayLng: lng,
   label,
   radiusMeters,
   showPinWithRadius = false,
-  seed,
   className,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,13 +39,8 @@ export default function MapCard({
       return;
     }
 
-    let displayLat = lat;
-    let displayLng = lng;
-    if (hasPrivacyRadius) {
-      const jittered = jitterAround(lat, lng, privacyRadiusMeters, seed);
-      displayLat = jittered.lat;
-      displayLng = jittered.lng;
-    }
+    const displayLat = lat;
+    const displayLng = lng;
 
     let map: maplibregl.Map;
     try {
@@ -153,7 +106,7 @@ export default function MapCard({
     });
 
     return () => map.remove();
-  }, [lat, lng, privacyRadiusMeters, hasPrivacyRadius, showPinWithRadius, seed, label]);
+  }, [lat, lng, privacyRadiusMeters, hasPrivacyRadius, showPinWithRadius, label]);
 
   const resolvedClassName = className ?? "h-48 w-full rounded-xl border border-neutral-200 overflow-hidden";
   if (mapUnavailable) {

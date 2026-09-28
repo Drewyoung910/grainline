@@ -24,10 +24,30 @@ import { formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
 import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
+import {
+  PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE,
+  PUBLIC_LOCATION_METERS_PER_DEGREE,
+} from "@/lib/locationPrivacy";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
 const MAX_BROWSE_RADIUS_MILES = 500;
+
+function gridCellCenterSql(
+  coordinateSql: Prisma.Sql,
+  minimum: number,
+  maximum: number,
+  cellSizeSql: Prisma.Sql,
+) {
+  const cellIndexSql = Prisma.sql`LEAST(
+    CEIL(${maximum - minimum}::float8 / ${cellSizeSql}) - 1,
+    FLOOR((${coordinateSql} - ${minimum}) / ${cellSizeSql})
+  )`;
+  const lowerBoundSql = Prisma.sql`(${minimum} + ${cellIndexSql} * ${cellSizeSql})`;
+  return Prisma.sql`(
+    ${lowerBoundSql} + LEAST(${maximum}, ${lowerBoundSql} + ${cellSizeSql})
+  ) / 2`;
+}
 
 type Search = {
   q?: string;
@@ -282,11 +302,40 @@ async function BrowseContent({
     const blockedSellerGeoSql = blockedSellerIds.length > 0
       ? Prisma.sql`AND sp.id NOT IN (${Prisma.join(blockedSellerIds)})`
       : Prisma.empty;
+    const radiusCellSizeSql = Prisma.sql`(sp."radiusMeters"::float8 / ${PUBLIC_LOCATION_METERS_PER_DEGREE})`;
+    const radiusLatSql = gridCellCenterSql(Prisma.sql`sp.lat::float8`, -90, 90, radiusCellSizeSql);
+    const radiusLngSql = gridCellCenterSql(Prisma.sql`sp.lng::float8`, -180, 180, radiusCellSizeSql);
+    const publicLatSql = Prisma.sql`(
+      CASE
+        WHEN COALESCE(sp."radiusMeters", 0) > 0
+          THEN ${radiusLatSql}
+        WHEN sp."publicMapOptIn" = true AND COALESCE(sp."radiusMeters", 0) = 0
+          THEN sp.lat::float8
+        ELSE LEAST(89.975, GREATEST(-89.975,
+          (floor(sp.lat::float8 * ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}) + 0.5)
+            / ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}
+        ))
+      END
+    )`;
+    const publicLngSql = Prisma.sql`(
+      CASE
+        WHEN COALESCE(sp."radiusMeters", 0) > 0
+          THEN ${radiusLngSql}
+        WHEN sp."publicMapOptIn" = true AND COALESCE(sp."radiusMeters", 0) = 0
+          THEN sp.lng::float8
+        ELSE LEAST(179.975, GREATEST(-179.975,
+          (floor(sp.lng::float8 * ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}) + 0.5)
+            / ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}
+        ))
+      END
+    )`;
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       SELECT sp.id
       FROM "SellerProfile" sp
       INNER JOIN "User" u ON u.id = sp."userId"
       WHERE sp.lat IS NOT NULL AND sp.lng IS NOT NULL
+      AND sp.lat BETWEEN -90 AND 90
+      AND sp.lng BETWEEN -180 AND 180
       AND sp."chargesEnabled" = true
       AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
       AND sp."vacationMode" = false
@@ -302,9 +351,9 @@ async function BrowseContent({
       )
       AND (
         6371 * 2 * asin(sqrt(
-          pow(sin(radians((sp.lat::float - ${latFilter!}) / 2)), 2) +
-          cos(radians(${latFilter!})) * cos(radians(sp.lat::float)) *
-          pow(sin(radians((sp.lng::float - ${lngFilter!}) / 2)), 2)
+          pow(sin(radians((${publicLatSql} - ${latFilter!}) / 2)), 2) +
+          cos(radians(${latFilter!})) * cos(radians(${publicLatSql})) *
+          pow(sin(radians((${publicLngSql} - ${lngFilter!}) / 2)), 2)
         ))
       ) <= ${radiusFilter! * 1.60934}
     `;
