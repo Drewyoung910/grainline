@@ -13,6 +13,7 @@ import {
 
 const migrationPath = `prisma/migrations/${CASE_STAFF_REFUND_LABEL_CLAIM_CORRECTION_MIGRATION}/migration.sql`;
 const migration = fs.readFileSync(migrationPath, "utf8");
+const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
 
 function count(pattern) {
   return migration.match(pattern)?.length ?? 0;
@@ -163,5 +164,23 @@ test("reconciliation retries fence label authority without blocking releases", (
   assert.doesNotMatch(
     source.slice(releaseBranch),
     /locked_order\."label(?:Claim)?Status"/u,
+  );
+});
+
+test("CI applies only this correction after its predecessor proof", () => {
+  const applyStart = ciWorkflow.indexOf(
+    "Apply only Case refund label-claim correction in disposable PostgreSQL",
+  );
+  const buildStart = ciWorkflow.indexOf("- name: Production build", applyStart);
+  assert.ok(applyStart > 0 && buildStart > applyStart);
+  const releaseBlock = ciWorkflow.slice(applyStart, buildStart);
+  assert.match(
+    releaseBlock,
+    /psql "\$DIRECT_URL"[\s\S]*--set=ON_ERROR_STOP=on[\s\S]*--file=prisma\/migrations\/20260901161000_correct_case_staff_refund_label_claim\/migration\.sql/u,
+  );
+  assert.doesNotMatch(releaseBlock, /prisma migrate deploy/u);
+  assert.match(
+    releaseBlock,
+    /CASE_LABEL_CLAIM_CORRECTION_EXPECTED: "1"/u,
   );
 });
