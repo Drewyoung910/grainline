@@ -13,9 +13,7 @@ const PREFIX = "case-open-authority-proof";
 const DESCRIPTION =
   "Disposable buyer Case-opening authority proof description.";
 const refundEvidence = Object.freeze({
-  chargeId: "ch_caseopenauthorityproof",
-  eventId: "evt_caseopenauthorityproofrefund",
-  eventCreatedSeconds: 1770000000,
+  eventId: "local:seller_refund_recorded:re_caseopenauthorityproof",
   refundId: "re_caseopenauthorityproof",
 });
 
@@ -198,7 +196,6 @@ async function seedOrder(
     paid = true,
     reviewNeeded = false,
     sellerDeauthorized = false,
-    stripeChargeId = `${PREFIX}-charge-${orderId}`,
   } = {},
 ) {
   const estimatedExpression =
@@ -224,7 +221,7 @@ async function seedOrder(
   const parameters = [
     orderId,
     ids.buyer,
-    stripeChargeId,
+    `${PREFIX}-charge-${orderId}`,
     fulfillmentStatus,
     labelStatus,
     reviewNeeded,
@@ -278,9 +275,7 @@ async function seedFixtures(client, deauthorizedCaseAccessExpected) {
     await seedOrder(client, ids.unpaidOrder, { paid: false });
     await seedOrder(client, ids.multiSellerOrder);
     await seedOrder(client, ids.refundSentinelOrder);
-    await seedOrder(client, ids.refundEventOrder, {
-      stripeChargeId: refundEvidence.chargeId,
-    });
+    await seedOrder(client, ids.refundEventOrder);
     await seedOrder(client, ids.earlyOrder, {
       fulfillmentStatus: "PENDING",
     });
@@ -365,19 +360,18 @@ async function seedFixtures(client, deauthorizedCaseAccessExpected) {
         "amountCents",
         currency,
         status,
+        reason,
         metadata,
-        "stripeEventCreatedSeconds",
         "createdAt",
         "updatedAt"
       )
       VALUES (
         $1, $2, $3, $4, 'refund', 'REFUND', 1000, 'usd', 'succeeded',
+        'seller_refund',
         pg_catalog.jsonb_build_object(
-          'chargeId', $5::text,
-          'latestRefundId', $4::text,
-          'stripeEventType', 'charge.refunded'
+          'localAction', 'SELLER_REFUND_RECORDED',
+          'refundIds', pg_catalog.jsonb_build_array($4::text)
         ),
-        $6::bigint,
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
     `, [
@@ -385,8 +379,6 @@ async function seedFixtures(client, deauthorizedCaseAccessExpected) {
       ids.refundEventOrder,
       refundEvidence.eventId,
       refundEvidence.refundId,
-      refundEvidence.chargeId,
-      refundEvidence.eventCreatedSeconds,
     ]);
     await client.query("SET CONSTRAINTS ALL IMMEDIATE");
     await client.query("COMMIT");
