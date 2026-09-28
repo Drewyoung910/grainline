@@ -188,6 +188,7 @@ jobs:
           --file=scripts/provision-runtime-db-role.sql
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
       - name: Read back exact ledgers, functions, grants, and Order posture
         shell: bash
         env:

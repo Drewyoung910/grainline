@@ -16,8 +16,8 @@ describe("protected production psql TLS roots", () => {
       );
       for (const step of workflow.split(/(?=^\s{6}- name: )/mu)) {
         if (
-          !step.includes('psql "$DIRECT_URL"')
-          || !step.includes(
+          !step.includes('psql "$DIRECT_URL"') ||
+          !step.includes(
             "DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}",
           )
         ) {
@@ -38,6 +38,7 @@ describe("protected production psql TLS roots", () => {
     assert.deepEqual(reviewedSteps, [
       "direct-upload-activation-production-recovery.yml:Converge activated runtime and cleanup grants",
       "direct-upload-cleanup-role-provision.yml:Converge cleanup role to three-function authority",
+      "order-case-corrections-production.yml:Converge reviewed runtime function grants",
       "order-compatible-production.yml:Converge compatible runtime grants",
       "order-payment-event-aggregate-authority-production.yml:Converge reviewed runtime grants",
       "order-payment-event-compatible-production.yml:Converge compatible runtime grants",
