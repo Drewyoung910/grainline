@@ -41,7 +41,6 @@ Confirm production and preview values in Vercel:
   evidence smoke all pass; promote only the exact lowercase `true` afterward.
 - `CLOUDFLARE_R2_PUBLIC_URL`
 - `SHIPPO_API_KEY`
-- `SHIPPO_LABEL_SENDER_PHONE` (private platform contact in E.164 format)
 - `SHIPPING_RATE_SECRET`
 - `RESEND_API_KEY`
 - `RESEND_WEBHOOK_SECRET`

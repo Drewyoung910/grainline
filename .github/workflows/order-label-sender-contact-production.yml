@@ -1,0 +1,268 @@
+name: Order Label Sender Contact Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-label-sender-contact
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed Order label sender contact
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-order-label-sender-contact'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main and completed CI before credential access
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Order label sender-contact release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Order label sender-contact main/CI readback drifted');
+            }
+      - name: Verify exact migration source
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260928020000_correct_order_label_sender_contact"
+          echo "33a6d19fd0e50345bab11fa4c1a5a686aa72768d96db2a4cb9bce80ec7cd521b  prisma/migrations/20260928020000_correct_order_label_sender_contact/migration.sql" \
+            | sha256sum --check --status
+          node --test \
+            tests/order-label-sender-contact.test.mjs \
+            tests/order-label-authority-postgres.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture restart state and unchanged SellerProfile posture
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20260928020000_correct_order_label_sender_contact';
+          const checksum = '33a6d19fd0e50345bab11fa4c1a5a686aa72768d96db2a4cb9bce80ec7cd521b';
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          const postureSql = `
+            SELECT relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((
+                     SELECT jsonb_agg(jsonb_build_object(
+                       'name', policy.polname,
+                       'command', policy.polcmd,
+                       'permissive', policy.polpermissive,
+                       'roles', policy.polroles::text,
+                       'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                       'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                     ) ORDER BY policy.polname)
+                       FROM pg_catalog.pg_policy AS policy
+                      WHERE policy.polrelid = relation.oid
+                   ), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = 'public."SellerProfile"'::regclass`;
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count FROM public._prisma_migrations WHERE migration_name = $1`, [migration]);
+            assert.ok(ledger.rows.length === 0 || ledger.rows.length === 1);
+            if (ledger.rows.length === 1) {
+              const row = ledger.rows[0];
+              assert.equal(row.checksum, checksum);
+              assert.ok(row.finished_at);
+              assert.equal(row.rolled_back_at, null);
+              assert.equal(Number(row.applied_steps_count), 1);
+            }
+            const posture = await client.query(postureSql);
+            assert.equal(posture.rows.length, 1);
+            writeFileSync(`${process.env.RUNNER_TEMP}/order-label-sender-contact-pre.json`,
+              JSON.stringify(posture.rows[0]), {mode: 0o600, flag: 'wx'});
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${ledger.rows.length === 0 ? 'pending' : 'applied'}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20260928020000_correct_order_label_sender_contact
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected Order label sender-contact migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed sender-contact migration
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger, schema, authority and unchanged RLS posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20260928020000_correct_order_label_sender_contact';
+          const checksum = '33a6d19fd0e50345bab11fa4c1a5a686aa72768d96db2a4cb9bce80ec7cd521b';
+          const sql = readFileSync(`prisma/migrations/${migration}/migration.sql`, 'utf8');
+          const delimiter = '$grainline_order_seller_label_preflight$';
+          const expectedSource = sql.slice(
+            sql.indexOf(`AS ${delimiter}`) + `AS ${delimiter}`.length,
+            sql.indexOf(`${delimiter};`, sql.indexOf(`AS ${delimiter}`) + 1),
+          );
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/order-label-sender-contact-pre.json`, 'utf8'));
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          const postureSql = `
+            SELECT relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((
+                     SELECT jsonb_agg(jsonb_build_object(
+                       'name', policy.polname,
+                       'command', policy.polcmd,
+                       'permissive', policy.polpermissive,
+                       'roles', policy.polroles::text,
+                       'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                       'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                     ) ORDER BY policy.polname)
+                       FROM pg_catalog.pg_policy AS policy
+                      WHERE policy.polrelid = relation.oid
+                   ), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = 'public."SellerProfile"'::regclass`;
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count FROM public._prisma_migrations WHERE migration_name = $1`, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+
+            const column = await client.query(`SELECT data_type, character_maximum_length,
+              is_nullable FROM information_schema.columns WHERE table_schema = 'public'
+              AND table_name = 'SellerProfile' AND column_name = 'shipFromPhone'`);
+            assert.deepEqual(column.rows, [{
+              data_type: 'character varying',
+              character_maximum_length: 30,
+              is_nullable: 'YES',
+            }]);
+            const constraint = await client.query(`SELECT convalidated,
+              pg_catalog.pg_get_constraintdef(oid) AS definition
+              FROM pg_catalog.pg_constraint
+              WHERE conrelid = 'public."SellerProfile"'::regclass
+                AND conname = 'SellerProfile_shipFromPhone_e164_check'`);
+            assert.equal(constraint.rows.length, 1);
+            assert.equal(constraint.rows[0].convalidated, true);
+            assert.match(constraint.rows[0].definition, /shipFromPhone.*\^\[\+\]\[1-9\]\[0-9\]\{7,14\}\$/);
+
+            const authority = await client.query(`SELECT procedure.prosrc,
+              pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+              procedure.provolatile, procedure.prosecdef, procedure.proconfig,
+              pg_catalog.has_function_privilege('grainline_app_runtime', procedure.oid, 'EXECUTE') AS runtime_execute,
+              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(procedure.proacl,
+                pg_catalog.acldefault('f', procedure.proowner))) AS acl
+                WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE') AS public_execute
+              FROM pg_catalog.pg_proc AS procedure
+              WHERE procedure.oid = 'public.grainline_order_seller_label_preflight(text,text)'::regprocedure`);
+            assert.equal(authority.rows.length, 1);
+            assert.equal(authority.rows[0].prosrc, expectedSource);
+            assert.equal(authority.rows[0].owner, 'neondb_owner');
+            assert.equal(authority.rows[0].provolatile, 's');
+            assert.equal(authority.rows[0].prosecdef, true);
+            assert.deepEqual(authority.rows[0].proconfig, ['search_path=pg_catalog']);
+            assert.equal(authority.rows[0].runtime_execute, true);
+            assert.equal(authority.rows[0].public_execute, false);
+
+            const after = await client.query(postureSql);
+            assert.equal(after.rows.length, 1);
+            assert.deepEqual(after.rows[0], before);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE

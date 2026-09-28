@@ -32,6 +32,7 @@
       "codex/order-smoke-post-enable-admission-20260928": false,
       "codex/order-label-shippo-email-20260928": false,
       "codex/order-shippo-sender-phone-20260928": false,
+      "codex/order-seller-ship-from-phone-20260928": false,
       "codex/order-main-catchup-20260922": false,
       "codex/r2-github-consumer-integration-20260921": false,
       "codex/r2-private-health-20260921": false,

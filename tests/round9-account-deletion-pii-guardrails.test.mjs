@@ -235,6 +235,7 @@ describe("Round 9 account deletion PII guardrails", () => {
       "shipFromCity",
       "shipFromState",
       "shipFromPostal",
+      "shipFromPhone",
       "instagramUrl",
       "facebookUrl",
       "pinterestUrl",

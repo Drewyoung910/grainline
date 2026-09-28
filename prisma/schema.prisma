@@ -193,6 +193,7 @@ model SellerProfile {
   shipFromState   String? @db.VarChar(50)
   shipFromPostal  String? @db.VarChar(20)
   shipFromCountry String? @default("US") @db.VarChar(2)
+  shipFromPhone   String? @db.VarChar(30)
 
   // 🆕 Default package (used when listings don’t specify packaged dims)
   defaultPkgWeightGrams Int?

@@ -394,6 +394,7 @@ test("restart seeding adopts only exact marker-bound Order fixture rows", () => 
         shipFromState: ORDER_FIXTURE_SHIP_FROM.state,
         shipFromPostal: ORDER_FIXTURE_SHIP_FROM.postalCode,
         shipFromCountry: ORDER_FIXTURE_SHIP_FROM.country,
+        shipFromPhone: ORDER_FIXTURE_SHIP_FROM.phone,
       },
       {
         id: fixtureIds.receiptSellerProfileId,
@@ -412,6 +413,7 @@ test("restart seeding adopts only exact marker-bound Order fixture rows", () => 
         shipFromState: ORDER_FIXTURE_SHIP_FROM.state,
         shipFromPostal: ORDER_FIXTURE_SHIP_FROM.postalCode,
         shipFromCountry: ORDER_FIXTURE_SHIP_FROM.country,
+        shipFromPhone: ORDER_FIXTURE_SHIP_FROM.phone,
       },
     ],
     listings: [

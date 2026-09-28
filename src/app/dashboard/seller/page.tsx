@@ -17,7 +17,13 @@ import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import { sanitizeText } from "@/lib/sanitize";
-import { sanitizeAddressField, sanitizeAddressName, sanitizeOptionalAddressField } from "@/lib/addressFields";
+import {
+  isE164Phone,
+  sanitizeAddressField,
+  sanitizeAddressName,
+  sanitizeOptionalAddressField,
+  sanitizeOptionalE164Phone,
+} from "@/lib/addressFields";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { publicSellerShopPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
@@ -100,6 +106,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const rawShipFromState = formData.get("shipFromState");
   const rawShipFromPostal = formData.get("shipFromPostal");
   const rawShipFromCountry = formData.get("shipFromCountry");
+  const rawShipFromPhone = formData.get("shipFromPhone");
   const shipFromName = typeof rawShipFromName === "string" ? sanitizeAddressName(rawShipFromName, 100) || null : null;
   const shipFromLine1 = typeof rawShipFromLine1 === "string" ? sanitizeAddressField(rawShipFromLine1, 200) || null : null;
   const shipFromLine2 = typeof rawShipFromLine2 === "string" ? sanitizeOptionalAddressField(rawShipFromLine2, 200) : null;
@@ -107,6 +114,15 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const shipFromState = typeof rawShipFromState === "string" ? sanitizeAddressField(rawShipFromState, 50) || null : null;
   const shipFromPostal = typeof rawShipFromPostal === "string" ? sanitizeAddressField(rawShipFromPostal, 20) || null : null;
   const shipFromCountry = (typeof rawShipFromCountry === "string" ? sanitizeAddressField(rawShipFromCountry, 2) : "")?.toUpperCase() || "US";
+  const shipFromPhone = typeof rawShipFromPhone === "string"
+    ? sanitizeOptionalE164Phone(rawShipFromPhone)
+    : null;
+  if (shipFromPhone !== null && !isE164Phone(shipFromPhone)) {
+    return {
+      ok: false,
+      error: "Enter the shipping phone in international format, for example +15125550123.",
+    };
+  }
 
   // Preferred carriers
   const preferredCarriers = formData.getAll("preferredCarriers").map(String).filter(Boolean);
@@ -149,6 +165,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       shipFromState,
       shipFromPostal,
       shipFromCountry,
+      shipFromPhone,
 
       // defaults
       defaultPkgLengthCm,

@@ -7,7 +7,6 @@ const {
   normalizeShippoRateCurrency,
   normalizeShippoShipmentRates,
   shippoCredentialTestMode,
-  shippoLabelSenderPhone,
 } = await import("../src/lib/shippo.ts");
 
 function source(path) {
@@ -108,20 +107,12 @@ describe("Shippo label money guardrails", () => {
     assert.doesNotMatch(shippo, /address_from:\s*\{[\s\S]*?email:\s*from\.email/);
   });
 
-  it("requires a deployment-owned E.164 phone for the Shippo label sender", () => {
-    assert.equal(shippoLabelSenderPhone("+15125550123"), "+15125550123");
-    for (const invalid of ["", "512-555-0123", "+0123456789", "+1512abc0123"]) {
-      assert.throws(
-        () => shippoLabelSenderPhone(invalid),
-        /SHIPPO_LABEL_SENDER_PHONE must be a valid E\.164 phone number/,
-      );
-    }
-
+  it("uses the physical seller's shipping phone for the Shippo sender", () => {
     const shippo = source("src/lib/shippo.ts");
     assert.match(
       shippo,
-      /address_from:\s*\{[\s\S]*?phone:\s*shippoLabelSenderPhone\(\),[\s\S]*?street1:\s*from\.street1/,
+      /address_from:\s*\{[\s\S]*?phone:\s*from\.phone,[\s\S]*?street1:\s*from\.street1/,
     );
-    assert.doesNotMatch(shippo, /address_from:\s*\{[\s\S]*?phone:\s*from\.phone/);
+    assert.doesNotMatch(shippo, /SHIPPO_LABEL_SENDER_PHONE/);
   });
 });

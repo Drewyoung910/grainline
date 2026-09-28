@@ -93,6 +93,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       shipFromState: true,
       shipFromPostal: true,
       shipFromCountry: true,
+      shipFromPhone: true,
       tagline: true,
       bannerImageUrl: true,
       avatarImageUrl: true,

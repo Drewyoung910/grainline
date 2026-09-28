@@ -35,6 +35,8 @@ export type LabelAddress = {
   country: string;
 };
 
+export type LabelSenderAddress = LabelAddress & { phone: string };
+
 export type SellerLabelPreflightResult =
   | { outcome: "unauthorized" }
   | { outcome: "conflict"; reason: OrderLabelConflictReason }
@@ -51,7 +53,7 @@ export type SellerLabelPreflightResult =
       packageLengthCm: number;
       packageWidthCm: number;
       packageHeightCm: number;
-      shipFrom: LabelAddress;
+      shipFrom: LabelSenderAddress;
       shipTo: LabelAddress;
     };
 
@@ -217,6 +219,15 @@ function address(value: unknown, label: string): LabelAddress {
   };
 }
 
+function senderAddress(value: unknown, label: string): LabelSenderAddress {
+  const row = record(value, label);
+  const phone = string(row.phone, `${label} phone`, 30);
+  if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+    throw new TypeError(`${label} phone is invalid`);
+  }
+  return { ...address(row, label), phone };
+}
+
 async function oneResult(client: LabelAuthorityClient, query: Prisma.Sql, label: string) {
   const rows = await client.$queryRaw<Array<{ result: unknown }>>(query);
   if (rows.length !== 1) throw new TypeError(`${label} returned invalid cardinality`);
@@ -272,7 +283,7 @@ export async function sellerLabelPreflight(
       "Order label package height",
       1_000,
     ),
-    shipFrom: address(row.shipFrom, "Order label ship-from"),
+    shipFrom: senderAddress(row.shipFrom, "Order label ship-from"),
     shipTo: address(row.shipTo, "Order label ship-to"),
   };
 }

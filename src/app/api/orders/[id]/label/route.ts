@@ -118,7 +118,7 @@ function conflictResponse(reason: OrderLabelConflictReason) {
     case "label_claim_active":
       return privateJson({ error: "This label purchase is already being reconciled. Contact support before retrying." }, { status: HTTP_STATUS.CONFLICT });
     case "address_missing":
-      return privateJson({ error: "The shipping or ship-from address is incomplete." }, { status: HTTP_STATUS.CONFLICT });
+      return privateJson({ error: "The shipping address, ship-from address, or sender phone is incomplete." }, { status: HTTP_STATUS.CONFLICT });
     case "package_missing":
       return privateJson({ error: "Package dimensions and weight are required before purchasing a label." }, { status: HTTP_STATUS.CONFLICT });
     case "rate_required":
