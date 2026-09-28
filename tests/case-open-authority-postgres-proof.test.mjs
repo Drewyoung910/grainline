@@ -114,7 +114,7 @@ describe("Case-open authority PostgreSQL proof", () => {
     assert.match(proof, /refundId: "re_[A-Za-z0-9]+"/u);
     assert.match(
       proof,
-      /INSERT INTO public\."OrderPaymentEvent" \([\s\S]*reason,[\s\S]*metadata,[\s\S]*'seller_refund',[\s\S]*'localAction', 'SELLER_REFUND_RECORDED',[\s\S]*'refundIds', pg_catalog\.jsonb_build_array\(\$4::text\)/u,
+      /INSERT INTO public\."OrderPaymentEvent" \([\s\S]*reason,[\s\S]*metadata,[\s\S]*\$4::varchar,[\s\S]*'seller_refund',[\s\S]*'localAction', 'SELLER_REFUND_RECORDED',[\s\S]*'refundIds', pg_catalog\.jsonb_build_array\(\$4::varchar\)/u,
     );
     assert.doesNotMatch(
       proof,

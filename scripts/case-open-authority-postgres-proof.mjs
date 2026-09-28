@@ -366,11 +366,11 @@ async function seedFixtures(client, deauthorizedCaseAccessExpected) {
         "updatedAt"
       )
       VALUES (
-        $1, $2, $3, $4, 'refund', 'REFUND', 1000, 'usd', 'succeeded',
+        $1, $2, $3, $4::varchar, 'refund', 'REFUND', 1000, 'usd', 'succeeded',
         'seller_refund',
         pg_catalog.jsonb_build_object(
           'localAction', 'SELLER_REFUND_RECORDED',
-          'refundIds', pg_catalog.jsonb_build_array($4::text)
+          'refundIds', pg_catalog.jsonb_build_array($4::varchar)
         ),
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
