@@ -1860,6 +1860,9 @@ jobs:
           mv \
             "$RUNNER_TEMP/order-deauthorized-case-access-correction.test.mjs" \
             tests/order-deauthorized-case-access-correction.test.mjs
+          echo \
+            "ORDER_DEAUTHORIZED_CASE_ACCESS_MIGRATION_PATH=prisma/migrations/20260928010000_correct_order_deauthorized_case_access/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Re-verify Order deauthorized Case-access correction source package
         run: node --test tests/order-deauthorized-case-access-correction.test.mjs
       # Apply only the reviewed additive successor after every predecessor and

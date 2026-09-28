@@ -68,4 +68,8 @@ test("CI isolates the projection during historical proofs and restores it after 
     ciWorkflow,
     /ORDER_SELLER_BUYER_EMAIL_PROJECTION_MIGRATION_PATH=\$correction\/migration\.sql/,
   );
+  assert.match(
+    ciWorkflow,
+    /Restore Order deauthorized Case-access correction[\s\S]*ORDER_DEAUTHORIZED_CASE_ACCESS_MIGRATION_PATH=prisma\/migrations\/20260928010000_correct_order_deauthorized_case_access\/migration\.sql[\s\S]*Re-verify Order seller buyer-email projection source package/,
+  );
 });
