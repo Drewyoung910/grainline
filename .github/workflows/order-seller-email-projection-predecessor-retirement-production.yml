@@ -1,0 +1,291 @@
+name: Order Seller Email Projection Predecessor Retirement Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit already live on all canonical aliases
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      production_deployment_id:
+        description: Exact live email-free Order deployment
+        required: true
+        type: string
+      confirmation:
+        description: Type retire-reviewed-order-seller-email-projection-predecessors
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Retire seller email-projection predecessor grants
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'retire-reviewed-order-seller-email-projection-predecessors'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind retirement to exact live main and completed CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const deploymentId = process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '') ||
+                !/^dpl_[A-Za-z0-9]{20,64}$/.test(deploymentId ?? '')) {
+              throw new Error('Order seller email-projection retirement binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Order seller email-projection main/CI readback drifted');
+            }
+      - name: Verify exact retirement source
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors"
+          echo "3a1f173fac0293ec05c43b44e9cd2a6895dcdd47effce55236e7e7c7a55fb799  prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql" \
+            | sha256sum --check --status
+          node --test \
+            tests/order-seller-email-projection-predecessor-retirement.test.mjs \
+            tests/order-participant-detail-authority-postgres.test.mjs \
+            tests/order-seller-analytics-authority-postgres.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture restart state and unchanged definitions and RLS posture
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const predecessor = Object.freeze({
+            name: '20260928213000_remove_seller_buyer_email_projection',
+            checksum: 'b9b0540de736daa01e8ac15f4fa41af3dd5ae8ffe4d5153aa2487a972b7b6c66',
+          });
+          const retirement = Object.freeze({
+            name: '20260928220000_retire_seller_buyer_email_projection_predecessors',
+            checksum: '3a1f173fac0293ec05c43b44e9cd2a6895dcdd47effce55236e7e7c7a55fb799',
+          });
+          const identities = [
+            'public.grainline_order_seller_detail_v2(text,text)',
+            'public.grainline_order_seller_detail_v3(text,text)',
+            'public.grainline_order_seller_detail_v4(text,text)',
+            'public.grainline_order_seller_detail_v5(text,text)',
+            'public.grainline_order_seller_recent_sales(text)',
+            'public.grainline_order_seller_recent_sales_v2(text)',
+          ];
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT migration_name, checksum, finished_at,
+              rolled_back_at, applied_steps_count FROM public._prisma_migrations
+              WHERE migration_name = ANY($1::text[]) ORDER BY migration_name`,
+              [[predecessor.name, retirement.name]]);
+            const rows = new Map(ledger.rows.map(row => [row.migration_name, row]));
+            const accepted = (row, checksum) => row?.checksum === checksum && row.finished_at &&
+              row.rolled_back_at === null && Number(row.applied_steps_count) === 1;
+            assert.equal(accepted(rows.get(predecessor.name), predecessor.checksum), true);
+            const retirementRow = rows.get(retirement.name);
+            if (retirementRow) assert.equal(accepted(retirementRow, retirement.checksum), true);
+            assert.equal(rows.size, retirementRow ? 2 : 1);
+            const definitions = await client.query(`
+              SELECT expected.identity,
+                     pg_catalog.pg_get_functiondef(procedure.oid) AS definition,
+                     pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                     procedure.provolatile, procedure.proparallel, procedure.prosecdef,
+                     procedure.proconfig, pg_catalog.pg_get_function_result(procedure.oid) AS result_type
+                FROM pg_catalog.unnest($1::text[]) AS expected(identity)
+                LEFT JOIN pg_catalog.pg_proc AS procedure
+                  ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
+               ORDER BY expected.identity`, [identities]);
+            assert.equal(definitions.rows.length, identities.length);
+            for (const row of definitions.rows) assert.ok(row.definition, row.identity);
+            const posture = await client.query(`
+              SELECT relation.relname AS table_name,
+                     relation.relrowsecurity AS rls_enabled,
+                     relation.relforcerowsecurity AS force_enabled,
+                     relation.relacl::text AS table_acl,
+                     COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                       'name', policy.polname, 'command', policy.polcmd,
+                       'permissive', policy.polpermissive, 'roles', policy.polroles::text,
+                       'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                       'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                     ) ORDER BY policy.polname) FROM pg_catalog.pg_policy AS policy
+                       WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+                FROM pg_catalog.pg_class AS relation
+               WHERE relation.oid = ANY(ARRAY['public."Order"'::regclass, 'public."User"'::regclass])
+               ORDER BY relation.relname`);
+            writeFileSync(`${process.env.RUNNER_TEMP}/order-seller-email-retirement-pre.json`,
+              JSON.stringify({definitions: definitions.rows, posture: posture.rows}),
+              {mode: 0o600, flag: 'wx'});
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${retirementRow ? 'applied' : 'pending'}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20260928220000_retire_seller_buyer_email_projection_predecessors
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected seller email-projection retirement state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed seller email-projection predecessor retirement
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger, grants, definitions, and unchanged RLS posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20260928220000_retire_seller_buyer_email_projection_predecessors';
+          const checksum = '3a1f173fac0293ec05c43b44e9cd2a6895dcdd47effce55236e7e7c7a55fb799';
+          const retired = [
+            'public.grainline_order_seller_detail_v2(text,text)',
+            'public.grainline_order_seller_detail_v3(text,text)',
+            'public.grainline_order_seller_detail_v4(text,text)',
+            'public.grainline_order_seller_recent_sales(text)',
+          ];
+          const current = [
+            'public.grainline_order_seller_detail_v5(text,text)',
+            'public.grainline_order_seller_recent_sales_v2(text)',
+          ];
+          const identities = [...retired, ...current];
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/order-seller-email-retirement-pre.json`, 'utf8'));
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count FROM public._prisma_migrations WHERE migration_name = $1`, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+            const definitions = await client.query(`
+              SELECT expected.identity,
+                     pg_catalog.pg_get_functiondef(procedure.oid) AS definition,
+                     pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                     procedure.provolatile, procedure.proparallel, procedure.prosecdef,
+                     procedure.proconfig, pg_catalog.pg_get_function_result(procedure.oid) AS result_type
+                FROM pg_catalog.unnest($1::text[]) AS expected(identity)
+                LEFT JOIN pg_catalog.pg_proc AS procedure
+                  ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
+               ORDER BY expected.identity`, [identities]);
+            assert.deepEqual(definitions.rows, before.definitions);
+            const grants = await client.query(`
+              SELECT expected.identity,
+                     pg_catalog.has_function_privilege('grainline_app_runtime', procedure.oid, 'EXECUTE') AS runtime_execute,
+                     pg_catalog.has_function_privilege('public', procedure.oid, 'EXECUTE') AS public_execute
+                FROM pg_catalog.unnest($1::text[]) AS expected(identity)
+                LEFT JOIN pg_catalog.pg_proc AS procedure
+                  ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
+               ORDER BY expected.identity`, [identities]);
+            const byIdentity = new Map(grants.rows.map(row => [row.identity, row]));
+            for (const identity of retired) {
+              assert.equal(byIdentity.get(identity)?.runtime_execute, false, identity);
+              assert.equal(byIdentity.get(identity)?.public_execute, false, identity);
+            }
+            for (const identity of current) {
+              assert.equal(byIdentity.get(identity)?.runtime_execute, true, identity);
+              assert.equal(byIdentity.get(identity)?.public_execute, false, identity);
+            }
+            const posture = await client.query(`
+              SELECT relation.relname AS table_name,
+                     relation.relrowsecurity AS rls_enabled,
+                     relation.relforcerowsecurity AS force_enabled,
+                     relation.relacl::text AS table_acl,
+                     COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                       'name', policy.polname, 'command', policy.polcmd,
+                       'permissive', policy.polpermissive, 'roles', policy.polroles::text,
+                       'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                       'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                     ) ORDER BY policy.polname) FROM pg_catalog.pg_policy AS policy
+                       WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+                FROM pg_catalog.pg_class AS relation
+               WHERE relation.oid = ANY(ARRAY['public."Order"'::regclass, 'public."User"'::regclass])
+               ORDER BY relation.relname`);
+            assert.deepEqual(posture.rows, before.posture);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE

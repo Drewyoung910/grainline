@@ -38,7 +38,8 @@ const sellerBuyerEmailProjectionMigration = readFileSync(
   "utf8",
 );
 const sellerBuyerEmailProjectionRetirement = readFileSync(
-  "prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql",
+  process.env.ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION_PATH
+    ?? "prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql",
   "utf8",
 );
 

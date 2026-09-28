@@ -83,6 +83,24 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order seller email-projection predecessor retirement source package
+        run: >-
+          node --test
+          tests/order-seller-email-projection-predecessor-retirement.test.mjs
+          tests/order-seller-email-projection-predecessor-retirement-production-workflow.test.mjs
+          tests/order-participant-detail-authority-postgres.test.mjs
+          tests/order-seller-analytics-authority-postgres.test.mjs
+      - name: Isolate Order seller email-projection predecessor retirement until its successor is proven
+        shell: bash
+        run: |
+          set -euo pipefail
+          correction="$RUNNER_TEMP/order-seller-email-projection-predecessor-retirement"
+          mv \
+            prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors \
+            "$correction"
+          echo \
+            "ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Verify Order seller buyer-email projection source package
         run: >-
           node --test
@@ -1928,5 +1946,27 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql
+      - name: Restore Order seller email-projection predecessor retirement
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-seller-email-projection-predecessor-retirement" \
+            prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors
+          echo \
+            "ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION_PATH=prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql" \
+            >> "$GITHUB_ENV"
+      - name: Re-verify Order seller email-projection predecessor retirement source package
+        run: >-
+          node --test
+          tests/order-seller-email-projection-predecessor-retirement.test.mjs
+          tests/order-seller-email-projection-predecessor-retirement-production-workflow.test.mjs
+          tests/order-participant-detail-authority-postgres.test.mjs
+          tests/order-seller-analytics-authority-postgres.test.mjs
+      - name: Apply only Order seller email-projection predecessor retirement in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql
       - name: Production build
         run: npm run build
