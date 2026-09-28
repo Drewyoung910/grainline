@@ -14,6 +14,7 @@ import {
 const migrationPath =
   `prisma/migrations/${DEAUTHORIZED_CASE_ACCESS_MIGRATION}/migration.sql`;
 const migration = fs.readFileSync(migrationPath, "utf8");
+const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
 
 function functionDefinition(functionName, createMarker) {
   const marker = `${createMarker} public.${functionName}(`;
@@ -102,4 +103,23 @@ test("buyer v4 exposes only bounded Case-access decisions", () => {
   );
   assert.match(migration, /case_open_label_blocked boolean/u);
   assert.doesNotMatch(source, /"sellerDeauthorizationEventId"/u);
+});
+
+test("CI isolates the successor and proves its exact bytes after predecessors", () => {
+  assert.match(
+    workflow,
+    /Verify Order deauthorized Case-access correction source package[\s\S]*Isolate Order deauthorized Case-access correction until predecessors pass/,
+  );
+  assert.match(
+    workflow,
+    /ORDER_DEAUTHORIZED_CASE_ACCESS_MIGRATION_PATH=\$correction\/migration\.sql/,
+  );
+  assert.match(
+    workflow,
+    /Restore Case refund label-claim correction[\s\S]*Apply only Case refund label-claim correction in disposable PostgreSQL[\s\S]*Restore Order deauthorized Case-access correction[\s\S]*Apply only Order deauthorized Case-access correction in disposable PostgreSQL/,
+  );
+  assert.match(
+    workflow,
+    /Apply only Order deauthorized Case-access correction in disposable PostgreSQL[\s\S]*--set=ON_ERROR_STOP=on[\s\S]*20260928010000_correct_order_deauthorized_case_access\/migration\.sql[\s\S]*Converge runtime grants after Order deauthorized Case-access correction[\s\S]*Prove Order deauthorized Case access through runtime login/,
+  );
 });

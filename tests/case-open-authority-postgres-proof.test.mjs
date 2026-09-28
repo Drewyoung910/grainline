@@ -35,6 +35,15 @@ describe("Case-open authority PostgreSQL proof", () => {
         }),
       /requires the grainline_ci database/,
     );
+    assert.throws(
+      () =>
+        parseCaseOpenAuthorityProofConfig({
+          CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL:
+            "postgresql://ci:ci@127.0.0.1/grainline_ci",
+          ORDER_DEAUTHORIZED_CASE_ACCESS_EXPECTED: "true",
+        }),
+      /must be exactly 1 when set/,
+    );
     assert.deepEqual(
       parseCaseOpenAuthorityProofConfig({
         CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL:
@@ -42,6 +51,18 @@ describe("Case-open authority PostgreSQL proof", () => {
       }),
       {
         databaseUrl: "postgresql://ci:ci@127.0.0.1/grainline_ci",
+        deauthorizedCaseAccessExpected: false,
+      },
+    );
+    assert.deepEqual(
+      parseCaseOpenAuthorityProofConfig({
+        CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL:
+          "postgresql://ci:ci@127.0.0.1/grainline_ci",
+        ORDER_DEAUTHORIZED_CASE_ACCESS_EXPECTED: "1",
+      }),
+      {
+        databaseUrl: "postgresql://ci:ci@127.0.0.1/grainline_ci",
+        deauthorizedCaseAccessExpected: true,
       },
     );
   });
@@ -68,10 +89,17 @@ describe("Case-open authority PostgreSQL proof", () => {
       "wait_event_type, \"Lock\"",
       "proveRollback",
       "deauthorizedExpiredOrder",
-      "checks: 22",
     ]) {
       assert.match(proof, new RegExp(check), check);
     }
+    assert.match(
+      proof,
+      /checks: deauthorizedCaseAccessExpected \? 22 : 19/u,
+    );
+    assert.match(
+      proof,
+      /if \(deauthorizedCaseAccessExpected\) \{[\s\S]*await proveDeauthorizedCaseAccess\(runtime\)/u,
+    );
     assert.match(proof, /SET LOCAL ROLE grainline_app_runtime/);
     assert.match(proof, /persistentStagingChanged: false/);
     assert.match(proof, /productionChanged: false/);
@@ -92,6 +120,14 @@ describe("Case-open authority PostgreSQL proof", () => {
     assert.match(
       workflow,
       /CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/,
+    );
+    assert.match(
+      workflow,
+      /Restore Order deauthorized Case-access correction[\s\S]*Apply only Order deauthorized Case-access correction in disposable PostgreSQL[\s\S]*Converge runtime grants after Order deauthorized Case-access correction[\s\S]*Prove Order deauthorized Case access through runtime login/,
+    );
+    assert.match(
+      workflow,
+      /ORDER_DEAUTHORIZED_CASE_ACCESS_EXPECTED: "1"/,
     );
   });
 });

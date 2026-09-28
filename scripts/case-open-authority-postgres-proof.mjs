@@ -6,6 +6,8 @@ import pg from "pg";
 
 const { Client } = pg;
 const PROOF_ENV = "CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL";
+const DEAUTHORIZED_CASE_ACCESS_EXPECTED_ENV =
+  "ORDER_DEAUTHORIZED_CASE_ACCESS_EXPECTED";
 const DATABASE_NAME = "grainline_ci";
 const PREFIX = "case-open-authority-proof";
 const DESCRIPTION =
@@ -50,6 +52,11 @@ function safeError(error) {
 export function parseCaseOpenAuthorityProofConfig(env = process.env) {
   const databaseUrl = env[PROOF_ENV];
   assert.ok(databaseUrl, `${PROOF_ENV} is required`);
+  const expectedValue = env[DEAUTHORIZED_CASE_ACCESS_EXPECTED_ENV];
+  assert.ok(
+    expectedValue === undefined || expectedValue === "1",
+    `${DEAUTHORIZED_CASE_ACCESS_EXPECTED_ENV} must be exactly 1 when set`,
+  );
   const parsed = new URL(databaseUrl);
   assert.ok(
     ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname),
@@ -60,7 +67,10 @@ export function parseCaseOpenAuthorityProofConfig(env = process.env) {
     `/${DATABASE_NAME}`,
     `Case-open authority proof requires the ${DATABASE_NAME} database`,
   );
-  return Object.freeze({ databaseUrl });
+  return Object.freeze({
+    databaseUrl,
+    deauthorizedCaseAccessExpected: expectedValue === "1",
+  });
 }
 
 function createClient(databaseUrl, applicationName) {
@@ -194,6 +204,27 @@ async function seedOrder(
     fulfillmentStatus === "DELIVERED"
       ? estimatedExpression
       : "NULL";
+  const deauthorizationColumns = sellerDeauthorized
+    ? `,
+      "sellerDeauthorizedAt",
+      "sellerDeauthorizationEventId"`
+    : "";
+  const deauthorizationValues = sellerDeauthorized
+    ? `,
+      CURRENT_TIMESTAMP,
+      $7`
+    : "";
+  const parameters = [
+    orderId,
+    ids.buyer,
+    `${PREFIX}-charge-${orderId}`,
+    fulfillmentStatus,
+    labelStatus,
+    reviewNeeded,
+  ];
+  if (sellerDeauthorized) {
+    parameters.push("evt_case_open_deauthorized_proof");
+  }
   await client.query(`
     INSERT INTO public."Order" (
       id,
@@ -207,9 +238,7 @@ async function seedOrder(
       "labelStatus",
       "estimatedDeliveryDate",
       "deliveredAt",
-      "reviewNeeded",
-      "sellerDeauthorizedAt",
-      "sellerDeauthorizationEventId"
+      "reviewNeeded"${deauthorizationColumns}
     )
     VALUES (
       $1,
@@ -223,19 +252,9 @@ async function seedOrder(
       $5::public."LabelStatus",
       ${estimatedExpression},
       ${deliveredExpression},
-      $6,
-      ${sellerDeauthorized ? "CURRENT_TIMESTAMP" : "NULL"},
-      $7
+      $6${deauthorizationValues}
     )
-  `, [
-    orderId,
-    ids.buyer,
-    `${PREFIX}-charge-${orderId}`,
-    fulfillmentStatus,
-    labelStatus,
-    reviewNeeded,
-    sellerDeauthorized ? "evt_case_open_deauthorized_proof" : null,
-  ]);
+  `, parameters);
   await client.query(`
     INSERT INTO public."OrderItem" (
       id, "orderId", "listingId", quantity, "priceCents"
@@ -244,7 +263,7 @@ async function seedOrder(
   `, [`${orderId}-item-primary`, orderId, ids.listing]);
 }
 
-async function seedFixtures(client) {
+async function seedFixtures(client, deauthorizedCaseAccessExpected) {
   await client.query("BEGIN");
   try {
     await seedUsersAndListings(client);
@@ -266,25 +285,27 @@ async function seedFixtures(client) {
       fulfillmentStatus: "PENDING",
       reviewNeeded: true,
     });
-    await seedOrder(client, ids.deauthorizedOrder, {
-      estimated: "future",
-      fulfillmentStatus: "PENDING",
-      reviewNeeded: false,
-      sellerDeauthorized: true,
-    });
-    await seedOrder(client, ids.deauthorizedExpiredOrder, {
-      estimated: "expired",
-      fulfillmentStatus: "PENDING",
-      reviewNeeded: false,
-      sellerDeauthorized: true,
-    });
-    await seedOrder(client, ids.deauthorizedLabelOrder, {
-      estimated: "future",
-      fulfillmentStatus: "PENDING",
-      labelStatus: "PURCHASED",
-      reviewNeeded: false,
-      sellerDeauthorized: true,
-    });
+    if (deauthorizedCaseAccessExpected) {
+      await seedOrder(client, ids.deauthorizedOrder, {
+        estimated: "future",
+        fulfillmentStatus: "PENDING",
+        reviewNeeded: false,
+        sellerDeauthorized: true,
+      });
+      await seedOrder(client, ids.deauthorizedExpiredOrder, {
+        estimated: "expired",
+        fulfillmentStatus: "PENDING",
+        reviewNeeded: false,
+        sellerDeauthorized: true,
+      });
+      await seedOrder(client, ids.deauthorizedLabelOrder, {
+        estimated: "future",
+        fulfillmentStatus: "PENDING",
+        labelStatus: "PURCHASED",
+        reviewNeeded: false,
+        sellerDeauthorized: true,
+      });
+    }
     await seedOrder(client, ids.expiredOrder, {
       estimated: "expired",
       fulfillmentStatus: "DELIVERED",
@@ -701,7 +722,10 @@ async function proveRollback(observer, runtime) {
 }
 
 export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
-  const { databaseUrl } = parseCaseOpenAuthorityProofConfig(env);
+  const {
+    databaseUrl,
+    deauthorizedCaseAccessExpected,
+  } = parseCaseOpenAuthorityProofConfig(env);
   const observer = createClient(databaseUrl, "case-open-proof-observer");
   const runtime = createClient(databaseUrl, "case-open-proof-runtime");
   const first = createClient(databaseUrl, "case-open-proof-first");
@@ -714,11 +738,13 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
   ]);
   try {
     await cleanupFixtures(observer).catch(() => {});
-    await seedFixtures(observer);
+    await seedFixtures(observer, deauthorizedCaseAccessExpected);
     await proveInputAndSourceDenials(runtime);
     await proveCreateAndReplay(observer, runtime);
     await proveReviewOverride(runtime);
-    await proveDeauthorizedCaseAccess(runtime);
+    if (deauthorizedCaseAccessExpected) {
+      await proveDeauthorizedCaseAccess(runtime);
+    }
     await proveMalformedReplayAuditRejected(observer, runtime);
     await provePrivateLedgerDenied(runtime);
     await proveConcurrentOpen(observer, first, second);
@@ -748,7 +774,7 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
       audit_count: 0,
     });
     return Object.freeze({
-      checks: 22,
+      checks: deauthorizedCaseAccessExpected ? 22 : 19,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

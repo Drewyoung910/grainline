@@ -24,7 +24,8 @@ const deauthorizationProjectionCorrection = readFileSync(
   "utf8",
 );
 const deauthorizedCaseAccessCorrection = readFileSync(
-  "prisma/migrations/20260928010000_correct_order_deauthorized_case_access/migration.sql",
+  process.env.ORDER_DEAUTHORIZED_CASE_ACCESS_MIGRATION_PATH
+    ?? "prisma/migrations/20260928010000_correct_order_deauthorized_case_access/migration.sql",
   "utf8",
 );
 
