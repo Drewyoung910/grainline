@@ -95,6 +95,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "forged_provider_record_actor",
     "null_provider_reconciliation_action",
     "non_admin_provider_reconciliation",
+    "case_pending_refund_replay_blocked_by_label_claim",
     "released_claim_cannot_finalize",
     "legacy_case_relationship_preflight",
     "legacy_message_author_preflight",
@@ -103,6 +104,18 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   ]) {
     assert.match(proof, new RegExp(`"${check}"`), check);
   }
+  assert.match(
+    proof,
+    /staff_refund_blocked_by_\$\{status\.toLowerCase\(\)\}/,
+  );
+  assert.match(
+    proof,
+    /case_reconciliation_retry_blocked_by_\$\{status\.toLowerCase\(\)\}/,
+  );
+  assert.match(
+    proof,
+    /for \(const status of \[\s*"PROVIDER_PENDING",\s*"PROVIDER_AMBIGUOUS",\s*"PROVIDER_RECORDED"/,
+  );
   assert.match(proof, /SET CONSTRAINTS ALL IMMEDIATE/);
   assert.match(
     proof,
@@ -134,8 +147,14 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);
-  assert.match(proof, /checks: correctnessExpected \? 57 : 55/);
+  assert.match(
+    proof,
+    /checks: labelClaimCorrectionExpected[\s\S]*?\? 65[\s\S]*?correctnessExpected[\s\S]*?\? 57[\s\S]*?: 55/,
+  );
   assert.match(proof, /CASE_CORRECTNESS_EXPECTED === "1"/);
+  assert.match(proof, /CASE_LABEL_CLAIM_CORRECTION_EXPECTED === "1"/);
+  assert.match(proof, /dismissalWithPendingLabel/);
+  assert.match(proof, /releasedWithActiveLabelClaim/);
   assert.match(proof, /provePolicylessActivation/);
   assert.match(proof, /case_force_candidate/);
   assert.match(
