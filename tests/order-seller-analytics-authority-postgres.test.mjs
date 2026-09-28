@@ -16,6 +16,10 @@ const sellerBuyerEmailProjectionMigration = readFileSync(
     ?? "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
   "utf8",
 );
+const sellerBuyerEmailProjectionRetirement = readFileSync(
+  "prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql",
+  "utf8",
+);
 
 function correctedFunction(name) {
   const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
@@ -214,6 +218,14 @@ async function createDatabase() {
     GRANT EXECUTE ON FUNCTION public.grainline_order_seller_recent_sales_v2(text)
       TO grainline_app_runtime;
   `);
+  assert.match(
+    sellerBuyerEmailProjectionRetirement,
+    /REVOKE EXECUTE ON FUNCTION public\.grainline_order_seller_recent_sales\(text\)\s+FROM grainline_app_runtime/,
+  );
+  await database.exec(`
+    REVOKE EXECUTE ON FUNCTION public.grainline_order_seller_recent_sales(text)
+      FROM grainline_app_runtime
+  `);
   return database;
 }
 
@@ -295,7 +307,6 @@ describe("Order seller analytics authority PostgreSQL proof", () => {
         "grainline_order_seller_analytics_summary(text,bigint,bigint,boolean)",
         "grainline_order_seller_analytics_buckets(text,bigint,bigint,boolean,text)",
         "grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)",
-        "grainline_order_seller_recent_sales(text)",
         "grainline_order_seller_recent_sales_v2(text)",
         "grainline_order_seller_completed_count(text)",
       ]) {
@@ -318,6 +329,15 @@ describe("Order seller analytics authority PostgreSQL proof", () => {
         assert.equal(privileges.rows[0].runtime_execute, true, identity);
         assert.equal(privileges.rows[0].public_execute, false, identity);
       }
+      const predecessorPrivileges = await database.query(`
+        SELECT
+          pg_catalog.has_function_privilege(
+            'grainline_app_runtime',
+            'grainline_order_seller_recent_sales(text)',
+            'EXECUTE'
+          ) AS runtime_execute
+      `);
+      assert.equal(predecessorPrivileges.rows[0].runtime_execute, false);
     } finally {
       await database.close();
     }
