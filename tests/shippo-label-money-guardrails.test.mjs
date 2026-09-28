@@ -92,4 +92,18 @@ describe("Shippo label money guardrails", () => {
     assert.match(authority, /pg_catalog\.lower\(COALESCE\(p_currency, ''\)\) IS DISTINCT FROM locked_order\."labelClaimCurrency"/);
     assert.doesNotMatch(labelRoute, /Math\.round\(Number\(.*rate.*amount/);
   });
+
+  it("uses the platform address for Shippo label sender email", () => {
+    const shippo = source("src/lib/shippo.ts");
+
+    assert.match(
+      shippo,
+      /const SHIPPO_LABEL_SENDER_EMAIL = "support@thegrainline\.com";/,
+    );
+    assert.match(
+      shippo,
+      /address_from:\s*\{[\s\S]*?email:\s*SHIPPO_LABEL_SENDER_EMAIL,[\s\S]*?street1:\s*from\.street1/,
+    );
+    assert.doesNotMatch(shippo, /address_from:\s*\{[\s\S]*?email:\s*from\.email/);
+  });
 });

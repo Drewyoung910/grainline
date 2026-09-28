@@ -8,6 +8,10 @@ import { safeProviderShippingCents } from "./shippingQuoteState.ts";
 
 const SHIPPO_API_KEY = requiredProductionEnv("SHIPPO_API_KEY");
 const SHIPPO_BASE = "https://api.goshippo.com";
+// Shippo requires a sender email before it will purchase a label. The platform
+// support address satisfies that provider contract without disclosing a
+// seller's personal account email.
+const SHIPPO_LABEL_SENDER_EMAIL = "support@thegrainline.com";
 const ISO_CURRENCY_CODE = /^[A-Z]{3}$/i;
 
 export function shippoCredentialTestMode(apiKey = SHIPPO_API_KEY) {
@@ -113,6 +117,7 @@ export async function shippoRatesMultiPiece(opts: {
   const shipment = {
     address_from: {
       name: from.name,
+      email: SHIPPO_LABEL_SENDER_EMAIL,
       street1: from.street1,
       street2: from.street2,
       city: from.city,
