@@ -106,6 +106,20 @@ describe("Case-open authority PostgreSQL proof", () => {
     assert.doesNotMatch(proof, /process\.env\.DATABASE_URL/);
   });
 
+  it("seeds canonical signed refund evidence for the refund exclusion", () => {
+    assert.match(proof, /chargeId: "ch_[A-Za-z0-9]+"/u);
+    assert.match(proof, /eventId: "evt_[A-Za-z0-9]+"/u);
+    assert.match(proof, /refundId: "re_[A-Za-z0-9]+"/u);
+    assert.match(
+      proof,
+      /INSERT INTO public\."OrderPaymentEvent" \([\s\S]*metadata,[\s\S]*"stripeEventCreatedSeconds"[\s\S]*'chargeId', \$5::text,[\s\S]*'latestRefundId', \$4::text,[\s\S]*'stripeEventType', 'charge\.refunded'[\s\S]*\$6::bigint/u,
+    );
+    assert.match(
+      proof,
+      /seedOrder\(client, ids\.refundEventOrder, \{[\s\S]*stripeChargeId: refundEvidence\.chargeId/u,
+    );
+  });
+
   it("cleans fixtures and runs after migration and grant convergence in CI", () => {
     assert.match(proof, /async function cleanupFixtures/);
     assert.match(proof, /await cleanupFixtures\(observer\)/);

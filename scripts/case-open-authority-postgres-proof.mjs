@@ -12,6 +12,12 @@ const DATABASE_NAME = "grainline_ci";
 const PREFIX = "case-open-authority-proof";
 const DESCRIPTION =
   "Disposable buyer Case-opening authority proof description.";
+const refundEvidence = Object.freeze({
+  chargeId: "ch_caseopenauthorityproof",
+  eventId: "evt_caseopenauthorityproofrefund",
+  eventCreatedSeconds: 1770000000,
+  refundId: "re_caseopenauthorityproof",
+});
 
 const ids = Object.freeze({
   buyer: `${PREFIX}-buyer`,
@@ -192,6 +198,7 @@ async function seedOrder(
     paid = true,
     reviewNeeded = false,
     sellerDeauthorized = false,
+    stripeChargeId = `${PREFIX}-charge-${orderId}`,
   } = {},
 ) {
   const estimatedExpression =
@@ -217,7 +224,7 @@ async function seedOrder(
   const parameters = [
     orderId,
     ids.buyer,
-    `${PREFIX}-charge-${orderId}`,
+    stripeChargeId,
     fulfillmentStatus,
     labelStatus,
     reviewNeeded,
@@ -271,7 +278,9 @@ async function seedFixtures(client, deauthorizedCaseAccessExpected) {
     await seedOrder(client, ids.unpaidOrder, { paid: false });
     await seedOrder(client, ids.multiSellerOrder);
     await seedOrder(client, ids.refundSentinelOrder);
-    await seedOrder(client, ids.refundEventOrder);
+    await seedOrder(client, ids.refundEventOrder, {
+      stripeChargeId: refundEvidence.chargeId,
+    });
     await seedOrder(client, ids.earlyOrder, {
       fulfillmentStatus: "PENDING",
     });
@@ -356,18 +365,28 @@ async function seedFixtures(client, deauthorizedCaseAccessExpected) {
         "amountCents",
         currency,
         status,
+        metadata,
+        "stripeEventCreatedSeconds",
         "createdAt",
         "updatedAt"
       )
       VALUES (
         $1, $2, $3, $4, 'refund', 'REFUND', 1000, 'usd', 'succeeded',
+        pg_catalog.jsonb_build_object(
+          'chargeId', $5::text,
+          'latestRefundId', $4::text,
+          'stripeEventType', 'charge.refunded'
+        ),
+        $6::bigint,
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
     `, [
       `${PREFIX}-refund-event`,
       ids.refundEventOrder,
-      `${PREFIX}-stripe-refund-event`,
-      `${PREFIX}-stripe-refund`,
+      refundEvidence.eventId,
+      refundEvidence.refundId,
+      refundEvidence.chargeId,
+      refundEvidence.eventCreatedSeconds,
     ]);
     await client.query("SET CONSTRAINTS ALL IMMEDIATE");
     await client.query("COMMIT");
