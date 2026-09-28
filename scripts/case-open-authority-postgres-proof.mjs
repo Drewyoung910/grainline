@@ -388,9 +388,18 @@ async function seedFixtures(client, deauthorizedCaseAccessExpected) {
   }
 }
 
-async function cleanupFixtures(client) {
+async function cleanupFixtures(client, paymentEvidenceImmutable) {
   await client.query("BEGIN");
   try {
+    if (paymentEvidenceImmutable) {
+      // The accepted invariant makes OrderPaymentEvent immutable even to its
+      // owner. This proof is hard-limited to a disposable loopback database,
+      // so table-level cleanup removes synthetic evidence without weakening
+      // the row trigger. Run it before DELETE can queue deferred events.
+      await client.query(
+        'TRUNCATE TABLE public."OrderPaymentEvent" CASCADE',
+      );
+    }
     await client.query(
       'DELETE FROM public."CaseOpenApplication" WHERE "orderId" LIKE $1',
       [`${PREFIX}%`],
@@ -407,10 +416,12 @@ async function cleanupFixtures(client) {
       'DELETE FROM public."Case" WHERE id LIKE $1 OR "orderId" LIKE $1',
       [`${PREFIX}%`],
     );
-    await client.query(
-      'DELETE FROM public."OrderPaymentEvent" WHERE "orderId" LIKE $1',
-      [`${PREFIX}%`],
-    );
+    if (!paymentEvidenceImmutable) {
+      await client.query(
+        'DELETE FROM public."OrderPaymentEvent" WHERE "orderId" LIKE $1',
+        [`${PREFIX}%`],
+      );
+    }
     await client.query(
       'DELETE FROM public."OrderItem" WHERE "orderId" LIKE $1',
       [`${PREFIX}%`],
@@ -748,7 +759,8 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
     second.connect(),
   ]);
   try {
-    await cleanupFixtures(observer).catch(() => {});
+    await cleanupFixtures(observer, deauthorizedCaseAccessExpected)
+      .catch(() => {});
     await seedFixtures(observer, deauthorizedCaseAccessExpected);
     await proveInputAndSourceDenials(runtime);
     await proveCreateAndReplay(observer, runtime);
@@ -760,7 +772,7 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
     await provePrivateLedgerDenied(runtime);
     await proveConcurrentOpen(observer, first, second);
     await proveRollback(observer, runtime);
-    await cleanupFixtures(observer);
+    await cleanupFixtures(observer, deauthorizedCaseAccessExpected);
     const residue = await observer.query(`
       SELECT
         (
@@ -798,7 +810,8 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
       first.query("ROLLBACK"),
       second.query("ROLLBACK"),
     ]);
-    await cleanupFixtures(observer).catch(() => {});
+    await cleanupFixtures(observer, deauthorizedCaseAccessExpected)
+      .catch(() => {});
     await Promise.allSettled([
       observer.end(),
       runtime.end(),

@@ -123,8 +123,20 @@ describe("Case-open authority PostgreSQL proof", () => {
   });
 
   it("cleans fixtures and runs after migration and grant convergence in CI", () => {
-    assert.match(proof, /async function cleanupFixtures/);
-    assert.match(proof, /await cleanupFixtures\(observer\)/);
+    assert.match(
+      proof,
+      /async function cleanupFixtures\(client, paymentEvidenceImmutable\)/u,
+    );
+    assert.match(
+      proof,
+      /if \(paymentEvidenceImmutable\) \{[\s\S]*TRUNCATE TABLE public\."OrderPaymentEvent" CASCADE[\s\S]*if \(!paymentEvidenceImmutable\) \{[\s\S]*DELETE FROM public\."OrderPaymentEvent"/u,
+    );
+    assert.equal(
+      proof.match(
+        /cleanupFixtures\(observer, deauthorizedCaseAccessExpected\)/gu,
+      )?.length,
+      3,
+    );
     assert.equal(
       packageJson.scripts["audit:rls-case-open-authority"],
       "node scripts/case-open-authority-postgres-proof.mjs",
