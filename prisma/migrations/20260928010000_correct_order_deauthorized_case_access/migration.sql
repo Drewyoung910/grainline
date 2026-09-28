@@ -187,7 +187,8 @@ BEGIN
     orders."pickedUpAt",
     orders."reviewNeeded",
     orders."sellerRefundId",
-    orders."caseResolutionClaimId"
+    orders."caseResolutionClaimId",
+    orders."sellerDeauthorizedAt"
     INTO locked_order
     FROM public."Order" AS orders
    WHERE orders.id = p_order_id
@@ -724,7 +725,7 @@ BEGIN
        AND pg_catalog.encode(
              pg_catalog.sha256(pg_catalog.convert_to(routine.prosrc, 'UTF8')),
              'hex'
-           ) = '8006d2b10259a2712ca3ebde6a92cd2024f5addfa107e011d1060501d0d9d5c7'
+           ) = '601c16ca75b6da9d251b88d81c83e69df0568d0f56ffea870122e1c5be0f4e31'
        AND pg_catalog.has_function_privilege(
              'grainline_app_runtime', routine.oid, 'EXECUTE'
            )

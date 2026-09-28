@@ -34,7 +34,7 @@ test("deauthorized Case-access correction is deterministic and additive", () => 
   assert.deepEqual(verifyOrderDeauthorizedCaseAccessCorrectionBytes(), {
     migration: DEAUTHORIZED_CASE_ACCESS_MIGRATION,
     migrationSha256:
-      "e1bde08d46ed4b5927897b9b50ab3b26c01d5a380d35f6e74b0bcec8e34d4282",
+      "a92fbcbc6c809e51a14cf53c7b98958693c327040565a64929c4527ff56b112f",
   });
   assert.equal(migration.match(/^BEGIN;$/gmu)?.length, 1);
   assert.equal(migration.match(/^COMMIT;$/gmu)?.length, 1);
@@ -71,6 +71,10 @@ test("Case-open uses the durable witness without weakening label exclusion", () 
   const source = extractFunctionSource(
     functionDefinition("grainline_case_open", "CREATE OR REPLACE FUNCTION"),
     "grainline_case_open",
+  );
+  assert.match(
+    source,
+    /orders\."caseResolutionClaimId",\n    orders\."sellerDeauthorizedAt"\n    INTO locked_order/u,
   );
   assert.equal(
     source.match(/locked_order\."sellerDeauthorizedAt" IS NULL/gu)?.length,

@@ -86,6 +86,18 @@ function correctedCaseOpenDefinition(rootDirectory) {
   );
   definition = replaceExactly(
     definition,
+    `    orders."sellerRefundId",
+    orders."caseResolutionClaimId"
+    INTO locked_order`,
+    `    orders."sellerRefundId",
+    orders."caseResolutionClaimId",
+    orders."sellerDeauthorizedAt"
+    INTO locked_order`,
+    1,
+    "deauthorized Case-open locked Order witness",
+  );
+  definition = replaceExactly(
+    definition,
     `     AND locked_seller."deletedAt" IS NULL
      AND NOT locked_order."reviewNeeded" THEN`,
     `     AND locked_seller."deletedAt" IS NULL
