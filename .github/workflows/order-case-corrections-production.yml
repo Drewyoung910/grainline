@@ -1,0 +1,305 @@
+name: Order Case Corrections Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-case-corrections
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply two reviewed Case corrections
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-order-case-corrections'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main and completed CI before credential access
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Order Case correction release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Order Case correction main/CI readback drifted');
+            }
+      - name: Verify exact correction set and SQL bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260928010000_correct_order_deauthorized_case_access"
+          cat > "$RUNNER_TEMP/order-case-correction-checksums" <<'CHECKSUMS'
+          49741a79b470b22bb236510795bf0659be32f6a2dfb88b81fa9106cf3b8c31bf  prisma/migrations/20260901161000_correct_case_staff_refund_label_claim/migration.sql
+          a92fbcbc6c809e51a14cf53c7b98958693c327040565a64929c4527ff56b112f  prisma/migrations/20260928010000_correct_order_deauthorized_case_access/migration.sql
+          CHECKSUMS
+          sha256sum --check --status "$RUNNER_TEMP/order-case-correction-checksums"
+          node --test \
+            tests/case-staff-refund-label-claim-correction.test.mjs \
+            tests/order-deauthorized-case-access-correction.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read exact predecessor or restart ledger state
+        id: correction_scope
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync} from 'node:fs';
+          import {Client} from 'pg';
+
+          const first = '20260901161000_correct_case_staff_refund_label_claim';
+          const second = '20260928010000_correct_order_deauthorized_case_access';
+          const expected = new Map([
+            [first, '49741a79b470b22bb236510795bf0659be32f6a2dfb88b81fa9106cf3b8c31bf'],
+            [second, 'a92fbcbc6c809e51a14cf53c7b98958693c327040565a64929c4527ff56b112f'],
+          ]);
+          const client = new Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[first, second]]);
+            const rows = new Map();
+            for (const row of ledger.rows) {
+              assert.equal(rows.has(row.migration_name), false);
+              assert.equal(row.checksum, expected.get(row.migration_name));
+              assert.ok(row.finished_at);
+              assert.equal(row.rolled_back_at, null);
+              assert.equal(Number(row.applied_steps_count), 1);
+              rows.set(row.migration_name, row);
+            }
+            assert.ok(rows.size === 0 || rows.size === 1 || rows.size === 2);
+            if (rows.size === 1) assert.ok(rows.has(first));
+            const state = rows.size === 0
+              ? 'predecessor'
+              : rows.size === 1
+                ? 'restart_after_refund_label'
+                : 'restart_complete';
+            appendFileSync(process.env.GITHUB_OUTPUT, `state=${state}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Isolate reviewed corrections and require no other pending migration
+        shell: bash
+        env:
+          CORRECTION_STATE: ${{ steps.correction_scope.outputs.state }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          first=20260901161000_correct_case_staff_refund_label_claim
+          second=20260928010000_correct_order_deauthorized_case_access
+          holding="$RUNNER_TEMP/order-case-corrections"
+          mkdir "$holding"
+          if [[ "$CORRECTION_STATE" == "predecessor" ]]; then
+            mv "prisma/migrations/$first" "$holding/$first"
+            mv "prisma/migrations/$second" "$holding/$second"
+            npx prisma migrate status
+            mv "$holding/$first" "prisma/migrations/$first"
+            mv "$holding/$second" "prisma/migrations/$second"
+          elif [[ "$CORRECTION_STATE" == "restart_after_refund_label" ]]; then
+            mv "prisma/migrations/$second" "$holding/$second"
+            npx prisma migrate status
+            mv "$holding/$second" "prisma/migrations/$second"
+          elif [[ "$CORRECTION_STATE" == "restart_complete" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected Order Case correction state" >&2
+            exit 1
+          fi
+          rmdir "$holding"
+      - name: Apply only the reviewed Case corrections
+        if: steps.correction_scope.outputs.state != 'restart_complete'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Converge reviewed runtime function grants
+        run: >-
+          psql "$DIRECT_URL" --echo-errors --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=neondb_owner
+          --file=scripts/provision-runtime-db-role.sql
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledgers, functions, grants, and Order posture
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {Client} from 'pg';
+
+          const expectedMigrations = new Map([
+            ['20260901161000_correct_case_staff_refund_label_claim', '49741a79b470b22bb236510795bf0659be32f6a2dfb88b81fa9106cf3b8c31bf'],
+            ['20260928010000_correct_order_deauthorized_case_access', 'a92fbcbc6c809e51a14cf53c7b98958693c327040565a64929c4527ff56b112f'],
+          ]);
+          const expectedFunctions = new Map([
+            ['public.grainline_case_staff_resolution_prepare(text,text,public."CaseResolution",integer,jsonb)', ['1f2786a3676e23af23848fab06e829a69bc7cd51bc25274e5569d9f5bc21c5a9', 'v', 'u']],
+            ['public.grainline_case_staff_resolution_reconcile(text,text,text,text)', ['2b70cb728df1471f68ebf63b98489d33c4b3de56a9250ad3b87e01a1133851d6', 'v', 'u']],
+            ['public.grainline_case_open(text,text,text,text)', ['601c16ca75b6da9d251b88d81c83e69df0568d0f56ffea870122e1c5be0f4e31', 'v', 'u']],
+            ['public.grainline_order_buyer_detail_v4(text,text)', ['e5d15680f411f9e0de3233b4d2c48b5e0f00fe682337f8652d3a5ed95ecffc9e', 's', 's']],
+          ]);
+          const client = new Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[...expectedMigrations.keys()]]);
+            assert.equal(ledger.rows.length, expectedMigrations.size);
+            for (const row of ledger.rows) {
+              assert.equal(row.checksum, expectedMigrations.get(row.migration_name));
+              assert.ok(row.finished_at);
+              assert.equal(row.rolled_back_at, null);
+              assert.equal(Number(row.applied_steps_count), 1);
+            }
+
+            const functions = await client.query(`
+              SELECT expected.identity,
+                     pg_catalog.encode(
+                       pg_catalog.sha256(pg_catalog.convert_to(p.prosrc, 'UTF8')),
+                       'hex'
+                     ) AS source_sha256,
+                     pg_catalog.pg_get_userbyid(p.proowner) AS owner,
+                     p.prosecdef AS security_definer,
+                     p.provolatile AS volatility,
+                     p.proparallel AS parallel_safety,
+                     'search_path=pg_catalog' = ANY(p.proconfig) AS fixed_search_path,
+                     pg_catalog.has_function_privilege(
+                       'grainline_app_runtime', p.oid, 'EXECUTE'
+                     ) AS runtime_execute,
+                     pg_catalog.has_function_privilege(
+                       'public', p.oid, 'EXECUTE'
+                     ) AS public_execute
+                FROM pg_catalog.unnest($1::text[]) AS expected(identity)
+                LEFT JOIN pg_catalog.pg_proc AS p
+                  ON p.oid = pg_catalog.to_regprocedure(expected.identity)
+            `, [[...expectedFunctions.keys()]]);
+            assert.equal(functions.rows.length, expectedFunctions.size);
+            for (const row of functions.rows) {
+              const expected = expectedFunctions.get(row.identity);
+              assert.ok(expected);
+              assert.equal(row.source_sha256, expected[0]);
+              assert.equal(row.owner, 'neondb_owner');
+              assert.equal(row.security_definer, true);
+              assert.equal(row.volatility, expected[1]);
+              assert.equal(row.parallel_safety, expected[2]);
+              assert.equal(row.fixed_search_path, true);
+              assert.equal(row.runtime_execute, true);
+              assert.equal(row.public_execute, false);
+            }
+
+            const orderPosture = await client.query(`
+              SELECT c.relrowsecurity AS rls_enabled,
+                     c.relforcerowsecurity AS force_enabled,
+                     pg_catalog.has_table_privilege(
+                       'grainline_app_runtime', c.oid, 'SELECT'
+                     ) AS runtime_select,
+                     pg_catalog.has_table_privilege(
+                       'grainline_app_runtime', c.oid, 'INSERT'
+                     ) AS runtime_insert,
+                     pg_catalog.has_table_privilege(
+                       'grainline_app_runtime', c.oid, 'UPDATE'
+                     ) AS runtime_update,
+                     pg_catalog.has_table_privilege(
+                       'grainline_app_runtime', c.oid, 'DELETE'
+                     ) AS runtime_delete,
+                     (SELECT pg_catalog.count(*)::integer
+                        FROM pg_catalog.pg_policy AS policy
+                       WHERE policy.polrelid = c.oid) AS policy_count
+                FROM pg_catalog.pg_class AS c
+               WHERE c.oid = 'public."Order"'::pg_catalog.regclass
+            `);
+            assert.deepEqual(orderPosture.rows, [{
+              rls_enabled: true,
+              force_enabled: false,
+              runtime_select: false,
+              runtime_insert: false,
+              runtime_update: false,
+              runtime_delete: false,
+              policy_count: 0,
+            }]);
+            process.stdout.write(
+              'Order Case corrections applied: exact ledgers, functions, grants, and Order posture\n',
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Verify final Prisma migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
