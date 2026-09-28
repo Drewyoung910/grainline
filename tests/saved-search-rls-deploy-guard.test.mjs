@@ -3948,6 +3948,7 @@ describe("SavedSearch RLS production deploy guard", () => {
         orderCaseCorrectionsProductionDeployment,
       "codex/order-smoke-post-enable-admission-20260928":
         orderSmokePostEnableAdmissionDeployment,
+      "codex/order-label-shippo-email-20260928": orderLabelShippoEmailDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -4090,6 +4091,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderSmokePostEnableAdmissionDeployment,
       false,
       "the exact post-ENABLE Order smoke admission branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderLabelShippoEmailDeployment,
+      false,
+      "the exact Order Shippo sender-email review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,
