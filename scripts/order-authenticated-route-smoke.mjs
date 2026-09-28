@@ -53,6 +53,7 @@ export const ORDER_FIXTURE_SHIP_FROM = Object.freeze({
   state: "TX",
   postalCode: "78701",
   country: "US",
+  phone: "+15125550123",
 });
 export const ORDER_FIXTURE_SHIP_TO = Object.freeze({
   name: "Grainline Route Canary",
@@ -1166,6 +1167,7 @@ export function assertSeededOrderFixtureSnapshot(snapshot, state) {
     shipFromState: ORDER_FIXTURE_SHIP_FROM.state,
     shipFromPostal: ORDER_FIXTURE_SHIP_FROM.postalCode,
     shipFromCountry: ORDER_FIXTURE_SHIP_FROM.country,
+    shipFromPhone: ORDER_FIXTURE_SHIP_FROM.phone,
   });
   assert.deepEqual(sellers.get(ids.receiptSellerProfileId), {
     id: ids.receiptSellerProfileId,
@@ -1184,6 +1186,7 @@ export function assertSeededOrderFixtureSnapshot(snapshot, state) {
     shipFromState: ORDER_FIXTURE_SHIP_FROM.state,
     shipFromPostal: ORDER_FIXTURE_SHIP_FROM.postalCode,
     shipFromCountry: ORDER_FIXTURE_SHIP_FROM.country,
+    shipFromPhone: ORDER_FIXTURE_SHIP_FROM.phone,
   });
 
   const listings = uniqueRowsById(snapshot?.listings, 3, "Listing");
@@ -1335,7 +1338,7 @@ async function captureSeededOrderFixtureSnapshot(owner, state) {
              "acceptingNewOrders", "onboardingComplete", "chargesEnabled",
              "stripeAccountId", "useCalculatedShipping", "shipFromName",
              "shipFromLine1", "shipFromCity", "shipFromState", "shipFromPostal",
-             "shipFromCountry"
+             "shipFromCountry", "shipFromPhone"
         FROM public."SellerProfile" WHERE id = ANY($1::text[]) ORDER BY id
     `, [[ids.canarySellerProfileId, ids.receiptSellerProfileId]]);
   const listings = await owner.query(`
@@ -1410,16 +1413,16 @@ export async function seedOrderFixtures(owner, state) {
       INSERT INTO public."SellerProfile" (
         id, "userId", "displayName", "displayNameNormalized", "shipFromName",
         "shipFromLine1", "shipFromCity", "shipFromState", "shipFromPostal",
-        "shipFromCountry", "defaultPkgWeightGrams", "defaultPkgLengthCm",
+        "shipFromCountry", "shipFromPhone", "defaultPkgWeightGrams", "defaultPkgLengthCm",
         "defaultPkgWidthCm", "defaultPkgHeightCm", "vacationMode",
         "acceptingNewOrders", "onboardingComplete", "createdAt", "updatedAt"
       ) VALUES
         ($1, $2, 'Grainline Route Canary Shop', 'grainline route canary shop',
-         $5, $6, $7, $8, $9, $10,
+         $5, $6, $7, $8, $9, $10, $11,
          500, 10, 10, 10, true, false, false,
          pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()),
         ($3, $4, 'Disposable Receipt Shop', 'disposable receipt shop',
-         $5, $6, $7, $8, $9, $10,
+         $5, $6, $7, $8, $9, $10, $11,
          500, 10, 10, 10, true, false, false,
          pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())
       ON CONFLICT (id) DO NOTHING
@@ -1434,6 +1437,7 @@ export async function seedOrderFixtures(owner, state) {
       ORDER_FIXTURE_SHIP_FROM.state,
       ORDER_FIXTURE_SHIP_FROM.postalCode,
       ORDER_FIXTURE_SHIP_FROM.country,
+      ORDER_FIXTURE_SHIP_FROM.phone,
     ]);
     const listingIds = [ids.labelListingId, ids.fulfillmentListingId, ids.receiptListingId];
     const sellerIds = [

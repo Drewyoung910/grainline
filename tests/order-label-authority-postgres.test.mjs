@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { buildOrderLabelClawbackClock, orderLabelClawbackClockDefinition } from "../scripts/build-order-label-clawback-clock.mjs";
@@ -18,6 +18,11 @@ const deauthorizationCorrection = readFileSync(
   "prisma/migrations/20260926012100_correct_order_seller_deauthorization_label/migration.sql",
   "utf8",
 );
+const senderContactCorrectionPath =
+  "prisma/migrations/20260928020000_correct_order_label_sender_contact/migration.sql";
+const senderContactCorrection = existsSync(senderContactCorrectionPath)
+  ? readFileSync(senderContactCorrectionPath, "utf8")
+  : null;
 
 async function createLabelDatabase({ corrected }) {
   const database = new PGlite();
@@ -166,6 +171,68 @@ async function asRuntime(database, sql, params = []) {
 for (const corrected of [false, true]) {
 describe(`Order label fixed authority in PostgreSQL (${corrected ? "corrected draft" : "historical"})`, () => {
   const createDatabase = (options = {}) => createLabelDatabase({ corrected, ...options });
+  if (senderContactCorrection !== null) it("requires and returns the physical seller's valid shipping phone", async () => {
+    const database = await createDatabase();
+    try {
+      await database.exec(deauthorizationCorrection);
+      await database.exec(senderContactCorrection);
+
+      const missing = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-1', 'order-1'
+        ) AS result
+      `);
+      assert.deepEqual(missing.rows[0].result, {
+        outcome: "conflict",
+        reason: "address_missing",
+      });
+
+      await assert.rejects(
+        () => database.exec(`UPDATE public."SellerProfile"
+          SET "shipFromPhone" = '512-555-0123' WHERE id = 'seller-1'`),
+        /SellerProfile_shipFromPhone_e164_check/,
+      );
+      await database.exec(`UPDATE public."SellerProfile"
+        SET "shipFromPhone" = '+15125550123' WHERE id = 'seller-1'`);
+      const ready = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-1', 'order-1'
+        ) AS result
+      `);
+      assert.equal(ready.rows[0].result.outcome, "ready");
+      assert.equal(ready.rows[0].result.shipFrom.phone, "+15125550123");
+
+      const delimiter = "$grainline_order_seller_label_preflight$";
+      const expectedSource = senderContactCorrection.slice(
+        senderContactCorrection.indexOf(`AS ${delimiter}`) + `AS ${delimiter}`.length,
+        senderContactCorrection.indexOf(`${delimiter};`, senderContactCorrection.indexOf(`AS ${delimiter}`) + 1),
+      );
+      const source = await database.query(`SELECT prosrc FROM pg_catalog.pg_proc
+        WHERE oid = 'public.grainline_order_seller_label_preflight(text,text)'::regprocedure`);
+      assert.equal(source.rows[0].prosrc, expectedSource);
+
+      const privileges = await database.query(`SELECT
+        has_function_privilege('public',
+          'public.grainline_order_seller_label_preflight(text,text)', 'EXECUTE') AS public_execute,
+        has_function_privilege('grainline_app_runtime',
+          'public.grainline_order_seller_label_preflight(text,text)', 'EXECUTE') AS runtime_execute`);
+      assert.deepEqual(privileges.rows, [{ public_execute: false, runtime_execute: true }]);
+
+      const constraint = await database.query(`SELECT convalidated,
+        pg_catalog.pg_get_constraintdef(oid) AS definition
+        FROM pg_catalog.pg_constraint
+        WHERE conrelid = 'public."SellerProfile"'::regclass
+          AND conname = 'SellerProfile_shipFromPhone_e164_check'`);
+      assert.equal(constraint.rows.length, 1);
+      assert.equal(constraint.rows[0].convalidated, true);
+      assert.match(
+        constraint.rows[0].definition,
+        /shipFromPhone.*\^\[\+\]\[1-9\]\[0-9\]\{7,14\}\$/,
+      );
+    } finally {
+      await database.close();
+    }
+  });
   it("keeps label preflight, quote, and claim blocked by the durable deauthorization witness", async () => {
     const database = await createDatabase();
     try {

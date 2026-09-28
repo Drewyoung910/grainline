@@ -58,6 +58,7 @@ async function createDatabase() {
       "shipFromState" varchar(50),
       "shipFromPostal" varchar(20),
       "shipFromCountry" varchar(2) DEFAULT 'US',
+      "shipFromPhone" varchar(30),
       "defaultPkgWeightGrams" integer,
       "defaultPkgLengthCm" double precision,
       "defaultPkgWidthCm" double precision,
@@ -205,6 +206,7 @@ test("raw authenticated Order fixture SQL is valid, exact and restart-safe", asy
     const labelAddresses = await database.query(`
       SELECT seller."shipFromLine1" AS from_line1, seller."shipFromCity" AS from_city,
              seller."shipFromState" AS from_state, seller."shipFromPostal" AS from_postal,
+             seller."shipFromPhone" AS from_phone,
              purchase."shipToLine1" AS to_line1, purchase."shipToCity" AS to_city,
              purchase."shipToState" AS to_state, purchase."shipToPostalCode" AS to_postal
         FROM public."Order" AS purchase
@@ -216,6 +218,7 @@ test("raw authenticated Order fixture SQL is valid, exact and restart-safe", asy
       from_city: ORDER_FIXTURE_SHIP_FROM.city,
       from_state: ORDER_FIXTURE_SHIP_FROM.state,
       from_postal: ORDER_FIXTURE_SHIP_FROM.postalCode,
+      from_phone: ORDER_FIXTURE_SHIP_FROM.phone,
       to_line1: ORDER_FIXTURE_SHIP_TO.line1,
       to_city: ORDER_FIXTURE_SHIP_TO.city,
       to_state: ORDER_FIXTURE_SHIP_TO.state,

@@ -163,6 +163,7 @@ describe("account export privacy coverage", () => {
       "shipFromState",
       "shipFromPostal",
       "shipFromCountry",
+      "shipFromPhone",
     ]) {
       assert.match(schema, new RegExp(`${field}\\s+String\\?`), `schema must retain ${field}`);
       assert.match(sellerSelect, new RegExp(`${field}: true`), `account export must select ${field}`);

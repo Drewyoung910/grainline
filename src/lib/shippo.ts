@@ -10,20 +10,9 @@ const SHIPPO_API_KEY = requiredProductionEnv("SHIPPO_API_KEY");
 const SHIPPO_BASE = "https://api.goshippo.com";
 // Shippo requires a sender email before it will purchase a label. The platform
 // support address satisfies that provider contract without disclosing a
-// seller's personal account email.
+// seller's personal account email. The sender phone remains seller-owned.
 const SHIPPO_LABEL_SENDER_EMAIL = "support@thegrainline.com";
 const ISO_CURRENCY_CODE = /^[A-Z]{3}$/i;
-const E164_PHONE = /^\+[1-9]\d{7,14}$/;
-
-export function shippoLabelSenderPhone(
-  value = requiredProductionEnv("SHIPPO_LABEL_SENDER_PHONE"),
-) {
-  const phone = value.trim();
-  if (!E164_PHONE.test(phone)) {
-    throw new Error("SHIPPO_LABEL_SENDER_PHONE must be a valid E.164 phone number");
-  }
-  return phone;
-}
 
 export function shippoCredentialTestMode(apiKey = SHIPPO_API_KEY) {
   if (apiKey.startsWith("shippo_test_")) return true;
@@ -46,6 +35,8 @@ type Address = {
   zip: string;
   country: string; // "US"
 };
+
+type SenderAddress = Address & { phone: string };
 
 type Parcel = {
   weight: { value: number; unit: "g" };
@@ -119,7 +110,7 @@ export async function shippoRequest<T = unknown>(
 
 // Your existing multi-piece rating helper (kept as-is)
 export async function shippoRatesMultiPiece(opts: {
-  from: Address;
+  from: SenderAddress;
   to: Address;
   parcels: Parcel[];
 }) {
@@ -129,7 +120,7 @@ export async function shippoRatesMultiPiece(opts: {
     address_from: {
       name: from.name,
       email: SHIPPO_LABEL_SENDER_EMAIL,
-      phone: shippoLabelSenderPhone(),
+      phone: from.phone,
       street1: from.street1,
       street2: from.street2,
       city: from.city,

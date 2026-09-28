@@ -3950,6 +3950,8 @@ describe("SavedSearch RLS production deploy guard", () => {
         orderSmokePostEnableAdmissionDeployment,
       "codex/order-label-shippo-email-20260928": orderLabelShippoEmailDeployment,
       "codex/order-shippo-sender-phone-20260928": orderShippoSenderPhoneDeployment,
+      "codex/order-seller-ship-from-phone-20260928":
+        orderSellerShipFromPhoneDeployment,
       "codex/order-main-catchup-20260922": orderCatchupDeployment,
       "codex/r2-github-consumer-integration-20260921": r2ConsumerProofDeployment,
       "codex/r2-private-health-20260921": r2PrivateHealthDeployment,
@@ -4102,6 +4104,11 @@ describe("SavedSearch RLS production deploy guard", () => {
       orderShippoSenderPhoneDeployment,
       false,
       "the exact Order Shippo sender-phone review branch must remain deployment-disabled",
+    );
+    assert.equal(
+      orderSellerShipFromPhoneDeployment,
+      false,
+      "the exact Order seller ship-from phone review branch must remain deployment-disabled",
     );
     assert.equal(
       orderCatchupDeployment,

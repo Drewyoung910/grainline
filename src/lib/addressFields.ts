@@ -1,6 +1,7 @@
 import { sanitizeText, sanitizeUserName, truncateText } from "./sanitize.ts";
 
 const ADDRESS_LINE_BREAKS = /[\r\n\u0085\u2028\u2029]+/g;
+const E164_PHONE = /^\+[1-9]\d{7,14}$/;
 
 export function sanitizeAddressField(value: string, maxLength: number) {
   return truncateText(
@@ -24,6 +25,16 @@ export function sanitizeAddressName(value: string, maxLength = 100) {
     sanitizeAddressField(value, maxLength),
     maxLength,
   );
+}
+
+export function isE164Phone(value: string) {
+  return E164_PHONE.test(value);
+}
+
+export function sanitizeOptionalE164Phone(value: string | null | undefined) {
+  if (!value) return null;
+  const phone = sanitizeAddressField(value, 30);
+  return phone || null;
 }
 
 export type CheckoutShippingAddressInput = {

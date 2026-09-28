@@ -17,6 +17,7 @@ export default function SellerShipFromAddressFields({
     shipFromState?: string | null;
     shipFromPostal?: string | null;
     shipFromCountry?: string | null;
+    shipFromPhone?: string | null;
   };
 }) {
   const [line1, setLine1] = useState(defaults.shipFromLine1 ?? "");
@@ -96,6 +97,21 @@ export default function SellerShipFromAddressFields({
           onChange={(event) => setCountry(event.target.value.toUpperCase().slice(0, 2))}
           className={inputClass}
         />
+        <div>
+          <input
+            name="shipFromPhone"
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
+            placeholder="Shipping phone (for labels)"
+            defaultValue={defaults.shipFromPhone ?? ""}
+            className={inputClass}
+            aria-describedby="ship-from-phone-help"
+          />
+          <p id="ship-from-phone-help" className="mt-1 text-xs text-neutral-500">
+            Required to buy carrier labels. Use international format, for example +15125550123.
+          </p>
+        </div>
       </div>
     </div>
   );

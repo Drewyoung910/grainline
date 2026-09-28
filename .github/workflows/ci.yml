@@ -83,6 +83,22 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order label sender-contact correction source package
+        run: >-
+          node --test
+          tests/order-label-sender-contact.test.mjs
+          tests/order-label-sender-contact-production-workflow.test.mjs
+          tests/order-label-authority-postgres.test.mjs
+      - name: Isolate Order label sender-contact correction until predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            prisma/migrations/20260928020000_correct_order_label_sender_contact \
+            "$RUNNER_TEMP/order-label-sender-contact-correction"
+          mv \
+            tests/order-label-sender-contact.test.mjs \
+            "$RUNNER_TEMP/order-label-sender-contact.test.mjs"
       - name: Verify Order deauthorized Case-access correction source package
         run: >-
           node --test
@@ -1848,5 +1864,26 @@ jobs:
         env:
           CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           ORDER_DEAUTHORIZED_CASE_ACCESS_EXPECTED: "1"
+      - name: Restore Order label sender-contact correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-label-sender-contact-correction" \
+            prisma/migrations/20260928020000_correct_order_label_sender_contact
+          mv \
+            "$RUNNER_TEMP/order-label-sender-contact.test.mjs" \
+            tests/order-label-sender-contact.test.mjs
+      - name: Re-verify Order label sender-contact correction source package
+        run: >-
+          node --test
+          tests/order-label-sender-contact.test.mjs
+          tests/order-label-sender-contact-production-workflow.test.mjs
+          tests/order-label-authority-postgres.test.mjs
+      - name: Apply only Order label sender-contact correction in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20260928020000_correct_order_label_sender_contact/migration.sql
       - name: Production build
         run: npm run build
