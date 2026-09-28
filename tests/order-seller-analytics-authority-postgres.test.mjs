@@ -12,7 +12,8 @@ const compositionCorrection = readFileSync(
   "utf8",
 );
 const sellerBuyerEmailProjectionMigration = readFileSync(
-  "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
+  process.env.ORDER_SELLER_BUYER_EMAIL_PROJECTION_MIGRATION_PATH
+    ?? "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
   "utf8",
 );
 

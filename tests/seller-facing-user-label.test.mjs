@@ -41,7 +41,8 @@ describe("seller-facing user labels", () => {
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
     const recentSalesRoute = source("src/app/api/seller/analytics/recent-sales/route.ts");
     const sellerProjection = source(
-      "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
+      process.env.ORDER_SELLER_BUYER_EMAIL_PROJECTION_MIGRATION_PATH
+        ?? "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
     );
     const analyticsPage = source("src/app/dashboard/analytics/page.tsx");
 

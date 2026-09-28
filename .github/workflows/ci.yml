@@ -83,6 +83,24 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order seller buyer-email projection source package
+        run: >-
+          node --test
+          tests/seller-facing-user-label.test.mjs
+          tests/order-participant-detail-authority-postgres.test.mjs
+          tests/order-seller-analytics-authority-postgres.test.mjs
+          tests/order-seller-buyer-email-projection-production-workflow.test.mjs
+      - name: Isolate Order seller buyer-email projection until predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          correction="$RUNNER_TEMP/order-seller-buyer-email-projection"
+          mv \
+            prisma/migrations/20260928213000_remove_seller_buyer_email_projection \
+            "$correction"
+          echo \
+            "ORDER_SELLER_BUYER_EMAIL_PROJECTION_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Verify Order label sender-contact correction source package
         run: >-
           node --test
@@ -1885,5 +1903,27 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20260928020000_correct_order_label_sender_contact/migration.sql
+      - name: Restore Order seller buyer-email projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-seller-buyer-email-projection" \
+            prisma/migrations/20260928213000_remove_seller_buyer_email_projection
+          echo \
+            "ORDER_SELLER_BUYER_EMAIL_PROJECTION_MIGRATION_PATH=prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql" \
+            >> "$GITHUB_ENV"
+      - name: Re-verify Order seller buyer-email projection source package
+        run: >-
+          node --test
+          tests/seller-facing-user-label.test.mjs
+          tests/order-participant-detail-authority-postgres.test.mjs
+          tests/order-seller-analytics-authority-postgres.test.mjs
+          tests/order-seller-buyer-email-projection-production-workflow.test.mjs
+      - name: Apply only Order seller buyer-email projection in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql
       - name: Production build
         run: npm run build

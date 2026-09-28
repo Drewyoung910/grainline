@@ -6,6 +6,7 @@ const workflow = readFileSync(
   ".github/workflows/order-seller-buyer-email-projection-production.yml",
   "utf8",
 );
+const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 
 test("buyer-email projection production workflow is manual, exact-main and Production-bound", () => {
   assert.match(workflow, /workflow_dispatch:/);
@@ -34,4 +35,37 @@ test("postflight proves both email-free projections, grants, overlap and unchang
   assert.doesNotMatch(workflow, /provision-runtime-db-role\.sql/);
   assert.doesNotMatch(workflow, /ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/i);
+});
+
+test("CI isolates the projection during historical proofs and restores it after predecessors", () => {
+  const verify = ciWorkflow.indexOf(
+    "Verify Order seller buyer-email projection source package",
+  );
+  const isolate = ciWorkflow.indexOf(
+    "Isolate Order seller buyer-email projection until predecessors pass",
+  );
+  const historical = ciWorkflow.indexOf(
+    "Verify compatible Order checkout receipt authority release",
+  );
+  const labelApply = ciWorkflow.indexOf(
+    "Apply only Order label sender-contact correction in disposable PostgreSQL",
+  );
+  const restore = ciWorkflow.indexOf(
+    "Restore Order seller buyer-email projection",
+  );
+  const projectionApply = ciWorkflow.indexOf(
+    "Apply only Order seller buyer-email projection in disposable PostgreSQL",
+  );
+  const build = ciWorkflow.indexOf("Production build");
+
+  assert.ok(verify > 0 && verify < isolate);
+  assert.ok(isolate < historical);
+  assert.ok(historical < labelApply);
+  assert.ok(labelApply < restore);
+  assert.ok(restore < projectionApply);
+  assert.ok(projectionApply < build);
+  assert.match(
+    ciWorkflow,
+    /ORDER_SELLER_BUYER_EMAIL_PROJECTION_MIGRATION_PATH=\$correction\/migration\.sql/,
+  );
 });
