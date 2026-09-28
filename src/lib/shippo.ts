@@ -13,6 +13,17 @@ const SHIPPO_BASE = "https://api.goshippo.com";
 // seller's personal account email.
 const SHIPPO_LABEL_SENDER_EMAIL = "support@thegrainline.com";
 const ISO_CURRENCY_CODE = /^[A-Z]{3}$/i;
+const E164_PHONE = /^\+[1-9]\d{7,14}$/;
+
+export function shippoLabelSenderPhone(
+  value = requiredProductionEnv("SHIPPO_LABEL_SENDER_PHONE"),
+) {
+  const phone = value.trim();
+  if (!E164_PHONE.test(phone)) {
+    throw new Error("SHIPPO_LABEL_SENDER_PHONE must be a valid E.164 phone number");
+  }
+  return phone;
+}
 
 export function shippoCredentialTestMode(apiKey = SHIPPO_API_KEY) {
   if (apiKey.startsWith("shippo_test_")) return true;
@@ -118,6 +129,7 @@ export async function shippoRatesMultiPiece(opts: {
     address_from: {
       name: from.name,
       email: SHIPPO_LABEL_SENDER_EMAIL,
+      phone: shippoLabelSenderPhone(),
       street1: from.street1,
       street2: from.street2,
       city: from.city,
