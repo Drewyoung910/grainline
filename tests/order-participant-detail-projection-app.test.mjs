@@ -14,8 +14,18 @@ test("buyer and seller detail pages use the fixed participant projections", () =
     assert.doesNotMatch(source, /prisma\.order|listingSnapshot|readHistoricalOrderItemSnapshot/u, label);
     assert.match(source, /it\.listingLinkAvailable/u, label);
   }
-  assert.match(authority, /grainline_order_buyer_detail_v3/u);
+  assert.match(authority, /grainline_order_buyer_detail_v4/u);
   assert.match(authority, /grainline_order_seller_detail_v4/u);
+  assert.match(buyer, /deliveryPassed \|\| order\.deauthorizedCaseAccess/u);
+  assert.match(buyer, /!order\.caseOpenLabelBlocked/u);
+  assert.match(
+    buyer,
+    /order\.deauthorizedCaseAccess && status === "PENDING"/u,
+  );
+  assert.match(
+    buyer,
+    /!deauthorizedPendingCaseAccess && isOrderCaseWindowClosed\(order, now\)/u,
+  );
   assert.doesNotMatch(state, /labelUrl|label_url/u);
   assert.doesNotMatch(authority, /FROM public\.grainline_order_(?:buyer|seller)_detail\(/u);
   assert.match(state, /buyer purge boundary is inconsistent/u);

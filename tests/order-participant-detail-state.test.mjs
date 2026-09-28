@@ -28,6 +28,8 @@ function baseRow() {
     shipping_carrier: null,
     shipping_service: null,
     review_needed: false,
+    deauthorized_case_access: false,
+    case_open_label_blocked: false,
     gift_note: null,
     gift_wrapping: false,
     gift_wrapping_price_cents: null,
@@ -56,6 +58,8 @@ describe("Order participant detail state", () => {
   it("maps buyer and seller rows into bounded application values", () => {
     const buyer = buyerOrderDetailFromRows([{ ...baseRow(), seller_user_id: "seller-user-1" }]);
     assert.equal(buyer?.currency, "usd");
+    assert.equal(buyer?.deauthorizedCaseAccess, false);
+    assert.equal(buyer?.caseOpenLabelBlocked, false);
     assert.equal(buyer?.items[0].snapshot.title, "Purchased item");
 
     const seller = sellerOrderDetailFromRows([{
@@ -74,10 +78,13 @@ describe("Order participant detail state", () => {
       label_purchased_at_epoch_millis: null,
     }]);
     assert.equal(seller?.buyerName, "Buyer");
-    assert.equal(
-      buyerOrderDetailFromRows([{ ...baseRow(), seller_user_id: null }])?.sellerUserId,
-      null,
-    );
+    const unavailableSeller = buyerOrderDetailFromRows([{
+      ...baseRow(),
+      deauthorized_case_access: true,
+      seller_user_id: null,
+    }]);
+    assert.equal(unavailableSeller?.deauthorizedCaseAccess, true);
+    assert.equal(unavailableSeller?.sellerUserId, null);
   });
 
   it("fails closed on purge, contact, and stale-label boundary drift", () => {

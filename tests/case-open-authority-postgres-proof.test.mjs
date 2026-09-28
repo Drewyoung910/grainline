@@ -62,10 +62,13 @@ describe("Case-open authority PostgreSQL proof", () => {
       "runtime_private_ledger_select_denied",
       "runtime_private_ledger_delete_denied",
       "proveReviewOverride",
+      "proveDeauthorizedCaseAccess",
+      "deauthorized_active_label_rejected",
       "waitForLock",
       "wait_event_type, \"Lock\"",
       "proveRollback",
-      "checks: 19",
+      "deauthorizedExpiredOrder",
+      "checks: 22",
     ]) {
       assert.match(proof, new RegExp(check), check);
     }

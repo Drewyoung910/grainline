@@ -29,6 +29,9 @@ const ids = Object.freeze({
   labelOrder: `${PREFIX}-order-label`,
   futureOrder: `${PREFIX}-order-future`,
   reviewNeededOrder: `${PREFIX}-order-review-needed`,
+  deauthorizedOrder: `${PREFIX}-order-deauthorized`,
+  deauthorizedExpiredOrder: `${PREFIX}-order-deauthorized-expired`,
+  deauthorizedLabelOrder: `${PREFIX}-order-deauthorized-label`,
   expiredOrder: `${PREFIX}-order-expired`,
   malformedReplayOrder: `${PREFIX}-order-malformed-replay`,
   concurrencyOrder: `${PREFIX}-order-concurrency`,
@@ -178,6 +181,7 @@ async function seedOrder(
     labelStatus = null,
     paid = true,
     reviewNeeded = false,
+    sellerDeauthorized = false,
   } = {},
 ) {
   const estimatedExpression =
@@ -203,7 +207,9 @@ async function seedOrder(
       "labelStatus",
       "estimatedDeliveryDate",
       "deliveredAt",
-      "reviewNeeded"
+      "reviewNeeded",
+      "sellerDeauthorizedAt",
+      "sellerDeauthorizationEventId"
     )
     VALUES (
       $1,
@@ -217,7 +223,9 @@ async function seedOrder(
       $5::public."LabelStatus",
       ${estimatedExpression},
       ${deliveredExpression},
-      $6
+      $6,
+      ${sellerDeauthorized ? "CURRENT_TIMESTAMP" : "NULL"},
+      $7
     )
   `, [
     orderId,
@@ -226,6 +234,7 @@ async function seedOrder(
     fulfillmentStatus,
     labelStatus,
     reviewNeeded,
+    sellerDeauthorized ? "evt_case_open_deauthorized_proof" : null,
   ]);
   await client.query(`
     INSERT INTO public."OrderItem" (
@@ -256,6 +265,25 @@ async function seedFixtures(client) {
       estimated: "future",
       fulfillmentStatus: "PENDING",
       reviewNeeded: true,
+    });
+    await seedOrder(client, ids.deauthorizedOrder, {
+      estimated: "future",
+      fulfillmentStatus: "PENDING",
+      reviewNeeded: false,
+      sellerDeauthorized: true,
+    });
+    await seedOrder(client, ids.deauthorizedExpiredOrder, {
+      estimated: "expired",
+      fulfillmentStatus: "PENDING",
+      reviewNeeded: false,
+      sellerDeauthorized: true,
+    });
+    await seedOrder(client, ids.deauthorizedLabelOrder, {
+      estimated: "future",
+      fulfillmentStatus: "PENDING",
+      labelStatus: "PURCHASED",
+      reviewNeeded: false,
+      sellerDeauthorized: true,
     });
     await seedOrder(client, ids.expiredOrder, {
       estimated: "expired",
@@ -520,6 +548,26 @@ async function proveReviewOverride(runtime) {
   assert.equal(result.orderId, ids.reviewNeededOrder);
 }
 
+async function proveDeauthorizedCaseAccess(runtime) {
+  await expectRuntimeError(
+    runtime,
+    "deauthorized_active_label_rejected",
+    "SELECT public.grainline_case_open($1, $2, $3, $4)",
+    [ids.buyer, ids.deauthorizedLabelOrder, "OTHER", DESCRIPTION],
+    /label purchase is active/,
+  );
+  const future = await openCase(runtime, ids.buyer, ids.deauthorizedOrder);
+  assert.equal(future.action, "created");
+  assert.equal(future.orderId, ids.deauthorizedOrder);
+  const expired = await openCase(
+    runtime,
+    ids.buyer,
+    ids.deauthorizedExpiredOrder,
+  );
+  assert.equal(expired.action, "created");
+  assert.equal(expired.orderId, ids.deauthorizedExpiredOrder);
+}
+
 async function proveMalformedReplayAuditRejected(observer, runtime) {
   const created = await openCase(
     runtime,
@@ -670,6 +718,7 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
     await proveInputAndSourceDenials(runtime);
     await proveCreateAndReplay(observer, runtime);
     await proveReviewOverride(runtime);
+    await proveDeauthorizedCaseAccess(runtime);
     await proveMalformedReplayAuditRejected(observer, runtime);
     await provePrivateLedgerDenied(runtime);
     await proveConcurrentOpen(observer, first, second);
@@ -699,7 +748,7 @@ export async function runCaseOpenAuthorityPostgresProof(env = process.env) {
       audit_count: 0,
     });
     return Object.freeze({
-      checks: 19,
+      checks: 22,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

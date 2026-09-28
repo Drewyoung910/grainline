@@ -25,7 +25,7 @@ export async function readBuyerOrderDetail(
   const orderId = normalizedOrderId(orderIdInput);
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
     SELECT *
-      FROM public.grainline_order_buyer_detail_v3(${actorUserId}, ${orderId})
+      FROM public.grainline_order_buyer_detail_v4(${actorUserId}, ${orderId})
   `);
   return buyerOrderDetailFromRows(rows);
 }

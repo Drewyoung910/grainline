@@ -176,11 +176,15 @@ export default async function BuyerOrderDetailPage({
   const terminalStatuses = ["DELIVERED", "PICKED_UP"];
   const isTerminal = terminalStatuses.includes(status);
   const caseWindowClosedAt = caseWindowClosesAt(order);
-  const caseWindowClosed = isOrderCaseWindowClosed(order, now);
+  const deauthorizedPendingCaseAccess =
+    order.deauthorizedCaseAccess && status === "PENDING";
+  const caseWindowClosed =
+    !deauthorizedPendingCaseAccess && isOrderCaseWindowClosed(order, now);
   const deliveryPassed =
     isTerminal || (order.estimatedDeliveryDate != null && order.estimatedDeliveryDate < now);
   const canOpenCase =
-    deliveryPassed &&
+    (deliveryPassed || order.deauthorizedCaseAccess) &&
+    !order.caseOpenLabelBlocked &&
     !caseWindowClosed &&
     !activeCase &&
     !hasRefund;
