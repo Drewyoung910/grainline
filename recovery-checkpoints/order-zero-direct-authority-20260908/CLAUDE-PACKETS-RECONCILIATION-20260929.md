@@ -22,14 +22,15 @@ states without first satisfying the admin PIN challenge.
 
 ## Source and release anchors
 
-- Public main, confirmed by remote readback:
+- Public main after the reviewed merge, confirmed by remote readback:
+  `dedca7d9fd7b7f7c64587af688c922d11ae44192`.
+- Merged PR #477 exact head/base:
+  `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b` /
   `19e0cece5a72d86df2b22c739f70bb6fb36d1656`.
-- Public PR #477 branch, confirmed by remote readback:
-  `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`.
 - Corrected #115 recovery branch:
   `recovery/order-item-quote-runtime-lock-ae4f332b-20260929`.
-- The #115 head changes only that release family relative to exact main;
-  all other source conclusions below refer to main-equivalent files.
+- PR #477 changes only the #115 release family relative to its exact base; all
+  other source conclusions below refer to main-equivalent files.
 
 ## Disposition matrix
 
@@ -99,9 +100,10 @@ CHECK. It belongs in a separate migration from #115.
 
 ## Release frontier
 
-Do not widen #115. Its exact public head is in deployment-disabled PR #477 and
-still needs the running full-CI gate, conditional merge, and a separately
-guarded Production migration before Core Order FORCE.
+Do not widen #115. Exact-head checks passed and PR #477 merged as exact merge
+commit `dedca7d9fd7b7f7c64587af688c922d11ae44192`. It still needs successful
+merged-main CI and a separately guarded Production migration before Core Order
+FORCE.
 
 The #122 Order-adjacent correctness patch and #120 staff-session
 confidentiality patch are already prepared on separate private branches. Keep
@@ -160,16 +162,17 @@ queue for independent verification and fixes, with #124, #134, #135, #146,
 
 ### #115 runtime lock
 
-The public PR is now exact head
+The public PR used exact head
 `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`. Earlier full CI reached the late
 historical ENABLE replay and found that a prior test intentionally dropped the
 disposable `grainline_staff_read_runtime` role. The exact correction recreates
 that restricted role and runs the existing staff-role provisioner immediately
-before the accepted ENABLE replay. The three specialized checks pass on the
-exact head; full CI run `36636202493` remains the conditional-merge gate. The
-head is backed up at exact private branch
-`recovery/order-item-quote-runtime-lock-ae4f332b-20260929`. It is public in
-draft PR #477 but is not merged or applied to Production at this checkpoint.
+before the accepted ENABLE replay. All four checks passed on that exact head,
+including full CI run `36636202493`. PR #477 merged as exact main commit
+`dedca7d9fd7b7f7c64587af688c922d11ae44192`; merged-main CI run `36638383343`
+is in progress. The head remains backed up at exact private branch
+`recovery/order-item-quote-runtime-lock-ae4f332b-20260929`. The migration is not
+applied to Production at this checkpoint.
 
 ### #120 staff preview PIN boundary
 

@@ -13,9 +13,10 @@ its accepted runtime postflight.
 
 ## Immediate predecessor: item and shipping-quote runtime lock
 
-Public draft PR #477 carries exact head
-`ae4f332ba93758d21c2e75fd5824bf4dfc7b067b` against exact main
-`19e0cece5a72d86df2b22c739f70bb6fb36d1656`. Its change stages only migration
+Merged PR #477 carried exact head
+`ae4f332ba93758d21c2e75fd5824bf4dfc7b067b` against exact base
+`19e0cece5a72d86df2b22c739f70bb6fb36d1656` and produced exact main merge
+commit `dedca7d9fd7b7f7c64587af688c922d11ae44192`. Its change stages only migration
 `20260929130000_revoke_order_item_shipping_quote_runtime_access` and its
 guarded Production workflow, plus the audit/provisioning contracts required to
 keep those grants closed after application. The head is privately recoverable
@@ -63,9 +64,10 @@ asserts that this restoration occurs between the final predecessor and ENABLE.
 Eleven focused runtime-lock/ENABLE assertions pass, workflow formatting passes,
 and `git diff --check` passes. It is privately recoverable as exact remote branch
 `recovery/order-item-quote-runtime-lock-ae4f332b-20260929`; it is the exact
-public PR #477 head. All three specialized checks pass, and full CI run
-`36636202493` is still running. The Production migration has not been authorized
-or applied.
+public PR #477 head. All four checks passed, including exact-head full CI run
+`36636202493`, and the PR merged. Merged-main CI run `36638383343` is in
+progress on exact commit `dedca7d9`. The Production migration has not been
+authorized or applied.
 
 ## Prepared FORCE source
 
@@ -125,12 +127,10 @@ The FORCE commit is not public, merged, or applied to Production.
 
 ## Exact forward sequence
 
-1. The approved exact head
-   `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b` is published to PR #477. If its
-   fourth check passes against unchanged public main `19e0cece`, make the PR
-   ready and merge that exact head as a merge commit under the existing exact
-   conditional authorization.
-2. Require successful merged-main CI, then bind one explicit Production
+1. Complete: exact head `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`
+   passed all four checks and merged through PR #477 as exact main commit
+   `dedca7d9fd7b7f7c64587af688c922d11ae44192`.
+2. Require successful merged-main CI run `36638383343`, then bind one explicit Production
    runtime-lock dispatch to the exact merge, exact CI run, and exact currently
    live deployment. Apply no other migration.
 3. Rebase the prepared FORCE source onto that exact main/result, re-run only
