@@ -153,11 +153,24 @@ jobs:
                AND pg_catalog.pg_get_userbyid(acl.grantee) <> 'grainline_app_runtime'
              ORDER BY relation.relname, grantee, acl.privilege_type`;
           const columnGrantsSql = `
-            SELECT table_name, column_name, grantee, privilege_type, is_grantable
-              FROM information_schema.column_privileges
-             WHERE table_schema = 'public' AND table_name = ANY($1::text[])
-               AND grantee = ANY(ARRAY['PUBLIC', 'grainline_app_runtime'])
-             ORDER BY table_name, column_name, grantee, privilege_type`;
+            SELECT relation.relname AS table_name,
+                   attribute.attname AS column_name,
+                   CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
+                        ELSE pg_catalog.pg_get_userbyid(acl.grantee) END AS grantee,
+                   acl.privilege_type, acl.is_grantable
+              FROM pg_catalog.pg_class AS relation
+              JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = relation.relnamespace
+              JOIN pg_catalog.pg_attribute AS attribute
+                ON attribute.attrelid = relation.oid
+              CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+             WHERE namespace.nspname = 'public'
+               AND relation.relname = ANY($1::text[])
+               AND attribute.attnum > 0
+               AND NOT attribute.attisdropped
+               AND (acl.grantee = 0 OR
+                    pg_catalog.pg_get_userbyid(acl.grantee) = 'grainline_app_runtime')
+             ORDER BY relation.relname, attribute.attname, grantee, acl.privilege_type`;
           const postureSql = `
             SELECT relation.relname AS table_name,
                    pg_catalog.pg_get_userbyid(relation.relowner) AS owner,

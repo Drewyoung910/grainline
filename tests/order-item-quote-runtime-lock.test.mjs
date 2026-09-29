@@ -156,6 +156,14 @@ test("Production workflow admits only the exact latest reviewed migration", () =
 });
 
 test("Production postflight closes only target grants and preserves Order authority posture", () => {
+  assert.match(
+    productionWorkflow,
+    /Capture restart state and unchanged Order authority posture[\s\S]*pg_catalog\.aclexplode\(attribute\.attacl\)[\s\S]*assert\.deepEqual\(columnGrants\.rows, \[\]\)/u,
+  );
+  assert.match(
+    productionWorkflow,
+    /Read back exact ledger, closed grants, and unchanged authority posture[\s\S]*information_schema\.column_privileges[\s\S]*assert\.deepEqual\(columnGrants\.rows, \[\]\)/u,
+  );
   assert.match(productionWorkflow, /assert\.deepEqual\(\(await client\.query\(grantsSql\)\)\.rows, \[\]\)/u);
   assert.match(productionWorkflow, /assert\.deepEqual\(\(await client\.query\(unrelatedGrantsSql\)\)\.rows,[\s\S]*before\.unrelatedGrants\)/u);
   assert.match(productionWorkflow, /assert\.deepEqual\(\(await client\.query\(definitionsSql\)\)\.rows,[\s\S]*before\.definitions\)/u);
