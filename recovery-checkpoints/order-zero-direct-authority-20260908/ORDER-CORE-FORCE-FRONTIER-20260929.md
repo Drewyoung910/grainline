@@ -122,6 +122,25 @@ predecessor before this private FORCE source can be published.
 
 The FORCE commit is not public, merged, or applied to Production.
 
+### Runtime-lock preflight correction integration
+
+Merged-main CI `36638383343` completed successfully on `dedca7d9`. The first
+approved Production runtime-lock run `36641938086` failed safely before SQL
+because its preflight used `information_schema.column_privileges` to detect
+explicit column grants; that view repeated the expected table-level grants for
+every column. Exact correction commit
+`2152b46d7dc9b81ca92abec7754a6671cb599269` now inspects
+`pg_attribute.attacl` directly in preflight while retaining the effective
+postflight access check. It is draft PR #478 and is privately backed up.
+
+The FORCE successor has also been integrated on top of that exact correction
+at private commit `5a9c469f7e7f80d6a7e3ce91d8080e76882cbd0a`, backed up at
+`recovery/order-core-force-with-column-acl-fix-5a9c469f-20260929`. Seventeen
+focused runtime-lock/FORCE assertions, the FORCE release verifier, workflow
+formatting, migration checksum, and `git diff --check` pass. The FORCE
+migration bytes remain unchanged. This integrated successor is still private
+and has not been merged or applied.
+
 ## Exact forward sequence
 
 1. Complete: exact head `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`
