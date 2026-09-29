@@ -29,6 +29,10 @@ test("Core Order ENABLE and FORCE remain separate staged posture releases", () =
   assert.match(activation, /child_count <> 2/);
   assert.match(force, /^ALTER TABLE public\."Order" FORCE ROW LEVEL SECURITY;$/m);
   assert.doesNotMatch(force, /^REVOKE\b|^ALTER TABLE public\."Order" ENABLE/m);
+  assert.match(force, /runtime_role\.rolbypassrls/);
+  assert.match(force, /NOT owner_role\.rolbypassrls/);
+  assert.match(force, /owner-session drain is incomplete/);
+  assert.match(force, /runtime role retains unreviewed role membership/);
   assert.deepEqual(readdirSync("prisma/migrations").filter((name) =>
     /_(?:enable|force)_order_rls$/.test(name)), [
     "20260927090000_enable_order_rls",
@@ -46,6 +50,9 @@ test("Core Order rollback drafts reverse one posture at a time", () => {
   }
   assert.match(forceRollback, /^ALTER TABLE public\."Order" NO FORCE ROW LEVEL SECURITY;$/m);
   assert.doesNotMatch(forceRollback, /^GRANT\b|^ALTER TABLE public\."Order" DISABLE/m);
+  assert.match(forceRollback, /runtime_role\.rolbypassrls/);
+  assert.match(forceRollback, /NOT owner_role\.rolbypassrls/);
+  assert.match(forceRollback, /owner-session drain is incomplete/);
   assert.match(activationRollback, /^ALTER TABLE public\."Order" DISABLE ROW LEVEL SECURITY;$/m);
   assert.match(activationRollback, /^GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public\."Order"\s+TO grainline_app_runtime;$/m);
   assert.match(activationRollback, /child_count <> 2/);
