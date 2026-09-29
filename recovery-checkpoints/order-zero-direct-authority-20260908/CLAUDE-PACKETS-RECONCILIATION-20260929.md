@@ -203,3 +203,18 @@ targeted ESLint passed, `tsc --noEmit` passed, Prisma schema validation passed,
 and `git diff --check` passed. Historical paid-order snapshots are deliberately
 unchanged; any existing extreme promise inspection or remediation is a separate
 data decision and must not silently rewrite a buyer's recorded order terms.
+
+### #124 blocked-checkout pre-provider refund retry
+
+An isolated two-file source fix now preserves the staff-review record and then
+rethrows a blocked-checkout refund failure when no provider outcome exists.
+This keeps the signed Stripe delivery retryable instead of allowing the event
+to be finalized after a local lock-release or claim failure without a refund
+attempt. Provider calls that lack a conclusive refund identifier retain the
+existing ambiguous-outcome fence and are not blindly retried.
+
+Exact local commit `9f58d206e927ddd23292d2ec8fe2a54242dcb0fa` is backed up at
+private branch
+`recovery/order-blocked-refund-retry-9f58d206-20260929`; it is not public,
+merged, or deployed. Thirty-five focused assertions, targeted ESLint,
+`tsc --noEmit`, and `git diff --check` passed on the exact tree.
