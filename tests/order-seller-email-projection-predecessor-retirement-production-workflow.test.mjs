@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { verifyOrderEmailFreeDeploymentSurface } from "../scripts/verify-order-email-free-deployment-surface.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/order-seller-email-projection-predecessor-retirement-production.yml",
@@ -18,10 +19,70 @@ test("retirement workflow is manual, exact-main, live-deployment and Production-
   assert.match(workflow, /group: production-database-migrations/);
   assert.match(workflow, /main\.commit\.sha !== sha[\s\S]*run\.head_sha !== sha[\s\S]*run\.conclusion !== 'success'/);
   assert.match(workflow, /Verify exact email-free deployment is live before revoking overlap grants/);
-  assert.match(workflow, /dpl=\$\{deploymentId\}/);
-  assert.match(workflow, /grainline-git-main-drew-youngs-projects\.vercel\.app/);
-  assert.match(workflow, /redirect\.status, 308/);
-  assert.match(workflow, /healthBody\.ok, true/);
+  assert.match(workflow, /node scripts\/verify-order-email-free-deployment-surface\.mjs/);
+});
+
+function fakeDeploymentSurfaceFetch({ deploymentId, mutate } = {}) {
+  return async (input) => {
+    const request = new URL(input);
+    let response;
+    if (request.hostname === "thegrainline.com" && request.pathname === "/api/health") {
+      response = Response.json({ ok: true });
+    } else if (["thegrainline.com", "grainline.vercel.app"].includes(request.hostname)) {
+      response = new Response(`<meta content="dpl=${deploymentId}">`, {
+        status: 200,
+      });
+    } else if (request.hostname === "www.thegrainline.com") {
+      response = new Response(null, {
+        status: 308,
+        headers: { location: "https://thegrainline.com/" },
+      });
+    } else if (request.hostname === "grainline-drew-youngs-projects.vercel.app" ||
+               request.hostname === "grainline-git-main-drew-youngs-projects.vercel.app") {
+      const redirect = new URL("https://vercel.com/sso-api");
+      redirect.searchParams.set("url", request.toString());
+      redirect.searchParams.set("nonce", "a".repeat(64));
+      response = new Response("protected", {
+        status: 302,
+        headers: { location: redirect.toString(), server: "Vercel" },
+      });
+    } else {
+      throw new Error(`Unexpected deployment-surface request: ${request}`);
+    }
+    return mutate ? mutate({ request, response }) : response;
+  };
+}
+
+test("live deployment guard accepts public markers and exact protected-alias SSO redirects", async () => {
+  const deploymentId = "dpl_A12345678901234567890123";
+  await verifyOrderEmailFreeDeploymentSurface({
+    deploymentId,
+    cacheBuster: 1234,
+    fetchImpl: fakeDeploymentSurfaceFetch({ deploymentId }),
+  });
+});
+
+test("live deployment guard rejects a protected alias redirect for another target", async () => {
+  const deploymentId = "dpl_A12345678901234567890123";
+  await assert.rejects(
+    verifyOrderEmailFreeDeploymentSurface({
+      deploymentId,
+      cacheBuster: 1234,
+      fetchImpl: fakeDeploymentSurfaceFetch({
+        deploymentId,
+        mutate: ({ request, response }) => {
+          if (request.hostname !== "grainline-drew-youngs-projects.vercel.app") return response;
+          const redirect = new URL(response.headers.get("location"));
+          redirect.searchParams.set("url", "https://unreviewed.example/");
+          return new Response("protected", {
+            status: 302,
+            headers: { location: redirect.toString(), server: "Vercel" },
+          });
+        },
+      }),
+    }),
+    /grainline-drew-youngs-projects\.vercel\.app/,
+  );
 });
 
 test("workflow admits only the exact checksummed latest retirement migration", () => {
