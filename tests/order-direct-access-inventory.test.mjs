@@ -26,7 +26,8 @@ function directRelationFiles(delegate, relation) {
     "u",
   );
   const rawRelationAccess = new RegExp(
-    `(?:FROM|JOIN|UPDATE|INTO)\\s+(?:public\\.)?"${relation}"(?:\\s|$)`,
+    `(?:DELETE\\s+FROM|FROM|JOIN|UPDATE|INTO)\\s+` +
+      `(?:(?:public\\.)|(?:"public"\\.))?"${relation}"(?:\\s|$)`,
     "u",
   );
   return sourceFiles(SOURCE_ROOT)
