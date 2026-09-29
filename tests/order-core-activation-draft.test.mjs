@@ -30,9 +30,13 @@ test("Core Order ENABLE and FORCE remain separate staged posture releases", () =
   assert.match(force, /^ALTER TABLE public\."Order" FORCE ROW LEVEL SECURITY;$/m);
   assert.doesNotMatch(force, /^REVOKE\b|^ALTER TABLE public\."Order" ENABLE/m);
   assert.match(force, /runtime_role\.rolbypassrls/);
+  assert.match(force, /staff_role\.rolbypassrls/);
   assert.match(force, /NOT owner_role\.rolbypassrls/);
   assert.match(force, /owner-session drain is incomplete/);
   assert.match(force, /runtime role retains unreviewed role membership/);
+  assert.match(force, /staff role retains unreviewed role membership/);
+  assert.match(force, /accepted_child_count <> 2/);
+  assert.match(force, /requires the accepted item\/quote runtime lock/);
   assert.deepEqual(readdirSync("prisma/migrations").filter((name) =>
     /_(?:enable|force)_order_rls$/.test(name)), [
     "20260927090000_enable_order_rls",
