@@ -37,6 +37,11 @@ const sellerBuyerEmailProjectionMigration = readFileSync(
     ?? "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql",
   "utf8",
 );
+const sellerBuyerEmailProjectionRetirement = readFileSync(
+  process.env.ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION_PATH
+    ?? "prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql",
+  "utf8",
+);
 
 function migrationFunction(source, functionName, createMarker = "CREATE FUNCTION") {
   const marker = `${createMarker} public.${functionName}(`;
@@ -257,6 +262,18 @@ async function createDatabase() {
     GRANT EXECUTE ON FUNCTION public.grainline_order_seller_detail_v5(text, text)
       TO grainline_app_runtime;
   `);
+  for (const identity of [
+    "grainline_order_seller_detail_v2(text, text)",
+    "grainline_order_seller_detail_v3(text, text)",
+    "grainline_order_seller_detail_v4(text, text)",
+  ]) {
+    assert.match(
+      sellerBuyerEmailProjectionRetirement,
+      new RegExp(`REVOKE EXECUTE ON FUNCTION public\\.${identity.replace(/[()]/g, "\\$&")}\\s+FROM grainline_app_runtime`),
+    );
+    await database.exec(`REVOKE EXECUTE ON FUNCTION public.${identity}
+      FROM grainline_app_runtime`);
+  }
   return database;
 }
 
@@ -500,11 +517,8 @@ describe("Order participant detail authority", () => {
       );
       for (const identity of [
         "grainline_order_buyer_detail_v2(text,text)",
-        "grainline_order_seller_detail_v2(text,text)",
         "grainline_order_buyer_detail_v3(text,text)",
         "grainline_order_buyer_detail_v4(text,text)",
-        "grainline_order_seller_detail_v3(text,text)",
-        "grainline_order_seller_detail_v4(text,text)",
         "grainline_order_seller_detail_v5(text,text)",
         "grainline_order_buyer_receipts_by_sessions(text,text[])",
       ]) {
@@ -530,6 +544,9 @@ describe("Order participant detail authority", () => {
       for (const identity of [
         "grainline_order_buyer_detail(text,text)",
         "grainline_order_seller_detail(text,text)",
+        "grainline_order_seller_detail_v2(text,text)",
+        "grainline_order_seller_detail_v3(text,text)",
+        "grainline_order_seller_detail_v4(text,text)",
       ]) {
         const privileges = await database.query(`
           SELECT pg_catalog.has_function_privilege(

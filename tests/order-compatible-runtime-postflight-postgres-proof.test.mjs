@@ -25,6 +25,18 @@ describe("Order compatible runtime postflight PostgreSQL proof", () => {
     const grants = index("Converge historical Order compatibility runtime grants");
     const historical = index("Prove Order compatible postflight through the runtime login");
     assert.ok(restore < apply && apply < grants && grants < historical);
+    const grantStep = workflow.slice(
+      workflow.indexOf("- name: Converge historical Order compatibility runtime grants"),
+      workflow.indexOf("- name: Prove Order compatible postflight through the runtime login"),
+    );
+    assert.match(grantStep, /historical=986540254b58ade0611ad5ee94dc794919d84f49/);
+    assert.match(grantStep, /expected_blob=0c7883050e75ea4fa927f7f6891700a0a9d31c6a/);
+    assert.match(
+      grantStep,
+      /git show "\$\{historical\}:scripts\/provision-runtime-db-role\.sql" > "\$provision"/,
+    );
+    assert.match(grantStep, /--file="\$provision"/);
+    assert.doesNotMatch(grantStep, /--file=scripts\/provision-runtime-db-role\.sql/);
     for (const successor of [
       "Restore additive Case and Order correctness release",
       "Restore Order staff charged-total correction",

@@ -83,6 +83,17 @@ const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
 const ORDER_STAFF_CAPABILITY_MIGRATION =
   "20260905100000_prepare_order_ban_review_authority";
+export const ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION =
+  "20260928220000_retire_seller_buyer_email_projection_predecessors";
+export const ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION_SHA256 =
+  "3a1f173fac0293ec05c43b44e9cd2a6895dcdd47effce55236e7e7c7a55fb799";
+export const ORDER_SELLER_EMAIL_PROJECTION_RETIRED_RUNTIME_FUNCTION_NAMES =
+  Object.freeze([
+    "grainline_order_seller_detail_v2",
+    "grainline_order_seller_detail_v3",
+    "grainline_order_seller_detail_v4",
+    "grainline_order_seller_recent_sales",
+  ]);
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -361,11 +372,14 @@ export function runtimePrivateFunctionNames(inventory) {
     inventory?.checkoutStockReservationSourceCutoverApplied === true;
   const orderPaymentEventActivated =
     orderPaymentEventRlsActivationExpected(inventory);
+  const sellerEmailProjectionRetirementApplied =
+    inventory?.orderSellerEmailProjectionRetirementApplied === true;
   if (
     !directUploadActivated
     && !reservationActivated
     && !reservationSourceCutoverApplied
     && !orderPaymentEventActivated
+    && !sellerEmailProjectionRetirementApplied
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -385,6 +399,9 @@ export function runtimePrivateFunctionNames(inventory) {
       ? ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       )
+      : []),
+    ...(sellerEmailProjectionRetirementApplied
+      ? ORDER_SELLER_EMAIL_PROJECTION_RETIRED_RUNTIME_FUNCTION_NAMES
       : []),
   ]);
 }
@@ -418,6 +435,39 @@ export async function readCheckoutStockReservationSourceCutoverState(client) {
     applied: exact,
     issues: Object.freeze(exact ? [] : [
       "CheckoutStockReservation source-cutover migration ledger is partial or drifted",
+    ]),
+  });
+}
+
+export async function readOrderSellerEmailProjectionRetirementState(client) {
+  const relation = await client.query(
+    "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
+  );
+  if (relation.rows[0]?.migration_table === null) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+
+  const result = await client.query(
+    `SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+       FROM public._prisma_migrations
+      WHERE migration_name = $1`,
+    [ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION],
+  );
+  if (result.rows.length === 0) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+
+  const row = result.rows[0];
+  const exact = result.rows.length === 1
+    && row.checksum === ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION_SHA256
+    && row.finished_at !== null
+    && row.finished_at !== undefined
+    && row.rolled_back_at === null
+    && Number(row.applied_steps_count) === 1;
+  return Object.freeze({
+    applied: exact,
+    issues: Object.freeze(exact ? [] : [
+      "Order seller email-projection retirement migration ledger is partial or drifted",
     ]),
   });
 }
@@ -1698,10 +1748,15 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   const reservationSourceCutover =
     await readCheckoutStockReservationSourceCutoverState(client);
   issues.push(...reservationSourceCutover.issues);
+  const sellerEmailProjectionRetirement =
+    await readOrderSellerEmailProjectionRetirementState(client);
+  issues.push(...sellerEmailProjectionRetirement.issues);
   const liveAuthorityInventory = {
     ...inventory,
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,
+    orderSellerEmailProjectionRetirementApplied:
+      sellerEmailProjectionRetirement.applied,
   };
 
   const roleResult = await client.query(
