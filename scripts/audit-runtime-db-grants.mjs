@@ -87,6 +87,14 @@ export const ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION =
   "20260928220000_retire_seller_buyer_email_projection_predecessors";
 export const ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION_SHA256 =
   "3a1f173fac0293ec05c43b44e9cd2a6895dcdd47effce55236e7e7c7a55fb799";
+export const ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION =
+  "20260929130000_revoke_order_item_shipping_quote_runtime_access";
+export const ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_SHA256 =
+  "32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99";
+export const ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLES = Object.freeze([
+  "OrderItem",
+  "OrderShippingRateQuote",
+]);
 export const ORDER_SELLER_EMAIL_PROJECTION_RETIRED_RUNTIME_FUNCTION_NAMES =
   Object.freeze([
     "grainline_order_seller_detail_v2",
@@ -272,6 +280,9 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
 ]);
 
 const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);
+const ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLE_NAME_SET = new Set(
+  ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLES,
+);
 const POLICYLESS_SERVICE_RLS_TABLE_NAME_SET = new Set(
   POLICYLESS_SERVICE_RLS_TABLES,
 );
@@ -468,6 +479,39 @@ export async function readOrderSellerEmailProjectionRetirementState(client) {
     applied: exact,
     issues: Object.freeze(exact ? [] : [
       "Order seller email-projection retirement migration ledger is partial or drifted",
+    ]),
+  });
+}
+
+export async function readOrderItemQuoteRuntimeLockState(client) {
+  const relation = await client.query(
+    "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
+  );
+  if (relation.rows[0]?.migration_table === null) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+
+  const result = await client.query(
+    `SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+       FROM public._prisma_migrations
+      WHERE migration_name = $1`,
+    [ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION],
+  );
+  if (result.rows.length === 0) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+
+  const row = result.rows[0];
+  const exact = result.rows.length === 1
+    && row.checksum === ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_SHA256
+    && row.finished_at !== null
+    && row.finished_at !== undefined
+    && row.rolled_back_at === null
+    && Number(row.applied_steps_count) === 1;
+  return Object.freeze({
+    applied: exact,
+    issues: Object.freeze(exact ? [] : [
+      "Order item/quote runtime-lock migration ledger is partial or drifted",
     ]),
   });
 }
@@ -1344,6 +1388,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
   if (
     RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)
     || (
+      ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLE_NAME_SET.has(tableName)
+      && inventory?.orderItemQuoteRuntimeLockApplied === true
+    )
+    || (
       CASE_ACTIVATION_TABLE_NAME_SET.has(tableName)
       && caseRlsActivationExpected(inventory)
     )
@@ -1751,12 +1799,16 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   const sellerEmailProjectionRetirement =
     await readOrderSellerEmailProjectionRetirementState(client);
   issues.push(...sellerEmailProjectionRetirement.issues);
+  const orderItemQuoteRuntimeLock =
+    await readOrderItemQuoteRuntimeLockState(client);
+  issues.push(...orderItemQuoteRuntimeLock.issues);
   const liveAuthorityInventory = {
     ...inventory,
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,
     orderSellerEmailProjectionRetirementApplied:
       sellerEmailProjectionRetirement.applied,
+    orderItemQuoteRuntimeLockApplied: orderItemQuoteRuntimeLock.applied,
   };
 
   const roleResult = await client.query(
@@ -1955,8 +2007,14 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       .map((table) => `missing expected table ${table}`),
   );
   for (const row of tableResult.rows) {
-    const requiredPrivileges = requiredRuntimeTablePrivileges(row.table_name, inventory);
-    const requiredColumnPrivileges = requiredRuntimeColumnPrivileges(row.table_name, inventory);
+    const requiredPrivileges = requiredRuntimeTablePrivileges(
+      row.table_name,
+      liveAuthorityInventory,
+    );
+    const requiredColumnPrivileges = requiredRuntimeColumnPrivileges(
+      row.table_name,
+      liveAuthorityInventory,
+    );
     issues.push(...collectMissingPrivileges([row], "table_name", requiredPrivileges));
     issues.push(
       ...collectTablePrivilegeAllowlistIssues(row, `table ${row.table_name}`, {

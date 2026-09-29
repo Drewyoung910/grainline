@@ -83,6 +83,22 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order item and quote runtime-lock source package
+        run: >-
+          node --test
+          tests/order-item-quote-runtime-lock.test.mjs
+          tests/order-direct-access-inventory.test.mjs
+      - name: Isolate Order item and quote runtime lock until its predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          correction="$RUNNER_TEMP/order-item-quote-runtime-lock"
+          mv \
+            prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access \
+            "$correction"
+          echo \
+            "ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Verify Order seller email-projection predecessor retirement source package
         run: >-
           node --test
@@ -1981,5 +1997,38 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql
+      - name: Restore Order item and quote runtime lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-item-quote-runtime-lock" \
+            prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access
+          echo \
+            "ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_PATH=prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access/migration.sql" \
+            >> "$GITHUB_ENV"
+      - name: Re-verify Order item and quote runtime-lock source package
+        run: >-
+          node --test
+          tests/order-item-quote-runtime-lock.test.mjs
+          tests/order-direct-access-inventory.test.mjs
+      - name: Apply only Order item and quote runtime lock in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access/migration.sql
+      - name: Record exact Order item and quote runtime lock in disposable ledger
+        run: >-
+          npx prisma migrate resolve
+          --applied 20260929130000_revoke_order_item_shipping_quote_runtime_access
+      - name: Converge runtime grants after Order item and quote runtime lock
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Audit locked Order item and quote runtime grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
