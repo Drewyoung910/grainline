@@ -2440,6 +2440,48 @@ SELECT format(
 -- Seller-private Order analytics bind every aggregate or recent-sale
 -- projection to SellerProfile.userId inside PostgreSQL. Keep PUBLIC closed and
 -- converge ordinary-runtime EXECUTE while predecessor table grants remain.
+-- Preserve the compatible predecessor overlap until the exact retirement is
+-- durably applied. Refuse a partial or checksum-drifted ledger row before
+-- changing any of these grants.
+WITH order_seller_email_projection_retirement_ledger AS (
+  SELECT
+    pg_catalog.count(*)::integer AS row_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = '3a1f173fac0293ec05c43b44e9cd2a6895dcdd47effce55236e7e7c7a55fb799'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count = 1
+    )::integer AS exact_count
+  FROM public._prisma_migrations
+  WHERE migration_name =
+    '20260928220000_retire_seller_buyer_email_projection_predecessors'
+), failure AS (
+  SELECT
+    'seller email-projection retirement ledger drifted; refusing runtime-role provisioning'
+      AS message
+  FROM order_seller_email_projection_retirement_ledger
+  WHERE row_count <> 0 AND (row_count <> 1 OR exact_count <> 1)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((
+    SELECT exact_count = 1
+    FROM order_seller_email_projection_retirement_ledger
+  ), false) AS grainline_seller_email_projection_retirement_applied;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_seller_email_projection_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_seller_email_projection_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
 WITH order_seller_analytics_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_seller_analytics_summary"(text, bigint, bigint, boolean)'),
@@ -2458,13 +2500,14 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
-WITH order_seller_analytics_authority(function_signature) AS (
+WITH order_seller_analytics_authority(function_signature, predecessor) AS (
   VALUES
-    ('public."grainline_order_seller_analytics_summary"(text, bigint, bigint, boolean)'),
-    ('public."grainline_order_seller_analytics_buckets"(text, bigint, bigint, boolean, text)'),
-    ('public."grainline_order_seller_analytics_top_listings"(text, bigint, bigint, boolean, boolean)'),
-    ('public."grainline_order_seller_recent_sales_v2"(text)'),
-    ('public."grainline_order_seller_completed_count"(text)')
+    ('public."grainline_order_seller_analytics_summary"(text, bigint, bigint, boolean)', false),
+    ('public."grainline_order_seller_analytics_buckets"(text, bigint, bigint, boolean, text)', false),
+    ('public."grainline_order_seller_analytics_top_listings"(text, bigint, bigint, boolean, boolean)', false),
+    ('public."grainline_order_seller_recent_sales"(text)', true),
+    ('public."grainline_order_seller_recent_sales_v2"(text)', false),
+    ('public."grainline_order_seller_completed_count"(text)', false)
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
@@ -2472,7 +2515,11 @@ SELECT format(
   :'runtime_role'
 )
   FROM order_seller_analytics_authority
- WHERE to_regprocedure(function_signature) IS NOT NULL;
+ WHERE to_regprocedure(function_signature) IS NOT NULL
+   AND (
+     NOT predecessor
+     OR NOT :'grainline_seller_email_projection_retirement_applied'::boolean
+   );
 \gexec
 
 -- Guild/service seller metrics expose only bounded aggregate facts. Seller
@@ -2594,13 +2641,16 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
-WITH order_participant_detail_projection_runtime(function_signature) AS (
+WITH order_participant_detail_projection_runtime(function_signature, predecessor) AS (
   VALUES
-    ('public."grainline_order_buyer_detail_v2"(text, text)'),
-    ('public."grainline_order_buyer_detail_v3"(text, text)'),
-    ('public."grainline_order_buyer_detail_v4"(text, text)'),
-    ('public."grainline_order_seller_detail_v5"(text, text)'),
-    ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')
+    ('public."grainline_order_buyer_detail_v2"(text, text)', false),
+    ('public."grainline_order_seller_detail_v2"(text, text)', true),
+    ('public."grainline_order_buyer_detail_v3"(text, text)', false),
+    ('public."grainline_order_buyer_detail_v4"(text, text)', false),
+    ('public."grainline_order_seller_detail_v3"(text, text)', true),
+    ('public."grainline_order_seller_detail_v4"(text, text)', true),
+    ('public."grainline_order_seller_detail_v5"(text, text)', false),
+    ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])', false)
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
@@ -2608,8 +2658,13 @@ SELECT format(
   :'runtime_role'
 )
   FROM order_participant_detail_projection_runtime
- WHERE to_regprocedure(function_signature) IS NOT NULL;
+ WHERE to_regprocedure(function_signature) IS NOT NULL
+   AND (
+     NOT predecessor
+     OR NOT :'grainline_seller_email_projection_retirement_applied'::boolean
+   );
 \gexec
+\unset grainline_seller_email_projection_retirement_applied
 
 -- Seller fulfillment, buyer receipt and seller-private notes are compatible
 -- fixed Order operations. They derive participant authority and state inside
