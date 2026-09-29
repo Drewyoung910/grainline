@@ -185,10 +185,33 @@ jobs:
           mv \
             tests/case-staff-refund-label-claim-correction.test.mjs \
             "$RUNNER_TEMP/case-staff-refund-label-claim-correction.test.mjs"
-      - name: Verify staged Core Order ENABLE source package
+      - name: Verify staged Core Order FORCE source package
         run: >-
           node --test
           tests/order-core-activation-draft.test.mjs
+          tests/order-core-force-release.test.mjs
+          tests/order-core-force-production-workflow.test.mjs
+          tests/order-core-rls-production-postflight.test.mjs
+          tests/order-core-rls-runtime-postflight.test.mjs
+      - name: Isolate Core Order FORCE until runtime-lock predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            prisma/migrations/20260929160000_force_order_rls \
+            "$RUNNER_TEMP/order-core-force-release"
+          mv \
+            tests/order-core-force-release.test.mjs \
+            "$RUNNER_TEMP/order-core-force-release.test.mjs"
+          mv \
+            tests/order-core-force-production-workflow.test.mjs \
+            "$RUNNER_TEMP/order-core-force-production-workflow.test.mjs"
+          mv \
+            tests/order-core-activation-draft.test.mjs \
+            "$RUNNER_TEMP/order-core-activation-draft.test.mjs"
+      - name: Verify staged Core Order ENABLE source package
+        run: >-
+          node --test
           tests/order-core-enable-production-workflow.test.mjs
           tests/order-core-enable-release.test.mjs
           tests/order-core-rls-production-postflight.test.mjs
@@ -1787,7 +1810,6 @@ jobs:
           holding="$RUNNER_TEMP/order-release-correction-tests"
           mkdir "$holding"
           for test_file in \
-            tests/order-core-activation-draft.test.mjs \
             tests/order-core-enable-production-workflow.test.mjs \
             tests/order-core-enable-release.test.mjs \
             tests/order-core-rls-production-postflight.test.mjs \
@@ -1837,7 +1859,6 @@ jobs:
           done
           rmdir "$holding"
           node --test \
-            tests/order-core-activation-draft.test.mjs \
             tests/order-core-enable-production-workflow.test.mjs \
             tests/order-core-enable-release.test.mjs \
             tests/order-core-rls-production-postflight.test.mjs \
@@ -2034,6 +2055,46 @@ jobs:
           --set=migration_role=ci
           --file=scripts/provision-runtime-db-role.sql
       - name: Audit locked Order item and quote runtime grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Core Order FORCE release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-core-force-release" \
+            prisma/migrations/20260929160000_force_order_rls
+          mv \
+            "$RUNNER_TEMP/order-core-force-release.test.mjs" \
+            tests/order-core-force-release.test.mjs
+          mv \
+            "$RUNNER_TEMP/order-core-force-production-workflow.test.mjs" \
+            tests/order-core-force-production-workflow.test.mjs
+          mv \
+            "$RUNNER_TEMP/order-core-activation-draft.test.mjs" \
+            tests/order-core-activation-draft.test.mjs
+      - name: Re-verify Core Order FORCE source package
+        run: >-
+          node --test
+          tests/order-core-activation-draft.test.mjs
+          tests/order-core-force-release.test.mjs
+          tests/order-core-force-production-workflow.test.mjs
+          tests/order-core-rls-production-postflight.test.mjs
+          tests/order-core-rls-runtime-postflight.test.mjs
+      - name: Stage only Core Order FORCE for Prisma
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260929160000_force_order_rls
+          isolated="$RUNNER_TEMP/order-core-force-prisma"
+          mkdir -p "$isolated/migrations"
+          cp prisma/schema.prisma "$isolated/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$isolated/migrations/migration_lock.toml"
+          cp -a "prisma/migrations/$migration" "$isolated/migrations/$migration"
+          test "$(find "$isolated/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 1
+          echo "ORDER_CORE_FORCE_PRISMA_SCHEMA=$isolated/schema.prisma" >> "$GITHUB_ENV"
+      - name: Apply only Core Order FORCE through Prisma
+        run: npx prisma migrate deploy --schema "$ORDER_CORE_FORCE_PRISMA_SCHEMA"
+      - name: Audit FORCE-hardened Core Order runtime grants
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
