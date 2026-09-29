@@ -1466,12 +1466,25 @@ jobs:
       - name: Apply historical Order compatibility prefix before successors
         run: npx prisma migrate deploy
       - name: Converge historical Order compatibility runtime grants
-        run: >-
-          psql "$DIRECT_URL"
-          --set=ON_ERROR_STOP=on
-          --set=runtime_role=grainline_app_runtime
-          --set=migration_role=ci
-          --file=scripts/provision-runtime-db-role.sql
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This proof seals the accepted historical compatibility catalog.
+          # Later provisioning revisions intentionally retire predecessor
+          # grants, so they must not rewrite this earlier proof boundary.
+          historical=986540254b58ade0611ad5ee94dc794919d84f49
+          expected_blob=0c7883050e75ea4fa927f7f6891700a0a9d31c6a
+          provision="$RUNNER_TEMP/order-compatible-historical-provision-runtime-db-role.sql"
+          git cat-file -e "$historical^{commit}"
+          git merge-base --is-ancestor "$historical" HEAD
+          test "$(git rev-parse "${historical}:scripts/provision-runtime-db-role.sql")" = "$expected_blob"
+          git show "${historical}:scripts/provision-runtime-db-role.sql" > "$provision"
+          test "$(git hash-object "$provision")" = "$expected_blob"
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --set=runtime_role=grainline_app_runtime \
+            --set=migration_role=ci \
+            --file="$provision"
       - name: Prove Order compatible postflight through the runtime login
         run: npm run audit:rls-order-compatible-runtime-postflight
         env:

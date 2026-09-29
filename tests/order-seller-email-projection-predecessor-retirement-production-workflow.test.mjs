@@ -55,6 +55,9 @@ test("CI holds retirement until the email-free successor has been applied", () =
   const successorApply = ciWorkflow.indexOf(
     "Apply only Order seller buyer-email projection in disposable PostgreSQL",
   );
+  const historicalProof = ciWorkflow.indexOf(
+    "Prove Order compatible postflight through the runtime login",
+  );
   const restore = ciWorkflow.indexOf(
     "Restore Order seller email-projection predecessor retirement",
   );
@@ -63,7 +66,8 @@ test("CI holds retirement until the email-free successor has been applied", () =
   );
   const build = ciWorkflow.indexOf("Production build");
   assert.ok(verify > 0 && verify < isolate);
-  assert.ok(isolate < successorApply);
+  assert.ok(isolate < historicalProof);
+  assert.ok(historicalProof < successorApply);
   assert.ok(successorApply < restore);
   assert.ok(restore < retirementApply);
   assert.ok(retirementApply < build);
