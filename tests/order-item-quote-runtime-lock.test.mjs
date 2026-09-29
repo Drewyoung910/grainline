@@ -17,6 +17,10 @@ const migration = readFileSync(
 );
 const provision = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
+const productionWorkflow = readFileSync(
+  ".github/workflows/order-item-quote-runtime-lock-production.yml",
+  "utf8",
+);
 
 test("runtime lock removes only direct OrderItem and quote table authority", () => {
   assert.match(
@@ -108,4 +112,83 @@ test("grant audit changes expectations only after an exact completed ledger row"
       "Order item/quote runtime-lock migration ledger is partial or drifted",
     ],
   });
+});
+
+test("Production runtime lock is manual, exact-main, live-deployment and review bound", () => {
+  assert.match(productionWorkflow, /workflow_dispatch:/u);
+  assert.match(productionWorkflow, /production_deployment_id:/u);
+  assert.match(
+    productionWorkflow,
+    /inputs\.confirmation == 'revoke-reviewed-order-item-quote-runtime-access'/u,
+  );
+  assert.match(productionWorkflow, /github\.ref == 'refs\/heads\/main'/u);
+  assert.match(productionWorkflow, /github\.run_attempt == 1/u);
+  assert.match(productionWorkflow, /environment: Production/u);
+  assert.match(productionWorkflow, /group: production-database-migrations/u);
+  assert.match(
+    productionWorkflow,
+    /main\.commit\.sha !== sha[\s\S]*run\.head_sha !== sha[\s\S]*run\.conclusion !== 'success'/u,
+  );
+  assert.match(
+    productionWorkflow,
+    /Verify exact zero-direct deployment is live before revoking table access[\s\S]*node scripts\/verify-order-email-free-deployment-surface\.mjs/u,
+  );
+});
+
+test("Production workflow admits only the exact latest reviewed migration", () => {
+  assert.match(
+    productionWorkflow,
+    new RegExp(
+      `${ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_SHA256}\\s+prisma/migrations/` +
+        `${ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION}/migration\\.sql`,
+      "u",
+    ),
+  );
+  assert.match(
+    productionWorkflow,
+    new RegExp(`latest.*${ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION}`, "u"),
+  );
+  assert.match(
+    productionWorkflow,
+    /Require every predecessor applied and no other pending migration[\s\S]*npx prisma migrate status[\s\S]*Apply only the reviewed Order item and quote runtime lock/u,
+  );
+});
+
+test("Production postflight closes only target grants and preserves Order authority posture", () => {
+  assert.match(productionWorkflow, /assert\.deepEqual\(\(await client\.query\(grantsSql\)\)\.rows, \[\]\)/u);
+  assert.match(productionWorkflow, /assert\.deepEqual\(\(await client\.query\(unrelatedGrantsSql\)\)\.rows,[\s\S]*before\.unrelatedGrants\)/u);
+  assert.match(productionWorkflow, /assert\.deepEqual\(\(await client\.query\(definitionsSql\)\)\.rows,[\s\S]*before\.definitions\)/u);
+  assert.match(productionWorkflow, /assert\.deepEqual\(\(await client\.query\(postureSql\)\)\.rows,[\s\S]*before\.posture\)/u);
+  assert.doesNotMatch(productionWorkflow, /ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/u);
+  assert.doesNotMatch(productionWorkflow, /vercel\s+(?:deploy|alias|promote)/iu);
+});
+
+test("CI holds the runtime lock until the seller-email retirement has passed", () => {
+  const verify = ciWorkflow.indexOf(
+    "Verify Order item and quote runtime-lock source package",
+  );
+  const isolate = ciWorkflow.indexOf(
+    "Isolate Order item and quote runtime lock until its predecessors pass",
+  );
+  const predecessorApply = ciWorkflow.indexOf(
+    "Apply only Order seller email-projection predecessor retirement in disposable PostgreSQL",
+  );
+  const restore = ciWorkflow.indexOf("Restore Order item and quote runtime lock");
+  const runtimeLockApply = ciWorkflow.indexOf(
+    "Apply only Order item and quote runtime lock in disposable PostgreSQL",
+  );
+  const grantAudit = ciWorkflow.indexOf(
+    "Audit locked Order item and quote runtime grants",
+  );
+  const build = ciWorkflow.indexOf("Production build");
+  assert.ok(verify > 0 && verify < isolate);
+  assert.ok(isolate < predecessorApply);
+  assert.ok(predecessorApply < restore);
+  assert.ok(restore < runtimeLockApply);
+  assert.ok(runtimeLockApply < grantAudit);
+  assert.ok(grantAudit < build);
+  assert.match(
+    ciWorkflow,
+    /ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_PATH=\$correction\/migration\.sql/u,
+  );
 });
