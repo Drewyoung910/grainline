@@ -48,8 +48,22 @@ database, then run the runtime-lock audit. Eighteen directly affected
 assertions pass, and it is privately recoverable as
 `recovery/order-item-quote-runtime-lock-8fca8d6f-20260929`. It is the exact
 public PR #477 head. Its three specialized checks have passed; exact-head full
-CI `36632606634` is still running with no observed failure. The Production
-migration has not been authorized or applied.
+CI `36632606634` passed the broad tests, security audit, and every database
+step through successor restoration, then failed at step 449 while replaying
+the accepted Core Order ENABLE migration. The preceding staff-login proof had
+correctly dropped its disposable staff role during cleanup, so ENABLE rejected
+the missing role identity. No product, migration, or Production assertion
+failed.
+
+A two-file CI-only correction is complete at local commit
+`ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`, tree
+`a64ceb9897abb341a0bba96af1285d0ea89d8096`. It recreates the exact restricted
+disposable staff identity, runs the existing staff grant provisioner, and
+asserts that this restoration occurs between the final predecessor and ENABLE.
+Eleven focused runtime-lock/ENABLE assertions pass, workflow formatting passes,
+and `git diff --check` passes. It is privately recoverable as exact remote branch
+`recovery/order-item-quote-runtime-lock-ae4f332b-20260929`; it is not yet public.
+The Production migration has not been authorized or applied.
 
 ## Prepared FORCE source
 
@@ -60,6 +74,9 @@ lineage and carrying both local CI corrections. It is privately backed up at
 exact remote branch
 `recovery/order-core-force-prefight-audit-20260929`; private remote readback
 matches the exact commit.
+
+This FORCE branch predates CI-only runtime-lock correction `ae4f332b` and must
+be rebased onto the exact merged runtime-lock main before publication.
 
 The successor:
 
@@ -106,10 +123,10 @@ The FORCE commit is not public, merged, or applied to Production.
 
 ## Exact forward sequence
 
-1. Finish exact-head full CI `36632606634` for public PR #477 head
-   `8fca8d6fe8be7b06dd7eb54146ab88a3feb20f43`. If all four checks pass against
-   unchanged public main `19e0cece`, make the PR ready and merge that exact head
-   as a merge commit under the user's existing exact conditional authorization.
+1. After explicit approval of corrected exact head
+   `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`, publish it to PR #477. If all four
+   checks pass against unchanged public main `19e0cece`, make the PR ready and
+   merge that exact head as a merge commit.
 2. Require successful merged-main CI, then bind one explicit Production
    runtime-lock dispatch to the exact merge, exact CI run, and exact currently
    live deployment. Apply no other migration.
