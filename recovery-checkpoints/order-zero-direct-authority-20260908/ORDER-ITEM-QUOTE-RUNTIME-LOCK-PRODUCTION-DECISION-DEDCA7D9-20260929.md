@@ -106,4 +106,3 @@ Once those conditions hold, the exact approval request is:
 > `32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99`, and
 > confirmation `revoke-reviewed-order-item-quote-runtime-access`. Apply no
 > other migration and do not enable Core Order FORCE.
-
