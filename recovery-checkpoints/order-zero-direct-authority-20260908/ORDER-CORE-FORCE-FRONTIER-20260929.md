@@ -172,6 +172,17 @@ unfinished implementation is publication and exact-head review of private
 candidate `217f98e7`, followed by its own merged-main CI and a separately bound
 protected FORCE dispatch.
 
+Exact candidate `217f98e781c95c2c8db916b25a338b877d08b7b4` is now published to
+public deployment-disabled branch
+`codex/order-core-force-c7c0c3a3-20260929`; public main remained exact
+`c7c0c3a3eed1a61d0ed55ce5f43fab9a13c49aa6` at publication. Automatic
+approval review rejected opening the prepared public draft PR because its
+description would disclose the FORCE migration, protected workflow, and
+internal release gates without a separately explicit disclosure approval. No
+PR was created and no FORCE Production action occurred. The next required
+input is exact approval for that public draft PR and its conditional
+exact-head merge; Production FORCE remains a later separately bound dispatch.
+
 ## Exact forward sequence
 
 1. Complete: exact head `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`
