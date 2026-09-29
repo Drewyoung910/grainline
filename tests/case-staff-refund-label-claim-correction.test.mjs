@@ -174,11 +174,14 @@ test("CI applies the current provider prerequisite and only this correction", ()
   const applyStart = ciWorkflow.indexOf(
     "Apply only Case refund label-claim correction in disposable PostgreSQL",
   );
-  const buildStart = ciWorkflow.indexOf("- name: Production build", applyStart);
+  const nextCorrectionStart = ciWorkflow.indexOf(
+    "Restore Order deauthorized Case-access correction",
+    applyStart,
+  );
   assert.ok(
     prerequisiteStart > 0
       && applyStart > prerequisiteStart
-      && buildStart > applyStart,
+      && nextCorrectionStart > applyStart,
   );
   const prerequisiteBlock = ciWorkflow.slice(prerequisiteStart, applyStart);
   assert.match(
@@ -187,7 +190,7 @@ test("CI applies the current provider prerequisite and only this correction", ()
   );
   assert.doesNotMatch(prerequisiteBlock, /prisma migrate deploy/u);
 
-  const correctionBlock = ciWorkflow.slice(applyStart, buildStart);
+  const correctionBlock = ciWorkflow.slice(applyStart, nextCorrectionStart);
   assert.match(
     correctionBlock,
     /psql "\$DIRECT_URL"[\s\S]*--set=ON_ERROR_STOP=on[\s\S]*--file=prisma\/migrations\/20260901161000_correct_case_staff_refund_label_claim\/migration\.sql/u,

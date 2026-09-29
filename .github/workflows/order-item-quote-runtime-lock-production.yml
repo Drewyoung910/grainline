@@ -1,0 +1,384 @@
+name: Order Item and Shipping Quote Runtime Lock Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      production_deployment_id:
+        description: Exact live zero-direct Order deployment
+        required: true
+        type: string
+      confirmation:
+        description: Type revoke-reviewed-order-item-quote-runtime-access
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Revoke direct Order item and shipping quote runtime access
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'revoke-reviewed-order-item-quote-runtime-access'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind runtime lock to exact live main and completed CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const deploymentId = process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '') ||
+                !/^dpl_[A-Za-z0-9]{20,64}$/.test(deploymentId ?? '')) {
+              throw new Error('Order item/quote runtime-lock binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Order item/quote runtime-lock main/CI readback drifted');
+            }
+      - name: Verify exact zero-direct deployment is live before revoking table access
+        env:
+          REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+        run: node scripts/verify-order-email-free-deployment-surface.mjs
+      - name: Verify exact runtime-lock source
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access"
+          echo "32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99  prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access/migration.sql" \
+            | sha256sum --check --status
+          node --test \
+            tests/order-item-quote-runtime-lock.test.mjs \
+            tests/order-direct-access-inventory.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture restart state and unchanged Order authority posture
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20260929130000_revoke_order_item_shipping_quote_runtime_access';
+          const checksum = '32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99';
+          const targets = ['OrderItem', 'OrderShippingRateQuote'];
+          const allTables = ['Order', ...targets];
+          const grantsSql = `
+            SELECT relation.relname AS table_name,
+                   CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
+                        ELSE pg_catalog.pg_get_userbyid(acl.grantee) END AS grantee,
+                   acl.privilege_type, acl.is_grantable
+              FROM pg_catalog.pg_class AS relation
+              CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+                relation.relacl,
+                pg_catalog.acldefault('r', relation.relowner)
+              )) AS acl
+             WHERE relation.oid = ANY(ARRAY[
+               'public."OrderItem"'::regclass,
+               'public."OrderShippingRateQuote"'::regclass
+             ])
+               AND (acl.grantee = 0 OR
+                    pg_catalog.pg_get_userbyid(acl.grantee) = 'grainline_app_runtime')
+             ORDER BY relation.relname, grantee, acl.privilege_type`;
+          const unrelatedGrantsSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(acl.grantee) AS grantee,
+                   acl.privilege_type, acl.is_grantable
+              FROM pg_catalog.pg_class AS relation
+              CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+                relation.relacl,
+                pg_catalog.acldefault('r', relation.relowner)
+              )) AS acl
+             WHERE relation.oid = ANY(ARRAY[
+               'public."OrderItem"'::regclass,
+               'public."OrderShippingRateQuote"'::regclass
+             ])
+               AND acl.grantee <> 0
+               AND pg_catalog.pg_get_userbyid(acl.grantee) <> 'grainline_app_runtime'
+             ORDER BY relation.relname, grantee, acl.privilege_type`;
+          const columnGrantsSql = `
+            SELECT table_name, column_name, grantee, privilege_type, is_grantable
+              FROM information_schema.column_privileges
+             WHERE table_schema = 'public' AND table_name = ANY($1::text[])
+               AND grantee = ANY(ARRAY['PUBLIC', 'grainline_app_runtime'])
+             ORDER BY table_name, column_name, grantee, privilege_type`;
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive, 'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname) FROM pg_catalog.pg_policy AS policy
+                     WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = ANY(ARRAY[
+               'public."Order"'::regclass,
+               'public."OrderItem"'::regclass,
+               'public."OrderShippingRateQuote"'::regclass
+             ])
+             ORDER BY relation.relname`;
+          const definitionsSql = `
+            SELECT procedure.oid::regprocedure::text AS identity,
+                   pg_catalog.pg_get_functiondef(procedure.oid) AS definition,
+                   pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                   procedure.provolatile, procedure.proparallel, procedure.prosecdef,
+                   procedure.proconfig,
+                   pg_catalog.pg_get_function_result(procedure.oid) AS result_type
+              FROM pg_catalog.pg_proc AS procedure
+              JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.proname LIKE 'grainline_order_%'
+             ORDER BY identity`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count FROM public._prisma_migrations WHERE migration_name = $1`, [migration]);
+            assert.ok(ledger.rows.length === 0 || ledger.rows.length === 1);
+            if (ledger.rows.length === 1) {
+              const row = ledger.rows[0];
+              assert.equal(row.checksum, checksum);
+              assert.ok(row.finished_at);
+              assert.equal(row.rolled_back_at, null);
+              assert.equal(Number(row.applied_steps_count), 1);
+            }
+            const grants = await client.query(grantsSql);
+            const expectedPending = targets.flatMap(tableName =>
+              ['DELETE', 'INSERT', 'SELECT', 'UPDATE'].map(privilegeType => ({
+                table_name: tableName,
+                grantee: 'grainline_app_runtime',
+                privilege_type: privilegeType,
+                is_grantable: false,
+              })));
+            assert.deepEqual(grants.rows, ledger.rows.length === 0 ? expectedPending : []);
+            const columnGrants = await client.query(columnGrantsSql, [targets]);
+            assert.deepEqual(columnGrants.rows, []);
+            const posture = await client.query(postureSql);
+            assert.equal(posture.rows.length, allTables.length);
+            const byTable = new Map(posture.rows.map(row => [row.table_name, row]));
+            assert.deepEqual(
+              [byTable.get('Order')?.rls_enabled, byTable.get('Order')?.force_enabled],
+              [true, false],
+            );
+            for (const tableName of targets) {
+              assert.deepEqual(
+                [byTable.get(tableName)?.rls_enabled, byTable.get(tableName)?.force_enabled],
+                [false, false],
+              );
+            }
+            for (const tableName of allTables) {
+              assert.equal(byTable.get(tableName)?.owner, 'neondb_owner');
+              assert.deepEqual(byTable.get(tableName)?.policies, []);
+            }
+            const definitions = await client.query(definitionsSql);
+            assert.ok(definitions.rows.length > 20);
+            const unrelatedGrants = await client.query(unrelatedGrantsSql);
+            writeFileSync(`${process.env.RUNNER_TEMP}/order-item-quote-runtime-lock-pre.json`,
+              JSON.stringify({
+                definitions: definitions.rows,
+                posture: posture.rows,
+                unrelatedGrants: unrelatedGrants.rows,
+              }), {mode: 0o600, flag: 'wx'});
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${ledger.rows.length === 0 ? 'pending' : 'applied'}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20260929130000_revoke_order_item_shipping_quote_runtime_access
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected Order item/quote runtime-lock migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed Order item and quote runtime lock
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger, closed grants, and unchanged authority posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20260929130000_revoke_order_item_shipping_quote_runtime_access';
+          const checksum = '32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99';
+          const targets = ['OrderItem', 'OrderShippingRateQuote'];
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/order-item-quote-runtime-lock-pre.json`, 'utf8'));
+          const grantsSql = `
+            SELECT relation.relname AS table_name,
+                   CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
+                        ELSE pg_catalog.pg_get_userbyid(acl.grantee) END AS grantee,
+                   acl.privilege_type, acl.is_grantable
+              FROM pg_catalog.pg_class AS relation
+              CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+                relation.relacl,
+                pg_catalog.acldefault('r', relation.relowner)
+              )) AS acl
+             WHERE relation.oid = ANY(ARRAY[
+               'public."OrderItem"'::regclass,
+               'public."OrderShippingRateQuote"'::regclass
+             ])
+               AND (acl.grantee = 0 OR
+                    pg_catalog.pg_get_userbyid(acl.grantee) = 'grainline_app_runtime')
+             ORDER BY relation.relname, grantee, acl.privilege_type`;
+          const unrelatedGrantsSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(acl.grantee) AS grantee,
+                   acl.privilege_type, acl.is_grantable
+              FROM pg_catalog.pg_class AS relation
+              CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+                relation.relacl,
+                pg_catalog.acldefault('r', relation.relowner)
+              )) AS acl
+             WHERE relation.oid = ANY(ARRAY[
+               'public."OrderItem"'::regclass,
+               'public."OrderShippingRateQuote"'::regclass
+             ])
+               AND acl.grantee <> 0
+               AND pg_catalog.pg_get_userbyid(acl.grantee) <> 'grainline_app_runtime'
+             ORDER BY relation.relname, grantee, acl.privilege_type`;
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive, 'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname) FROM pg_catalog.pg_policy AS policy
+                     WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = ANY(ARRAY[
+               'public."Order"'::regclass,
+               'public."OrderItem"'::regclass,
+               'public."OrderShippingRateQuote"'::regclass
+             ])
+             ORDER BY relation.relname`;
+          const definitionsSql = `
+            SELECT procedure.oid::regprocedure::text AS identity,
+                   pg_catalog.pg_get_functiondef(procedure.oid) AS definition,
+                   pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                   procedure.provolatile, procedure.proparallel, procedure.prosecdef,
+                   procedure.proconfig,
+                   pg_catalog.pg_get_function_result(procedure.oid) AS result_type
+              FROM pg_catalog.pg_proc AS procedure
+              JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.proname LIKE 'grainline_order_%'
+             ORDER BY identity`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count FROM public._prisma_migrations WHERE migration_name = $1`, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+            assert.deepEqual((await client.query(grantsSql)).rows, []);
+            const columnGrants = await client.query(`
+              SELECT table_name, column_name, grantee, privilege_type, is_grantable
+                FROM information_schema.column_privileges
+               WHERE table_schema = 'public' AND table_name = ANY($1::text[])
+                 AND grantee = ANY(ARRAY['PUBLIC', 'grainline_app_runtime'])
+               ORDER BY table_name, column_name, grantee, privilege_type`, [targets]);
+            assert.deepEqual(columnGrants.rows, []);
+            assert.deepEqual((await client.query(unrelatedGrantsSql)).rows,
+              before.unrelatedGrants);
+            assert.deepEqual((await client.query(definitionsSql)).rows,
+              before.definitions);
+            assert.deepEqual((await client.query(postureSql)).rows,
+              before.posture);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE

@@ -364,6 +364,58 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."UserReport"
 TO :"runtime_role";
 
+-- OrderItem and OrderShippingRateQuote remain separate from the Core Order RLS
+-- release, but the application no longer needs ordinary table access. Preserve
+-- predecessor grants until the exact runtime-lock migration is durably applied;
+-- afterwards every provisioning rerun must re-close both tables. Refuse a
+-- partial or checksum-drifted ledger row before changing their grants.
+WITH order_item_quote_runtime_lock_ledger AS (
+  SELECT
+    pg_catalog.count(*)::integer AS row_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = '32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count = 1
+    )::integer AS exact_count
+  FROM public._prisma_migrations
+  WHERE migration_name =
+    '20260929130000_revoke_order_item_shipping_quote_runtime_access'
+), failure AS (
+  SELECT
+    'Order item/quote runtime-lock ledger drifted; refusing runtime-role provisioning'
+      AS message
+  FROM order_item_quote_runtime_lock_ledger
+  WHERE row_count <> 0 AND (row_count <> 1 OR exact_count <> 1)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((
+    SELECT exact_count = 1
+    FROM order_item_quote_runtime_lock_ledger
+  ), false) AS grainline_order_item_quote_runtime_lock_applied;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_order_item_quote_runtime_lock_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_order_item_quote_runtime_lock_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_order_item_quote_runtime_lock_applied
+REVOKE ALL ON TABLE
+  public."OrderItem",
+  public."OrderShippingRateQuote"
+FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_order_item_quote_runtime_lock_applied
+
 -- Phase A gives SavedSearch only the operations the application actually
 -- performs. Keep this after the bulk grant so rerunning provisioning cannot
 -- silently restore UPDATE after the RLS migration removes it.
