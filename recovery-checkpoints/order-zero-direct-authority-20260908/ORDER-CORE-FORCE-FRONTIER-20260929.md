@@ -71,16 +71,14 @@ authorized or applied.
 
 ## Prepared FORCE source
 
-An isolated successor is complete at local commit
-`f95fd37b3fd5f85df61500f9ed292a4929594896`, tree
-`30648e2cd82d81d9163014b98d26980799c47b49`, based on the public runtime-lock
-lineage and carrying both local CI corrections. It is privately backed up at
-exact remote branch
-`recovery/order-core-force-prefight-audit-20260929`; private remote readback
-matches the exact commit.
-
-This FORCE branch predates CI-only runtime-lock correction `ae4f332b` and must
-be rebased onto the exact merged runtime-lock main before publication.
+The isolated successor has been integrated onto exact merged runtime-lock main
+`dedca7d9fd7b7f7c64587af688c922d11ae44192` at local commit
+`3c9c6f454cb81f54bb212b913924747c97237eb4`, tree
+`eb2780ed29ecfb3de627d0248df4269ad4047c12`. The integration retained main's
+newer staff-role restoration and omitted two superseded CI-only commits. It is
+privately backed up at exact remote branch
+`recovery/order-core-force-integrated-3c9c6f45-20260929`; private remote
+readback matches the exact commit.
 
 The successor:
 
@@ -114,14 +112,13 @@ The successor:
   already supports `ORDER_CORE_RLS_POSTFLIGHT_PHASE=force`;
 - changes no application route, credential, deployment, alias, or provider.
 
-Verification on the exact tree: 17 focused source/release/runtime-lock
-assertions pass; both workflow files pass Prettier/YAML formatting; the
-migration bytes match the corrected byte-pinned draft; `git diff --check`
-passes. Three focused FORCE-workflow assertions also pass after the pre-FORCE
-audit was added. A raw grant-inventory test outside CI reports the two later staged
-seller-projection functions; the repository's required migration-isolation
-sequence removes those successors before that historical assertion. This is
-not represented as a passing broad test or as a FORCE product defect.
+Verification on the exact integrated tree: 21 focused
+ENABLE/FORCE/postflight/runtime-lock assertions pass; both changed workflows
+pass Prettier/YAML formatting; the migration bytes retain SHA-256
+`1f48553466fd1ee0373d48036e5e193cedbb6d4ff094ad1fba753e8c75e7e139`;
+the release verifier passes; and `git diff --check` passes. No broad suite was
+repeated locally. Merged-main CI is separately proving the runtime-lock
+predecessor before this private FORCE source can be published.
 
 The FORCE commit is not public, merged, or applied to Production.
 
@@ -133,10 +130,10 @@ The FORCE commit is not public, merged, or applied to Production.
 2. Require successful merged-main CI run `36638383343`, then bind one explicit Production
    runtime-lock dispatch to the exact merge, exact CI run, and exact currently
    live deployment. Apply no other migration.
-3. Rebase the prepared FORCE source onto that exact main/result, re-run only
-   the relevant source checks, and publish a deployment-disabled public PR
-   after explicit authorization. Merge only on unchanged exact head/base and
-   passing checks.
+3. After the runtime-lock Production result is accepted, re-read the prepared
+   FORCE source at exact private commit `3c9c6f45`, bind it to that result, and
+   publish a deployment-disabled public PR after explicit authorization. Merge
+   only on unchanged exact head/base and passing checks.
 4. Require successful merged-main CI, then obtain one explicit Production
    FORCE dispatch authorization bound to the exact release commit, exact CI,
    exact successful runtime-lock run, and exact live deployment.
