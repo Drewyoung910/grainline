@@ -174,6 +174,9 @@ test("CI holds the runtime lock until the seller-email retirement has passed", (
   const predecessorApply = ciWorkflow.indexOf(
     "Apply only Order seller email-projection predecessor retirement in disposable PostgreSQL",
   );
+  const coreEnableApply = ciWorkflow.indexOf(
+    "Apply accepted Core Order ENABLE predecessor in disposable PostgreSQL",
+  );
   const restore = ciWorkflow.indexOf("Restore Order item and quote runtime lock");
   const stage = ciWorkflow.indexOf(
     "Stage only Order item and quote runtime lock for Prisma",
@@ -187,7 +190,8 @@ test("CI holds the runtime lock until the seller-email retirement has passed", (
   const build = ciWorkflow.indexOf("Production build");
   assert.ok(verify > 0 && verify < isolate);
   assert.ok(isolate < predecessorApply);
-  assert.ok(predecessorApply < restore);
+  assert.ok(predecessorApply < coreEnableApply);
+  assert.ok(coreEnableApply < restore);
   assert.ok(restore < stage);
   assert.ok(stage < runtimeLockApply);
   assert.ok(runtimeLockApply < grantAudit);

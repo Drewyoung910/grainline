@@ -1997,6 +1997,14 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql
+      # Production already accepted Core Order ENABLE before this runtime lock.
+      # Reproduce that exact predecessor posture in the disposable database so
+      # the global grant audit evaluates the same catalog state.
+      - name: Apply accepted Core Order ENABLE predecessor in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20260927090000_enable_order_rls/migration.sql
       - name: Restore Order item and quote runtime lock
         shell: bash
         run: |
