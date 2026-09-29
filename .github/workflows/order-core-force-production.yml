@@ -137,7 +137,7 @@ jobs:
             }),
             force: Object.freeze({
               name: '20260929160000_force_order_rls',
-              checksum: '9a5491f25e8f8f92dae5299f0c8a722972d5d24b5696a636971415940c96da95',
+              checksum: '1f48553466fd1ee0373d48036e5e193cedbb6d4ff094ad1fba753e8c75e7e139',
             }),
           });
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
@@ -301,7 +301,7 @@ jobs:
           import assert from 'node:assert/strict';
           import pg from 'pg';
           const migration = '20260929160000_force_order_rls';
-          const checksum = '9a5491f25e8f8f92dae5299f0c8a722972d5d24b5696a636971415940c96da95';
+          const checksum = '1f48553466fd1ee0373d48036e5e193cedbb6d4ff094ad1fba753e8c75e7e139';
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();

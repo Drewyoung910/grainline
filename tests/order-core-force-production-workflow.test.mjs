@@ -45,7 +45,7 @@ test("Core Order FORCE workflow accepts only its exact latest migration", () => 
   );
   assert.match(
     workflow,
-    /9a5491f25e8f8f92dae5299f0c8a722972d5d24b5696a636971415940c96da95/u,
+    /1f48553466fd1ee0373d48036e5e193cedbb6d4ff094ad1fba753e8c75e7e139/u,
   );
   assert.match(
     workflow,
