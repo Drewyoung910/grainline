@@ -129,4 +129,9 @@ explicit PUBLIC/runtime column ACLs while leaving the postflight effective
 access check on `information_schema.column_privileges`. It is backed up at
 private branch
 `recovery/order-item-quote-column-acl-preflight-2152b46d-20260929` and
-published as draft PR #478. The migration bytes and checksum are unchanged.
+published through PR #478. All four exact-head checks passed, including full
+CI run `36642380435`. The exact head merged at `2026-09-29T23:25:09Z` as main
+commit `c7c0c3a3eed1a61d0ed55ce5f43fab9a13c49aa6`. Required merged-main push CI
+run `36645095118` is in progress on that exact commit. The migration bytes and
+checksum are unchanged. No corrected Production redispatch may occur until
+that exact merged-main CI succeeds and the live deployment is re-read.

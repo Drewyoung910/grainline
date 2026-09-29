@@ -151,6 +151,18 @@ guard and its focused assertions are privately backed up at exact commit
 directly affected assertions, workflow formatting, and `git diff --check`
 pass. No migration, deployment, alias, credential, or Production state changed.
 
+After correction PR #478 merged, the complete private FORCE source was rebuilt
+without conflicts on exact main
+`c7c0c3a3eed1a61d0ed55ce5f43fab9a13c49aa6`. The rebuilt candidate is exact
+commit `217f98e781c95c2c8db916b25a338b877d08b7b4`, tree
+`b726876d3424851a11d5b76d6633d540e2d53006`, privately recoverable at
+`recovery/order-core-force-c7c0c3a3-217f98e7-20260929`. Twelve directly
+affected runtime-lock/FORCE assertions pass, the FORCE release verifier passes,
+workflow formatting and `git diff --check` pass, and the migration SHA-256
+remains `1f48553466fd1ee0373d48036e5e193cedbb6d4ff094ad1fba753e8c75e7e139`.
+The candidate remains private and unapplied while main CI `36645095118` and the
+corrected Production runtime-lock gate complete.
+
 ## Exact forward sequence
 
 1. Complete: exact head `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`
