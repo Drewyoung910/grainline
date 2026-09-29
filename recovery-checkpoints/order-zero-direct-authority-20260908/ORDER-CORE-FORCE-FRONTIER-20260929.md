@@ -14,12 +14,12 @@ its accepted runtime postflight.
 ## Immediate predecessor: item and shipping-quote runtime lock
 
 Public draft PR #477 carries exact head
-`8fca8d6fe8be7b06dd7eb54146ab88a3feb20f43` against exact main
+`ae4f332ba93758d21c2e75fd5824bf4dfc7b067b` against exact main
 `19e0cece5a72d86df2b22c739f70bb6fb36d1656`. Its change stages only migration
 `20260929130000_revoke_order_item_shipping_quote_runtime_access` and its
 guarded Production workflow, plus the audit/provisioning contracts required to
 keep those grants closed after application. The head is privately recoverable
-as `recovery/order-item-quote-runtime-lock-3af12c9d-20260929`.
+as `recovery/order-item-quote-runtime-lock-ae4f332b-20260929`.
 
 The first published head's three specialized checks passed, but exact-head full CI `36627116812`
 failed at the late global grant audit. The disposable database had restored the
@@ -62,8 +62,10 @@ disposable staff identity, runs the existing staff grant provisioner, and
 asserts that this restoration occurs between the final predecessor and ENABLE.
 Eleven focused runtime-lock/ENABLE assertions pass, workflow formatting passes,
 and `git diff --check` passes. It is privately recoverable as exact remote branch
-`recovery/order-item-quote-runtime-lock-ae4f332b-20260929`; it is not yet public.
-The Production migration has not been authorized or applied.
+`recovery/order-item-quote-runtime-lock-ae4f332b-20260929`; it is the exact
+public PR #477 head. All three specialized checks pass, and full CI run
+`36636202493` is still running. The Production migration has not been authorized
+or applied.
 
 ## Prepared FORCE source
 
@@ -123,10 +125,11 @@ The FORCE commit is not public, merged, or applied to Production.
 
 ## Exact forward sequence
 
-1. After explicit approval of corrected exact head
-   `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`, publish it to PR #477. If all four
-   checks pass against unchanged public main `19e0cece`, make the PR ready and
-   merge that exact head as a merge commit.
+1. The approved exact head
+   `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b` is published to PR #477. If its
+   fourth check passes against unchanged public main `19e0cece`, make the PR
+   ready and merge that exact head as a merge commit under the existing exact
+   conditional authorization.
 2. Require successful merged-main CI, then bind one explicit Production
    runtime-lock dispatch to the exact merge, exact CI run, and exact currently
    live deployment. Apply no other migration.
