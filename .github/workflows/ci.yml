@@ -1997,6 +1997,23 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20260928220000_retire_seller_buyer_email_projection_predecessors/migration.sql
+      # The isolated staff-login proof deliberately drops its disposable role.
+      # Recreate that exact identity and authority after every predecessor has
+      # passed so the accepted Core Order ENABLE migration sees the same role
+      # boundary that exists in Production.
+      - name: Restore disposable staff-read identity for Core Order ENABLE
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(psql "$DIRECT_URL" -X -A -t -v ON_ERROR_STOP=1 \
+            -c "SELECT count(*) FROM pg_catalog.pg_roles WHERE rolname = 'grainline_staff_read_runtime'")" = "0"
+          psql "$DIRECT_URL" -X -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE grainline_staff_read_runtime LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION"
+          psql "$DIRECT_URL" -X -v ON_ERROR_STOP=1 \
+            -v staff_role=grainline_staff_read_runtime \
+            -v runtime_role=grainline_app_runtime \
+            -v migration_role=ci \
+            -f scripts/provision-order-staff-read-role.sql
       # Production already accepted Core Order ENABLE before this runtime lock.
       # Reproduce that exact predecessor posture in the disposable database so
       # the global grant audit evaluates the same catalog state.

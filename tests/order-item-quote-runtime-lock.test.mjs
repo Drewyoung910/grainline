@@ -174,6 +174,9 @@ test("CI holds the runtime lock until the seller-email retirement has passed", (
   const predecessorApply = ciWorkflow.indexOf(
     "Apply only Order seller email-projection predecessor retirement in disposable PostgreSQL",
   );
+  const staffIdentityRestore = ciWorkflow.indexOf(
+    "Restore disposable staff-read identity for Core Order ENABLE",
+  );
   const coreEnableApply = ciWorkflow.indexOf(
     "Apply accepted Core Order ENABLE predecessor in disposable PostgreSQL",
   );
@@ -190,7 +193,8 @@ test("CI holds the runtime lock until the seller-email retirement has passed", (
   const build = ciWorkflow.indexOf("Production build");
   assert.ok(verify > 0 && verify < isolate);
   assert.ok(isolate < predecessorApply);
-  assert.ok(predecessorApply < coreEnableApply);
+  assert.ok(predecessorApply < staffIdentityRestore);
+  assert.ok(staffIdentityRestore < coreEnableApply);
   assert.ok(coreEnableApply < restore);
   assert.ok(restore < stage);
   assert.ok(stage < runtimeLockApply);
@@ -199,5 +203,9 @@ test("CI holds the runtime lock until the seller-email retirement has passed", (
   assert.match(
     ciWorkflow,
     /ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_PATH=\$correction\/migration\.sql/u,
+  );
+  assert.match(
+    ciWorkflow,
+    /Restore disposable staff-read identity for Core Order ENABLE[\s\S]*?SELECT count\(\*\) FROM pg_catalog\.pg_roles WHERE rolname = 'grainline_staff_read_runtime'[\s\S]*?CREATE ROLE grainline_staff_read_runtime LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION[\s\S]*?provision-order-staff-read-role\.sql/u,
   );
 });
