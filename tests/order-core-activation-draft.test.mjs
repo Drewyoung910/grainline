@@ -12,7 +12,7 @@ const activationRollback = readFileSync(
 const forceRollback = readFileSync(
   "docs/rls-drafts/order-core-force-rollback.sql", "utf8");
 
-test("Core Order ENABLE is staged while FORCE stays a separate draft-only posture", () => {
+test("Core Order ENABLE and FORCE remain separate staged posture releases", () => {
   for (const source of [activation, force]) {
     assert.match(source, /^-- DRAFT ONLY\. Do not apply to any persistent database\./);
     assert.equal((source.match(/^BEGIN;$/gm) ?? []).length, 1);
@@ -30,7 +30,10 @@ test("Core Order ENABLE is staged while FORCE stays a separate draft-only postur
   assert.match(force, /^ALTER TABLE public\."Order" FORCE ROW LEVEL SECURITY;$/m);
   assert.doesNotMatch(force, /^REVOKE\b|^ALTER TABLE public\."Order" ENABLE/m);
   assert.deepEqual(readdirSync("prisma/migrations").filter((name) =>
-    /_(?:enable|force)_order_rls$/.test(name)), ["20260927090000_enable_order_rls"]);
+    /_(?:enable|force)_order_rls$/.test(name)), [
+    "20260927090000_enable_order_rls",
+    "20260929160000_force_order_rls",
+  ]);
 });
 
 test("Core Order rollback drafts reverse one posture at a time", () => {
@@ -49,15 +52,22 @@ test("Core Order rollback drafts reverse one posture at a time", () => {
   assert.doesNotMatch(activationRollback, /^ALTER TABLE public\."Order" NO FORCE/m);
 });
 
-test("Core Order review candidate pins the staged ENABLE bytes while FORCE remains unstaged", () => {
+test("Core Order review candidate pins the separately staged ENABLE and FORCE bytes", () => {
   const candidate = buildOrderCoreRlsCandidates();
   assert.match(candidate.enableMigration, /^-- Reviewed policyless Core Order ENABLE/m);
   assert.match(candidate.forceMigration, /^-- Reviewed posture-only Core Order FORCE/m);
   assert.deepEqual(readdirSync("prisma/migrations").filter((name) =>
-    /_(?:enable|force)_order_rls$/.test(name)), ["20260927090000_enable_order_rls"]);
+    /_(?:enable|force)_order_rls$/.test(name)), [
+    "20260927090000_enable_order_rls",
+    "20260929160000_force_order_rls",
+  ]);
   assert.equal(
     readFileSync("prisma/migrations/20260927090000_enable_order_rls/migration.sql", "utf8"),
     candidate.enableMigration,
+  );
+  assert.equal(
+    readFileSync("prisma/migrations/20260929160000_force_order_rls/migration.sql", "utf8"),
+    candidate.forceMigration,
   );
 
   const disposable = mkdtempSync(join(tmpdir(), "grainline-order-core-candidate-"));
