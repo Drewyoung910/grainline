@@ -47,9 +47,9 @@ test("runtime provisioning preserves predecessor grants until the exact lock led
   assert.match(provision, /\\unset grainline_order_item_quote_runtime_lock_applied/u);
   assert.match(
     ciWorkflow,
-    /Apply only Order item and quote runtime lock in disposable PostgreSQL[\s\S]*?prisma migrate resolve\s+--applied 20260929130000_revoke_order_item_shipping_quote_runtime_access[\s\S]*?Converge runtime grants after Order item and quote runtime lock/u,
+    /Stage only Order item and quote runtime lock for Prisma[\s\S]*?cp -a "prisma\/migrations\/\$migration" "\$isolated\/migrations\/\$migration"[\s\S]*?find "\$isolated\/migrations"[\s\S]*?= 1[\s\S]*?Apply only Order item and quote runtime lock through Prisma[\s\S]*?npx prisma migrate deploy --schema "\$ORDER_ITEM_QUOTE_RUNTIME_LOCK_PRISMA_SCHEMA"[\s\S]*?Converge runtime grants after Order item and quote runtime lock/u,
   );
-  assert.equal((ciWorkflow.match(/prisma migrate resolve/gu) ?? []).length, 1);
+  assert.doesNotMatch(ciWorkflow, /prisma migrate resolve/u);
 });
 
 test("grant audit changes expectations only after an exact completed ledger row", async () => {
@@ -175,8 +175,11 @@ test("CI holds the runtime lock until the seller-email retirement has passed", (
     "Apply only Order seller email-projection predecessor retirement in disposable PostgreSQL",
   );
   const restore = ciWorkflow.indexOf("Restore Order item and quote runtime lock");
+  const stage = ciWorkflow.indexOf(
+    "Stage only Order item and quote runtime lock for Prisma",
+  );
   const runtimeLockApply = ciWorkflow.indexOf(
-    "Apply only Order item and quote runtime lock in disposable PostgreSQL",
+    "Apply only Order item and quote runtime lock through Prisma",
   );
   const grantAudit = ciWorkflow.indexOf(
     "Audit locked Order item and quote runtime grants",
@@ -185,7 +188,8 @@ test("CI holds the runtime lock until the seller-email retirement has passed", (
   assert.ok(verify > 0 && verify < isolate);
   assert.ok(isolate < predecessorApply);
   assert.ok(predecessorApply < restore);
-  assert.ok(restore < runtimeLockApply);
+  assert.ok(restore < stage);
+  assert.ok(stage < runtimeLockApply);
   assert.ok(runtimeLockApply < grantAudit);
   assert.ok(grantAudit < build);
   assert.match(

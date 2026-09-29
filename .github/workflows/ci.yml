@@ -2012,15 +2012,20 @@ jobs:
           node --test
           tests/order-item-quote-runtime-lock.test.mjs
           tests/order-direct-access-inventory.test.mjs
-      - name: Apply only Order item and quote runtime lock in disposable PostgreSQL
-        run: >-
-          psql "$DIRECT_URL"
-          --set=ON_ERROR_STOP=on
-          --file=prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access/migration.sql
-      - name: Record exact Order item and quote runtime lock in disposable ledger
-        run: >-
-          npx prisma migrate resolve
-          --applied 20260929130000_revoke_order_item_shipping_quote_runtime_access
+      - name: Stage only Order item and quote runtime lock for Prisma
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260929130000_revoke_order_item_shipping_quote_runtime_access
+          isolated="$RUNNER_TEMP/order-item-quote-runtime-lock-prisma"
+          mkdir -p "$isolated/migrations"
+          cp prisma/schema.prisma "$isolated/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$isolated/migrations/migration_lock.toml"
+          cp -a "prisma/migrations/$migration" "$isolated/migrations/$migration"
+          test "$(find "$isolated/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 1
+          echo "ORDER_ITEM_QUOTE_RUNTIME_LOCK_PRISMA_SCHEMA=$isolated/schema.prisma" >> "$GITHUB_ENV"
+      - name: Apply only Order item and quote runtime lock through Prisma
+        run: npx prisma migrate deploy --schema "$ORDER_ITEM_QUOTE_RUNTIME_LOCK_PRISMA_SCHEMA"
       - name: Converge runtime grants after Order item and quote runtime lock
         run: >-
           psql "$DIRECT_URL"

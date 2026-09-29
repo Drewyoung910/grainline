@@ -169,11 +169,7 @@ describe("DirectUpload service-only activation release", () => {
       ci,
       /Apply migrations to CI Postgres[\s\S]*Converge production-style runtime grants after migrations[\s\S]*Converge activated DirectUpload cleanup-worker grants/,
     );
-    const runtimeLockLedger = ci.indexOf(
-      "Record exact Order item and quote runtime lock in disposable ledger",
-    );
-    assert.ok(runtimeLockLedger > 0);
-    assert.doesNotMatch(ci.slice(0, runtimeLockLedger), /prisma migrate resolve/);
+    assert.doesNotMatch(ci, /prisma migrate resolve/);
   });
 
   it("records the merged release, failed production attempt, credential gate, and postflight boundary", () => {
