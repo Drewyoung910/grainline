@@ -17,7 +17,7 @@ test("Core Order FORCE is exact and follows the staged runtime lock", () => {
   assert.deepEqual(verifyOrderCoreForceRelease(), {
     migration: ORDER_CORE_FORCE_MIGRATION,
     predecessor: ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION,
-    sha256: "e12e48e79e2b203155e55f9ada5c87a4b5418e309ae354750609b0844c5c3439",
+    sha256: "9a5491f25e8f8f92dae5299f0c8a722972d5d24b5696a636971415940c96da95",
     forceIncluded: true,
   });
 });

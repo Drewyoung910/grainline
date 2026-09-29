@@ -137,7 +137,7 @@ jobs:
             }),
             force: Object.freeze({
               name: '20260929160000_force_order_rls',
-              checksum: 'e12e48e79e2b203155e55f9ada5c87a4b5418e309ae354750609b0844c5c3439',
+              checksum: '9a5491f25e8f8f92dae5299f0c8a722972d5d24b5696a636971415940c96da95',
             }),
           });
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
@@ -175,13 +175,38 @@ jobs:
                      pg_catalog.has_any_column_privilege(
                        'grainline_app_runtime', class.oid,
                        'SELECT,INSERT,UPDATE,REFERENCES'
-                     ) AS runtime_column
+                     ) AS runtime_column,
+                     (
+                       (SELECT count(*)
+                          FROM pg_catalog.aclexplode(
+                            COALESCE(class.relacl,
+                                     pg_catalog.acldefault('r', class.relowner))
+                          ) AS acl
+                         WHERE acl.grantee <> class.relowner
+                           AND acl.privilege_type IN (
+                             'SELECT','INSERT','UPDATE','DELETE',
+                             'TRUNCATE','REFERENCES','TRIGGER'
+                           ))
+                       +
+                       (SELECT count(*)
+                          FROM pg_catalog.pg_attribute AS attribute
+                          CROSS JOIN LATERAL
+                            pg_catalog.aclexplode(attribute.attacl) AS acl
+                         WHERE attribute.attrelid = class.oid
+                           AND attribute.attnum > 0
+                           AND NOT attribute.attisdropped
+                           AND acl.grantee <> class.relowner
+                           AND acl.privilege_type IN (
+                             'SELECT','INSERT','UPDATE','REFERENCES'
+                           ))
+                     )::integer AS invalid_acl_count
                 FROM pg_catalog.pg_class AS class
                WHERE class.oid = 'public."Order"'::regclass
             `);
             assert.deepEqual(order.rows, [{
               owner: 'neondb_owner', enabled: true, forced: state === 'restart',
               policy_count: 0, runtime_table: false, runtime_column: false,
+              invalid_acl_count: 0,
             }]);
             const children = await client.query(`
               SELECT class.relname AS table_name,
@@ -196,7 +221,31 @@ jobs:
                      pg_catalog.has_any_column_privilege(
                        'grainline_app_runtime', class.oid,
                        'SELECT,INSERT,UPDATE,REFERENCES'
-                     ) AS runtime_column
+                     ) AS runtime_column,
+                     (
+                       (SELECT count(*)
+                          FROM pg_catalog.aclexplode(
+                            COALESCE(class.relacl,
+                                     pg_catalog.acldefault('r', class.relowner))
+                          ) AS acl
+                         WHERE acl.grantee <> class.relowner
+                           AND acl.privilege_type IN (
+                             'SELECT','INSERT','UPDATE','DELETE',
+                             'TRUNCATE','REFERENCES','TRIGGER'
+                           ))
+                       +
+                       (SELECT count(*)
+                          FROM pg_catalog.pg_attribute AS attribute
+                          CROSS JOIN LATERAL
+                            pg_catalog.aclexplode(attribute.attacl) AS acl
+                         WHERE attribute.attrelid = class.oid
+                           AND attribute.attnum > 0
+                           AND NOT attribute.attisdropped
+                           AND acl.grantee <> class.relowner
+                           AND acl.privilege_type IN (
+                             'SELECT','INSERT','UPDATE','REFERENCES'
+                           ))
+                     )::integer AS invalid_acl_count
                 FROM pg_catalog.pg_class AS class
                WHERE class.oid = ANY(ARRAY[
                  'public."OrderItem"'::regclass,
@@ -206,9 +255,11 @@ jobs:
             `);
             assert.deepEqual(children.rows, [
               {table_name: 'OrderItem', enabled: false, forced: false,
-                policy_count: 0, runtime_table: false, runtime_column: false},
+                policy_count: 0, runtime_table: false, runtime_column: false,
+                invalid_acl_count: 0},
               {table_name: 'OrderShippingRateQuote', enabled: false, forced: false,
-                policy_count: 0, runtime_table: false, runtime_column: false},
+                policy_count: 0, runtime_table: false, runtime_column: false,
+                invalid_acl_count: 0},
             ]);
             appendFileSync(process.env.GITHUB_OUTPUT, `state=${state}\n`);
           } finally {
@@ -250,7 +301,7 @@ jobs:
           import assert from 'node:assert/strict';
           import pg from 'pg';
           const migration = '20260929160000_force_order_rls';
-          const checksum = 'e12e48e79e2b203155e55f9ada5c87a4b5418e309ae354750609b0844c5c3439';
+          const checksum = '9a5491f25e8f8f92dae5299f0c8a722972d5d24b5696a636971415940c96da95';
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();
@@ -276,7 +327,31 @@ jobs:
                      pg_catalog.has_any_column_privilege(
                        'grainline_app_runtime', class.oid,
                        'SELECT,INSERT,UPDATE,REFERENCES'
-                     ) AS runtime_column
+                     ) AS runtime_column,
+                     (
+                       (SELECT count(*)
+                          FROM pg_catalog.aclexplode(
+                            COALESCE(class.relacl,
+                                     pg_catalog.acldefault('r', class.relowner))
+                          ) AS acl
+                         WHERE acl.grantee <> class.relowner
+                           AND acl.privilege_type IN (
+                             'SELECT','INSERT','UPDATE','DELETE',
+                             'TRUNCATE','REFERENCES','TRIGGER'
+                           ))
+                       +
+                       (SELECT count(*)
+                          FROM pg_catalog.pg_attribute AS attribute
+                          CROSS JOIN LATERAL
+                            pg_catalog.aclexplode(attribute.attacl) AS acl
+                         WHERE attribute.attrelid = class.oid
+                           AND attribute.attnum > 0
+                           AND NOT attribute.attisdropped
+                           AND acl.grantee <> class.relowner
+                           AND acl.privilege_type IN (
+                             'SELECT','INSERT','UPDATE','REFERENCES'
+                           ))
+                     )::integer AS invalid_acl_count
                 FROM pg_catalog.pg_class AS class
                WHERE class.oid = 'public."Order"'::regclass
             `);
@@ -284,6 +359,7 @@ jobs:
               actor: 'neondb_owner', login: 'neondb_owner', owner: 'neondb_owner',
               enabled: true, forced: true, policy_count: 0,
               runtime_table: false, runtime_column: false,
+              invalid_acl_count: 0,
             }]);
           } finally {
             try { await client.query('ROLLBACK'); } catch {}

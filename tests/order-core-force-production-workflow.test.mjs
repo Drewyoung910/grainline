@@ -45,7 +45,7 @@ test("Core Order FORCE workflow accepts only its exact latest migration", () => 
   );
   assert.match(
     workflow,
-    /e12e48e79e2b203155e55f9ada5c87a4b5418e309ae354750609b0844c5c3439/u,
+    /9a5491f25e8f8f92dae5299f0c8a722972d5d24b5696a636971415940c96da95/u,
   );
   assert.match(
     workflow,
@@ -53,6 +53,7 @@ test("Core Order FORCE workflow accepts only its exact latest migration", () => 
   );
   assert.match(workflow, /enabled: true, forced: state === 'restart'/u);
   assert.match(workflow, /enabled: true, forced: true, policy_count: 0/u);
+  assert.equal((workflow.match(/invalid_acl_count: 0/gu) ?? []).length, 4);
 });
 
 test("CI keeps Core Order FORCE isolated until the runtime lock passes", () => {
