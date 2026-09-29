@@ -267,6 +267,25 @@ jobs:
             await client.end();
           }
           NODE
+      - name: Audit pre-FORCE runtime grants and global RLS catalog
+        if: steps.force_scope.outputs.state == 'predecessor'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          migration=20260929160000_force_order_rls
+          holding="$RUNNER_TEMP/$migration-preflight"
+          restore_force_source() {
+            if [[ -d "$holding" ]]; then
+              mv "$holding" "prisma/migrations/$migration"
+            fi
+          }
+          trap restore_force_source EXIT
+          mv "prisma/migrations/$migration" "$holding"
+          npm run audit:db-grants -- --require-direct-url
+          restore_force_source
+          trap - EXIT
       - name: Require every predecessor applied and no other pending migration
         shell: bash
         env:
