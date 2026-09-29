@@ -99,8 +99,17 @@ jobs:
                 runtimeLock.name !== 'Order Item and Shipping Quote Runtime Lock Production' ||
                 runtimeLock.event !== 'workflow_dispatch' ||
                 runtimeLock.head_branch !== 'main' ||
+                !/^[0-9a-f]{40}$/.test(runtimeLock.head_sha ?? '') ||
                 runtimeLock.status !== 'completed' || runtimeLock.conclusion !== 'success') {
               throw new Error('Core Order FORCE main/run readback drifted');
+            }
+            const {data: ancestry} = await github.rest.repos.compareCommits({
+              ...context.repo,
+              base: runtimeLock.head_sha,
+              head: sha,
+            });
+            if (ancestry.status !== 'ahead' && ancestry.status !== 'identical') {
+              throw new Error('Core Order FORCE runtime-lock source is not an ancestor of the release');
             }
       - name: Verify live zero-direct application boundary
         env:

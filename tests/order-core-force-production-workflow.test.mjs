@@ -23,6 +23,13 @@ test("Core Order FORCE workflow is a separate exact protected release", () => {
     workflow,
     /runtimeLock\.name !== 'Order Item and Shipping Quote Runtime Lock Production'/u,
   );
+  assert.match(workflow, /github\.rest\.repos\.compareCommits/u);
+  assert.match(workflow, /base: runtimeLock\.head_sha/u);
+  assert.match(workflow, /head: sha/u);
+  assert.match(
+    workflow,
+    /ancestry\.status !== 'ahead' && ancestry\.status !== 'identical'/u,
+  );
   assert.match(workflow, /Verify live zero-direct application boundary/u);
   assert.match(
     workflow,
