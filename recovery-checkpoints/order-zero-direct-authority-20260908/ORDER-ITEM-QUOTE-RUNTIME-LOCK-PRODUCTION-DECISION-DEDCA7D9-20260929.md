@@ -25,7 +25,7 @@ It is not authorization to dispatch the workflow.
 - Exact-head PR CI:
   `36636202493` — passed, along with all three specialized checks
 - Required merged-main push CI:
-  `36638383343` — in progress at this checkpoint
+  `36638383343` — completed successfully at `2026-09-29T22:45:07Z`
 - Migration:
   `20260929130000_revoke_order_item_shipping_quote_runtime_access`
 - Migration SHA-256:
@@ -43,7 +43,8 @@ The merge commit and reviewed PR head have the identical tree
 - Deployment:
   `dpl_FpD59NTBtkRj4v1KP5yEjMRdvNdj`
 - Vercel CLI resolved `thegrainline.com` to that READY Production deployment.
-- A fresh read-only surface proof passed at `2026-09-29T22:23:45Z`: both public
+- A final read-only surface proof passed from `2026-09-29T22:45:56Z` through
+  `2026-09-29T22:46:00Z`: both public
   aliases returned HTTP 200 with the exact deployment marker, both protected
   aliases retained their exact Vercel SSO redirect, `www` retained its HTTP 308
   canonical redirect, and `/api/health` returned HTTP 200 with `{ ok: true }`.
@@ -91,10 +92,11 @@ separate owner-level Production action and is not bundled into this approval.
 
 ## Approval frontier
 
-Do not dispatch until merged-main CI run `36638383343` completes successfully,
-public main still equals `dedca7d9fd7b7f7c64587af688c922d11ae44192`, and
-the live deployment readback still equals
-`dpl_FpD59NTBtkRj4v1KP5yEjMRdvNdj`.
+The source and deployment gates are satisfied: merged-main CI run
+`36638383343` completed successfully, public main still equals
+`dedca7d9fd7b7f7c64587af688c922d11ae44192`, and the final live deployment
+readback still equals `dpl_FpD59NTBtkRj4v1KP5yEjMRdvNdj`. Dispatch still
+requires the exact user approval below.
 
 Once those conditions hold, the exact approval request is:
 
