@@ -108,3 +108,25 @@ Once those conditions hold, the exact approval request is:
 > `32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99`, and
 > confirmation `revoke-reviewed-order-item-quote-runtime-access`. Apply no
 > other migration and do not enable Core Order FORCE.
+
+## First Production dispatch and safe stop
+
+The user approved the exact dispatch. Workflow run `36641938086` was released
+through the Production environment gate on exact main `dedca7d9fd7b7f7c64587af688c922d11ae44192`.
+It passed source, deployment and owner-connection checks, then failed in the
+read-only restart/posture capture before any migration or grant mutation.
+
+The failed assertion queried `information_schema.column_privileges` and
+expected no pre-existing column rows. PostgreSQL expands ordinary table-level
+privileges through that view for every eligible column, so the expected pending
+runtime table grants appeared as effective column rows. This was a release
+wrapper error, not unexpected Production authority. Every mutation and
+postflight step was skipped.
+
+Correction commit `2152b46d7dc9b81ca92abec7754a6671cb599269`
+queries `pg_attribute.attacl` directly during preflight, rejecting actual
+explicit PUBLIC/runtime column ACLs while leaving the postflight effective
+access check on `information_schema.column_privileges`. It is backed up at
+private branch
+`recovery/order-item-quote-column-acl-preflight-2152b46d-20260929` and
+published as draft PR #478. The migration bytes and checksum are unchanged.
