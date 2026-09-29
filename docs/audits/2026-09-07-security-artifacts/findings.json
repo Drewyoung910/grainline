@@ -1,0 +1,213 @@
+{
+  "documentType": "codex-security.findings",
+  "findings": [
+    {
+      "attackPath": {
+        "dataflow": {
+          "evidenceRefs": [
+            "rsc-state",
+            "partial-tree",
+            "page-role-only",
+            "order-read"
+          ],
+          "outcome": "PIN-gated order information returned without successful PIN verification",
+          "sink": "Staff order page data read",
+          "source": "Client request navigation state and existing staff session",
+          "summary": "Client RSC state -> partial child render -> role-only requireAdminPageAccess -> staff order RPC -> sensitive order output"
+        },
+        "impact": {
+          "level": "high",
+          "why": "Order pages expose private buyer details and internal operational data intended to be gated by a second factor."
+        },
+        "likelihood": {
+          "level": "medium",
+          "why": "A valid staff session is required and the missing gate is source-established; no production reproduction."
+        },
+        "limitations": [
+          "No unauthorized write or general RLS bypass established."
+        ],
+        "reachability": {
+          "attacker": "Holder of a valid staff session who has not completed the additional PIN challenge",
+          "entrypoint": "Admin order page GET/RSC navigation",
+          "outcome": "Read access across the intended step-up boundary",
+          "summary": "Requires an active EMPLOYEE/ADMIN Clerk session; anonymous and ordinary users fail earlier role checks."
+        },
+        "summary": "A requester with a valid active staff session but no valid Admin PIN requests an admin order child as partial RSC navigation. Matching shared-layout state lets the framework render the child directly; its role-only guard permits the privileged read and returned order data."
+      },
+      "codeEvidence": [
+        {
+          "code": "    const isAdminServerActionPost =\n      isAdminPage(req) && req.method !== \"GET\" && req.method !== \"HEAD\";\n    if ((isAdminApi(req) && !isAdminPinVerification(req)) || isAdminServerActionPost) {",
+          "endLine": 329,
+          "explanation": "The requester must pass the preceding staff-role check, but a GET for an admin page does not enter PIN verification.",
+          "id": "get-pin-exception",
+          "label": "GET page requests bypass middleware PIN verification",
+          "language": "typescript",
+          "path": "src/middleware.ts",
+          "role": "entrypoint",
+          "startLine": 327
+        },
+        {
+          "code": "    const isHmrRefresh = headers[_approuterheaders.NEXT_HMR_REFRESH_HEADER] !== undefined;\n    const isRSCRequest = (0, _isrscrequest.isRSCRequestHeader)(headers[_approuterheaders.RSC_HEADER]);\n    const shouldProvideFlightRouterState = isRSCRequest && (!isPrefetchRequest || !options.isRoutePPREnabled);\n    const flightRouterState = shouldProvideFlightRouterState ? (0, _parseandvalidateflightrouterstate.parseAndValidateFlightRouterState)(headers[_approuterheaders.NEXT_ROUTER_STATE_TREE_HEADER]) : undefined;",
+          "endLine": 164,
+          "explanation": "Installed Next accepts structurally validated client router state. Matching shared segments can be omitted from the newly rendered subtree; client navigation state is not proof a security layout previously ran.",
+          "id": "rsc-state",
+          "label": "Request router state controls the partial rendering boundary",
+          "language": "javascript",
+          "path": "node_modules/next/dist/server/app-render/app-render.js",
+          "role": "user_input",
+          "startLine": 161
+        },
+        {
+          "code": "    if (renderComponentsOnThisLevel) {\n        const overriddenSegment = flightRouterState && // TODO: Why does canSegmentBeOverridden exist? Why don't we always just\n        // use `actualSegment`? Is it to avoid overwriting some state that's\n        // tracked by the client? Dig deeper to see if we can simplify this.\n        canSegmentBeOverridden(actualSegment, flightRouterState[0]) ? flightRouterState[0] : actualSegment;\n        const routerState = await (0, _createflightrouterstatefromloadertree.createFlightRouterStateFromLoaderTree)(// Create router state using the slice of the loaderTree\n        loaderTreeToFilter, hintTree, getDynamicParamFromSegment, query);\n        // Create component tree using the slice of the loaderTree\n        const seedData = await (0, _createcomponenttree.createComponentTree)(// This ensures flightRouterPath is valid and filters down the tree\n        {\n            ctx,\n            loaderTree: loaderTreeToFilter,\n            parentParams: currentParams,",
+          "endLine": 127,
+          "explanation": "When traversal reaches the child segment, only that subtree is rendered. Matching ancestor traversal at lines148-180 tracks assets and recurses rather than invoking the ancestor layout.",
+          "id": "partial-tree",
+          "label": "Framework starts component rendering at the changed subtree",
+          "language": "javascript",
+          "path": "node_modules/next/dist/server/app-render/walk-tree-with-flight-router-state.js",
+          "role": "propagation",
+          "startLine": 114
+        },
+        {
+          "code": "export async function requireAdminPageAccess(requiredRole: AdminPageRole = \"STAFF\") {\n  const { userId } = await auth();\n  if (!userId) redirect(\"/\");\n\n  const user = await prisma.user.findUnique({\n    where: { clerkId: userId },\n    select: { id: true, role: true, banned: true, deletedAt: true },\n  });\n  if (!user || user.banned || user.deletedAt) redirect(\"/\");\n  if (requiredRole === \"ADMIN\" && user.role !== \"ADMIN\") redirect(\"/\");\n  if (requiredRole === \"STAFF\" && user.role !== \"EMPLOYEE\" && user.role !== \"ADMIN\") redirect(\"/\");\n  return user;",
+          "endLine": 18,
+          "explanation": "Current account posture and staff role are validated correctly. The separate session-bound PIN is never checked before the actor is returned to privileged page consumers.",
+          "id": "page-role-only",
+          "label": "Page data-access guard returns staff without checking PIN",
+          "language": "typescript",
+          "path": "src/lib/adminPageAccess.ts",
+          "role": "root_control",
+          "startLine": 7
+        },
+        {
+          "code": "  const staff = await requireAdminPageAccess();\n  const { page: pageParam } = await searchParams;\n  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);\n\n  const result = await readStaffOrderPage(\n    staff.id,\n    \"ALL\",\n    requestedPage,\n    PAGE_SIZE,\n    getOrderStaffReadClient(),\n  );",
+          "endLine": 33,
+          "explanation": "A valid staff actor reaches the staff database authority without a PIN attestation. The list renders buyer email; the sibling detail page uses the same guard and renders shipping address/email at lines141-162.",
+          "id": "order-read",
+          "label": "Child page fetches sensitive orders after role-only guard",
+          "language": "typescript",
+          "path": "src/app/admin/orders/page.tsx",
+          "role": "sink",
+          "startLine": 23
+        },
+        {
+          "code": "  const cookieStore = await cookies();\n  const pinVerified = await verifyAdminPinCookieValue(\n    cookieStore.get(ADMIN_PIN_COOKIE_NAME)?.value,\n    userId,\n    sessionId,\n  );\n\n  if (!pinVerified) {\n    return <AdminPinGate />;\n  }",
+          "endLine": 32,
+          "explanation": "The intended additional check protects a full layout render. It cannot authorize child data reads when the framework reuses/skips that layout.",
+          "id": "layout-pin",
+          "label": "PIN check exists only at the shared page layout boundary",
+          "language": "tsx",
+          "path": "src/app/admin/layout.tsx",
+          "role": "expected_control",
+          "startLine": 23
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Independent source traces connect middleware GET exception, role-only page helper and installed Next partial-tree rendering to sensitive child output. No application/runtime reproduction."
+      },
+      "findingId": "csf_990e02d7d42b736724a1b2be",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:974179807dc5a9e38c5604673db922a5d1b3a153dd11c7ce0ade3222834d1b15"
+      },
+      "identity": {
+        "anchor": "staff-sessions-can-read-admin-order-data-without-completing-the-admin-pin-gate"
+      },
+      "locations": [
+        {
+          "endLine": 18,
+          "path": "src/lib/adminPageAccess.ts",
+          "role": "root_control",
+          "startLine": 7
+        },
+        {
+          "endLine": 338,
+          "path": "src/middleware.ts",
+          "role": "entrypoint",
+          "startLine": 324
+        },
+        {
+          "endLine": 33,
+          "path": "src/app/admin/orders/page.tsx",
+          "role": "sink",
+          "startLine": 23
+        }
+      ],
+      "occurrenceId": "occ_97ea51a0b43ed299ffa8c865",
+      "preventiveControls": [
+        "Centralize staff role, current account and PIN verification in a shared data-access guard; do not rely on a shared layout as the sole authorization boundary."
+      ],
+      "provenance": {
+        "candidateId": "admin-rsc-pin",
+        "originalCandidates": [
+          {
+            "evidence": [
+              "src/middleware.ts:321-338 PIN check only admin APIs/non-GET pages",
+              "src/lib/adminPageAccess.ts staff role only",
+              "src/app/admin/orders/page.tsx reads buyer/order data",
+              "src/app/admin/layout.tsx gates children",
+              "node_modules/next/dist/server/app-render/walk-tree-with-flight-router-state.js partial shared-layout routing"
+            ],
+            "source": "baseline_audit",
+            "title": "Admin page PIN boundary may be bypassed by partial RSC navigation"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Require the session-bound Admin PIN at every privileged page data-access boundary, including partial RSC paths; retain layout presentation and independent API/action checks.",
+      "remediationTests": [
+        "Request sensitive page data without, with expired, and with wrong-session PIN through both full-document and partial RSC navigation; all must deny before staff database reads.",
+        "Verify a valid staff session with valid PIN succeeds, while ordinary users remain denied.",
+        "Cover admin pages with inline guards as well as requireAdminPageAccess consumers."
+      ],
+      "rootCause": {
+        "evidenceRefs": [
+          "rsc-state",
+          "get-pin-exception",
+          "partial-tree",
+          "page-role-only",
+          "order-read",
+          "layout-pin"
+        ],
+        "summary": "The application assumes that withholding children in the shared admin layout protects every admin GET. Client-controlled RSC navigation state changes where framework rendering begins. A child order page independently checks only staff role before using the privileged order client, so no PIN check remains on that data path. Middleware protects APIs/actions but deliberately excludes GET pages."
+      },
+      "ruleId": "authorization.admin-rsc-pin",
+      "severity": {
+        "level": "medium",
+        "rationale": "Sensitive order data is exposed across the intended PIN boundary, but a valid active EMPLOYEE/ADMIN session is required. No anonymous access or PIN-free write path established."
+      },
+      "summary": "Admin order pages enforce staff role but leave the additional PIN check in a shared layout. Partial RSC navigation can render a child page without executing that layout, so a valid staff session lacking a PIN cookie can obtain order data. This is a step-up authentication failure, not anonymous or ordinary-user access.",
+      "taxonomy": {
+        "category": "authorization",
+        "cwe": [
+          "CWE-862"
+        ]
+      },
+      "title": "Staff sessions can read admin order data without completing the Admin PIN gate",
+      "validation": {
+        "assertions": [
+          "Active staff identity remains required.",
+          "Shared layouts are not guaranteed to execute for every partial RSC response.",
+          "Order page data read has no independent PIN check."
+        ],
+        "evidenceRefs": [
+          "get-pin-exception",
+          "partial-tree",
+          "page-role-only",
+          "order-read",
+          "layout-pin"
+        ],
+        "limitations": [
+          "No browser or HTTP reproduction was executed.",
+          "Installed framework source supports the trace; exact deployed source/configuration was not attested.",
+          "No ordinary-user privilege escalation or PIN-free mutation is claimed."
+        ],
+        "method": "independent static source trace",
+        "summary": "Parent and baseline worker traced the current middleware, helper, layout, order consumers and installed Next renderer. The role-only consumer is reachable through partial child rendering without an ancestor PIN check. Source contains real PIN checks for full layout render and API/action calls; those do not cover this GET path."
+      }
+    }
+  ],
+  "scanId": "41c4f6a3-232f-486c-b95c-4de44905b69a",
+  "schemaVersion": "1.0"
+}

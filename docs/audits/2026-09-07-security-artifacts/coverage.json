@@ -1,0 +1,307 @@
+{
+  "completeness": "partial",
+  "deferred": [
+    {
+      "candidate": {
+        "counterevidence": "Exact seller/label scope, five attempts and generation fencing. Duplicate needs provider success/local ambiguity/key pruning/transfer headroom.",
+        "evidence": [
+          "src/app/api/orders/[id]/label/route.ts:353-359 reason label_cost_deduction",
+          "src/lib/labelClawbackRetry.ts:47-59 reason label_cost_deduction_retry"
+        ],
+        "source": "financial_flows",
+        "title": "Label-cost reversal retry changes metadata under same idempotency key"
+      },
+      "candidateId": "label-retry-payload",
+      "id": "label-retry-payload",
+      "reason": "Source-confirmed financial runtime mismatch, not an attacker-driven security finding; provider consequence conditional. FIN-01 in durable runtime handoff."
+    },
+    {
+      "candidate": {
+        "evidence": [
+          "MessageComposer Enter submission versus uploading state"
+        ],
+        "title": "Keyboard send bypasses upload-disabled button"
+      },
+      "candidateId": "product-composer-upload-enter",
+      "id": "product-composer-upload-enter",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "title": "Sequential attachment batches exceed six and normalization drops overflow"
+      },
+      "candidateId": "product-message-attachment-cap",
+      "id": "product-message-attachment-cap",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "title": "New visible thread messages remain unread after one-time mount marking"
+      },
+      "candidateId": "product-visible-message-read",
+      "id": "product-visible-message-read",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "title": "Foreign read event decrements already-reflected unread count"
+      },
+      "candidateId": "product-notification-cross-tab",
+      "id": "product-notification-cross-tab",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "title": "Review upload callback consumes first image only"
+      },
+      "candidateId": "product-review-batch",
+      "id": "product-review-batch",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "title": "Review author's My review rendering omits seller reply"
+      },
+      "candidateId": "product-review-reply",
+      "id": "product-review-reply",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "title": "Custom listing creation ignores submitted category"
+      },
+      "candidateId": "product-custom-category",
+      "id": "product-custom-category",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "title": "Purchase panel permits incomplete variant selection"
+      },
+      "candidateId": "product-partial-variant",
+      "id": "product-partial-variant",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "title": "Reserved buyer loses private listing visibility when sold out"
+      },
+      "candidateId": "product-custom-sold-out",
+      "id": "product-custom-sold-out",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    },
+    {
+      "candidate": {
+        "evidence": [
+          "ListingPurchasePanel.tsx:239",
+          "cart guest mapping:193-195",
+          "cart select:647-679"
+        ],
+        "title": "Anonymous cart renders stock count as quantity options without 99 cap"
+      },
+      "candidateId": "product-guest-million-options",
+      "id": "product-guest-million-options",
+      "reason": "Product/runtime observation retained with source evidence in durable handoff; not classified as an exploitable security finding. Browser/integration regressions remain pending."
+    }
+  ],
+  "documentType": "codex-security.coverage",
+  "excludePaths": [],
+  "explicitExclusions": [
+    {
+      "pattern": "production/provider-state",
+      "reason": "No production database catalog, rows, credentials, provider configuration, signed event delivery or deployment inspected."
+    },
+    {
+      "pattern": "runtime/browser/load-execution",
+      "reason": "No browser/application execution, provider-failure injection, query plan or load testing performed."
+    },
+    {
+      "pattern": "unreviewed-current-source",
+      "reason": "Not all 2409 scoped files or all 14 documented RLS-live table families independently re-audited. 193 distinct complete file reads, plus targeted sections; mapping/grep does not count as complete review."
+    },
+    {
+      "pattern": "blocked-additional-rls-worker",
+      "reason": "Additional RLS-focused worker blocked by platform screening; no bypass or equivalent restricted rerun attempted."
+    },
+    {
+      "pattern": "older-unopened-attachments",
+      "reason": "Historical attachments beyond the three latest consolidated Claude review files were not all individually reopened; dated claims reconciled through current audit/runbook records."
+    }
+  ],
+  "includePaths": [
+    "."
+  ],
+  "inventoryStrategy": "repository",
+  "mode": "repository",
+  "openQuestions": [
+    {
+      "question": "Run isolated full-document and partial-RSC PIN regression before applying a page-data boundary fix; production exposure not dynamically attested."
+    },
+    {
+      "question": "Reproduce label provider success plus lost acknowledgement/local failure and immutable replay; prevent automatic creation after ambiguous provider-idempotency lifetime."
+    },
+    {
+      "question": "Reproduce composer upload/race and cart response-order cases in a browser/component harness; recommended tests were not executed."
+    },
+    {
+      "question": "Choose one shipping packing/address/fallback economics policy and one notification preference default policy, then align UI and backend tests."
+    },
+    {
+      "question": "Measure real queue ages, provider latency, concurrent streams and fleet database budget; total registered users does not determine capacity."
+    },
+    {
+      "question": "Separately close recorded Stripe lease-overload retirement, DirectUpload transitive authority-catalog coverage, SavedSearch ordering, report context links and message file-kind follow-ups; no fresh full audit acceptance in this pass."
+    }
+  ],
+  "scanId": "41c4f6a3-232f-486c-b95c-4de44905b69a",
+  "schemaVersion": "1.0",
+  "surfaces": [
+    {
+      "disposition": "needs_follow_up",
+      "id": "message-polling-runtime",
+      "label": "Messaging fallback polling and transport capacity",
+      "notes": "Runtime defect: ThreadMessages.tsx:262-291 polls /list every 3000ms; ratelimit.ts:90-94 permits 240/60m; messageStreamState.ts:1-2 treats 429 as terminal; ThreadMessages.tsx:274-277 clears timer permanently. A normal fallback thread consumes its quota in ~12 minutes; reload/remount required to resume. No attacker/security escalation claimed.\nSSE route polls per connection at 3-10s without cross-tab multiplexing; known deferred CM-A13 in docs/conversation-message-pre-rls-audit.md:137. User count alone is not concurrency proof.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "shipping-quotes-runtime",
+      "label": "Buyer quote integrity and economic precision",
+      "notes": "shipping/quote route performs auth, fail-closed user rate limit, bounded body, ownership/private listing/stock/seller checks. shipping-token.ts:66-86 signs buyer, context, destination city/state/postal/country, exact item/variant/price subject and TTL; local v2 generation confirmed.\nEconomic limitation: quote/route.ts:441-453 sums weight but takes max dimensions for multiple physical items; :570-573 likewise does not grow dimensions with single-listing quantity. shippingQuoteProvider.ts:48-65 sends one parcel and a street placeholder. Accurate address/packing/quantity-specific label cost not established. Global outage fallback :729-752 is intentionally documented economic risk, not a new auth bypass.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "label-retry-request",
+      "label": "Label reversal retry consistency",
+      "notes": "Initial route metadata reason label_cost_deduction differs from worker label_cost_deduction_retry under same key. Parent source-confirmed; provider replay consequences conditional, no provider execution. Documented FIN-01.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "guild-continuation",
+      "label": "Guild cron continuation",
+      "notes": "Worker read entire route/helper. 300-second run pages all sellers without durable cursor, hard-killed RUNNING lease not reclaimed. Parent validation pending.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "clawback-deadline",
+      "label": "Clawback queue deadlines",
+      "notes": "Worker found 60s route versus installed SDK 80s timeout, ten upfront claimed rows, 20 attempts/hour schedule; parent validation pending.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "guild-warning-delivery",
+      "label": "Guild warning durability",
+      "notes": "Worker observed committed warning clock then best-effort notification/email; no transactional obligation. Parent validation pending.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "map-cutoff",
+      "label": "Public map fixed subset",
+      "notes": "Worker observed first 500 eligible IDs, no viewport retrieval. Parent validation pending.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "admin-pin-boundary",
+      "label": "Admin page step-up authentication",
+      "notes": "admin-rsc-pin source validated independently. Medium severity: active staff session required, partial GET data path lacks PIN. APIs/actions retain PIN checks. No live probe.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "case-receipt-history",
+      "label": "Closed Case hides valid receipt confirmation",
+      "notes": "Worker: all-status getVisibleCaseByOrderId assigned activeCase; buyer page506-529 uses !activeCase; receipt SQL permits resolved cases. API not deadlocked.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "case-close-guidance",
+      "label": "Pending-close guidance",
+      "notes": "Worker: both-parties-must-confirm UI contradicts seven-day inactivity expiry; 48h route comment stale. Reply reopening and co-committed notifications present.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "case-resolution-origin",
+      "label": "Resolution origin copy",
+      "notes": "Worker: mutual and automatic RESOLVED/DISMISSED displayed as reviewed dismissal; underlying audit distinguishes origin.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "cart-load-error",
+      "label": "Cart load failures look empty",
+      "notes": "Worker: cart391-435 sets error, initial empty return528-538 precedes banner859-863. Backend preserved.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "notification-default-policy",
+      "label": "Default notification preference mismatch",
+      "notes": "Worker: default-off switches vs latest wired SQL only suppressing explicit false. Saved false honored; missing defaults diverge.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "saved-search-navigation",
+      "label": "Saved state after tag navigation",
+      "notes": "Worker: criteria-independent Saved state survives tag Link navigation; new criteria not saved. Native reload remounts.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "cart-concurrent-intent",
+      "label": "Cart request ordering",
+      "notes": "Worker: independent quantity POSTs and reloads can reorder intent or UI snapshot. Ownership/aggregate locks retained.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "favorite-collection-invalidation",
+      "label": "Saved collection stale after unfavorite",
+      "notes": "Worker: heart updates locally without collection count/pagination invalidation. DBdelete succeeds.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "product-upload-composer-review",
+      "label": "Composer, uploads and review UI",
+      "notes": "Partial batch failure stuck spinner; Enter bypasses uploading-disabled button; pending completion clears newer draft; >6 accumulated attachments silently truncated; review completion only consumes res[0]. Parent checked composer/reset/reducer and review callback.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "product-listing-cart-review",
+      "label": "Custom listing, cart and variants",
+      "notes": "Reserved private SOLD_OUT loses buyer detail/review UI. Guest raw stock renders up to1million options despite99 quantitycap. Parent sourceconfirmed both. Partial variants, custom category discard and author reply rendering recorded in durable Markdown.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "financial-controls-reviewed",
+      "label": "Checkout and refund control paths",
+      "notes": "No additional attacker-controlled duplicate refund/underpayment path established in reviewed typed flows. Exact amount/source identity, generation fencing, state locks and atomic record/outbox effects were traced. Known reservation and other NULL SQL defects remain separately open; this is not a blanket safe finding or live proof.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "baseline-input-controls",
+      "label": "Baseline input and account boundaries",
+      "notes": "Source review found bounded owner-scoped uploads, raster processing, sanitizer/URL controls, account export/deletion reverification and current-account checks. No additional concrete exploit reported; indirect dependencies and production settings not comprehensively proven.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "historical-review-disposition",
+      "label": "Prior imported RLS findings",
+      "notes": "Three latest Claude attachment files read fully and reconciled with current Order audit1221-1337/input runbooks. Composition corrections present in candidate not production; receipt NULL type has source-query containment, label/reconcile cases not equivalent. Other live-family legacy-grant/catalog/ordering/report-link/file-kind items remain separate open work. Lease timeout alone does not prove exactly-once.",
+      "receiptRefs": []
+    }
+  ]
+}
