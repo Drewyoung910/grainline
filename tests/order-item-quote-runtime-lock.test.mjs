@@ -49,6 +49,7 @@ test("runtime provisioning preserves predecessor grants until the exact lock led
     ciWorkflow,
     /Apply only Order item and quote runtime lock in disposable PostgreSQL[\s\S]*?prisma migrate resolve\s+--applied 20260929130000_revoke_order_item_shipping_quote_runtime_access[\s\S]*?Converge runtime grants after Order item and quote runtime lock/u,
   );
+  assert.equal((ciWorkflow.match(/prisma migrate resolve/gu) ?? []).length, 1);
 });
 
 test("grant audit changes expectations only after an exact completed ledger row", async () => {

@@ -98,7 +98,11 @@ test("CI retains the Case Phase-A proof before Case FORCE under the current gate
     /Isolate the exact Case activation until authority proofs pass[\s\S]*Isolate the exact Case FORCE release until Phase A passes[\s\S]*Prove Case invariant drafts in rollback-only PostgreSQL[\s\S]*Prove compatible Case production postflight under the runtime role[\s\S]*Restore the exact Case activation release[\s\S]*Apply the exact Case activation release[\s\S]*Converge activated Case runtime grants[\s\S]*Audit final runtime grants and RLS catalog[\s\S]*Prove promoted Case activation under the runtime role[\s\S]*Restore the exact Case FORCE release/,
   );
   assert.match(ci, /CASE_ACTIVATION_PROOF_DATABASE_URL/);
-  assert.doesNotMatch(ci, /prisma migrate resolve/);
+  const runtimeLockLedger = ci.indexOf(
+    "Record exact Order item and quote runtime lock in disposable ledger",
+  );
+  assert.ok(runtimeLockLedger > 0);
+  assert.doesNotMatch(ci.slice(0, runtimeLockLedger), /prisma migrate resolve/);
 });
 
 test("production workflow has advanced to the separate exact Case FORCE gate", () => {
