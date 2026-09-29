@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { cache } from "react";
 import FavoriteButton from "@/components/FavoriteButton";
 import DynamicMapCard from "@/components/DynamicMapCard";
@@ -31,6 +32,7 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
 import { DEFAULT_CURRENCY, formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
+import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -197,7 +199,7 @@ export default async function ListingPage({
   const sortKey = (sp.rsort as "top" | "new" | "rating" | "photos") ?? "top";
   const editingMine = sp.redit === "1";
 
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   let me: { id: string; role: string; banned: boolean; deletedAt: Date | null } | null = null;
   let meId: string | null = null;
   if (userId) {
@@ -215,19 +217,29 @@ export default async function ListingPage({
   // Preview mode: seller can view their own listing regardless of status/chargesEnabled
   const viewerIsSeller = !!meId && listing.seller.userId === meId;
   const staffPreviewRequested = sp.preview === "admin";
-  const staffPreview =
-    sp.preview === "admin" &&
+  let staffPreview = false;
+  if (
+    staffPreviewRequested &&
+    userId &&
     !!me &&
     !me.banned &&
     !me.deletedAt &&
-    (me.role === "ADMIN" || me.role === "EMPLOYEE");
+    (me.role === "ADMIN" || me.role === "EMPLOYEE")
+  ) {
+    const cookieStore = await cookies();
+    staffPreview = await verifyAdminPinCookieValue(
+      cookieStore.get(ADMIN_PIN_COOKIE_NAME)?.value,
+      userId,
+      sessionId,
+    );
+  }
   const isPreview = (sp.preview === "1" && viewerIsSeller) || staffPreview;
 
   if (!canViewListingDetail(listing, {
     dbUserId: meId,
     clerkUserId: userId,
     preview: sp.preview === "1",
-    staffPreview: staffPreviewRequested,
+    staffPreview,
     role: me?.role,
     banned: me?.banned,
     deletedAt: me?.deletedAt,
