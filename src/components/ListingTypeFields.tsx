@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
+import { MAX_LISTING_FULFILLMENT_DAYS } from "@/lib/listingFulfillmentDays";
 
 export default function ListingTypeFields({
   listingType = "MADE_TO_ORDER",
@@ -130,6 +131,7 @@ export default function ListingTypeFields({
                 inputMode="numeric"
                 step="1"
                 min="1"
+                max={MAX_LISTING_FULFILLMENT_DAYS}
                 placeholder="1"
                 defaultValue={minDays ?? ""}
                 className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
@@ -143,6 +145,7 @@ export default function ListingTypeFields({
                 inputMode="numeric"
                 step="1"
                 min="1"
+                max={MAX_LISTING_FULFILLMENT_DAYS}
                 placeholder="7"
                 defaultValue={maxDays ?? ""}
                 className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
@@ -184,6 +187,7 @@ export default function ListingTypeFields({
                 inputMode="numeric"
                 step="1"
                 min="1"
+                max={MAX_LISTING_FULFILLMENT_DAYS}
                 placeholder="3"
                 defaultValue={shipsWithinDays ?? ""}
                 className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"

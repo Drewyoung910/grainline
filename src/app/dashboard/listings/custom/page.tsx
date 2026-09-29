@@ -29,6 +29,7 @@ import {
   findLatestActorCustomOrderRequest,
   getActorConversation,
 } from "@/lib/conversationMessageAuthority";
+import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -153,21 +154,23 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (stockQuantity !== null && stockQuantity > MAX_MANUAL_STOCK_QUANTITY) {
     return { ok: false, error: `Stock quantity cannot exceed ${MAX_MANUAL_STOCK_QUANTITY}.` };
   }
-  const shipsWithinDaysRaw = parseInt(String(formData.get("shipsWithinDays") ?? ""), 10);
-  const shipsWithinDays =
-    listingType === "IN_STOCK" && Number.isFinite(shipsWithinDaysRaw) && shipsWithinDaysRaw > 0
-      ? shipsWithinDaysRaw
-      : null;
-  const minDaysRaw = parseInt(String(formData.get("processingTimeMinDays") ?? ""), 10);
-  const maxDaysRaw = parseInt(String(formData.get("processingTimeMaxDays") ?? ""), 10);
-  const processingTimeMinDays =
-    listingType === "MADE_TO_ORDER" && Number.isFinite(minDaysRaw) && minDaysRaw > 0
-      ? minDaysRaw
-      : null;
-  const processingTimeMaxDays =
-    listingType === "MADE_TO_ORDER" && Number.isFinite(maxDaysRaw) && maxDaysRaw > 0
-      ? maxDaysRaw
-      : null;
+  const shipsWithinDaysResult = listingType === "IN_STOCK"
+    ? parseListingFulfillmentDays(formData.get("shipsWithinDays"), "Ships-within time")
+    : { ok: true as const, value: null };
+  if (!shipsWithinDaysResult.ok) return shipsWithinDaysResult;
+  const shipsWithinDays = shipsWithinDaysResult.value;
+  const processingTimeMinDaysResult = listingType === "MADE_TO_ORDER"
+    ? parseListingFulfillmentDays(formData.get("processingTimeMinDays"), "Minimum processing time")
+    : { ok: true as const, value: null };
+  if (!processingTimeMinDaysResult.ok) return processingTimeMinDaysResult;
+  const processingTimeMaxDaysResult = listingType === "MADE_TO_ORDER"
+    ? parseListingFulfillmentDays(formData.get("processingTimeMaxDays"), "Maximum processing time")
+    : { ok: true as const, value: null };
+  if (!processingTimeMaxDaysResult.ok) return processingTimeMaxDaysResult;
+  const processingTimeMinDays = processingTimeMinDaysResult.value;
+  const processingTimeMaxDays = processingTimeMaxDaysResult.value;
+  const processingWindowError = listingProcessingWindowError(processingTimeMinDays, processingTimeMaxDays);
+  if (processingWindowError) return { ok: false, error: processingWindowError };
 
   const created = await prisma.$transaction(async (tx) => {
     const listing = await tx.listing.create({

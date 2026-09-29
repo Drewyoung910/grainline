@@ -37,6 +37,7 @@ import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -178,15 +179,23 @@ async function createListing(_prevState: unknown, formData: FormData) {
   const stockQuantityRaw = parseInt(String(formData.get("stockQuantity") ?? ""), 10);
   const stockQuantity = listingType === "IN_STOCK" && Number.isFinite(stockQuantityRaw) && stockQuantityRaw > 0
     ? stockQuantityRaw : null;
-  const shipsWithinDaysRaw = parseInt(String(formData.get("shipsWithinDays") ?? ""), 10);
-  const shipsWithinDays = listingType === "IN_STOCK" && Number.isFinite(shipsWithinDaysRaw) && shipsWithinDaysRaw > 0
-    ? shipsWithinDaysRaw : null;
+  const shipsWithinDaysResult = listingType === "IN_STOCK"
+    ? parseListingFulfillmentDays(formData.get("shipsWithinDays"), "Ships-within time")
+    : { ok: true as const, value: null };
+  if (!shipsWithinDaysResult.ok) return shipsWithinDaysResult;
+  const shipsWithinDays = shipsWithinDaysResult.value;
 
   // Processing time (only for MADE_TO_ORDER)
-  const minDaysRaw = parseInt(String(formData.get("processingTimeMinDays") ?? ""), 10);
-  const maxDaysRaw = parseInt(String(formData.get("processingTimeMaxDays") ?? ""), 10);
-  const processingTimeMinDays = listingType === "MADE_TO_ORDER" && Number.isFinite(minDaysRaw) && minDaysRaw > 0 ? minDaysRaw : null;
-  const processingTimeMaxDays = listingType === "MADE_TO_ORDER" && Number.isFinite(maxDaysRaw) && maxDaysRaw > 0 ? maxDaysRaw : null;
+  const processingTimeMinDaysResult = listingType === "MADE_TO_ORDER"
+    ? parseListingFulfillmentDays(formData.get("processingTimeMinDays"), "Minimum processing time")
+    : { ok: true as const, value: null };
+  if (!processingTimeMinDaysResult.ok) return processingTimeMinDaysResult;
+  const processingTimeMaxDaysResult = listingType === "MADE_TO_ORDER"
+    ? parseListingFulfillmentDays(formData.get("processingTimeMaxDays"), "Maximum processing time")
+    : { ok: true as const, value: null };
+  if (!processingTimeMaxDaysResult.ok) return processingTimeMaxDaysResult;
+  const processingTimeMinDays = processingTimeMinDaysResult.value;
+  const processingTimeMaxDays = processingTimeMaxDaysResult.value;
 
   // Variants (up to 3 groups × 10 options)
   let variantGroups: Array<{
@@ -225,17 +234,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (stockQuantity !== null && stockQuantity > MAX_MANUAL_STOCK_QUANTITY) {
     return { ok: false, error: `Stock quantity cannot exceed ${MAX_MANUAL_STOCK_QUANTITY}.` };
   }
-  if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) {
-    return { ok: false, error: "Processing time cannot exceed 365 days." };
-  }
-  if (
-    listingType === "MADE_TO_ORDER" &&
-    processingTimeMinDays !== null &&
-    processingTimeMaxDays !== null &&
-    processingTimeMinDays > processingTimeMaxDays
-  ) {
-    return { ok: false, error: "Processing time minimum cannot exceed the maximum." };
-  }
+  const processingWindowError = listingProcessingWindowError(processingTimeMinDays, processingTimeMaxDays);
+  if (processingWindowError) return { ok: false, error: processingWindowError };
 
   // 3. Create listing with status based on saveAsDraft
   const created = await prisma.$transaction(async (tx) => {
