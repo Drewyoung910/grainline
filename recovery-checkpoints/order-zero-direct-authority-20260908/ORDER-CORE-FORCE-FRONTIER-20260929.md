@@ -141,6 +141,16 @@ formatting, migration checksum, and `git diff --check` pass. The FORCE
 migration bytes remain unchanged. This integrated successor is still private
 and has not been merged or applied.
 
+The protected FORCE workflow now also proves that the successful runtime-lock
+run's exact `head_sha` is identical to or an ancestor of the reviewed FORCE
+release commit. This closes reuse of a successful but unrelated or future
+runtime-lock run while allowing the expected later FORCE source merge. The
+guard and its focused assertions are privately backed up at exact commit
+`0cc09325b462d9c5776df9c7cd80d137518c7947` on branch
+`recovery/order-core-force-with-column-acl-fix-0cc09325-20260929`. Twelve
+directly affected assertions, workflow formatting, and `git diff --check`
+pass. No migration, deployment, alias, credential, or Production state changed.
+
 ## Exact forward sequence
 
 1. Complete: exact head `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`
