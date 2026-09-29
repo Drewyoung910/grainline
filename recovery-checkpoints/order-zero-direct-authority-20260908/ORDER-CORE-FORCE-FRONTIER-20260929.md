@@ -163,6 +163,15 @@ remains `1f48553466fd1ee0373d48036e5e193cedbb6d4ff094ad1fba753e8c75e7e139`.
 The candidate remains private and unapplied while main CI `36645095118` and the
 corrected Production runtime-lock gate complete.
 
+Merged-main CI `36645095118` passed all 461 steps on exact main `c7c0c3a3`.
+Corrected protected Production runtime-lock run `36647432346` then completed
+successfully at `2026-09-29T23:53:44Z`, applying only migration
+`20260929130000_revoke_order_item_shipping_quote_runtime_access` and accepting
+its exact postflight. The FORCE predecessor gate is now satisfied. The next
+unfinished implementation is publication and exact-head review of private
+candidate `217f98e7`, followed by its own merged-main CI and a separately bound
+protected FORCE dispatch.
+
 ## Exact forward sequence
 
 1. Complete: exact head `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`

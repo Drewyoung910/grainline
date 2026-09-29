@@ -132,6 +132,18 @@ private branch
 published through PR #478. All four exact-head checks passed, including full
 CI run `36642380435`. The exact head merged at `2026-09-29T23:25:09Z` as main
 commit `c7c0c3a3eed1a61d0ed55ce5f43fab9a13c49aa6`. Required merged-main push CI
-run `36645095118` is in progress on that exact commit. The migration bytes and
-checksum are unchanged. No corrected Production redispatch may occur until
-that exact merged-main CI succeeds and the live deployment is re-read.
+run `36645095118` passed on that exact commit. Fresh Vercel inspection kept all
+five canonical aliases READY on deployment
+`dpl_FpD59NTBtkRj4v1KP5yEjMRdvNdj`, and the public/protected/redirect/health
+surface proof passed. The migration bytes and checksum remained unchanged.
+
+Corrected Production run `36647432346` was released through the protected
+Production environment on that exact main/CI/deployment binding. From
+`2026-09-29T23:52:04Z` through `2026-09-29T23:53:44Z` it passed source, live
+deployment, owner connection, corrected explicit-column ACL preflight, exact
+predecessor/pending-migration admission, the single reviewed migration, and
+postflight. Production now has no PUBLIC or `grainline_app_runtime` table or
+column authority on `OrderItem` or `OrderShippingRateQuote`. The run proved
+Core `Order` remains RLS enabled without FORCE, with its zero-policy posture,
+unrelated grants, and every `grainline_order_%` function definition unchanged.
+This child-table runtime lock is accepted and complete.
