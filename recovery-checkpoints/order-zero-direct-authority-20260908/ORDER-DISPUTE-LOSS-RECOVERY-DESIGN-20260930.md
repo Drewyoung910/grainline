@@ -11,12 +11,23 @@ deployment smoke, or alias cutover.
   `/private/tmp/grainline-order-dispute-loss-recovery-20260930`.
 - Branch: `codex/order-dispute-loss-recovery-20260930`.
 - Finding: audit item `#108`.
-- Current source draft is committed at
-  `4515da45ef16b9784ede47f4b6cedd21c2f12b57` and backed up privately on
-  `recovery/order-dispute-loss-recovery-draft-20260930`. The exact commit is
-  also published on public deployment-disabled branch
-  `codex/order-dispute-loss-recovery-20260930`. No PR is open. It has not been
-  merged, deployed, applied to Production, or used against Stripe.
+- The first public source candidate was
+  `4515da45ef16b9784ede47f4b6cedd21c2f12b57` on deployment-disabled branch
+  `codex/order-dispute-loss-recovery-20260930` and draft PR `#487`.
+- Three required checks passed on that head. Main CI run `36758747603` failed
+  before behavioral tests because the new `20260930040000` migration remained
+  visible while CI replayed a historical release verifier whose accepted tree
+  must end at `20260830030000_enable_order_payment_event_rls`.
+- The focused CI correction is committed locally at
+  `724682c63fe29d1abb3ab4c9a136f29ca44c2e84` and backed up privately on
+  `recovery/order-dispute-loss-recovery-draft-20260930`. It verifies the new
+  package, isolates its migration before historical proofs, restores it only
+  after the accepted ops-health successor, re-verifies it, and applies only
+  that migration in disposable CI before the production build.
+- The public branch and PR still point to `4515da45`; main remains
+  `6ed0476659327961170fc186389a0d055da7f2be`. Publishing the amended exact head
+  requires a new approval. Nothing in this work has been deployed, applied to
+  Production, or used against Stripe.
 
 ## Verified current behavior
 
@@ -120,21 +131,26 @@ The automatic merged-main run is readback only.
 
 ## Focused source evidence
 
-- Provider and retry tests: 8/8 passed.
-- Source-contract and disposable PostgreSQL authority tests: 4/4 passed.
+- Provider, retry, source-contract, CI-ordering, and disposable PostgreSQL
+  authority tests: 13/13 passed both with the migration in its repository path
+  and with it physically isolated at the CI holding path.
 - The PostgreSQL proof caught and corrected an extra table-definition closing
   parenthesis and two enum-valued `CASE` expressions that otherwise resolved
   as `text`.
-- Prisma validation, focused ESLint, TypeScript no-emit, and diff checks passed.
+- Prisma validation, focused ESLint, TypeScript no-emit, Prettier, workflow YAML
+  parsing, and diff checks passed.
 - No broad repository suite was run during this pass.
 
 ## Approval boundary
 
 The user explicitly approved the source-only webhook connection and named the
-future automatic seller-transfer reversal/restoration effect. Source
-implementation is complete. The later one-word approval allowed the exact
-public branch push, but automatic approval review rejected draft-PR creation
-because the message did not literally restate publication and conditional
-merge. Exact authorization is still required to open and conditionally merge
-the PR. Later Production approval is required to apply its migration, deploy
-it, and allow it to affect live Stripe transfers.
+future automatic seller-transfer reversal/restoration effect. The user then
+approved public draft PR `#487` and conditional merge of exact head
+`4515da45ef16b9784ede47f4b6cedd21c2f12b57` against unchanged main
+`6ed0476659327961170fc186389a0d055da7f2be`. That exact head failed CI for the
+historical-tree staging reason above, so it cannot be merged under the stated
+condition. Exact authorization is required to publish amended head
+`724682c63fe29d1abb3ab4c9a136f29ca44c2e84` to PR `#487` and conditionally
+merge it if its required exact-head checks pass against unchanged main. Later
+Production approval is required to apply its migration, deploy it, and allow
+it to affect live Stripe transfers.
