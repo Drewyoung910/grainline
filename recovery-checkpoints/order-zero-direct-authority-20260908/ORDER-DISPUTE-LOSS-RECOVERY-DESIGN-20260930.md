@@ -11,8 +11,11 @@ deployment smoke, or alias cutover.
   `/private/tmp/grainline-order-dispute-loss-recovery-20260930`.
 - Branch: `codex/order-dispute-loss-recovery-20260930`.
 - Finding: audit item `#108`.
-- Current draft is local and inactive. It has not been committed, published,
-  merged, deployed, scheduled, applied to Production, or used against Stripe.
+- Current source draft is committed at
+  `9feda66ff022c78878eda3ae817b52b298587c2c` and backed up privately on
+  `recovery/order-dispute-loss-recovery-draft-20260930`. It has not been
+  published to the public repository, merged, deployed, applied to Production,
+  or used against Stripe.
 
 ## Verified current behavior
 
@@ -75,11 +78,14 @@ For each Stripe dispute:
 - A bounded SKIP LOCKED batch retries durable pending work.
 - A separate count-only health function reports manual-review and overdue
   recovery work without exposing dispute rows.
-- The signed Stripe webhook would attempt the first claim after its database
-  transaction. Provider failure would be durably recorded and would not force
-  repeated webhook delivery.
-- A protected cron route would process retries. It remains absent and
-  unscheduled until the financial policy is explicitly approved.
+- The signed Stripe webhook still does not claim recovery work. The reviewed
+  hookup remains the one missing source change.
+- A protected cron route and Vercel schedule are present in the private draft.
+  They are inert because no deployed webhook creates recovery claims, no
+  migration has been applied, and the draft has not been deployed.
+- Runtime provisioning grants only the four exact claim/finalize/health
+  functions. Ops health reports manual-review and overdue-retry counts through
+  the count-only function.
 
 ## Recovery and ordering cases
 
@@ -110,11 +116,22 @@ This correction should receive:
 Do not manually rerun the repository's 27–31 minute full suite after it passes.
 The automatic merged-main run is readback only.
 
+## Focused source evidence
+
+- Provider and retry tests: 8/8 passed.
+- Source-contract and disposable PostgreSQL authority tests: 3/3 passed.
+- The PostgreSQL proof caught and corrected an extra table-definition closing
+  parenthesis and two enum-valued `CASE` expressions that otherwise resolved
+  as `text`.
+- Prisma validation, focused ESLint, TypeScript no-emit, and diff checks passed.
+- No broad repository suite was run during this pass.
+
 ## Approval boundary
 
-Approval is required before connecting the inactive draft to the signed Stripe
-webhook or scheduling the retry worker, because that establishes the policy
-that seller transfers are reversed during standard disputes and restored after
-funds are reinstated. Separate later approval is still required to publish or
-merge the source, apply its migration, deploy it, and allow it to affect live
-Stripe transfers.
+The user approved source-only implementation of the documented policy. An
+automatic approval review nevertheless rejected the exact webhook hookup
+because a later deployment would make signed Production disputes capable of
+reversing or restoring seller transfers. The remaining source authorization
+must therefore name that financial effect explicitly. Separate later approval
+is still required to publish or merge the source, apply its migration, deploy
+it, and allow it to affect live Stripe transfers.
