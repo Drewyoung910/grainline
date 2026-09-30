@@ -37,7 +37,8 @@ AS $grainline_order_ops_health_summary$
            AND COALESCE(
              source_order."refundClaimProviderAuthorizedAt",
              source_order."sellerRefundLockedAt",
-             source_order."updatedAt"
+             source_order."paidAt",
+             source_order."createdAt"
            ) < source_clock.now_utc - interval '30 minutes'
       ) AS stale_refund_claim_count,
       (
@@ -57,7 +58,7 @@ AS $grainline_order_ops_health_summary$
         SELECT pg_catalog.count(*)
           FROM public."Order" AS source_order
          WHERE source_order."reviewNeeded" = true
-           AND source_order."updatedAt" <
+           AND COALESCE(source_order."paidAt", source_order."createdAt") <
              source_clock.now_utc - interval '24 hours'
       ) AS aging_review_needed_count,
       (

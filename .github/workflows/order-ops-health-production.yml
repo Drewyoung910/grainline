@@ -86,7 +86,7 @@ jobs:
           set -euo pipefail
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
           test "$latest" = "prisma/migrations/20260930033000_order_ops_health_summary"
-          echo "7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7  prisma/migrations/20260930033000_order_ops_health_summary/migration.sql" \
+          echo "ed5e069248281ef8738f97bd0480ee77b85044a4ad2c9ac433ef2840a2a7e941  prisma/migrations/20260930033000_order_ops_health_summary/migration.sql" \
             | sha256sum --check --status
           node --test tests/order-ops-health.test.mjs
       - name: Verify owner connection boundary
@@ -106,7 +106,7 @@ jobs:
           const predecessor = '20260930032000_block_checkout_user_pairs';
           const predecessorChecksum = 'dc1cdbf14a5b126635af44fbbc4ca820ac16e46823a68071400fd5786110209d';
           const migration = '20260930033000_order_ops_health_summary';
-          const checksum = '7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7';
+          const checksum = 'ed5e069248281ef8738f97bd0480ee77b85044a4ad2c9ac433ef2840a2a7e941';
           const postureSql = `
             SELECT relation.relname AS table_name,
                    pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
@@ -204,7 +204,7 @@ jobs:
           import pg from 'pg';
 
           const migration = '20260930033000_order_ops_health_summary';
-          const checksum = '7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7';
+          const checksum = 'ed5e069248281ef8738f97bd0480ee77b85044a4ad2c9ac433ef2840a2a7e941';
           const sql = readFileSync(`prisma/migrations/${migration}/migration.sql`, 'utf8');
           const delimiter = '$grainline_order_ops_health_summary$';
           const start = sql.indexOf(`AS ${delimiter}`) + `AS ${delimiter}`.length;

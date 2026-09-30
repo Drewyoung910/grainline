@@ -33,7 +33,7 @@ test("Order ops-health workflow is manual, exact-main and Production-bound", () 
 test("workflow admits only the exact latest migration after its predecessor", () => {
   assert.match(
     workflow,
-    /7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7\s+prisma\/migrations\/20260930033000_order_ops_health_summary\/migration\.sql/u,
+    /ed5e069248281ef8738f97bd0480ee77b85044a4ad2c9ac433ef2840a2a7e941\s+prisma\/migrations\/20260930033000_order_ops_health_summary\/migration\.sql/u,
   );
   assert.match(workflow, /tail -n 1[\s\S]*20260930033000_order_ops_health_summary/u);
   assert.match(workflow, /20260930032000_block_checkout_user_pairs/u);

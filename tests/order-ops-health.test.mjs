@@ -13,6 +13,7 @@ const migrationPath = [
 ].find((candidate) => candidate && existsSync(candidate));
 assert.ok(migrationPath, "Order ops-health migration source must be available");
 const migration = readFileSync(migrationPath, "utf8");
+const prismaSchema = readFileSync("prisma/schema.prisma", "utf8");
 const wrapper = readFileSync("src/lib/orderOpsHealth.ts", "utf8");
 const route = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
 const adminLayout = readFileSync("src/app/admin/layout.tsx", "utf8");
@@ -32,12 +33,24 @@ test("Order ops health exposes one fixed count-only runtime authority", () => {
 });
 
 test("Order ops health thresholds match the existing repair schedules", () => {
+  const orderModel = prismaSchema.match(/model Order \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(orderModel, "Prisma Order model must be present");
+  assert.match(orderModel, /^\s+createdAt\s+DateTime/m);
+  assert.match(orderModel, /^\s+paidAt\s+DateTime\?/m);
+  assert.doesNotMatch(orderModel, /^\s+updatedAt\s+/m);
   assert.match(migration, /'ambiguous_refund_pending_reconciliation'/);
   assert.match(migration, /"sellerRefundId" = 'pending'/);
-  assert.match(migration, /"refundClaimProviderAuthorizedAt"[\s\S]*"sellerRefundLockedAt"[\s\S]*interval '30 minutes'/);
+  assert.match(
+    migration,
+    /"refundClaimProviderAuthorizedAt"[\s\S]*"sellerRefundLockedAt"[\s\S]*"paidAt"[\s\S]*"createdAt"[\s\S]*interval '30 minutes'/,
+  );
   assert.match(migration, /"labelClawbackStatus" = 'MANUAL_REVIEW'/);
   assert.match(migration, /"labelClawbackStatus" = 'RETRY_PENDING'[\s\S]*interval '30 minutes'/);
-  assert.match(migration, /"reviewNeeded" = true[\s\S]*interval '24 hours'/);
+  assert.match(
+    migration,
+    /"reviewNeeded" = true[\s\S]*COALESCE\(source_order\."paidAt", source_order\."createdAt"\)[\s\S]*interval '24 hours'/,
+  );
+  assert.doesNotMatch(migration, /source_order\."updatedAt"/);
   assert.match(migration, /status IN \('RESERVED', 'SESSION_CREATED'\)[\s\S]*interval '2 hours 30 minutes'/);
   assert.match(migration, /"repairClaimedAt"[\s\S]*interval '15 minutes'/);
   assert.match(migration, /"lastRepairError" IS NOT NULL[\s\S]*interval '30 minutes'/);
@@ -109,7 +122,8 @@ test("database aggregate enforces table closure and counts only aged actionable 
         "labelClawbackStatus" text,
         "labelClawbackNextAttemptAt" timestamp(3) without time zone,
         "reviewNeeded" boolean NOT NULL DEFAULT false,
-        "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "paidAt" timestamp(3) without time zone
       );
       CREATE TABLE public."CheckoutStockReservation" (
         id text PRIMARY KEY,
@@ -130,25 +144,36 @@ test("database aggregate enforces table closure and counts only aged actionable 
       INSERT INTO public."Order" (
         id, "sellerRefundId", "refundClaimProviderAuthorizedAt",
         "sellerRefundLockedAt", "labelClawbackStatus",
-        "labelClawbackNextAttemptAt", "reviewNeeded", "updatedAt"
+        "labelClawbackNextAttemptAt", "reviewNeeded", "createdAt", "paidAt"
       ) VALUES
         ('ambiguous', 'ambiguous_refund_pending_reconciliation', NULL, NULL,
-          NULL, NULL, false, CURRENT_TIMESTAMP),
+          NULL, NULL, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
         ('stale-refund', 'pending', CURRENT_TIMESTAMP - interval '31 minutes',
           CURRENT_TIMESTAMP - interval '32 minutes', NULL, NULL, false,
-          CURRENT_TIMESTAMP),
+          CURRENT_TIMESTAMP - interval '40 days',
+          CURRENT_TIMESTAMP - interval '40 days'),
         ('fresh-refund', 'pending', CURRENT_TIMESTAMP - interval '29 minutes',
           CURRENT_TIMESTAMP - interval '29 minutes', NULL, NULL, false,
-          CURRENT_TIMESTAMP),
+          CURRENT_TIMESTAMP - interval '40 days',
+          CURRENT_TIMESTAMP - interval '40 days'),
+        ('missing-refund-clock', 'pending', NULL, NULL, NULL, NULL, false,
+          CURRENT_TIMESTAMP - interval '40 days',
+          CURRENT_TIMESTAMP - interval '40 days'),
+        ('fresh-missing-refund-clock', 'pending', NULL, NULL, NULL, NULL, false,
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
         ('manual-clawback', NULL, NULL, NULL, 'MANUAL_REVIEW', NULL, false,
-          CURRENT_TIMESTAMP),
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
         ('overdue-clawback', NULL, NULL, NULL, 'RETRY_PENDING',
-          CURRENT_TIMESTAMP - interval '31 minutes', false, CURRENT_TIMESTAMP),
+          CURRENT_TIMESTAMP - interval '31 minutes', false, CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP),
         ('future-clawback', NULL, NULL, NULL, 'RETRY_PENDING',
-          CURRENT_TIMESTAMP + interval '1 minute', false, CURRENT_TIMESTAMP),
+          CURRENT_TIMESTAMP + interval '1 minute', false, CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP),
         ('aging-review', NULL, NULL, NULL, NULL, NULL, true,
+          CURRENT_TIMESTAMP - interval '25 hours',
           CURRENT_TIMESTAMP - interval '25 hours'),
         ('fresh-review', NULL, NULL, NULL, NULL, NULL, true,
+          CURRENT_TIMESTAMP - interval '23 hours',
           CURRENT_TIMESTAMP - interval '23 hours');
 
       INSERT INTO public."CheckoutStockReservation" (
@@ -184,13 +209,13 @@ test("database aggregate enforces table closure and counts only aged actionable 
     await database.exec("RESET ROLE");
     assert.deepEqual(orderOpsHealthSummaryFromRows(result.rows), {
       ambiguousRefundCount: 1,
-      staleRefundClaimCount: 1,
+      staleRefundClaimCount: 2,
       manualReviewLabelClawbackCount: 1,
       overdueLabelClawbackRetryCount: 1,
       agingReviewNeededCount: 1,
       staleCheckoutReservationCount: 3,
       recentPayoutFailureCount: 1,
-      issueCount: 9,
+      issueCount: 10,
     });
   } finally {
     await database.close();
