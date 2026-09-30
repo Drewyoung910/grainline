@@ -6,6 +6,12 @@ import { after, before, describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { sourceSnapshot, provider, paidCheckoutFixtureSql } from "./helpers/order-paid-checkout-fixture.mjs";
 
+function migrationSource(candidates, label) {
+  const sourcePath = candidates.find((candidatePath) => candidatePath && fs.existsSync(candidatePath));
+  assert.ok(sourcePath, `${label} migration source must be available`);
+  return fs.readFileSync(sourcePath, "utf8");
+}
+
 const candidate = fs.readFileSync(
   "docs/rls-drafts/order-paid-checkout-authority.sql",
   "utf8",
@@ -14,10 +20,13 @@ const boundReservationCorrection = fs.readFileSync(
   "prisma/migrations/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql",
   "utf8",
 );
-const privateCustomPaidStateCorrection = fs.readFileSync(
+const privateCustomPaidStateCorrection = migrationSource([
+  process.env.ORDER_PRIVATE_CUSTOM_PAID_STATE_MIGRATION_PATH,
   "prisma/migrations/20260930031000_mark_paid_private_listing_sold/migration.sql",
-  "utf8",
-);
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-private-custom-paid-state/migration.sql`
+    : null,
+], "private custom-listing successor");
 const rows = (result) => result.rows;
 let db;
 let dataDirectory;
