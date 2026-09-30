@@ -2,18 +2,33 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
 
-const migration = fs.readFileSync(
+function migrationSource(candidates, label) {
+  const path = candidates.find((candidate) => candidate && fs.existsSync(candidate));
+  assert.ok(path, `${label} migration source must be available`);
+  return fs.readFileSync(path, "utf8");
+}
+
+const migration = migrationSource([
+  process.env.ORDER_BLOCKED_PAIR_CHECKOUT_MIGRATION_PATH,
   "prisma/migrations/20260930032000_block_checkout_user_pairs/migration.sql",
-  "utf8",
-);
-const reservationPredecessor = fs.readFileSync(
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-blocked-pair-checkout/migration.sql`
+    : null,
+], "blocked-pair checkout");
+const reservationPredecessor = migrationSource([
+  process.env.ORDER_CHECKOUT_SOURCE_SNAPSHOT_MIGRATION_PATH,
   "prisma/migrations/20260905110000_prepare_order_checkout_source_snapshot/migration.sql",
-  "utf8",
-);
-const paidPredecessor = fs.readFileSync(
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-zero-direct-compatible-suffix/20260905110000_prepare_order_checkout_source_snapshot/migration.sql`
+    : null,
+], "checkout source-snapshot predecessor");
+const paidPredecessor = migrationSource([
+  process.env.ORDER_PRIVATE_CUSTOM_PAID_STATE_MIGRATION_PATH,
   "prisma/migrations/20260930031000_mark_paid_private_listing_sold/migration.sql",
-  "utf8",
-);
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-private-custom-paid-state/migration.sql`
+    : null,
+], "paid-checkout predecessor");
 
 function source(path) {
   return fs.readFileSync(path, "utf8");

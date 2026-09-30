@@ -83,6 +83,23 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order blocked-pair checkout source package
+        run: >-
+          node --test
+          tests/order-blocked-pair-checkout.test.mjs
+          tests/order-blocked-pair-checkout-postgres.test.mjs
+          tests/order-blocked-pair-checkout-production-workflow.test.mjs
+      - name: Isolate Order blocked-pair checkout until post-FORCE predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          correction="$RUNNER_TEMP/order-blocked-pair-checkout"
+          mv \
+            prisma/migrations/20260930032000_block_checkout_user_pairs \
+            "$correction"
+          echo \
+            "ORDER_BLOCKED_PAIR_CHECKOUT_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Verify Order post-FORCE application corrections source package
         run: >-
           node --test
@@ -2187,6 +2204,38 @@ jobs:
       - name: Apply only Order post-FORCE application corrections through Prisma
         run: npx prisma migrate deploy --schema "$ORDER_POST_FORCE_APPLICATION_PRISMA_SCHEMA"
       - name: Audit runtime grants after Order post-FORCE application corrections
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Order blocked-pair checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-blocked-pair-checkout" \
+            prisma/migrations/20260930032000_block_checkout_user_pairs
+          echo \
+            "ORDER_BLOCKED_PAIR_CHECKOUT_MIGRATION_PATH=prisma/migrations/20260930032000_block_checkout_user_pairs/migration.sql" \
+            >> "$GITHUB_ENV"
+      - name: Re-verify Order blocked-pair checkout source package
+        run: >-
+          node --test
+          tests/order-blocked-pair-checkout.test.mjs
+          tests/order-blocked-pair-checkout-postgres.test.mjs
+          tests/order-blocked-pair-checkout-production-workflow.test.mjs
+      - name: Stage only Order blocked-pair checkout for Prisma
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260930032000_block_checkout_user_pairs
+          isolated="$RUNNER_TEMP/order-blocked-pair-checkout-prisma"
+          mkdir -p "$isolated/migrations"
+          cp prisma/schema.prisma "$isolated/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$isolated/migrations/migration_lock.toml"
+          cp -a "prisma/migrations/$migration" "$isolated/migrations/$migration"
+          test "$(find "$isolated/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 1
+          echo "ORDER_BLOCKED_PAIR_CHECKOUT_PRISMA_SCHEMA=$isolated/schema.prisma" >> "$GITHUB_ENV"
+      - name: Apply only Order blocked-pair checkout through Prisma
+        run: npx prisma migrate deploy --schema "$ORDER_BLOCKED_PAIR_CHECKOUT_PRISMA_SCHEMA"
+      - name: Audit runtime grants after Order blocked-pair checkout
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

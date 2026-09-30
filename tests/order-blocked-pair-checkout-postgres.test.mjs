@@ -4,14 +4,26 @@ import { it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { paidCheckoutFixtureSql, provider } from "./helpers/order-paid-checkout-fixture.mjs";
 
-const predecessor = fs.readFileSync(
+function migrationSource(candidates, label) {
+  const path = candidates.find((candidate) => candidate && fs.existsSync(candidate));
+  assert.ok(path, `${label} migration source must be available`);
+  return fs.readFileSync(path, "utf8");
+}
+
+const predecessor = migrationSource([
+  process.env.ORDER_PRIVATE_CUSTOM_PAID_STATE_MIGRATION_PATH,
   "prisma/migrations/20260930031000_mark_paid_private_listing_sold/migration.sql",
-  "utf8",
-);
-const correction = fs.readFileSync(
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-private-custom-paid-state/migration.sql`
+    : null,
+], "paid-checkout predecessor");
+const correction = migrationSource([
+  process.env.ORDER_BLOCKED_PAIR_CHECKOUT_MIGRATION_PATH,
   "prisma/migrations/20260930032000_block_checkout_user_pairs/migration.sql",
-  "utf8",
-);
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-blocked-pair-checkout/migration.sql`
+    : null,
+], "blocked-pair checkout");
 
 function paidDefinition(sql) {
   const name = "grainline_stripe_checkout_order_create";
