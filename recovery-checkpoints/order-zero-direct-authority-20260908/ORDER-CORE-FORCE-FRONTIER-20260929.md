@@ -183,6 +183,16 @@ PR was created and no FORCE Production action occurred. The next required
 input is exact approval for that public draft PR and its conditional
 exact-head merge; Production FORCE remains a later separately bound dispatch.
 
+The user then explicitly approved that disclosure and conditional merge. Draft
+PR #479 is open and mergeable with exact head
+`217f98e781c95c2c8db916b25a338b877d08b7b4` against exact base
+`c7c0c3a3eed1a61d0ed55ce5f43fab9a13c49aa6`. Its required runs are full CI
+`36648833604`, account-deletion concurrency `36648833557`, paid-repair lock
+proof `36648833592`, and staff-bootstrap TLS login `36648833546`. All must pass
+on the unchanged exact head and public main must remain the exact base before
+the PR can leave draft or merge. Opening the PR did not dispatch FORCE or
+change Production.
+
 ## Exact forward sequence
 
 1. Complete: exact head `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`
