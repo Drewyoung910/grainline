@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import {
   MAX_LISTING_FULFILLMENT_DAYS,
@@ -10,6 +10,19 @@ import {
 
 function source(path) {
   return readFileSync(path, "utf8");
+}
+
+function fulfillmentMigrationSource() {
+  const candidates = [
+    process.env.ORDER_LISTING_FULFILLMENT_BOUNDS_MIGRATION_PATH,
+    "prisma/migrations/20260930030000_bound_listing_fulfillment_days/migration.sql",
+    process.env.RUNNER_TEMP
+      ? `${process.env.RUNNER_TEMP}/order-listing-fulfillment-bounds/migration.sql`
+      : null,
+  ];
+  const path = candidates.find((candidate) => candidate && existsSync(candidate));
+  assert.ok(path, "listing fulfillment bounds migration source must be available");
+  return source(path);
 }
 
 test("listing fulfillment day parsing accepts only blank or bounded whole days", () => {
@@ -45,9 +58,7 @@ test("every listing mutation uses the shared server bounds and the form exposes 
 });
 
 test("database rejects new out-of-range ships-within values", () => {
-  const migration = source(
-    "prisma/migrations/20260930030000_bound_listing_fulfillment_days/migration.sql",
-  );
+  const migration = fulfillmentMigrationSource();
   assert.match(migration, /ADD CONSTRAINT "Listing_ships_within_days_valid_chk"/u);
   assert.match(migration, /"shipsWithinDays" >= 1 AND "shipsWithinDays" <= 365/u);
   assert.match(migration, /NOT VALID/u);
