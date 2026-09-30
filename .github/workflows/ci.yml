@@ -186,13 +186,24 @@ jobs:
             tests/case-staff-refund-label-claim-correction.test.mjs \
             "$RUNNER_TEMP/case-staff-refund-label-claim-correction.test.mjs"
       - name: Verify staged Core Order FORCE source package
-        run: >-
-          node --test
-          tests/order-core-activation-draft.test.mjs
-          tests/order-core-force-release.test.mjs
-          tests/order-core-force-production-workflow.test.mjs
-          tests/order-core-rls-production-postflight.test.mjs
-          tests/order-core-rls-runtime-postflight.test.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_lock="$RUNNER_TEMP/order-item-quote-runtime-lock"
+          staged_runtime_lock="prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access"
+          test -d "$runtime_lock"
+          test ! -e "$staged_runtime_lock"
+          mv "$runtime_lock" "$staged_runtime_lock"
+          restore_runtime_lock() {
+            mv "$staged_runtime_lock" "$runtime_lock"
+          }
+          trap restore_runtime_lock EXIT
+          node --test \
+            tests/order-core-activation-draft.test.mjs \
+            tests/order-core-force-release.test.mjs \
+            tests/order-core-force-production-workflow.test.mjs \
+            tests/order-core-rls-production-postflight.test.mjs \
+            tests/order-core-rls-runtime-postflight.test.mjs
       - name: Isolate Core Order FORCE until runtime-lock predecessors pass
         shell: bash
         run: |

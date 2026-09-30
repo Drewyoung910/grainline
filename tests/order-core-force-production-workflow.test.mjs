@@ -117,4 +117,8 @@ test("CI keeps Core Order FORCE isolated until the runtime lock passes", () => {
   assert.ok(restore < forceApply);
   assert.ok(forceApply < forceAudit);
   assert.ok(forceAudit < build);
+  assert.match(
+    ciWorkflow,
+    /Verify staged Core Order FORCE source package[\s\S]*runtime_lock="\$RUNNER_TEMP\/order-item-quote-runtime-lock"[\s\S]*mv "\$runtime_lock" "\$staged_runtime_lock"[\s\S]*trap restore_runtime_lock EXIT[\s\S]*tests\/order-core-force-release\.test\.mjs/u,
+  );
 });
