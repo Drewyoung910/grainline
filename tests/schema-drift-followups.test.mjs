@@ -9,7 +9,7 @@ function source(filePath) {
 
 function migrationFiles() {
   const dir = new URL("../prisma/migrations", import.meta.url);
-  return fs
+  const migrations = fs
     .readdirSync(dir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
@@ -18,6 +18,23 @@ function migrationFiles() {
       name,
       sql: fs.readFileSync(path.join(dir.pathname, name, "migration.sql"), "utf8"),
     }));
+
+  const disputeRecoveryMigrationName =
+    "20260930040000_prepare_order_dispute_recovery";
+  const isolatedDisputeRecoveryPath =
+    process.env.ORDER_DISPUTE_RECOVERY_MIGRATION_PATH;
+  if (
+    isolatedDisputeRecoveryPath
+    && !migrations.some(({ name }) => name === disputeRecoveryMigrationName)
+    && fs.existsSync(isolatedDisputeRecoveryPath)
+  ) {
+    migrations.push({
+      name: disputeRecoveryMigrationName,
+      sql: fs.readFileSync(isolatedDisputeRecoveryPath, "utf8"),
+    });
+  }
+
+  return migrations.sort((left, right) => left.name.localeCompare(right.name));
 }
 
 function normalizeOnDelete(value) {

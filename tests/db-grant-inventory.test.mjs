@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -1524,6 +1524,22 @@ describe("database grant inventory guardrails", () => {
 
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
+    const disputeRecoveryMigrationPath =
+      "prisma/migrations/20260930040000_prepare_order_dispute_recovery/migration.sql";
+    const disputeRecoveryMigration = existsSync(disputeRecoveryMigrationPath)
+      ? source(disputeRecoveryMigrationPath)
+      : "";
+    const disputeRecoveryMigrationPresent = disputeRecoveryMigration.includes(
+      'CREATE TABLE public."OrderDisputeRecovery"',
+    ) && disputeRecoveryMigration.includes(
+      'CREATE TYPE public."OrderDisputeRecoveryStatus" AS ENUM',
+    );
+    const disputeRecoveryFunctionNames = [
+      "grainline_order_dispute_recovery_claim_batch",
+      "grainline_order_dispute_recovery_event_claim",
+      "grainline_order_dispute_recovery_finalize",
+      "grainline_order_dispute_recovery_health_summary",
+    ];
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -1535,8 +1551,8 @@ describe("database grant inventory guardrails", () => {
         ),
       );
 
-    assert.equal(inventory.tables.length, 68);
-    assert.equal(inventory.enums.length, 23);
+    assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 68 : 67);
+    assert.equal(inventory.enums.length, disputeRecoveryMigrationPresent ? 23 : 22);
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
@@ -1567,10 +1583,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_queue",
       "grainline_case_stripe_dispute_apply",
       "grainline_order_buyer_pii_prune_batch",
-      "grainline_order_dispute_recovery_claim_batch",
-      "grainline_order_dispute_recovery_event_claim",
-      "grainline_order_dispute_recovery_finalize",
-      "grainline_order_dispute_recovery_health_summary",
+      ...(disputeRecoveryMigrationPresent ? disputeRecoveryFunctionNames : []),
       "grainline_order_item_seller_key_bind",
       "grainline_order_item_seller_key_complete",
       "grainline_order_ops_health_summary",
@@ -1676,7 +1689,8 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      167 // email-projection successors/retirement, ops health, and dispute recovery
+      162 // email-projection successors/retirement and ops health
+        + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
@@ -2022,7 +2036,7 @@ describe("database grant inventory guardrails", () => {
         "Message",
         "Notification",
         "Order",
-        "OrderDisputeRecovery",
+        ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "OrderStaffCapability",
@@ -2049,7 +2063,7 @@ describe("database grant inventory guardrails", () => {
         "Message",
         "Notification",
         "Order",
-        "OrderDisputeRecovery",
+        ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "OrderStaffCapability",

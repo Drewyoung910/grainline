@@ -59,7 +59,7 @@ CREATE TABLE public."OrderDisputeRecovery" (
   "errorSummary" varchar(500),
   "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "OrderDisputeRecovery_order_fkey"
+  CONSTRAINT "OrderDisputeRecovery_orderId_fkey"
     FOREIGN KEY ("orderId") REFERENCES public."Order"(id)
     ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "OrderDisputeRecovery_source_event_order_fkey"
