@@ -427,3 +427,44 @@ points to `4835b062ab80cec4c5d422df485f2d7f5622fbb1`; main remains
 `6ed0476659327961170fc186389a0d055da7f2be`. Publishing the corrected head and
 conditionally merging it require a new exact-head approval. No merge,
 migration, deployment, or live Stripe effect occurred.
+
+## Protected Production migration operator prepared — 2026-09-30
+
+After PR `#487` merged, remote main became
+`499aa9651a6fc5658858856b84a78569a25dfc9f` and its automatic CI run
+`36789820092` passed. Main contains migration
+`20260930040000_prepare_order_dispute_recovery`, but no protected Production
+workflow existed for applying that exact migration. The migration and its app
+code therefore remain unapplied and undeployed in Production.
+
+An isolated source branch was created from exact main at
+`/private/tmp/grainline-order-dispute-recovery-production-20260930`:
+
+- branch `codex/order-dispute-recovery-production-20260930`;
+- local commit `52652ba45258ba868cc5cd393bf61c81a3308402`;
+- parent `499aa9651a6fc5658858856b84a78569a25dfc9f`;
+- patch SHA-256
+  `3de8565f4e4849e039b9e7e68dd5a7ea31d02bb271c663ca358708a196f2527d`.
+
+The commit adds only a manually dispatchable protected Production workflow
+and its contract test. The workflow binds dispatch to exact current main and a
+successful push CI run, checks the exact migration checksum and accepted
+ops-health predecessor, rejects object collisions and unrelated pending
+migrations, applies only migration `20260930040000`, and reads back the exact
+ledger, enum, constraints, indexes, policyless FORCE table posture, four
+function bodies and grants, nonnegative health counts, and unchanged
+`Order`/`OrderPaymentEvent`/`SystemAuditLog` posture. It cannot deploy the app
+or call Stripe.
+
+Focused verification passed: 19 dispute authority/provider/workflow tests,
+then six workflow contract tests after formatting; the workflow parsed as
+YAML, both embedded Node programs passed module syntax checking, Prettier and
+`git diff --check` passed. The already-successful merged-main full suite was
+not repeated.
+
+Nothing from this commit has been published, merged, dispatched, applied,
+deployed, or used against Stripe. The next boundary is permission to publish
+exact commit `52652ba4...` to its deployment-disabled public branch, open a
+draft PR against unchanged main `499aa965...`, and merge only if all required
+exact-head checks pass. Production migration dispatch and application deploy
+remain later, separately authorized actions.
