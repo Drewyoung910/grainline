@@ -227,3 +227,37 @@ The corrected head is backed up privately at
 points to `a5fb870a...`, and public main remains `6ed04766...`. Publishing
 `921b1d59...` and conditionally merging it requires a new exact-head approval.
 No migration, deployment, or live Stripe effect occurred.
+
+## PR #487 fourth exact-head correction — 2026-09-30
+
+The user authorized exact head
+`921b1d59022d825a6cb991c525608583eb3e3067`. It was published to PR `#487`
+against unchanged main `6ed0476659327961170fc186389a0d055da7f2be`.
+`postgres-lock-order`, `review-note-concurrency`, and `tls-login` passed. CI run
+`36772445063` passed every historical migration step and reached the full test
+suite, then failed after 25m54s with 4,954 passing tests, one failed assertion,
+and nine skips. The conditional merge did not run.
+
+The single failure was another historical-tree inventory seam. While CI held
+the already-reviewed seller buyer-email projection and Order ops-health
+migrations outside the active migration tree, the expected function list still
+required `grainline_order_seller_detail_v5`,
+`grainline_order_seller_recent_sales_v2`, and
+`grainline_order_ops_health_summary`. The source-derived inventory correctly
+omitted those later functions.
+
+Local correction commit
+`b2a27d38accf1d55a5e68939441f87dee36ce90c` binds those three function names
+and their PUBLIC-revoke counts to the presence of their exact migrations. The
+final commit is a minimal one-file change with 32 insertions and four deletions;
+an accidental whole-file formatter rewrite was detected and removed before any
+public push. The grant-inventory suite passed both with the full migration tree
+and with the seller projection, predecessor retirement, ops-health, and dispute
+recovery migrations isolated: 25 passes plus one expected local PostgreSQL
+skip in each state, with zero failures. No second full suite was run.
+
+The corrected head is backed up privately at
+`recovery/order-dispute-loss-recovery-draft-20260930`. Public PR `#487` still
+points to `921b1d59...`, and no merge, migration, deployment, or live Stripe
+effect occurred. Publishing `b2a27d38...` and conditionally merging it requires
+a new exact-head approval.
