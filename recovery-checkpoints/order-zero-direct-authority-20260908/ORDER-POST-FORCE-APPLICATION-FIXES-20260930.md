@@ -92,6 +92,8 @@ The correction preserves submitted array positions, verifies each exact primary/
 
 The seven fixes are integrated as eleven reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `1903b87d038d3a6ea4221b800abae383b907b7c0`, directly descended from exact #481 merge `de0f626a620b576204e3a4d0d5aa21a4f611e2d9`. Exact current private backup is `recovery/order-post-force-app-fixes-main-1903b87d-20260930`; the earlier backups remain intact. The public diff therefore contains the `b67980c7` test correction only through main.
 
+The exact head is also published and read back on deployment-disabled public branch `codex/order-post-force-app-fixes-20260930`. No draft PR exists yet: automatic approval review rejected the prepared PR creation because earlier approvals were judged narrower than publication of the combined seven-fix stack. Opening that concrete draft PR is awaiting explicit authorization; the branch publication itself has completed.
+
 After the exact rebase, `118/118` selected affected assertions passed together with targeted ESLint, TypeScript, Prisma schema validation, and `git diff --check`. The earlier deeper focused database/workflow runs also remain green: `31/31` behavior/database/workflow checks, `30/30` messaging/authority checks, `8/8` listing-state checks, `64/64` custom-order/UI/authority checks, and `41/41` upload/direct-upload checks. Commit `c03ef1ab` aligns the staff-thread test with the already-implemented session-bound PIN requirement. The stack adds a manual Production-environment workflow that:
 
 - binds dispatch to exact main and a successful exact-main push CI;
@@ -102,10 +104,12 @@ After the exact rebase, `118/118` selected affected assertions passed together w
 
 CI now explicitly isolates both new migrations until the already-accepted Core FORCE predecessor has been applied in disposable PostgreSQL, then applies only the two successors. This prevents an older historical paid-checkout migration from overwriting the new function during the long compatibility sequence.
 
+Two unrelated main-push proof workflows failed immediately after #481 merged: Notification FORCE `36669137381` and Conversation/Message FORCE `36669137352`. Read-only failed-log review shows both historical workflows attempted the now-committed Core Order FORCE migration through their broad migration deploy and entered an aborted transaction. #481 changes no migration or workflow source. Do not rerun those jobs unchanged; repair their historical isolation separately. The required merged-main CI `36669137372` remains in progress.
+
 ## Forward sequence
 
 1. Let automatic #481 merged-main CI `36669137372` finish; do not start a duplicate broad run.
-2. Publish exact rebased head `1903b87d` on deployment-disabled public branch `codex/order-post-force-app-fixes-20260930` and use its one automatic PR CI.
+2. After explicit approval, open the prepared public draft PR from exact published head `1903b87d` on deployment-disabled branch `codex/order-post-force-app-fixes-20260930`, then use its one automatic PR CI.
 3. Merge that source stack only on unchanged exact head/base after both the #481 merged-main CI and the exact PR checks pass. Do not deploy the app merely because source merges.
 4. After successful merged-main CI for the seven-fix stack, dispatch the manual post-FORCE Production workflow only with a separately reviewed exact main/CI binding. Its read-only preflight must report zero invalid fulfillment rows before either migration runs.
 5. Continue the remaining independently verified launch queue after these corrections; do not reopen accepted Core Order RLS work.
