@@ -29,6 +29,11 @@ test("post-FORCE corrections workflow is manual, exact-main and Production-bound
 });
 
 test("workflow admits only the exact two checksummed post-FORCE migrations", () => {
+  const generateIndex = workflow.indexOf("- run: npx prisma generate");
+  const focusedProofIndex = workflow.indexOf(
+    "- name: Verify exact migration source and focused behavior",
+  );
+  assert.ok(generateIndex > -1 && generateIndex < focusedProofIndex);
   assert.match(
     workflow,
     /ceef219897013aa84bec0155f23e0ce01d8c48472d6e8bcb166e713d1e4edd96\s+prisma\/migrations\/20260930030000_bound_listing_fulfillment_days\/migration\.sql/,
