@@ -69,3 +69,29 @@ Order being live does not mean every Grainline launch finding is resolved.
 Remaining audit items belong to separate money, Notification, commission,
 credential, performance, and UI families. They must not be folded back into the
 completed Order RLS release or used to repeat its accepted proofs.
+
+## Successor RLS sequence
+
+The next Order-domain RLS work is `OrderItem`, followed by
+`OrderShippingRateQuote` as a separate release. Both already have an empty
+direct application-access inventory and accepted removal of PUBLIC and
+ordinary-runtime table/column authority. Their RLS posture remains off, so
+each still needs a fresh table-specific authority audit, disposable PostgreSQL
+proof, separate policyless ENABLE and FORCE decisions, and protected
+Production postflights. Do not repeat the completed Core `Order` release.
+
+Audit preparation for `OrderItem` can begin while the separate dispute-loss
+recovery correction moves through source review. Assuming neither child-table
+audit finds a new product or concurrency defect, the reasonable working estimate
+is two to four focused working days for both tables, including the existing
+approximately 30-minute exact-head CI gate and separate Production approvals.
+Provider drift, CI failure, or a newly confirmed correctness defect can extend
+that estimate; do not represent it as a guaranteed calendar deadline.
+
+After both child tables, the recommended next domain is identity/account core,
+starting with a fresh `User` authority audit. `User` is currently a blocked
+design rather than a ready activation: it combines account identity, contact
+and shipping PII, staff access, Clerk lifecycle, account deletion, and many
+cross-domain foreign keys. Plan it as a domain with a private `User` core and
+the related `UserEmailAddress` release boundary, rather than assuming it is one
+small table flip.
