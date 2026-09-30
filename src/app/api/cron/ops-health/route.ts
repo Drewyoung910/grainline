@@ -14,6 +14,7 @@ import { cronRunPartialIssueSummary } from "@/lib/cronRunPartialIssues";
 import { inspectOwnerSavedSearchCanary } from "@/lib/savedSearchOwnerAccess";
 import { runSavedSearchRlsCanary } from "@/lib/savedSearchRlsCanary";
 import { orderOpsHealthSummary } from "@/lib/orderOpsHealth";
+import { orderDisputeRecoveryHealthSummary } from "@/lib/orderDisputeRecoveryAuthority";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
         clerkWebhookFailureCount,
         accountDeletionSideEffectFailureCount,
         orderHealth,
+        orderDisputeRecoveryHealth,
         savedSearchRlsCanary,
       ] = await Promise.all([
         prisma.cronRun.findMany({
@@ -141,6 +143,7 @@ export async function GET(request: Request) {
           },
         }),
         orderOpsHealthSummary(),
+        orderDisputeRecoveryHealthSummary(),
         runSavedSearchRlsCanary(process.env, ({ userId, searchId }) =>
           inspectOwnerSavedSearchCanary(userId, searchId, prisma),
         ),
@@ -187,6 +190,13 @@ export async function GET(request: Request) {
         orderAgingReviewNeededCount: orderHealth.agingReviewNeededCount,
         orderStaleCheckoutReservationCount: orderHealth.staleCheckoutReservationCount,
         orderRecentPayoutFailureCount: orderHealth.recentPayoutFailureCount,
+        orderDisputeRecoveryIssueCount:
+          orderDisputeRecoveryHealth.manualReviewCount
+          + orderDisputeRecoveryHealth.overdueRetryCount,
+        orderDisputeRecoveryManualReviewCount:
+          orderDisputeRecoveryHealth.manualReviewCount,
+        orderDisputeRecoveryOverdueRetryCount:
+          orderDisputeRecoveryHealth.overdueRetryCount,
         savedSearchRlsCanaryIssueCount: savedSearchRlsCanary.issueCount,
       };
 
@@ -203,6 +213,7 @@ export async function GET(request: Request) {
         issues.clerkWebhookFailureCount > 0 ||
         issues.accountDeletionSideEffectFailureCount > 0 ||
         issues.orderOpsHealthIssueCount > 0 ||
+        issues.orderDisputeRecoveryIssueCount > 0 ||
         issues.savedSearchRlsCanaryIssueCount > 0
       ) {
         Sentry.captureMessage("Ops health check found actionable issues", {

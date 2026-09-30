@@ -104,7 +104,6 @@ CREATE TABLE public."OrderDisputeRecovery" (
       (status = 'RESTORED'
         AND "reversalId" IS NOT NULL AND "restoreTransferId" IS NOT NULL)
     )
-  )
 );
 
 CREATE UNIQUE INDEX "OrderDisputeRecovery_stripeDisputeId_key"
@@ -334,7 +333,7 @@ BEGIN
      SET status = CASE
            WHEN recovery.status = 'REVERSAL_PENDING' THEN 'REVERSING'
            ELSE 'RESTORING'
-         END,
+         END::public."OrderDisputeRecoveryStatus",
          "claimGeneration" = "claimGeneration" + 1,
          "attemptCount" = "attemptCount" + 1,
          "lastAttemptAt" = now_utc,
@@ -606,7 +605,7 @@ BEGIN
        SET status = CASE
              WHEN target.status IN ('REVERSAL_PENDING', 'REVERSING') THEN 'REVERSING'
              ELSE 'RESTORING'
-           END,
+           END::public."OrderDisputeRecoveryStatus",
            "claimGeneration" = target."claimGeneration" + 1,
            "attemptCount" = target."attemptCount" + 1,
            "lastAttemptAt" = pg_catalog.clock_timestamp() AT TIME ZONE 'UTC',
