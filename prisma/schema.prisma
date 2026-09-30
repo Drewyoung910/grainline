@@ -570,6 +570,17 @@ enum LabelStatus {
   VOIDED
 }
 
+enum OrderDisputeRecoveryStatus {
+  REVERSAL_PENDING
+  REVERSING
+  REVERSED
+  RESTORE_PENDING
+  RESTORING
+  RESTORED
+  NO_REVERSAL_REQUIRED
+  MANUAL_REVIEW
+}
+
 model Order {
   id              String         @id @default(cuid())
   buyerId         String?
@@ -731,6 +742,7 @@ model Order {
 
   shippingRateQuotes    OrderShippingRateQuote[]
   paymentEvents         OrderPaymentEvent[]
+  disputeRecoveries     OrderDisputeRecovery[]
   refundReconciliations OrderRefundReconciliation[]
 
   // Supports the raw-managed same-Order seller-authority FK from OrderItem.
@@ -799,6 +811,39 @@ model OrderPaymentEvent {
   @@index([eventType, createdAt])
   @@index([stripeObjectId])
   @@index([orderId, eventType, stripeObjectId, stripeEventCreatedSeconds(sort: Desc), id(sort: Desc)], map: "OrderPaymentEvent_order_dispute_event_time_idx")
+}
+
+// Private provider-recovery state for seller-transfer protection during Stripe
+// disputes. Raw migration SQL owns its same-Order evidence constraints and
+// policyless FORCE RLS posture. Ordinary runtime access is limited to fixed
+// claim/finalize functions.
+model OrderDisputeRecovery {
+  id                            String                     @id
+  orderId                       String
+  order                         Order                      @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stripeDisputeId               String                     @unique @db.VarChar(255)
+  stripeTransferId              String?                    @db.VarChar(255)
+  disputedAmountCents           Int
+  currency                      String                     @db.VarChar(3)
+  status                        OrderDisputeRecoveryStatus
+  claimGeneration               BigInt                     @default(0)
+  attemptCount                  Int                        @default(0)
+  reversalId                    String?                    @unique @db.VarChar(255)
+  reversedAmountCents           Int?
+  sellerStripeAccountId         String?                    @db.VarChar(255)
+  restoreTransferId             String?                    @unique @db.VarChar(255)
+  sourcePaymentEventId          String                     @unique
+  latestPaymentEventId          String                     @unique
+  lastStripeEventCreatedSeconds BigInt
+  lastAttemptAt                 DateTime?
+  nextAttemptAt                 DateTime?
+  resolvedAt                    DateTime?
+  errorSummary                  String?                    @db.VarChar(500)
+  createdAt                     DateTime                   @default(now())
+  updatedAt                     DateTime                   @updatedAt
+
+  @@index([orderId, createdAt])
+  @@index([status, nextAttemptAt, createdAt])
 }
 
 // Private immutable evidence for manual classification of ambiguous
