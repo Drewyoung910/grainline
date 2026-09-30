@@ -742,6 +742,11 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(outerCatch, /if \(refundId \|\| retryBlockedCheckoutRefund\) \{\s*throw refundError;\s*\}/);
     assert.match(outerCatch, /recordCheckoutRefundReview\(\{/);
     assert.match(outerCatch, /action: "provider_failure"/);
+    assert.match(
+      outerCatch,
+      /action: "provider_failure"[\s\S]*Sentry\.captureException\(refundError[\s\S]*throw refundError;/,
+      "pre-provider blocked-checkout refund failures must keep the signed event retryable",
+    );
   });
 
   it("does not tag ordinary staff case refunds as fraudulent Stripe refunds", () => {

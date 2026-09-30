@@ -911,6 +911,11 @@ export async function POST(req: Request) {
             tags: { source: "stripe_webhook_blocked_checkout_refund" },
             extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
           });
+          // This branch covers failures before a provider refund outcome exists,
+          // including transient local claim and lock-release failures. Preserve
+          // the staff-review marker, but fail the signed delivery so Stripe can
+          // retry instead of finalizing the event without a refund attempt.
+          throw refundError;
         }
       }
 
