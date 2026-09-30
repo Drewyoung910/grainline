@@ -193,21 +193,38 @@ on the unchanged exact head and public main must remain the exact base before
 the PR can leave draft or merge. Opening the PR did not dispatch FORCE or
 change Production.
 
+Initial exact-head full CI `36648833604` failed safely at the early read-only
+FORCE source-package step. CI had already isolated the accepted runtime-lock
+migration, while the FORCE verifier correctly required that predecessor source
+directory to be present; no database or Production step ran. The three
+specialized checks passed.
+
+Exact two-file correction `79f29a12b97f3db6e1109a76463d0f6b2f2342d6`
+temporarily restores that exact isolated migration only for the FORCE package
+tests and uses an exit trap to return it to the same isolated path before later
+historical composition. A local simulation with the predecessor physically
+isolated passed all 12 package/postflight tests and proved it was re-isolated;
+workflow formatting, `git diff --check`, and the unchanged FORCE migration
+checksum passed. It is privately backed up at
+`recovery/order-core-force-c7c0c3a3-79f29a12-20260930` and is now the exact PR
+#479 head. Replacement required runs are full CI `36649328787`, concurrency
+`36649328781`, paid-repair lock `36649328834`, and staff TLS login
+`36649328778`, still against unchanged base `c7c0c3a3`.
+
 ## Exact forward sequence
 
-1. Complete: exact head `ae4f332ba93758d21c2e75fd5824bf4dfc7b067b`
-   passed all four checks and merged through PR #477 as exact main commit
-   `dedca7d9fd7b7f7c64587af688c922d11ae44192`.
-2. Require successful merged-main CI run `36638383343`, then bind one explicit Production
-   runtime-lock dispatch to the exact merge, exact CI run, and exact currently
-   live deployment. Apply no other migration.
-3. After the runtime-lock Production result is accepted, re-read the prepared
-   FORCE source at exact private commit `3c9c6f45`, bind it to that result, and
-   publish a deployment-disabled public PR after explicit authorization. Merge
-   only on unchanged exact head/base and passing checks.
-4. Require successful merged-main CI, then obtain one explicit Production
-   FORCE dispatch authorization bound to the exact release commit, exact CI,
-   exact successful runtime-lock run, and exact live deployment.
+1. Complete: correction PR #478 merged as exact main `c7c0c3a3`, merged-main
+   CI `36645095118` passed, and protected runtime-lock run `36647432346`
+   completed with accepted postflight.
+2. Current: require all four replacement checks to pass on exact PR #479 head
+   `79f29a12` against unchanged base `c7c0c3a3`. Mark ready and merge only
+   under that immutable binding.
+3. Require successful merged-main push CI, then re-read public main, the exact
+   successful runtime-lock run, and the exact currently live zero-direct
+   deployment.
+4. Obtain one explicit Production FORCE dispatch authorization bound to that
+   exact release commit, exact CI, exact runtime-lock run, exact deployment,
+   migration checksum, and confirmation. Apply no other migration.
 5. After the protected FORCE run succeeds, run the separate read-only pooled
    runtime postflight with phase `force`, save mode-0600 sanitized evidence,
    and write the final accepted Core Order checkpoint.
