@@ -83,6 +83,8 @@ const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
 const ORDER_STAFF_CAPABILITY_MIGRATION =
   "20260905100000_prepare_order_ban_review_authority";
+const ORDER_DISPUTE_RECOVERY_MIGRATION =
+  "20260930040000_prepare_order_dispute_recovery";
 export const ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION =
   "20260928220000_retire_seller_buyer_email_projection_predecessors";
 export const ORDER_SELLER_EMAIL_PROJECTION_RETIREMENT_MIGRATION_SHA256 =
@@ -108,6 +110,7 @@ export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseSellerRefundApplication",
   "CaseOpenApplication",
   "DirectUploadReference",
+  "OrderDisputeRecovery",
   "OrderRefundReconciliation",
   "OrderStaffCapability",
   "SellerDeauthorizationApplication",
@@ -118,6 +121,7 @@ export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseSellerRefundApplication",
   "CaseOpenApplication",
   "DirectUploadReference",
+  "OrderDisputeRecovery",
   "OrderRefundReconciliation",
   "OrderStaffCapability",
   "SellerDeauthorizationApplication",
@@ -1258,6 +1262,21 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     && readFileSync(orderStaffCapabilityMigrationPath, "utf8").includes(
       'CREATE TABLE public."OrderStaffCapability"',
     );
+  const orderDisputeRecoveryMigrationPath = path.join(
+    rootDir,
+    "prisma",
+    "migrations",
+    ORDER_DISPUTE_RECOVERY_MIGRATION,
+    "migration.sql",
+  );
+  const orderDisputeRecoveryMigrationPresent =
+    existsSync(orderDisputeRecoveryMigrationPath)
+    && readFileSync(orderDisputeRecoveryMigrationPath, "utf8").includes(
+      'CREATE TABLE public."OrderDisputeRecovery"',
+    )
+    && readFileSync(orderDisputeRecoveryMigrationPath, "utf8").includes(
+      'CREATE TYPE public."OrderDisputeRecoveryStatus" AS ENUM',
+    );
   const tables = sortedUnique(schemaTables.filter(
     (tableName) => tableName !== "OrderRefundReconciliation"
       || refundReconciliationMigrationPresent,
@@ -1267,10 +1286,16 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
   ).filter(
     (tableName) => tableName !== "OrderStaffCapability"
       || orderStaffCapabilityMigrationPresent,
+  ).filter(
+    (tableName) => tableName !== "OrderDisputeRecovery"
+      || orderDisputeRecoveryMigrationPresent,
   ));
   const enumBlocks = [...schema.matchAll(/^enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
   const enums = sortedUnique(
-    enumBlocks.map((match) => mappedDbName(match[2], match[1])),
+    enumBlocks.map((match) => mappedDbName(match[2], match[1])).filter(
+      (enumName) => enumName !== "OrderDisputeRecoveryStatus"
+        || orderDisputeRecoveryMigrationPresent,
+    ),
   );
   const fixedIntSingletonIds = sortedUnique(
     modelBlocks.flatMap((match) =>
