@@ -1,0 +1,314 @@
+name: Order Blocked-Pair Checkout Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-blocked-pair-checkout
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed Order blocked-pair checkout boundary
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-order-blocked-pair-checkout'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main and completed CI before credential access
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Order blocked-pair checkout release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Order blocked-pair checkout main/CI readback drifted');
+            }
+      - name: Verify exact migration source and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260930032000_block_checkout_user_pairs"
+          echo "dc1cdbf14a5b126635af44fbbc4ca820ac16e46823a68071400fd5786110209d  prisma/migrations/20260930032000_block_checkout_user_pairs/migration.sql" \
+            | sha256sum --check --status
+          node --test \
+            tests/order-blocked-pair-checkout.test.mjs \
+            tests/order-blocked-pair-checkout-postgres.test.mjs \
+            tests/order-blocked-pair-checkout-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture restart state and unchanged table posture
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const predecessors = new Map([
+            ['20260930030000_bound_listing_fulfillment_days',
+              'ceef219897013aa84bec0155f23e0ce01d8c48472d6e8bcb166e713d1e4edd96'],
+            ['20260930031000_mark_paid_private_listing_sold',
+              '0a1cb4828cce4d05abf783b12d790c13581fb7698f8063aaeaf92b5fa8c6bee1'],
+          ]);
+          const migration = '20260930032000_block_checkout_user_pairs';
+          const checksum = 'dc1cdbf14a5b126635af44fbbc4ca820ac16e46823a68071400fd5786110209d';
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((
+                     SELECT jsonb_agg(jsonb_build_object(
+                       'name', policy.polname,
+                       'command', policy.polcmd,
+                       'permissive', policy.polpermissive,
+                       'roles', policy.polroles::text,
+                       'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                       'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                     ) ORDER BY policy.polname)
+                       FROM pg_catalog.pg_policy AS policy
+                      WHERE policy.polrelid = relation.oid
+                   ), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = ANY(ARRAY[
+               'public."Block"'::regclass,
+               'public."CheckoutStockReservation"'::regclass,
+               'public."Listing"'::regclass,
+               'public."Order"'::regclass,
+               'public."SellerProfile"'::regclass,
+               'public."User"'::regclass
+             ])
+             ORDER BY relation.relname`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const names = [...predecessors.keys(), migration];
+            const ledger = await client.query(`SELECT migration_name, checksum,
+              finished_at, rolled_back_at, applied_steps_count
+              FROM public._prisma_migrations
+              WHERE migration_name = ANY($1::text[]) ORDER BY migration_name`, [names]);
+            const rows = new Map(ledger.rows.map((row) => [row.migration_name, row]));
+            for (const [name, expectedChecksum] of predecessors) {
+              const row = rows.get(name);
+              assert.ok(row, `required predecessor ${name} is not applied`);
+              assert.equal(row.checksum, expectedChecksum);
+              assert.ok(row.finished_at);
+              assert.equal(row.rolled_back_at, null);
+              assert.equal(Number(row.applied_steps_count), 1);
+            }
+            const candidate = rows.get(migration);
+            if (candidate) {
+              assert.equal(candidate.checksum, checksum);
+              assert.ok(candidate.finished_at);
+              assert.equal(candidate.rolled_back_at, null);
+              assert.equal(Number(candidate.applied_steps_count), 1);
+            }
+            const posture = await client.query(postureSql);
+            assert.equal(posture.rows.length, 6);
+            writeFileSync(`${process.env.RUNNER_TEMP}/order-blocked-pair-posture.json`,
+              JSON.stringify(posture.rows), {mode: 0o600, flag: 'wx'});
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${candidate ? 'applied' : 'pending'}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20260930032000_block_checkout_user_pairs
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected Order blocked-pair checkout migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed Order blocked-pair checkout migration
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger, function sources and unchanged table posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const migration = '20260930032000_block_checkout_user_pairs';
+          const checksum = 'dc1cdbf14a5b126635af44fbbc4ca820ac16e46823a68071400fd5786110209d';
+          const sql = readFileSync(`prisma/migrations/${migration}/migration.sql`, 'utf8');
+          const functions = new Map([
+            ['grainline_checkout_reservation_create_cart_snapshot(text,text,text,text,text,jsonb)',
+              'grainline_checkout_reservation_create_cart_snapshot'],
+            ['grainline_checkout_reservation_create_single_snapshot(text,text,integer,text[],text,jsonb)',
+              'grainline_checkout_reservation_create_single_snapshot'],
+            ['grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)',
+              'grainline_stripe_checkout_order_create'],
+          ]);
+          function expectedBody(name) {
+            const delimiter = `$${name}$`;
+            const startMarker = `AS ${delimiter}`;
+            const start = sql.indexOf(startMarker);
+            assert.ok(start >= 0, `${name} source is missing`);
+            const bodyStart = start + startMarker.length;
+            const end = sql.indexOf(`${delimiter};`, bodyStart);
+            assert.ok(end > bodyStart, `${name} source terminator is missing`);
+            return sql.slice(bodyStart, end);
+          }
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/order-blocked-pair-posture.json`, 'utf8'));
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((
+                     SELECT jsonb_agg(jsonb_build_object(
+                       'name', policy.polname,
+                       'command', policy.polcmd,
+                       'permissive', policy.polpermissive,
+                       'roles', policy.polroles::text,
+                       'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                       'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                     ) ORDER BY policy.polname)
+                       FROM pg_catalog.pg_policy AS policy
+                      WHERE policy.polrelid = relation.oid
+                   ), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = ANY(ARRAY[
+               'public."Block"'::regclass,
+               'public."CheckoutStockReservation"'::regclass,
+               'public."Listing"'::regclass,
+               'public."Order"'::regclass,
+               'public."SellerProfile"'::regclass,
+               'public."User"'::regclass
+             ])
+             ORDER BY relation.relname`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count FROM public._prisma_migrations WHERE migration_name = $1`,
+              [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+
+            const authority = await client.query(`SELECT procedure.oid::regprocedure::text AS identity,
+              procedure.prosrc,
+              pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+              procedure.provolatile, procedure.proparallel, procedure.prosecdef, procedure.proconfig,
+              pg_catalog.has_function_privilege(
+                'grainline_app_runtime', procedure.oid, 'EXECUTE') AS runtime_execute,
+              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(procedure.proacl,
+                pg_catalog.acldefault('f', procedure.proowner))) AS acl
+                WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE') AS public_execute
+              FROM pg_catalog.pg_proc AS procedure
+              WHERE procedure.oid = ANY(ARRAY[
+                'public.grainline_checkout_reservation_create_cart_snapshot(text,text,text,text,text,jsonb)'::regprocedure,
+                'public.grainline_checkout_reservation_create_single_snapshot(text,text,integer,text[],text,jsonb)'::regprocedure,
+                'public.grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)'::regprocedure
+              ]) ORDER BY identity`);
+            assert.equal(authority.rows.length, functions.size);
+            for (const row of authority.rows) {
+              const unqualified = row.identity.replace(/^public\./u, '');
+              const name = functions.get(unqualified);
+              assert.ok(name, `unexpected target function ${row.identity}`);
+              assert.equal(row.prosrc, expectedBody(name));
+              assert.equal(row.owner, 'neondb_owner');
+              assert.equal(row.provolatile, 'v');
+              assert.equal(row.proparallel, 'u');
+              assert.equal(row.prosecdef, true);
+              assert.deepEqual(row.proconfig, ['search_path=pg_catalog']);
+              assert.equal(row.runtime_execute, true);
+              assert.equal(row.public_execute, false);
+            }
+            assert.deepEqual((await client.query(postureSql)).rows, before);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE

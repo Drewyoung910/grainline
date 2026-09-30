@@ -33,6 +33,7 @@ import { z } from "zod";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerCartForShippingQuote, ownerCartForShippingQuoteById } from "@/lib/cartOwnerAccess";
+import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 import { buildShippoCheckoutQuoteShipment } from "@/lib/shippingQuoteProvider";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { normalizeUsState } from "@/lib/usStates";
@@ -353,6 +354,9 @@ export async function POST(req: Request) {
       if (selfPurchaseItem) {
         return quoteBlockedResponse("You cannot purchase your own listings.");
       }
+      if (await checkoutPairIsBlocked(me.id, cart.items[0].listing.seller.userId)) {
+        return quoteBlockedResponse(CHECKOUT_PAIR_UNAVAILABLE_MESSAGE);
+      }
 
       const inactiveItem = cart.items.find((it) => it.listing.status !== "ACTIVE");
       if (inactiveItem) {
@@ -495,6 +499,9 @@ export async function POST(req: Request) {
       }
       if (listing.seller.userId === me.id) {
         return quoteBlockedResponse("You cannot buy your own listing.");
+      }
+      if (await checkoutPairIsBlocked(me.id, listing.seller.userId)) {
+        return quoteBlockedResponse(CHECKOUT_PAIR_UNAVAILABLE_MESSAGE);
       }
       const sellerBlockReason = sellerOrderBlockReason(listing.seller);
       if (sellerBlockReason) {

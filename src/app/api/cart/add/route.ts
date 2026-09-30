@@ -26,6 +26,7 @@ import {
   ownerCartItemStats,
   upsertOwnerCart,
 } from "@/lib/cartOwnerAccess";
+import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 
 const CartAddSchema = z.object({
   listingId: z.string().min(1),
@@ -123,6 +124,12 @@ export async function POST(req: Request) {
     const sellerBlockReason = sellerOrderBlockReason(listing.seller);
     if (sellerBlockReason) {
       return privateJson({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+    if (await checkoutPairIsBlocked(me.id, listing.seller.userId)) {
+      return privateJson(
+        { error: CHECKOUT_PAIR_UNAVAILABLE_MESSAGE },
+        { status: HTTP_STATUS.FORBIDDEN },
+      );
     }
 
     // Block private/reserved listings

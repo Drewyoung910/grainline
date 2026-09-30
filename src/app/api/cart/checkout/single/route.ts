@@ -52,6 +52,7 @@ import { APP_BASE_URL } from "@/lib/appBaseUrl";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
 import { normalizeUsState } from "@/lib/usStates";
@@ -197,6 +198,12 @@ export async function POST(req: Request) {
       return privateJson(
         { error: sellerOrderBlockMessage(sellerBlockReason) },
         { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+    if (await checkoutPairIsBlocked(me.id, listing.seller.userId)) {
+      return privateJson(
+        { error: CHECKOUT_PAIR_UNAVAILABLE_MESSAGE },
+        { status: HTTP_STATUS.FORBIDDEN },
       );
     }
 

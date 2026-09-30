@@ -283,7 +283,7 @@ export async function ownerCartForCheckoutResume(
           listing: {
             select: {
               sellerId: true,
-              seller: { select: { displayName: true } },
+              seller: { select: { displayName: true, userId: true } },
             },
           },
         },
