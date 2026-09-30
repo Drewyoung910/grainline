@@ -277,3 +277,9 @@ the transcript lacked explicit authorization for the exact migration and bound
 commit/CI pair. No workflow run was created and no Production database,
 deployment, alias, credential, fixture, or RLS state changed. Do not infer a
 Production attempt or partial migration from this rejected command.
+
+A second attempt followed the user's reply `explicit approva;`. Remote main and
+CI again matched the exact approved values, but automatic approval review again
+rejected the dispatch before GitHub received it because that reply did not name
+the migration, main commit, and CI run. No workflow run or Production mutation
+resulted from the second rejected command either.
