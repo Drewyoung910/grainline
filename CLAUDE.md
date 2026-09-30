@@ -178,7 +178,7 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 ## Tech Stack
 
-- **Framework**: Next.js 16.3.3 (App Router), React 19.2.5, TypeScript
+- **Framework**: Next.js 16.3.6 (App Router), React 19.2.5, TypeScript
 - **Styling**: Tailwind CSS 4
 - **Database**: PostgreSQL via Prisma ORM
 - **Auth**: Clerk (`@clerk/nextjs`)
