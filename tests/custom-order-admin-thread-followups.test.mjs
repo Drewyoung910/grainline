@@ -41,8 +41,9 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
 
-    assert.match(threadPage, /const isStaff = me\.role === "ADMIN" \|\| me\.role === "EMPLOYEE"/);
-    assert.match(threadPage, /targetType: "MESSAGE_THREAD", targetId: id, resolved: false/);
+    assert.match(threadPage, /const isActiveStaff =[\s\S]*me\.role === "ADMIN" \|\| me\.role === "EMPLOYEE"/);
+    assert.match(threadPage, /verifyAdminPinCookieValue\([\s\S]*ADMIN_PIN_COOKIE_NAME[\s\S]*userId,[\s\S]*sessionId/);
+    assert.match(threadPage, /if \(!canStaffReviewThread\) return notFound\(\)/);
     assert.match(threadPage, /getActorConversation\(me\.id, id\)/);
     assert.match(recipientSql, /public\.grainline_conversation_staff_report_visible\(conversation\.id\)/);
     assert.match(threadPage, /const isStaffReviewMode = canStaffReviewThread && !isParticipant/);
