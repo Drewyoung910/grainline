@@ -7,7 +7,7 @@ function source(path) {
 }
 
 describe("custom-order and staff-thread audit follow-ups", () => {
-  it("sends custom-order ready links from both immediate and admin approval paths", () => {
+  it("sends custom-order ready links from every successful activation path", () => {
     const helper = source("src/lib/customOrderReadyLink.ts");
     const authority = source("src/lib/conversationMessageAuthority.ts");
     const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
@@ -17,6 +17,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     );
     const customPage = source("src/app/dashboard/listings/custom/page.tsx");
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const sellerActions = source("src/app/seller/[id]/shop/actions.ts");
 
     assert.match(helper, /dedupScope: source\.listingId/);
     assert.match(helper, /sendCustomOrderReady/);
@@ -35,6 +36,24 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
     assert.equal((adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId:/g) ?? []).length, 2);
     assert.match(adminReview, /currentListing\.status === 'ACTIVE' &&[\s\S]*currentListing\.customOrderConversationId &&[\s\S]*currentListing\.reservedForUserId/);
+    assert.match(sellerActions, /import \{ sendCustomOrderReadyLink \} from "@\/lib\/customOrderReadyLink"/);
+    const heldPath = sellerActions.slice(
+      sellerActions.indexOf("if (shouldHold)"),
+      sellerActions.indexOf("} else {", sellerActions.indexOf("if (shouldHold)")),
+    );
+    const activatedPath = sellerActions.slice(
+      sellerActions.indexOf("} else {", sellerActions.indexOf("if (shouldHold)")),
+      sellerActions.indexOf("} catch (error)", sellerActions.indexOf("if (shouldHold)")),
+    );
+    assert.doesNotMatch(heldPath, /sendCustomOrderReadyLink/);
+    assert.match(
+      activatedPath,
+      /if \(listing\.isPrivate && listing\.reservedForUserId && listing\.customOrderConversationId\) \{\s*await sendCustomOrderReadyLink\(\{ listingId \}\);\s*\}/,
+    );
+    assert.ok(
+      activatedPath.indexOf("status: \"ACTIVE\"") < activatedPath.indexOf("await sendCustomOrderReadyLink"),
+      "the ready link must be sent only after the guarded ACTIVE transition succeeds",
+    );
   });
 
   it("lets staff view reported message threads without becoming a participant", () => {
