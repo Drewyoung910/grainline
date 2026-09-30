@@ -10,13 +10,13 @@ Core `Order` FORCE RLS is live and accepted on main `52b78554b795a5e4b2035c8dd05
 
 Independent source review confirmed that a blocked-checkout failure before any provider refund outcome was recorded as `provider_failure` and then swallowed. That allowed the signed Stripe event to finish successfully without a refund attempt. Ambiguous provider outcomes already had a separate durable fence and were rethrown.
 
-Fix commit `d9d54d4e31faedc8bb40f305d81ea5c9ffe65841` preserves the staff-review record and rethrows only the pre-provider failure through the existing idempotent-event wrapper. The wrapper marks the event failed and the route returns HTTP 500, allowing Stripe to retry. It changes two files by ten added lines and has no migration. Follow-up commit `c74a6ba52b3f5108c737177d2dc134aad48c1ff3` changes only `package-lock.json`, updating production transitive `brace-expansion` from vulnerable `5.0.9` to patched `5.0.12` and its dev-only 1.x copy to `1.1.21`. Git-integrated Vercel deployment remains disabled by `vercel.json`.
+Fix commit `d9d54d4e31faedc8bb40f305d81ea5c9ffe65841` preserves the staff-review record and rethrows only the pre-provider failure through the existing idempotent-event wrapper. The wrapper marks the event failed and the route returns HTTP 500, allowing Stripe to retry. It changes two files by ten added lines and has no migration. Follow-up commit `c74a6ba52b3f5108c737177d2dc134aad48c1ff3` changes only `package-lock.json`, updating production transitive `brace-expansion` from vulnerable `5.0.9` to patched `5.0.12` and its dev-only 1.x copy to `1.1.21`. CI exposed two stale exact-version assertions; commit `b67980c72de377107ec05b04efa4f78710c65500` aligns those assertions to the reviewed patched lockfile. Git-integrated Vercel deployment remains disabled by `vercel.json`.
 
 - Public draft PR: `#481`
-- Exact base/head: `52b78554b795a5e4b2035c8dd05695cbda790a47` / `c74a6ba52b3f5108c737177d2dc134aad48c1ff3`
-- Private backups: `recovery/order-blocked-refund-retry-main-d9d54d4e-20260930` and exact current head `recovery/order-blocked-refund-retry-main-c74a6ba5-20260930`
+- Exact base/head: `52b78554b795a5e4b2035c8dd05695cbda790a47` / `b67980c72de377107ec05b04efa4f78710c65500`
+- Private backups: `recovery/order-blocked-refund-retry-main-d9d54d4e-20260930`, `recovery/order-blocked-refund-retry-main-c74a6ba5-20260930`, and exact current head `recovery/order-blocked-refund-retry-main-b67980c7-20260930`
 - Focused validation: payment/fulfillment observability `31/31`, targeted ESLint, `git diff --check`, and the repository dependency audit with zero high/critical findings
-- First full CI `36661859662` passed source, database, type, lint, and test steps, then failed only because npm published a new high-severity `brace-expansion` advisory during the run. Replacement exact-head CI is `36664141235`; do not manually start another broad run.
+- First full CI `36661859662` passed source, database, type, lint, and test steps, then failed only because npm published a new high-severity `brace-expansion` advisory during the run. The corrected-lock run `36664141235` reached 4,906 passing tests and failed only on the stale `5.0.9` expectation. Exact-head CI `36666839644` and its three automatic specialized checks are now running on `b67980c7`; do not manually start another broad run.
 
 Do not merge if the exact head/base changes or any required check fails.
 
@@ -67,11 +67,21 @@ Independent review confirmed that `HIDDEN + isPrivate` is the application's arch
 - Exact integrated commit: `2d57619f475883eb59f2222b01d4cfae777dd5b1`
 - Focused validation: listing action state `8/8`, targeted ESLint, and `git diff --check`
 
+## #136 custom-order buyer availability and delivery result
+
+Independent review confirmed both halves of the report. The installed `grainline_conversation_lock_pair_core` rejects banned or deleted participants and either direction of a block, and `grainline_message_send_custom_order_ready` calls it before writing the ready card. The create action previously performed no equivalent preflight, inserted and activated the listing first, ignored the helper's refusal result, and redirected the seller without an explanation.
+
+The correction reuses `grainline_conversation_start` with the already-existing conversation and a null listing context before upload verification or insertion. That public authority invokes the same locked pair guard and must return the same conversation id. The ready helper now distinguishes delivery from creation so a valid deduplicated message is not mistaken for failure. If availability changes after preflight and the final ready write is refused, the new listing is returned from `ACTIVE` to editable `DRAFT`, and the seller receives explicit recovery steps instead of retrying into duplicates. The custom form also uses the repository's existing Enter-submit and preserve-on-error safeguards, associates its primary labels, and exposes its enforced input lengths.
+
+- Exact integrated commit: `4b59aebfd971a15cdc3297723b2ba1bba3b3d429`
+- Focused validation: `64/64` custom-order/UI/authority checks, targeted ESLint, TypeScript, and `git diff --check`
+- Exact private backup: `recovery/order-post-force-app-fixes-main-4b59aebf-20260930`
+
 ## Integrated source and Production boundary
 
-The five fixes are integrated as eight reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `2d57619f475883eb59f2222b01d4cfae777dd5b1`, directly descended from corrected #481 head `c74a6ba5`. Exact current private backup is `recovery/order-post-force-app-fixes-main-2d57619f-20260930`; the earlier backups remain intact.
+The six fixes are integrated as nine reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `4b59aebfd971a15cdc3297723b2ba1bba3b3d429`, directly descended from pre-CI-correction #481 head `c74a6ba5`. Exact current private backup is `recovery/order-post-force-app-fixes-main-4b59aebf-20260930`; the earlier backups remain intact. After #481 merges, rebase this stack onto its exact merge commit so the public PR contains the two-line `b67980c7` test correction only through main.
 
-The integrated stack passes the existing `31/31` focused behavior/database/workflow checks, `30/30` focused messaging/authority checks, and `8/8` listing-state checks, plus targeted ESLint, Prisma schema validation, YAML parsing, and `git diff --check`. Commit `91739f91` also aligns the staff-thread test with the already-implemented session-bound PIN requirement. It adds a manual Production-environment workflow that:
+The integrated stack passes the existing `31/31` focused behavior/database/workflow checks, `30/30` focused messaging/authority checks, `8/8` listing-state checks, and `64/64` custom-order/UI/authority checks, plus targeted ESLint, TypeScript, Prisma schema validation, YAML parsing, and `git diff --check`. Commit `91739f91` also aligns the staff-thread test with the already-implemented session-bound PIN requirement. It adds a manual Production-environment workflow that:
 
 - binds dispatch to exact main and a successful exact-main push CI;
 - accepts only the two exact checksummed post-FORCE migrations;
@@ -83,9 +93,9 @@ CI now explicitly isolates both new migrations until the already-accepted Core F
 
 ## Forward sequence
 
-1. Let replacement #481 exact-head CI `36664141235` and its automatically triggered specialized checks finish; do not start a duplicate broad run.
+1. Let #481 exact-head CI `36666839644` and its automatically triggered specialized checks finish; do not start a duplicate broad run.
 2. If every required #481 check passes with unchanged base/head, merge the source fix and use the automatically triggered merged-main CI as the only final source readback.
-3. Publish exact integrated head `2d57619f` only after #481 lands, so its public PR contains the five reviewed post-FORCE fixes and guarded release wiring without duplicating #481.
+3. Rebase integrated head `4b59aebf` onto the exact #481 merge, re-run only affected focused checks, and publish that exact rebased head so its public PR contains the six reviewed post-FORCE fixes and guarded release wiring without duplicating #481.
 4. Merge that source stack only on unchanged exact head/base with its one required automatic CI. Do not deploy the app merely because source merges.
 5. After successful merged-main CI, dispatch the manual post-FORCE Production workflow only with a separately reviewed exact main/CI binding. Its read-only preflight must report zero invalid fulfillment rows before either migration runs.
 6. Continue the remaining independently verified launch queue after these corrections; do not reopen accepted Core Order RLS work.
