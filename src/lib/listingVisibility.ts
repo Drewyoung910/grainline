@@ -115,7 +115,7 @@ export function canViewListingDetail(
   if (isOwner) return true;
 
   const reservedForViewer =
-    listing.status === ListingStatus.ACTIVE &&
+    (listing.status === ListingStatus.ACTIVE || listing.status === ListingStatus.SOLD) &&
     listing.isPrivate &&
     !!viewer.dbUserId &&
     listing.reservedForUserId === viewer.dbUserId;

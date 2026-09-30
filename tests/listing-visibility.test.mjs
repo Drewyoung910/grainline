@@ -176,6 +176,28 @@ describe("listing visibility", () => {
     assert.equal(
       canViewListingDetail(
         listing({
+          status: ListingStatus.SOLD,
+          isPrivate: true,
+          reservedForUserId: "buyer_1",
+        }),
+        { dbUserId: "buyer_1" },
+      ),
+      true,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({
+          status: ListingStatus.SOLD,
+          isPrivate: true,
+          reservedForUserId: "buyer_1",
+        }),
+        { dbUserId: "buyer_2" },
+      ),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({
           isPrivate: true,
           reservedForUserId: "buyer_1",
           seller: { ...listing().seller, user: { ...listing().seller.user, banned: true } },
