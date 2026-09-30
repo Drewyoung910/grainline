@@ -52,11 +52,19 @@ Successor migration `20260930031000_mark_paid_private_listing_sold` copies the l
 - The source-equivalence test proves the successor differs from applied predecessor `20260926011000` only by its comment and reviewed `SOLD` transition
 - Original exact private backup: `recovery/private-custom-paid-sold-main-d69ac66e-20260930`
 
+## #135 custom-order link after seller reactivation
+
+Independent review confirmed that immediate AI approval and staff approval sent the reserved buyer's source-deduplicated ready link, while a seller reactivation through `publishListingAction` could make the private reserved listing `ACTIVE` without sending the chat card, notification, or email. The correction calls the existing database-derived helper only after the guarded `ACTIVE` transition succeeds and only when the listing is private, reserved, and attached to its custom-order conversation. It does not send from the held `PENDING_REVIEW` path.
+
+- Exact integrated commit: `5e2dc204a01afca4d876ea172016a86227e25282`
+- Focused validation: `30/30` messaging/authority tests, targeted ESLint, and `git diff --check`
+- Original isolated private backup: `recovery/custom-order-reactivation-ready-link-305c29ed-20260930`
+
 ## Integrated source and Production boundary
 
-The three fixes are integrated as five reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `9b5ad13ff8ffe82ecc6bdab12668cb8292936130`, directly descended from corrected #481 head `c74a6ba5`. Exact private backup is `recovery/order-post-force-app-fixes-main-9b5ad13f-20260930`.
+The four fixes are integrated as seven reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `5e2dc204a01afca4d876ea172016a86227e25282`, directly descended from corrected #481 head `c74a6ba5`. Exact current private backup is `recovery/order-post-force-app-fixes-main-5e2dc204-20260930`; the earlier `9b5ad13f` backup remains intact.
 
-The integrated stack passes `31/31` focused behavior/database/workflow checks, targeted ESLint, Prisma schema validation, YAML parsing, and `git diff --check`. It adds a manual Production-environment workflow that:
+The integrated stack passes the existing `31/31` focused behavior/database/workflow checks plus `30/30` focused messaging/authority checks, targeted ESLint, Prisma schema validation, YAML parsing, and `git diff --check`. Commit `91739f91` also aligns the staff-thread test with the already-implemented session-bound PIN requirement. It adds a manual Production-environment workflow that:
 
 - binds dispatch to exact main and a successful exact-main push CI;
 - accepts only the two exact checksummed post-FORCE migrations;
@@ -70,7 +78,7 @@ CI now explicitly isolates both new migrations until the already-accepted Core F
 
 1. Let replacement #481 exact-head CI `36664141235` and its automatically triggered specialized checks finish; do not start a duplicate broad run.
 2. If every required #481 check passes with unchanged base/head, merge the source fix and use the automatically triggered merged-main CI as the only final source readback.
-3. Publish exact integrated head `9b5ad13f` only after #481 lands, so its public PR contains the three reviewed post-FORCE fixes and guarded release wiring without duplicating #481.
+3. Publish exact integrated head `5e2dc204` only after #481 lands, so its public PR contains the four reviewed post-FORCE fixes and guarded release wiring without duplicating #481.
 4. Merge that source stack only on unchanged exact head/base with its one required automatic CI. Do not deploy the app merely because source merges.
 5. After successful merged-main CI, dispatch the manual post-FORCE Production workflow only with a separately reviewed exact main/CI binding. Its read-only preflight must report zero invalid fulfillment rows before either migration runs.
 6. Continue the remaining independently verified launch queue after these corrections; do not reopen accepted Core Order RLS work.
