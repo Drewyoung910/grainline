@@ -20,7 +20,7 @@ The prepared thresholds follow the existing worker schedules:
 
 - refund claims pending longer than 30 minutes;
 - label clawbacks in manual review or overdue by more than 30 minutes;
-- review-needed Orders unchanged for more than 24 hours;
+- review-needed Orders whose paid/order age exceeds 24 hours;
 - checkout reservations beyond the two-hour grace plus the 30-minute repair
   schedule, or with stale repair claims/errors;
 - payout failures updated in the last 24 hours.
@@ -33,8 +33,8 @@ The prepared thresholds follow the existing worker schedules:
 - Exact prepared commit: `bff8df06ea0a94d0381fa8085a81fa3ae3566fc5`
 - Commit subject: `Add Order operations health coverage`
 - Migration: `20260930033000_order_ops_health_summary`
-- Migration SHA-256:
-  `7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7`
+- Current migration SHA-256:
+  `ed5e069248281ef8738f97bd0480ee77b85044a4ad2c9ac433ef2840a2a7e941`
 - Private recovery branch:
   `recovery/order-ops-health-bff8df06-20260930`
 - Private remote readback matched the exact prepared commit.
@@ -137,9 +137,76 @@ remain unchanged at SHA-256
 The corrected head is privately backed up and remotely read back at
 `recovery/order-ops-health-ci-isolation-15f3f85d-20260930`.
 
-PR `#485` remains draft at the old failing head. The next external action is to
-advance only that deployment-disabled branch to exact corrected head
+At that checkpoint, PR `#485` remained draft at the old failing head. The next
+external action was to advance only that deployment-disabled branch to exact
+corrected head
 `15f3f85d1f9bcdaa6391fc6236116d2c48f863e7`, then merge only if all four checks
 pass on that exact head against still-unchanged main `79894635`. This action
 still excludes deployment, Production SQL, aliases, credentials, fixtures, and
 RLS changes.
+
+## Exact-schema lifecycle-clock correction
+
+The deployment-disabled public PR branch was advanced to exact head
+`15f3f85d1f9bcdaa6391fc6236116d2c48f863e7` against unchanged main
+`798946354d7cecbaa8aa490ef39a1e89e2d856fa`. The three specialized proofs passed
+again:
+
+- Order Paid Repair Lock Proof run `36708673098`;
+- Order Account Deletion Concurrency Proof run `36708673096`; and
+- Order Staff Bootstrap Proof run `36708673114`.
+
+Full CI run `36708673103` completed the source checks, ordered disposable
+database proof chain, typecheck, lint, and repository test suite. It then failed
+at step `483`, `Apply only Order ops-health through Prisma`. No source was
+merged and nothing changed in Production.
+
+Prisma exposed only `current transaction is aborted`, so the migration was run
+directly against disposable PostgreSQL 16. It applied successfully to the
+focused fixture, then failed against a database materialized from the exact
+current Prisma schema with the first real error:
+
+`column source_order.updatedAt does not exist`
+
+The `Order` model has `createdAt` and nullable `paidAt`, but no `updatedAt`.
+The focused PGlite fixture had incorrectly invented `updatedAt`, masking the
+schema mismatch. Local correction commit
+`5a4a894552bf86c4629dbf2dea93d9a5ff436eea` fixes both affected clocks:
+
+- a pending refund uses provider authorization, refund lock, paid time, then
+  order creation time as its ordered fallback clock; and
+- a review-needed Order uses paid time, then order creation time, for the
+  24-hour operational-age threshold.
+
+The test fixture now matches the real `Order` lifecycle fields, asserts those
+fields against `prisma/schema.prisma`, rejects a fabricated `Order.updatedAt`,
+and covers old and fresh pending refunds whose claim timestamps are absent.
+The protected workflow and its contract test are bound to the corrected
+migration SHA-256
+`ed5e069248281ef8738f97bd0480ee77b85044a4ad2c9ac433ef2840a2a7e941`.
+
+Accepted local evidence for exact commit `5a4a8945`:
+
+- the corrected migration applied cleanly through native PostgreSQL 16 to the
+  exact current Prisma schema;
+- under `grainline_app_runtime`, direct `Order` SELECT remained denied while
+  the count-only aggregate executed and returned the expected values;
+- the old/fresh missing-refund-clock and 24-hour review boundary returned the
+  expected `1`, `1`, and total `2` counts in native PostgreSQL;
+- the two focused suites passed 10/10 normally and 10/10 with the migration
+  physically isolated at its CI holding path;
+- focused ESLint, workflow YAML parsing, checksum binding, and
+  `git diff --check` passed; and
+- the worktree is clean at tree
+  `3a00c92babc8124eb40631f323fa887c0a845b7d`.
+
+Private recovery branch
+`recovery/order-ops-health-lifecycle-clocks-5a4a8945-20260930` was pushed and
+read back at exact commit `5a4a894552bf86c4629dbf2dea93d9a5ff436eea`.
+
+Public PR `#485` remains draft at failing head `15f3f85d`; public main remains
+`79894635`. The next external action requires advancing only the existing
+deployment-disabled branch to exact corrected head `5a4a8945`, then marking
+ready and merging only if all four checks pass on that exact head against still
+unchanged main. That action does not deploy, apply Production SQL, move aliases,
+change credentials, run fixtures, or change RLS.
