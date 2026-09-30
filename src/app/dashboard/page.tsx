@@ -680,7 +680,7 @@ async function DashboardPageContent({
 
                           {l.status === "HIDDEN" ? (
                             <ResubmitButton listingId={l.id} label="Unhide" />
-                          ) : l.status === "ACTIVE" ? (
+                          ) : l.status === "ACTIVE" && !l.isPrivate ? (
                             <InlineActionButton
                               action={setStatus.bind(null, l.id, ListingStatus.HIDDEN)}
                               className={DASHBOARD_ACTION_CLASS}

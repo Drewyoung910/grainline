@@ -27,9 +27,13 @@ function listing(overrides = {}) {
 }
 
 describe("listing shop action state", () => {
-  it("hides active and sold-out listings", () => {
+  it("hides ordinary active and sold-out listings but keeps private custom listings out of the archive marker", () => {
     assert.equal(hideListingBlockReason(listing()), null);
     assert.equal(hideListingBlockReason(listing({ status: ListingStatus.SOLD_OUT })), null);
+    assert.match(
+      hideListingBlockReason(listing({ status: ListingStatus.ACTIVE, isPrivate: true })),
+      /Private custom listings cannot be hidden/,
+    );
     assert.match(hideListingBlockReason(listing({ status: ListingStatus.SOLD })), /Only active/);
     assert.match(hideListingBlockReason(listing({ status: ListingStatus.HIDDEN })), /Only active/);
   });
@@ -149,5 +153,13 @@ describe("listing shop action state", () => {
     assert.match(inventoryRow, /listing\.status === "PENDING_REVIEW"/);
     assert.match(inventoryRow, /`\$\{publicListingPath\(listing\.id, listing\.title\)\}\?preview=1`/);
     assert.match(inventoryRow, /: `\/dashboard\/listings\/\$\{listing\.id\}\/edit`/);
+  });
+
+  it("does not offer the ordinary Hide action for private custom listings", () => {
+    const shopUi = source("src/app/seller/[id]/shop/ShopListingActions.tsx");
+    const dashboard = source("src/app/dashboard/page.tsx");
+
+    assert.match(shopUi, /status === "ACTIVE" && !isPrivate/);
+    assert.match(dashboard, /l\.status === "ACTIVE" && !l\.isPrivate/);
   });
 });
