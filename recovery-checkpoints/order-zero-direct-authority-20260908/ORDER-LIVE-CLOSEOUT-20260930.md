@@ -49,9 +49,9 @@ loops that slowed the release.
 
 ## Plan after Order
 
-1. Read back automatic merged-main CI run `36735060328` when it completes. It
-   does not block the already-live Order system or the accepted PR `#486`
-   correction; exact-head PR CI already passed.
+1. Automatic merged-main CI run `36735060328` completed successfully on exact
+   main `6ed0476659327961170fc186389a0d055da7f2be`. It was readback only; no
+   duplicate full-suite run is required.
 2. Freeze the completed Order release boundary and preserve its predecessor
    until the stabilization window closes.
 3. Reconcile the verified launch backlog against current main so already-fixed
