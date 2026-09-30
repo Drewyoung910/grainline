@@ -59,3 +59,31 @@ Final source diff: four files, 122 insertions, two deletions.
 This source correction does not deploy an application, apply SQL, move aliases, change credentials, create fixtures, or change any live RLS posture. It keeps the historical Notification and Conversation/Message proof scopes stable by excluding unrelated current Order release successors from their historical database composition.
 
 The live Order deployment remains `dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J`, exact source `02f27a3948a2cbc87ddb7b53d0f07e8251718b83`, on all five canonical Production aliases. Its recoverable predecessor remains `dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW`.
+
+## Public merge and merged-main acceptance
+
+Deployment-disabled public PR `#486` was opened against unchanged main
+`02f27a3948a2cbc87ddb7b53d0f07e8251718b83` with exact head
+`4c57d144582210e4405d8ca6a4871da40eaf8521`. All four exact-head checks passed:
+
+- CI run `36731433521` passed in 27m18s;
+- Order Account Deletion Concurrency Proof run `36731433704` passed;
+- Order Paid Repair Lock Proof run `36731433808` passed; and
+- Order Staff Bootstrap Proof run `36731433634` passed.
+
+A final GitHub and remote-ref readback confirmed the PR head, base, main,
+mergeability, and check conclusions were unchanged. PR `#486` was marked ready
+and merged as merge commit
+`6ed0476659327961170fc186389a0d055da7f2be` at
+`2026-09-30T15:13:17Z`. Remote main read back at that exact commit.
+
+The two workflows that had failed on the predecessor main push both completed
+successfully on the exact merged-main commit:
+
+- Conversation and Message RLS FORCE Proof run `36735060521` passed in 1m2s.
+- Notification RLS FORCE Proof run `36735060463` passed.
+
+These successful merged-main runs demonstrate that the historical proof
+composition failure is closed. No Production SQL, application deployment,
+alias, credential, fixture, or live RLS change was part of this source merge or
+either proof.
