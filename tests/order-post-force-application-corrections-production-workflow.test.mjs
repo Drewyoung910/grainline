@@ -6,6 +6,7 @@ const workflow = readFileSync(
   ".github/workflows/order-post-force-application-corrections-production.yml",
   "utf8",
 );
+const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 
 test("post-FORCE corrections workflow is manual, exact-main and Production-bound", () => {
   assert.match(workflow, /workflow_dispatch:/);
@@ -55,4 +56,19 @@ test("preflight rejects incompatible rows and postflight proves bounded state", 
   assert.match(workflow, /assert\.deepEqual\(after\.rows, before\)/);
   assert.doesNotMatch(workflow, /provision-runtime-db-role\.sql/);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/i);
+});
+
+test("CI isolates both corrections until the accepted Core FORCE predecessor passes", () => {
+  assert.match(
+    ci,
+    /Isolate Order post-FORCE application corrections until Core FORCE passes[\s\S]*20260930030000_bound_listing_fulfillment_days[\s\S]*20260930031000_mark_paid_private_listing_sold/,
+  );
+  assert.match(
+    ci,
+    /Apply only Core Order FORCE through Prisma[\s\S]*Restore Order post-FORCE application corrections[\s\S]*Apply only Order post-FORCE application corrections through Prisma/,
+  );
+  assert.match(
+    ci,
+    /ORDER_POST_FORCE_APPLICATION_PRISMA_SCHEMA[\s\S]*Audit runtime grants after Order post-FORCE application corrections/,
+  );
 });

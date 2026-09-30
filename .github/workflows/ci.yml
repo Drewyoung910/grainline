@@ -83,6 +83,25 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order post-FORCE application corrections source package
+        run: >-
+          node --test
+          tests/staff-preview-pin-boundary.test.mjs
+          tests/listing-fulfillment-bounds.test.mjs
+          tests/private-custom-listing-paid-state.test.mjs
+          tests/listing-visibility.test.mjs
+          tests/order-paid-checkout-authority-postgres.test.mjs
+          tests/order-post-force-application-corrections-production-workflow.test.mjs
+      - name: Isolate Order post-FORCE application corrections until Core FORCE passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            prisma/migrations/20260930030000_bound_listing_fulfillment_days \
+            "$RUNNER_TEMP/order-listing-fulfillment-bounds"
+          mv \
+            prisma/migrations/20260930031000_mark_paid_private_listing_sold \
+            "$RUNNER_TEMP/order-private-custom-paid-state"
       - name: Verify Order item and quote runtime-lock source package
         run: >-
           node --test
@@ -2131,6 +2150,43 @@ jobs:
       - name: Apply only Core Order FORCE through Prisma
         run: npx prisma migrate deploy --schema "$ORDER_CORE_FORCE_PRISMA_SCHEMA"
       - name: Audit FORCE-hardened Core Order runtime grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Order post-FORCE application corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-listing-fulfillment-bounds" \
+            prisma/migrations/20260930030000_bound_listing_fulfillment_days
+          mv \
+            "$RUNNER_TEMP/order-private-custom-paid-state" \
+            prisma/migrations/20260930031000_mark_paid_private_listing_sold
+      - name: Re-verify Order post-FORCE application corrections source package
+        run: >-
+          node --test
+          tests/staff-preview-pin-boundary.test.mjs
+          tests/listing-fulfillment-bounds.test.mjs
+          tests/private-custom-listing-paid-state.test.mjs
+          tests/listing-visibility.test.mjs
+          tests/order-paid-checkout-authority-postgres.test.mjs
+          tests/order-post-force-application-corrections-production-workflow.test.mjs
+      - name: Stage only Order post-FORCE application corrections for Prisma
+        shell: bash
+        run: |
+          set -euo pipefail
+          isolated="$RUNNER_TEMP/order-post-force-application-corrections-prisma"
+          mkdir -p "$isolated/migrations"
+          cp prisma/schema.prisma "$isolated/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$isolated/migrations/migration_lock.toml"
+          cp -a \
+            prisma/migrations/20260930030000_bound_listing_fulfillment_days \
+            prisma/migrations/20260930031000_mark_paid_private_listing_sold \
+            "$isolated/migrations/"
+          test "$(find "$isolated/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 2
+          echo "ORDER_POST_FORCE_APPLICATION_PRISMA_SCHEMA=$isolated/schema.prisma" >> "$GITHUB_ENV"
+      - name: Apply only Order post-FORCE application corrections through Prisma
+        run: npx prisma migrate deploy --schema "$ORDER_POST_FORCE_APPLICATION_PRISMA_SCHEMA"
+      - name: Audit runtime grants after Order post-FORCE application corrections
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
