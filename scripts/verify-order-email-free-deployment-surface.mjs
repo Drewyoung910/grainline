@@ -37,12 +37,34 @@ export async function verifyOrderEmailFreeDeploymentSurface({
   for (const alias of PUBLIC_ALIASES) {
     const requestUrl = new URL(`https://${alias}/`);
     requestUrl.searchParams.set("order_release_check", String(cacheBuster));
-    const response = await fetchImpl(requestUrl, {
+    let response = await fetchImpl(requestUrl, {
       headers: NO_STORE_HEADERS,
       redirect: "manual",
       signal: AbortSignal.timeout(30_000),
     });
-    const body = await response.text();
+    let body = await response.text();
+
+    // Production is US-only. GitHub-hosted runners can legitimately arrive
+    // through a non-US Vercel edge and receive the application-owned geo
+    // redirect before the homepage renders. Validate that exact boundary,
+    // then verify the deployment marker on the geo-allowed destination.
+    if (response.status === 307) {
+      assert.equal(response.headers.get("server"), "Vercel", alias);
+      assert.ok(Buffer.byteLength(body, "utf8") <= MAX_REDIRECT_BODY_BYTES, alias);
+      const redirect = checkedUrl(response.headers.get("location"), `${alias} geo redirect`);
+      assert.equal(redirect.protocol, "https:", alias);
+      assert.equal(redirect.hostname, alias, alias);
+      assert.equal(redirect.pathname, "/not-available", alias);
+      assert.equal(redirect.search, "", alias);
+      redirect.searchParams.set("order_release_check", String(cacheBuster));
+      response = await fetchImpl(redirect, {
+        headers: NO_STORE_HEADERS,
+        redirect: "manual",
+        signal: AbortSignal.timeout(30_000),
+      });
+      body = await response.text();
+    }
+
     assert.equal(response.status, 200, alias);
     assert.ok(Buffer.byteLength(body, "utf8") <= MAX_PAGE_BYTES, alias);
     assert.match(body, marker, alias);

@@ -22,16 +22,26 @@ test("retirement workflow is manual, exact-main, live-deployment and Production-
   assert.match(workflow, /node scripts\/verify-order-email-free-deployment-surface\.mjs/);
 });
 
-function fakeDeploymentSurfaceFetch({ deploymentId, mutate } = {}) {
+function fakeDeploymentSurfaceFetch({ deploymentId, geoBlocked = false, mutate } = {}) {
   return async (input) => {
     const request = new URL(input);
     let response;
     if (request.hostname === "thegrainline.com" && request.pathname === "/api/health") {
       response = Response.json({ ok: true });
     } else if (["thegrainline.com", "grainline.vercel.app"].includes(request.hostname)) {
-      response = new Response(`<meta content="dpl=${deploymentId}">`, {
-        status: 200,
-      });
+      if (geoBlocked && request.pathname === "/") {
+        response = new Response("geo-blocked", {
+          status: 307,
+          headers: {
+            location: `https://${request.hostname}/not-available`,
+            server: "Vercel",
+          },
+        });
+      } else {
+        response = new Response(`<meta content="dpl=${deploymentId}">`, {
+          status: 200,
+        });
+      }
     } else if (request.hostname === "www.thegrainline.com") {
       response = new Response(null, {
         status: 308,
@@ -60,6 +70,40 @@ test("live deployment guard accepts public markers and exact protected-alias SSO
     cacheBuster: 1234,
     fetchImpl: fakeDeploymentSurfaceFetch({ deploymentId }),
   });
+});
+
+test("live deployment guard accepts the exact application-owned non-US redirect", async () => {
+  const deploymentId = "dpl_A12345678901234567890123";
+  await verifyOrderEmailFreeDeploymentSurface({
+    deploymentId,
+    cacheBuster: 1234,
+    fetchImpl: fakeDeploymentSurfaceFetch({ deploymentId, geoBlocked: true }),
+  });
+});
+
+test("live deployment guard rejects a non-US redirect away from its exact same-origin page", async () => {
+  const deploymentId = "dpl_A12345678901234567890123";
+  await assert.rejects(
+    verifyOrderEmailFreeDeploymentSurface({
+      deploymentId,
+      cacheBuster: 1234,
+      fetchImpl: fakeDeploymentSurfaceFetch({
+        deploymentId,
+        geoBlocked: true,
+        mutate: ({ request, response }) => {
+          if (request.hostname !== "thegrainline.com" || request.pathname !== "/") return response;
+          return new Response("geo-blocked", {
+            status: 307,
+            headers: {
+              location: "https://unreviewed.example/not-available",
+              server: "Vercel",
+            },
+          });
+        },
+      }),
+    }),
+    /thegrainline\.com/,
+  );
 });
 
 test("live deployment guard rejects a protected alias redirect for another target", async () => {
