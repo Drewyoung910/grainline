@@ -1,0 +1,290 @@
+name: Order Ops Health Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-ops-health
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed Order ops-health authority
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-order-ops-health'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main and completed CI before credential access
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Order ops-health release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Order ops-health main/CI readback drifted');
+            }
+      - name: Verify exact migration source and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260930033000_order_ops_health_summary"
+          echo "7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7  prisma/migrations/20260930033000_order_ops_health_summary/migration.sql" \
+            | sha256sum --check --status
+          node --test tests/order-ops-health.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture restart state and unchanged table posture
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const predecessor = '20260930032000_block_checkout_user_pairs';
+          const predecessorChecksum = 'dc1cdbf14a5b126635af44fbbc4ca820ac16e46823a68071400fd5786110209d';
+          const migration = '20260930033000_order_ops_health_summary';
+          const checksum = '7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7';
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive,
+                     'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname)
+                     FROM pg_catalog.pg_policy AS policy
+                    WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = ANY(ARRAY[
+               'public."CheckoutStockReservation"'::regclass,
+               'public."Order"'::regclass,
+               'public."SellerPayoutEvent"'::regclass
+             ]) ORDER BY relation.relname`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT migration_name, checksum,
+              finished_at, rolled_back_at, applied_steps_count
+              FROM public._prisma_migrations
+              WHERE migration_name = ANY($1::text[]) ORDER BY migration_name`,
+              [[predecessor, migration]]);
+            const rows = new Map(ledger.rows.map((row) => [row.migration_name, row]));
+            const required = rows.get(predecessor);
+            assert.ok(required, 'required blocked-pair predecessor is not applied');
+            assert.equal(required.checksum, predecessorChecksum);
+            assert.ok(required.finished_at);
+            assert.equal(required.rolled_back_at, null);
+            assert.equal(Number(required.applied_steps_count), 1);
+            const candidate = rows.get(migration);
+            if (candidate) {
+              assert.equal(candidate.checksum, checksum);
+              assert.ok(candidate.finished_at);
+              assert.equal(candidate.rolled_back_at, null);
+              assert.equal(Number(candidate.applied_steps_count), 1);
+            } else {
+              const collision = await client.query(`SELECT pg_catalog.count(*)::int AS count
+                FROM pg_catalog.pg_proc AS procedure
+                WHERE procedure.oid = pg_catalog.to_regprocedure(
+                  'public.grainline_order_ops_health_summary()')`);
+              assert.equal(collision.rows[0].count, 0);
+            }
+            const posture = await client.query(postureSql);
+            assert.equal(posture.rows.length, 3);
+            writeFileSync(`${process.env.RUNNER_TEMP}/order-ops-health-posture.json`,
+              JSON.stringify(posture.rows), {mode: 0o600, flag: 'wx'});
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${candidate ? 'applied' : 'pending'}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20260930033000_order_ops_health_summary
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected Order ops-health migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed Order ops-health migration
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back ledger, authority, counts and unchanged table posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const migration = '20260930033000_order_ops_health_summary';
+          const checksum = '7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7';
+          const sql = readFileSync(`prisma/migrations/${migration}/migration.sql`, 'utf8');
+          const delimiter = '$grainline_order_ops_health_summary$';
+          const start = sql.indexOf(`AS ${delimiter}`) + `AS ${delimiter}`.length;
+          const expectedSource = sql.slice(start, sql.indexOf(`${delimiter};`, start));
+          assert.ok(start > `AS ${delimiter}`.length && expectedSource.length > 0);
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/order-ops-health-posture.json`, 'utf8'));
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive,
+                     'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname)
+                     FROM pg_catalog.pg_policy AS policy
+                    WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = ANY(ARRAY[
+               'public."CheckoutStockReservation"'::regclass,
+               'public."Order"'::regclass,
+               'public."SellerPayoutEvent"'::regclass
+             ]) ORDER BY relation.relname`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count FROM public._prisma_migrations WHERE migration_name = $1`,
+              [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+
+            const authority = await client.query(`SELECT procedure.prosrc,
+              pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+              procedure.provolatile, procedure.proparallel, procedure.prosecdef,
+              procedure.proconfig,
+              pg_catalog.has_function_privilege(
+                'grainline_app_runtime', procedure.oid, 'EXECUTE') AS runtime_execute,
+              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(procedure.proacl,
+                pg_catalog.acldefault('f', procedure.proowner))) AS acl
+                WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE') AS public_execute
+              FROM pg_catalog.pg_proc AS procedure
+              WHERE procedure.oid =
+                'public.grainline_order_ops_health_summary()'::regprocedure`);
+            assert.equal(authority.rows.length, 1);
+            const functionRow = authority.rows[0];
+            assert.equal(functionRow.prosrc, expectedSource);
+            assert.equal(functionRow.owner, 'neondb_owner');
+            assert.equal(functionRow.provolatile, 's');
+            assert.equal(functionRow.proparallel, 's');
+            assert.equal(functionRow.prosecdef, true);
+            assert.deepEqual(functionRow.proconfig, ['search_path=pg_catalog']);
+            assert.equal(functionRow.runtime_execute, true);
+            assert.equal(functionRow.public_execute, false);
+
+            const summary = await client.query(`SELECT *
+              FROM public.grainline_order_ops_health_summary()`);
+            assert.equal(summary.rows.length, 1);
+            const keys = [
+              'ambiguous_refund_count', 'stale_refund_claim_count',
+              'manual_review_label_clawback_count',
+              'overdue_label_clawback_retry_count', 'aging_review_needed_count',
+              'stale_checkout_reservation_count', 'recent_payout_failure_count',
+            ];
+            const counts = keys.map((key) => BigInt(summary.rows[0][key]));
+            assert.ok(counts.every((count) => count >= 0n));
+            assert.equal(BigInt(summary.rows[0].issue_count),
+              counts.reduce((total, count) => total + count, 0n));
+            assert.deepEqual((await client.query(postureSql)).rows, before);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE

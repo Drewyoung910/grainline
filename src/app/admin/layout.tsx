@@ -8,6 +8,8 @@ import AdminMobileNav from "@/components/AdminMobileNav";
 import AdminPinGate from "@/components/AdminPinGate";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { getStaffActiveCaseCount } from "@/lib/caseReadAuthority";
+import { readStaffOrderPage } from "@/lib/orderStaffReadAuthority";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth: re-check role here in addition to middleware
@@ -31,21 +33,24 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <AdminPinGate />;
   }
 
-  const [openCaseCountResult, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount] = await Promise.all([
+  const [openCaseCountResult, reviewNeededOrders, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount] = await Promise.all([
     getStaffActiveCaseCount(user.id),
+    readStaffOrderPage(user.id, "REVIEW_NEEDED", 1, 1, getOrderStaffReadClient()),
     prisma.makerVerification.count({ where: { status: "PENDING" } }),
     prisma.blogComment.count({ where: { approved: false } }),
     prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
     prisma.supportRequest.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
   ]);
-  if (openCaseCountResult === null) redirect("/");
+  if (openCaseCountResult === null || reviewNeededOrders === null) redirect("/");
   const openCaseCount = openCaseCountResult;
+  const reviewNeededOrderCount = reviewNeededOrders.totalCount;
 
   return (
     <div className="flex flex-col md:flex-row min-h-[100svh] bg-neutral-100">
       {/* ── Mobile tab strip (< md) ── */}
       <AdminMobileNav
         openCaseCount={openCaseCount}
+        reviewNeededOrderCount={reviewNeededOrderCount}
         pendingVerificationCount={pendingVerificationCount}
         pendingCommentCount={pendingCommentCount}
         pendingReviewCount={pendingReviewCount}
@@ -62,10 +67,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <nav className="space-y-0.5">
           <Link
             href="/admin/flagged"
-            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
-            <AlertTriangle size={16} className="shrink-0 text-amber-500" />
-            Orders Needing Review
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="shrink-0 text-amber-500" />
+              Orders Needing Review
+            </div>
+            {reviewNeededOrderCount > 0 && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                {reviewNeededOrderCount > 99 ? "99+" : reviewNeededOrderCount}
+              </span>
+            )}
           </Link>
           <Link
             href="/admin/orders"
