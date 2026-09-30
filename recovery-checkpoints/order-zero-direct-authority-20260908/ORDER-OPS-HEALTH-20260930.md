@@ -318,3 +318,54 @@ was part of this run.
 The next release boundary is building and verifying an app deployment from
 exact main `02f27a39`, followed by a separately reviewed move of the canonical
 Production aliases only after candidate checks pass.
+
+## Exact-main deployment candidate accepted for cutover review
+
+Remote `main` was read back unchanged at
+`02f27a3948a2cbc87ddb7b53d0f07e8251718b83`. The five canonical aliases were
+all READY on accepted predecessor deployment
+`dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW`, exact source
+`798946354d7cecbaa8aa490ef39a1e89e2d856fa`. The fresh deployment marker
+`order-staged-02f27a39-20260930-01` had zero existing matches.
+
+A single Production-target, `--skip-domain` candidate was built from a clean
+detached worktree at exact current main:
+
+- deployment: `dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J`;
+- immutable host: `grainline-i2hm5z9cb-drew-youngs-projects.vercel.app`;
+- source/ref: `02f27a3948a2cbc87ddb7b53d0f07e8251718b83` / `main`;
+- marker: `order-staged-02f27a39-20260930-01`;
+- state/target: `READY` / `production`;
+- project/team: `prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp` /
+  `team_wvQeQHZGwCSwinC1uB7xbpjr`; and
+- provider aliases: zero.
+
+The protected candidate `/api/health` returned `200` with exact body
+`{"ok":true}`. Its root page returned `200` and carried exact deployment marker
+`dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J`. A post-build provider readback found exactly
+one deployment with the reviewed stage marker. All five canonical aliases
+remained READY on predecessor `dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW`; candidate
+creation did not move live traffic.
+
+The durable single-use cutover operator and mode-0600 binding are saved at:
+
+- `order-candidate-promotion-02f27a39-20260930/promote-order-candidate-explicit-aliases.mjs`;
+- `order-staged-smoke-inputs-02f27a39-20260930/binding.json`.
+
+Their SHA-256 values are respectively
+`e61807dd8418f3baa5b898893851b9d81b14adc1357c29e54ba501b2fd7f7dc9` and
+`6332fa468694979da6615f07f05ff726563c08424a1a162d6c05a315fa3e4bc2`.
+
+Its read-only preflight accepted exact remote main, CI run `36718477687`, the
+candidate identity and runtime tree, candidate and predecessor health/markers,
+and all five current alias owners. On an execution failure after mutation
+begins, it promotes predecessor `dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW`, explicitly
+restores all five aliases to its immutable host, and requires predecessor
+health, marker, and alias-owner postflight. Raw provider errors and credentials
+are not persisted.
+
+No checkout, database, credential, fixture, or RLS mutation is part of the
+cutover operator. The remaining Production action is exact promotion of
+candidate `dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J` and explicit assignment of the
+five canonical aliases, with automatic predecessor restoration if candidate
+postflight fails or execution is interrupted after mutation begins.
