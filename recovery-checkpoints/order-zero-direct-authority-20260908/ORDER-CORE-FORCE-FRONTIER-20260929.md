@@ -221,6 +221,15 @@ public main `c7c0c3a3`, and all four checks green. Because the earlier explicit
 merge approval named predecessor head `217f98e7`, the corrected exact head
 requires a refreshed merge authorization before leaving draft.
 
+The user approved the corrected exact head. PR #479 merged at
+`2026-09-30T00:50:30Z` as exact main commit
+`36947a9abb3f40820a35e7eb07e0ed49ad91fa5d`; its reviewed head/base remained
+`79f29a12` / `c7c0c3a3`. Required merged-main push CI is `36652253140` on that
+exact commit. Source merge alone did not apply FORCE or otherwise change
+Production. The user also directed the release toward enabling FORCE; the
+protected dispatch must first bind to successful exact merged-main CI, accepted
+runtime-lock run `36647432346`, and a fresh exact live-deployment readback.
+
 ## Exact forward sequence
 
 1. Complete: correction PR #478 merged as exact main `c7c0c3a3`, merged-main
