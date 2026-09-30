@@ -24,6 +24,7 @@ import {
   ownerCartItemsByListing,
   updateOwnerCartItemQuantity,
 } from "@/lib/cartOwnerAccess";
+import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 
 const CartUpdateSchema = z.object({
   cartItemId: z.string().min(1).optional(),
@@ -106,6 +107,7 @@ export async function POST(req: Request) {
           variantGroups: { include: { options: true } },
           seller: {
             select: {
+              userId: true,
               chargesEnabled: true,
               stripeAccountId: true,
               vacationMode: true,
@@ -133,6 +135,12 @@ export async function POST(req: Request) {
       const sellerBlockReason = sellerOrderBlockReason(listing.seller);
       if (sellerBlockReason) {
         return privateJson({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: HTTP_STATUS.BAD_REQUEST });
+      }
+      if (await checkoutPairIsBlocked(me.id, listing.seller.userId)) {
+        return privateJson(
+          { error: CHECKOUT_PAIR_UNAVAILABLE_MESSAGE },
+          { status: HTTP_STATUS.FORBIDDEN },
+        );
       }
       if (listing?.listingType === "MADE_TO_ORDER" && quantity > 1) {
         return privateJson(

@@ -11,6 +11,7 @@ import { stripe } from "@/lib/stripe";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -70,7 +71,6 @@ export async function GET(req: Request) {
     if (!listing || !singleCheckoutResumeSourceIsAvailable(listing, me.id)) {
       return privateJson(UNAVAILABLE_RESUME, { status: HTTP_STATUS.CONFLICT });
     }
-
     const session = await stripe.checkout.sessions.retrieve(lock.sessionId);
     const resumed = resolveSingleCheckoutResume(lock, session, {
       buyerId: me.id,
@@ -78,6 +78,13 @@ export async function GET(req: Request) {
       sellerId: listing.seller.id,
       checkoutLockKey,
     });
+    if (resumed?.completedSessionId) return privateJson(resumed);
+    if (resumed && await checkoutPairIsBlocked(me.id, listing.seller.userId)) {
+      return privateJson(
+        { error: CHECKOUT_PAIR_UNAVAILABLE_MESSAGE },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    }
     return privateJson(resumed ?? EMPTY_RESUME);
   } catch (error) {
     if (isAccountAccessError(error)) {

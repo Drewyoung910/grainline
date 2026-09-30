@@ -56,6 +56,7 @@ import { HTTP_STATUS } from "@/lib/httpStatus";
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
 import { normalizeUsState } from "@/lib/usStates";
+import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 
 const CheckoutSellerSchema = z.object({
   sellerId: z.string().min(1),
@@ -205,6 +206,12 @@ export async function POST(req: Request) {
       return privateJson(
         { error: "You cannot purchase your own listings." },
         { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+    if (await checkoutPairIsBlocked(me.id, sellerItems[0].listing.seller.userId)) {
+      return privateJson(
+        { error: CHECKOUT_PAIR_UNAVAILABLE_MESSAGE },
+        { status: HTTP_STATUS.FORBIDDEN },
       );
     }
 

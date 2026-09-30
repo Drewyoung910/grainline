@@ -8,6 +8,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerCartForCheckoutResume } from "@/lib/cartOwnerAccess";
 import { resumeCheckoutStockReservations } from "@/lib/checkoutStockReservationAuthority";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 
 export const runtime = "nodejs";
 
@@ -51,12 +52,16 @@ export async function GET() {
     const cart = await ownerCartForCheckoutResume(me.id);
 
     const cartId = cart?.id ?? null;
-    const sellers = new Map<string, string>();
+    const sellers = new Map<string, { name: string; userId: string }>();
     for (const item of cart?.items ?? []) {
       if (!sellers.has(item.listing.sellerId)) {
-        sellers.set(item.listing.sellerId, item.listing.seller.displayName);
+        sellers.set(item.listing.sellerId, {
+          name: item.listing.seller.displayName,
+          userId: item.listing.seller.userId,
+        });
       }
     }
+    const blockedUserIds = await getBlockedUserIdsFor(me.id);
 
     const clientSecrets: {
       sellerId: string;
@@ -69,7 +74,7 @@ export async function GET() {
     let shippingAddress: ResumedShippingAddress | null = null;
     let activeCheckoutGroupId: string | null = null;
 
-    for (const [sellerId, sellerName] of sellers) {
+    for (const [sellerId, seller] of sellers) {
       if (!cartId) continue;
       const checkoutLockKey = cartCheckoutLockKey(cartId, sellerId);
       const lock = await getCheckoutLock(checkoutLockKey);
@@ -97,6 +102,7 @@ export async function GET() {
         shippingAddress ??= shippingAddressFromMetadata(metadata);
         continue;
       }
+      if (blockedUserIds.has(seller.userId)) continue;
       if (session.status !== "open" || session.payment_status !== "unpaid") continue;
 
       const sessionClientSecret = typeof session.client_secret === "string" ? session.client_secret : lock.clientSecret;
@@ -105,7 +111,7 @@ export async function GET() {
       shippingAddress ??= shippingAddressFromMetadata(metadata);
       clientSecrets.push({
         sellerId,
-        sellerName,
+        sellerName: seller.name,
         secret: sessionClientSecret,
         sessionId: session.id,
       });
