@@ -56,7 +56,7 @@ Successor migration `20260930031000_mark_paid_private_listing_sold` copies the l
 
 The three fixes are integrated as five reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `9b5ad13ff8ffe82ecc6bdab12668cb8292936130`, directly descended from corrected #481 head `c74a6ba5`. Exact private backup is `recovery/order-post-force-app-fixes-main-9b5ad13f-20260930`.
 
-The integrated stack passes `27/27` focused behavior/database tests, targeted ESLint, Prisma schema validation, workflow contract tests, YAML parsing, and `git diff --check`. It adds a manual Production-environment workflow that:
+The integrated stack passes `31/31` focused behavior/database/workflow checks, targeted ESLint, Prisma schema validation, YAML parsing, and `git diff --check`. It adds a manual Production-environment workflow that:
 
 - binds dispatch to exact main and a successful exact-main push CI;
 - accepts only the two exact checksummed post-FORCE migrations;
