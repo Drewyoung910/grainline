@@ -1524,6 +1524,40 @@ describe("database grant inventory guardrails", () => {
 
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
+    const orderOpsHealthMigrationPath =
+      "prisma/migrations/20260930033000_order_ops_health_summary/migration.sql";
+    const orderOpsHealthMigrationPresent = existsSync(orderOpsHealthMigrationPath)
+      && source(orderOpsHealthMigrationPath).includes(
+        "CREATE FUNCTION public.grainline_order_ops_health_summary(",
+      );
+    const orderItemQuoteRuntimeLockMigrationPath =
+      "prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access/migration.sql";
+    const orderItemQuoteRuntimeLockMigrationPresent = existsSync(
+      orderItemQuoteRuntimeLockMigrationPath,
+    ) && source(orderItemQuoteRuntimeLockMigrationPath).includes(
+      'REVOKE ALL ON TABLE\n  public."OrderItem",\n  public."OrderShippingRateQuote"\nFROM PUBLIC, grainline_app_runtime;',
+    );
+    const postForceCheckoutSuccessorRevokePresent = [
+      "prisma/migrations/20260930031000_mark_paid_private_listing_sold/migration.sql",
+      "prisma/migrations/20260930032000_block_checkout_user_pairs/migration.sql",
+    ].some((migrationPath) => existsSync(migrationPath)
+      && source(migrationPath).includes(
+        "REVOKE ALL ON FUNCTION public.grainline_stripe_checkout_order_create(",
+      ));
+    const sellerBuyerEmailProjectionMigrationPath =
+      "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql";
+    const sellerBuyerEmailProjectionMigration = existsSync(
+      sellerBuyerEmailProjectionMigrationPath,
+    )
+      ? source(sellerBuyerEmailProjectionMigrationPath)
+      : "";
+    const sellerBuyerEmailProjectionMigrationPresent =
+      sellerBuyerEmailProjectionMigration.includes(
+        "CREATE FUNCTION public.grainline_order_seller_detail_v5(",
+      )
+      && sellerBuyerEmailProjectionMigration.includes(
+        "CREATE FUNCTION public.grainline_order_seller_recent_sales_v2(",
+      );
     const disputeRecoveryMigrationPath =
       "prisma/migrations/20260930040000_prepare_order_dispute_recovery/migration.sql";
     const disputeRecoveryMigration = existsSync(disputeRecoveryMigrationPath)
@@ -1586,11 +1620,17 @@ describe("database grant inventory guardrails", () => {
       ...(disputeRecoveryMigrationPresent ? disputeRecoveryFunctionNames : []),
       "grainline_order_item_seller_key_bind",
       "grainline_order_item_seller_key_complete",
-      "grainline_order_ops_health_summary",
-      "grainline_order_seller_detail_v5",
+      ...(orderOpsHealthMigrationPresent
+        ? ["grainline_order_ops_health_summary"]
+        : []),
+      ...(sellerBuyerEmailProjectionMigrationPresent
+        ? ["grainline_order_seller_detail_v5"]
+        : []),
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
-      "grainline_order_seller_recent_sales_v2",
+      ...(sellerBuyerEmailProjectionMigrationPresent
+        ? ["grainline_order_seller_recent_sales_v2"]
+        : []),
       ...ORDER_REFUND_CLAIM_FUNCTION_NAMES,
       ...ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
       ...ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES,
@@ -1689,7 +1729,11 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      162 // email-projection successors/retirement and ops health
+      157 // historical-prefix baseline before the currently staged successors
+        + (orderItemQuoteRuntimeLockMigrationPresent ? 1 : 0)
+        + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
+        + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
+        + (orderOpsHealthMigrationPresent ? 1 : 0)
         + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
@@ -2035,7 +2079,7 @@ describe("database grant inventory guardrails", () => {
         "DirectUploadReference",
         "Message",
         "Notification",
-        "Order",
+        ...(coreOrderRlsActivationExpected(inventory) ? ["Order"] : []),
         ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
@@ -2062,7 +2106,7 @@ describe("database grant inventory guardrails", () => {
         "DirectUploadReference",
         "Message",
         "Notification",
-        "Order",
+        ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
         ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
