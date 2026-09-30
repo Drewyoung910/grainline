@@ -342,6 +342,43 @@ points to `ffc251bf5d428a920ea427289723fad2fd2321dc`; main remains
 conditionally merging it require a new exact-head approval. No merge,
 migration, deployment, or live Stripe effect occurred.
 
+## PR #487 accepted and merged — 2026-09-30
+
+The user authorized exact head
+`0e5251385309d212022e726b673f8a0dd288ae47` against unchanged main
+`6ed0476659327961170fc186389a0d055da7f2be`. It was published to PR `#487`.
+All four exact-head checks passed:
+
+- CI `36787539389` in 23m11s;
+- Order Paid Repair Lock Proof `36787539336` in 55s;
+- Order Account Deletion Concurrency Proof `36787539347` in 54s; and
+- Order Staff Bootstrap Proof `36787539330` in 53s.
+
+The ready/merge boundary was re-read immediately before the merge: the PR was
+open and mergeable, the head and base matched the authorized commits, all four
+checks were successful, and remote main was unchanged. PR `#487` merged at
+`2026-09-30T23:12:01Z` as merge commit
+`499aa9651a6fc5658858856b84a78569a25dfc9f`, which is the resulting remote
+main head.
+
+All six automatically triggered merged-main workflows passed without manual
+redispatch:
+
+- CI `36789820092` in 31m53s, including the consolidated tests, security audit,
+  successor restoration, and production build;
+- Order Staff Bootstrap Proof `36789820043`;
+- Order Paid Repair Lock Proof `36789820071`;
+- Notification RLS FORCE Proof `36789820025`;
+- Conversation and Message RLS FORCE Proof `36789820114`; and
+- Order Account Deletion Concurrency Proof `36789820109`.
+
+The successful source merge connects signed Stripe dispute loss/withdrawal
+handling to the prepared seller-transfer recovery ledger and includes the
+Next.js `16.3.6` critical-advisory repair plus aligned guardrails. It does not
+apply the dispute-recovery migration, deploy an application candidate, alter
+Production credentials, invoke live Stripe effects, or activate additional
+RLS. Those remain separate explicit release actions.
+
 ## PR #487 seventh exact-head gate — 2026-09-30
 
 The user authorized exact head
