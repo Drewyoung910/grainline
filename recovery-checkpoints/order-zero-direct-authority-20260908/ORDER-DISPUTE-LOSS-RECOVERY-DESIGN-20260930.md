@@ -189,3 +189,41 @@ The public PR still points to failed head `724682c63...`; no new public push or
 merge is authorized by this record. Publishing corrected head `a5fb870a...`
 requires a new exact-head approval. No migration, deployment, or Stripe action
 occurred.
+
+## PR #487 third exact-head correction — 2026-09-30
+
+The user authorized exact head
+`a5fb870ac1a2569d91f7b8b6fea97f6182bd97e9`. It was published to PR `#487`
+against unchanged main `6ed0476659327961170fc186389a0d055da7f2be`.
+`postgres-lock-order`, `review-note-concurrency`, and `tls-login` passed. CI run
+`36768062542` reached the full test step after passing the corrected historical
+catalog phase, then failed after 25m50s with 4,952 passing tests, three failed
+assertions, and nine skips.
+
+The three failures were branch-state integration defects:
+
+- grant-inventory totals and the four dispute-recovery functions remained
+  unconditional while the exact migration was intentionally held outside the
+  historical tree;
+- the site-wide RLS matrix still declared 67 models and omitted the new
+  private ledger; and
+- the schema-drift reader could not inspect the sealed migration from its CI
+  holding path. This failure also exposed a real pre-Production mismatch: the
+  migration named the parent constraint `OrderDisputeRecovery_order_fkey`,
+  while Prisma's relation contract requires
+  `OrderDisputeRecovery_orderId_fkey`.
+
+Local correction commit
+`921b1d59022d825a6cb991c525608583eb3e3067` fixes all four seams. It keeps the
+grant inventory fail-closed while the migration is absent, reads the exact
+sealed migration for schema-drift comparison, updates the 68-model RLS ledger,
+and corrects the unapplied FK name. Focused verification passed in both source
+states: the normal tree produced 41 passes plus one expected live-PostgreSQL
+skip, and the exact CI-isolated migration state produced 36 passes plus one
+expected live-PostgreSQL skip. No second full suite was run.
+
+The corrected head is backed up privately at
+`recovery/order-dispute-loss-recovery-draft-20260930`. Public PR `#487` still
+points to `a5fb870a...`, and public main remains `6ed04766...`. Publishing
+`921b1d59...` and conditionally merging it requires a new exact-head approval.
+No migration, deployment, or live Stripe effect occurred.
