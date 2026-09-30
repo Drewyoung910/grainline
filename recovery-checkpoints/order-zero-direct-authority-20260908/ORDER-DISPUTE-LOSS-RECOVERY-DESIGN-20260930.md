@@ -261,3 +261,35 @@ The corrected head is backed up privately at
 points to `921b1d59...`, and no merge, migration, deployment, or live Stripe
 effect occurred. Publishing `b2a27d38...` and conditionally merging it requires
 a new exact-head approval.
+
+## PR #487 fifth exact-head correction — 2026-09-30
+
+The user authorized exact head
+`b2a27d38accf1d55a5e68939441f87dee36ce90c`. It was published to PR `#487`
+against unchanged main `6ed0476659327961170fc186389a0d055da7f2be`.
+`postgres-lock-order`, `review-note-concurrency`, and `tls-login` passed. CI run
+`36776601412` passed the corrected function inventory, every historical
+migration/proof step, and lint. Its consolidated suite then finished with
+4,954 passing tests, one failed assertion, and nine skips. The conditional
+merge did not run.
+
+The remaining failure was the same historical-tree class at the next masked
+assertion. CI temporarily removes the `OrderItem`/`OrderShippingRateQuote`
+runtime-lock migration and both post-FORCE checkout successors, but the
+PUBLIC-revoke total still treated their two unique statements as always
+present. The earlier failure had also prevented the suite from reaching the
+Core Order RLS table lists, which unconditionally required `Order` while the
+exact ENABLE and FORCE migrations were isolated.
+
+Local correction commit
+`ffc251bf5d428a920ea427289723fad2fd2321dc` makes those expectations depend on
+the exact migration state. The grant-inventory suite passed with the complete
+migration tree and with the exact historical-prefix holdout set reconstructed:
+25 passes plus one expected local PostgreSQL skip in each state, with zero
+failures. `git diff --check` passed. No duplicate full suite was run locally.
+
+The corrected head is backed up privately at
+`recovery/order-dispute-loss-recovery-draft-20260930`. Public PR `#487` still
+points to `b2a27d38...`; no merge, migration, deployment, or live Stripe effect
+occurred. Publishing `ffc251bf...` and conditionally merging it requires a new
+exact-head approval.
