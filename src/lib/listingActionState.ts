@@ -22,6 +22,9 @@ export function hideListingBlockReason(listing: ListingActionState) {
   if (listing.status !== ListingStatus.ACTIVE && listing.status !== ListingStatus.SOLD_OUT) {
     return "Only active or sold-out listings can be hidden.";
   }
+  if (listing.isPrivate) {
+    return "Private custom listings cannot be hidden. Archive the listing when you are finished with it.";
+  }
   return null;
 }
 

@@ -1,5 +1,6 @@
 // src/app/messages/[id]/page.tsx
 import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
@@ -43,6 +44,7 @@ import {
   setActorConversationArchived,
 } from "@/lib/conversationMessageAuthority";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
+import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 
 export default async function ThreadPage({
   params,
@@ -53,22 +55,29 @@ export default async function ThreadPage({
 }) {
   const [{ id }, { listing: requestedListingParam }] = await Promise.all([params, searchParams]);
 
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   if (!userId) redirect(`/sign-in?redirect_url=/messages/${id}`);
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
-  const isStaff = me.role === "ADMIN" || me.role === "EMPLOYEE";
-  const reportedThread = isStaff
-    ? await prisma.userReport.findFirst({
-        where: { targetType: "MESSAGE_THREAD", targetId: id, resolved: false },
-        select: { id: true },
-      })
-    : null;
-  const canStaffReviewThread = !!reportedThread;
 
   const conversation = await getActorConversation(me.id, id);
   if (!conversation) return notFound();
+  const isParticipant = conversation.userAId === me.id || conversation.userBId === me.id;
+  let canStaffReviewThread = false;
+  if (!isParticipant) {
+    const isActiveStaff =
+      !me.banned &&
+      !me.deletedAt &&
+      (me.role === "ADMIN" || me.role === "EMPLOYEE");
+    const cookieStore = await cookies();
+    canStaffReviewThread = isActiveStaff && await verifyAdminPinCookieValue(
+      cookieStore.get(ADMIN_PIN_COOKIE_NAME)?.value,
+      userId,
+      sessionId,
+    );
+    if (!canStaffReviewThread) return notFound();
+  }
   const conversationUsers = await prisma.user.findMany({
     where: { id: { in: [conversation.userAId, conversation.userBId] } },
     select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true },
@@ -107,7 +116,6 @@ export default async function ThreadPage({
     userB,
     contextListing,
   };
-  const isParticipant = convo.userAId === me.id || convo.userBId === me.id;
   const isStaffReviewMode = canStaffReviewThread && !isParticipant;
 
   const requestedListingId = requestedListingParam?.trim();

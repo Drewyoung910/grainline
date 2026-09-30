@@ -23,6 +23,7 @@ import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -369,6 +370,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           AND COALESCE("stockQuantity", 0) <= 0
           AND status = 'ACTIVE'
       `;
+      if (listing.isPrivate && listing.reservedForUserId && listing.customOrderConversationId) {
+        await sendCustomOrderReadyLink({ listingId });
+      }
       await syncThreshold(listing.sellerId);
       // First active listing for this seller might earn the Founding Maker badge.
       await maybeGrantFoundingMaker(listing.sellerId);

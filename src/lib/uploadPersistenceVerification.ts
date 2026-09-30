@@ -192,3 +192,70 @@ export async function filterVerifiedFirstPartyMediaUrlsForUser({
 
   return verified;
 }
+
+export type VerifiedFirstPartyMediaUrlPair = {
+  url: string;
+  originalUrl: string;
+};
+
+export async function verifyFirstPartyMediaUrlPairsForUser({
+  urls,
+  originalUrls,
+  max,
+  clerkUserId,
+  accountUserId,
+  allowedEndpoints,
+  allowedContentTypes = IMAGE_UPLOAD_TYPES,
+}: {
+  urls: string[];
+  originalUrls: string[];
+  max: number;
+  clerkUserId: string;
+  accountUserId: string;
+  allowedEndpoints: readonly UploadEndpoint[];
+  allowedContentTypes?: readonly string[];
+}): Promise<
+  | { ok: true; pairs: VerifiedFirstPartyMediaUrlPair[] }
+  | { ok: false; error: string }
+> {
+  if (urls.length > max) {
+    return { ok: false, error: `You can upload up to ${max} photos.` };
+  }
+  const hasOriginalUrls = originalUrls.length > 0;
+  if (hasOriginalUrls && originalUrls.length !== urls.length) {
+    return {
+      ok: false,
+      error: "Listing photo details do not match. Re-upload the photos and try again.",
+    };
+  }
+
+  const pairs: VerifiedFirstPartyMediaUrlPair[] = [];
+  const uniqueUrls = new Set<string>();
+  for (let index = 0; index < urls.length; index += 1) {
+    const url = urls[index]?.trim() ?? "";
+    const originalUrl = hasOriginalUrls
+      ? originalUrls[index]?.trim() ?? ""
+      : url;
+    if (!url || !originalUrl) {
+      return { ok: false, error: "A listing photo is missing. Re-upload it and try again." };
+    }
+    pairs.push({ url, originalUrl });
+    uniqueUrls.add(url);
+    uniqueUrls.add(originalUrl);
+  }
+
+  for (const url of uniqueUrls) {
+    const result = await verifyFirstPartyMediaUrlForPersistence({
+      url,
+      allowedEndpoints,
+      clerkUserId,
+      accountUserId,
+      allowedContentTypes,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+  }
+
+  return { ok: true, pairs };
+}

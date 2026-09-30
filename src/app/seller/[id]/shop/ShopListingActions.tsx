@@ -67,8 +67,8 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
         </button>
       )}
 
-      {/* Hide — ACTIVE only */}
-      {status === "ACTIVE" && (
+      {/* Private custom listings use Archive, because HIDDEN + private is the archive marker. */}
+      {status === "ACTIVE" && !isPrivate && (
         <button
           disabled={isPending}
           onClick={() =>

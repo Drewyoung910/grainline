@@ -18,13 +18,13 @@ import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
  * security-relevant output is derived from it inside the locked transaction.
  */
 export async function sendCustomOrderReadyLink({ listingId }: { listingId: string }) {
-  if (!listingId) return { messageCreated: false };
+  if (!listingId) return { messageDelivered: false, messageCreated: false };
 
   const initial = await prisma.listing.findUnique({
     where: { id: listingId },
     select: { seller: { select: { userId: true } } },
   });
-  if (!initial) return { messageCreated: false };
+  if (!initial) return { messageDelivered: false, messageCreated: false };
 
   let committed: SentActorCustomOrderReady | null = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -38,7 +38,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
       const sqlState = getPrismaRawSqlState(error);
       if (sqlState === "40001" && attempt === 0) continue;
       if (sqlState === "22023" || sqlState === "42501") {
-        return { messageCreated: false };
+        return { messageDelivered: false, messageCreated: false };
       }
       throw error;
     }
@@ -99,5 +99,5 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
     }
   }
 
-  return { messageCreated: committed.created };
+  return { messageDelivered: true, messageCreated: committed.created };
 }

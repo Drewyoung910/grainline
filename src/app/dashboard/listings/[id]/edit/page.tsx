@@ -35,6 +35,7 @@ import type { Metadata } from "next";
 import { randomUUID } from "node:crypto";
 import InventoryQuantityControl from "@/components/InventoryQuantityControl";
 import { lockListingStock, prepareListingStockMutation, recordListingStockMutation, StockMutationConflict } from "@/lib/listingStockMutation";
+import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -220,13 +221,23 @@ async function updateListing(
   const stockQuantityRaw = toInt(formData.get("stockQuantity"));
   const stockQuantity = listingType === "IN_STOCK" && stockQuantityRaw != null && stockQuantityRaw > 0
     ? stockQuantityRaw : null;
-  const shipsWithinDaysRaw = toInt(formData.get("shipsWithinDays"));
-  const shipsWithinDays = listingType === "IN_STOCK" && shipsWithinDaysRaw != null && shipsWithinDaysRaw > 0
-    ? shipsWithinDaysRaw : null;
+  const shipsWithinDaysResult = listingType === "IN_STOCK"
+    ? parseListingFulfillmentDays(formData.get("shipsWithinDays"), "Ships-within time")
+    : { ok: true as const, value: null };
+  if (!shipsWithinDaysResult.ok) return shipsWithinDaysResult;
+  const shipsWithinDays = shipsWithinDaysResult.value;
 
   // Processing time (only for MADE_TO_ORDER)
-  const processingTimeMinDays = listingType === "MADE_TO_ORDER" ? toInt(formData.get("processingTimeMinDays")) : null;
-  const processingTimeMaxDays = listingType === "MADE_TO_ORDER" ? toInt(formData.get("processingTimeMaxDays")) : null;
+  const processingTimeMinDaysResult = listingType === "MADE_TO_ORDER"
+    ? parseListingFulfillmentDays(formData.get("processingTimeMinDays"), "Minimum processing time")
+    : { ok: true as const, value: null };
+  if (!processingTimeMinDaysResult.ok) return processingTimeMinDaysResult;
+  const processingTimeMaxDaysResult = listingType === "MADE_TO_ORDER"
+    ? parseListingFulfillmentDays(formData.get("processingTimeMaxDays"), "Maximum processing time")
+    : { ok: true as const, value: null };
+  if (!processingTimeMaxDaysResult.ok) return processingTimeMaxDaysResult;
+  const processingTimeMinDays = processingTimeMinDaysResult.value;
+  const processingTimeMaxDays = processingTimeMaxDaysResult.value;
 
   // Meta description
   const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
@@ -278,15 +289,8 @@ async function updateListing(
   if (stockQuantity !== null && stockQuantity > MAX_MANUAL_STOCK_QUANTITY) {
     return { ok: false, error: `Stock quantity cannot exceed ${MAX_MANUAL_STOCK_QUANTITY}.` };
   }
-  if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) return { ok: false, error: "Processing time cannot exceed 365 days." };
-  if (
-    listingType === "MADE_TO_ORDER" &&
-    processingTimeMinDays !== null &&
-    processingTimeMaxDays !== null &&
-    processingTimeMinDays > processingTimeMaxDays
-  ) {
-    return { ok: false, error: "Processing time minimum cannot exceed the maximum." };
-  }
+  const processingWindowError = listingProcessingWindowError(processingTimeMinDays, processingTimeMaxDays);
+  if (processingWindowError) return { ok: false, error: processingWindowError };
 
   // Guard ownership
   const listing = await prisma.listing.findFirst({

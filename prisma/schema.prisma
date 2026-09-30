@@ -348,7 +348,8 @@ model Listing {
   // SEO/browse tags
   tags String[] @default([])
 
-  // Ships-within days (IN_STOCK only; used instead of processingTimeMaxDays for delivery estimate)
+  // Ships-within days (IN_STOCK only; used instead of processingTimeMaxDays for delivery estimate).
+  // A raw-managed CHECK constrains non-null values to 1..365.
   shipsWithinDays Int?
 
   photos    Photo[]

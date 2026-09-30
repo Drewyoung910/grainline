@@ -408,10 +408,15 @@ describe("seller operational route hardening", () => {
   it("keeps made-to-order processing windows internally consistent", () => {
     const createPage = source("src/app/dashboard/listings/new/page.tsx");
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const fulfillmentBounds = source("src/lib/listingFulfillmentDays.ts");
     const guard =
-      /listingType === "MADE_TO_ORDER"[\s\S]*?processingTimeMinDays !== null[\s\S]*?processingTimeMaxDays !== null[\s\S]*?processingTimeMinDays > processingTimeMaxDays[\s\S]*?Processing time minimum cannot exceed the maximum/;
+      /listingProcessingWindowError\(processingTimeMinDays, processingTimeMaxDays\)/;
 
     assert.match(createPage, guard);
     assert.match(editPage, guard);
+    assert.match(
+      fulfillmentBounds,
+      /minimumDays !== null[\s\S]*maximumDays !== null[\s\S]*minimumDays > maximumDays[\s\S]*Processing time minimum cannot exceed the maximum/,
+    );
   });
 });

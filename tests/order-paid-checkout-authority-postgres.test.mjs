@@ -6,6 +6,12 @@ import { after, before, describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { sourceSnapshot, provider, paidCheckoutFixtureSql } from "./helpers/order-paid-checkout-fixture.mjs";
 
+function migrationSource(candidates, label) {
+  const sourcePath = candidates.find((candidatePath) => candidatePath && fs.existsSync(candidatePath));
+  assert.ok(sourcePath, `${label} migration source must be available`);
+  return fs.readFileSync(sourcePath, "utf8");
+}
+
 const candidate = fs.readFileSync(
   "docs/rls-drafts/order-paid-checkout-authority.sql",
   "utf8",
@@ -14,6 +20,13 @@ const boundReservationCorrection = fs.readFileSync(
   "prisma/migrations/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql",
   "utf8",
 );
+const privateCustomPaidStateCorrection = migrationSource([
+  process.env.ORDER_PRIVATE_CUSTOM_PAID_STATE_MIGRATION_PATH,
+  "prisma/migrations/20260930031000_mark_paid_private_listing_sold/migration.sql",
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-private-custom-paid-state/migration.sql`
+    : null,
+], "private custom-listing successor");
 const rows = (result) => result.rows;
 let db;
 let dataDirectory;
@@ -57,6 +70,10 @@ describe("Order paid-checkout authority", () => {
     }
     await db.exec(boundReservationCorrection).catch((error) => {
       error.message = `bound-reservation correction failed to install: ${error.message}`;
+      throw error;
+    });
+    await db.exec(privateCustomPaidStateCorrection).catch((error) => {
+      error.message = `private custom paid-state correction failed to install: ${error.message}`;
       throw error;
     });
   });
@@ -232,6 +249,84 @@ describe("Order paid-checkout authority", () => {
         SELECT count(*) AS count FROM public."Order"
          WHERE "stripeSessionId" IN ('cs_reserved_first', 'cs_reserved_second')
       `)).rows[0].count), 2);
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+  });
+
+  it("sells one paid private custom listing and rejects a second paid session", async () => {
+    await db.exec("BEGIN");
+    try {
+      const snapshot = sourceSnapshot();
+      snapshot.item.listing.id = "listing-private-custom";
+      snapshot.item.listing.listingType = "MADE_TO_ORDER";
+      snapshot.item.listing.shipsWithinDays = null;
+      snapshot.item.listing.processingTimeMinDays = 3;
+      snapshot.item.listing.processingTimeMaxDays = 7;
+      snapshot.item.listing.isPrivate = true;
+      snapshot.item.listing.reservedForUserId = "buyer-1";
+      await db.exec(`
+        INSERT INTO public."Listing" (
+          id, "sellerId", status, "listingType", "stockQuantity",
+          "isPrivate", "reservedForUserId"
+        ) VALUES (
+          'listing-private-custom', 'seller-1', 'ACTIVE', 'MADE_TO_ORDER',
+          NULL, true, 'buyer-1'
+        );
+      `);
+      for (const suffix of ["first", "second"]) {
+        await db.query(`
+          INSERT INTO public."StripeWebhookEvent" (
+            id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+          ) VALUES ($1, 'checkout.session.completed', $2, 1, CURRENT_TIMESTAMP)
+        `, [`evt_private_${suffix}`, `cs_private_${suffix}`]);
+        await db.query(`
+          INSERT INTO public."CheckoutStockReservation" (
+            id, "stripeSessionId", status, "buyerId", "sellerId", "sourceSnapshot"
+          ) VALUES ($1, $2, 'SESSION_CREATED', 'buyer-1', 'seller-1', $3::jsonb)
+        `, [`private-${suffix}`, `cs_private_${suffix}`, JSON.stringify(snapshot)]);
+      }
+
+      const paidProjection = (suffix) => provider({
+        stripePaymentIntentId: `pi_private_${suffix}`,
+        stripeChargeId: `ch_private_${suffix}`,
+        stripeTransferId: `tr_private_${suffix}`,
+        paidItems: [{
+          sourceKey: "single:listing-private-custom",
+          listingId: "listing-private-custom",
+          variantKey: "",
+          quantity: 1,
+          unitAmountCents: 500,
+        }],
+      });
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      let first;
+      let second;
+      try {
+        first = rows(await db.query(`
+          SELECT * FROM public.grainline_stripe_checkout_order_create(
+            'evt_private_first', 1, 'private-first', 'cs_private_first',
+            $1::timestamp, $2::jsonb
+          )
+        `, [paidAt, JSON.stringify(paidProjection("first"))]));
+        second = rows(await db.query(`
+          SELECT * FROM public.grainline_stripe_checkout_order_create(
+            'evt_private_second', 1, 'private-second', 'cs_private_second',
+            $1::timestamp, $2::jsonb
+          )
+        `, [paidAt, JSON.stringify(paidProjection("second"))]));
+      } finally {
+        await db.exec("RESET ROLE");
+      }
+
+      assert.equal(first[0].invalid_reason, null);
+      assert.equal(first[0].listing_visibility_changed, true);
+      assert.match(second[0].invalid_reason, /no longer active/i);
+      assert.equal(second[0].listing_visibility_changed, false);
+      assert.deepEqual(rows(await db.query(`
+        SELECT status::text FROM public."Listing"
+         WHERE id = 'listing-private-custom'
+      `)), [{ status: "SOLD" }]);
     } finally {
       await db.exec("ROLLBACK");
     }

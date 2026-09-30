@@ -501,7 +501,7 @@ export default function ThreadMessages({
                       href={publicListingPath(link.listingId, link.title)}
                       className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700"
                     >
-                      Purchase This Piece
+                      View Custom Piece
                     </Link>
                   )}
                 </div>

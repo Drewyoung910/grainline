@@ -9,6 +9,7 @@ import { messageListRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ra
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { MESSAGE_POLL_LIMIT } from "@/lib/messagePolling";
 import { parseMessageCursor } from "@/lib/messageCursor";
+import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 
 export async function GET(
   req: Request,
@@ -16,7 +17,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   if (!userId) return privateJson({ ok: false }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(messageListRatelimit, userId);
@@ -36,6 +37,11 @@ export async function GET(
   // unresolved-report staff review exception without exposing either table.
   const conversation = await getActorConversation(me.id, id);
   if (!conversation) return privateJson({ ok: false }, { status: 403 });
+  const isParticipant = conversation.userAId === me.id || conversation.userBId === me.id;
+  if (!isParticipant) {
+    const pinRejection = await requireStaffAdminPinForApi(req, userId, sessionId);
+    if (pinRejection) return pinRejection;
+  }
 
   const url = new URL(req.url);
   const beforeRaw = url.searchParams.get("before");

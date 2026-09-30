@@ -26,7 +26,7 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
       const text = source(path);
       assert.match(
         text,
-        /isFirstPartyMediaUrl|filterFirstPartyMediaUrls|verifyFirstPartyMediaUrlForPersistence|filterVerifiedFirstPartyMediaUrlsForUser/,
+        /isFirstPartyMediaUrl|filterFirstPartyMediaUrls|verifyFirstPartyMediaUrlForPersistence|filterVerifiedFirstPartyMediaUrlsForUser|verifyFirstPartyMediaUrlPairsForUser/,
         path,
       );
       assert.doesNotMatch(text, /isR2PublicUrl|filterR2PublicUrls/, path);
@@ -76,7 +76,7 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     for (const path of currentUserWritePaths) {
       assert.match(
         source(path),
-        /isFirstPartyMediaUrlForUser|verifyFirstPartyMediaUrlForPersistence|filterVerifiedFirstPartyMediaUrlsForUser/,
+        /isFirstPartyMediaUrlForUser|verifyFirstPartyMediaUrlForPersistence|filterVerifiedFirstPartyMediaUrlsForUser|verifyFirstPartyMediaUrlPairsForUser/,
         path,
       );
     }

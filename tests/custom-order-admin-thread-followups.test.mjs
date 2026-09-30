@@ -7,7 +7,7 @@ function source(path) {
 }
 
 describe("custom-order and staff-thread audit follow-ups", () => {
-  it("sends custom-order ready links from both immediate and admin approval paths", () => {
+  it("sends custom-order ready links from every successful activation path", () => {
     const helper = source("src/lib/customOrderReadyLink.ts");
     const authority = source("src/lib/conversationMessageAuthority.ts");
     const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
@@ -17,6 +17,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     );
     const customPage = source("src/app/dashboard/listings/custom/page.tsx");
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const sellerActions = source("src/app/seller/[id]/shop/actions.ts");
 
     assert.match(helper, /dedupScope: source\.listingId/);
     assert.match(helper, /sendCustomOrderReady/);
@@ -25,6 +26,8 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(readyFunction, /pg_catalog\.pg_advisory_xact_lock\(\s*913349/);
     assert.match(readyFunction, /pg_catalog\.hashtext\(p_listing_id\)/);
     assert.match(helper, /sendCustomOrderReadyLink\(\{ listingId \}: \{ listingId: string \}\)/);
+    assert.match(helper, /messageDelivered: false, messageCreated: false/);
+    assert.match(helper, /messageDelivered: true, messageCreated: committed\.created/);
     assert.doesNotMatch(helper, /conversationId,\s*sellerUserId,\s*buyerUserId,\s*sellerName,\s*listing,/);
     assert.match(readyFunction, /listing\."reservedForUserId" = initial_source\.buyer_user_id/);
     assert.match(readyFunction, /listing\."customOrderConversationId" = initial_source\.conversation_id/);
@@ -32,17 +35,41 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(readyFunction, /'custom_order_link',\s*true,\s*message_sent_at/);
     assert.match(helper, /existing valid message heals a prior post-commit notification failure/);
     assert.match(customPage, /sendCustomOrderReadyLink\(\{\s*listingId: created\.id,\s*\}\)/);
+    assert.match(customPage, /startActorConversation\(me\.id, reservedForUserId, null\)/);
+    assert.match(customPage, /availableConversation\.conversationId !== conversationId/);
+    assert.match(customPage, /if \(!readyLink\.messageDelivered\)/);
+    assert.match(customPage, /status: ListingStatus\.DRAFT/);
+    assert.match(customPage, /readyLink=unavailable/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
     assert.equal((adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId:/g) ?? []).length, 2);
     assert.match(adminReview, /currentListing\.status === 'ACTIVE' &&[\s\S]*currentListing\.customOrderConversationId &&[\s\S]*currentListing\.reservedForUserId/);
+    assert.match(sellerActions, /import \{ sendCustomOrderReadyLink \} from "@\/lib\/customOrderReadyLink"/);
+    const heldPath = sellerActions.slice(
+      sellerActions.indexOf("if (shouldHold)"),
+      sellerActions.indexOf("} else {", sellerActions.indexOf("if (shouldHold)")),
+    );
+    const activatedPath = sellerActions.slice(
+      sellerActions.indexOf("} else {", sellerActions.indexOf("if (shouldHold)")),
+      sellerActions.indexOf("} catch (error)", sellerActions.indexOf("if (shouldHold)")),
+    );
+    assert.doesNotMatch(heldPath, /sendCustomOrderReadyLink/);
+    assert.match(
+      activatedPath,
+      /if \(listing\.isPrivate && listing\.reservedForUserId && listing\.customOrderConversationId\) \{\s*await sendCustomOrderReadyLink\(\{ listingId \}\);\s*\}/,
+    );
+    assert.ok(
+      activatedPath.indexOf("status: \"ACTIVE\"") < activatedPath.indexOf("await sendCustomOrderReadyLink"),
+      "the ready link must be sent only after the guarded ACTIVE transition succeeds",
+    );
   });
 
   it("lets staff view reported message threads without becoming a participant", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
 
-    assert.match(threadPage, /const isStaff = me\.role === "ADMIN" \|\| me\.role === "EMPLOYEE"/);
-    assert.match(threadPage, /targetType: "MESSAGE_THREAD", targetId: id, resolved: false/);
+    assert.match(threadPage, /const isActiveStaff =[\s\S]*me\.role === "ADMIN" \|\| me\.role === "EMPLOYEE"/);
+    assert.match(threadPage, /verifyAdminPinCookieValue\([\s\S]*ADMIN_PIN_COOKIE_NAME[\s\S]*userId,[\s\S]*sessionId/);
+    assert.match(threadPage, /if \(!canStaffReviewThread\) return notFound\(\)/);
     assert.match(threadPage, /getActorConversation\(me\.id, id\)/);
     assert.match(recipientSql, /public\.grainline_conversation_staff_report_visible\(conversation\.id\)/);
     assert.match(threadPage, /const isStaffReviewMode = canStaffReviewThread && !isParticipant/);
