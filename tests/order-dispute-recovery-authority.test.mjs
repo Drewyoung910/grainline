@@ -1,13 +1,22 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
-const migration = readFileSync(
+const migrationPath = [
+  process.env.ORDER_DISPUTE_RECOVERY_MIGRATION_PATH,
   "prisma/migrations/20260930040000_prepare_order_dispute_recovery/migration.sql",
-  "utf8",
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-dispute-recovery/migration.sql`
+    : null,
+].find((candidate) => candidate && existsSync(candidate));
+assert.ok(
+  migrationPath,
+  "Order dispute-recovery migration source must be available",
 );
+const migration = readFileSync(migrationPath, "utf8");
 const schema = readFileSync("prisma/schema.prisma", "utf8");
+const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const retryRoute = readFileSync(
   "src/app/api/cron/order-dispute-recovery/route.ts",
   "utf8",
@@ -17,15 +26,55 @@ const retryWorker = readFileSync(
   "utf8",
 );
 const opsHealth = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
-const stripeWebhook = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
-const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
+const stripeWebhook = readFileSync(
+  "src/app/api/stripe/webhook/route.ts",
+  "utf8",
+);
+const provisioning = readFileSync(
+  "scripts/provision-runtime-db-role.sql",
+  "utf8",
+);
 const vercel = JSON.parse(readFileSync("vercel.json", "utf8"));
+
+test("CI isolates dispute recovery from historical release proofs and restores it last", () => {
+  const verify = ci.indexOf("Verify Order dispute-recovery source package");
+  const isolate = ci.indexOf(
+    "Isolate Order dispute recovery until ops-health passes",
+  );
+  const historicalTip = ci.indexOf("Verify Order ops-health source package");
+  const opsHealthApply = ci.indexOf(
+    "Apply only Order ops-health through Prisma",
+  );
+  const restore = ci.indexOf("Restore Order dispute recovery");
+  const reverify = ci.indexOf(
+    "Re-verify Order dispute-recovery source package",
+  );
+  const apply = ci.indexOf("Apply only Order dispute recovery through Prisma");
+  assert.ok(verify > 0 && verify < isolate);
+  assert.ok(isolate < historicalTip);
+  assert.ok(historicalTip < opsHealthApply);
+  assert.ok(opsHealthApply < restore && restore < reverify && reverify < apply);
+  assert.match(
+    ci,
+    /ORDER_DISPUTE_RECOVERY_MIGRATION_PATH=\$correction\/migration\.sql/u,
+  );
+  assert.match(
+    ci,
+    /ORDER_DISPUTE_RECOVERY_MIGRATION_PATH=prisma\/migrations\/20260930040000_prepare_order_dispute_recovery\/migration\.sql/u,
+  );
+});
 
 test("dispute recovery stays behind fixed functions and policyless FORCE RLS", () => {
   assert.match(schema, /enum OrderDisputeRecoveryStatus[\s\S]*MANUAL_REVIEW/);
   assert.match(schema, /model OrderDisputeRecovery/);
-  assert.match(migration, /ALTER TABLE public\."OrderDisputeRecovery" ENABLE ROW LEVEL SECURITY/);
-  assert.match(migration, /ALTER TABLE public\."OrderDisputeRecovery" FORCE ROW LEVEL SECURITY/);
+  assert.match(
+    migration,
+    /ALTER TABLE public\."OrderDisputeRecovery" ENABLE ROW LEVEL SECURITY/,
+  );
+  assert.match(
+    migration,
+    /ALTER TABLE public\."OrderDisputeRecovery" FORCE ROW LEVEL SECURITY/,
+  );
   assert.doesNotMatch(migration, /CREATE POLICY/);
   assert.match(
     migration,
@@ -46,7 +95,9 @@ test("retry, cron, ops health, and runtime provisioning are bounded", () => {
   assert.match(retryRoute, /verifyCronRequest\(request\)/);
   assert.match(retryRoute, /beginCronRun\([\s\S]*"order-dispute-recovery"/);
   assert.deepEqual(
-    vercel.crons.filter((entry) => entry.path === "/api/cron/order-dispute-recovery"),
+    vercel.crons.filter(
+      (entry) => entry.path === "/api/cron/order-dispute-recovery",
+    ),
     [{ path: "/api/cron/order-dispute-recovery", schedule: "5,35 * * * *" }],
   );
   assert.match(opsHealth, /orderDisputeRecoveryHealthSummary\(\)/);
