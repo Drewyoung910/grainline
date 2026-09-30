@@ -83,13 +83,13 @@ Independent review confirmed the create-path half of the report. New and custom 
 
 The correction preserves submitted array positions, verifies each exact primary/original pair through the existing account-owned direct-upload authority, deduplicates identical verification work, and fails the action visibly if any pair is missing, misaligned, or unverified. Legacy create submissions without separate originals retain the primary URL as their original. Alt-text positions are preserved with the photo pairs.
 
-- Exact integrated commit: `3cc2700d6a2a0de5bd949b1e68411d1db571fed8`
+- Exact implementation commit: `3cc2700d6a2a0de5bd949b1e68411d1db571fed8`; follow-up `cce63d774d60a52dad591db80a6f4eb04982312f` rejects every nonempty partial original-photo array while retaining the explicit legacy no-original fallback
 - Focused validation: `41/41` upload, direct-upload lifecycle/reference, and custom-order checks; targeted ESLint, TypeScript, and `git diff --check`
-- Exact private backup: `recovery/order-post-force-app-fixes-main-3cc2700d-20260930`
+- Exact current private backup: `recovery/order-post-force-app-fixes-main-cce63d77-20260930`
 
 ## Integrated source and Production boundary
 
-The seven fixes are integrated as ten reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `3cc2700d6a2a0de5bd949b1e68411d1db571fed8`, directly descended from pre-CI-correction #481 head `c74a6ba5`. Exact current private backup is `recovery/order-post-force-app-fixes-main-3cc2700d-20260930`; the earlier backups remain intact. After #481 merges, rebase this stack onto its exact merge commit so the public PR contains the two-line `b67980c7` test correction only through main.
+The seven fixes are integrated as eleven reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `cce63d774d60a52dad591db80a6f4eb04982312f`, directly descended from pre-CI-correction #481 head `c74a6ba5`. Exact current private backup is `recovery/order-post-force-app-fixes-main-cce63d77-20260930`; the earlier backups remain intact. After #481 merges, rebase this stack onto its exact merge commit so the public PR contains the two-line `b67980c7` test correction only through main.
 
 The integrated stack passes the existing `31/31` focused behavior/database/workflow checks, `30/30` focused messaging/authority checks, `8/8` listing-state checks, `64/64` custom-order/UI/authority checks, and `41/41` upload/direct-upload checks, plus targeted ESLint, TypeScript, Prisma schema validation, YAML parsing, and `git diff --check`. Commit `91739f91` also aligns the staff-thread test with the already-implemented session-bound PIN requirement. It adds a manual Production-environment workflow that:
 
@@ -105,7 +105,7 @@ CI now explicitly isolates both new migrations until the already-accepted Core F
 
 1. Let #481 exact-head CI `36666839644` and its automatically triggered specialized checks finish; do not start a duplicate broad run.
 2. If every required #481 check passes with unchanged base/head, merge the source fix and use the automatically triggered merged-main CI as the only final source readback.
-3. Rebase integrated head `3cc2700d` onto the exact #481 merge, re-run only affected focused checks, and publish that exact rebased head so its public PR contains the seven reviewed post-FORCE fixes and guarded release wiring without duplicating #481.
+3. Rebase integrated head `cce63d77` onto the exact #481 merge, re-run only affected focused checks, and publish that exact rebased head so its public PR contains the seven reviewed post-FORCE fixes and guarded release wiring without duplicating #481.
 4. Merge that source stack only on unchanged exact head/base with its one required automatic CI. Do not deploy the app merely because source merges.
 5. After successful merged-main CI, dispatch the manual post-FORCE Production workflow only with a separately reviewed exact main/CI binding. Its read-only preflight must report zero invalid fulfillment rows before either migration runs.
 6. Continue the remaining independently verified launch queue after these corrections; do not reopen accepted Core Order RLS work.
