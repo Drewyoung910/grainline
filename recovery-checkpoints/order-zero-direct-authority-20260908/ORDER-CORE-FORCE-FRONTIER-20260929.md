@@ -211,6 +211,16 @@ checksum passed. It is privately backed up at
 `36649328781`, paid-repair lock `36649328834`, and staff TLS login
 `36649328778`, still against unchanged base `c7c0c3a3`.
 
+All four replacement checks passed on exact head `79f29a12`. Full CI completed
+at `2026-09-30T00:43:53Z`, including broad tests, security audit, reviewed
+successor restoration, application of only the accepted child runtime lock in
+disposable PostgreSQL, application of only Core `Order` FORCE, the
+FORCE-hardened runtime-grant audit, and the Production build. Final public
+readback kept PR #479 mergeable and draft, its head `79f29a12`, its base and
+public main `c7c0c3a3`, and all four checks green. Because the earlier explicit
+merge approval named predecessor head `217f98e7`, the corrected exact head
+requires a refreshed merge authorization before leaving draft.
+
 ## Exact forward sequence
 
 1. Complete: correction PR #478 merged as exact main `c7c0c3a3`, merged-main
