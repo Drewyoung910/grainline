@@ -106,3 +106,40 @@ route intentionally fails closed if the fixed aggregate is unavailable. Do not
 repeat the completed Core Order FORCE, child runtime-lock, blocked-pair, or
 smoke proofs unless a specific source or production-state change invalidates
 them.
+
+## Public PR #485 and CI-isolation correction
+
+The exact initial source commit was published to deployment-disabled branch
+`codex/order-ops-health-20260930` and opened as draft PR `#485` against unchanged
+main `798946354d7cecbaa8aa490ef39a1e89e2d856fa`. The three specialized Order
+checks passed on head `bff8df06ea0a94d0381fa8085a81fa3ae3566fc5`.
+
+Full CI run `36704937043` reached the general 4,942-test suite after its new
+source package and preceding database stages passed. Exactly two tests failed:
+both new ops-health source tests opened migration `33000` only at its repository
+path after CI had intentionally moved that migration to
+`$RUNNER_TEMP/order-ops-health`. This was a CI source-location contract error;
+the application, migration semantics, production workflow, and three
+specialized database proofs did not fail. Nothing merged or changed Production.
+
+Correction commit `15f3f85d1f9bcdaa6391fc6236116d2c48f863e7`:
+
+- records the exact isolated migration path in `GITHUB_ENV`;
+- lets both tests resolve the reviewed source from that explicit path, the
+  normal repository path, or the one exact runner holding path; and
+- positively asserts the path binding in the workflow contract test.
+
+The two tests passed 10/10 in a normal checkout and again 10/10 while the
+migration directory was physically isolated exactly as CI isolates it. Focused
+ESLint, workflow YAML parsing, and `git diff --check` passed. Migration bytes
+remain unchanged at SHA-256
+`7fa34097c631dcfeb88d531a597b3a39b38b9afdf248c7717e450ab8cffb48b7`.
+The corrected head is privately backed up and remotely read back at
+`recovery/order-ops-health-ci-isolation-15f3f85d-20260930`.
+
+PR `#485` remains draft at the old failing head. The next external action is to
+advance only that deployment-disabled branch to exact corrected head
+`15f3f85d1f9bcdaa6391fc6236116d2c48f863e7`, then merge only if all four checks
+pass on that exact head against still-unchanged main `79894635`. This action
+still excludes deployment, Production SQL, aliases, credentials, fixtures, and
+RLS changes.
