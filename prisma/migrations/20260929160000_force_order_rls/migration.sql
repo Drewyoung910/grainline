@@ -1,4 +1,5 @@
--- DRAFT ONLY. Do not apply to any persistent database.
+-- Reviewed posture-only Core Order FORCE hardening.
+-- Apply only through the guarded main-only production migration workflow.
 -- Core Order FORCE is a posture-only release after accepted policyless ENABLE.
 
 BEGIN;

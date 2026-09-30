@@ -17,9 +17,9 @@ export const ORDER_CORE_DRAFTS = Object.freeze({
   }),
   force: Object.freeze({
     path: "docs/rls-drafts/order-core-force.sql",
-    sha256: "9cecc6b68490dab56ff80f528aea6d8a1334ec40c1ccf984e89ed5d61db6b21e",
+    sha256: "aa04ec913cbed56e48f09ba770d08597c2dd5dca9777f6e2b52deab57d61a0b5",
     migrationHeader: `-- Reviewed posture-only Core Order FORCE hardening.\n${RELEASE_HEADER}`,
-    migrationSha256: "e12e48e79e2b203155e55f9ada5c87a4b5418e309ae354750609b0844c5c3439",
+    migrationSha256: "1f48553466fd1ee0373d48036e5e193cedbb6d4ff094ad1fba753e8c75e7e139",
   }),
   enableRollback: Object.freeze({
     path: "docs/rls-drafts/order-core-activation-rollback.sql",
@@ -27,7 +27,7 @@ export const ORDER_CORE_DRAFTS = Object.freeze({
   }),
   forceRollback: Object.freeze({
     path: "docs/rls-drafts/order-core-force-rollback.sql",
-    sha256: "46bb0e714b2e97a8f9ca33b0c90186cb06c74014e92141674f80cf37108cb721",
+    sha256: "d5da06aebf753c86622c3e5f633b667c8fbc47ee4801adffb998a48497a78206",
   }),
 });
 
