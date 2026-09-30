@@ -10,13 +10,13 @@ Core `Order` FORCE RLS is live and accepted on main `52b78554b795a5e4b2035c8dd05
 
 Independent source review confirmed that a blocked-checkout failure before any provider refund outcome was recorded as `provider_failure` and then swallowed. That allowed the signed Stripe event to finish successfully without a refund attempt. Ambiguous provider outcomes already had a separate durable fence and were rethrown.
 
-Current-main fix `d9d54d4e31faedc8bb40f305d81ea5c9ffe65841` preserves the staff-review record and rethrows only the pre-provider failure through the existing idempotent-event wrapper. The wrapper marks the event failed and the route returns HTTP 500, allowing Stripe to retry. It changes two files by ten added lines, has no migration, and cannot trigger a Git-integrated Vercel deployment because `vercel.json` keeps `git.deploymentEnabled=false`.
+Fix commit `d9d54d4e31faedc8bb40f305d81ea5c9ffe65841` preserves the staff-review record and rethrows only the pre-provider failure through the existing idempotent-event wrapper. The wrapper marks the event failed and the route returns HTTP 500, allowing Stripe to retry. It changes two files by ten added lines and has no migration. Follow-up commit `c74a6ba52b3f5108c737177d2dc134aad48c1ff3` changes only `package-lock.json`, updating production transitive `brace-expansion` from vulnerable `5.0.9` to patched `5.0.12` and its dev-only 1.x copy to `1.1.21`. Git-integrated Vercel deployment remains disabled by `vercel.json`.
 
 - Public draft PR: `#481`
-- Exact base/head: `52b78554b795a5e4b2035c8dd05695cbda790a47` / `d9d54d4e31faedc8bb40f305d81ea5c9ffe65841`
-- Private backup: `recovery/order-blocked-refund-retry-main-d9d54d4e-20260930`
-- Focused validation: payment/fulfillment observability `31/31`, targeted ESLint, and `git diff --check`
-- Specialized PR checks passed; required exact-head full CI `36661859662` remains in progress at this checkpoint.
+- Exact base/head: `52b78554b795a5e4b2035c8dd05695cbda790a47` / `c74a6ba52b3f5108c737177d2dc134aad48c1ff3`
+- Private backups: `recovery/order-blocked-refund-retry-main-d9d54d4e-20260930` and exact current head `recovery/order-blocked-refund-retry-main-c74a6ba5-20260930`
+- Focused validation: payment/fulfillment observability `31/31`, targeted ESLint, `git diff --check`, and the repository dependency audit with zero high/critical findings
+- First full CI `36661859662` passed source, database, type, lint, and test steps, then failed only because npm published a new high-severity `brace-expansion` advisory during the run. Replacement exact-head CI is `36664141235`; do not manually start another broad run.
 
 Do not merge if the exact head/base changes or any required check fails.
 
@@ -24,7 +24,7 @@ Do not merge if the exact head/base changes or any required check fails.
 
 Independent review confirmed that an active staff account could view reported message threads and nonpublic listing states outside `/admin` without first satisfying the admin PIN challenge. The prepared correction requires the existing session-bound PIN before a nonparticipant reported-thread page or polling API reads users/messages, and before `?preview=admin` grants nonpublic listing visibility. Participant messaging, seller listing access, reserved-buyer access, and public listing access retain their existing paths.
 
-The current stack commit is `55645df1461bcee96421efaaf9877b3b98421bce`, parented directly on #481 head `d9d54d4e`. It remains private and unmerged.
+The rebased current stack commit is `6f6ad0ba7fca12d48932c5209a82dff05fac5682`, parented directly on corrected #481 head `c74a6ba5`. It remains private and unmerged.
 
 - Private backup: `recovery/staff-preview-pin-main-55645df1-20260930`
 - Focused validation: staff PIN boundary `3/3`, targeted ESLint, and `git diff --check`
@@ -35,16 +35,42 @@ Publish only after #481 lands so the public diff contains only the reviewed #120
 
 Independent review confirmed that listing mutations accepted unbounded positive `shipsWithinDays`, which feeds paid-checkout delivery estimates and the not-received Case clock. The prepared correction centralizes whole-day parsing at `1..365`, applies it to new/custom/edit mutations, rejects inverted made-to-order ranges, exposes the same maximum in the shared form, and adds a matching validated database CHECK.
 
-The original private patch used migration identity `20260929140000`, which now precedes already-applied Core FORCE migration `20260929160000`. It was not published. The rebuilt current stack uses post-FORCE identity `20260930030000_bound_listing_fulfillment_days` at exact commit `99428ac66d5bfd2accc1e633cbdedc12ad38132a`, parented on #120 commit `55645df1`. It remains private, unmerged, and unapplied.
+The original private patch used migration identity `20260929140000`, which now precedes already-applied Core FORCE migration `20260929160000`. It was not published. The rebuilt current stack uses post-FORCE identity `20260930030000_bound_listing_fulfillment_days` at exact rebased commit `15950a8e38caae22d7e96384d2eae79f14273b0f`, parented on #120 commit `6f6ad0ba`. It remains private, unmerged, and unapplied.
 
 - Private backup: `recovery/listing-delivery-bounds-main-99428ac6-20260930`
 - Focused validation: listing fulfillment bounds `4/4`, targeted ESLint, Prisma schema validation, and `git diff --check`
 - Production requirement: perform a count-only read-only check for existing non-null `shipsWithinDays` outside `1..365` before applying the validated CHECK. Do not rewrite historical paid-order snapshots.
 
+## #134 paid private custom-listing retirement
+
+Independent review confirmed that `grainline_stripe_checkout_order_create` marked exhausted in-stock listings `SOLD_OUT` but left a successfully purchased private reserved `MADE_TO_ORDER` listing `ACTIVE`. A second Checkout Session could therefore be created for the same one-off custom piece. Existing paid sessions arriving after the first purchase need a fail-closed review/refund result rather than a second valid order.
+
+Successor migration `20260930031000_mark_paid_private_listing_sold` copies the latest paid-checkout authority byte-for-byte except for the reviewed additive transition: after a valid paid Order is created, an active private made-to-order listing reserved for that buyer becomes `SOLD`. Invalid paid completions do not consume it. The reserved buyer may still view the sold listing, while the existing `status === ACTIVE` purchase boundary keeps it non-purchasable. The message card now says `View Custom Piece` instead of promising another purchase.
+
+- Exact rebased commit: `2219043e7be6accfdaaea3d236a5aee9b59db6a0`
+- Focused validation: `20/20` source, visibility, and disposable-PostgreSQL checks; the proof creates two paid sessions, accepts the first, rejects the second, and retains `SOLD`
+- The source-equivalence test proves the successor differs from applied predecessor `20260926011000` only by its comment and reviewed `SOLD` transition
+- Original exact private backup: `recovery/private-custom-paid-sold-main-d69ac66e-20260930`
+
+## Integrated source and Production boundary
+
+The three fixes are integrated as five reviewable commits on private branch `codex/order-post-force-app-fixes-main-20260930`, exact head `9b5ad13ff8ffe82ecc6bdab12668cb8292936130`, directly descended from corrected #481 head `c74a6ba5`. Exact private backup is `recovery/order-post-force-app-fixes-main-9b5ad13f-20260930`.
+
+The integrated stack passes `27/27` focused behavior/database tests, targeted ESLint, Prisma schema validation, workflow contract tests, YAML parsing, and `git diff --check`. It adds a manual Production-environment workflow that:
+
+- binds dispatch to exact main and a successful exact-main push CI;
+- accepts only the two exact checksummed post-FORCE migrations;
+- performs the count-only `shipsWithinDays` compatibility preflight before mutation;
+- proves exact ledgers, the validated constraint, exact paid-checkout function source and grants, and unchanged Listing/Core Order RLS posture;
+- never deploys the app, moves aliases, or changes RLS/grants.
+
+CI now explicitly isolates both new migrations until the already-accepted Core FORCE predecessor has been applied in disposable PostgreSQL, then applies only the two successors. This prevents an older historical paid-checkout migration from overwriting the new function during the long compatibility sequence.
+
 ## Forward sequence
 
-1. Let the single automatically required #481 exact-head CI finish; do not start a duplicate broad run.
-2. If every required #481 check passes with unchanged head/base, merge the source fix and accept the automatically triggered merged-main CI as the only final source readback.
-3. Rebase/read back the private #120/#122 stack against the resulting exact main. Preserve the two commits for review; they may share one source PR to avoid duplicate broad CI, while the #122 Production migration remains a separately guarded action.
-4. Before #122 Production SQL, run the count-only invalid-row preflight. Apply only the exact post-FORCE migration after a separate exact binding and approval.
-5. Continue the remaining independently verified launch queue after these fixes; do not reopen accepted Core Order RLS work.
+1. Let replacement #481 exact-head CI `36664141235` and its automatically triggered specialized checks finish; do not start a duplicate broad run.
+2. If every required #481 check passes with unchanged base/head, merge the source fix and use the automatically triggered merged-main CI as the only final source readback.
+3. Publish exact integrated head `9b5ad13f` only after #481 lands, so its public PR contains the three reviewed post-FORCE fixes and guarded release wiring without duplicating #481.
+4. Merge that source stack only on unchanged exact head/base with its one required automatic CI. Do not deploy the app merely because source merges.
+5. After successful merged-main CI, dispatch the manual post-FORCE Production workflow only with a separately reviewed exact main/CI binding. Its read-only preflight must report zero invalid fulfillment rows before either migration runs.
+6. Continue the remaining independently verified launch queue after these corrections; do not reopen accepted Core Order RLS work.
