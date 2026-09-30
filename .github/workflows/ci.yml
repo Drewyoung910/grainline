@@ -83,6 +83,22 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order ops-health source package
+        run: >-
+          node --test
+          tests/order-ops-health.test.mjs
+          tests/order-ops-health-production-workflow.test.mjs
+      - name: Isolate Order ops-health until blocked-pair checkout passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          correction="$RUNNER_TEMP/order-ops-health"
+          mv \
+            prisma/migrations/20260930033000_order_ops_health_summary \
+            "$correction"
+          echo \
+            "ORDER_OPS_HEALTH_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Verify Order blocked-pair checkout source package
         run: >-
           node --test
@@ -2236,6 +2252,34 @@ jobs:
       - name: Apply only Order blocked-pair checkout through Prisma
         run: npx prisma migrate deploy --schema "$ORDER_BLOCKED_PAIR_CHECKOUT_PRISMA_SCHEMA"
       - name: Audit runtime grants after Order blocked-pair checkout
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Order ops-health
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-ops-health" \
+            prisma/migrations/20260930033000_order_ops_health_summary
+      - name: Re-verify Order ops-health source package
+        run: >-
+          node --test
+          tests/order-ops-health.test.mjs
+          tests/order-ops-health-production-workflow.test.mjs
+      - name: Stage only Order ops-health for Prisma
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260930033000_order_ops_health_summary
+          isolated="$RUNNER_TEMP/order-ops-health-prisma"
+          mkdir -p "$isolated/migrations"
+          cp prisma/schema.prisma "$isolated/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$isolated/migrations/migration_lock.toml"
+          cp -a "prisma/migrations/$migration" "$isolated/migrations/$migration"
+          test "$(find "$isolated/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 1
+          echo "ORDER_OPS_HEALTH_PRISMA_SCHEMA=$isolated/schema.prisma" >> "$GITHUB_ENV"
+      - name: Apply only Order ops-health through Prisma
+        run: npx prisma migrate deploy --schema "$ORDER_OPS_HEALTH_PRISMA_SCHEMA"
+      - name: Audit runtime grants after Order ops-health
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
