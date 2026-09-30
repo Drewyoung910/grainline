@@ -283,3 +283,38 @@ CI again matched the exact approved values, but automatic approval review again
 rejected the dispatch before GitHub received it because that reply did not name
 the migration, main commit, and CI run. No workflow run or Production mutation
 resulted from the second rejected command either.
+
+## Production migration accepted
+
+The user subsequently gave exact authorization naming migration
+`20260930033000_order_ops_health_summary`, main
+`02f27a3948a2cbc87ddb7b53d0f07e8251718b83`, and successful CI run
+`36718477687`. Remote main and CI were read back once more and matched exactly.
+
+Protected workflow run `36723979346` was dispatched on exact main. GitHub held
+the job at the `Production` environment gate; pending deployment environment
+`8881622229` was approved under that same exact authorization. The workflow then:
+
+- verified exact main and successful push CI before credential access;
+- verified migration `33000` was the latest source and matched SHA-256
+  `ed5e069248281ef8738f97bd0480ee77b85044a4ad2c9ac433ef2840a2a7e941`;
+- verified the owner connection boundary and captured the existing table
+  posture;
+- required all predecessors applied and no unrelated pending migration;
+- applied `20260930033000_order_ops_health_summary` through Prisma; and
+- read back the ledger, exact function source and owner, fixed search path,
+  runtime-only EXECUTE authority, nonnegative counts and total, and unchanged
+  source-table RLS/grant/policy posture.
+
+The log reports `All migrations have been successfully applied`, and run
+`36723979346` completed with conclusion `success` on exact head
+`02f27a3948a2cbc87ddb7b53d0f07e8251718b83`. The GitHub jobs API omitted the
+step array for this environment-gated run, but the complete run log contains
+the executed preflight, migration, and postflight commands and their successful
+completion. Production now contains the count-only Order operations-health
+function. No app deployment, alias, credential, fixture, or RLS posture change
+was part of this run.
+
+The next release boundary is building and verifying an app deployment from
+exact main `02f27a39`, followed by a separately reviewed move of the canonical
+Production aliases only after candidate checks pass.
