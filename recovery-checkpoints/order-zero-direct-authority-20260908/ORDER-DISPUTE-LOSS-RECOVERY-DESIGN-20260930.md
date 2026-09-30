@@ -293,3 +293,28 @@ The corrected head is backed up privately at
 points to `b2a27d38...`; no merge, migration, deployment, or live Stripe effect
 occurred. Publishing `ffc251bf...` and conditionally merging it requires a new
 exact-head approval.
+
+## PR #487 sixth exact-head gate — 2026-09-30
+
+The user authorized exact head
+`ffc251bf5d428a920ea427289723fad2fd2321dc`. It was published to PR `#487`
+against unchanged main `6ed0476659327961170fc186389a0d055da7f2be`.
+`postgres-lock-order`, `review-note-concurrency`, and `tls-login` passed. CI run
+`36781766882` passed the historical migration/proof assertions and reached the
+consolidated suite, then failed its separate dependency-security audit after
+16m33s. The conditional merge did not run.
+
+The failure is an upstream advisory gate rather than another migration-tree
+assertion. npm now reports `next` as critical under
+`GHSA-vcvr-r3jv-pc5j` (remote code execution in `next/og ImageResponse`) for
+versions `>=16.2.0 <16.3.6`; the repository declares `^16.3.3` and locks
+`16.3.3`. The narrow source repair is to update Next.js to the minimum patched
+version `16.3.6`, refresh the lockfile, rerun the dependency audit, and then use
+the existing exact-head CI gate. The three unrelated currently reported npm
+findings are moderate and remain outside the repository's high/critical
+blocking threshold.
+
+Automatic approval review rejected the attempted local package update because
+it would change the package manifest, lockfile, and approved PR head. No source
+change, merge, migration, deployment, or live Stripe effect occurred. A new
+explicit approval is required to create and verify the dependency-update head.
