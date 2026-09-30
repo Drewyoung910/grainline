@@ -1,0 +1,45 @@
+{
+  "admission": {
+    "aliasesBefore": [
+      {
+        "alias": "thegrainline.com",
+        "deploymentId": "dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW"
+      },
+      {
+        "alias": "grainline.vercel.app",
+        "deploymentId": "dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW"
+      },
+      {
+        "alias": "www.thegrainline.com",
+        "deploymentId": "dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW"
+      },
+      {
+        "alias": "grainline-drew-youngs-projects.vercel.app",
+        "deploymentId": "dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW"
+      },
+      {
+        "alias": "grainline-git-main-drew-youngs-projects.vercel.app",
+        "deploymentId": "dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW"
+      }
+    ],
+    "candidateDeploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J",
+    "candidateSource": "02f27a3948a2cbc87ddb7b53d0f07e8251718b83",
+    "candidateStagedHealth": true,
+    "currentMain": "02f27a3948a2cbc87ddb7b53d0f07e8251718b83",
+    "currentMainCiRunId": 36718477687,
+    "predecessorCanonicalHealth": true,
+    "predecessorDeploymentId": "dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW",
+    "runtimeTreeMatchesCurrentMain": true
+  },
+  "candidateDeploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J",
+  "confirmation": "promote-reviewed-order-candidate-02f27a39-with-explicit-aliases",
+  "explicitAliases": [
+    "thegrainline.com",
+    "grainline.vercel.app",
+    "www.thegrainline.com",
+    "grainline-drew-youngs-projects.vercel.app",
+    "grainline-git-main-drew-youngs-projects.vercel.app"
+  ],
+  "predecessorDeploymentId": "dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW",
+  "requestedAt": "2026-09-30T14:24:25.478Z"
+}

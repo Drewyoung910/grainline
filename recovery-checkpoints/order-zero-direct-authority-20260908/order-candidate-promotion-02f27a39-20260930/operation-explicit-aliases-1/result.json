@@ -1,0 +1,41 @@
+{
+  "accepted": true,
+  "candidateDeploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J",
+  "checkoutCutoverApplied": false,
+  "coreOrderRlsChanged": false,
+  "explicitlyAssignedAliases": [
+    "thegrainline.com",
+    "grainline.vercel.app",
+    "www.thegrainline.com",
+    "grainline-drew-youngs-projects.vercel.app",
+    "grainline-git-main-drew-youngs-projects.vercel.app"
+  ],
+  "postflight": {
+    "aliases": [
+      {
+        "alias": "thegrainline.com",
+        "deploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J"
+      },
+      {
+        "alias": "grainline.vercel.app",
+        "deploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J"
+      },
+      {
+        "alias": "www.thegrainline.com",
+        "deploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J"
+      },
+      {
+        "alias": "grainline-drew-youngs-projects.vercel.app",
+        "deploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J"
+      },
+      {
+        "alias": "grainline-git-main-drew-youngs-projects.vercel.app",
+        "deploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J"
+      }
+    ],
+    "canonicalHealth": true,
+    "deploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J",
+    "sourceCommit": "02f27a3948a2cbc87ddb7b53d0f07e8251718b83"
+  },
+  "promotedAt": "2026-09-30T14:25:07.929Z"
+}

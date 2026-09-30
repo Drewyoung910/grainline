@@ -369,3 +369,33 @@ cutover operator. The remaining Production action is exact promotion of
 candidate `dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J` and explicit assignment of the
 five canonical aliases, with automatic predecessor restoration if candidate
 postflight fails or execution is interrupted after mutation begins.
+
+## Exact-main application cutover accepted
+
+The user approved that exact five-alias cutover. The single-use operator
+repeated its complete admission checks, promoted
+`dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J`, and explicitly assigned all five canonical
+aliases. Its postflight accepted every alias owner, canonical health, exact
+deployment marker, candidate identity, and exact source
+`02f27a3948a2cbc87ddb7b53d0f07e8251718b83`. The accepted timestamp is
+`2026-09-30T14:25:07.929Z`. No rollback ran.
+
+An independent provider readback then confirmed all five aliases READY on the
+new deployment and immutable host
+`grainline-i2hm5z9cb-drew-youngs-projects.vercel.app`. Public
+`https://thegrainline.com/api/health` returned exact body `{"ok":true}`, and
+the public root page carried exact deployment marker
+`dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J`. The predecessor
+`dpl_9RH5JuxfotPEYYij4ZK4X8gNbNwW` remains READY and recoverable.
+
+The mode-0600 operation receipt is preserved under
+`order-candidate-promotion-02f27a39-20260930/operation-explicit-aliases-1`.
+The intent and result SHA-256 values are respectively
+`22691b963d08fd2b64b3a74cfa36c67ec80607968b7b52485958d851fc980405` and
+`9ce93e017cc9587d1f73ddc0542319f85fbcb717a1ca6c389e317b10c418688c`.
+
+This cutover did not apply SQL, change credentials, run checkout fixtures, or
+change RLS. The Order operations-health application and its accepted
+count-only Production database authority are now live together on all five
+canonical aliases. Do not rebuild or repromote this exact candidate absent a
+concrete failure or source change.
