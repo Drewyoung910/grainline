@@ -12,7 +12,7 @@ deployment smoke, or alias cutover.
 - Branch: `codex/order-dispute-loss-recovery-20260930`.
 - Finding: audit item `#108`.
 - Current source draft is committed at
-  `9feda66ff022c78878eda3ae817b52b298587c2c` and backed up privately on
+  `4515da45ef16b9784ede47f4b6cedd21c2f12b57` and backed up privately on
   `recovery/order-dispute-loss-recovery-draft-20260930`. It has not been
   published to the public repository, merged, deployed, applied to Production,
   or used against Stripe.
@@ -78,8 +78,9 @@ For each Stripe dispute:
 - A bounded SKIP LOCKED batch retries durable pending work.
 - A separate count-only health function reports manual-review and overdue
   recovery work without exposing dispute rows.
-- The signed Stripe webhook still does not claim recovery work. The reviewed
-  hookup remains the one missing source change.
+- The signed Stripe webhook records the immutable event and claims first work
+  in one transaction only for a newly applied event. Provider settlement runs
+  after that transaction. Replayed Stripe events cannot reset retry backoff.
 - A protected cron route and Vercel schedule are present in the private draft.
   They are inert because no deployed webhook creates recovery claims, no
   migration has been applied, and the draft has not been deployed.
@@ -119,7 +120,7 @@ The automatic merged-main run is readback only.
 ## Focused source evidence
 
 - Provider and retry tests: 8/8 passed.
-- Source-contract and disposable PostgreSQL authority tests: 3/3 passed.
+- Source-contract and disposable PostgreSQL authority tests: 4/4 passed.
 - The PostgreSQL proof caught and corrected an extra table-definition closing
   parenthesis and two enum-valued `CASE` expressions that otherwise resolved
   as `text`.
@@ -128,10 +129,8 @@ The automatic merged-main run is readback only.
 
 ## Approval boundary
 
-The user approved source-only implementation of the documented policy. An
-automatic approval review nevertheless rejected the exact webhook hookup
-because a later deployment would make signed Production disputes capable of
-reversing or restoring seller transfers. The remaining source authorization
-must therefore name that financial effect explicitly. Separate later approval
-is still required to publish or merge the source, apply its migration, deploy
-it, and allow it to affect live Stripe transfers.
+The user explicitly approved the source-only webhook connection and named the
+future automatic seller-transfer reversal/restoration effect. Source
+implementation is complete. Separate approval is still required to publish or
+merge the source; later Production approval is required to apply its migration,
+deploy it, and allow it to affect live Stripe transfers.
