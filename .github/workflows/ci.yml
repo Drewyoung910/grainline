@@ -83,6 +83,22 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order dispute-recovery source package
+        run: >-
+          node --test
+          tests/order-dispute-recovery-authority.test.mjs
+          tests/order-dispute-recovery-provider.test.mjs
+      - name: Isolate Order dispute recovery until ops-health passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          correction="$RUNNER_TEMP/order-dispute-recovery"
+          mv \
+            prisma/migrations/20260930040000_prepare_order_dispute_recovery \
+            "$correction"
+          echo \
+            "ORDER_DISPUTE_RECOVERY_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Verify Order ops-health source package
         run: >-
           node --test
@@ -2280,6 +2296,37 @@ jobs:
       - name: Apply only Order ops-health through Prisma
         run: npx prisma migrate deploy --schema "$ORDER_OPS_HEALTH_PRISMA_SCHEMA"
       - name: Audit runtime grants after Order ops-health
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Order dispute recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-dispute-recovery" \
+            prisma/migrations/20260930040000_prepare_order_dispute_recovery
+          echo \
+            "ORDER_DISPUTE_RECOVERY_MIGRATION_PATH=prisma/migrations/20260930040000_prepare_order_dispute_recovery/migration.sql" \
+            >> "$GITHUB_ENV"
+      - name: Re-verify Order dispute-recovery source package
+        run: >-
+          node --test
+          tests/order-dispute-recovery-authority.test.mjs
+          tests/order-dispute-recovery-provider.test.mjs
+      - name: Stage only Order dispute recovery for Prisma
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260930040000_prepare_order_dispute_recovery
+          isolated="$RUNNER_TEMP/order-dispute-recovery-prisma"
+          mkdir -p "$isolated/migrations"
+          cp prisma/schema.prisma "$isolated/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$isolated/migrations/migration_lock.toml"
+          cp -a "prisma/migrations/$migration" "$isolated/migrations/$migration"
+          test "$(find "$isolated/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 1
+          echo "ORDER_DISPUTE_RECOVERY_PRISMA_SCHEMA=$isolated/schema.prisma" >> "$GITHUB_ENV"
+      - name: Apply only Order dispute recovery through Prisma
+        run: npx prisma migrate deploy --schema "$ORDER_DISPUTE_RECOVERY_PRISMA_SCHEMA"
+      - name: Audit runtime grants after Order dispute recovery
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

@@ -867,6 +867,16 @@ SELECT format(
 WHERE to_regtype('public."CaseResolutionClaimStatus"') IS NOT NULL;
 \gexec
 
+-- OrderDisputeRecoveryStatus arrives with the sealed dispute-recovery
+-- migration. It is absent during historical-prefix replay, so grant its
+-- required type authority only after that exact type exists.
+SELECT format(
+  'GRANT USAGE ON TYPE public."OrderDisputeRecoveryStatus" TO %I',
+  :'runtime_role'
+)
+WHERE to_regtype('public."OrderDisputeRecoveryStatus"') IS NOT NULL;
+\gexec
+
 -- The first compatible Case service operation is absent before its
 -- operation-and-private-ledger preparation migration. Converge it to zero PUBLIC/direct
 -- runtime authority, then grant only EXECUTE when it exists.
@@ -1562,6 +1572,80 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Stripe-dispute seller-funds recovery is private, generation-fenced provider
+-- state. Runtime receives only the four exact claim/finalize/health operations.
+WITH order_dispute_recovery_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_dispute_recovery_event_claim"(text)'),
+    ('public."grainline_order_dispute_recovery_finalize"(text,bigint,text,text,integer,text,text)'),
+    ('public."grainline_order_dispute_recovery_claim_batch"(integer)'),
+    ('public."grainline_order_dispute_recovery_health_summary"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_dispute_recovery_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_dispute_recovery_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_dispute_recovery_event_claim"(text)'),
+    ('public."grainline_order_dispute_recovery_finalize"(text,bigint,text,text,integer,text,text)'),
+    ('public."grainline_order_dispute_recovery_claim_batch"(integer)'),
+    ('public."grainline_order_dispute_recovery_health_summary"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_dispute_recovery_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_dispute_recovery_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_dispute_recovery_event_claim"(text)'),
+    ('public."grainline_order_dispute_recovery_finalize"(text,bigint,text,text,integer,text,text)'),
+    ('public."grainline_order_dispute_recovery_claim_batch"(integer)'),
+    ('public."grainline_order_dispute_recovery_health_summary"()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_dispute_recovery_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- The count-only Order operations summary is additive and absent during
+-- historical-prefix replay. When present, converge it to the single reviewed
+-- runtime EXECUTE grant.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_order_ops_health_summary() FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_order_ops_health_summary()'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_order_ops_health_summary() FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_order_ops_health_summary()'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_order_ops_health_summary() TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_order_ops_health_summary()'
+) IS NOT NULL;
+\gexec
+
 -- Ambiguous Order-refund reconciliation is an additive compatible boundary.
 -- Keep the immutable trigger helper private and expose only the four exact,
 -- source-bound operations when the reviewed migration is present.
@@ -1821,6 +1905,7 @@ FROM (
     ('CaseSellerRefundApplication'),
     ('CaseOpenApplication'),
     ('DirectUploadReference'),
+    ('OrderDisputeRecovery'),
     ('OrderRefundReconciliation')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;

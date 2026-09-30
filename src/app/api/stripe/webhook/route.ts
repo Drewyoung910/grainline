@@ -75,6 +75,11 @@ import {
   applySignedRefundWebhook,
 } from "@/lib/orderPaymentSignedWebhook";
 import { recordCheckoutRefundReview } from "@/lib/orderCheckoutRefundReviewAuthority";
+import { claimOrderDisputeRecoveryForEvent } from "@/lib/orderDisputeRecoveryAuthority";
+import {
+  disputeRecoveryErrorSummary,
+  settleOrderDisputeRecovery,
+} from "@/lib/orderDisputeRecoveryProvider";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -1157,7 +1162,7 @@ export async function POST(req: Request) {
         const disputeAmountCents = dispute.amount;
         const disputeCurrency = dispute.currency;
         const disputeStatus = dispute.status;
-        const disputeResult = await prisma.$transaction(async (tx) => {
+        const { disputeResult, recoveryClaim } = await prisma.$transaction(async (tx) => {
           const result = await applySignedDisputeWebhook(tx, {
             eventId: event.id,
             claimGeneration,
@@ -1182,8 +1187,32 @@ export async function POST(req: Request) {
               relatedUserId: result.buyerUserId,
             }, tx);
           }
-          return result;
+          // Replayed Stripe deliveries do not reset a failed claim's backoff.
+          // If provider success lost its local acknowledgement, the retry
+          // worker reclaims it and rediscovers the exact provider object.
+          const recoveryClaim = result.action === "applied"
+            ? await claimOrderDisputeRecoveryForEvent(result.paymentEventId, tx)
+            : null;
+          return { disputeResult: result, recoveryClaim };
         });
+        if (recoveryClaim) {
+          const recoveryResult = await settleOrderDisputeRecovery(recoveryClaim);
+          if (recoveryResult.providerFailed) {
+            Sentry.captureMessage("Stripe dispute seller-funds recovery failed", {
+              level: "warning",
+              tags: { source: "stripe_dispute_recovery" },
+              extra: {
+                stripeEventId: event.id,
+                recoveryId: recoveryClaim.recoveryId,
+                orderId: recoveryClaim.orderId,
+                disputeId: recoveryClaim.disputeId,
+                action: recoveryClaim.action,
+                attemptCount: recoveryClaim.attemptCount,
+                error: disputeRecoveryErrorSummary(recoveryResult.providerError),
+              },
+            });
+          }
+        }
         if (disputeResult.notificationAuthorized) {
           Sentry.captureMessage("Stripe dispute opened", {
             level: "warning",

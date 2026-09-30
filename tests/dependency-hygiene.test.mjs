@@ -54,10 +54,10 @@ describe("dependency hygiene guardrails", () => {
       .filter(([path]) => path === "node_modules/postcss" || path.endsWith("/node_modules/postcss"))
       .map(([path, entry]) => [path, entry.version]);
 
-    assert.equal(pkg.dependencies?.next, "^16.3.3");
-    assert.equal(lock.packages?.["node_modules/next"]?.version, "16.3.3");
-    assert.equal(pkg.devDependencies?.["eslint-config-next"], "^16.3.3");
-    assert.equal(lock.packages?.["node_modules/eslint-config-next"]?.version, "16.3.3");
+    assert.equal(pkg.dependencies?.next, "^16.3.6");
+    assert.equal(lock.packages?.["node_modules/next"]?.version, "16.3.6");
+    assert.equal(pkg.devDependencies?.["eslint-config-next"], "^16.3.6");
+    assert.equal(lock.packages?.["node_modules/eslint-config-next"]?.version, "16.3.6");
 
     assert.equal(pkg.devDependencies?.postcss, "8.5.23");
     assert.equal(pkg.overrides?.postcss, "8.5.23");

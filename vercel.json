@@ -59,6 +59,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron/order-dispute-recovery",
+      "schedule": "5,35 * * * *"
+    },
+    {
       "path": "/api/cron/stripe-connect-reconcile",
       "schedule": "17 */6 * * *"
     },

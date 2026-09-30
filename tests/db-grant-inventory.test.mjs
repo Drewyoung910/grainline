@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -529,6 +529,7 @@ describe("database grant inventory guardrails", () => {
       "CaseSellerRefundApplication",
       "CaseOpenApplication",
       "DirectUploadReference",
+      "OrderDisputeRecovery",
       "OrderRefundReconciliation",
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
@@ -539,6 +540,7 @@ describe("database grant inventory guardrails", () => {
       "CaseSellerRefundApplication",
       "CaseOpenApplication",
       "DirectUploadReference",
+      "OrderDisputeRecovery",
       "OrderRefundReconciliation",
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
@@ -675,6 +677,7 @@ describe("database grant inventory guardrails", () => {
         "CaseSellerRefundApplication",
         "CaseOpenApplication",
       "DirectUploadReference",
+      "OrderDisputeRecovery",
       "OrderRefundReconciliation",
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
@@ -689,6 +692,7 @@ describe("database grant inventory guardrails", () => {
         "CaseSellerRefundApplication",
         "CaseOpenApplication",
       "DirectUploadReference",
+      "OrderDisputeRecovery",
       "OrderRefundReconciliation",
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
@@ -1520,6 +1524,56 @@ describe("database grant inventory guardrails", () => {
 
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
+    const orderOpsHealthMigrationPath =
+      "prisma/migrations/20260930033000_order_ops_health_summary/migration.sql";
+    const orderOpsHealthMigrationPresent = existsSync(orderOpsHealthMigrationPath)
+      && source(orderOpsHealthMigrationPath).includes(
+        "CREATE FUNCTION public.grainline_order_ops_health_summary(",
+      );
+    const orderItemQuoteRuntimeLockMigrationPath =
+      "prisma/migrations/20260929130000_revoke_order_item_shipping_quote_runtime_access/migration.sql";
+    const orderItemQuoteRuntimeLockMigrationPresent = existsSync(
+      orderItemQuoteRuntimeLockMigrationPath,
+    ) && source(orderItemQuoteRuntimeLockMigrationPath).includes(
+      'REVOKE ALL ON TABLE\n  public."OrderItem",\n  public."OrderShippingRateQuote"\nFROM PUBLIC, grainline_app_runtime;',
+    );
+    const postForceCheckoutSuccessorRevokePresent = [
+      "prisma/migrations/20260930031000_mark_paid_private_listing_sold/migration.sql",
+      "prisma/migrations/20260930032000_block_checkout_user_pairs/migration.sql",
+    ].some((migrationPath) => existsSync(migrationPath)
+      && source(migrationPath).includes(
+        "REVOKE ALL ON FUNCTION public.grainline_stripe_checkout_order_create(",
+      ));
+    const sellerBuyerEmailProjectionMigrationPath =
+      "prisma/migrations/20260928213000_remove_seller_buyer_email_projection/migration.sql";
+    const sellerBuyerEmailProjectionMigration = existsSync(
+      sellerBuyerEmailProjectionMigrationPath,
+    )
+      ? source(sellerBuyerEmailProjectionMigrationPath)
+      : "";
+    const sellerBuyerEmailProjectionMigrationPresent =
+      sellerBuyerEmailProjectionMigration.includes(
+        "CREATE FUNCTION public.grainline_order_seller_detail_v5(",
+      )
+      && sellerBuyerEmailProjectionMigration.includes(
+        "CREATE FUNCTION public.grainline_order_seller_recent_sales_v2(",
+      );
+    const disputeRecoveryMigrationPath =
+      "prisma/migrations/20260930040000_prepare_order_dispute_recovery/migration.sql";
+    const disputeRecoveryMigration = existsSync(disputeRecoveryMigrationPath)
+      ? source(disputeRecoveryMigrationPath)
+      : "";
+    const disputeRecoveryMigrationPresent = disputeRecoveryMigration.includes(
+      'CREATE TABLE public."OrderDisputeRecovery"',
+    ) && disputeRecoveryMigration.includes(
+      'CREATE TYPE public."OrderDisputeRecoveryStatus" AS ENUM',
+    );
+    const disputeRecoveryFunctionNames = [
+      "grainline_order_dispute_recovery_claim_batch",
+      "grainline_order_dispute_recovery_event_claim",
+      "grainline_order_dispute_recovery_finalize",
+      "grainline_order_dispute_recovery_health_summary",
+    ];
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -1531,8 +1585,8 @@ describe("database grant inventory guardrails", () => {
         ),
       );
 
-    assert.equal(inventory.tables.length, 67);
-    assert.equal(inventory.enums.length, 22);
+    assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 68 : 67);
+    assert.equal(inventory.enums.length, disputeRecoveryMigrationPresent ? 23 : 22);
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
@@ -1563,10 +1617,20 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_queue",
       "grainline_case_stripe_dispute_apply",
       "grainline_order_buyer_pii_prune_batch",
+      ...(disputeRecoveryMigrationPresent ? disputeRecoveryFunctionNames : []),
       "grainline_order_item_seller_key_bind",
       "grainline_order_item_seller_key_complete",
+      ...(orderOpsHealthMigrationPresent
+        ? ["grainline_order_ops_health_summary"]
+        : []),
+      ...(sellerBuyerEmailProjectionMigrationPresent
+        ? ["grainline_order_seller_detail_v5"]
+        : []),
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
+      ...(sellerBuyerEmailProjectionMigrationPresent
+        ? ["grainline_order_seller_recent_sales_v2"]
+        : []),
       ...ORDER_REFUND_CLAIM_FUNCTION_NAMES,
       ...ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
       ...ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES,
@@ -1665,7 +1729,12 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      157
+      157 // historical-prefix baseline before the currently staged successors
+        + (orderItemQuoteRuntimeLockMigrationPresent ? 1 : 0)
+        + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
+        + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
+        + (orderOpsHealthMigrationPresent ? 1 : 0)
+        + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
@@ -2010,6 +2079,8 @@ describe("database grant inventory guardrails", () => {
         "DirectUploadReference",
         "Message",
         "Notification",
+        ...(coreOrderRlsActivationExpected(inventory) ? ["Order"] : []),
+        ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "OrderStaffCapability",
@@ -2035,6 +2106,8 @@ describe("database grant inventory guardrails", () => {
         "DirectUploadReference",
         "Message",
         "Notification",
+        ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
+        ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "OrderStaffCapability",
@@ -2858,6 +2931,55 @@ describe("database grant inventory guardrails", () => {
     );
   });
 
+  it("does not demand staged dispute-recovery objects before their exact migration is restored", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-dispute-recovery-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model OrderDisputeRecovery {",
+        "  id String @id",
+        "}",
+        "",
+        "enum OrderDisputeRecoveryStatus {",
+        "  REVERSAL_PENDING",
+        "}",
+      ].join("\n"),
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+    assert.deepEqual(deriveGrantInventory(root).enums, []);
+
+    const migrationDirectory = join(
+      root,
+      "prisma",
+      "migrations",
+      "20260930040000_prepare_order_dispute_recovery",
+    );
+    mkdirSync(migrationDirectory, { recursive: true });
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
+      'CREATE TABLE public."OrderDisputeRecovery" (id text PRIMARY KEY);',
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+    assert.deepEqual(deriveGrantInventory(root).enums, []);
+
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
+      [
+        'CREATE TYPE public."OrderDisputeRecoveryStatus" AS ENUM (\'REVERSAL_PENDING\');',
+        'CREATE TABLE public."OrderDisputeRecovery" (id text PRIMARY KEY);',
+      ].join("\n"),
+    );
+    assert.deepEqual(
+      deriveGrantInventory(root).tables,
+      ["OrderDisputeRecovery"],
+    );
+    assert.deepEqual(
+      deriveGrantInventory(root).enums,
+      ["OrderDisputeRecoveryStatus"],
+    );
+  });
+
   it("documents source-derived inventory and the live-proof boundary", () => {
     const plan = source("docs/db-defense-in-depth-plan.md");
     const rls = source("docs/rls-feasibility-plan.md");
@@ -3129,7 +3251,10 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       provisionedObjects(provision, "TYPE"),
       inventory.enums.filter(
-        (typeName) => typeName !== "CaseResolutionClaimStatus",
+        (typeName) => ![
+          "CaseResolutionClaimStatus",
+          "OrderDisputeRecoveryStatus",
+        ].includes(typeName),
       ),
     );
     assert.match(
@@ -3139,6 +3264,14 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /GRANT USAGE ON TYPE public\."CaseResolutionClaimStatus" TO %I/,
+    );
+    assert.match(
+      provision,
+      /to_regtype\('public\."OrderDisputeRecoveryStatus"'\) IS NOT NULL[\s\S]*\\gexec/,
+    );
+    assert.match(
+      provision,
+      /GRANT USAGE ON TYPE public\."OrderDisputeRecoveryStatus" TO %I/,
     );
     for (const fn of inventory.functions) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;
