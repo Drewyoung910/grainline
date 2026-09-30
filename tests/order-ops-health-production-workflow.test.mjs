@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const workflow = readFileSync(
@@ -7,10 +7,15 @@ const workflow = readFileSync(
   "utf8",
 );
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
-const migration = readFileSync(
+const migrationPath = [
+  process.env.ORDER_OPS_HEALTH_MIGRATION_PATH,
   "prisma/migrations/20260930033000_order_ops_health_summary/migration.sql",
-  "utf8",
-);
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-ops-health/migration.sql`
+    : null,
+].find((candidate) => candidate && existsSync(candidate));
+assert.ok(migrationPath, "Order ops-health migration source must be available");
+const migration = readFileSync(migrationPath, "utf8");
 
 test("Order ops-health workflow is manual, exact-main and Production-bound", () => {
   assert.match(workflow, /workflow_dispatch:/u);
@@ -57,4 +62,8 @@ test("CI isolates the new migration until the accepted blocked-pair successor", 
   const apply = ci.indexOf("Apply only Order ops-health through Prisma");
   assert.ok(isolate > 0 && isolate < blockedPairApply);
   assert.ok(blockedPairApply < restore && restore < apply);
+  assert.match(
+    ci,
+    /ORDER_OPS_HEALTH_MIGRATION_PATH=\$correction\/migration\.sql/u,
+  );
 });

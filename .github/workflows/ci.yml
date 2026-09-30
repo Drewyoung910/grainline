@@ -92,9 +92,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          correction="$RUNNER_TEMP/order-ops-health"
           mv \
             prisma/migrations/20260930033000_order_ops_health_summary \
-            "$RUNNER_TEMP/order-ops-health"
+            "$correction"
+          echo \
+            "ORDER_OPS_HEALTH_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
       - name: Verify Order blocked-pair checkout source package
         run: >-
           node --test

@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { orderOpsHealthSummaryFromRows } from "../src/lib/orderOpsHealthState.ts";
 
-const migration = readFileSync(
+const migrationPath = [
+  process.env.ORDER_OPS_HEALTH_MIGRATION_PATH,
   "prisma/migrations/20260930033000_order_ops_health_summary/migration.sql",
-  "utf8",
-);
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-ops-health/migration.sql`
+    : null,
+].find((candidate) => candidate && existsSync(candidate));
+assert.ok(migrationPath, "Order ops-health migration source must be available");
+const migration = readFileSync(migrationPath, "utf8");
 const wrapper = readFileSync("src/lib/orderOpsHealth.ts", "utf8");
 const route = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
 const adminLayout = readFileSync("src/app/admin/layout.tsx", "utf8");
