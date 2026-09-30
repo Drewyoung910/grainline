@@ -262,3 +262,18 @@ credential access, requires every predecessor applied with no unrelated pending
 migration, reads back the ledger/function/counts, and proves the reviewed table
 RLS, policy, owner, and grant posture is unchanged. The application remains
 undeployed until this database authority is accepted.
+
+## Production dispatch approval-review rejection
+
+The user replied `explicit approval` to the exact Production dispatch request
+for migration `20260930033000_order_ops_health_summary`, main
+`02f27a3948a2cbc87ddb7b53d0f07e8251718b83`, and successful CI run
+`36718477687`. Immediately before dispatch, remote main and the CI run were read
+back and still matched those exact values.
+
+The attempted `order-ops-health-production.yml` dispatch was rejected by the
+automatic approval reviewer before GitHub received it. The reviewer stated that
+the transcript lacked explicit authorization for the exact migration and bound
+commit/CI pair. No workflow run was created and no Production database,
+deployment, alias, credential, fixture, or RLS state changed. Do not infer a
+Production attempt or partial migration from this rejected command.
