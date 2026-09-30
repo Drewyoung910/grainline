@@ -210,3 +210,55 @@ deployment-disabled branch to exact corrected head `5a4a8945`, then marking
 ready and merging only if all four checks pass on that exact head against still
 unchanged main. That action does not deploy, apply Production SQL, move aliases,
 change credentials, run fixtures, or change RLS.
+
+## Superseding public merge and exact-main CI state
+
+The paragraph immediately above records the pre-publication boundary and is
+superseded by this section.
+
+Deployment-disabled PR `#485` was advanced to exact corrected head
+`5a4a894552bf86c4629dbf2dea93d9a5ff436eea` against unchanged base
+`798946354d7cecbaa8aa490ef39a1e89e2d856fa`. All four checks passed on that
+exact pair:
+
+- full PR CI run `36714886998` completed successfully in 30m38s;
+- Order Paid Repair Lock Proof run `36714886990` passed;
+- Order Account Deletion Concurrency Proof run `36714887019` passed; and
+- Order Staff Bootstrap Proof run `36714887067` passed.
+
+A final GitHub and remote-ref readback confirmed the head, base, main, and
+mergeability were unchanged. The PR was marked ready and merged as merge commit
+`02f27a3948a2cbc87ddb7b53d0f07e8251718b83` at
+`2026-09-30T12:59:47Z`. Remote `main` read back at that exact merge commit.
+
+Merged-main push CI run `36718477687` then completed successfully on exact head
+`02f27a3948a2cbc87ddb7b53d0f07e8251718b83` in 29m32s. The three specialized
+Order push proofs also passed on that exact main commit:
+
+- Order Paid Repair Lock Proof run `36718477584`;
+- Order Account Deletion Concurrency Proof run `36718477661`; and
+- Order Staff Bootstrap Proof run `36718477647`.
+
+The Notification RLS FORCE Proof run `36718477586` and Conversation and Message
+RLS FORCE Proof run `36718477585` failed while their disposable-database setup
+replayed the already-committed Core Order FORCE migration. Both stopped at
+`20260929160000_force_order_rls` with Prisma's secondary `current transaction
+is aborted` message. They are separate compatibility-workflow failures and did
+not invalidate the successful exact-main CI or the three successful Order
+proofs. They remain recorded work; they were not rerun or treated as accepted
+proofs here.
+
+No Production migration, deployment, alias, credential, fixture, or RLS change
+occurred during the PR merge or merged-main CI. The next release boundary is a
+separately authorized dispatch of `order-ops-health-production.yml`, bound to:
+
+- exact main `02f27a3948a2cbc87ddb7b53d0f07e8251718b83`;
+- successful push CI run `36718477687`; and
+- typed confirmation `apply-reviewed-order-ops-health`.
+
+That protected workflow may apply only migration
+`20260930033000_order_ops_health_summary`. It verifies main and CI again before
+credential access, requires every predecessor applied with no unrelated pending
+migration, reads back the ledger/function/counts, and proves the reviewed table
+RLS, policy, owner, and grant posture is unchanged. The application remains
+undeployed until this database authority is accepted.
