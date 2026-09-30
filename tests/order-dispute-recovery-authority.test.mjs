@@ -17,6 +17,7 @@ const retryWorker = readFileSync(
   "utf8",
 );
 const opsHealth = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
+const stripeWebhook = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const vercel = JSON.parse(readFileSync("vercel.json", "utf8"));
 
@@ -65,6 +66,49 @@ test("retry, cron, ops health, and runtime provisioning are bounded", () => {
   assert.doesNotMatch(
     provisioning,
     /GRANT (?:SELECT|INSERT|UPDATE|DELETE)[^;]*OrderDisputeRecovery/,
+  );
+});
+
+test("signed dispute evidence commits a first claim before bounded provider settlement", () => {
+  const transactionStart = stripeWebhook.indexOf(
+    "const { disputeResult, recoveryClaim } = await prisma.$transaction",
+  );
+  const signedApply = stripeWebhook.indexOf(
+    "await applySignedDisputeWebhook(tx",
+    transactionStart,
+  );
+  const replayGuard = stripeWebhook.indexOf(
+    'result.action === "applied"',
+    signedApply,
+  );
+  const claim = stripeWebhook.indexOf(
+    "await claimOrderDisputeRecoveryForEvent(result.paymentEventId, tx)",
+    replayGuard,
+  );
+  const transactionResult = stripeWebhook.indexOf(
+    "return { disputeResult: result, recoveryClaim };",
+    claim,
+  );
+  const transactionEnd = stripeWebhook.indexOf("});", transactionResult);
+  const settlement = stripeWebhook.indexOf(
+    "await settleOrderDisputeRecovery(recoveryClaim)",
+    transactionEnd,
+  );
+  const response = stripeWebhook.indexOf(
+    "return NextResponse.json({ received: true });",
+    settlement,
+  );
+  assert.ok(transactionStart >= 0);
+  assert.ok(transactionStart < signedApply);
+  assert.ok(signedApply < replayGuard);
+  assert.ok(replayGuard < claim);
+  assert.ok(claim < transactionResult);
+  assert.ok(transactionResult < transactionEnd);
+  assert.ok(transactionEnd < settlement);
+  assert.ok(settlement < response);
+  assert.match(
+    stripeWebhook.slice(settlement, response),
+    /recoveryResult\.providerFailed[\s\S]*disputeRecoveryErrorSummary/,
   );
 });
 
