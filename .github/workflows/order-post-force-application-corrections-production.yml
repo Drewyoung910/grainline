@@ -80,6 +80,7 @@ jobs:
                 run.conclusion !== 'success') {
               throw new Error('Order post-FORCE main/CI readback drifted');
             }
+      - run: npx prisma generate
       - name: Verify exact migration source and focused behavior
         shell: bash
         run: |
