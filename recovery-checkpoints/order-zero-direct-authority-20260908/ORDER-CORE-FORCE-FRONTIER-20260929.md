@@ -250,3 +250,34 @@ runtime-lock run `36647432346`, and a fresh exact live-deployment readback.
 
 Do not combine steps 2 or 4 with unrelated migrations. Do not rerun accepted
 Core ENABLE, credential rotation, staged smoke, or completed Order corrections.
+
+## First protected FORCE attempt and geo-verifier correction
+
+Merged-main CI `36652253140` completed successfully on exact main
+`36947a9abb3f40820a35e7eb07e0ed49ad91fa5d`, passing all 468 steps. Fresh
+readback confirmed public main at that exact commit, accepted runtime-lock run
+`36647432346`, all five canonical aliases on READY Production deployment
+`dpl_FpD59NTBtkRj4v1KP5yEjMRdvNdj`, and the live zero-direct surface from the
+US operator location.
+
+The explicitly approved protected FORCE run `36654718099` was dispatched with
+those exact bindings and admitted through the Production environment gate. It
+failed closed at `Verify live zero-direct application boundary`, before the
+owner-connection guard, any database read, or SQL. The GitHub-hosted runner
+received HTTP 307 from `thegrainline.com` because Production middleware is
+US-only and redirects non-US traffic to `/not-available`; the verifier had
+incorrectly required an unconditional homepage HTTP 200.
+
+Exact two-file release-tooling correction
+`db61e26e56f2a2f93d6c9ca1ed7682c4f1f4573c` validates only the application-owned
+same-origin HTTPS 307 to `/not-available`, then fetches that geo-allowed page
+and still requires the exact reviewed deployment marker. Unexpected redirect
+hosts, paths, query strings, statuses, protected-alias SSO targets, oversized
+bodies, or missing markers remain failures. Focused tests pass 11/11, the live
+US path still passes, and `git diff --check` passes. The commit is privately
+recoverable at
+`recovery/order-force-geo-surface-db61e26e-20260930` and is public as draft PR
+#480 with exact base `36947a9a`. It changes no application behavior, migration
+bytes, credential, alias, grant, RLS posture, or Production state. FORCE
+remains disabled until PR #480, exact-head checks, merged-main CI, a replacement
+protected dispatch, and the separate runtime postflight all succeed.
