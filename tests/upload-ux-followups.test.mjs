@@ -165,13 +165,24 @@ describe("upload UX follow-ups", () => {
     assert.match(persistenceHelper, /verifyFirstPartyMediaUrlForPersistence/);
     assert.match(persistenceHelper, /filterVerifiedFirstPartyMediaUrlsForUser/);
     assert.match(persistenceHelper, /existingUrlSet\.has\(url\)/);
+    assert.match(persistenceHelper, /verifyFirstPartyMediaUrlPairsForUser/);
+    assert.match(persistenceHelper, /originalUrls\.length > urls\.length/);
+    assert.match(persistenceHelper, /const uniqueUrls = new Set<string>\(\)/);
 
     assert.match(presignRoute, /ALLOWED_EXTENSIONS/);
     assert.match(presignRoute, /allowedExtensions\.includes\(ext\)/);
     assert.match(presignRoute, /uploadExtensionMessage/);
 
-    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["listingImage"\]/);
-    assert.match(source("src/app/dashboard/listings/custom/page.tsx"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["listingImage"\]/);
+    for (const path of [
+      "src/app/dashboard/listings/new/page.tsx",
+      "src/app/dashboard/listings/custom/page.tsx",
+    ]) {
+      const listingCreate = source(path);
+      assert.match(listingCreate, /verifyFirstPartyMediaUrlPairsForUser\(\{[\s\S]*allowedEndpoints: \["listingImage"\]/);
+      assert.match(listingCreate, /photos: \{ create: photoPairs\.map\(\(photo, i\) => \(\{/);
+      assert.match(listingCreate, /originalUrl: photo\.originalUrl/);
+      assert.doesNotMatch(listingCreate, /imageOriginalUrls\[i\] \?\? url/);
+    }
     assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["listingImage"\]/);
     assert.match(source("src/app/api/reviews/route.ts"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["reviewPhoto"\]/);
     assert.match(source("src/app/api/reviews/[id]/route.ts"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*existingUrls: \[\.\.\.oldPhotoUrls\]/);

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { verifyFirstPartyMediaUrlPairsForUser } from "@/lib/uploadPersistenceVerification";
 import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
@@ -105,44 +105,48 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   const json = formData.get("imageUrlsJson");
   const imageUrlsResult = parseJsonArrayField(json);
   if (imageUrlsResult.ok) {
-    imageUrls = imageUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+    imageUrls = imageUrlsResult.value.map((value) =>
+      typeof value === "string" ? value.trim() : "",
+    );
   } else {
     console.warn("[custom-listing] invalid imageUrlsJson:", imageUrlsResult.error);
   }
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
-    urls: imageUrls,
-    max: 10,
-    clerkUserId: userId,
-    accountUserId: seller.userId,
-    allowedEndpoints: ["listingImage"],
-  });
-
   // Original (pre-crop) URLs paired by index with imageUrls — same
   // validation, used so the seller can re-crop from the full original.
   let imageOriginalUrls: string[] = [];
   const originalJson = formData.get("imageOriginalUrlsJson");
   const imageOriginalUrlsResult = parseJsonArrayField(originalJson);
   if (imageOriginalUrlsResult.ok) {
-    imageOriginalUrls = imageOriginalUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+    imageOriginalUrls = imageOriginalUrlsResult.value.map((value) =>
+      typeof value === "string" ? value.trim() : "",
+    );
   } else {
     console.warn("[custom-listing] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
   }
-  imageOriginalUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
-    urls: imageOriginalUrls,
+  const verifiedPhotoPairs = await verifyFirstPartyMediaUrlPairsForUser({
+    urls: imageUrls,
+    originalUrls: imageOriginalUrls,
     max: 10,
     clerkUserId: userId,
     accountUserId: seller.userId,
     allowedEndpoints: ["listingImage"],
   });
+  if (!verifiedPhotoPairs.ok) {
+    return { ok: false, error: verifiedPhotoPairs.error };
+  }
+  const photoPairs = verifiedPhotoPairs.pairs;
+  imageUrls = photoPairs.map((photo) => photo.url);
 
   let imageAltTexts: string[] = [];
   const altJson = formData.get("imageAltTextsJson");
   const imageAltTextsResult = parseJsonArrayField(altJson);
   if (imageAltTextsResult.ok) {
-    imageAltTexts = imageAltTextsResult.value.filter((value): value is string => typeof value === "string");
+    imageAltTexts = imageAltTextsResult.value.map((value) =>
+      typeof value === "string" ? value : "",
+    );
   } else {
     console.warn("[custom-listing] invalid imageAltTextsJson:", imageAltTextsResult.error);
   }
@@ -210,9 +214,9 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
         packagedWidthCm,
         packagedHeightCm,
         packagedWeightGrams,
-        photos: { create: imageUrls.map((url, i) => ({
-          url,
-          originalUrl: imageOriginalUrls[i] ?? url,
+        photos: { create: photoPairs.map((photo, i) => ({
+          url: photo.url,
+          originalUrl: photo.originalUrl,
           sortOrder: i,
           altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
         })) },

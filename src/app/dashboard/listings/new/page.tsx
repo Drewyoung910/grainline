@@ -10,7 +10,7 @@ import { renderFirstListingCongratsEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
-import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { verifyFirstPartyMediaUrlPairsForUser } from "@/lib/uploadPersistenceVerification";
 import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
@@ -79,21 +79,15 @@ async function createListing(_prevState: unknown, formData: FormData) {
   const json = formData.get("imageUrlsJson");
   const imageUrlsResult = parseJsonArrayField(json);
   if (imageUrlsResult.ok) {
-    imageUrls = imageUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+    imageUrls = imageUrlsResult.value.map((value) =>
+      typeof value === "string" ? value.trim() : "",
+    );
   } else {
     console.warn("[listing-create] invalid imageUrlsJson:", imageUrlsResult.error);
   }
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
-    urls: imageUrls,
-    max: 10,
-    clerkUserId: userId,
-    accountUserId: seller.userId,
-    allowedEndpoints: ["listingImage"],
-  });
-
   // Original (pre-crop) URLs from PhotoManager. Aligned by index with
   // imageUrls. For new uploads these equal imageUrls (no crop applied
   // before upload). They diverge once the seller re-crops on the edit
@@ -104,24 +98,34 @@ async function createListing(_prevState: unknown, formData: FormData) {
   const originalJson = formData.get("imageOriginalUrlsJson");
   const imageOriginalUrlsResult = parseJsonArrayField(originalJson);
   if (imageOriginalUrlsResult.ok) {
-    imageOriginalUrls = imageOriginalUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+    imageOriginalUrls = imageOriginalUrlsResult.value.map((value) =>
+      typeof value === "string" ? value.trim() : "",
+    );
   } else {
     console.warn("[listing-create] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
   }
-  imageOriginalUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
-    urls: imageOriginalUrls,
+  const verifiedPhotoPairs = await verifyFirstPartyMediaUrlPairsForUser({
+    urls: imageUrls,
+    originalUrls: imageOriginalUrls,
     max: 10,
     clerkUserId: userId,
     accountUserId: seller.userId,
     allowedEndpoints: ["listingImage"],
   });
+  if (!verifiedPhotoPairs.ok) {
+    return { ok: false, error: verifiedPhotoPairs.error };
+  }
+  const photoPairs = verifiedPhotoPairs.pairs;
+  imageUrls = photoPairs.map((photo) => photo.url);
 
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];
   const altJson = formData.get("imageAltTextsJson");
   const imageAltTextsResult = parseJsonArrayField(altJson);
   if (imageAltTextsResult.ok) {
-    imageAltTexts = imageAltTextsResult.value.filter((value): value is string => typeof value === "string");
+    imageAltTexts = imageAltTextsResult.value.map((value) =>
+      typeof value === "string" ? value : "",
+    );
   } else {
     console.warn("[listing-create] invalid imageAltTextsJson:", imageAltTextsResult.error);
   }
@@ -262,14 +266,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
         processingTimeMinDays,
         processingTimeMaxDays,
         status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
-        photos: { create: imageUrls.map((url, i) => ({
-          url,
-          // originalUrl is paired with `url` by index. If the form didn't send
-          // a paired value (legacy client, length mismatch), default to `url`
-          // since uploads currently don't crop — `url` IS the original at
-          // creation time. Re-crop on the edit page is what causes them to
-          // diverge later.
-          originalUrl: imageOriginalUrls[i] ?? url,
+        photos: { create: photoPairs.map((photo, i) => ({
+          url: photo.url,
+          originalUrl: photo.originalUrl,
           sortOrder: i,
           altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
         })) },
