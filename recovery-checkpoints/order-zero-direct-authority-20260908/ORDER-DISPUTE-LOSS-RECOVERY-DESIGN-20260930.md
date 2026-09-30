@@ -341,3 +341,30 @@ points to `ffc251bf5d428a920ea427289723fad2fd2321dc`; main remains
 `6ed0476659327961170fc186389a0d055da7f2be`. Publishing the changed head and
 conditionally merging it require a new exact-head approval. No merge,
 migration, deployment, or live Stripe effect occurred.
+
+## PR #487 seventh exact-head gate — 2026-09-30
+
+The user authorized exact head
+`4835b062ab80cec4c5d422df485f2d7f5622fbb1`. It was published to PR `#487`
+against unchanged main `6ed0476659327961170fc186389a0d055da7f2be`.
+`postgres-lock-order`, `review-note-concurrency`, and `tls-login` passed. CI run
+`36784244514` passed the dependency-security audit, every historical
+migration/proof step, and lint. The consolidated test suite completed with
+4,954 passing tests, two failed assertions, and nine skips. The conditional
+merge did not run.
+
+Both failures are direct version-alignment guardrails exposed by the approved
+Next.js security update. `tests/dependency-hygiene.test.mjs` still requires the
+framework and `eslint-config-next` at `16.3.3`, while
+`tests/verified-audit-followups.test.mjs` and the current tech-stack line in
+`CLAUDE.md` still require or document runtime Next.js `16.3.3`. Historical
+September build records must remain unchanged.
+
+The coherent correction is to update `eslint-config-next` to `16.3.6`, keep
+the framework and lint package on the same reviewed patch, and update the two
+current guardrail assertions plus the current `CLAUDE.md` tech-stack line.
+Automatic approval review rejected the attempted local eslint-package update
+because it is an additional manifest and lockfile mutation beyond the approved
+Next.js-only change. The source worktree remains clean at `4835b062...`. No
+merge, migration, deployment, or live Stripe effect occurred; explicit approval
+is required to prepare and verify this correction.
