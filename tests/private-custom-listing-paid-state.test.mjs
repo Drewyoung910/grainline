@@ -14,6 +14,9 @@ const predecessor = migrationSource([
   process.env.RUNNER_TEMP
     ? `${process.env.RUNNER_TEMP}/order-zero-direct-compatible-suffix/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql`
     : null,
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/20260926011000_correct_order_paid_checkout_bound_reservation/migration.sql`
+    : null,
 ], "paid-checkout predecessor");
 const successor = migrationSource([
   process.env.ORDER_PRIVATE_CUSTOM_PAID_STATE_MIGRATION_PATH,
