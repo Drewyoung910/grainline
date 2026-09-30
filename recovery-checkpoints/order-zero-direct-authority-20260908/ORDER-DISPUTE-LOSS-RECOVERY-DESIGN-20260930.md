@@ -318,3 +318,26 @@ Automatic approval review rejected the attempted local package update because
 it would change the package manifest, lockfile, and approved PR head. No source
 change, merge, migration, deployment, or live Stripe effect occurred. A new
 explicit approval is required to create and verify the dependency-update head.
+
+## Next.js advisory repair prepared — 2026-09-30
+
+The user explicitly approved the minimum dependency repair. Local commit
+`4835b062ab80cec4c5d422df485f2d7f5622fbb1` updates the declared and locked
+Next.js version from `16.3.3` to `16.3.6`. The lockfile version delta is limited
+to `next`, `@next/env`, and the matching optional `@next/swc-*` packages; the
+manifest and lockfile are the only changed files.
+
+`npm run audit:dependencies` now reports no high or critical vulnerabilities
+for either the production or complete dependency tree. A local production build
+compiled successfully and completed TypeScript under Next.js `16.3.6`; page
+data collection then stopped at the worktree's intentional missing-production-
+`DATABASE_URL` guard. No runtime compatibility error was observed, and no
+credential was introduced to bypass the guard. `git diff --check` passed and
+the source worktree is clean. No duplicate full test suite was run locally.
+
+The new head is recoverable through local ref
+`recovery/order-dispute-loss-recovery-draft-20260930`. Public PR `#487` still
+points to `ffc251bf5d428a920ea427289723fad2fd2321dc`; main remains
+`6ed0476659327961170fc186389a0d055da7f2be`. Publishing the changed head and
+conditionally merging it require a new exact-head approval. No merge,
+migration, deployment, or live Stripe effect occurred.
