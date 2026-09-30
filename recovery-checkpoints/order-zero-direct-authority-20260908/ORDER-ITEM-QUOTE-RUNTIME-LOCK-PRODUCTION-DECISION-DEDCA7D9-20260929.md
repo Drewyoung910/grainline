@@ -147,3 +147,12 @@ column authority on `OrderItem` or `OrderShippingRateQuote`. The run proved
 Core `Order` remains RLS enabled without FORCE, with its zero-policy posture,
 unrelated grants, and every `grainline_order_%` function definition unchanged.
 This child-table runtime lock is accepted and complete.
+
+## Core FORCE successor accepted
+
+Core `Order` FORCE later completed successfully on exact main
+`52b78554b795a5e4b2035c8dd05695cbda790a47` in protected run `36659832849`,
+followed by the independent pooled ordinary-runtime read-only denial proof.
+Continue from `ORDER-CORE-FORCE-PASSED-52B78554-20260930.md`; Core FORCE is no
+longer pending, and neither this runtime lock nor its old approval frontier
+should be repeated.
