@@ -221,7 +221,8 @@ export async function verifyFirstPartyMediaUrlPairsForUser({
   if (urls.length > max) {
     return { ok: false, error: `You can upload up to ${max} photos.` };
   }
-  if (originalUrls.length > urls.length) {
+  const hasOriginalUrls = originalUrls.length > 0;
+  if (hasOriginalUrls && originalUrls.length !== urls.length) {
     return {
       ok: false,
       error: "Listing photo details do not match. Re-upload the photos and try again.",
@@ -232,7 +233,9 @@ export async function verifyFirstPartyMediaUrlPairsForUser({
   const uniqueUrls = new Set<string>();
   for (let index = 0; index < urls.length; index += 1) {
     const url = urls[index]?.trim() ?? "";
-    const originalUrl = originalUrls[index]?.trim() || url;
+    const originalUrl = hasOriginalUrls
+      ? originalUrls[index]?.trim() ?? ""
+      : url;
     if (!url || !originalUrl) {
       return { ok: false, error: "A listing photo is missing. Re-upload it and try again." };
     }

@@ -166,7 +166,7 @@ describe("upload UX follow-ups", () => {
     assert.match(persistenceHelper, /filterVerifiedFirstPartyMediaUrlsForUser/);
     assert.match(persistenceHelper, /existingUrlSet\.has\(url\)/);
     assert.match(persistenceHelper, /verifyFirstPartyMediaUrlPairsForUser/);
-    assert.match(persistenceHelper, /originalUrls\.length > urls\.length/);
+    assert.match(persistenceHelper, /hasOriginalUrls && originalUrls\.length !== urls\.length/);
     assert.match(persistenceHelper, /const uniqueUrls = new Set<string>\(\)/);
 
     assert.match(presignRoute, /ALLOWED_EXTENSIONS/);
