@@ -368,3 +368,25 @@ because it is an additional manifest and lockfile mutation beyond the approved
 Next.js-only change. The source worktree remains clean at `4835b062...`. No
 merge, migration, deployment, or live Stripe effect occurred; explicit approval
 is required to prepare and verify this correction.
+
+## Version-alignment correction prepared — 2026-09-30
+
+The user explicitly approved the coherent package and guardrail correction.
+Local commit `0e5251385309d212022e726b673f8a0dd288ae47` updates
+`eslint-config-next` and its matching plugin from `16.3.3` to `16.3.6`, updates
+the two current version guardrails, and changes only the active `CLAUDE.md`
+tech-stack line. The dated September build and dependency-review records remain
+unchanged.
+
+Both affected suites pass: 31 tests, zero failures or skips. The production and
+full dependency audits report no high or critical findings. Full lint completed
+with zero errors and five existing navigation warnings. `next` and
+`eslint-config-next` both resolve to `16.3.6`; `git diff --check` passed. No
+duplicate full suite was run locally.
+
+The new head is recoverable through local ref
+`recovery/order-dispute-loss-recovery-draft-20260930`. Public PR `#487` still
+points to `4835b062ab80cec4c5d422df485f2d7f5622fbb1`; main remains
+`6ed0476659327961170fc186389a0d055da7f2be`. Publishing the corrected head and
+conditionally merging it require a new exact-head approval. No merge,
+migration, deployment, or live Stripe effect occurred.
