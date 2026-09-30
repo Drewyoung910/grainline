@@ -186,6 +186,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(actionForm, /field\.checked = values\?\.some/);
     assert.match(source("src/app/dashboard/listings/new/page.tsx"), /preventEnterSubmit preserveOnError/);
     assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /preventEnterSubmit preserveOnError/);
+    assert.match(source("src/app/dashboard/listings/custom/page.tsx"), /preventEnterSubmit preserveOnError/);
   });
 
   it("uses one left disclosure marker in listing shop policies", () => {

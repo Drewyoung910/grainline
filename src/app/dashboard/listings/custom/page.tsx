@@ -28,8 +28,10 @@ import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import {
   findLatestActorCustomOrderRequest,
   getActorConversation,
+  startActorConversation,
 } from "@/lib/conversationMessageAuthority";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -70,6 +72,22 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   const otherUserId = convo.userAId === me.id ? convo.userBId : convo.userAId;
   if (reservedForUserId !== otherUserId) {
     return { ok: false, error: "Reserved user must be the conversation participant." };
+  }
+
+  try {
+    const availableConversation = await startActorConversation(me.id, reservedForUserId, null);
+    if (availableConversation.conversationId !== conversationId) {
+      return { ok: false, error: "Conversation changed. Return to Messages and try again." };
+    }
+  } catch (error) {
+    const sqlState = getPrismaRawSqlState(error);
+    if (sqlState === "22023" || sqlState === "42501") {
+      return {
+        ok: false,
+        error: "This buyer is no longer available for custom orders. Check the conversation and block settings before trying again.",
+      };
+    }
+    throw error;
   }
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
@@ -270,9 +288,27 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       AND status = 'ACTIVE'
   `;
 
-  await sendCustomOrderReadyLink({
+  const readyLink = await sendCustomOrderReadyLink({
     listingId: created.id,
   });
+
+  if (!readyLink.messageDelivered) {
+    await prisma.listing.updateMany({
+      where: {
+        id: created.id,
+        sellerId: seller.id,
+        status: ListingStatus.ACTIVE,
+      },
+      data: { status: ListingStatus.DRAFT },
+    });
+    revalidatePath(`/messages/${conversationId}`);
+    revalidatePath("/dashboard");
+    redirect(
+      `/dashboard/listings/custom?conversationId=${encodeURIComponent(conversationId)}`
+      + `&buyerId=${encodeURIComponent(reservedForUserId)}`
+      + "&readyLink=unavailable",
+    );
+  }
 
   revalidatePath(`/messages/${conversationId}`);
   redirect(`/messages/${conversationId}`);
@@ -281,13 +317,17 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
 export default async function CustomListingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ conversationId?: string; buyerId?: string }>;
+  searchParams: Promise<{
+    conversationId?: string;
+    buyerId?: string;
+    readyLink?: string;
+  }>;
 }) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard");
 
   const { me } = await ensureSeller();
-  const { conversationId, buyerId } = await searchParams;
+  const { conversationId, buyerId, readyLink } = await searchParams;
 
   if (!conversationId || !buyerId) redirect("/messages");
 
@@ -341,6 +381,14 @@ export default async function CustomListingPage({
         you create it, a link will be sent to them in the conversation.
       </p>
 
+      {readyLink === "unavailable" && (
+        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          The listing was saved as a draft because the buyer could not be notified. Check the
+          conversation and block settings, then publish it from your Workshop when the buyer is
+          available.
+        </div>
+      )}
+
       {/* Buyer's request context */}
       {requestData && (
         <div className="mb-6 space-y-2 rounded-md border border-amber-200 bg-amber-50 p-4">
@@ -369,15 +417,17 @@ export default async function CustomListingPage({
         </div>
       )}
 
-      <ActionForm action={createCustomListing} className="space-y-4">
+      <ActionForm action={createCustomListing} className="space-y-4" preventEnterSubmit preserveOnError>
         {/* Hidden fields */}
         <input type="hidden" name="conversationId" value={conversationId} />
         <input type="hidden" name="reservedForUserId" value={buyerId} />
 
         <div>
-          <label className="block text-sm mb-1">Title</label>
+          <label htmlFor="custom-listing-title" className="block text-sm mb-1">Title</label>
           <input
+            id="custom-listing-title"
             name="title"
+            maxLength={150}
             required
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
             placeholder="e.g. Custom walnut dining table"
@@ -385,8 +435,9 @@ export default async function CustomListingPage({
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Price (USD)</label>
+          <label htmlFor="custom-listing-price" className="block text-sm mb-1">Price (USD)</label>
           <input
+            id="custom-listing-price"
             name="price"
             type="text"
             inputMode="decimal"
@@ -397,9 +448,11 @@ export default async function CustomListingPage({
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Description</label>
+          <label htmlFor="custom-listing-description" className="block text-sm mb-1">Description</label>
           <textarea
+            id="custom-listing-description"
             name="description"
+            maxLength={5000}
             rows={4}
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-none"
             placeholder="Describe what you're making and any specifics…"

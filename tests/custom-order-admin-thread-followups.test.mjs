@@ -26,6 +26,8 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(readyFunction, /pg_catalog\.pg_advisory_xact_lock\(\s*913349/);
     assert.match(readyFunction, /pg_catalog\.hashtext\(p_listing_id\)/);
     assert.match(helper, /sendCustomOrderReadyLink\(\{ listingId \}: \{ listingId: string \}\)/);
+    assert.match(helper, /messageDelivered: false, messageCreated: false/);
+    assert.match(helper, /messageDelivered: true, messageCreated: committed\.created/);
     assert.doesNotMatch(helper, /conversationId,\s*sellerUserId,\s*buyerUserId,\s*sellerName,\s*listing,/);
     assert.match(readyFunction, /listing\."reservedForUserId" = initial_source\.buyer_user_id/);
     assert.match(readyFunction, /listing\."customOrderConversationId" = initial_source\.conversation_id/);
@@ -33,6 +35,11 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(readyFunction, /'custom_order_link',\s*true,\s*message_sent_at/);
     assert.match(helper, /existing valid message heals a prior post-commit notification failure/);
     assert.match(customPage, /sendCustomOrderReadyLink\(\{\s*listingId: created\.id,\s*\}\)/);
+    assert.match(customPage, /startActorConversation\(me\.id, reservedForUserId, null\)/);
+    assert.match(customPage, /availableConversation\.conversationId !== conversationId/);
+    assert.match(customPage, /if \(!readyLink\.messageDelivered\)/);
+    assert.match(customPage, /status: ListingStatus\.DRAFT/);
+    assert.match(customPage, /readyLink=unavailable/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
     assert.equal((adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId:/g) ?? []).length, 2);
     assert.match(adminReview, /currentListing\.status === 'ACTIVE' &&[\s\S]*currentListing\.customOrderConversationId &&[\s\S]*currentListing\.reservedForUserId/);
