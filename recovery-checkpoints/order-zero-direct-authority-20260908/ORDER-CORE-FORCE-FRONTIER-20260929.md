@@ -281,3 +281,14 @@ recoverable at
 bytes, credential, alias, grant, RLS posture, or Production state. FORCE
 remains disabled until PR #480, exact-head checks, merged-main CI, a replacement
 protected dispatch, and the separate runtime postflight all succeed.
+
+PR #480 passed all four exact-head checks and merged as exact main
+`52b78554b795a5e4b2035c8dd05695cbda790a47`. Merged-main CI `36657639939`
+passed all 468 steps. Corrected protected FORCE run `36659832849` then applied
+only `20260929160000_force_order_rls` and completed every owner-side postflight
+successfully at `2026-09-30T02:27:39Z`. The independent pooled ordinary-runtime
+postflight passed at `2026-09-30T02:29:42.100Z`, proving FORCE enabled, zero
+policies, no direct runtime authority, database-level SELECT denial with
+SQLSTATE `42501`, unchanged child tables, and no rows read or exported. Core
+`Order` FORCE is accepted; continue from
+`ORDER-CORE-FORCE-PASSED-52B78554-20260930.md` and do not repeat this release.

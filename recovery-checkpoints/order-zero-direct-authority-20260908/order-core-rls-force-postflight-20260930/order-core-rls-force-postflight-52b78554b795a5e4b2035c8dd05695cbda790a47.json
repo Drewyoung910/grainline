@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "operation": "order-core-rls-production-postflight",
+  "phase": "force",
+  "source": {
+    "commit": "52b78554b795a5e4b2035c8dd05695cbda790a47",
+    "clean": true
+  },
+  "target": {
+    "databaseName": "neondb",
+    "databaseUrlSha256": "3abc60fbb39fefc09c64c93433e592faa817ce89a8e3d60b7878eaeeff6e99e0",
+    "endpointId": "ep-plain-river-aaqg8gj4",
+    "region": "westus3.azure",
+    "role": "grainline_app_runtime"
+  },
+  "runs": {
+    "mainCiRunId": 36657639939,
+    "migrationRunId": 36659832849
+  },
+  "proof": {
+    "runtimeRole": "grainline_app_runtime",
+    "orderRlsEnabled": true,
+    "orderRlsForced": true,
+    "orderPolicyCount": 0,
+    "directOrderAuthority": false,
+    "staffFunctionCount": 6,
+    "childTablesUnchanged": true,
+    "transactionReadOnly": true,
+    "directSelectSqlstate": "42501",
+    "rowDataRead": false,
+    "postflightReadOnly": true,
+    "rowsExported": false
+  },
+  "completedAt": "2026-09-30T02:29:42.100Z",
+  "productionChangedByPostflight": false,
+  "status": "passed"
+}
