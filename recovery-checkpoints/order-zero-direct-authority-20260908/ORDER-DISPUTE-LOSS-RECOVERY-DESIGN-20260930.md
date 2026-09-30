@@ -154,3 +154,38 @@ condition. Exact authorization is required to publish amended head
 merge it if its required exact-head checks pass against unchanged main. Later
 Production approval is required to apply its migration, deploy it, and allow
 it to affect live Stripe transfers.
+
+## PR #487 second exact-head correction — 2026-09-30
+
+The user authorized amended head
+`724682c63fe29d1abb3ab4c9a136f29ca44c2e84`. It was published to PR `#487`
+against unchanged main `6ed0476659327961170fc186389a0d055da7f2be`.
+`postgres-lock-order`, `review-note-concurrency`, and `tls-login` passed. The
+monolithic CI check failed in 3m28s at the first historical-prefix runtime
+grant audit because the branch-tip Prisma schema named
+`OrderDisputeRecovery` and `OrderDisputeRecoveryStatus` while their sealed
+migration was intentionally isolated from that earlier database prefix.
+
+The focused correction is local commit
+`a5fb870ac1a2569d91f7b8b6fea97f6182bd97e9`. It:
+
+- excludes both successor-only objects from the derived grant inventory only
+  while their exact create migration is absent;
+- classifies the table as a private policyless FORCE ledger once present;
+- converges optional type usage, table revocation, dispute RPC execution, and
+  the count-only Order ops-health function in runtime-role provisioning;
+- reconciles source-derived catalog assertions with already-landed Core Order
+  FORCE and email-safe seller projections; and
+- adds a regression proof for absent, partial, and fully restored sealed
+  migration states.
+
+Focused verification passed: 38 tests plus one environment-skipped live
+PostgreSQL fixture across grant inventory and dispute recovery, with zero
+failures; diff whitespace validation passed. The exact corrected commit is
+backed up privately at
+`recovery/order-dispute-loss-recovery-draft-20260930`.
+
+The public PR still points to failed head `724682c63...`; no new public push or
+merge is authorized by this record. Publishing corrected head `a5fb870a...`
+requires a new exact-head approval. No migration, deployment, or Stripe action
+occurred.
