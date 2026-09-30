@@ -13,9 +13,10 @@ deployment smoke, or alias cutover.
 - Finding: audit item `#108`.
 - Current source draft is committed at
   `4515da45ef16b9784ede47f4b6cedd21c2f12b57` and backed up privately on
-  `recovery/order-dispute-loss-recovery-draft-20260930`. It has not been
-  published to the public repository, merged, deployed, applied to Production,
-  or used against Stripe.
+  `recovery/order-dispute-loss-recovery-draft-20260930`. The exact commit is
+  also published on public deployment-disabled branch
+  `codex/order-dispute-loss-recovery-20260930`. No PR is open. It has not been
+  merged, deployed, applied to Production, or used against Stripe.
 
 ## Verified current behavior
 
@@ -131,6 +132,9 @@ The automatic merged-main run is readback only.
 
 The user explicitly approved the source-only webhook connection and named the
 future automatic seller-transfer reversal/restoration effect. Source
-implementation is complete. Separate approval is still required to publish or
-merge the source; later Production approval is required to apply its migration,
-deploy it, and allow it to affect live Stripe transfers.
+implementation is complete. The later one-word approval allowed the exact
+public branch push, but automatic approval review rejected draft-PR creation
+because the message did not literally restate publication and conditional
+merge. Exact authorization is still required to open and conditionally merge
+the PR. Later Production approval is required to apply its migration, deploy
+it, and allow it to affect live Stripe transfers.
