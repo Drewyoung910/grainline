@@ -106,3 +106,30 @@ once on the exact merged main commit. Do not repeat full suites for unchanged
 bytes. Quote activation may be dispatched only from exact accepted main through
 the guarded Production workflow, after a fresh accepted read-only child-authority
 inspection and exact accepted `OrderItem` FORCE run readback.
+
+## Separate FORCE successor
+
+The FORCE successor is prepared as migration
+`20261001060000_force_order_shipping_rate_quote_rls`. It is intentionally
+stacked after the quote ENABLE release and must not be published, merged, or
+dispatched until ENABLE has passed exact-head CI, merged-main CI, a fresh
+read-only Production authority inspection, and its guarded Production
+postflight.
+
+The FORCE migration requires all three Order-family tables to be policyless,
+zero-direct, owned by the reviewed migration owner, and already RLS-enabled;
+`Order`, `OrderItem`, and their quote table must have the exact predecessor
+FORCE posture (`true`, `true`, and `false`, respectively). It re-pins the four
+quote functions, zero-trigger catalog, restricted-role membership, owner
+session drain, and zero table/column grants before changing only
+`OrderShippingRateQuote` to `FORCE ROW LEVEL SECURITY`. Its rollback changes
+only that table to `NO FORCE ROW LEVEL SECURITY`, leaving policyless ENABLE and
+all zero-direct boundaries intact.
+
+CI verifies and isolates FORCE before ENABLE, restores and applies it only
+after ENABLE succeeds in disposable PostgreSQL, and runs the global grant audit
+after each posture transition. The manual Production workflow binds FORCE to
+exact main, successful push CI, a fresh quote-ENABLE authority inspection, and
+the accepted quote ENABLE Production run. No broad local suite is required for
+unchanged predecessor bytes; the focused FORCE contract tests and one hosted
+exact-head CI run are the review boundary.
