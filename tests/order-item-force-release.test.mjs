@@ -39,3 +39,46 @@ test("OrderItem rollback restores policyless zero-direct ENABLE", () => {
   assert.match(rollback, /pg_catalog\.pg_auth_members/);
   assert.match(rollback, /OrderItem rollback owner-session drain is incomplete/);
 });
+
+test("CI isolates FORCE until policyless ENABLE succeeds", () => {
+  const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  const verifyForce = workflow.indexOf("Verify staged OrderItem FORCE source package");
+  const isolateForce = workflow.indexOf("Isolate OrderItem FORCE until policyless ENABLE passes");
+  const verifyEnable = workflow.indexOf("Verify staged OrderItem ENABLE source package");
+  const isolateEnable = workflow.indexOf("Isolate OrderItem ENABLE until every accepted predecessor passes");
+  const tests = workflow.indexOf("- name: Tests");
+  const restoreEnable = workflow.indexOf("Restore OrderItem ENABLE release");
+  const applyEnable = workflow.indexOf("Apply only OrderItem ENABLE in disposable PostgreSQL");
+  const restoreForce = workflow.indexOf("Restore OrderItem FORCE release");
+  const applyForce = workflow.indexOf("Apply only OrderItem FORCE in disposable PostgreSQL");
+  assert.ok(verifyForce >= 0 && verifyForce < isolateForce);
+  assert.ok(isolateForce < verifyEnable && verifyEnable < isolateEnable);
+  assert.ok(isolateEnable < tests && tests < restoreEnable);
+  assert.ok(restoreEnable < applyEnable && applyEnable < restoreForce);
+  assert.ok(restoreForce < applyForce);
+  assert.match(
+    workflow,
+    /name: Tests[\s\S]*ORDER_ITEM_FORCE_MIGRATION_PATH: \$\{\{ runner\.temp \}\}\/order-item-force-release\/migration\.sql[\s\S]*npm test/u,
+  );
+});
+
+test("Production FORCE is manual, exact-bound and restart-safe", () => {
+  const workflow = fs.readFileSync(
+    ".github/workflows/order-item-force-production.yml",
+    "utf8",
+  );
+  assert.match(workflow, /^name: OrderItem FORCE Production$/m);
+  assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /github\.run_attempt == 1/);
+  assert.match(workflow, /inputs\.confirmation == 'force-reviewed-order-item-rls'/);
+  assert.match(workflow, /REVIEWED_ENABLE_RUN_ID: \$\{\{ inputs\.enable_run_id \}\}/);
+  assert.match(workflow, /enableRun\.name !== 'OrderItem ENABLE Production'/);
+  assert.match(workflow, /enableRun\.path !== '\.github\/workflows\/order-item-enable-production\.yml'/);
+  assert.match(workflow, /job\.name === 'Enable policyless OrderItem RLS'/);
+  assert.match(workflow, /enableComparison/);
+  assert.match(workflow, /node scripts\/guard-production-migration-runner\.mjs/);
+  assert.match(workflow, /if: steps\.preflight\.outputs\.state == 'pending'/);
+  assert.match(workflow, /run: npx prisma migrate deploy/);
+  assert.match(workflow, /orderItemRlsEnabled: true, orderItemRlsForced: true/);
+  assert.match(workflow, /retention-days: 7/);
+});

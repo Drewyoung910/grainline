@@ -1,0 +1,288 @@
+name: OrderItem FORCE Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      authority_inspection_run_id:
+        description: Successful Order child authority inspection run
+        required: true
+        type: string
+      enable_run_id:
+        description: Successful reviewed OrderItem ENABLE Production run
+        required: true
+        type: string
+      confirmation:
+        description: Type force-reviewed-order-item-rls
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  force:
+    name: Force policyless OrderItem RLS
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'force-reviewed-order-item-rls'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind FORCE to exact main, CI, ENABLE and authority inspection
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_INSPECTION_RUN_ID: ${{ inputs.authority_inspection_run_id }}
+          REVIEWED_ENABLE_RUN_ID: ${{ inputs.enable_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const inspectionValue = process.env.REVIEWED_INSPECTION_RUN_ID;
+            const enableValue = process.env.REVIEWED_ENABLE_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(inspectionValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(enableValue ?? '')) {
+              throw new Error('OrderItem FORCE binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const inspectionRunId = Number(inspectionValue);
+            const enableRunId = Number(enableValue);
+            if (!Number.isSafeInteger(ciRunId) ||
+                !Number.isSafeInteger(inspectionRunId) ||
+                !Number.isSafeInteger(enableRunId)) {
+              throw new Error('OrderItem FORCE run id is unsafe');
+            }
+            const [{data: main}, {data: ci}, {data: inspection}, {data: enableRun}] =
+              await Promise.all([
+                github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: inspectionRunId}),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: enableRunId}),
+              ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.status !== 'completed' ||
+                ci.conclusion !== 'success' ||
+                inspection.name !== 'Order Child Authority Inspection' ||
+                inspection.path !== '.github/workflows/order-child-authority-inspection.yml' ||
+                inspection.event !== 'workflow_dispatch' ||
+                inspection.head_branch !== 'main' ||
+                Number(inspection.run_attempt) !== 1 ||
+                inspection.status !== 'completed' ||
+                inspection.conclusion !== 'success' ||
+                !/^[0-9a-f]{40}$/.test(inspection.head_sha ?? '') ||
+                enableRun.name !== 'OrderItem ENABLE Production' ||
+                enableRun.path !== '.github/workflows/order-item-enable-production.yml' ||
+                enableRun.event !== 'workflow_dispatch' ||
+                enableRun.head_branch !== 'main' ||
+                Number(enableRun.run_attempt) !== 1 ||
+                enableRun.status !== 'completed' ||
+                enableRun.conclusion !== 'success' ||
+                !/^[0-9a-f]{40}$/.test(enableRun.head_sha ?? '')) {
+              throw new Error('OrderItem FORCE main/run readback drifted');
+            }
+            const jobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRun,
+              {...context.repo, run_id: inspectionRunId, per_page: 100},
+            );
+            const proofJobs = jobs.filter((job) =>
+              job.name === 'Read OrderItem and quote authority catalog' &&
+              job.status === 'completed' && job.conclusion === 'success'
+            );
+            if (proofJobs.length !== 1) {
+              throw new Error('Order child authority inspection proof job is absent');
+            }
+            const enableJobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRun,
+              {...context.repo, run_id: enableRunId, per_page: 100},
+            );
+            const enableProofJobs = enableJobs.filter((job) =>
+              job.name === 'Enable policyless OrderItem RLS' &&
+              job.status === 'completed' && job.conclusion === 'success'
+            );
+            if (enableProofJobs.length !== 1) {
+              throw new Error('OrderItem ENABLE Production proof job is absent');
+            }
+            const [{data: comparison}, {data: enableComparison}] = await Promise.all([
+              github.rest.repos.compareCommits({
+                ...context.repo, base: inspection.head_sha, head: sha,
+              }),
+              github.rest.repos.compareCommits({
+                ...context.repo, base: enableRun.head_sha, head: sha,
+              }),
+            ]);
+            if (!['ahead', 'identical'].includes(comparison.status) ||
+                !['ahead', 'identical'].includes(enableComparison.status)) {
+              throw new Error('Accepted FORCE predecessor is not an ancestor');
+            }
+      - name: Verify exact policyless FORCE release
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20261001040000_force_order_item_rls"
+          echo "0e01461f02cd6f76341caccc7b5657dcea109c2955bd94b5748dddc1c6c04949  prisma/migrations/20261001040000_force_order_item_rls/migration.sql" | sha256sum --check --status
+          node --test tests/order-item-force-release.test.mjs tests/order-child-authority-catalog.test.mjs tests/order-direct-access-inventory.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture exact predecessor or restart state
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync} from 'node:fs';
+          import pg from 'pg';
+          const predecessor = Object.freeze({
+            name: '20261001030000_enable_order_item_rls',
+            checksum: '512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520',
+          });
+          const migration = Object.freeze({
+            name: '20261001040000_force_order_item_rls',
+            checksum: '0e01461f02cd6f76341caccc7b5657dcea109c2955bd94b5748dddc1c6c04949',
+          });
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const result = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[predecessor.name, migration.name]]);
+            const rows = new Map(result.rows.map((row) => [row.migration_name, row]));
+            const accepted = (row, checksum) => row && row.checksum === checksum &&
+              row.finished_at && row.rolled_back_at === null &&
+              Number(row.applied_steps_count) === 1;
+            assert.equal(accepted(rows.get(predecessor.name), predecessor.checksum), true);
+            const candidate = rows.get(migration.name);
+            if (candidate) assert.equal(accepted(candidate, migration.checksum), true);
+            assert.equal(result.rows.length, candidate ? 2 : 1);
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${candidate ? 'applied' : 'pending'}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261001040000_force_order_item_rls
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected OrderItem FORCE state" >&2
+            exit 1
+          fi
+      - name: Apply only reviewed OrderItem FORCE
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger and authority catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          import {
+            readOrderChildAuthorityCatalog,
+            verifyOrderChildAuthorityCatalog,
+          } from './scripts/order-child-authority-catalog.mjs';
+          const migration = '20261001040000_force_order_item_rls';
+          const checksum = '0e01461f02cd6f76341caccc7b5657dcea109c2955bd94b5748dddc1c6c04949';
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = await client.query(`
+              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+                FROM public._prisma_migrations WHERE migration_name = $1
+            `, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+            const catalog = await readOrderChildAuthorityCatalog(client);
+            const result = verifyOrderChildAuthorityCatalog(
+              catalog,
+              process.cwd(),
+              {orderItemRlsEnabled: true, orderItemRlsForced: true},
+            );
+            await client.query('ROLLBACK');
+            writeFileSync(
+              `${process.env.RUNNER_TEMP}/order-item-force-catalog.json`,
+              `${JSON.stringify({result, catalog}, null, 2)}\n`,
+              {mode: 0o600, flag: 'wx'},
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Preserve sanitized FORCE catalog
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: order-item-force-catalog-${{ github.run_id }}
+          path: ${{ runner.temp }}/order-item-force-catalog.json
+          if-no-files-found: error
+          retention-days: 7
+          include-hidden-files: false

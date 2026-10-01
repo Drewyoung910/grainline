@@ -15,12 +15,16 @@ import {
 
 const DRAFT_HEADER = "-- DRAFT ONLY. Do not apply to any persistent database.";
 const RELEASE_HEADER = "-- Reviewed policyless OrderItem FORCE hardening.\n-- Apply only through the guarded main-only production migration workflow.";
+const DEFAULT_MIGRATION_PATH =
+  "prisma/migrations/20261001040000_force_order_item_rls/migration.sql";
+const migrationPath =
+  process.env.ORDER_ITEM_FORCE_MIGRATION_PATH?.trim() || DEFAULT_MIGRATION_PATH;
 
 export const ORDER_ITEM_FORCE_RELEASE = Object.freeze({
   migrationName: "20261001040000_force_order_item_rls",
   draftPath: "docs/rls-drafts/order-item-force.sql",
   rollbackPath: "docs/rls-drafts/order-item-force-rollback.sql",
-  migrationPath: "prisma/migrations/20261001040000_force_order_item_rls/migration.sql",
+  migrationPath,
   draftSha256: "50ac4d32d5d68c5dbdd887afd4e68ea94f8929448058f8d891a886fb0db5f6d4",
   rollbackSha256: "e4720c564f4d54bae28d133a337e270e734de57e47e08a833ca7e0228a5ae3a7",
   migrationSha256: "0e01461f02cd6f76341caccc7b5657dcea109c2955bd94b5748dddc1c6c04949",
@@ -30,7 +34,10 @@ const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const count = (value, pattern) => (value.match(pattern) ?? []).length;
 
 function readPinned(rootDirectory, relativePath, expectedSha256) {
-  const value = fs.readFileSync(path.join(rootDirectory, relativePath), "utf8");
+  const sourcePath = path.isAbsolute(relativePath)
+    ? relativePath
+    : path.join(rootDirectory, relativePath);
+  const value = fs.readFileSync(sourcePath, "utf8");
   assert.equal(sha256(value), expectedSha256, `${relativePath} bytes drifted`);
   return value;
 }
