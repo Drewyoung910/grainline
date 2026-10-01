@@ -83,6 +83,19 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify staged quote FORCE source package
+        run: >-
+          node --test
+          tests/order-quote-force-release.test.mjs
+          tests/order-child-authority-catalog.test.mjs
+          tests/order-direct-access-inventory.test.mjs
+      - name: Isolate quote FORCE until quote ENABLE passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            prisma/migrations/20261001060000_force_order_shipping_rate_quote_rls \
+            "$RUNNER_TEMP/order-quote-force-release"
       - name: Verify staged quote ENABLE source package
         run: >-
           node --test
@@ -2449,6 +2462,26 @@ jobs:
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261001050000_enable_order_shipping_rate_quote_rls/migration.sql
       - name: Audit runtime grants after quote ENABLE
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore quote FORCE release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-quote-force-release" \
+            prisma/migrations/20261001060000_force_order_shipping_rate_quote_rls
+      - name: Re-verify quote FORCE source package
+        run: >-
+          node --test
+          tests/order-quote-force-release.test.mjs
+          tests/order-child-authority-catalog.test.mjs
+          tests/order-direct-access-inventory.test.mjs
+      - name: Apply only quote FORCE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261001060000_force_order_shipping_rate_quote_rls/migration.sql
+      - name: Audit runtime grants after quote FORCE
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
