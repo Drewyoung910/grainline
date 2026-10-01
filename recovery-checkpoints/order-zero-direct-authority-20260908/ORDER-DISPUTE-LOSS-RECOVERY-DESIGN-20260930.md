@@ -555,3 +555,31 @@ A second attempt after another one-word `approve` was also rejected before
 execution because the latest trusted message did not itself contain those
 three exact identifiers. No workflow was dispatched and Production remains
 unchanged.
+
+## Production migration accepted — 2026-09-30
+
+The user explicitly authorized migration
+`20260930040000_prepare_order_dispute_recovery` on main
+`c7d956c2046b481693a7edec89f6b7b5995366cc` using successful push CI
+`36799285933`. Protected workflow run `36802255461` was dispatched on that
+exact main commit, paused before credential access at the Production
+environment, and proceeded after its required environment approval.
+
+The workflow completed successfully in 39 seconds. Its preflight verified the
+exact main/CI binding, migration hash, owner-connection boundary, accepted
+ops-health predecessor, absence of object collisions, and absence of unrelated
+pending migrations. Prisma then applied only
+`20260930040000_prepare_order_dispute_recovery` and reported all migrations
+successfully applied.
+
+Postflight accepted the exact Prisma ledger entry, enum labels, constraints,
+indexes, policyless FORCE-RLS ledger posture, no runtime or PUBLIC direct table
+privilege, exact four function bodies/owners/configuration/grants, nonnegative
+health counts, and unchanged `Order`, `OrderPaymentEvent`, and
+`SystemAuditLog` posture. Final Prisma status found 271 migrations and reported
+the Production schema up to date.
+
+The migration is now live in Production. The application code that creates and
+processes dispute-recovery claims has not yet been deployed, so no live Stripe
+reversal or restoration can occur from this release until a separately
+approved application deployment and alias cutover.
