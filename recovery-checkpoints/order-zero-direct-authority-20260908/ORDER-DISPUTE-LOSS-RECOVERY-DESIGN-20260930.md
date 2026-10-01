@@ -550,3 +550,8 @@ To satisfy the external approval review, the user must explicitly name
 migration `20260930040000_prepare_order_dispute_recovery`, main
 `c7d956c2046b481693a7edec89f6b7b5995366cc`, and CI `36799285933` in the next
 authorization. The exact intended action and its limits are unchanged.
+
+A second attempt after another one-word `approve` was also rejected before
+execution because the latest trusted message did not itself contain those
+three exact identifiers. No workflow was dispatched and Production remains
+unchanged.
