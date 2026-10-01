@@ -150,6 +150,9 @@ describe("order-state audit follow-up guardrails", () => {
 
   it("keeps staff case resolution atomic and persists computed full-refund amounts", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const reconciliation = source(
+      "src/lib/caseRefundProviderReconciliation.ts",
+    );
     const authority = source(
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
     ).replace(/\s+/g, " ");
@@ -171,8 +174,8 @@ describe("order-state audit follow-up guardrails", () => {
       /"refundAmountCents" = locked_claim\."refundAmountCents"/,
     );
     assert.match(
-      route,
-      /amountCents: prepared\.refundAmountCents!/,
+      reconciliation,
+      /amountCents: prepared\.refundAmountCents/,
     );
     assert.match(
       route,

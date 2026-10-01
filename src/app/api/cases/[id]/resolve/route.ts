@@ -4,9 +4,13 @@ import * as Sentry from "@sentry/nextjs";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
+import {
+  isCaseRefundProviderReconciliationRequiredError,
+  resolveCaseRefundProviderOutcome,
+} from "@/lib/caseRefundProviderReconciliation";
 import {
   prepareCaseStaffResolution,
+  loadCaseStaffResolutionProviderRecovery,
   recordAmbiguousCaseStaffResolutionProvider,
   recordCaseStaffResolutionProvider,
   type CaseStaffResolution,
@@ -44,6 +48,7 @@ const CaseResolveSchema = z.object({
   })).max(50).optional(),
 });
 const CASE_RESOLVE_BODY_MAX_BYTES = 24 * 1024;
+const CASE_REFUND_PROVIDER_RETRY_AFTER_SECONDS = 30;
 
 function authorityFailureResponse(
   error: unknown,
@@ -201,58 +206,108 @@ export async function POST(
           resolution === "REFUND_PARTIAL" ? requestedStockRestores : [],
       });
     } catch (error) {
-      const response = authorityFailureResponse(error, "prepare");
-      if (response) return response;
-      throw error;
+      if (getPrismaRawSqlState(error) === "23505") {
+        try {
+          prepared = await loadCaseStaffResolutionProviderRecovery({
+            actorUserId: me.id,
+            caseId: id,
+            resolution,
+            partialRefundAmountCents:
+              resolution === "REFUND_PARTIAL" ? refundAmountCents : null,
+          });
+        } catch (recoveryLoadError) {
+          const response = authorityFailureResponse(
+            recoveryLoadError,
+            "prepare",
+          );
+          if (response) return response;
+          throw recoveryLoadError;
+        }
+      } else {
+        const response = authorityFailureResponse(error, "prepare");
+        if (response) return response;
+        throw error;
+      }
     }
 
-    if (prepared.status === "RECONCILIATION_REQUIRED") {
-      return privateJson(
-        {
-          error:
-            "This Case refund has an ambiguous provider outcome. An administrator must reconcile it before retrying.",
-        },
-        { status: HTTP_STATUS.CONFLICT },
-      );
-    }
-
-    if (refunding && prepared.status === "PROVIDER_PENDING") {
+    if (
+      refunding
+      && (
+        prepared.status === "PROVIDER_PENDING"
+        || prepared.status === "RECONCILIATION_REQUIRED"
+        || (
+          prepared.status === "PROVIDER_RECORDED"
+          && prepared.action === "recovery_required"
+        )
+      )
+    ) {
       if (prepared.resolution === "DISMISSED") {
         throw new TypeError("Dismissal cannot enter provider processing");
       }
       let refund;
       try {
-        refund = await createMarketplaceRefund({
-          paymentIntentId: prepared.paymentIntentId!,
-          resolution: prepared.resolution,
-          amountCents: prepared.refundAmountCents!,
-          itemsSubtotalCents: prepared.itemsSubtotalCents,
-          shippingAmountCents: prepared.shippingAmountCents,
-          giftWrappingPriceCents: prepared.giftWrappingPriceCents,
-          taxAmountCents: prepared.taxAmountCents,
-          canReverseTransfer: prepared.canReverseTransfer,
-          idempotencyKeyBase: prepared.idempotencyScope!,
-          reason: "requested_by_customer",
-        });
+        const outcome = await resolveCaseRefundProviderOutcome(me.id, prepared);
+        prepared = outcome.prepared;
+        refund = outcome.providerResult;
       } catch (stripeError) {
-        try {
-          await recordAmbiguousCaseStaffResolutionProvider(
-            me.id,
-            prepared,
+        if (isCaseRefundProviderReconciliationRequiredError(stripeError)) {
+          if (
+            prepared.status === "PROVIDER_PENDING"
+            && prepared.action !== "recovery_required"
+          ) {
+            try {
+              await recordAmbiguousCaseStaffResolutionProvider(
+                me.id,
+                prepared,
+              );
+            } catch (recordError) {
+              Sentry.captureException(recordError, {
+                tags: {
+                  source: "case_refund_ambiguous_record_failed",
+                },
+                extra: {
+                  caseId: prepared.caseId,
+                  orderId: prepared.orderId,
+                  resolutionClaimId: prepared.claimId,
+                },
+              });
+              throw recordError;
+            }
+          }
+          return privateJson(
+            {
+              error:
+                "Stripe refund evidence requires administrator reconciliation before this Case can be resolved.",
+            },
+            { status: HTTP_STATUS.CONFLICT },
           );
-        } catch (recordError) {
-          Sentry.captureException(recordError, {
-            tags: {
-              source: "case_refund_ambiguous_record_failed",
-            },
-            extra: {
-              caseId: prepared.caseId,
-              orderId: prepared.orderId,
-              resolutionClaimId: prepared.claimId,
-            },
-          });
         }
-        throw stripeError;
+
+        // A connection or provider read failure does not prove that Stripe
+        // created a refund. Keep the exact claim pending so a later request
+        // inspects Stripe before reusing the claim-bound idempotency key.
+        Sentry.captureException(stripeError, {
+          tags: { source: "case_refund_provider_retryable" },
+          extra: {
+            caseId: prepared.caseId,
+            orderId: prepared.orderId,
+            resolutionClaimId: prepared.claimId,
+          },
+        });
+        return privateJson(
+          {
+            error:
+              "The refund provider did not confirm the result. Retry shortly; the same Case refund will not be duplicated.",
+          },
+          {
+            status: HTTP_STATUS.SERVICE_UNAVAILABLE,
+            headers: {
+              "Retry-After": String(
+                CASE_REFUND_PROVIDER_RETRY_AFTER_SECONDS,
+              ),
+            },
+          },
+        );
       }
 
       try {

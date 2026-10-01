@@ -1678,6 +1678,20 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_dispute_recovery_finalize",
       "grainline_order_dispute_recovery_health_summary",
     ];
+    const caseRefundProviderRecoveryMigrationPath =
+      "prisma/migrations/20261001070000_prepare_case_refund_provider_recovery/migration.sql";
+    const caseRefundProviderRecoveryMigrationPresent = existsSync(
+      caseRefundProviderRecoveryMigrationPath,
+    ) && source(caseRefundProviderRecoveryMigrationPath).includes(
+      "CREATE OR REPLACE FUNCTION\n  public.grainline_case_staff_resolution_provider_recover(",
+    );
+    const caseRefundProviderRecoveryFunctionNames = [
+      "grainline_case_staff_resolution_provider_clock",
+      "grainline_case_staff_resolution_provider_recover",
+      "grainline_case_staff_resolution_provider_recovery_load",
+      "grainline_case_staff_resolution_provider_recovery_record",
+      "grainline_case_staff_resolution_recovery_finalize",
+    ];
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -1715,6 +1729,9 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_seller_verification_eligibility",
       "grainline_case_staff_resolution_finalize",
       "grainline_case_staff_resolution_prepare",
+      ...(caseRefundProviderRecoveryMigrationPresent
+        ? caseRefundProviderRecoveryFunctionNames
+        : []),
       "grainline_case_staff_resolution_provider_record",
       "grainline_case_staff_resolution_reconcile",
       "grainline_case_staff_active_count",
@@ -1839,6 +1856,7 @@ describe("database grant inventory guardrails", () => {
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
         + (orderOpsHealthMigrationPresent ? 1 : 0)
         + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
+        + (caseRefundProviderRecoveryMigrationPresent ? 5 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (conversationMessageAuthorityPrepared ? 25 : 0)
@@ -1922,6 +1940,9 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_resolution_provider_record",
       "grainline_case_staff_resolution_finalize",
       "grainline_case_staff_resolution_reconcile",
+      ...(caseRefundProviderRecoveryMigrationPresent
+        ? caseRefundProviderRecoveryFunctionNames
+        : []),
       "grainline_order_buyer_pii_prune_batch",
     ]) {
       assert.equal(
@@ -2219,11 +2240,11 @@ describe("database grant inventory guardrails", () => {
         ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
         ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
         ...(orderItemRlsForceExpected(inventory) ? ["OrderItem"] : []),
+        "OrderPaymentEvent",
+        "OrderRefundReconciliation",
         ...(orderQuoteRlsForceExpected(inventory)
           ? ["OrderShippingRateQuote"]
           : []),
-        "OrderPaymentEvent",
-        "OrderRefundReconciliation",
         "OrderStaffCapability",
         "SavedSearch",
         "SellerDeauthorizationApplication",

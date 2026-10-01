@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   ORDER_ITEM_DIRECT_FUNCTIONS,
+  ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS,
   ORDER_ITEM_TRIGGER_FUNCTIONS,
   ORDER_ITEM_TRIGGER_SOURCE_MD5,
   ORDER_QUOTE_DIRECT_FUNCTIONS,
@@ -88,7 +89,7 @@ test("accepted Order child authority catalog is exact and read-only", () => {
   assert.deepEqual(verifyOrderChildAuthorityCatalog(acceptedCatalog()), {
     databaseMode: "production-read-only",
     tableOwner: owner,
-    orderItemDirectFunctionCount: 34,
+    orderItemDirectFunctionCount: 35,
     quoteDirectFunctionCount: 4,
     orderItemTriggerCount: 2,
     rowDataRead: false,
@@ -117,6 +118,16 @@ test("reviewed catalog exactly matches latest migration-tree definitions", () =>
       (entry) => entry.securityDefiner && !entry.leakproof,
     ),
     true,
+  );
+  assert.deepEqual(
+    orderChildSourceFunctionCatalog(
+      process.cwd(),
+      "20261001030000_enable_order_item_rls",
+    )
+      .filter((entry) => entry.touchesOrderItem)
+      .map((entry) => entry.name)
+      .sort(),
+    [...ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS],
   );
 });
 

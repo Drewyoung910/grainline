@@ -97,11 +97,17 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("records staff case refunds only while the refund lock is still held", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const reconciliation = source(
+      "src/lib/caseRefundProviderReconciliation.ts",
+    );
     const authority = source(
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
     );
 
-    assert.match(route, /canReverseTransfer: prepared\.canReverseTransfer/);
+    assert.match(
+      reconciliation,
+      /canReverseTransfer: prepared\.canReverseTransfer/,
+    );
     assert.doesNotMatch(route, /refundMayRestoreStock/);
     assert.match(authority, /"caseResolutionClaimId" = claim_id/);
     assert.match(authority, /"sellerRefundId" = CASE/);
@@ -171,7 +177,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(caseRoute, /case_refund_ambiguous_record_failed/);
     assert.match(
       caseRoute,
-      /catch \(stripeError\)[\s\S]*recordAmbiguousCaseStaffResolutionProvider\([\s\S]*throw stripeError/,
+      /catch \(stripeError\)[\s\S]*isCaseRefundProviderReconciliationRequiredError\(stripeError\)[\s\S]*recordAmbiguousCaseStaffResolutionProvider\([\s\S]*HTTP_STATUS\.CONFLICT/,
     );
     assert.match(
       source(
@@ -193,6 +199,9 @@ describe("payment and fulfillment side-effect observability", () => {
       "src/lib/orderRefundProviderReconciliation.ts",
     );
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const caseProviderReconciliation = source(
+      "src/lib/caseRefundProviderReconciliation.ts",
+    );
     const sellerAuthority = source(
       "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
     );
@@ -209,7 +218,10 @@ describe("payment and fulfillment side-effect observability", () => {
       sellerAuthority,
       /'canReverseTransfer', locked_order\."stripeTransferId" IS NOT NULL/,
     );
-    assert.match(caseRoute, /canReverseTransfer: prepared\.canReverseTransfer/);
+    assert.match(
+      caseProviderReconciliation,
+      /canReverseTransfer: prepared\.canReverseTransfer/,
+    );
     assert.match(
       source(
         "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
@@ -274,7 +286,9 @@ describe("payment and fulfillment side-effect observability", () => {
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
     ).replace(/\s+/g, " ");
     const prepareStart = route.indexOf("await prepareCaseStaffResolution(");
-    const stripeStart = route.indexOf("await createMarketplaceRefund(");
+    const stripeStart = route.indexOf(
+      "await resolveCaseRefundProviderOutcome(",
+    );
     const finalizeStart = route.indexOf(
       "await finalizeCaseStaffResolutionWithSideEffects(",
     );
@@ -760,12 +774,19 @@ describe("payment and fulfillment side-effect observability", () => {
   });
 
   it("does not tag ordinary staff case refunds as fraudulent Stripe refunds", () => {
-    const route = source("src/app/api/cases/[id]/resolve/route.ts");
-    const refundStart = route.indexOf("await createMarketplaceRefund({");
-    const refundEnd = route.indexOf("});", refundStart);
-    const refundCall = route.slice(refundStart, refundEnd);
+    const providerReconciliation = source(
+      "src/lib/caseRefundProviderReconciliation.ts",
+    );
+    const refundStart = providerReconciliation.indexOf(
+      "await createMarketplaceRefund({",
+    );
+    const refundEnd = providerReconciliation.indexOf("});", refundStart);
+    const refundCall = providerReconciliation.slice(refundStart, refundEnd);
 
-    assert.ok(refundStart >= 0, "case resolution route must use the shared marketplace refund helper");
+    assert.ok(
+      refundStart >= 0,
+      "Case provider reconciliation must use the shared marketplace refund helper",
+    );
     assert.match(refundCall, /reason: "requested_by_customer"/);
     assert.doesNotMatch(refundCall, /fraudulent/);
   });

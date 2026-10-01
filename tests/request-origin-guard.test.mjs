@@ -109,7 +109,7 @@ describe("request origin guard", () => {
       "readBoundedJson(req",
       "releaseCaseLegacyRefundLock({",
       "prepareCaseStaffResolution({",
-      "createMarketplaceRefund({",
+      "resolveCaseRefundProviderOutcome(me.id, prepared)",
     ]);
   });
 

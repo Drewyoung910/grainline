@@ -274,7 +274,7 @@ describe("Case and Order lifecycle lock protocol", () => {
 
     assertOrdered(staffResolve, [
       ["staff prepare", "await prepareCaseStaffResolution("],
-      ["staff provider", "await createMarketplaceRefund("],
+      ["staff provider", "await resolveCaseRefundProviderOutcome("],
       ["staff provider record", "await recordCaseStaffResolutionProvider("],
       [
         "staff finalize and durable delivery",

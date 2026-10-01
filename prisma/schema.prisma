@@ -101,6 +101,7 @@ model User {
   caseMessageAttachments CaseMessageAttachment[] @relation("CaseMessageAttachments")
   caseOpeningsAsBuyer    CaseOpenApplication[]   @relation("CaseOpenApplicationBuyer")
   caseOpeningsAsSeller   CaseOpenApplication[]   @relation("CaseOpenApplicationSeller")
+  caseProviderRecoveries CaseResolutionClaim[]   @relation("CaseResolutionProviderRecoveryActor")
   directUploads          DirectUpload[]
 
   savedSearches      SavedSearch[]
@@ -1133,27 +1134,36 @@ model Case {
 // deferred Order lease and FORCE/zero-policy posture. Runtime table access is
 // intentionally absent; reviewed fixed functions are the only access path.
 model CaseResolutionClaim {
-  id                   String                    @id
-  caseId               String
-  orderId              String
-  staffActorId         String
-  resolution           CaseResolution
-  refundAmountCents    Int?
-  currency             String                    @db.VarChar(3)
-  stockRestorePlan     Json                      @default("[]")
-  status               CaseResolutionClaimStatus
-  idempotencyScope     String?                   @unique @db.VarChar(191)
-  orderPaymentEventId  String?                   @unique
-  providerRecordedAt   DateTime?
-  finalizedAt          DateTime?
-  reconciledAt         DateTime?
-  reconciledById       String?
-  reconciliationAction String?                   @db.VarChar(40)
-  reconciliationReason String?                   @db.VarChar(1000)
-  createdAt            DateTime                  @default(now())
-  updatedAt            DateTime                  @updatedAt
+  id                             String                    @id
+  caseId                         String
+  orderId                        String
+  staffActorId                   String
+  resolution                     CaseResolution
+  refundAmountCents              Int?
+  currency                       String                    @db.VarChar(3)
+  stockRestorePlan               Json                      @default("[]")
+  status                         CaseResolutionClaimStatus
+  idempotencyScope               String?                   @unique @db.VarChar(191)
+  orderPaymentEventId            String?                   @unique
+  providerRecordedAt             DateTime?
+  finalizedAt                    DateTime?
+  reconciledAt                   DateTime?
+  reconciledById                 String?
+  reconciliationAction           String?                   @db.VarChar(40)
+  reconciliationReason           String?                   @db.VarChar(1000)
+  providerRecoveryActorId        String?
+  providerRecoveryActor          User?                     @relation("CaseResolutionProviderRecoveryActor", fields: [providerRecoveryActorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  providerRecoveryAction         String?                   @db.VarChar(32)
+  providerRecoveryEvidenceSha256 String?                   @db.VarChar(64)
+  providerRecoveryInspectedAt    DateTime?
+  providerRecoveryAuthorizedAt   DateTime?
+  providerRecoveryRecordedAt     DateTime?
+  providerRecoveryFinalizedAt    DateTime?
+  createdAt                      DateTime                  @default(now())
+  updatedAt                      DateTime                  @updatedAt
 
   @@index([status, createdAt])
+  @@index([providerRecoveryActorId, status, providerRecoveryAuthorizedAt])
 }
 
 // Private immutable replay ledger for the fixed Stripe-dispute Case

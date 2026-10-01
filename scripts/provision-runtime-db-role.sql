@@ -949,6 +949,21 @@ WITH staff_resolution_rpc(function_signature) AS (
     ),
     (
       'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recovery_load(text, text, public."CaseResolution", integer)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_clock(text, text, text, text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recover(text, text, text, bigint, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recovery_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_recovery_finalize(text, text)'
     )
 )
 SELECT format(
@@ -972,6 +987,21 @@ WITH staff_resolution_rpc(function_signature) AS (
     ),
     (
       'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recovery_load(text, text, public."CaseResolution", integer)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_clock(text, text, text, text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recover(text, text, text, bigint, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recovery_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_recovery_finalize(text, text)'
     )
 )
 SELECT format(
@@ -996,6 +1026,21 @@ WITH staff_resolution_rpc(function_signature) AS (
     ),
     (
       'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recovery_load(text, text, public."CaseResolution", integer)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_clock(text, text, text, text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recover(text, text, text, bigint, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_recovery_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_recovery_finalize(text, text)'
     )
 )
 SELECT format(
