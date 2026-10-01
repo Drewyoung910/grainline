@@ -126,7 +126,7 @@ jobs:
           set -euo pipefail
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
           test "$latest" = "prisma/migrations/20261001030000_enable_order_item_rls"
-          echo "512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520  prisma/migrations/20261001030000_enable_order_item_rls/migration.sql" | sha256sum --check --status
+          echo "928413764a087ef5f535f99ed993c85da0a528767e26a89d2faf791eb9c29d17  prisma/migrations/20261001030000_enable_order_item_rls/migration.sql" | sha256sum --check --status
           node --test tests/order-item-enable-release.test.mjs tests/order-child-authority-catalog.test.mjs tests/order-direct-access-inventory.test.mjs
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
@@ -147,7 +147,7 @@ jobs:
           });
           const migration = Object.freeze({
             name: '20261001030000_enable_order_item_rls',
-            checksum: '512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520',
+            checksum: '928413764a087ef5f535f99ed993c85da0a528767e26a89d2faf791eb9c29d17',
           });
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
@@ -214,7 +214,7 @@ jobs:
             verifyOrderChildAuthorityCatalog,
           } from './scripts/order-child-authority-catalog.mjs';
           const migration = '20261001030000_enable_order_item_rls';
-          const checksum = '512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520';
+          const checksum = '928413764a087ef5f535f99ed993c85da0a528767e26a89d2faf791eb9c29d17';
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();

@@ -15,6 +15,13 @@ test("OrderItem ENABLE is one pinned policyless table release", () => {
   assert.match(release.migration, /OrderItem ENABLE/);
   assert.match(release.migration, /accepted_functions <> 34/);
   assert.match(release.migration, /accepted_triggers <> 2/);
+  assert.match(
+    release.migration,
+    /expected\(function_identity, source_md5, language_name, volatility, parallel_safety\)/,
+  );
+  assert.equal((release.migration.match(/, 'sql', 's', 's'\)/gu) ?? []).length, 4);
+  assert.equal((release.migration.match(/, 'plpgsql', '[sv]', '[su]'\)/gu) ?? []).length, 30);
+  assert.doesNotMatch(release.migration, /actual\.lanname = 'plpgsql'/u);
   assert.match(release.migration, /OrderShippingRateQuote stays/);
   assert.doesNotMatch(release.migration, /CREATE POLICY|DROP POLICY/);
   assert.equal(

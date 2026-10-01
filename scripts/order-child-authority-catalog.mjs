@@ -147,6 +147,24 @@ function identityArguments(source) {
   }).join(",");
 }
 
+function functionDeclarationMetadata(declaration) {
+  const language = declaration.match(/\bLANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)/iu)?.[1]
+    ?.toLowerCase();
+  assert.ok(language, "function language is missing");
+  return Object.freeze({
+    languageName: language,
+    volatility: /\bIMMUTABLE\b/iu.test(declaration)
+      ? "i"
+      : /\bSTABLE\b/iu.test(declaration) ? "s" : "v",
+    parallelSafety: /\bPARALLEL\s+SAFE\b/iu.test(declaration)
+      ? "s"
+      : /\bPARALLEL\s+RESTRICTED\b/iu.test(declaration) ? "r" : "u",
+    securityDefiner: /\bSECURITY\s+DEFINER\b/iu.test(declaration),
+    leakproof: /\bLEAKPROOF\b/iu.test(declaration)
+      && !/\bNOT\s+LEAKPROOF\b/iu.test(declaration),
+  });
+}
+
 export function orderChildSourceFunctionCatalog(rootDirectory = process.cwd()) {
   const migrationRoot = path.join(rootDirectory, "prisma/migrations");
   const definitions = new Map();
@@ -177,6 +195,7 @@ export function orderChildSourceFunctionCatalog(rootDirectory = process.cwd()) {
     name: entry.name,
     identity: `${entry.name}(${identityArguments(entry.argumentsSource)})`,
     sourceMd5: createHash("md5").update(entry.body).digest("hex"),
+    ...functionDeclarationMetadata(entry.declaration),
     touchesOrderItem: entry.body.includes('"OrderItem"'),
     touchesQuote: entry.body.includes('"OrderShippingRateQuote"'),
   })).sort((left, right) => left.identity.localeCompare(right.identity)));
@@ -441,9 +460,18 @@ export function verifyOrderChildAuthorityCatalog(
       `${identity} body drifted`,
     );
     assert.equal(entry.owner_name, tableOwner, `${entry.function_name} owner drifted`);
-    assert.equal(entry.language_name, "plpgsql", `${entry.function_name} language drifted`);
+    const expected = expectedByIdentity.get(identity);
+    assert.equal(entry.language_name, expected?.languageName, `${entry.function_name} language drifted`);
     assert.equal(entry.function_kind, "f", `${entry.function_name} kind drifted`);
+    assert.equal(entry.volatility, expected?.volatility, `${entry.function_name} volatility drifted`);
+    assert.equal(
+      entry.parallel_safety,
+      expected?.parallelSafety,
+      `${entry.function_name} parallel safety drifted`,
+    );
+    assert.equal(expected?.securityDefiner, true, `${entry.function_name} source is not SECURITY DEFINER`);
     assert.equal(entry.security_definer, true, `${entry.function_name} is not SECURITY DEFINER`);
+    assert.equal(expected?.leakproof, false, `${entry.function_name} source became leakproof`);
     assert.equal(entry.leakproof, false, `${entry.function_name} became leakproof`);
     assert.equal(entry.function_config?.length, 1, `${entry.function_name} config drifted`);
     assert.equal(entry.function_config?.[0], "search_path=pg_catalog");

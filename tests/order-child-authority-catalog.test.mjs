@@ -19,12 +19,12 @@ function functionRow(source) {
     function_name: source.name,
     identity_arguments: source.identity.slice(source.identity.indexOf("(") + 1, -1).replaceAll(",", ", "),
     owner_name: owner,
-    language_name: "plpgsql",
+    language_name: source.languageName,
     function_kind: "f",
-    security_definer: true,
-    leakproof: false,
-    volatility: "v",
-    parallel_safety: "u",
+    security_definer: source.securityDefiner,
+    leakproof: source.leakproof,
+    volatility: source.volatility,
+    parallel_safety: source.parallelSafety,
     function_config: ["search_path=pg_catalog"],
     source_md5: source.sourceMd5,
     contains_dynamic_execute: false,
@@ -100,6 +100,23 @@ test("reviewed catalog exactly matches latest migration-tree definitions", () =>
     orderChildSourceCatalog(),
     [...ORDER_ITEM_DIRECT_FUNCTIONS, ...ORDER_QUOTE_DIRECT_FUNCTIONS].sort(),
   );
+  assert.deepEqual(
+    orderChildSourceFunctionCatalog()
+      .filter((entry) => entry.languageName === "sql")
+      .map((entry) => entry.name),
+    [
+      "grainline_order_buyer_detail_v3",
+      "grainline_order_public_marketplace_listing_metrics",
+      "grainline_order_seller_detail_v3",
+      "grainline_order_summary_items",
+    ],
+  );
+  assert.equal(
+    orderChildSourceFunctionCatalog().every(
+      (entry) => entry.securityDefiner && !entry.leakproof,
+    ),
+    true,
+  );
 });
 
 test("catalog normalizes PostgreSQL ACL booleans before JavaScript verification", () => {
@@ -138,6 +155,11 @@ test("catalog rejects an unreviewed direct function or unsafe authority", () => 
   const invoker = acceptedCatalog();
   invoker.functions[0].security_definer = false;
   assert.throws(() => verifyOrderChildAuthorityCatalog(invoker), /not SECURITY DEFINER/u);
+
+  const languageDrift = acceptedCatalog();
+  const sqlFunction = languageDrift.functions.find((entry) => entry.language_name === "sql");
+  sqlFunction.language_name = "plpgsql";
+  assert.throws(() => verifyOrderChildAuthorityCatalog(languageDrift), /language drifted/u);
 
   const renamedTrigger = acceptedCatalog();
   renamedTrigger.triggers[0].trigger_name = "grainline_unreviewed_trigger";

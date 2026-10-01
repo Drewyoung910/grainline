@@ -97,42 +97,42 @@ BEGIN
     RAISE EXCEPTION 'OrderItem ENABLE predecessor table posture drifted';
   END IF;
 
-  WITH expected(function_identity, source_md5) AS (
+  WITH expected(function_identity, source_md5, language_name, volatility, parallel_safety) AS (
     VALUES
-      ('grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)', '57afbb69975aabeff64b8a069f9088cf'),
-      ('grainline_case_open(text,text,text,text)', '741cef386e47a5047c059656f22f3812'),
-      ('grainline_case_order_active_for_seller(text,text)', 'e1bd9e5ffec798a749f2305d88ba8d81'),
-      ('grainline_case_relationship_valid()', '5c8cd6676aab7214cebf12c856be0735'),
-      ('grainline_case_seller_refund_apply(text,text)', '7ea7a74ab55bc55e820e6b53f66c2bc6'),
-      ('grainline_case_staff_resolution_finalize(text,text)', 'fb6fc41b09f72ff9829d86c60bf35018'),
-      ('grainline_case_staff_resolution_prepare(text,text,"CaseResolution",integer,jsonb)', '8381d17e1e4ad3436f2656253e9739e3'),
-      ('grainline_case_stripe_dispute_apply(text)', '80ffd7529e4c60abf58a74b8bd413641'),
-      ('grainline_listing_order_archive_blocked(text,text,bigint)', 'ae0a686ef16514bb33ea841cfc712abd'),
-      ('grainline_notification_create_core(text,text,"NotificationType",text,text,text)', '9b40f25710d5ee3cac009a0caa903a5a'),
-      ('grainline_order_buyer_detail_v3(text,text)', '556b29d2864993ce6b2b2a57c76ed71a'),
-      ('grainline_order_buyer_detail(text,text)', '10a32366a0b5813358734682fea8275e'),
-      ('grainline_order_buyer_export_page(text,integer,bigint,text)', '8eace73cd359c4f995f4d42857136d3e'),
-      ('grainline_order_public_listing_counts(text[])', '82580230c9612ff046c0a62f9b999e47'),
-      ('grainline_order_public_marketplace_listing_metrics()', '7f968c15969b4f935e286f5a900e062d'),
-      ('grainline_order_public_seller_stats(text,bigint)', '33503a4cbf24f53b129f333b439664f6'),
-      ('grainline_order_review_eligibility_lock(text,text,bigint)', 'bfd9386e3bb872ba6cc78cc6d1e4acd2'),
-      ('grainline_order_seller_analytics_buckets(text,bigint,bigint,boolean,text)', 'ccb51dc955603c009f64f4bd434240bd'),
-      ('grainline_order_seller_analytics_summary(text,bigint,bigint,boolean)', '3996c8a65104b6fa30aeceb3e1294175'),
-      ('grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488'),
-      ('grainline_order_seller_detail_v3(text,text)', 'a14f6d9ac4cc9c45e553df1218678f77'),
-      ('grainline_order_seller_detail(text,text)', '241f803eec631729808de3fe80ced481'),
-      ('grainline_order_seller_export_page(text,integer,bigint,text)', '3823a99388b6903dbf2618faf8485f78'),
-      ('grainline_order_seller_key_assert(text)', '8e75629c22f5da0fcf4f776f13bce04f'),
-      ('grainline_order_seller_label_preflight(text,text)', 'e6f2c0bcda6d4eb87760c371c10d3e4c'),
-      ('grainline_order_seller_metrics_facts(text,bigint)', 'd5ec7383846a3d8d1f870c8f7405626c'),
-      ('grainline_order_seller_recent_sales(text)', 'c4ea0bdb0b76c03ae3ce8629a857878b'),
-      ('grainline_order_seller_verification_sales(text,text)', 'ea74eb7deb00c3ad71c8f16c7073587a'),
-      ('grainline_order_staff_detail(text,text)', '62999162d995c7f3a462548472cfed5b'),
-      ('grainline_order_staff_page(text,text,integer,integer)', '1080ddc6ad70f2af5cda7daa48228b1f'),
-      ('grainline_order_summary_items(text)', '26a7d771f7421fdd54cbacb23985d3ae'),
-      ('grainline_seller_refund_record(text,text,bigint,text,text,text,integer)', '90696d8074ce8af6b683513b5af153c7'),
-      ('grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)', 'f3f6cee9d60e2688a4adf1e61aee58c8'),
-      ('grainline_stripe_checkout_postpayment(text,bigint,text)', '29bf0946a48fe5b42f6ebe9e1a2cadd2')
+      ('grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)', '57afbb69975aabeff64b8a069f9088cf', 'plpgsql', 'v', 'u'),
+      ('grainline_case_open(text,text,text,text)', '741cef386e47a5047c059656f22f3812', 'plpgsql', 'v', 'u'),
+      ('grainline_case_order_active_for_seller(text,text)', 'e1bd9e5ffec798a749f2305d88ba8d81', 'plpgsql', 'v', 'u'),
+      ('grainline_case_relationship_valid()', '5c8cd6676aab7214cebf12c856be0735', 'plpgsql', 'v', 'u'),
+      ('grainline_case_seller_refund_apply(text,text)', '7ea7a74ab55bc55e820e6b53f66c2bc6', 'plpgsql', 'v', 'u'),
+      ('grainline_case_staff_resolution_finalize(text,text)', 'fb6fc41b09f72ff9829d86c60bf35018', 'plpgsql', 'v', 'u'),
+      ('grainline_case_staff_resolution_prepare(text,text,"CaseResolution",integer,jsonb)', '8381d17e1e4ad3436f2656253e9739e3', 'plpgsql', 'v', 'u'),
+      ('grainline_case_stripe_dispute_apply(text)', '80ffd7529e4c60abf58a74b8bd413641', 'plpgsql', 'v', 'u'),
+      ('grainline_listing_order_archive_blocked(text,text,bigint)', 'ae0a686ef16514bb33ea841cfc712abd', 'plpgsql', 's', 's'),
+      ('grainline_notification_create_core(text,text,"NotificationType",text,text,text)', '9b40f25710d5ee3cac009a0caa903a5a', 'plpgsql', 'v', 'u'),
+      ('grainline_order_buyer_detail_v3(text,text)', '556b29d2864993ce6b2b2a57c76ed71a', 'sql', 's', 's'),
+      ('grainline_order_buyer_detail(text,text)', '10a32366a0b5813358734682fea8275e', 'plpgsql', 's', 's'),
+      ('grainline_order_buyer_export_page(text,integer,bigint,text)', '8eace73cd359c4f995f4d42857136d3e', 'plpgsql', 's', 's'),
+      ('grainline_order_public_listing_counts(text[])', '82580230c9612ff046c0a62f9b999e47', 'plpgsql', 's', 's'),
+      ('grainline_order_public_marketplace_listing_metrics()', '7f968c15969b4f935e286f5a900e062d', 'sql', 's', 's'),
+      ('grainline_order_public_seller_stats(text,bigint)', '33503a4cbf24f53b129f333b439664f6', 'plpgsql', 's', 's'),
+      ('grainline_order_review_eligibility_lock(text,text,bigint)', 'bfd9386e3bb872ba6cc78cc6d1e4acd2', 'plpgsql', 'v', 'u'),
+      ('grainline_order_seller_analytics_buckets(text,bigint,bigint,boolean,text)', 'ccb51dc955603c009f64f4bd434240bd', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_analytics_summary(text,bigint,bigint,boolean)', '3996c8a65104b6fa30aeceb3e1294175', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_detail_v3(text,text)', 'a14f6d9ac4cc9c45e553df1218678f77', 'sql', 's', 's'),
+      ('grainline_order_seller_detail(text,text)', '241f803eec631729808de3fe80ced481', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_export_page(text,integer,bigint,text)', '3823a99388b6903dbf2618faf8485f78', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_key_assert(text)', '8e75629c22f5da0fcf4f776f13bce04f', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_label_preflight(text,text)', 'e6f2c0bcda6d4eb87760c371c10d3e4c', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_metrics_facts(text,bigint)', 'd5ec7383846a3d8d1f870c8f7405626c', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_recent_sales(text)', 'c4ea0bdb0b76c03ae3ce8629a857878b', 'plpgsql', 's', 's'),
+      ('grainline_order_seller_verification_sales(text,text)', 'ea74eb7deb00c3ad71c8f16c7073587a', 'plpgsql', 's', 's'),
+      ('grainline_order_staff_detail(text,text)', '62999162d995c7f3a462548472cfed5b', 'plpgsql', 's', 's'),
+      ('grainline_order_staff_page(text,text,integer,integer)', '1080ddc6ad70f2af5cda7daa48228b1f', 'plpgsql', 's', 's'),
+      ('grainline_order_summary_items(text)', '26a7d771f7421fdd54cbacb23985d3ae', 'sql', 's', 's'),
+      ('grainline_seller_refund_record(text,text,bigint,text,text,text,integer)', '90696d8074ce8af6b683513b5af153c7', 'plpgsql', 'v', 'u'),
+      ('grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)', 'f3f6cee9d60e2688a4adf1e61aee58c8', 'plpgsql', 'v', 'u'),
+      ('grainline_stripe_checkout_postpayment(text,bigint,text)', '29bf0946a48fe5b42f6ebe9e1a2cadd2', 'plpgsql', 'v', 'u')
   ), actual AS (
     SELECT procedure.oid,
            procedure.proname || '(' || pg_catalog.replace(
@@ -140,7 +140,9 @@ BEGIN
            ) || ')' AS function_identity,
            pg_catalog.md5(procedure.prosrc) AS source_md5,
            procedure.proowner,
-           language.lanname,
+           language.lanname::text AS language_name,
+           procedure.provolatile::text AS volatility,
+           procedure.proparallel::text AS parallel_safety,
            procedure.prokind,
            procedure.prosecdef,
            procedure.proleakproof,
@@ -159,9 +161,10 @@ BEGIN
     (SELECT pg_catalog.count(*)::integer FROM actual),
     (SELECT pg_catalog.count(*)::integer
        FROM expected
-       JOIN actual USING (function_identity, source_md5)
+       JOIN actual USING (
+         function_identity, source_md5, language_name, volatility, parallel_safety
+       )
       WHERE actual.proowner = table_owner
-        AND actual.lanname = 'plpgsql'
         AND actual.prokind = 'f'
         AND actual.prosecdef AND NOT actual.proleakproof
         AND actual.proconfig = ARRAY['search_path=pg_catalog']::text[]

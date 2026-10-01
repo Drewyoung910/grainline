@@ -31,8 +31,10 @@ The latest migration definitions contain 38 direct child-table functions:
 
 - 34 directly reference `OrderItem`;
 - four directly reference `OrderShippingRateQuote`;
-- all 38 are PL/pgSQL `SECURITY DEFINER` functions with
-  `search_path=pg_catalog`;
+- all 38 are `SECURITY DEFINER` functions with `search_path=pg_catalog`;
+- four reviewed `OrderItem` readers are SQL-language stable, parallel-safe
+  functions; the other 30 `OrderItem` functions are PL/pgSQL with their exact
+  volatility and parallel-safety attributes pinned per identity;
 - two non-internal triggers are attached to `OrderItem`, using
   `grainline_order_item_seller_key_bind` and
   `grainline_order_item_seller_key_complete`;
@@ -62,11 +64,31 @@ The OrderItem candidate normalizes both function and trigger ACL booleans to
 the exact words `true` and `false` and includes a regression check for that
 boundary.
 
+## First candidate CI finding
+
+The first public candidate head `1e5715cb11883653809d66f3ef21326140fd722b`
+completed the broad CI suite but failed safely in the final disposable
+PostgreSQL apply (run `36818251498`). The preflight had incorrectly required all
+34 direct `OrderItem` functions to be PL/pgSQL. Four reviewed stable,
+parallel-safe readers are intentionally SQL-language functions:
+
+- `grainline_order_buyer_detail_v3`;
+- `grainline_order_public_marketplace_listing_metrics`;
+- `grainline_order_seller_detail_v3`;
+- `grainline_order_summary_items`.
+
+The amended candidate pins each function's exact language, volatility and
+parallel-safety attributes alongside its identity and body hash. It retains the
+independent requirements that all 34 functions are `SECURITY DEFINER`,
+non-leakproof, owner-controlled, fixed-search-path functions with reviewed
+execute ACLs and no dynamic `EXECUTE`. The failed head remains unmerged and no
+Production SQL ran.
+
 ## Prepared OrderItem ENABLE release
 
 The prepared successor is migration
 `20261001030000_enable_order_item_rls`, SHA-256
-`512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520`.
+`928413764a087ef5f535f99ed993c85da0a528767e26a89d2faf791eb9c29d17`.
 It enables policyless RLS on `OrderItem`, explicitly retains NO FORCE, re-revokes
 all ordinary-runtime, staff-runtime and PUBLIC table authority, and leaves
 `OrderShippingRateQuote` unchanged. Its atomic preflight pins all 34 direct
