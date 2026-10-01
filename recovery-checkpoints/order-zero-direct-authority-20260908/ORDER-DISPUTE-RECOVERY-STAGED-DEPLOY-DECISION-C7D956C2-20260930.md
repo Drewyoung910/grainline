@@ -152,3 +152,31 @@ For future qualifying signed dispute events, the reviewed code may reverse a
 seller transfer and later restore it according to the accepted recovery ledger.
 It does not create a dispute, replay a webhook, or mutate an existing dispute as
 part of the cutover itself.
+
+## Live routing accepted
+
+The user explicitly authorized moving all five canonical Production aliases to
+candidate `dpl_28tcPC1h37j1chjuPUB3fPxUeEGp`, activating its live behavior,
+with automatic or interruption-triggered restoration of predecessor
+`dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J` if validation failed. The fixed recovery
+wrapper executed after another exact preflight.
+
+The operator promoted the candidate and explicitly assigned all five aliases.
+Its guarded postflight accepted at `2026-10-01T02:36:51.274Z`:
+
+- all five exact aliases on `dpl_28tcPC1h37j1chjuPUB3fPxUeEGp`;
+- canonical health true;
+- deployment source
+  `c7d956c2046b481693a7edec89f6b7b5995366cc`; and
+- no checkout cutover or Core Order RLS change.
+
+No rollback was required. Independent readback then reconfirmed remote main,
+five-of-five alias ownership, READY/PROMOTED deployment identity, exact
+project/team/source/ref/marker, canonical `{"ok":true}` health, and the public
+home-page marker `dpl=dpl_28tcPC1h37j1chjuPUB3fPxUeEGp`.
+
+The signed Stripe dispute recovery handler and its retry cron are now live for
+future qualifying signed events. The cutover did not create or replay a
+dispute. The preserved rollback deployment remains
+`dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J` at immutable host
+`grainline-i2hm5z9cb-drew-youngs-projects.vercel.app`.

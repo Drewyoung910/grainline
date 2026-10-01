@@ -583,3 +583,34 @@ The migration is now live in Production. The application code that creates and
 processes dispute-recovery claims has not yet been deployed, so no live Stripe
 reversal or restoration can occur from this release until a separately
 approved application deployment and alias cutover.
+
+## Application deployment and alias cutover accepted — 2026-09-30
+
+The earlier statement immediately above is superseded. After exact deployment
+authorization, one Production-target candidate was built from exact main
+`c7d956c2046b481693a7edec89f6b7b5995366cc` using successful merged-main CI
+`36799285933` and unique marker
+`order-staged-c7d956c2-20261001-01`. Candidate
+`dpl_28tcPC1h37j1chjuPUB3fPxUeEGp` became READY at immutable host
+`grainline-qweqclm4p-drew-youngs-projects.vercel.app`. Its exact provider
+identity, health response, and deployment marker passed, while all five
+canonical aliases remained on predecessor
+`dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J`.
+
+The user then explicitly authorized the exact five-alias cutover and fixed
+predecessor recovery. The recovery-wrapped operator promoted the candidate,
+explicitly assigned all five aliases, and accepted its guarded postflight at
+`2026-10-01T02:36:51.274Z`. No rollback was needed. Independent provider and
+public-origin readback confirmed:
+
+- remote main remained exact `c7d956c2...`;
+- all five aliases resolved to `dpl_28tcPC1h37j1chjuPUB3fPxUeEGp`;
+- the deployment was READY/PROMOTED with exact project, team, source, ref, and
+  marker;
+- canonical `/api/health` returned `{"ok":true}`; and
+- the canonical home page embedded the candidate deployment marker.
+
+The dispute-recovery database ledger, signed webhook connection, and retry
+cron are now live for future qualifying signed Stripe events. The release did
+not create or replay a dispute. The immutable rollback target remains
+`dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J`.
