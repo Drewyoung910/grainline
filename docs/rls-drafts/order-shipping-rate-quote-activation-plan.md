@@ -15,10 +15,11 @@ The required table posture is:
 - all three tables owned by the reviewed migration owner;
 - zero non-owner table or column privileges on all three tables.
 
-The source baseline for this plan is local stacked commit
-`38ede9409f6596b8baec87bdf8d25d0f80ff7599`, which contains the unpublished
-OrderItem FORCE successor. The quote work must be rebased onto the exact
-accepted OrderItem FORCE main commit before publication.
+The source baseline for this plan is accepted public main
+`a1e0f2d3ed5ef1d745279278a04d3598872ebb56`. Production run `36848393564`
+applied and accepted the exact `OrderItem` FORCE release on that source line.
+The quote-only history was replayed onto that accepted boundary before the
+release migration and guarded workflow were created.
 
 ## Exact authority inventory
 
@@ -102,4 +103,6 @@ unexpired quote for the same locked Order and revalidates amount and currency.
 Focused source and disposable-database proofs are appropriate while this plan
 is local. A broad CI run is required once on the exact public ENABLE head and
 once on the exact merged main commit. Do not repeat full suites for unchanged
-bytes. No quote activation may be dispatched from this local stacked branch.
+bytes. Quote activation may be dispatched only from exact accepted main through
+the guarded Production workflow, after a fresh accepted read-only child-authority
+inspection and exact accepted `OrderItem` FORCE run readback.

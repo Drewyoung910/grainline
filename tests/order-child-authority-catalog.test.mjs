@@ -157,7 +157,7 @@ test("inspection CLI requires an explicit exact child-table posture", () => {
     "utf8",
   );
   assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_ENABLED: "true"/u);
-  assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_FORCED: "false"/u);
+  assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_FORCED: "true"/u);
   assert.match(workflow, /EXPECTED_ORDER_QUOTE_RLS_ENABLED: "false"/u);
   assert.match(workflow, /EXPECTED_ORDER_QUOTE_RLS_FORCED: "false"/u);
 });

@@ -122,6 +122,7 @@ const {
   CHECKOUT_STOCK_RESERVATION_TABLE,
   CORE_ORDER_TABLE,
   ORDER_ITEM_TABLE,
+  ORDER_QUOTE_TABLE,
   ORDER_PAYMENT_EVENT_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   assertGrantAuditConnectionMatches,
@@ -142,6 +143,8 @@ const {
   coreOrderRlsForceExpected,
   orderItemRlsActivationExpected,
   orderItemRlsForceExpected,
+  orderQuoteRlsActivationExpected,
+  orderQuoteRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -946,6 +949,56 @@ describe("database grant inventory guardrails", () => {
     assert.equal(orderItemRlsActivationExpected({
       ...enabled,
       rlsPolicyTables: [ORDER_ITEM_TABLE],
+    }), false);
+  });
+
+  it("accepts quote policyless ENABLE and audits its later FORCE separately", () => {
+    const predecessor = {
+      tables: [ORDER_QUOTE_TABLE],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+      orderItemQuoteRuntimeLockApplied: true,
+    };
+    const enabled = { ...predecessor, rlsEnableTables: [ORDER_QUOTE_TABLE] };
+    const forced = { ...enabled, rlsForceTables: [ORDER_QUOTE_TABLE] };
+    assert.equal(orderQuoteRlsActivationExpected(predecessor), false);
+    assert.equal(orderQuoteRlsActivationExpected(enabled), true);
+    assert.equal(orderQuoteRlsForceExpected(enabled), false);
+    assert.equal(orderQuoteRlsForceExpected(forced), true);
+    assert.deepEqual(requiredRuntimeTablePrivileges(ORDER_QUOTE_TABLE, predecessor), []);
+    assert.deepEqual(requiredRuntimeTablePrivileges(ORDER_QUOTE_TABLE, enabled), []);
+    assert.equal(
+      policylessServiceRlsTableNames(predecessor).includes(ORDER_QUOTE_TABLE),
+      false,
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(enabled).includes(ORDER_QUOTE_TABLE),
+      true,
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues([{
+        table_name: ORDER_QUOTE_TABLE,
+        rls_enabled: true,
+        rls_forced: false,
+        policy_count: 0,
+      }], enabled),
+      [],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues([{
+        table_name: ORDER_QUOTE_TABLE,
+        rls_enabled: true,
+        rls_forced: false,
+        policy_count: 0,
+      }], forced),
+      [
+        "service-only table OrderShippingRateQuote must have FORCE ROW LEVEL SECURITY enabled",
+      ],
+    );
+    assert.equal(orderQuoteRlsActivationExpected({
+      ...enabled,
+      rlsPolicyTables: [ORDER_QUOTE_TABLE],
     }), false);
   });
 
@@ -1787,6 +1840,7 @@ describe("database grant inventory guardrails", () => {
         + (orderOpsHealthMigrationPresent ? 1 : 0)
         + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
+        + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
@@ -2136,6 +2190,9 @@ describe("database grant inventory guardrails", () => {
         ...(orderItemRlsActivationExpected(inventory) ? ["OrderItem"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
+        ...(orderQuoteRlsActivationExpected(inventory)
+          ? ["OrderShippingRateQuote"]
+          : []),
         "OrderStaffCapability",
         "SavedSearch",
         "SellerDeauthorizationApplication",
@@ -2162,6 +2219,9 @@ describe("database grant inventory guardrails", () => {
         ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
         ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
         ...(orderItemRlsForceExpected(inventory) ? ["OrderItem"] : []),
+        ...(orderQuoteRlsForceExpected(inventory)
+          ? ["OrderShippingRateQuote"]
+          : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "OrderStaffCapability",
