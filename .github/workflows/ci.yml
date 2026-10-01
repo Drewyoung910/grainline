@@ -1921,6 +1921,8 @@ jobs:
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
       - name: Tests
+        env:
+          ORDER_ITEM_ENABLE_MIGRATION_PATH: ${{ runner.temp }}/order-item-enable-release/migration.sql
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test

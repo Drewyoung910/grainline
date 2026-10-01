@@ -39,6 +39,10 @@ test("CI isolates the staged OrderItem migration and applies it only after prede
   const apply = workflow.indexOf("Apply only OrderItem ENABLE in disposable PostgreSQL");
   assert.ok(verify >= 0 && verify < isolate);
   assert.ok(isolate < dispute && dispute < restore && restore < apply);
+  assert.match(
+    workflow,
+    /name: Tests[\s\S]*ORDER_ITEM_ENABLE_MIGRATION_PATH: \$\{\{ runner\.temp \}\}\/order-item-enable-release\/migration\.sql[\s\S]*npm test/u,
+  );
   assert.equal(
     (workflow.match(/20261001030000_enable_order_item_rls/gu) ?? []).length,
     3,
