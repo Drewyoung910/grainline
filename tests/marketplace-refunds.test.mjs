@@ -126,6 +126,54 @@ describe("marketplace refunds", () => {
     );
   });
 
+  it("anchors Case refunds to provider-searchable claim metadata", async () => {
+    const calls = [];
+    const claimId =
+      "case_resolution_claim_8b0d3dbf-58cc-4c38-9c7b-fbc1d35df79d";
+    await createMarketplaceRefundWithCreator(
+      baseOpts({
+        resolution: "REFUND_FULL",
+        idempotencyKeyBase:
+          `case-resolve:${claimId}:REFUND_FULL:11325`,
+        claimMetadata: {
+          claimId,
+          source: "CASE",
+        },
+      }),
+      async (params, requestOptions) => {
+        calls.push({ params, requestOptions });
+        return { id: "re_case_claim" };
+      },
+    );
+
+    assert.deepEqual(calls[0]?.params.metadata, {
+      grainline_refund_claim_id: claimId,
+      grainline_refund_claim_generation: "1",
+      grainline_refund_claim_source: "CASE",
+      grainline_refund_idempotency_scope:
+        `case-resolve:${claimId}:REFUND_FULL:11325`,
+      grainline_refund_component: "full",
+    });
+    assert.equal(
+      calls[0]?.requestOptions.idempotencyKey,
+      `case-resolve:${claimId}:REFUND_FULL:11325:full`,
+    );
+  });
+
+  it("rejects Case metadata outside the Case idempotency scope", async () => {
+    const claimId =
+      "case_resolution_claim_8b0d3dbf-58cc-4c38-9c7b-fbc1d35df79d";
+    await assert.rejects(
+      () => createMarketplaceRefundWithCreator(
+        baseOpts({
+          claimMetadata: { claimId, source: "CASE" },
+        }),
+        async () => ({ id: "never" }),
+      ),
+      /provider metadata is inconsistent/,
+    );
+  });
+
   it("includes gift wrapping in the full reverse-transfer refund amount", async () => {
     const calls = [];
     const result = await createMarketplaceRefundWithCreator(

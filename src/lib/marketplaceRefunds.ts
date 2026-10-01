@@ -20,7 +20,7 @@ type MarketplaceRefundOptions = {
   taxAmountCents: number;
   canReverseTransfer: boolean;
   idempotencyKeyBase: string;
-  claimMetadata?: OrderRefundClaimProviderMetadata;
+  claimMetadata?: RefundClaimProviderMetadata;
   reason?: Stripe.RefundCreateParams.Reason;
 };
 
@@ -29,6 +29,15 @@ export type OrderRefundClaimProviderMetadata = {
   claimGeneration: bigint;
   source: "SELLER" | "BLOCKED_CHECKOUT";
 };
+
+export type CaseRefundClaimProviderMetadata = {
+  claimId: string;
+  source: "CASE";
+};
+
+export type RefundClaimProviderMetadata =
+  | OrderRefundClaimProviderMetadata
+  | CaseRefundClaimProviderMetadata;
 
 type RefundIdempotencyScope =
   | "seller-refund"
@@ -82,10 +91,18 @@ function refundClaimMetadata(
   if (!claim) return undefined;
   const expectedScope = claim.source === "SELLER"
     ? "seller-refund"
-    : "blocked-checkout-refund";
+    : claim.source === "BLOCKED_CHECKOUT"
+      ? "blocked-checkout-refund"
+      : "case-resolve";
+  const expectedIdPattern = claim.source === "CASE"
+    ? /^case_resolution_claim_[0-9a-f-]{36}$/
+    : /^order_refund_claim_[0-9a-f-]{36}$/;
+  const claimGeneration = claim.source === "CASE"
+    ? 1n
+    : claim.claimGeneration;
   if (
-    !/^order_refund_claim_[0-9a-f-]{36}$/.test(claim.claimId)
-    || claim.claimGeneration < 1n
+    !expectedIdPattern.test(claim.claimId)
+    || claimGeneration < 1n
     || !opts.idempotencyKeyBase.startsWith(
       `${expectedScope}:${claim.claimId}:`,
     )
@@ -94,7 +111,7 @@ function refundClaimMetadata(
   }
   return {
     grainline_refund_claim_id: claim.claimId,
-    grainline_refund_claim_generation: claim.claimGeneration.toString(),
+    grainline_refund_claim_generation: claimGeneration.toString(),
     grainline_refund_claim_source: claim.source,
     grainline_refund_idempotency_scope: opts.idempotencyKeyBase,
     grainline_refund_component: component,

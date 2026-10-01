@@ -35,7 +35,11 @@ export type PreparedCaseStaffResolution = {
   giftWrappingPriceCents: number | null;
   taxAmountCents: number;
   canReverseTransfer: boolean;
-  action: "prepared" | "replay";
+  action: "prepared" | "replay" | "recovery_required" | "recovered";
+  providerRecoveryAction:
+    | "RETRY_EXISTING_SCOPE"
+    | "RECORD_DISCOVERED_EFFECT"
+    | null;
 };
 
 export type RecordedCaseStaffResolutionProvider = {
@@ -329,6 +333,26 @@ function validatePreparedResult(
     }
   }
 
+  const action = requireOneOf(
+    row.action,
+    ["prepared", "replay", "recovery_required", "recovered"] as const,
+    "Case staff-resolution prepare action",
+  );
+  const providerRecoveryAction = row.providerRecoveryAction == null
+    ? null
+    : requireOneOf(
+      row.providerRecoveryAction,
+      ["RETRY_EXISTING_SCOPE", "RECORD_DISCOVERED_EFFECT"] as const,
+      "Case staff-resolution provider recovery action",
+    );
+  if (
+    (action === "recovered") !== (providerRecoveryAction !== null)
+  ) {
+    throw new TypeError(
+      "Case staff-resolution provider recovery action drifted",
+    );
+  }
+
   return {
     claimId,
     caseId,
@@ -372,11 +396,8 @@ function validatePreparedResult(
       row.canReverseTransfer,
       "Case staff-resolution transfer posture",
     ),
-    action: requireOneOf(
-      row.action,
-      ["prepared", "replay"] as const,
-      "Case staff-resolution prepare action",
-    ),
+    action,
+    providerRecoveryAction,
   };
 }
 
@@ -567,6 +588,29 @@ export async function prepareCaseStaffResolution(
   );
 }
 
+export async function loadCaseStaffResolutionProviderRecovery(
+  input: {
+    actorUserId: string;
+    caseId: string;
+    resolution: CaseStaffResolution;
+    partialRefundAmountCents: number | null;
+  },
+  db: CaseStaffResolutionClient = prisma,
+) {
+  const rows = await db.$queryRaw<Array<{ result: unknown }>>`
+    SELECT public.grainline_case_staff_resolution_provider_recovery_load(
+      ${input.actorUserId}::text,
+      ${input.caseId}::text,
+      ${input.resolution}::public."CaseResolution",
+      ${input.partialRefundAmountCents}::integer
+    ) AS result
+  `;
+  return validatePreparedResult(
+    requireSingleResult(rows, "Case staff-resolution provider recovery load"),
+    input,
+  );
+}
+
 export async function recordCaseStaffResolutionProvider(
   actorUserId: string,
   prepared: PreparedCaseStaffResolution,
@@ -586,8 +630,13 @@ export async function recordCaseStaffResolutionProvider(
       ),
     )}]::text[]
   `;
+  const providerFunction = prepared.action === "recovered"
+    ? Prisma.raw(
+      "public.grainline_case_staff_resolution_provider_recovery_record",
+    )
+    : Prisma.raw("public.grainline_case_staff_resolution_provider_record");
   const rows = await db.$queryRaw<Array<{ result: unknown }>>`
-    SELECT public.grainline_case_staff_resolution_provider_record(
+    SELECT ${providerFunction}(
       ${actorUserId}::text,
       ${prepared.claimId}::text,
       'RECORDED'::text,
@@ -604,6 +653,38 @@ export async function recordCaseStaffResolutionProvider(
     requireSingleResult(rows, "Case staff-resolution provider record"),
     prepared,
     "RECORDED",
+  );
+}
+
+export async function recoverCaseStaffResolutionProvider(
+  actorUserId: string,
+  prepared: PreparedCaseStaffResolution,
+  recovery: {
+    action: "RETRY_EXISTING_SCOPE" | "RECORD_DISCOVERED_EFFECT";
+    inspectedAtSeconds: number;
+    providerEvidenceSha256: string;
+  },
+  db: CaseStaffResolutionClient = prisma,
+) {
+  if (
+    !Number.isSafeInteger(recovery.inspectedAtSeconds)
+    || recovery.inspectedAtSeconds < 1
+    || !/^[0-9a-f]{64}$/.test(recovery.providerEvidenceSha256)
+  ) {
+    throw new TypeError("Case staff-resolution recovery evidence is invalid");
+  }
+  const rows = await db.$queryRaw<Array<{ result: unknown }>>`
+    SELECT public.grainline_case_staff_resolution_provider_recover(
+      ${actorUserId}::text,
+      ${prepared.claimId}::text,
+      ${recovery.action}::text,
+      ${recovery.inspectedAtSeconds}::bigint,
+      ${recovery.providerEvidenceSha256}::text
+    ) AS result
+  `;
+  return validatePreparedResult(
+    requireSingleResult(rows, "Case staff-resolution provider recovery"),
+    prepared,
   );
 }
 
@@ -638,8 +719,12 @@ export async function finalizeCaseStaffResolution(
   prepared: PreparedCaseStaffResolution,
   db: CaseStaffResolutionClient = prisma,
 ) {
+  const finalizeFunction = prepared.action === "recovered"
+    || prepared.action === "recovery_required"
+    ? Prisma.raw("public.grainline_case_staff_resolution_recovery_finalize")
+    : Prisma.raw("public.grainline_case_staff_resolution_finalize");
   const rows = await db.$queryRaw<Array<{ result: unknown }>>`
-    SELECT public.grainline_case_staff_resolution_finalize(
+    SELECT ${finalizeFunction}(
       ${actorUserId}::text,
       ${prepared.claimId}::text
     ) AS result
