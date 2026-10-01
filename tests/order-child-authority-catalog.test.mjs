@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
 import {
@@ -99,6 +100,15 @@ test("reviewed catalog exactly matches latest migration-tree definitions", () =>
     orderChildSourceCatalog(),
     [...ORDER_ITEM_DIRECT_FUNCTIONS, ...ORDER_QUOTE_DIRECT_FUNCTIONS].sort(),
   );
+});
+
+test("catalog normalizes PostgreSQL ACL booleans before JavaScript verification", () => {
+  const source = fs.readFileSync("scripts/order-child-authority-catalog.mjs", "utf8");
+  assert.equal(
+    (source.match(/CASE WHEN acl\.is_grantable THEN 'true' ELSE 'false' END/gu) ?? []).length,
+    2,
+  );
+  assert.doesNotMatch(source, /\n\s+acl\.is_grantable\n/gu);
 });
 
 test("the same exact catalog accepts the separate policyless OrderItem ENABLE posture", () => {

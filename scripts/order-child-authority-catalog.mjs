@@ -262,7 +262,7 @@ export async function readOrderChildAuthorityCatalog(client) {
           CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
                ELSE pg_catalog.pg_get_userbyid(acl.grantee) END,
           acl.privilege_type,
-          acl.is_grantable
+          CASE WHEN acl.is_grantable THEN 'true' ELSE 'false' END
         )
         FROM pg_catalog.aclexplode(
           COALESCE(procedure.proacl,
@@ -309,7 +309,7 @@ export async function readOrderChildAuthorityCatalog(client) {
           CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
                ELSE pg_catalog.pg_get_userbyid(acl.grantee) END,
           acl.privilege_type,
-          acl.is_grantable
+          CASE WHEN acl.is_grantable THEN 'true' ELSE 'false' END
         )
         FROM pg_catalog.aclexplode(
           COALESCE(procedure.proacl,

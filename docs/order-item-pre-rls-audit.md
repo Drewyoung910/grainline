@@ -45,14 +45,44 @@ direct function, owner drift, trigger drift, or a change in the inherited RLS
 posture. It reads only catalogs inside a repeatable-read, read-only transaction
 and does not read table rows.
 
+## First Production readback
+
+The verifier and read-only inspection workflow merged on main
+`cfeae8117a5a3ff89078f45fe3c9575764064e87`. Its exact push CI run
+`36810108185` passed. Production inspection run `36812475699` then reached the
+catalog verifier and failed safely because PostgreSQL `format('%s', boolean)`
+serialized `acl.is_grantable = false` as `f`, while the JavaScript verifier
+expected the word `false`.
+
+This was a result-format defect, not accepted evidence of catalog drift. The
+inspection used a repeatable-read, read-only transaction and only catalog
+queries, so the failed run did not read application rows or change Production.
+It produced no accepted artifact and cannot satisfy the ENABLE workflow gate.
+The OrderItem candidate normalizes both function and trigger ACL booleans to
+the exact words `true` and `false` and includes a regression check for that
+boundary.
+
+## Prepared OrderItem ENABLE release
+
+The prepared successor is migration
+`20261001030000_enable_order_item_rls`, SHA-256
+`512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520`.
+It enables policyless RLS on `OrderItem`, explicitly retains NO FORCE, re-revokes
+all ordinary-runtime, staff-runtime and PUBLIC table authority, and leaves
+`OrderShippingRateQuote` unchanged. Its atomic preflight pins all 34 direct
+OrderItem function identities and bodies plus both trigger identities, bodies,
+timing, ownership, security mode, configuration and ACLs. The separate rollback
+returns only the RLS posture to the accepted zero-direct predecessor and does
+not recreate grants.
+
 ## Next release steps
 
-1. Merge the read-only catalog verifier and its manual, exact-main Production
-   inspection workflow.
-2. Run the inspection once against the current live catalog and retain the
-   sanitized seven-day artifact.
-3. Use that accepted catalog to pin the policyless `OrderItem` ENABLE draft,
-   rollback, focused PostgreSQL proof and guarded Production workflow.
+1. Merge the prepared OrderItem source candidate, including the catalog output
+   normalization and guarded ENABLE workflow.
+2. Run the corrected inspection once against that exact main commit and retain
+   the sanitized seven-day artifact.
+3. Apply only the pinned OrderItem ENABLE migration through its exact-main,
+   exact-CI, accepted-inspection-bound Production workflow.
 4. After ENABLE overlap is accepted, release `OrderItem` FORCE separately.
 5. Repeat the smaller process for `OrderShippingRateQuote`; its source surface
    is four functions and no table triggers.
