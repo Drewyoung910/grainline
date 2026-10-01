@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const ORDER_ITEM_DIRECT_FUNCTIONS = Object.freeze([
+export const ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS = Object.freeze([
   "grainline_blocked_checkout_refund_record_core",
   "grainline_case_open",
   "grainline_case_order_active_for_seller",
@@ -14,7 +14,6 @@ export const ORDER_ITEM_DIRECT_FUNCTIONS = Object.freeze([
   "grainline_case_seller_refund_apply",
   "grainline_case_staff_resolution_finalize",
   "grainline_case_staff_resolution_prepare",
-  "grainline_case_staff_resolution_recovery_finalize",
   "grainline_case_stripe_dispute_apply",
   "grainline_listing_order_archive_blocked",
   "grainline_notification_create_core",
@@ -42,6 +41,11 @@ export const ORDER_ITEM_DIRECT_FUNCTIONS = Object.freeze([
   "grainline_seller_refund_record",
   "grainline_stripe_checkout_order_create",
   "grainline_stripe_checkout_postpayment",
+].sort());
+
+export const ORDER_ITEM_DIRECT_FUNCTIONS = Object.freeze([
+  ...ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS,
+  "grainline_case_staff_resolution_recovery_finalize",
 ].sort());
 
 export const ORDER_QUOTE_DIRECT_FUNCTIONS = Object.freeze([
@@ -180,11 +184,23 @@ function functionDeclarationMetadata(declaration) {
   });
 }
 
-export function orderChildSourceFunctionCatalog(rootDirectory = process.cwd()) {
+export function orderChildSourceFunctionCatalog(
+  rootDirectory = process.cwd(),
+  throughMigration = null,
+) {
   const migrationRoot = path.join(rootDirectory, "prisma/migrations");
+  const migrationDirectories = fs.readdirSync(migrationRoot).sort();
+  if (throughMigration !== null) {
+    assert.equal(typeof throughMigration, "string", "migration cutoff must be a string");
+    assert.ok(
+      migrationDirectories.includes(throughMigration),
+      `migration cutoff is missing: ${throughMigration}`,
+    );
+  }
   const definitions = new Map();
   const eventPattern = /(?:CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+public\.(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s*\(|DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?public\.(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s*\()/gimu;
-  for (const directory of fs.readdirSync(migrationRoot).sort()) {
+  for (const directory of migrationDirectories) {
+    if (throughMigration !== null && directory > throughMigration) break;
     const file = path.join(migrationRoot, directory, "migration.sql");
     if (!fs.existsSync(file)) continue;
     const sql = fs.readFileSync(file, "utf8");

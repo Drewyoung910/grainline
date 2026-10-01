@@ -7,7 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
-  ORDER_ITEM_DIRECT_FUNCTIONS,
+  ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS,
   ORDER_ITEM_TRIGGER_FUNCTIONS,
   ORDER_ITEM_TRIGGER_SOURCE_MD5,
   orderChildSourceFunctionCatalog,
@@ -90,12 +90,15 @@ export function buildOrderItemRlsCandidate(rootDirectory = process.cwd()) {
     /^REVOKE ALL ON TABLE public\."OrderItem"\s+FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;$/gmu,
   );
 
-  const sourceCatalog = orderChildSourceFunctionCatalog(rootDirectory)
+  const sourceCatalog = orderChildSourceFunctionCatalog(
+    rootDirectory,
+    ORDER_ITEM_ENABLE_RELEASE.migrationName,
+  )
     .filter((entry) => entry.touchesOrderItem);
-  assert.equal(sourceCatalog.length, ORDER_ITEM_DIRECT_FUNCTIONS.length);
+  assert.equal(sourceCatalog.length, ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS.length);
   assert.deepEqual(
     sourceCatalog.map((entry) => entry.name).sort(),
-    [...ORDER_ITEM_DIRECT_FUNCTIONS],
+    [...ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS],
   );
   for (const entry of sourceCatalog) {
     assert.equal(entry.securityDefiner, true, `${entry.identity} source is not SECURITY DEFINER`);
@@ -139,7 +142,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     migrationName: release.migrationName,
     migrationSha256: release.migrationSha256,
     rollbackSha256: release.rollbackSha256,
-    orderItemDirectFunctionCount: ORDER_ITEM_DIRECT_FUNCTIONS.length,
+    orderItemDirectFunctionCount: ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS.length,
     orderItemTriggerCount: ORDER_ITEM_TRIGGER_FUNCTIONS.length,
   })}\n`);
 }

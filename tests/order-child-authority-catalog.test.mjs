@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   ORDER_ITEM_DIRECT_FUNCTIONS,
+  ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS,
   ORDER_ITEM_TRIGGER_FUNCTIONS,
   ORDER_ITEM_TRIGGER_SOURCE_MD5,
   ORDER_QUOTE_DIRECT_FUNCTIONS,
@@ -117,6 +118,16 @@ test("reviewed catalog exactly matches latest migration-tree definitions", () =>
       (entry) => entry.securityDefiner && !entry.leakproof,
     ),
     true,
+  );
+  assert.deepEqual(
+    orderChildSourceFunctionCatalog(
+      process.cwd(),
+      "20261001040000_force_order_item_rls",
+    )
+      .filter((entry) => entry.touchesOrderItem)
+      .map((entry) => entry.name)
+      .sort(),
+    [...ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS],
   );
 });
 
