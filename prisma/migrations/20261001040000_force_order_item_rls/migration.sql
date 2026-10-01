@@ -1,4 +1,5 @@
--- DRAFT ONLY. Do not apply to any persistent database.
+-- Reviewed policyless OrderItem FORCE hardening.
+-- Apply only through the guarded main-only production migration workflow.
 -- Policyless OrderItem FORCE follows accepted ENABLE and retains the exact
 -- zero-direct authority surface. OrderShippingRateQuote stays RLS-off as a
 -- separate successor release.
