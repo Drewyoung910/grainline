@@ -66,6 +66,20 @@ const EXPECTED_TABLES = Object.freeze([
   Object.freeze({ table_name: "OrderShippingRateQuote", rls_enabled: false, rls_forced: false }),
 ]);
 
+export function orderChildExpectedPostureFromEnvironment(environment = process.env) {
+  const requiredBoolean = (name) => {
+    const value = environment[name];
+    assert.ok(value === "true" || value === "false", `${name} must be true or false`);
+    return value === "true";
+  };
+  return Object.freeze({
+    orderItemRlsEnabled: requiredBoolean("EXPECTED_ORDER_ITEM_RLS_ENABLED"),
+    orderItemRlsForced: requiredBoolean("EXPECTED_ORDER_ITEM_RLS_FORCED"),
+    quoteRlsEnabled: requiredBoolean("EXPECTED_ORDER_QUOTE_RLS_ENABLED"),
+    quoteRlsForced: requiredBoolean("EXPECTED_ORDER_QUOTE_RLS_FORCED"),
+  });
+}
+
 const ALLOWED_EXECUTE_ROLES = new Set([
   "grainline_app_runtime",
   "grainline_staff_read_runtime",
@@ -527,7 +541,11 @@ async function main() {
     await client.connect();
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const catalog = await readOrderChildAuthorityCatalog(client);
-    const result = verifyOrderChildAuthorityCatalog(catalog);
+    const result = verifyOrderChildAuthorityCatalog(
+      catalog,
+      process.cwd(),
+      orderChildExpectedPostureFromEnvironment(),
+    );
     process.stdout.write(`${JSON.stringify({ result, catalog })}\n`);
   } finally {
     try { await client.query("ROLLBACK"); } catch {}

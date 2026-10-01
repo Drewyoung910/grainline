@@ -7,6 +7,7 @@ import {
   ORDER_ITEM_TRIGGER_FUNCTIONS,
   ORDER_ITEM_TRIGGER_SOURCE_MD5,
   ORDER_QUOTE_DIRECT_FUNCTIONS,
+  orderChildExpectedPostureFromEnvironment,
   orderChildSourceCatalog,
   orderChildSourceFunctionCatalog,
   verifyOrderChildAuthorityCatalog,
@@ -126,6 +127,39 @@ test("catalog normalizes PostgreSQL ACL booleans before JavaScript verification"
     2,
   );
   assert.doesNotMatch(source, /\n\s+acl\.is_grantable\n/gu);
+});
+
+test("inspection CLI requires an explicit exact child-table posture", () => {
+  assert.deepEqual(orderChildExpectedPostureFromEnvironment({
+    EXPECTED_ORDER_ITEM_RLS_ENABLED: "true",
+    EXPECTED_ORDER_ITEM_RLS_FORCED: "false",
+    EXPECTED_ORDER_QUOTE_RLS_ENABLED: "false",
+    EXPECTED_ORDER_QUOTE_RLS_FORCED: "false",
+  }), {
+    orderItemRlsEnabled: true,
+    orderItemRlsForced: false,
+    quoteRlsEnabled: false,
+    quoteRlsForced: false,
+  });
+  assert.throws(
+    () => orderChildExpectedPostureFromEnvironment({}),
+    /EXPECTED_ORDER_ITEM_RLS_ENABLED must be true or false/u,
+  );
+  assert.throws(
+    () => orderChildExpectedPostureFromEnvironment({
+      EXPECTED_ORDER_ITEM_RLS_ENABLED: "1",
+    }),
+    /EXPECTED_ORDER_ITEM_RLS_ENABLED must be true or false/u,
+  );
+
+  const workflow = fs.readFileSync(
+    ".github/workflows/order-child-authority-inspection.yml",
+    "utf8",
+  );
+  assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_ENABLED: "true"/u);
+  assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_FORCED: "false"/u);
+  assert.match(workflow, /EXPECTED_ORDER_QUOTE_RLS_ENABLED: "false"/u);
+  assert.match(workflow, /EXPECTED_ORDER_QUOTE_RLS_FORCED: "false"/u);
 });
 
 test("the same exact catalog accepts the separate policyless OrderItem ENABLE posture", () => {

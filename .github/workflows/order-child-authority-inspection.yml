@@ -89,6 +89,10 @@ jobs:
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_ORDER_ITEM_RLS_ENABLED: "true"
+          EXPECTED_ORDER_ITEM_RLS_FORCED: "false"
+          EXPECTED_ORDER_QUOTE_RLS_ENABLED: "false"
+          EXPECTED_ORDER_QUOTE_RLS_FORCED: "false"
         run: |
           set -euo pipefail
           umask 077
