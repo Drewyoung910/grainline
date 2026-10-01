@@ -32,7 +32,10 @@ import {
   type OrderRefundRecordResult,
 } from "@/lib/orderRefundRecordAuthority";
 import { finalizeSellerOrderRefund } from "@/lib/orderRefundFinalization";
-import { resolveOrderRefundProviderOutcome } from "@/lib/orderRefundProviderReconciliation";
+import {
+  isOrderRefundProviderReconciliationRequiredError,
+  resolveOrderRefundProviderOutcome,
+} from "@/lib/orderRefundProviderReconciliation";
 import { markOrderRefundClaimAmbiguous } from "@/lib/orderRefundReconciliationAuthority";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { sellerRefundPreflight } from "@/lib/orderSellerRefundPreflightAuthority";
@@ -51,6 +54,7 @@ const RefundSchema = z.object({
     .optional(),
 });
 const REFUND_BODY_MAX_BYTES = 16 * 1024;
+const REFUND_PROVIDER_RETRY_AFTER_SECONDS = 30;
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -230,19 +234,42 @@ export async function POST(
           throw dbError;
         }
       } else {
-        try {
-          await markOrderRefundClaimAmbiguous({
-            claim: refundClaim,
-            reason: "SELLER_PROVIDER_AMBIGUOUS",
-          });
-        } catch (dbError) {
-          Sentry.captureException(dbError, {
-            tags: { source: "seller_refund_ambiguous_record_failed" },
-            extra: { orderId, refundAmountCents },
-          });
-          throw dbError;
+        if (isOrderRefundProviderReconciliationRequiredError(err)) {
+          try {
+            await markOrderRefundClaimAmbiguous({
+              claim: refundClaim,
+              reason: "SELLER_PROVIDER_AMBIGUOUS",
+            });
+          } catch (dbError) {
+            Sentry.captureException(dbError, {
+              tags: { source: "seller_refund_ambiguous_record_failed" },
+              extra: { orderId, refundAmountCents },
+            });
+            throw dbError;
+          }
+          throw err;
         }
-        throw err;
+
+        // Stripe explicitly supports replaying a POST with the same
+        // idempotency key after a connection failure. Keep the exact claim
+        // pending so the next request first inspects Stripe, then reuses the
+        // claim-bound key only when no provider effect exists.
+        Sentry.captureException(err, {
+          tags: { source: "seller_refund_provider_retryable" },
+          extra: { orderId, refundAmountCents },
+        });
+        return privateJson(
+          {
+            error:
+              "The refund provider did not confirm the result. Retry shortly; the same refund will not be duplicated.",
+          },
+          {
+            status: HTTP_STATUS.SERVICE_UNAVAILABLE,
+            headers: {
+              "Retry-After": String(REFUND_PROVIDER_RETRY_AFTER_SECONDS),
+            },
+          },
+        );
       }
     }
 

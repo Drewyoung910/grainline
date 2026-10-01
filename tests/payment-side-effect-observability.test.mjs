@@ -147,7 +147,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(caseRoute, /case_refund_orphaned_review_update_failed/);
   });
 
-  it("marks no-refund-id Stripe failures as ambiguous instead of reopening refund attempts", () => {
+  it("marks only reconciliation-required Stripe evidence ambiguous while preserving retryable claims", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
     const reconciliationAuthority = source(
@@ -155,7 +155,13 @@ describe("payment and fulfillment side-effect observability", () => {
     );
 
     assert.match(sellerRoute, /seller_refund_ambiguous_record_failed/);
-    assert.match(sellerRoute, /reason: "SELLER_PROVIDER_AMBIGUOUS"/);
+    assert.match(
+      sellerRoute,
+      /isOrderRefundProviderReconciliationRequiredError\(err\)[\s\S]*reason: "SELLER_PROVIDER_AMBIGUOUS"/,
+    );
+    assert.match(sellerRoute, /source: "seller_refund_provider_retryable"/);
+    assert.match(sellerRoute, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
+    assert.match(sellerRoute, /"Retry-After"/);
     assert.match(
       reconciliationAuthority,
       /'SELLER_PROVIDER_AMBIGUOUS'[\s\S]*Seller refund attempt has an ambiguous Stripe outcome/,
@@ -726,6 +732,10 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(lockReleaseBlock, /Sentry\.captureException\(dbError/);
     assert.match(lockReleaseBlock, /throw dbError/);
     assert.match(lockReleaseBlock, /markOrderRefundClaimAmbiguous\(\{/);
+    assert.match(
+      noRefundIdBranch,
+      /isOrderRefundProviderReconciliationRequiredError\(refundError\)/,
+    );
     assert.match(
       lockReleaseBlock,
       /reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/,

@@ -97,7 +97,7 @@ test("binds blocked-checkout finalization to immutable reconciliation after the 
   );
 });
 
-test("uses one fixed exact-claim ambiguous transition from every provider failure path", () => {
+test("uses one fixed exact-claim ambiguous transition only for reconciliation-required provider evidence", () => {
   assert.match(
     migration,
     /CREATE FUNCTION public\.grainline_order_refund_claim_mark_ambiguous\(/,
@@ -105,8 +105,18 @@ test("uses one fixed exact-claim ambiguous transition from every provider failur
   assert.match(migration, /p_reason_code NOT IN \(/);
   assert.doesNotMatch(migration, /review_note\s*:=\s*p_/);
   assert.doesNotMatch(sellerRefund, /reason: "SELLER_CLAIM_DRIFT"/);
-  assert.match(sellerRefund, /reason: "SELLER_PROVIDER_AMBIGUOUS"/);
-  assert.match(webhook, /reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/);
+  assert.match(
+    sellerRefund,
+    /isOrderRefundProviderReconciliationRequiredError\(err\)[\s\S]*reason: "SELLER_PROVIDER_AMBIGUOUS"/,
+  );
+  assert.match(
+    webhook,
+    /isOrderRefundProviderReconciliationRequiredError\(refundError\)[\s\S]*reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/,
+  );
+  assert.match(
+    provider,
+    /class OrderRefundProviderReconciliationRequiredError extends Error/,
+  );
   assert.doesNotMatch(
     `${sellerRefund}\n${webhook}`,
     /sellerRefundId:\s*REFUND_AMBIGUOUS_SENTINEL/,
