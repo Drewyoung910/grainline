@@ -92,12 +92,25 @@ jobs:
                 ci.head_sha !== sha || ci.status !== 'completed' ||
                 ci.conclusion !== 'success' ||
                 inspection.name !== 'Order Child Authority Inspection' ||
+                inspection.path !== '.github/workflows/order-child-authority-inspection.yml' ||
                 inspection.event !== 'workflow_dispatch' ||
                 inspection.head_branch !== 'main' ||
+                Number(inspection.run_attempt) !== 1 ||
                 inspection.status !== 'completed' ||
                 inspection.conclusion !== 'success' ||
                 !/^[0-9a-f]{40}$/.test(inspection.head_sha ?? '')) {
               throw new Error('OrderItem ENABLE main/run readback drifted');
+            }
+            const jobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRun,
+              {...context.repo, run_id: inspectionRunId, per_page: 100},
+            );
+            const proofJobs = jobs.filter((job) =>
+              job.name === 'Read OrderItem and quote authority catalog' &&
+              job.status === 'completed' && job.conclusion === 'success'
+            );
+            if (proofJobs.length !== 1) {
+              throw new Error('Order child authority inspection proof job is absent');
             }
             const {data: comparison} = await github.rest.repos.compareCommits({
               ...context.repo,

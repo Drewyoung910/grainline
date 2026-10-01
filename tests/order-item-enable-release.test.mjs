@@ -55,6 +55,10 @@ test("Production ENABLE is manually dispatched, exact-bound and restart-safe", (
   assert.match(workflow, /github\.run_attempt == 1/);
   assert.match(workflow, /inputs\.confirmation == 'enable-reviewed-order-item-rls'/);
   assert.match(workflow, /inspection\.name !== 'Order Child Authority Inspection'/);
+  assert.match(workflow, /inspection\.path !== '\.github\/workflows\/order-child-authority-inspection\.yml'/);
+  assert.match(workflow, /Number\(inspection\.run_attempt\) !== 1/);
+  assert.match(workflow, /listJobsForWorkflowRun/);
+  assert.match(workflow, /Read OrderItem and quote authority catalog/);
   assert.match(workflow, /\['ahead', 'identical'\]\.includes\(comparison\.status\)/);
   assert.match(workflow, /node scripts\/guard-production-migration-runner\.mjs/);
   assert.match(workflow, /npx prisma migrate status/);
