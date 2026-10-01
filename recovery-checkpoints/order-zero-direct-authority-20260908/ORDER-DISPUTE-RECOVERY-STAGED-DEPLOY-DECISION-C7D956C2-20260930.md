@@ -102,3 +102,53 @@ restoration if validation fails.
 Merged-main CI already performed the Production build on this exact source.
 Candidate verification is limited to provider identity, health, deployment
 marker, and alias-owner readback. Do not rerun the repository-wide suite.
+
+## Candidate creation result
+
+The user authorized this exact candidate creation. All admission checks were
+repeated immediately before execution and remained exact. The command ran once
+and returned READY:
+
+- deployment: `dpl_28tcPC1h37j1chjuPUB3fPxUeEGp`;
+- immutable host: `grainline-qweqclm4p-drew-youngs-projects.vercel.app`;
+- source/ref: `c7d956c2046b481693a7edec89f6b7b5995366cc` / `main`;
+- marker: `order-staged-c7d956c2-20261001-01`;
+- project/team/target: the reviewed Grainline identities / Production;
+- provider aliases: none.
+
+The remote build passed runtime database separation, Prisma generation,
+Next.js compilation, TypeScript, static generation, and deployment. Provider
+inventory contains exactly one deployment for the reserved marker. Authenticated
+Vercel transport returned `{"ok":true}` from `/api/health`, and the immutable
+home page embedded `dpl=dpl_28tcPC1h37j1chjuPUB3fPxUeEGp`. All five canonical
+aliases remained on READY predecessor
+`dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J`; no recovery mutation was necessary.
+
+The first immutable-host request attempt stopped locally because `--no-color`
+was forwarded to the beta curl subcommand. The corrected calls succeeded. This
+was a command-shape issue and did not change the candidate or canonical routing.
+
+## Prepared live-routing boundary
+
+The next exact action is a separate promotion decision. The prepared operator:
+
+1. rechecks remote main and both exact CI bindings;
+2. verifies the exact candidate and predecessor identities;
+3. verifies candidate staged health and predecessor canonical health;
+4. requires all five aliases to begin on the predecessor;
+5. promotes only `dpl_28tcPC1h37j1chjuPUB3fPxUeEGp` and explicitly assigns all
+   five canonical aliases;
+6. accepts only exact candidate identity, all five candidate alias owners, and
+   canonical health with the candidate deployment marker; and
+7. restores and verifies `dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J` on any execution or
+   postflight failure.
+
+`promote-with-recovery.sh` also invokes the fixed predecessor recovery mode on
+shell exit or HUP/INT/TERM interruption. The preflight completed accepted before
+authorization was requested. The live-routing action has not run.
+
+Promotion makes the new signed Stripe dispute handler and retry cron canonical.
+For future qualifying signed dispute events, the reviewed code may reverse a
+seller transfer and later restore it according to the accepted recovery ledger.
+It does not create a dispute, replay a webhook, or mutate an existing dispute as
+part of the cutover itself.

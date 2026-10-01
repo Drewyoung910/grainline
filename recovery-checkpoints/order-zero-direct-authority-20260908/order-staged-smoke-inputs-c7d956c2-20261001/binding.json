@@ -1,0 +1,9 @@
+{
+  "ciRunId": 36799285933,
+  "commit": "c7d956c2046b481693a7edec89f6b7b5995366cc",
+  "deploymentId": "dpl_28tcPC1h37j1chjuPUB3fPxUeEGp",
+  "origin": "https://thegrainline.com",
+  "targetOrigin": "https://grainline-qweqclm4p-drew-youngs-projects.vercel.app",
+  "predecessorDeploymentId": "dpl_G6hBoBC1jJt6KiphZifpqQj2Br4J",
+  "bypassSha256": "4bec2e372fa260c08605ba84f436830fda405413a839766ede9534fbf35f42c3"
+}
