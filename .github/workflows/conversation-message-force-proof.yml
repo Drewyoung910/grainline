@@ -101,6 +101,12 @@ jobs:
           0a1cb4828cce4d05abf783b12d790c13581fb7698f8063aaeaf92b5fa8c6bee1 20260930031000_mark_paid_private_listing_sold
           dc1cdbf14a5b126635af44fbbc4ca820ac16e46823a68071400fd5786110209d 20260930032000_block_checkout_user_pairs
           ed5e069248281ef8738f97bd0480ee77b85044a4ad2c9ac433ef2840a2a7e941 20260930033000_order_ops_health_summary
+          555e26acc3c9d6361d629d86225b63177667363de4ac299c37696072504a9799 20260930040000_prepare_order_dispute_recovery
+          928413764a087ef5f535f99ed993c85da0a528767e26a89d2faf791eb9c29d17 20261001030000_enable_order_item_rls
+          c741c53d20d5f6dc55c9b29e55d5c0ecf7a69b1d0e052c41b81279f37aeecac9 20261001040000_force_order_item_rls
+          450e4c100b1711139b165765b6a170accf515abad7d14a141cbb95621b1fcbd4 20261001050000_enable_order_shipping_rate_quote_rls
+          390a307431fdc02c18af3daf8fc3d1ee7b34d2df84784379a523580c60f16d5a 20261001060000_force_order_shipping_rate_quote_rls
+          68e559e01dbeae663931110dcadfd4d42ca050c788eebd647727f434a9a72dba 20261001070000_prepare_case_refund_provider_recovery
           MIGRATIONS
       - name: Isolate staged Core Order ENABLE from historical proof
         shell: bash
@@ -161,7 +167,13 @@ jobs:
             20260930030000_bound_listing_fulfillment_days \
             20260930031000_mark_paid_private_listing_sold \
             20260930032000_block_checkout_user_pairs \
-            20260930033000_order_ops_health_summary
+            20260930033000_order_ops_health_summary \
+            20260930040000_prepare_order_dispute_recovery \
+            20261001030000_enable_order_item_rls \
+            20261001040000_force_order_item_rls \
+            20261001050000_enable_order_shipping_rate_quote_rls \
+            20261001060000_force_order_shipping_rate_quote_rls \
+            20261001070000_prepare_case_refund_provider_recovery
           do
             mv "$RUNNER_TEMP/$migration" "prisma/migrations/$migration"
           done
