@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ORDER_ITEM_DIRECT_FUNCTIONS,
   ORDER_ITEM_TRIGGER_FUNCTIONS,
+  ORDER_ITEM_TRIGGER_SOURCE_MD5,
   ORDER_QUOTE_DIRECT_FUNCTIONS,
   orderChildSourceCatalog,
   orderChildSourceFunctionCatalog,
@@ -68,8 +69,14 @@ function acceptedCatalog() {
       enabled: "O",
       deferrable: index === 1,
       initially_deferred: index === 1,
+      language_name: "plpgsql",
+      function_kind: "f",
       security_definer: true,
+      leakproof: false,
       function_config: ["search_path=pg_catalog"],
+      source_md5: ORDER_ITEM_TRIGGER_SOURCE_MD5[function_name],
+      contains_dynamic_execute: false,
+      nonowner_acl: [],
     })),
     structure: [{ object_type: "index", table_name: "OrderItem", object_name: "OrderItem_pkey", valid: true }],
   };

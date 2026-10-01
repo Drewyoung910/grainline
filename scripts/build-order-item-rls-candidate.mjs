@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 import {
   ORDER_ITEM_DIRECT_FUNCTIONS,
   ORDER_ITEM_TRIGGER_FUNCTIONS,
+  ORDER_ITEM_TRIGGER_SOURCE_MD5,
   orderChildSourceFunctionCatalog,
 } from "./order-child-authority-catalog.mjs";
 
@@ -20,9 +21,9 @@ export const ORDER_ITEM_ENABLE_RELEASE = Object.freeze({
   draftPath: "docs/rls-drafts/order-item-activation.sql",
   rollbackPath: "docs/rls-drafts/order-item-activation-rollback.sql",
   migrationPath: "prisma/migrations/20261001030000_enable_order_item_rls/migration.sql",
-  draftSha256: "6e37b3bef170037fce31bbd8f1d0d9d193088c0b10c4c32448222ce0fc8c0bea",
+  draftSha256: "82e43152a3b9da2636853efde9ec3ef84ca42ac9f271718ca16541f23149a09b",
   rollbackSha256: "5050ee096a4902945f70463f14677e569d18cd9b530e3b3b727f83b5792a7387",
-  migrationSha256: "82f0f89aad7c47c57ef859b50ffe1317710a3760a05c4d932f13ee2423a10009",
+  migrationSha256: "512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520",
 });
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -97,6 +98,7 @@ export function buildOrderItemRlsCandidate(rootDirectory = process.cwd()) {
   }
   for (const trigger of ORDER_ITEM_TRIGGER_FUNCTIONS) {
     assert.ok(draft.includes(`trigger_row.tgname = '${trigger}'`));
+    assert.ok(draft.includes(`pg_catalog.md5(procedure.prosrc) = '${ORDER_ITEM_TRIGGER_SOURCE_MD5[trigger]}'`));
   }
 
   return Object.freeze({

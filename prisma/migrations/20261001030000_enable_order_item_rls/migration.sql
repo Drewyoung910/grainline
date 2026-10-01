@@ -191,19 +191,33 @@ BEGIN
   SELECT pg_catalog.count(*)::integer INTO accepted_triggers
     FROM pg_catalog.pg_trigger AS trigger_row
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = trigger_row.tgfoid
+    JOIN pg_catalog.pg_language AS language ON language.oid = procedure.prolang
    WHERE trigger_row.tgrelid = 'public."OrderItem"'::pg_catalog.regclass
      AND NOT trigger_row.tgisinternal
      AND trigger_row.tgenabled = 'O'
      AND procedure.proowner = table_owner
+     AND language.lanname = 'plpgsql'
+     AND procedure.prokind = 'f'
      AND procedure.prosecdef
+     AND NOT procedure.proleakproof
      AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+     AND pg_catalog.strpos(pg_catalog.upper(procedure.prosrc), 'EXECUTE') = 0
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_catalog.aclexplode(
+         COALESCE(procedure.proacl,
+                  pg_catalog.acldefault('f', procedure.proowner))
+       ) AS acl
+       WHERE acl.grantee <> procedure.proowner
+     )
      AND (
        (trigger_row.tgname = 'grainline_order_item_seller_key_bind'
         AND procedure.proname = 'grainline_order_item_seller_key_bind'
+        AND pg_catalog.md5(procedure.prosrc) = '34c8dab8a6d39ca9951ee049f9f2a7ea'
         AND NOT trigger_row.tgdeferrable AND NOT trigger_row.tginitdeferred)
        OR
        (trigger_row.tgname = 'grainline_order_item_seller_key_complete'
         AND procedure.proname = 'grainline_order_item_seller_key_complete'
+        AND pg_catalog.md5(procedure.prosrc) = '878a575c4b0a823fa9acf6c379f5199b'
         AND trigger_row.tgdeferrable AND trigger_row.tginitdeferred)
      );
   IF accepted_triggers <> 2 OR (

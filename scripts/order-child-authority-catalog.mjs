@@ -55,6 +55,11 @@ export const ORDER_ITEM_TRIGGER_FUNCTIONS = Object.freeze([
   "grainline_order_item_seller_key_complete",
 ].sort());
 
+export const ORDER_ITEM_TRIGGER_SOURCE_MD5 = Object.freeze({
+  grainline_order_item_seller_key_bind: "34c8dab8a6d39ca9951ee049f9f2a7ea",
+  grainline_order_item_seller_key_complete: "878a575c4b0a823fa9acf6c379f5199b",
+});
+
 const EXPECTED_TABLES = Object.freeze([
   Object.freeze({ table_name: "Order", rls_enabled: true, rls_forced: true }),
   Object.freeze({ table_name: "OrderItem", rls_enabled: false, rls_forced: false }),
@@ -290,11 +295,33 @@ export async function readOrderChildAuthorityCatalog(client) {
       trigger_row.tgenabled AS enabled,
       trigger_row.tgdeferrable AS deferrable,
       trigger_row.tginitdeferred AS initially_deferred,
+      language.lanname AS language_name,
+      procedure.prokind AS function_kind,
       procedure.prosecdef AS security_definer,
-      procedure.proconfig AS function_config
+      procedure.proleakproof AS leakproof,
+      procedure.proconfig AS function_config,
+      pg_catalog.md5(procedure.prosrc) AS source_md5,
+      pg_catalog.strpos(pg_catalog.upper(procedure.prosrc), 'EXECUTE') > 0
+        AS contains_dynamic_execute,
+      ARRAY(
+        SELECT pg_catalog.format(
+          '%s:%s:%s',
+          CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
+               ELSE pg_catalog.pg_get_userbyid(acl.grantee) END,
+          acl.privilege_type,
+          acl.is_grantable
+        )
+        FROM pg_catalog.aclexplode(
+          COALESCE(procedure.proacl,
+                   pg_catalog.acldefault('f', procedure.proowner))
+        ) AS acl
+        WHERE acl.grantee <> procedure.proowner
+        ORDER BY 1
+      ) AS nonowner_acl
     FROM pg_catalog.pg_trigger AS trigger_row
     JOIN pg_catalog.pg_class AS class ON class.oid = trigger_row.tgrelid
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = trigger_row.tgfoid
+    JOIN pg_catalog.pg_language AS language ON language.oid = procedure.prolang
     WHERE class.oid = ANY(ARRAY[
       'public."OrderItem"'::pg_catalog.regclass,
       'public."OrderShippingRateQuote"'::pg_catalog.regclass
@@ -437,8 +464,14 @@ export function verifyOrderChildAuthorityCatalog(
   for (const entry of catalog.triggers) {
     assert.equal(entry.owner_name, tableOwner);
     assert.equal(entry.enabled, "O");
+    assert.equal(entry.language_name, "plpgsql");
+    assert.equal(entry.function_kind, "f");
     assert.equal(entry.security_definer, true);
+    assert.equal(entry.leakproof, false);
     assert.deepEqual(entry.function_config, ["search_path=pg_catalog"]);
+    assert.equal(entry.source_md5, ORDER_ITEM_TRIGGER_SOURCE_MD5[entry.function_name]);
+    assert.equal(entry.contains_dynamic_execute, false);
+    assert.deepEqual(entry.nonowner_acl, []);
   }
   assert.ok(catalog.structure.length > 0);
 
