@@ -536,3 +536,17 @@ Production dispatch binding is main
 `36799285933`. The workflow has not been dispatched: the migration remains
 unapplied, the new app remains undeployed, and no live Stripe recovery effect
 has occurred. Production dispatch is the next separate approval boundary.
+
+## Production dispatch approval retry required — 2026-09-30
+
+The user replied `approve` to the exact Production dispatch boundary above.
+The attempted workflow dispatch was rejected before execution by automatic
+approval review. The reviewer stated that the trusted approval appeared to
+name a different migration and older commit/CI binding, despite the immediately
+preceding request naming the current values. No GitHub workflow was dispatched
+and no Production state changed.
+
+To satisfy the external approval review, the user must explicitly name
+migration `20260930040000_prepare_order_dispute_recovery`, main
+`c7d956c2046b481693a7edec89f6b7b5995366cc`, and CI `36799285933` in the next
+authorization. The exact intended action and its limits are unchanged.
