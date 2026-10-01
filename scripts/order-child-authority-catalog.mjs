@@ -462,8 +462,12 @@ export function verifyOrderChildAuthorityCatalog(
   );
   assert.ok(catalog.triggers.every((entry) => entry.table_name === "OrderItem"));
   for (const entry of catalog.triggers) {
+    const isCompletionTrigger = entry.function_name === "grainline_order_item_seller_key_complete";
+    assert.equal(entry.trigger_name, entry.function_name);
     assert.equal(entry.owner_name, tableOwner);
     assert.equal(entry.enabled, "O");
+    assert.equal(entry.deferrable, isCompletionTrigger);
+    assert.equal(entry.initially_deferred, isCompletionTrigger);
     assert.equal(entry.language_name, "plpgsql");
     assert.equal(entry.function_kind, "f");
     assert.equal(entry.security_definer, true);

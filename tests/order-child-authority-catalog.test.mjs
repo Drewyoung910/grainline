@@ -63,7 +63,7 @@ function acceptedCatalog() {
     functions: sourceCatalog.map(functionRow),
     triggers: ORDER_ITEM_TRIGGER_FUNCTIONS.map((function_name, index) => ({
       table_name: "OrderItem",
-      trigger_name: `trigger_${index}`,
+      trigger_name: function_name,
       function_name,
       owner_name: owner,
       enabled: "O",
@@ -128,4 +128,12 @@ test("catalog rejects an unreviewed direct function or unsafe authority", () => 
   const invoker = acceptedCatalog();
   invoker.functions[0].security_definer = false;
   assert.throws(() => verifyOrderChildAuthorityCatalog(invoker), /not SECURITY DEFINER/u);
+
+  const renamedTrigger = acceptedCatalog();
+  renamedTrigger.triggers[0].trigger_name = "grainline_unreviewed_trigger";
+  assert.throws(() => verifyOrderChildAuthorityCatalog(renamedTrigger));
+
+  const triggerTimingDrift = acceptedCatalog();
+  triggerTimingDrift.triggers[1].initially_deferred = false;
+  assert.throws(() => verifyOrderChildAuthorityCatalog(triggerTimingDrift));
 });
