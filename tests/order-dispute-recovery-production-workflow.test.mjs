@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import yaml from "js-yaml";
@@ -8,10 +8,18 @@ const workflow = readFileSync(
   ".github/workflows/order-dispute-recovery-production.yml",
   "utf8",
 );
-const migration = readFileSync(
+const migrationPath = [
+  process.env.ORDER_DISPUTE_RECOVERY_MIGRATION_PATH,
   "prisma/migrations/20260930040000_prepare_order_dispute_recovery/migration.sql",
-  "utf8",
+  process.env.RUNNER_TEMP
+    ? `${process.env.RUNNER_TEMP}/order-dispute-recovery/migration.sql`
+    : null,
+].find((candidate) => candidate && existsSync(candidate));
+assert.ok(
+  migrationPath,
+  "Order dispute-recovery migration source must be available",
 );
+const migration = readFileSync(migrationPath, "utf8");
 
 test("Order dispute-recovery workflow parses as YAML", () => {
   const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
