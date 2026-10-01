@@ -1991,6 +1991,26 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20260926010000_correct_order_provider_terminal_reconciliation/migration.sql
+      # The successor package above was previously restored for source tests but
+      # these five reviewed migrations were never applied to the shared
+      # disposable database. Later corrections replace only part of this
+      # catalog, so OrderItem's final exact-function preflight observed an old
+      # seller-detail body even though Production already had the successor.
+      - name: Apply remaining reviewed Order successors in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in \
+            20260926011000_correct_order_paid_checkout_bound_reservation \
+            20260926012000_correct_order_seller_deauthorization_fulfillment \
+            20260926012100_correct_order_seller_deauthorization_label \
+            20260926012200_correct_order_seller_deauthorization_projection \
+            20260926012300_retire_legacy_checkout_reservation_creators
+          do
+            psql "$DIRECT_URL" \
+              --set=ON_ERROR_STOP=on \
+              --file="prisma/migrations/$migration/migration.sql"
+          done
       # Apply this already source-verified additive correction directly so the
       # disposable database proves only these reviewed SQL bytes.
       - name: Apply only Case refund label-claim correction in disposable PostgreSQL

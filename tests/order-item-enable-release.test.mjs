@@ -44,10 +44,36 @@ test("CI isolates the staged OrderItem migration and applies it only after prede
   const holdTest = workflow.indexOf("tests/order-item-enable-release.test.mjs", isolate);
   const broadTests = workflow.indexOf("- name: Tests", isolate);
   const dispute = workflow.indexOf("Apply only Order dispute recovery through Prisma");
+  const restoredSuccessors = workflow.indexOf("Restore and prove the reviewed successors");
+  const appliedSuccessors = workflow.indexOf(
+    "Apply remaining reviewed Order successors in disposable PostgreSQL",
+  );
+  const caseLabelCorrection = workflow.indexOf(
+    "Apply only Case refund label-claim correction in disposable PostgreSQL",
+  );
   const restore = workflow.indexOf("Restore OrderItem ENABLE release");
   const apply = workflow.indexOf("Apply only OrderItem ENABLE in disposable PostgreSQL");
   assert.ok(verify >= 0 && verify < isolate);
   assert.ok(isolate < dispute && dispute < restore && restore < apply);
+  assert.ok(
+    broadTests < restoredSuccessors
+      && restoredSuccessors < appliedSuccessors
+      && appliedSuccessors < caseLabelCorrection
+      && caseLabelCorrection < dispute,
+  );
+  for (const migration of [
+    "20260926011000_correct_order_paid_checkout_bound_reservation",
+    "20260926012000_correct_order_seller_deauthorization_fulfillment",
+    "20260926012100_correct_order_seller_deauthorization_label",
+    "20260926012200_correct_order_seller_deauthorization_projection",
+    "20260926012300_retire_legacy_checkout_reservation_creators",
+  ]) {
+    const migrationIndex = workflow.indexOf(migration, appliedSuccessors);
+    assert.ok(
+      migrationIndex > appliedSuccessors && migrationIndex < caseLabelCorrection,
+      `${migration} is not applied in the reviewed successor step`,
+    );
+  }
   assert.ok(isolate < holdTest && holdTest < broadTests);
   assert.doesNotMatch(workflow, /ORDER_ITEM_ENABLE_MIGRATION_PATH/u);
   assert.equal(
