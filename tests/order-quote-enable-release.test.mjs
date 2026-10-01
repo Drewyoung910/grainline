@@ -60,10 +60,16 @@ test("CI isolates quote ENABLE and applies it after accepted OrderItem FORCE", (
   const isolate = workflow.indexOf("Isolate quote ENABLE until OrderItem FORCE passes");
   const restoreItemForce = workflow.indexOf("Restore OrderItem FORCE release");
   const applyItemForce = workflow.indexOf("Apply only OrderItem FORCE in disposable PostgreSQL");
+  const holdTest = workflow.indexOf(
+    "tests/order-quote-enable-release.test.mjs",
+    isolate + "Isolate quote ENABLE until OrderItem FORCE passes".length,
+  );
+  const tests = workflow.indexOf("- name: Tests");
   const restore = workflow.indexOf("Restore quote ENABLE release");
   const apply = workflow.indexOf("Apply only quote ENABLE in disposable PostgreSQL");
   assert.ok(verify >= 0 && verify < isolate);
   assert.ok(isolate < restoreItemForce && restoreItemForce < applyItemForce);
+  assert.ok(isolate < holdTest && holdTest < tests);
   assert.ok(applyItemForce < restore && restore < apply);
   assert.doesNotMatch(workflow, /ORDER_QUOTE_ENABLE_MIGRATION_PATH/u);
   assert.equal(
