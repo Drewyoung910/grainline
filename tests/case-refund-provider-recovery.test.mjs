@@ -23,6 +23,7 @@ const route = readFileSync(
   "utf8",
 );
 const schema = readFileSync("prisma/schema.prisma", "utf8");
+const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 
 const runtimeFunctions = [
   "grainline_case_staff_resolution_provider_recovery_load",
@@ -165,6 +166,32 @@ describe("Case refund provider recovery preparation", () => {
     assert.match(
       reconciliation,
       /prepared\.providerRecoveryAction === "RECORD_DISCOVERED_EFFECT"[\s\S]*Previously discovered Case refund evidence is no longer visible/,
+    );
+  });
+
+  it("isolates the candidate from historical release guards and restores it last", () => {
+    const verify = ciWorkflow.indexOf(
+      "Verify Case refund provider-recovery source package",
+    );
+    const isolate = ciWorkflow.indexOf(
+      "Isolate Case refund provider recovery until Order child predecessors pass",
+    );
+    const historicalReceipt = ciWorkflow.indexOf(
+      "Verify compatible Order checkout receipt authority release",
+    );
+    const restore = ciWorkflow.indexOf(
+      "Restore Case refund provider recovery",
+    );
+    const build = ciWorkflow.indexOf("Production build");
+
+    assert.ok(verify >= 0);
+    assert.ok(verify < isolate);
+    assert.ok(isolate < historicalReceipt);
+    assert.ok(historicalReceipt < restore);
+    assert.ok(restore < build);
+    assert.match(
+      ciWorkflow,
+      /Restore Case refund provider recovery[\s\S]*Re-verify Case refund provider-recovery source package[\s\S]*Apply only Case refund provider recovery in disposable PostgreSQL[\s\S]*Audit runtime grants after Case refund provider recovery/u,
     );
   });
 });
