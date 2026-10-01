@@ -122,7 +122,7 @@ test("reviewed catalog exactly matches latest migration-tree definitions", () =>
   assert.deepEqual(
     orderChildSourceFunctionCatalog(
       process.cwd(),
-      "20261001040000_force_order_item_rls",
+      "20261001030000_enable_order_item_rls",
     )
       .filter((entry) => entry.touchesOrderItem)
       .map((entry) => entry.name)
