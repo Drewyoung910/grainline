@@ -500,3 +500,39 @@ PR `#488` still points to `52652ba4...`; public main remains `499aa965...`.
 Publishing amended head `9751ada2...` and conditionally merging it requires a
 new exact-head approval. No migration, deployment, credential change, or live
 Stripe effect occurred.
+
+## PR #488 accepted and merged — 2026-09-30
+
+The user explicitly approved amended head
+`9751ada2d198faeca9dfb3c20301d6c45cd3cc2f`. It was published to PR `#488`
+against unchanged main `499aa9651a6fc5658858856b84a78569a25dfc9f`.
+All four exact-head checks passed:
+
+- CI `36796697187` in 29m42s;
+- Order Account Deletion Concurrency Proof `36796697217`;
+- Order Paid Repair Lock Proof `36796697196`; and
+- Order Staff Bootstrap Proof `36796697221`.
+
+The ready/merge boundary was re-read immediately before the merge: the PR was
+open and mergeable, its exact head and base matched the authorization, all four
+checks were successful, and remote main was unchanged. PR `#488` merged at
+`2026-10-01T01:04:01Z` as merge commit
+`c7d956c2046b481693a7edec89f6b7b5995366cc`, which is the resulting remote
+main head.
+
+All four automatically triggered merged-main workflows passed without manual
+redispatch:
+
+- CI `36799285933` in 29m47s, including the consolidated tests, dependency
+  audit, successor restoration proofs, and production build;
+- Order Account Deletion Concurrency Proof `36799285943`;
+- Order Staff Bootstrap Proof `36799285997`; and
+- Order Paid Repair Lock Proof `36799285931`.
+
+Main now contains the protected, manually dispatchable Production operator for
+migration `20260930040000_prepare_order_dispute_recovery`. The exact eligible
+Production dispatch binding is main
+`c7d956c2046b481693a7edec89f6b7b5995366cc` with successful push CI
+`36799285933`. The workflow has not been dispatched: the migration remains
+unapplied, the new app remains undeployed, and no live Stripe recovery effect
+has occurred. Production dispatch is the next separate approval boundary.
