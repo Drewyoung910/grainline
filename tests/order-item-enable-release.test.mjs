@@ -44,3 +44,23 @@ test("CI isolates the staged OrderItem migration and applies it only after prede
     3,
   );
 });
+
+test("Production ENABLE is manually dispatched, exact-bound and restart-safe", () => {
+  const workflow = fs.readFileSync(
+    ".github/workflows/order-item-enable-production.yml",
+    "utf8",
+  );
+  assert.match(workflow, /^name: OrderItem ENABLE Production$/m);
+  assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /github\.run_attempt == 1/);
+  assert.match(workflow, /inputs\.confirmation == 'enable-reviewed-order-item-rls'/);
+  assert.match(workflow, /inspection\.name !== 'Order Child Authority Inspection'/);
+  assert.match(workflow, /\['ahead', 'identical'\]\.includes\(comparison\.status\)/);
+  assert.match(workflow, /node scripts\/guard-production-migration-runner\.mjs/);
+  assert.match(workflow, /npx prisma migrate status/);
+  assert.match(workflow, /if: steps\.preflight\.outputs\.state == 'pending'/);
+  assert.match(workflow, /run: npx prisma migrate deploy/);
+  assert.match(workflow, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/);
+  assert.match(workflow, /orderItemRlsEnabled: true, orderItemRlsForced: false/);
+  assert.match(workflow, /retention-days: 7/);
+});

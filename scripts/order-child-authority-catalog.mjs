@@ -339,6 +339,7 @@ export async function readOrderChildAuthorityCatalog(client) {
 export function verifyOrderChildAuthorityCatalog(
   catalog,
   rootDirectory = process.cwd(),
+  expectedPosture = {},
 ) {
   assert.ok(catalog.identity, "database identity is missing");
   assert.equal(catalog.identity.actor, catalog.identity.login);
@@ -353,9 +354,26 @@ export function verifyOrderChildAuthorityCatalog(
     && catalog.identity.database_name === "grainline_ci"
     && catalog.identity.rolsuper === true;
   assert.ok(productionOwner || disposableOwner, "unreviewed database owner boundary");
-  assert.equal(catalog.tables.length, EXPECTED_TABLES.length);
+  const expectedTables = Object.freeze(EXPECTED_TABLES.map((entry) => {
+    if (entry.table_name === "OrderItem") {
+      return Object.freeze({
+        ...entry,
+        rls_enabled: expectedPosture.orderItemRlsEnabled ?? entry.rls_enabled,
+        rls_forced: expectedPosture.orderItemRlsForced ?? entry.rls_forced,
+      });
+    }
+    if (entry.table_name === "OrderShippingRateQuote") {
+      return Object.freeze({
+        ...entry,
+        rls_enabled: expectedPosture.quoteRlsEnabled ?? entry.rls_enabled,
+        rls_forced: expectedPosture.quoteRlsForced ?? entry.rls_forced,
+      });
+    }
+    return entry;
+  }));
+  assert.equal(catalog.tables.length, expectedTables.length);
   const ownerNames = new Set();
-  for (const expected of EXPECTED_TABLES) {
+  for (const expected of expectedTables) {
     const actual = catalog.tables.find(
       (entry) => entry.table_name === expected.table_name,
     );

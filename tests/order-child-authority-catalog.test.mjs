@@ -94,6 +94,17 @@ test("reviewed catalog exactly matches latest migration-tree definitions", () =>
   );
 });
 
+test("the same exact catalog accepts the separate policyless OrderItem ENABLE posture", () => {
+  const catalog = acceptedCatalog();
+  const orderItem = catalog.tables.find((entry) => entry.table_name === "OrderItem");
+  orderItem.rls_enabled = true;
+  assert.doesNotThrow(() => verifyOrderChildAuthorityCatalog(
+    catalog,
+    process.cwd(),
+    { orderItemRlsEnabled: true, orderItemRlsForced: false },
+  ));
+});
+
 test("catalog rejects an unreviewed direct function or unsafe authority", () => {
   const extra = acceptedCatalog();
   extra.functions.push({
