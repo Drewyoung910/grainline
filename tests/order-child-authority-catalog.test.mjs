@@ -173,6 +173,27 @@ test("the same exact catalog accepts the separate policyless OrderItem ENABLE po
   ));
 });
 
+test("the same exact catalog accepts OrderItem FORCE plus separate quote ENABLE", () => {
+  const catalog = acceptedCatalog();
+  const orderItem = catalog.tables.find((entry) => entry.table_name === "OrderItem");
+  orderItem.rls_enabled = true;
+  orderItem.rls_forced = true;
+  const quote = catalog.tables.find(
+    (entry) => entry.table_name === "OrderShippingRateQuote",
+  );
+  quote.rls_enabled = true;
+  assert.doesNotThrow(() => verifyOrderChildAuthorityCatalog(
+    catalog,
+    process.cwd(),
+    {
+      orderItemRlsEnabled: true,
+      orderItemRlsForced: true,
+      quoteRlsEnabled: true,
+      quoteRlsForced: false,
+    },
+  ));
+});
+
 test("catalog rejects an unreviewed direct function or unsafe authority", () => {
   const extra = acceptedCatalog();
   extra.functions.push({
