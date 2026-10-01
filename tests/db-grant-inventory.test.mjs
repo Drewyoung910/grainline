@@ -1786,6 +1786,7 @@ describe("database grant inventory guardrails", () => {
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
         + (orderOpsHealthMigrationPresent ? 1 : 0)
         + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
+        + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
@@ -2132,6 +2133,7 @@ describe("database grant inventory guardrails", () => {
         "Notification",
         ...(coreOrderRlsActivationExpected(inventory) ? ["Order"] : []),
         ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
+        ...(orderItemRlsActivationExpected(inventory) ? ["OrderItem"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "OrderStaffCapability",
@@ -2159,6 +2161,7 @@ describe("database grant inventory guardrails", () => {
         "Notification",
         ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
         ...(disputeRecoveryMigrationPresent ? ["OrderDisputeRecovery"] : []),
+        ...(orderItemRlsForceExpected(inventory) ? ["OrderItem"] : []),
         "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "OrderStaffCapability",

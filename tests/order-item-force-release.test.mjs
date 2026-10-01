@@ -53,6 +53,7 @@ test("CI isolates FORCE until policyless ENABLE succeeds", () => {
   const isolateForce = workflow.indexOf("Isolate OrderItem FORCE until policyless ENABLE passes");
   const verifyEnable = workflow.indexOf("Verify staged OrderItem ENABLE source package");
   const isolateEnable = workflow.indexOf("Isolate OrderItem ENABLE until every accepted predecessor passes");
+  const holdForceTest = workflow.indexOf("tests/order-item-force-release.test.mjs", isolateEnable);
   const tests = workflow.indexOf("- name: Tests");
   const restoreEnable = workflow.indexOf("Restore OrderItem ENABLE release");
   const applyEnable = workflow.indexOf("Apply only OrderItem ENABLE in disposable PostgreSQL");
@@ -60,13 +61,11 @@ test("CI isolates FORCE until policyless ENABLE succeeds", () => {
   const applyForce = workflow.indexOf("Apply only OrderItem FORCE in disposable PostgreSQL");
   assert.ok(verifyForce >= 0 && verifyForce < isolateForce);
   assert.ok(isolateForce < verifyEnable && verifyEnable < isolateEnable);
+  assert.ok(isolateEnable < holdForceTest && holdForceTest < tests);
   assert.ok(isolateEnable < tests && tests < restoreEnable);
   assert.ok(restoreEnable < applyEnable && applyEnable < restoreForce);
   assert.ok(restoreForce < applyForce);
-  assert.match(
-    workflow,
-    /name: Tests[\s\S]*ORDER_ITEM_FORCE_MIGRATION_PATH: \$\{\{ runner\.temp \}\}\/order-item-force-release\/migration\.sql[\s\S]*npm test/u,
-  );
+  assert.doesNotMatch(workflow, /ORDER_ITEM_FORCE_MIGRATION_PATH/u);
 });
 
 test("Production FORCE is manual, exact-bound and restart-safe", () => {
