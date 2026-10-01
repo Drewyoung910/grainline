@@ -20,9 +20,9 @@ export const ORDER_ITEM_ENABLE_RELEASE = Object.freeze({
   draftPath: "docs/rls-drafts/order-item-activation.sql",
   rollbackPath: "docs/rls-drafts/order-item-activation-rollback.sql",
   migrationPath: "prisma/migrations/20261001030000_enable_order_item_rls/migration.sql",
-  draftSha256: "c9c59a7a77a7ef242adfb9d24caefbf9ee5ee67591120c44a7e7d80fcad731f3",
+  draftSha256: "6e37b3bef170037fce31bbd8f1d0d9d193088c0b10c4c32448222ce0fc8c0bea",
   rollbackSha256: "5050ee096a4902945f70463f14677e569d18cd9b530e3b3b727f83b5792a7387",
-  migrationSha256: "8af35ca444c477df1cbd31c12561aadaeb9b9c61a77e73422e66dfcbd475ed39",
+  migrationSha256: "82f0f89aad7c47c57ef859b50ffe1317710a3760a05c4d932f13ee2423a10009",
 });
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");

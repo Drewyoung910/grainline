@@ -17,6 +17,8 @@ DECLARE
   table_owner oid;
   accepted_tables integer;
   accepted_functions integer;
+  actual_function_count integer;
+  expected_function_count integer;
   accepted_triggers integer;
 BEGIN
   IF current_user <> session_user THEN
@@ -152,32 +154,36 @@ BEGIN
      WHERE namespace.nspname = 'public'
        AND pg_catalog.strpos(procedure.prosrc, '"OrderItem"') > 0
   )
-  SELECT pg_catalog.count(*)::integer INTO accepted_functions
-    FROM expected
-    JOIN actual USING (function_identity, source_md5)
-   WHERE actual.proowner = table_owner
-     AND actual.lanname = 'plpgsql'
-     AND actual.prokind = 'f'
-     AND actual.prosecdef AND NOT actual.proleakproof
-     AND actual.proconfig = ARRAY['search_path=pg_catalog']::text[]
-     AND NOT actual.contains_dynamic_execute
-     AND NOT EXISTS (
-       SELECT 1 FROM pg_catalog.aclexplode(
-         COALESCE((SELECT procedure.proacl FROM pg_catalog.pg_proc AS procedure
-                    WHERE procedure.oid = actual.oid),
-                  pg_catalog.acldefault('f', actual.proowner))
-       ) AS acl
-       WHERE acl.grantee <> actual.proowner
-         AND (acl.privilege_type <> 'EXECUTE'
-           OR acl.is_grantable
-           OR acl.grantee = 0
-           OR pg_catalog.pg_get_userbyid(acl.grantee) NOT IN (
-             'grainline_app_runtime', 'grainline_staff_read_runtime'
-           ))
-     );
+  SELECT
+    (SELECT pg_catalog.count(*)::integer FROM expected),
+    (SELECT pg_catalog.count(*)::integer FROM actual),
+    (SELECT pg_catalog.count(*)::integer
+       FROM expected
+       JOIN actual USING (function_identity, source_md5)
+      WHERE actual.proowner = table_owner
+        AND actual.lanname = 'plpgsql'
+        AND actual.prokind = 'f'
+        AND actual.prosecdef AND NOT actual.proleakproof
+        AND actual.proconfig = ARRAY['search_path=pg_catalog']::text[]
+        AND NOT actual.contains_dynamic_execute
+        AND NOT EXISTS (
+          SELECT 1 FROM pg_catalog.aclexplode(
+            COALESCE((SELECT procedure.proacl FROM pg_catalog.pg_proc AS procedure
+                       WHERE procedure.oid = actual.oid),
+                     pg_catalog.acldefault('f', actual.proowner))
+          ) AS acl
+          WHERE acl.grantee <> actual.proowner
+            AND (acl.privilege_type <> 'EXECUTE'
+              OR acl.is_grantable
+              OR acl.grantee = 0
+              OR pg_catalog.pg_get_userbyid(acl.grantee) NOT IN (
+                'grainline_app_runtime', 'grainline_staff_read_runtime'
+              ))
+        ))
+    INTO expected_function_count, actual_function_count, accepted_functions;
   IF accepted_functions <> 34
-     OR (SELECT pg_catalog.count(*) FROM actual) <> 34
-     OR (SELECT pg_catalog.count(*) FROM expected) <> 34 THEN
+     OR actual_function_count <> 34
+     OR expected_function_count <> 34 THEN
     RAISE EXCEPTION 'OrderItem ENABLE exact function catalog drifted';
   END IF;
 
