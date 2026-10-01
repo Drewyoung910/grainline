@@ -210,5 +210,34 @@ describe("Case refund provider recovery preparation", () => {
       ciWorkflow,
       /Restore Case refund provider recovery[\s\S]*Re-verify Case refund provider-recovery source package[\s\S]*Apply only Case refund provider recovery in disposable PostgreSQL[\s\S]*Audit runtime grants after Case refund provider recovery/u,
     );
+    assert.equal(
+      [
+        ...ciWorkflow.matchAll(
+          /holding="\$RUNNER_TEMP\/unapplied-case-refund-provider-recovery"/gu,
+        ),
+      ].length,
+      4,
+    );
+    assert.equal(
+      [...ciWorkflow.matchAll(/trap restore_case_migration EXIT/gu)].length,
+      4,
+    );
+    for (const auditName of [
+      "Audit runtime grants after OrderItem ENABLE",
+      "Audit runtime grants after OrderItem FORCE",
+      "Audit runtime grants after quote ENABLE",
+      "Audit runtime grants after quote FORCE",
+    ]) {
+      const audit = ciWorkflow.indexOf(auditName);
+      const nextStep = ciWorkflow.indexOf("\n      - name:", audit + auditName.length);
+      const auditBlock = ciWorkflow.slice(
+        audit,
+        nextStep >= 0 ? nextStep : ciWorkflow.length,
+      );
+      assert.match(
+        auditBlock,
+        /mv "\$case_migration" "\$holding"[\s\S]*trap restore_case_migration EXIT[\s\S]*npm run audit:db-grants/u,
+      );
+    }
   });
 });
