@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
 import {
   ORDER_ITEM_DIRECT_FUNCTIONS,
   ORDER_ITEM_TRIGGER_FUNCTIONS,
+  ORDER_ITEM_TRIGGER_SOURCE_MD5,
   ORDER_QUOTE_DIRECT_FUNCTIONS,
   orderChildSourceCatalog,
   orderChildSourceFunctionCatalog,
@@ -17,12 +19,12 @@ function functionRow(source) {
     function_name: source.name,
     identity_arguments: source.identity.slice(source.identity.indexOf("(") + 1, -1).replaceAll(",", ", "),
     owner_name: owner,
-    language_name: "plpgsql",
+    language_name: source.languageName,
     function_kind: "f",
-    security_definer: true,
-    leakproof: false,
-    volatility: "v",
-    parallel_safety: "u",
+    security_definer: source.securityDefiner,
+    leakproof: source.leakproof,
+    volatility: source.volatility,
+    parallel_safety: source.parallelSafety,
     function_config: ["search_path=pg_catalog"],
     source_md5: source.sourceMd5,
     contains_dynamic_execute: false,
@@ -62,14 +64,20 @@ function acceptedCatalog() {
     functions: sourceCatalog.map(functionRow),
     triggers: ORDER_ITEM_TRIGGER_FUNCTIONS.map((function_name, index) => ({
       table_name: "OrderItem",
-      trigger_name: `trigger_${index}`,
+      trigger_name: function_name,
       function_name,
       owner_name: owner,
       enabled: "O",
       deferrable: index === 1,
       initially_deferred: index === 1,
+      language_name: "plpgsql",
+      function_kind: "f",
       security_definer: true,
+      leakproof: false,
       function_config: ["search_path=pg_catalog"],
+      source_md5: ORDER_ITEM_TRIGGER_SOURCE_MD5[function_name],
+      contains_dynamic_execute: false,
+      nonowner_acl: [],
     })),
     structure: [{ object_type: "index", table_name: "OrderItem", object_name: "OrderItem_pkey", valid: true }],
   };
@@ -92,6 +100,43 @@ test("reviewed catalog exactly matches latest migration-tree definitions", () =>
     orderChildSourceCatalog(),
     [...ORDER_ITEM_DIRECT_FUNCTIONS, ...ORDER_QUOTE_DIRECT_FUNCTIONS].sort(),
   );
+  assert.deepEqual(
+    orderChildSourceFunctionCatalog()
+      .filter((entry) => entry.languageName === "sql")
+      .map((entry) => entry.name),
+    [
+      "grainline_order_buyer_detail_v3",
+      "grainline_order_public_marketplace_listing_metrics",
+      "grainline_order_seller_detail_v3",
+      "grainline_order_summary_items",
+    ],
+  );
+  assert.equal(
+    orderChildSourceFunctionCatalog().every(
+      (entry) => entry.securityDefiner && !entry.leakproof,
+    ),
+    true,
+  );
+});
+
+test("catalog normalizes PostgreSQL ACL booleans before JavaScript verification", () => {
+  const source = fs.readFileSync("scripts/order-child-authority-catalog.mjs", "utf8");
+  assert.equal(
+    (source.match(/CASE WHEN acl\.is_grantable THEN 'true' ELSE 'false' END/gu) ?? []).length,
+    2,
+  );
+  assert.doesNotMatch(source, /\n\s+acl\.is_grantable\n/gu);
+});
+
+test("the same exact catalog accepts the separate policyless OrderItem ENABLE posture", () => {
+  const catalog = acceptedCatalog();
+  const orderItem = catalog.tables.find((entry) => entry.table_name === "OrderItem");
+  orderItem.rls_enabled = true;
+  assert.doesNotThrow(() => verifyOrderChildAuthorityCatalog(
+    catalog,
+    process.cwd(),
+    { orderItemRlsEnabled: true, orderItemRlsForced: false },
+  ));
 });
 
 test("catalog rejects an unreviewed direct function or unsafe authority", () => {
@@ -110,4 +155,17 @@ test("catalog rejects an unreviewed direct function or unsafe authority", () => 
   const invoker = acceptedCatalog();
   invoker.functions[0].security_definer = false;
   assert.throws(() => verifyOrderChildAuthorityCatalog(invoker), /not SECURITY DEFINER/u);
+
+  const languageDrift = acceptedCatalog();
+  const sqlFunction = languageDrift.functions.find((entry) => entry.language_name === "sql");
+  sqlFunction.language_name = "plpgsql";
+  assert.throws(() => verifyOrderChildAuthorityCatalog(languageDrift), /language drifted/u);
+
+  const renamedTrigger = acceptedCatalog();
+  renamedTrigger.triggers[0].trigger_name = "grainline_unreviewed_trigger";
+  assert.throws(() => verifyOrderChildAuthorityCatalog(renamedTrigger));
+
+  const triggerTimingDrift = acceptedCatalog();
+  triggerTimingDrift.triggers[1].initially_deferred = false;
+  assert.throws(() => verifyOrderChildAuthorityCatalog(triggerTimingDrift));
 });

@@ -55,6 +55,11 @@ export const ORDER_ITEM_TRIGGER_FUNCTIONS = Object.freeze([
   "grainline_order_item_seller_key_complete",
 ].sort());
 
+export const ORDER_ITEM_TRIGGER_SOURCE_MD5 = Object.freeze({
+  grainline_order_item_seller_key_bind: "34c8dab8a6d39ca9951ee049f9f2a7ea",
+  grainline_order_item_seller_key_complete: "878a575c4b0a823fa9acf6c379f5199b",
+});
+
 const EXPECTED_TABLES = Object.freeze([
   Object.freeze({ table_name: "Order", rls_enabled: true, rls_forced: true }),
   Object.freeze({ table_name: "OrderItem", rls_enabled: false, rls_forced: false }),
@@ -142,6 +147,24 @@ function identityArguments(source) {
   }).join(",");
 }
 
+function functionDeclarationMetadata(declaration) {
+  const language = declaration.match(/\bLANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)/iu)?.[1]
+    ?.toLowerCase();
+  assert.ok(language, "function language is missing");
+  return Object.freeze({
+    languageName: language,
+    volatility: /\bIMMUTABLE\b/iu.test(declaration)
+      ? "i"
+      : /\bSTABLE\b/iu.test(declaration) ? "s" : "v",
+    parallelSafety: /\bPARALLEL\s+SAFE\b/iu.test(declaration)
+      ? "s"
+      : /\bPARALLEL\s+RESTRICTED\b/iu.test(declaration) ? "r" : "u",
+    securityDefiner: /\bSECURITY\s+DEFINER\b/iu.test(declaration),
+    leakproof: /\bLEAKPROOF\b/iu.test(declaration)
+      && !/\bNOT\s+LEAKPROOF\b/iu.test(declaration),
+  });
+}
+
 export function orderChildSourceFunctionCatalog(rootDirectory = process.cwd()) {
   const migrationRoot = path.join(rootDirectory, "prisma/migrations");
   const definitions = new Map();
@@ -172,6 +195,7 @@ export function orderChildSourceFunctionCatalog(rootDirectory = process.cwd()) {
     name: entry.name,
     identity: `${entry.name}(${identityArguments(entry.argumentsSource)})`,
     sourceMd5: createHash("md5").update(entry.body).digest("hex"),
+    ...functionDeclarationMetadata(entry.declaration),
     touchesOrderItem: entry.body.includes('"OrderItem"'),
     touchesQuote: entry.body.includes('"OrderShippingRateQuote"'),
   })).sort((left, right) => left.identity.localeCompare(right.identity)));
@@ -257,7 +281,7 @@ export async function readOrderChildAuthorityCatalog(client) {
           CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
                ELSE pg_catalog.pg_get_userbyid(acl.grantee) END,
           acl.privilege_type,
-          acl.is_grantable
+          CASE WHEN acl.is_grantable THEN 'true' ELSE 'false' END
         )
         FROM pg_catalog.aclexplode(
           COALESCE(procedure.proacl,
@@ -290,11 +314,33 @@ export async function readOrderChildAuthorityCatalog(client) {
       trigger_row.tgenabled AS enabled,
       trigger_row.tgdeferrable AS deferrable,
       trigger_row.tginitdeferred AS initially_deferred,
+      language.lanname AS language_name,
+      procedure.prokind AS function_kind,
       procedure.prosecdef AS security_definer,
-      procedure.proconfig AS function_config
+      procedure.proleakproof AS leakproof,
+      procedure.proconfig AS function_config,
+      pg_catalog.md5(procedure.prosrc) AS source_md5,
+      pg_catalog.strpos(pg_catalog.upper(procedure.prosrc), 'EXECUTE') > 0
+        AS contains_dynamic_execute,
+      ARRAY(
+        SELECT pg_catalog.format(
+          '%s:%s:%s',
+          CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
+               ELSE pg_catalog.pg_get_userbyid(acl.grantee) END,
+          acl.privilege_type,
+          CASE WHEN acl.is_grantable THEN 'true' ELSE 'false' END
+        )
+        FROM pg_catalog.aclexplode(
+          COALESCE(procedure.proacl,
+                   pg_catalog.acldefault('f', procedure.proowner))
+        ) AS acl
+        WHERE acl.grantee <> procedure.proowner
+        ORDER BY 1
+      ) AS nonowner_acl
     FROM pg_catalog.pg_trigger AS trigger_row
     JOIN pg_catalog.pg_class AS class ON class.oid = trigger_row.tgrelid
     JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = trigger_row.tgfoid
+    JOIN pg_catalog.pg_language AS language ON language.oid = procedure.prolang
     WHERE class.oid = ANY(ARRAY[
       'public."OrderItem"'::pg_catalog.regclass,
       'public."OrderShippingRateQuote"'::pg_catalog.regclass
@@ -339,6 +385,7 @@ export async function readOrderChildAuthorityCatalog(client) {
 export function verifyOrderChildAuthorityCatalog(
   catalog,
   rootDirectory = process.cwd(),
+  expectedPosture = {},
 ) {
   assert.ok(catalog.identity, "database identity is missing");
   assert.equal(catalog.identity.actor, catalog.identity.login);
@@ -353,9 +400,26 @@ export function verifyOrderChildAuthorityCatalog(
     && catalog.identity.database_name === "grainline_ci"
     && catalog.identity.rolsuper === true;
   assert.ok(productionOwner || disposableOwner, "unreviewed database owner boundary");
-  assert.equal(catalog.tables.length, EXPECTED_TABLES.length);
+  const expectedTables = Object.freeze(EXPECTED_TABLES.map((entry) => {
+    if (entry.table_name === "OrderItem") {
+      return Object.freeze({
+        ...entry,
+        rls_enabled: expectedPosture.orderItemRlsEnabled ?? entry.rls_enabled,
+        rls_forced: expectedPosture.orderItemRlsForced ?? entry.rls_forced,
+      });
+    }
+    if (entry.table_name === "OrderShippingRateQuote") {
+      return Object.freeze({
+        ...entry,
+        rls_enabled: expectedPosture.quoteRlsEnabled ?? entry.rls_enabled,
+        rls_forced: expectedPosture.quoteRlsForced ?? entry.rls_forced,
+      });
+    }
+    return entry;
+  }));
+  assert.equal(catalog.tables.length, expectedTables.length);
   const ownerNames = new Set();
-  for (const expected of EXPECTED_TABLES) {
+  for (const expected of expectedTables) {
     const actual = catalog.tables.find(
       (entry) => entry.table_name === expected.table_name,
     );
@@ -396,9 +460,18 @@ export function verifyOrderChildAuthorityCatalog(
       `${identity} body drifted`,
     );
     assert.equal(entry.owner_name, tableOwner, `${entry.function_name} owner drifted`);
-    assert.equal(entry.language_name, "plpgsql", `${entry.function_name} language drifted`);
+    const expected = expectedByIdentity.get(identity);
+    assert.equal(entry.language_name, expected?.languageName, `${entry.function_name} language drifted`);
     assert.equal(entry.function_kind, "f", `${entry.function_name} kind drifted`);
+    assert.equal(entry.volatility, expected?.volatility, `${entry.function_name} volatility drifted`);
+    assert.equal(
+      entry.parallel_safety,
+      expected?.parallelSafety,
+      `${entry.function_name} parallel safety drifted`,
+    );
+    assert.equal(expected?.securityDefiner, true, `${entry.function_name} source is not SECURITY DEFINER`);
     assert.equal(entry.security_definer, true, `${entry.function_name} is not SECURITY DEFINER`);
+    assert.equal(expected?.leakproof, false, `${entry.function_name} source became leakproof`);
     assert.equal(entry.leakproof, false, `${entry.function_name} became leakproof`);
     assert.equal(entry.function_config?.length, 1, `${entry.function_name} config drifted`);
     assert.equal(entry.function_config?.[0], "search_path=pg_catalog");
@@ -417,10 +490,20 @@ export function verifyOrderChildAuthorityCatalog(
   );
   assert.ok(catalog.triggers.every((entry) => entry.table_name === "OrderItem"));
   for (const entry of catalog.triggers) {
+    const isCompletionTrigger = entry.function_name === "grainline_order_item_seller_key_complete";
+    assert.equal(entry.trigger_name, entry.function_name);
     assert.equal(entry.owner_name, tableOwner);
     assert.equal(entry.enabled, "O");
+    assert.equal(entry.deferrable, isCompletionTrigger);
+    assert.equal(entry.initially_deferred, isCompletionTrigger);
+    assert.equal(entry.language_name, "plpgsql");
+    assert.equal(entry.function_kind, "f");
     assert.equal(entry.security_definer, true);
+    assert.equal(entry.leakproof, false);
     assert.deepEqual(entry.function_config, ["search_path=pg_catalog"]);
+    assert.equal(entry.source_md5, ORDER_ITEM_TRIGGER_SOURCE_MD5[entry.function_name]);
+    assert.equal(entry.contains_dynamic_execute, false);
+    assert.deepEqual(entry.nonowner_acl, []);
   }
   assert.ok(catalog.structure.length > 0);
 

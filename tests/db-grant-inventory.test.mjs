@@ -121,6 +121,7 @@ const {
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   CHECKOUT_STOCK_RESERVATION_TABLE,
   CORE_ORDER_TABLE,
+  ORDER_ITEM_TABLE,
   ORDER_PAYMENT_EVENT_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   assertGrantAuditConnectionMatches,
@@ -139,6 +140,8 @@ const {
   checkoutStockReservationRlsForceExpected,
   coreOrderRlsActivationExpected,
   coreOrderRlsForceExpected,
+  orderItemRlsActivationExpected,
+  orderItemRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -896,6 +899,54 @@ describe("database grant inventory guardrails", () => {
     ["service-only table Order must have FORCE ROW LEVEL SECURITY enabled"]);
     assert.equal(coreOrderRlsActivationExpected({ ...enabled,
       rlsPolicyTables: [CORE_ORDER_TABLE] }), false);
+  });
+
+  it("accepts OrderItem policyless ENABLE and audits its later FORCE separately", () => {
+    const predecessor = {
+      tables: [ORDER_ITEM_TABLE],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+      orderItemQuoteRuntimeLockApplied: true,
+    };
+    const enabled = { ...predecessor, rlsEnableTables: [ORDER_ITEM_TABLE] };
+    const forced = { ...enabled, rlsForceTables: [ORDER_ITEM_TABLE] };
+    assert.equal(orderItemRlsActivationExpected(predecessor), false);
+    assert.equal(orderItemRlsActivationExpected(enabled), true);
+    assert.equal(orderItemRlsForceExpected(enabled), false);
+    assert.equal(orderItemRlsForceExpected(forced), true);
+    assert.deepEqual(requiredRuntimeTablePrivileges(ORDER_ITEM_TABLE, predecessor), []);
+    assert.deepEqual(requiredRuntimeTablePrivileges(ORDER_ITEM_TABLE, enabled), []);
+    assert.equal(
+      policylessServiceRlsTableNames(predecessor).includes(ORDER_ITEM_TABLE),
+      false,
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(enabled).includes(ORDER_ITEM_TABLE),
+      true,
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues([{
+        table_name: ORDER_ITEM_TABLE,
+        rls_enabled: true,
+        rls_forced: false,
+        policy_count: 0,
+      }], enabled),
+      [],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues([{
+        table_name: ORDER_ITEM_TABLE,
+        rls_enabled: true,
+        rls_forced: false,
+        policy_count: 0,
+      }], forced),
+      ["service-only table OrderItem must have FORCE ROW LEVEL SECURITY enabled"],
+    );
+    assert.equal(orderItemRlsActivationExpected({
+      ...enabled,
+      rlsPolicyTables: [ORDER_ITEM_TABLE],
+    }), false);
   });
 
   it("pins policyless service ledgers to ENABLE plus FORCE", () => {
