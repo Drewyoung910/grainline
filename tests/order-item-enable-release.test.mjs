@@ -30,6 +30,17 @@ test("OrderItem ENABLE is one pinned policyless table release", () => {
   );
 });
 
+test("the global grant audit recognizes OrderItem policyless ENABLE", () => {
+  const audit = fs.readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
+  assert.match(audit, /export const ORDER_ITEM_TABLE = "OrderItem"/u);
+  assert.match(audit, /export function orderItemRlsActivationExpected/u);
+  assert.match(audit, /export function orderItemRlsForceExpected/u);
+  assert.match(
+    audit,
+    /row\.table_name === ORDER_ITEM_TABLE[\s\S]{0,120}orderItemRlsActivationExpected\(inventory\)/u,
+  );
+});
+
 test("OrderItem rollback restores the zero-direct RLS-off predecessor", () => {
   const { rollback } = buildOrderItemRlsCandidate();
   assert.match(rollback, /DISABLE ROW LEVEL SECURITY/);
