@@ -9,6 +9,19 @@ import type { OrderRefundClaim } from "./orderRefundClaimAuthority.ts";
 const SAFE_IDEMPOTENCY_RETRY_MS = 23 * 60 * 60 * 1000;
 const MAX_REFUND_SCAN_PAGES = 20;
 
+export class OrderRefundProviderReconciliationRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OrderRefundProviderReconciliationRequiredError";
+  }
+}
+
+export function isOrderRefundProviderReconciliationRequiredError(
+  error: unknown,
+): error is OrderRefundProviderReconciliationRequiredError {
+  return error instanceof OrderRefundProviderReconciliationRequiredError;
+}
+
 type RefundListPage = {
   data: Stripe.Refund[];
   has_more: boolean;
@@ -141,7 +154,9 @@ function validateMatchedRefund(
     )
     || refund.created < providerAuthorizedAtSeconds - 5 * 60
   ) {
-    throw new Error("Stripe refund claim evidence drifted from PostgreSQL authority");
+    throw new OrderRefundProviderReconciliationRequiredError(
+      "Stripe refund claim evidence drifted from PostgreSQL authority",
+    );
   }
 }
 
@@ -209,16 +224,20 @@ export async function inspectOrderRefundProviderEffect(
     if (!page.has_more) break;
     const last = page.data.at(-1);
     if (!last || pageNumber === MAX_REFUND_SCAN_PAGES - 1) {
-      throw new Error("Stripe refund claim inspection exceeded its bounded scan");
+      throw new OrderRefundProviderReconciliationRequiredError(
+        "Stripe refund claim inspection exceeded its bounded scan",
+      );
     }
     startingAfter = last.id;
   }
 
   if (matches.length > 1) {
-    throw new Error("Stripe returned multiple refunds for one Grainline claim");
+    throw new OrderRefundProviderReconciliationRequiredError(
+      "Stripe returned multiple refunds for one Grainline claim",
+    );
   }
   if (plausibleUntagged.length > 0) {
-    throw new Error(
+    throw new OrderRefundProviderReconciliationRequiredError(
       "Stripe returned a plausible untagged refund in the claim window; manual reconciliation is required",
     );
   }
@@ -257,7 +276,7 @@ export async function inspectOrderRefundProviderEffect(
   });
   if (retrieved.status === "failed" || retrieved.status === "canceled") {
     if (retrieved.transfer_reversal || retrieved.source_transfer_reversal) {
-      throw new Error(
+      throw new OrderRefundProviderReconciliationRequiredError(
         "Stripe terminal refund retains transfer-reversal evidence; manual accounting reconciliation is required",
       );
     }
@@ -274,7 +293,9 @@ export async function inspectOrderRefundProviderEffect(
       retrieved.status,
     )
   ) {
-    throw new Error("Stripe refund claim has an unsupported provider status");
+    throw new OrderRefundProviderReconciliationRequiredError(
+      "Stripe refund claim has an unsupported provider status",
+    );
   }
   return {
     disposition: "USABLE_REFUND",
@@ -321,12 +342,12 @@ export async function resolveOrderRefundProviderOutcome(
       return inspection.providerResult!;
     }
     if (inspection.disposition === "TERMINAL_NO_EFFECT") {
-      throw new Error(
+      throw new OrderRefundProviderReconciliationRequiredError(
         "Stripe refund claim ended without a usable refund; staff reconciliation is required",
       );
     }
     if (Date.now() - authorizedAt.getTime() >= SAFE_IDEMPOTENCY_RETRY_MS) {
-      throw new Error(
+      throw new OrderRefundProviderReconciliationRequiredError(
         "Stripe refund claim exceeded the safe idempotency retry window; staff reconciliation is required",
       );
     }

@@ -1,9 +1,23 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { inspectOrderRefundProviderEffect } = await import(
+const {
+  inspectOrderRefundProviderEffect,
+  isOrderRefundProviderReconciliationRequiredError,
+} = await import(
   "../src/lib/orderRefundProviderReconciliation.ts"
 );
+
+async function rejectsReconciliationRequired(promise, messagePattern) {
+  await assert.rejects(promise, (error) => {
+    assert.equal(
+      isOrderRefundProviderReconciliationRequiredError(error),
+      true,
+    );
+    assert.match(error.message, messagePattern);
+    return true;
+  });
+}
 
 function claim(overrides = {}) {
   return {
@@ -161,7 +175,7 @@ describe("Order refund provider reconciliation", () => {
 
   it("fails closed when a terminal refund retains Connect reversal evidence", async () => {
     const exact = refund({ status: "failed" });
-    await assert.rejects(
+    await rejectsReconciliationRequired(
       inspectOrderRefundProviderEffect(claim(), {
         client: client([{ data: [exact], has_more: false }], exact),
         providerAuthorizedAtSeconds: 1_777_046_000,
@@ -208,7 +222,7 @@ describe("Order refund provider reconciliation", () => {
 
   it("fails closed on duplicate claim metadata or canonical drift", async () => {
     const first = refund();
-    await assert.rejects(
+    await rejectsReconciliationRequired(
       inspectOrderRefundProviderEffect(claim(), {
         client: client([{
           data: [first, refund({ id: "re_duplicate" })],
@@ -218,7 +232,7 @@ describe("Order refund provider reconciliation", () => {
       }),
       /multiple refunds/,
     );
-    await assert.rejects(
+    await rejectsReconciliationRequired(
       inspectOrderRefundProviderEffect(claim(), {
         client: client(
           [{ data: [first], has_more: false }],
@@ -228,7 +242,7 @@ describe("Order refund provider reconciliation", () => {
       }),
       /evidence drifted/,
     );
-    await assert.rejects(
+    await rejectsReconciliationRequired(
       inspectOrderRefundProviderEffect(claim(), {
         client: client(
           [{ data: [first], has_more: false }],
@@ -251,7 +265,7 @@ describe("Order refund provider reconciliation", () => {
       metadata: {},
       created: 1_777_046_100,
     });
-    await assert.rejects(
+    await rejectsReconciliationRequired(
       inspectOrderRefundProviderEffect(claim(), {
         client: client([{ data: [plausibleLegacy], has_more: false }]),
         providerAuthorizedAtSeconds: 1_777_046_000,
@@ -286,12 +300,39 @@ describe("Order refund provider reconciliation", () => {
       data: [refund({ id: `re_page_${index}`, amount: 100, metadata: {} })],
       has_more: true,
     })));
-    await assert.rejects(
+    await rejectsReconciliationRequired(
       inspectOrderRefundProviderEffect(claim(), {
         client: endless,
         providerAuthorizedAtSeconds: 1_777_046_000,
       }),
       /exceeded its bounded scan/,
+    );
+  });
+
+  it("does not convert a transient provider read failure into manual reconciliation", async () => {
+    const providerError = new Error("Stripe connection reset");
+    const fake = {
+      async list() {
+        throw providerError;
+      },
+      async retrieve() {
+        throw new Error("retrieve should not run");
+      },
+    };
+
+    await assert.rejects(
+      inspectOrderRefundProviderEffect(claim(), {
+        client: fake,
+        providerAuthorizedAtSeconds: 1_777_046_000,
+      }),
+      (error) => {
+        assert.equal(error, providerError);
+        assert.equal(
+          isOrderRefundProviderReconciliationRequiredError(error),
+          false,
+        );
+        return true;
+      },
     );
   });
 });

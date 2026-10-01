@@ -66,7 +66,10 @@ import {
   type OrderRefundRecordResult,
 } from "@/lib/orderRefundRecordAuthority";
 import { finalizeBlockedCheckoutOrderRefund } from "@/lib/orderRefundFinalization";
-import { resolveOrderRefundProviderOutcome } from "@/lib/orderRefundProviderReconciliation";
+import {
+  isOrderRefundProviderReconciliationRequiredError,
+  resolveOrderRefundProviderOutcome,
+} from "@/lib/orderRefundProviderReconciliation";
 import { markOrderRefundClaimAmbiguous } from "@/lib/orderRefundReconciliationAuthority";
 import { bindBlockedCheckoutTransfer } from "@/lib/blockedCheckoutTransferAuthority";
 import { resolveCheckoutPaymentIntentRefs } from "@/lib/checkoutPaymentIntentRefs";
@@ -877,17 +880,21 @@ export async function POST(req: Request) {
               }
             } else {
               retryBlockedCheckoutRefund = true;
-              try {
-                await markOrderRefundClaimAmbiguous({
-                  claim: refundClaim,
-                  reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS",
-                });
-              } catch (dbError) {
-                Sentry.captureException(dbError, {
-                  tags: { source: "stripe_webhook_blocked_checkout_refund_ambiguous_record_failed" },
-                  extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
-                });
-                throw dbError;
+              if (
+                isOrderRefundProviderReconciliationRequiredError(refundError)
+              ) {
+                try {
+                  await markOrderRefundClaimAmbiguous({
+                    claim: refundClaim,
+                    reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS",
+                  });
+                } catch (dbError) {
+                  Sentry.captureException(dbError, {
+                    tags: { source: "stripe_webhook_blocked_checkout_refund_ambiguous_record_failed" },
+                    extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
+                  });
+                  throw dbError;
+                }
               }
               Sentry.captureException(refundError, {
                 tags: { source: "stripe_webhook_blocked_checkout_refund" },
