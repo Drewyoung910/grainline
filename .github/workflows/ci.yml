@@ -1958,7 +1958,8 @@ jobs:
             tests/order-checkout-source-cutover-production-workflow.test.mjs \
             tests/order-item-enable-release.test.mjs \
             tests/order-item-force-release.test.mjs \
-            tests/order-quote-enable-release.test.mjs
+            tests/order-quote-enable-release.test.mjs \
+            tests/order-quote-force-release.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done

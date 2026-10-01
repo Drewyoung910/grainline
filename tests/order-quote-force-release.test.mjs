@@ -54,6 +54,10 @@ test("CI isolates quote FORCE until quote ENABLE succeeds", () => {
   const isolateForce = workflow.indexOf("Isolate quote FORCE until quote ENABLE passes");
   const verifyEnable = workflow.indexOf("Verify staged quote ENABLE source package");
   const isolateEnable = workflow.indexOf("Isolate quote ENABLE until OrderItem FORCE passes");
+  const holdForceTest = workflow.indexOf(
+    "tests/order-quote-force-release.test.mjs",
+    isolateForce + "Isolate quote FORCE until quote ENABLE passes".length,
+  );
   const tests = workflow.indexOf("- name: Tests");
   const restoreEnable = workflow.indexOf("Restore quote ENABLE release");
   const applyEnable = workflow.indexOf("Apply only quote ENABLE in disposable PostgreSQL");
@@ -61,6 +65,7 @@ test("CI isolates quote FORCE until quote ENABLE succeeds", () => {
   const applyForce = workflow.indexOf("Apply only quote FORCE in disposable PostgreSQL");
   assert.ok(verifyForce >= 0 && verifyForce < isolateForce);
   assert.ok(isolateForce < verifyEnable && verifyEnable < isolateEnable);
+  assert.ok(isolateForce < holdForceTest && holdForceTest < tests);
   assert.ok(isolateEnable < tests && tests < restoreEnable);
   assert.ok(restoreEnable < applyEnable && applyEnable < restoreForce);
   assert.ok(restoreForce < applyForce);
