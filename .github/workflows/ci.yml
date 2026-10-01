@@ -88,21 +88,6 @@ jobs:
           node --test
           tests/case-refund-provider-recovery.test.mjs
           tests/case-refund-provider-recovery-postgres.test.mjs
-      - name: Isolate Case refund provider recovery until Order child predecessors pass
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/case-refund-provider-recovery"
-          mkdir "$holding"
-          mv \
-            prisma/migrations/20261001070000_prepare_case_refund_provider_recovery \
-            "$holding/migration"
-          mv \
-            tests/case-refund-provider-recovery.test.mjs \
-            "$holding/case-refund-provider-recovery.test.mjs"
-          mv \
-            tests/case-refund-provider-recovery-postgres.test.mjs \
-            "$holding/case-refund-provider-recovery-postgres.test.mjs"
       - name: Verify staged quote FORCE source package
         run: >-
           node --test
@@ -155,6 +140,21 @@ jobs:
           mv \
             prisma/migrations/20261001030000_enable_order_item_rls \
             "$RUNNER_TEMP/order-item-enable-release"
+      - name: Isolate Case refund provider recovery until historical predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/case-refund-provider-recovery"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261001070000_prepare_case_refund_provider_recovery \
+            "$holding/migration"
+          mv \
+            tests/case-refund-provider-recovery.test.mjs \
+            "$holding/case-refund-provider-recovery.test.mjs"
+          mv \
+            tests/case-refund-provider-recovery-postgres.test.mjs \
+            "$holding/case-refund-provider-recovery-postgres.test.mjs"
       - name: Verify Order dispute-recovery source package
         run: >-
           node --test

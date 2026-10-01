@@ -174,7 +174,10 @@ describe("Case refund provider recovery preparation", () => {
       "Verify Case refund provider-recovery source package",
     );
     const isolate = ciWorkflow.indexOf(
-      "Isolate Case refund provider recovery until Order child predecessors pass",
+      "Isolate Case refund provider recovery until historical predecessors pass",
+    );
+    const childEnable = ciWorkflow.indexOf(
+      "Verify staged OrderItem ENABLE source package",
     );
     const historicalReceipt = ciWorkflow.indexOf(
       "Verify compatible Order checkout receipt authority release",
@@ -185,7 +188,8 @@ describe("Case refund provider recovery preparation", () => {
     const build = ciWorkflow.indexOf("Production build");
 
     assert.ok(verify >= 0);
-    assert.ok(verify < isolate);
+    assert.ok(verify < childEnable);
+    assert.ok(childEnable < isolate);
     assert.ok(isolate < historicalReceipt);
     assert.ok(historicalReceipt < restore);
     assert.ok(restore < build);
