@@ -14,6 +14,7 @@ export const ORDER_ITEM_DIRECT_FUNCTIONS = Object.freeze([
   "grainline_case_seller_refund_apply",
   "grainline_case_staff_resolution_finalize",
   "grainline_case_staff_resolution_prepare",
+  "grainline_case_staff_resolution_recovery_finalize",
   "grainline_case_stripe_dispute_apply",
   "grainline_listing_order_archive_blocked",
   "grainline_notification_create_core",

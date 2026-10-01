@@ -88,7 +88,7 @@ test("accepted Order child authority catalog is exact and read-only", () => {
   assert.deepEqual(verifyOrderChildAuthorityCatalog(acceptedCatalog()), {
     databaseMode: "production-read-only",
     tableOwner: owner,
-    orderItemDirectFunctionCount: 34,
+    orderItemDirectFunctionCount: 35,
     quoteDirectFunctionCount: 4,
     orderItemTriggerCount: 2,
     rowDataRead: false,
