@@ -1,0 +1,113 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  ORDER_ITEM_DIRECT_FUNCTIONS,
+  ORDER_ITEM_TRIGGER_FUNCTIONS,
+  ORDER_QUOTE_DIRECT_FUNCTIONS,
+  orderChildSourceCatalog,
+  orderChildSourceFunctionCatalog,
+  verifyOrderChildAuthorityCatalog,
+} from "../scripts/order-child-authority-catalog.mjs";
+
+const owner = "neondb_owner";
+
+function functionRow(source) {
+  return {
+    function_name: source.name,
+    identity_arguments: source.identity.slice(source.identity.indexOf("(") + 1, -1).replaceAll(",", ", "),
+    owner_name: owner,
+    language_name: "plpgsql",
+    function_kind: "f",
+    security_definer: true,
+    leakproof: false,
+    volatility: "v",
+    parallel_safety: "u",
+    function_config: ["search_path=pg_catalog"],
+    source_md5: source.sourceMd5,
+    contains_dynamic_execute: false,
+    touches_order_item: source.touchesOrderItem,
+    touches_quote: source.touchesQuote,
+    nonowner_acl: ["grainline_app_runtime:EXECUTE:false"],
+  };
+}
+
+function acceptedCatalog() {
+  const sourceCatalog = orderChildSourceFunctionCatalog();
+  return {
+    identity: {
+      actor: owner,
+      login: owner,
+      database_name: "neondb",
+      isolation: "repeatable read",
+      read_only: "on",
+      rolsuper: false,
+      rolbypassrls: true,
+      rolinherit: true,
+      rolcanlogin: true,
+    },
+    tables: [
+      ["Order", true, true],
+      ["OrderItem", false, false],
+      ["OrderShippingRateQuote", false, false],
+    ].map(([table_name, rls_enabled, rls_forced]) => ({
+      table_name,
+      owner_name: owner,
+      rls_enabled,
+      rls_forced,
+      policy_count: 0,
+      nonowner_table_acl_count: 0,
+      nonowner_column_acl_count: 0,
+    })),
+    functions: sourceCatalog.map(functionRow),
+    triggers: ORDER_ITEM_TRIGGER_FUNCTIONS.map((function_name, index) => ({
+      table_name: "OrderItem",
+      trigger_name: `trigger_${index}`,
+      function_name,
+      owner_name: owner,
+      enabled: "O",
+      deferrable: index === 1,
+      initially_deferred: index === 1,
+      security_definer: true,
+      function_config: ["search_path=pg_catalog"],
+    })),
+    structure: [{ object_type: "index", table_name: "OrderItem", object_name: "OrderItem_pkey", valid: true }],
+  };
+}
+
+test("accepted Order child authority catalog is exact and read-only", () => {
+  assert.deepEqual(verifyOrderChildAuthorityCatalog(acceptedCatalog()), {
+    databaseMode: "production-read-only",
+    tableOwner: owner,
+    orderItemDirectFunctionCount: 34,
+    quoteDirectFunctionCount: 4,
+    orderItemTriggerCount: 2,
+    rowDataRead: false,
+    productionChanged: false,
+  });
+});
+
+test("reviewed catalog exactly matches latest migration-tree definitions", () => {
+  assert.deepEqual(
+    orderChildSourceCatalog(),
+    [...ORDER_ITEM_DIRECT_FUNCTIONS, ...ORDER_QUOTE_DIRECT_FUNCTIONS].sort(),
+  );
+});
+
+test("catalog rejects an unreviewed direct function or unsafe authority", () => {
+  const extra = acceptedCatalog();
+  extra.functions.push({
+    ...extra.functions[0],
+    function_name: "grainline_unreviewed",
+    identity_arguments: "",
+  });
+  assert.throws(() => verifyOrderChildAuthorityCatalog(extra));
+
+  const publicExecute = acceptedCatalog();
+  publicExecute.functions[0].nonowner_acl.push("PUBLIC:EXECUTE:false");
+  assert.throws(() => verifyOrderChildAuthorityCatalog(publicExecute), /granted to PUBLIC/u);
+
+  const invoker = acceptedCatalog();
+  invoker.functions[0].security_definer = false;
+  assert.throws(() => verifyOrderChildAuthorityCatalog(invoker), /not SECURITY DEFINER/u);
+});
