@@ -468,3 +468,35 @@ exact commit `52652ba4...` to its deployment-disabled public branch, open a
 draft PR against unchanged main `499aa965...`, and merge only if all required
 exact-head checks pass. Production migration dispatch and application deploy
 remain later, separately authorized actions.
+
+## PR #488 first exact-head gate — 2026-09-30
+
+The user authorized exact head
+`52652ba45258ba868cc5cd393bf61c81a3308402` against unchanged main
+`499aa9651a6fc5658858856b84a78569a25dfc9f`. It was published to the
+deployment-disabled branch and opened as draft PR `#488`. The three parallel
+proof checks passed. CI run `36794013072` passed all 435 setup, historical
+migration, disposable PostgreSQL, runtime-grant, TypeScript, and lint steps,
+then completed the consolidated suite with 4,955 passing tests, one failure,
+and nine skips. The conditional merge did not run.
+
+The single failure was confined to the newly added workflow contract test.
+CI intentionally moved migration `20260930040000_prepare_order_dispute_recovery`
+to its sealed holding path before historical full-suite checks, while
+`tests/order-dispute-recovery-production-workflow.test.mjs` read only the
+normal repository path. The protected Production workflow itself did not fail
+and no Production action ran.
+
+Local correction commit
+`9751ada2d198faeca9dfb3c20301d6c45cd3cc2f` makes that test use the same
+explicit environment, repository, and CI holding-path lookup already used by
+the dispute authority test and predecessor Production workflow tests. The six
+workflow contract tests pass with the migration in place and again with it
+physically removed from the tree and supplied through the sealed path.
+Prettier and `git diff --check` pass. The amended head is preserved at local
+recovery ref `recovery/order-dispute-recovery-production-draft-20260930`.
+
+PR `#488` still points to `52652ba4...`; public main remains `499aa965...`.
+Publishing amended head `9751ada2...` and conditionally merging it requires a
+new exact-head approval. No migration, deployment, credential change, or live
+Stripe effect occurred.
