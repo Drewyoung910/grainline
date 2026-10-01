@@ -1916,13 +1916,12 @@ jobs:
             tests/order-review-holds.test.mjs \
             tests/order-release-corrections-production-workflow.test.mjs \
             tests/order-checkout-legacy-creator-retirement-postgres.test.mjs \
-            tests/order-checkout-source-cutover-production-workflow.test.mjs
+            tests/order-checkout-source-cutover-production-workflow.test.mjs \
+            tests/order-item-enable-release.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
       - name: Tests
-        env:
-          ORDER_ITEM_ENABLE_MIGRATION_PATH: ${{ runner.temp }}/order-item-enable-release/migration.sql
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test

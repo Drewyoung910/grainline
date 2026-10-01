@@ -34,15 +34,15 @@ test("CI isolates the staged OrderItem migration and applies it only after prede
   const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const verify = workflow.indexOf("Verify staged OrderItem ENABLE source package");
   const isolate = workflow.indexOf("Isolate OrderItem ENABLE until every accepted predecessor passes");
+  const holdTest = workflow.indexOf("tests/order-item-enable-release.test.mjs", isolate);
+  const broadTests = workflow.indexOf("- name: Tests", isolate);
   const dispute = workflow.indexOf("Apply only Order dispute recovery through Prisma");
   const restore = workflow.indexOf("Restore OrderItem ENABLE release");
   const apply = workflow.indexOf("Apply only OrderItem ENABLE in disposable PostgreSQL");
   assert.ok(verify >= 0 && verify < isolate);
   assert.ok(isolate < dispute && dispute < restore && restore < apply);
-  assert.match(
-    workflow,
-    /name: Tests[\s\S]*ORDER_ITEM_ENABLE_MIGRATION_PATH: \$\{\{ runner\.temp \}\}\/order-item-enable-release\/migration\.sql[\s\S]*npm test/u,
-  );
+  assert.ok(isolate < holdTest && holdTest < broadTests);
+  assert.doesNotMatch(workflow, /ORDER_ITEM_ENABLE_MIGRATION_PATH/u);
   assert.equal(
     (workflow.match(/20261001030000_enable_order_item_rls/gu) ?? []).length,
     3,
