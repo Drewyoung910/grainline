@@ -83,6 +83,19 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify staged OrderItem ENABLE source package
+        run: >-
+          node --test
+          tests/order-item-enable-release.test.mjs
+          tests/order-child-authority-catalog.test.mjs
+          tests/order-direct-access-inventory.test.mjs
+      - name: Isolate OrderItem ENABLE until every accepted predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            prisma/migrations/20261001030000_enable_order_item_rls \
+            "$RUNNER_TEMP/order-item-enable-release"
       - name: Verify Order dispute-recovery source package
         run: >-
           node --test
@@ -2327,6 +2340,26 @@ jobs:
       - name: Apply only Order dispute recovery through Prisma
         run: npx prisma migrate deploy --schema "$ORDER_DISPUTE_RECOVERY_PRISMA_SCHEMA"
       - name: Audit runtime grants after Order dispute recovery
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore OrderItem ENABLE release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-item-enable-release" \
+            prisma/migrations/20261001030000_enable_order_item_rls
+      - name: Re-verify OrderItem ENABLE source package
+        run: >-
+          node --test
+          tests/order-item-enable-release.test.mjs
+          tests/order-child-authority-catalog.test.mjs
+          tests/order-direct-access-inventory.test.mjs
+      - name: Apply only OrderItem ENABLE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261001030000_enable_order_item_rls/migration.sql
+      - name: Audit runtime grants after OrderItem ENABLE
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

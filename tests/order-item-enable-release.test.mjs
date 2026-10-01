@@ -29,3 +29,18 @@ test("OrderItem rollback restores the zero-direct RLS-off predecessor", () => {
   assert.doesNotMatch(rollback, /\bGRANT\b/);
   assert.match(rollback, /zero ordinary-runtime, staff-runtime and PUBLIC table authority/);
 });
+
+test("CI isolates the staged OrderItem migration and applies it only after predecessors", () => {
+  const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  const verify = workflow.indexOf("Verify staged OrderItem ENABLE source package");
+  const isolate = workflow.indexOf("Isolate OrderItem ENABLE until every accepted predecessor passes");
+  const dispute = workflow.indexOf("Apply only Order dispute recovery through Prisma");
+  const restore = workflow.indexOf("Restore OrderItem ENABLE release");
+  const apply = workflow.indexOf("Apply only OrderItem ENABLE in disposable PostgreSQL");
+  assert.ok(verify >= 0 && verify < isolate);
+  assert.ok(isolate < dispute && dispute < restore && restore < apply);
+  assert.equal(
+    (workflow.match(/20261001030000_enable_order_item_rls/gu) ?? []).length,
+    3,
+  );
+});
