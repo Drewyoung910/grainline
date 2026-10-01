@@ -6,6 +6,10 @@ const route = readFileSync(
   "src/app/api/cases/[id]/resolve/route.ts",
   "utf8",
 );
+const reconciliation = readFileSync(
+  "src/lib/caseRefundProviderReconciliation.ts",
+  "utf8",
+);
 const authority = readFileSync(
   "src/lib/caseStaffResolutionAuthority.ts",
   "utf8",
@@ -56,7 +60,7 @@ describe("Case staff-resolution application authority", () => {
       ["rate limit", "await safeRateLimit("],
       ["bounded body", "await readBoundedJson("],
       ["database prepare", "await prepareCaseStaffResolution("],
-      ["Stripe call", "await createMarketplaceRefund("],
+      ["Stripe reconciliation", "await resolveCaseRefundProviderOutcome("],
       ["provider record", "await recordCaseStaffResolutionProvider("],
       [
         "database finalize with durable side effects",
@@ -65,16 +69,17 @@ describe("Case staff-resolution application authority", () => {
     ]);
     assert.match(
       route,
-      /catch \(stripeError\)[\s\S]*await recordAmbiguousCaseStaffResolutionProvider\([\s\S]*throw stripeError/,
+      /catch \(stripeError\)[\s\S]*isCaseRefundProviderReconciliationRequiredError\(stripeError\)[\s\S]*await recordAmbiguousCaseStaffResolutionProvider\([\s\S]*HTTP_STATUS\.CONFLICT/,
     );
     assert.match(
       route,
-      /prepared\.status === "PROVIDER_PENDING"[\s\S]*createMarketplaceRefund/,
+      /prepared\.status === "PROVIDER_PENDING"[\s\S]*resolveCaseRefundProviderOutcome/,
     );
     assert.match(
       route,
-      /prepared\.status === "RECONCILIATION_REQUIRED"[\s\S]*administrator must reconcile/,
+      /prepared\.status === "RECONCILIATION_REQUIRED"[\s\S]*resolveCaseRefundProviderOutcome/,
     );
+    assert.match(reconciliation, /await createMarketplaceRefund\(\{/);
   });
 
   it("lets the locked database protocol decide fresh work and exact replay", () => {
@@ -100,13 +105,18 @@ describe("Case staff-resolution application authority", () => {
 
   it("uses only database-derived refund authority and final identities", () => {
     assert.match(
-      route,
-      /paymentIntentId: prepared\.paymentIntentId!/,
+      reconciliation,
+      /paymentIntentId: prepared\.paymentIntentId/,
     );
-    assert.match(route, /amountCents: prepared\.refundAmountCents!/);
-    assert.match(route, /canReverseTransfer: prepared\.canReverseTransfer/);
-    assert.match(route, /idempotencyKeyBase: prepared\.idempotencyScope!/);
-    assert.match(route, /reason: "requested_by_customer"/);
+    assert.match(reconciliation, /amountCents: prepared\.refundAmountCents/);
+    assert.match(reconciliation, /canReverseTransfer: prepared\.canReverseTransfer/);
+    assert.match(reconciliation, /idempotencyKeyBase: prepared\.idempotencyScope/);
+    assert.match(reconciliation, /reason: "requested_by_customer"/);
+    assert.ok(
+      reconciliation.indexOf("requireRefundPrepared(prepared);")
+        < reconciliation.indexOf("await createMarketplaceRefund({"),
+      "database-derived refund inputs must validate before the provider call",
+    );
     assert.match(
       route,
       /stockRestoreDecision:[\s\S]*resolution === "REFUND_PARTIAL"\s*\?\s*requestedStockRestores\s*:\s*\[\]/,

@@ -84,6 +84,9 @@ describe("seller analytics refund guardrails", () => {
       "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
     );
     const caseResolveRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const caseRefundProvider = source(
+      "src/lib/caseRefundProviderReconciliation.ts",
+    );
     const caseResolveAuthority = source(
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
     );
@@ -105,8 +108,8 @@ describe("seller analytics refund guardrails", () => {
     assert.match(caseResolveRoute, /resolution: z\.enum\(\["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"\]\)/);
 
     assert.match(
-      caseResolveRoute,
-      /amountCents: prepared\.refundAmountCents!/,
+      caseRefundProvider,
+      /amountCents: prepared\.refundAmountCents/,
     );
     assert.match(
       caseResolveRoute,

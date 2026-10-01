@@ -630,25 +630,35 @@ export async function recordCaseStaffResolutionProvider(
       ),
     )}]::text[]
   `;
-  const providerFunction = prepared.action === "recovered"
-    ? Prisma.raw(
-      "public.grainline_case_staff_resolution_provider_recovery_record",
-    )
-    : Prisma.raw("public.grainline_case_staff_resolution_provider_record");
-  const rows = await db.$queryRaw<Array<{ result: unknown }>>`
-    SELECT ${providerFunction}(
-      ${actorUserId}::text,
-      ${prepared.claimId}::text,
-      'RECORDED'::text,
-      ${validatedEvidence.primaryRefundId}::text,
-      ${refundIds},
-      ${refundStatuses},
-      ${validatedEvidence.transferReversalId}::text,
-      ${validatedEvidence.transferReversalAmountCents}::integer,
-      ${validatedEvidence.requiresManualTransferReconciliation}::boolean,
-      ${validatedEvidence.requiresManualFollowUp}::boolean
-    ) AS result
-  `;
+  const rows = prepared.action === "recovered"
+    ? await db.$queryRaw<Array<{ result: unknown }>>`
+      SELECT public.grainline_case_staff_resolution_provider_recovery_record(
+        ${actorUserId}::text,
+        ${prepared.claimId}::text,
+        'RECORDED'::text,
+        ${validatedEvidence.primaryRefundId}::text,
+        ${refundIds},
+        ${refundStatuses},
+        ${validatedEvidence.transferReversalId}::text,
+        ${validatedEvidence.transferReversalAmountCents}::integer,
+        ${validatedEvidence.requiresManualTransferReconciliation}::boolean,
+        ${validatedEvidence.requiresManualFollowUp}::boolean
+      ) AS result
+    `
+    : await db.$queryRaw<Array<{ result: unknown }>>`
+      SELECT public.grainline_case_staff_resolution_provider_record(
+        ${actorUserId}::text,
+        ${prepared.claimId}::text,
+        'RECORDED'::text,
+        ${validatedEvidence.primaryRefundId}::text,
+        ${refundIds},
+        ${refundStatuses},
+        ${validatedEvidence.transferReversalId}::text,
+        ${validatedEvidence.transferReversalAmountCents}::integer,
+        ${validatedEvidence.requiresManualTransferReconciliation}::boolean,
+        ${validatedEvidence.requiresManualFollowUp}::boolean
+      ) AS result
+    `;
   return validateProviderResult(
     requireSingleResult(rows, "Case staff-resolution provider record"),
     prepared,
@@ -719,16 +729,20 @@ export async function finalizeCaseStaffResolution(
   prepared: PreparedCaseStaffResolution,
   db: CaseStaffResolutionClient = prisma,
 ) {
-  const finalizeFunction = prepared.action === "recovered"
-    || prepared.action === "recovery_required"
-    ? Prisma.raw("public.grainline_case_staff_resolution_recovery_finalize")
-    : Prisma.raw("public.grainline_case_staff_resolution_finalize");
-  const rows = await db.$queryRaw<Array<{ result: unknown }>>`
-    SELECT ${finalizeFunction}(
-      ${actorUserId}::text,
-      ${prepared.claimId}::text
-    ) AS result
-  `;
+  const rows = prepared.action === "recovered"
+      || prepared.action === "recovery_required"
+    ? await db.$queryRaw<Array<{ result: unknown }>>`
+      SELECT public.grainline_case_staff_resolution_recovery_finalize(
+        ${actorUserId}::text,
+        ${prepared.claimId}::text
+      ) AS result
+    `
+    : await db.$queryRaw<Array<{ result: unknown }>>`
+      SELECT public.grainline_case_staff_resolution_finalize(
+        ${actorUserId}::text,
+        ${prepared.claimId}::text
+      ) AS result
+    `;
   return validateFinalizedResult(
     requireSingleResult(rows, "Case staff-resolution finalize"),
     prepared,

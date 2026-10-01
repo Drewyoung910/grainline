@@ -140,6 +140,15 @@ describe("Case refund provider recovery preparation", () => {
       route,
       /prepared\.status === "PROVIDER_RECORDED"[\s\S]*prepared\.action === "recovery_required"/,
     );
+    assert.match(
+      authority,
+      /SELECT public\.grainline_case_staff_resolution_provider_recovery_record\(/,
+    );
+    assert.match(
+      authority,
+      /SELECT public\.grainline_case_staff_resolution_recovery_finalize\(/,
+    );
+    assert.doesNotMatch(authority, /Prisma\.raw\(/);
     assert.match(route, /CASE_REFUND_PROVIDER_RETRY_AFTER_SECONDS = 30/);
   });
 
@@ -169,7 +178,7 @@ describe("Case refund provider recovery preparation", () => {
     );
   });
 
-  it("isolates the candidate from historical release guards and restores it last", () => {
+  it("isolates the candidate from historical guards and restores it before current child reproofs", () => {
     const verify = ciWorkflow.indexOf(
       "Verify Case refund provider-recovery source package",
     );
@@ -185,6 +194,9 @@ describe("Case refund provider recovery preparation", () => {
     const restore = ciWorkflow.indexOf(
       "Restore Case refund provider recovery",
     );
+    const restoreChild = ciWorkflow.indexOf(
+      "Restore OrderItem ENABLE release",
+    );
     const build = ciWorkflow.indexOf("Production build");
 
     assert.ok(verify >= 0);
@@ -192,6 +204,7 @@ describe("Case refund provider recovery preparation", () => {
     assert.ok(childEnable < isolate);
     assert.ok(isolate < historicalReceipt);
     assert.ok(historicalReceipt < restore);
+    assert.ok(restore < restoreChild);
     assert.ok(restore < build);
     assert.match(
       ciWorkflow,

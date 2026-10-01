@@ -155,6 +155,12 @@ jobs:
           mv \
             tests/case-refund-provider-recovery-postgres.test.mjs \
             "$holding/case-refund-provider-recovery-postgres.test.mjs"
+          mv \
+            tests/order-child-authority-catalog.test.mjs \
+            "$holding/order-child-authority-catalog.test.mjs"
+          mv \
+            tests/schema-drift-followups.test.mjs \
+            "$holding/schema-drift-followups.test.mjs"
       - name: Verify Order dispute-recovery source package
         run: >-
           node --test
@@ -2424,6 +2430,32 @@ jobs:
         run: npx prisma migrate deploy --schema "$ORDER_DISPUTE_RECOVERY_PRISMA_SCHEMA"
       - name: Audit runtime grants after Order dispute recovery
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Case refund provider recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/case-refund-provider-recovery"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261001070000_prepare_case_refund_provider_recovery
+          mv \
+            "$holding/case-refund-provider-recovery.test.mjs" \
+            tests/case-refund-provider-recovery.test.mjs
+          mv \
+            "$holding/case-refund-provider-recovery-postgres.test.mjs" \
+            tests/case-refund-provider-recovery-postgres.test.mjs
+          mv \
+            "$holding/order-child-authority-catalog.test.mjs" \
+            tests/order-child-authority-catalog.test.mjs
+          mv \
+            "$holding/schema-drift-followups.test.mjs" \
+            tests/schema-drift-followups.test.mjs
+          rmdir "$holding"
+      - name: Re-verify Case refund provider-recovery source package
+        run: >-
+          node --test
+          tests/case-refund-provider-recovery.test.mjs
+          tests/case-refund-provider-recovery-postgres.test.mjs
       - name: Restore OrderItem ENABLE release
         shell: bash
         run: |
@@ -2504,26 +2536,8 @@ jobs:
           --file=prisma/migrations/20261001060000_force_order_shipping_rate_quote_rls/migration.sql
       - name: Audit runtime grants after quote FORCE
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Restore Case refund provider recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/case-refund-provider-recovery"
-          mv \
-            "$holding/migration" \
-            prisma/migrations/20261001070000_prepare_case_refund_provider_recovery
-          mv \
-            "$holding/case-refund-provider-recovery.test.mjs" \
-            tests/case-refund-provider-recovery.test.mjs
-          mv \
-            "$holding/case-refund-provider-recovery-postgres.test.mjs" \
-            tests/case-refund-provider-recovery-postgres.test.mjs
-          rmdir "$holding"
-      - name: Re-verify Case refund provider-recovery source package
-        run: >-
-          node --test
-          tests/case-refund-provider-recovery.test.mjs
-          tests/case-refund-provider-recovery-postgres.test.mjs
+      - name: Verify restored schema drift after every Order child successor
+        run: node --test tests/schema-drift-followups.test.mjs
       - name: Apply only Case refund provider recovery in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"
