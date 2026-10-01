@@ -18,7 +18,7 @@ export const ORDER_QUOTE_ENABLE_DRAFT = Object.freeze({
   rollbackPath:
     "docs/rls-drafts/order-shipping-rate-quote-activation-rollback.sql",
   draftSha256:
-    "6c4697d720e342f8af836645bf521962644a285955be608d07123ab3c493afb0",
+    "4e2a274d9bc7d2c560da11c06af1dcf1f7298fe17535651c72337bf13151c3d0",
   rollbackSha256:
     "0cde0551f51e9350e81521246cdb6619bab4b1abf7e8b5543012f80f6ad4cc1e",
 });
@@ -93,11 +93,24 @@ export function buildOrderQuoteRlsDraft(rootDirectory = process.cwd()) {
     [...ORDER_QUOTE_DIRECT_FUNCTIONS],
   );
   for (const entry of sourceCatalog) {
+    assert.equal(entry.securityDefiner, true, `${entry.identity} source is not SECURITY DEFINER`);
+    assert.equal(entry.leakproof, false, `${entry.identity} source became leakproof`);
+    const expectedRow = [
+      entry.identity,
+      entry.sourceMd5,
+      entry.languageName,
+      entry.volatility,
+      entry.parallelSafety,
+    ].map((value) => `'${value.replaceAll("'", "''")}'`).join(", ");
     assert.ok(
-      draft.includes(`('${entry.identity.replaceAll("'", "''")}', '${entry.sourceMd5}')`),
+      draft.includes(`(${expectedRow})`),
       `${entry.identity} is missing from the quote ENABLE preflight`,
     );
   }
+  assert.equal(sourceCatalog.filter((entry) => entry.languageName === "plpgsql").length, 4);
+  assert.equal(sourceCatalog.filter((entry) => entry.volatility === "v").length, 4);
+  assert.equal(sourceCatalog.filter((entry) => entry.parallelSafety === "u").length, 4);
+  assert.doesNotMatch(draft, /actual\.lanname = 'plpgsql'/u);
 
   return Object.freeze({
     draft,

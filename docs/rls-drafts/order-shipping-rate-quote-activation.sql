@@ -220,12 +220,12 @@ BEGIN
     RAISE EXCEPTION 'OrderShippingRateQuote ENABLE predecessor table posture drifted';
   END IF;
 
-  WITH expected(function_identity, source_md5) AS (
+  WITH expected(function_identity, source_md5, language_name, volatility, parallel_safety) AS (
     VALUES
-      ('grainline_order_account_deletion_scrub(text,text[])', '95b5fdf923f85bcc96e8e25ac8905295'),
-      ('grainline_order_buyer_pii_prune_batch(integer)', '885f070bf1f4934fb8786b820672cfbe'),
-      ('grainline_order_seller_label_claim(text,text,text)', 'c1bc1cfe61a5bfd910df308300c80b03'),
-      ('grainline_order_seller_label_quote_replace(text,text,text,jsonb)', '5487c98b0c8a574946d2ac997d31e79a')
+      ('grainline_order_account_deletion_scrub(text,text[])', '95b5fdf923f85bcc96e8e25ac8905295', 'plpgsql', 'v', 'u'),
+      ('grainline_order_buyer_pii_prune_batch(integer)', '885f070bf1f4934fb8786b820672cfbe', 'plpgsql', 'v', 'u'),
+      ('grainline_order_seller_label_claim(text,text,text)', 'c1bc1cfe61a5bfd910df308300c80b03', 'plpgsql', 'v', 'u'),
+      ('grainline_order_seller_label_quote_replace(text,text,text,jsonb)', '5487c98b0c8a574946d2ac997d31e79a', 'plpgsql', 'v', 'u')
   ), actual AS (
     SELECT procedure.oid,
            procedure.proname || '(' || pg_catalog.replace(
@@ -233,7 +233,9 @@ BEGIN
            ) || ')' AS function_identity,
            pg_catalog.md5(procedure.prosrc) AS source_md5,
            procedure.proowner,
-           language.lanname,
+           language.lanname::text AS language_name,
+           procedure.provolatile::text AS volatility,
+           procedure.proparallel::text AS parallel_safety,
            procedure.prokind,
            procedure.prosecdef,
            procedure.proleakproof,
@@ -252,9 +254,10 @@ BEGIN
     (SELECT pg_catalog.count(*)::integer FROM actual),
     (SELECT pg_catalog.count(*)::integer
        FROM expected
-       JOIN actual USING (function_identity, source_md5)
+       JOIN actual USING (
+         function_identity, source_md5, language_name, volatility, parallel_safety
+       )
       WHERE actual.proowner = table_owner
-        AND actual.lanname = 'plpgsql'
         AND actual.prokind = 'f'
         AND actual.prosecdef AND NOT actual.proleakproof
         AND actual.proconfig = ARRAY['search_path=pg_catalog']::text[]

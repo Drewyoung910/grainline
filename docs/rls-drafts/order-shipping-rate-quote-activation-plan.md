@@ -16,7 +16,7 @@ The required table posture is:
 - zero non-owner table or column privileges on all three tables.
 
 The source baseline for this plan is local stacked commit
-`aba0d631a0420d482e320b725afd39054cfac580`, which contains the unpublished
+`38ede9409f6596b8baec87bdf8d25d0f80ff7599`, which contains the unpublished
 OrderItem FORCE successor. The quote work must be rebased onto the exact
 accepted OrderItem FORCE main commit before publication.
 
@@ -33,11 +33,12 @@ four functions whose bodies touch the table:
 | `grainline_order_seller_label_claim(text,text,text)` | `c1bc1cfe61a5bfd910df308300c80b03` | Reads a non-expired selected rate after locking and authorizing the seller's Order. |
 | `grainline_order_seller_label_quote_replace(text,text,text,jsonb)` | `5487c98b0c8a574946d2ac997d31e79a` | Replaces the seller-authorized Order's bounded quote snapshot. |
 
-All four are fixed `SECURITY DEFINER` functions with a pinned
-`search_path=pg_catalog`; the activation preflight must reject a changed
-identity, body, owner, language, security mode, dynamic SQL, or unreviewed
-EXECUTE grant. The table has no non-internal triggers. The preflight must reject
-any trigger appearing before activation.
+All four are PL/pgSQL, volatile, parallel-unsafe `SECURITY DEFINER` functions
+with a pinned `search_path=pg_catalog`; the activation preflight pins those
+attributes per identity and must reject a changed identity, body, owner,
+language, volatility, parallel safety, security mode, dynamic SQL, or
+unreviewed EXECUTE grant. The table has no non-internal triggers. The preflight
+must reject any trigger appearing before activation.
 
 The migration tree and runtime-role convergence script grant all four functions
 to `grainline_app_runtime`, revoke PUBLIC, and do not make them staff-read RPCs.
