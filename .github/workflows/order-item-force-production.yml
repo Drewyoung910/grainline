@@ -159,7 +159,7 @@ jobs:
           set -euo pipefail
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
           test "$latest" = "prisma/migrations/20261001040000_force_order_item_rls"
-          echo "0e01461f02cd6f76341caccc7b5657dcea109c2955bd94b5748dddc1c6c04949  prisma/migrations/20261001040000_force_order_item_rls/migration.sql" | sha256sum --check --status
+          echo "c741c53d20d5f6dc55c9b29e55d5c0ecf7a69b1d0e052c41b81279f37aeecac9  prisma/migrations/20261001040000_force_order_item_rls/migration.sql" | sha256sum --check --status
           node --test tests/order-item-force-release.test.mjs tests/order-child-authority-catalog.test.mjs tests/order-direct-access-inventory.test.mjs
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
@@ -176,11 +176,11 @@ jobs:
           import pg from 'pg';
           const predecessor = Object.freeze({
             name: '20261001030000_enable_order_item_rls',
-            checksum: '512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520',
+            checksum: '928413764a087ef5f535f99ed993c85da0a528767e26a89d2faf791eb9c29d17',
           });
           const migration = Object.freeze({
             name: '20261001040000_force_order_item_rls',
-            checksum: '0e01461f02cd6f76341caccc7b5657dcea109c2955bd94b5748dddc1c6c04949',
+            checksum: 'c741c53d20d5f6dc55c9b29e55d5c0ecf7a69b1d0e052c41b81279f37aeecac9',
           });
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
@@ -247,7 +247,7 @@ jobs:
             verifyOrderChildAuthorityCatalog,
           } from './scripts/order-child-authority-catalog.mjs';
           const migration = '20261001040000_force_order_item_rls';
-          const checksum = '0e01461f02cd6f76341caccc7b5657dcea109c2955bd94b5748dddc1c6c04949';
+          const checksum = 'c741c53d20d5f6dc55c9b29e55d5c0ecf7a69b1d0e052c41b81279f37aeecac9';
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();

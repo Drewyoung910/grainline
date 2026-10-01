@@ -3,7 +3,7 @@
 ## State and boundary
 
 This is local successor preparation only. It is based on OrderItem ENABLE
-candidate `de4c62f80ce74ceaf86060670b8bef1c4dbba874`; that candidate is not yet
+candidate `760cd8058d74d1a2bc40f3e0dac6b6e690cdad93`; that candidate is not yet
 merged or applied. No OrderItem FORCE migration may be published or applied
 until policyless ENABLE is live and its postflight is accepted.
 
@@ -15,7 +15,7 @@ or column grant.
 ## Required predecessor evidence
 
 1. `20261001030000_enable_order_item_rls` is applied once with exact checksum
-   `512e0ba83cc06236618a6709015c77bf47519431917f4f393951a8694c17f520`.
+   `928413764a087ef5f535f99ed993c85da0a528767e26a89d2faf791eb9c29d17`.
 2. A corrected Order child authority inspection succeeds on an ancestor of the
    FORCE source commit and preserves its sanitized artifact.
 3. `OrderItem` is enabled, not forced, policyless, owned by the reviewed

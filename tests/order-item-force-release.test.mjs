@@ -16,6 +16,13 @@ test("OrderItem FORCE is one pinned policyless posture release", () => {
   assert.match(release.migration, /OrderItem" FORCE ROW LEVEL SECURITY/);
   assert.match(release.migration, /accepted_functions <> 34/);
   assert.match(release.migration, /accepted_triggers <> 2/);
+  assert.match(
+    release.migration,
+    /expected\(function_identity, source_md5, language_name, volatility, parallel_safety\)/,
+  );
+  assert.equal((release.migration.match(/, 'sql', 's', 's'\)/gu) ?? []).length, 4);
+  assert.equal((release.migration.match(/, 'plpgsql', '[sv]', '[su]'\)/gu) ?? []).length, 30);
+  assert.doesNotMatch(release.migration, /actual\.lanname = 'plpgsql'/u);
   assert.match(release.migration, /pg_catalog\.pg_auth_members/);
   assert.match(release.migration, /OrderItem owner-session drain is incomplete/);
   assert.match(release.migration, /OrderShippingRateQuote stays/);

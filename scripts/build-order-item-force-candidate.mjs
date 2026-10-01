@@ -25,9 +25,9 @@ export const ORDER_ITEM_FORCE_RELEASE = Object.freeze({
   draftPath: "docs/rls-drafts/order-item-force.sql",
   rollbackPath: "docs/rls-drafts/order-item-force-rollback.sql",
   migrationPath,
-  draftSha256: "50ac4d32d5d68c5dbdd887afd4e68ea94f8929448058f8d891a886fb0db5f6d4",
+  draftSha256: "cb5ba5c25707bc8f479e5813416c08638ae0cbf1c8cf093a649bbe52860cebdb",
   rollbackSha256: "e4720c564f4d54bae28d133a337e270e734de57e47e08a833ca7e0228a5ae3a7",
-  migrationSha256: "0e01461f02cd6f76341caccc7b5657dcea109c2955bd94b5748dddc1c6c04949",
+  migrationSha256: "c741c53d20d5f6dc55c9b29e55d5c0ecf7a69b1d0e052c41b81279f37aeecac9",
 });
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -95,11 +95,23 @@ export function buildOrderItemForceCandidate(rootDirectory = process.cwd()) {
     [...ORDER_ITEM_DIRECT_FUNCTIONS],
   );
   for (const entry of sourceCatalog) {
+    assert.equal(entry.securityDefiner, true, `${entry.identity} source is not SECURITY DEFINER`);
+    assert.equal(entry.leakproof, false, `${entry.identity} source became leakproof`);
+    const expectedRow = [
+      entry.identity,
+      entry.sourceMd5,
+      entry.languageName,
+      entry.volatility,
+      entry.parallelSafety,
+    ].map((value) => `'${value.replaceAll("'", "''")}'`).join(", ");
     assert.ok(
-      draft.includes(`('${entry.identity.replaceAll("'", "''")}', '${entry.sourceMd5}')`),
+      draft.includes(`(${expectedRow})`),
       `${entry.identity} is missing from the FORCE preflight`,
     );
   }
+  assert.equal(sourceCatalog.filter((entry) => entry.languageName === "sql").length, 4);
+  assert.equal(sourceCatalog.filter((entry) => entry.languageName === "plpgsql").length, 30);
+  assert.doesNotMatch(draft, /actual\.lanname = 'plpgsql'/u);
   for (const trigger of ORDER_ITEM_TRIGGER_FUNCTIONS) {
     assert.ok(draft.includes(`trigger_row.tgname = '${trigger}'`));
     assert.ok(draft.includes(`pg_catalog.md5(procedure.prosrc) = '${ORDER_ITEM_TRIGGER_SOURCE_MD5[trigger]}'`));
