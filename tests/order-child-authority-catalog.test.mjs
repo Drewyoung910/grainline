@@ -157,7 +157,7 @@ test("inspection CLI requires an explicit exact child-table posture", () => {
     "utf8",
   );
   assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_ENABLED: "true"/u);
-  assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_FORCED: "false"/u);
+  assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_FORCED: "true"/u);
   assert.match(workflow, /EXPECTED_ORDER_QUOTE_RLS_ENABLED: "false"/u);
   assert.match(workflow, /EXPECTED_ORDER_QUOTE_RLS_FORCED: "false"/u);
 });
@@ -170,6 +170,27 @@ test("the same exact catalog accepts the separate policyless OrderItem ENABLE po
     catalog,
     process.cwd(),
     { orderItemRlsEnabled: true, orderItemRlsForced: false },
+  ));
+});
+
+test("the same exact catalog accepts OrderItem FORCE plus separate quote ENABLE", () => {
+  const catalog = acceptedCatalog();
+  const orderItem = catalog.tables.find((entry) => entry.table_name === "OrderItem");
+  orderItem.rls_enabled = true;
+  orderItem.rls_forced = true;
+  const quote = catalog.tables.find(
+    (entry) => entry.table_name === "OrderShippingRateQuote",
+  );
+  quote.rls_enabled = true;
+  assert.doesNotThrow(() => verifyOrderChildAuthorityCatalog(
+    catalog,
+    process.cwd(),
+    {
+      orderItemRlsEnabled: true,
+      orderItemRlsForced: true,
+      quoteRlsEnabled: true,
+      quoteRlsForced: false,
+    },
   ));
 });
 

@@ -83,6 +83,19 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify staged quote ENABLE source package
+        run: >-
+          node --test
+          tests/order-quote-enable-release.test.mjs
+          tests/order-child-authority-catalog.test.mjs
+          tests/order-direct-access-inventory.test.mjs
+      - name: Isolate quote ENABLE until OrderItem FORCE passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            prisma/migrations/20261001050000_enable_order_shipping_rate_quote_rls \
+            "$RUNNER_TEMP/order-quote-enable-release"
       - name: Verify staged OrderItem FORCE source package
         run: >-
           node --test
@@ -1931,7 +1944,8 @@ jobs:
             tests/order-checkout-legacy-creator-retirement-postgres.test.mjs \
             tests/order-checkout-source-cutover-production-workflow.test.mjs \
             tests/order-item-enable-release.test.mjs \
-            tests/order-item-force-release.test.mjs
+            tests/order-item-force-release.test.mjs \
+            tests/order-quote-enable-release.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
@@ -2415,6 +2429,26 @@ jobs:
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261001040000_force_order_item_rls/migration.sql
       - name: Audit runtime grants after OrderItem FORCE
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore quote ENABLE release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/order-quote-enable-release" \
+            prisma/migrations/20261001050000_enable_order_shipping_rate_quote_rls
+      - name: Re-verify quote ENABLE source package
+        run: >-
+          node --test
+          tests/order-quote-enable-release.test.mjs
+          tests/order-child-authority-catalog.test.mjs
+          tests/order-direct-access-inventory.test.mjs
+      - name: Apply only quote ENABLE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261001050000_enable_order_shipping_rate_quote_rls/migration.sql
+      - name: Audit runtime grants after quote ENABLE
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
