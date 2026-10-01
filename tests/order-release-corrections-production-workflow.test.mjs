@@ -163,6 +163,7 @@ test("CI holds every successor-aware test out of the historical full suite", () 
     "tests/order-checkout-legacy-creator-retirement-postgres.test.mjs",
     "tests/order-checkout-source-cutover-production-workflow.test.mjs",
     "tests/order-item-enable-release.test.mjs",
+    "tests/order-item-force-release.test.mjs",
   ]) {
     assert.match(isolateStep, new RegExp(testFile, "u"));
     assert.match(restoredStep, new RegExp(testFile, "u"));
