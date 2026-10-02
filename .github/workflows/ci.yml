@@ -310,9 +310,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          correction="$RUNNER_TEMP/order-label-sender-contact-correction"
           mv \
             prisma/migrations/20260928020000_correct_order_label_sender_contact \
-            "$RUNNER_TEMP/order-label-sender-contact-correction"
+            "$correction"
+          echo \
+            "ORDER_LABEL_SENDER_CONTACT_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
           mv \
             tests/order-label-sender-contact.test.mjs \
             "$RUNNER_TEMP/order-label-sender-contact.test.mjs"

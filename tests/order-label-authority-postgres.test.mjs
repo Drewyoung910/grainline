@@ -18,9 +18,11 @@ const deauthorizationCorrection = readFileSync(
   "prisma/migrations/20260926012100_correct_order_seller_deauthorization_label/migration.sql",
   "utf8",
 );
-const senderContactCorrectionPath =
-  "prisma/migrations/20260928020000_correct_order_label_sender_contact/migration.sql";
-const senderContactCorrection = existsSync(senderContactCorrectionPath)
+const senderContactCorrectionPath = [
+  process.env.ORDER_LABEL_SENDER_CONTACT_MIGRATION_PATH,
+  "prisma/migrations/20260928020000_correct_order_label_sender_contact/migration.sql",
+].find((candidate) => candidate && existsSync(candidate));
+const senderContactCorrection = senderContactCorrectionPath
   ? readFileSync(senderContactCorrectionPath, "utf8")
   : null;
 const fulfillmentMigration = readFileSync(
