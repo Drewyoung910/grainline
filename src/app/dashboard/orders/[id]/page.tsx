@@ -46,6 +46,7 @@ import {
   historicalProcessingTimeDays,
 } from "@/lib/orderItemSnapshot";
 import { readBuyerOrderDetail } from "@/lib/orderParticipantDetailAuthority";
+import { canOfferBuyerReceiptConfirmation } from "@/lib/orderReceiptOfferState";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -206,6 +207,12 @@ export default async function BuyerOrderDetailPage({
     paymentState,
     status,
   );
+  const canOfferReceiptConfirmation = canOfferBuyerReceiptConfirmation({
+    fulfillmentMethod: method,
+    fulfillmentStatus: status,
+    caseStatus: activeCase?.status ?? null,
+    paymentState,
+  });
 
   const caseOpen =
     activeCase &&
@@ -507,10 +514,7 @@ export default async function BuyerOrderDetailPage({
         </section>
       ) : null}
 
-      {(
-        (method === "SHIPPING" && status === "SHIPPED")
-        || (method === "PICKUP" && status === "READY_FOR_PICKUP")
-      ) && !activeCase && !hasRefund && (
+      {canOfferReceiptConfirmation && (
         <section className="card-section bg-white px-4 py-3 text-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
