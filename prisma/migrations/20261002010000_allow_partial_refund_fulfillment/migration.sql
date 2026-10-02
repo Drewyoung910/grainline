@@ -1,11 +1,13 @@
--- Allow a completed, evidenced partial refund to continue fulfillment while
--- retaining fail-closed behavior for full, pending, ambiguous, locked, or
--- internally inconsistent refund states. This successor changes no RLS
--- posture or table grants.
+-- Allow a completed, evidenced partial refund to continue fulfillment when no
+-- units were returned to inventory, while retaining fail-closed behavior for
+-- stock-restoring, full, pending, ambiguous, locked, or internally
+-- inconsistent refund states. This successor changes no RLS posture or table
+-- grants.
 
 BEGIN;
 
 CREATE FUNCTION public.grainline_order_refund_blocks_fulfillment(
+  p_order_id text,
   p_seller_refund_id text,
   p_seller_refund_locked_at timestamp without time zone,
   p_payment_refund_blocked boolean,
@@ -14,11 +16,20 @@ CREATE FUNCTION public.grainline_order_refund_blocks_fulfillment(
 )
 RETURNS boolean
 LANGUAGE sql
-IMMUTABLE
+STABLE
 PARALLEL SAFE
 SET search_path = pg_catalog
 AS $grainline_order_refund_blocks_fulfillment$
   SELECT CASE
+    WHEN EXISTS (
+      SELECT 1
+        FROM public."CaseResolutionClaim" AS resolution_claim
+       WHERE resolution_claim."orderId" = p_order_id
+         AND resolution_claim.status::text = 'FINALIZED'
+         AND pg_catalog.jsonb_array_length(
+               resolution_claim."stockRestorePlan"
+             ) > 0
+    ) THEN true
     WHEN p_seller_refund_id IS NULL
          AND p_seller_refund_locked_at IS NULL
          AND NOT COALESCE(p_payment_refund_blocked, false)
@@ -37,13 +48,13 @@ AS $grainline_order_refund_blocks_fulfillment$
 $grainline_order_refund_blocks_fulfillment$;
 
 REVOKE ALL ON FUNCTION public.grainline_order_refund_blocks_fulfillment(
-  text, timestamp without time zone, boolean, integer, integer
+  text, text, timestamp without time zone, boolean, integer, integer
 ) FROM PUBLIC, grainline_app_runtime;
 
 COMMENT ON FUNCTION public.grainline_order_refund_blocks_fulfillment(
-  text, timestamp without time zone, boolean, integer, integer
+  text, text, timestamp without time zone, boolean, integer, integer
 ) IS
-  'Private fail-closed classifier for Order fulfillment after refund evidence.';
+  'Private fail-closed classifier for Order fulfillment after refund evidence or finalized stock restoration.';
 
 
 CREATE OR REPLACE FUNCTION public.grainline_order_seller_fulfillment_transition(
@@ -130,6 +141,7 @@ BEGIN
     RETURN pg_catalog.jsonb_build_object('outcome', 'conflict', 'reason', 'unpaid');
   END IF;
   IF public.grainline_order_refund_blocks_fulfillment(
+      locked_order.id,
       locked_order."sellerRefundId",
       locked_order."sellerRefundLockedAt",
       locked_order."paymentRefundBlocked",
@@ -297,6 +309,7 @@ BEGIN
     RETURN pg_catalog.jsonb_build_object('outcome', 'conflict', 'reason', 'unpaid');
   END IF;
   IF public.grainline_order_refund_blocks_fulfillment(
+      locked_order.id,
       locked_order."sellerRefundId",
       locked_order."sellerRefundLockedAt",
       locked_order."paymentRefundBlocked",
@@ -453,6 +466,7 @@ BEGIN
     RETURN pg_catalog.jsonb_build_object('outcome', 'conflict', 'reason', 'unpaid');
   END IF;
   IF public.grainline_order_refund_blocks_fulfillment(
+      source_order.id,
       source_order."sellerRefundId",
       source_order."sellerRefundLockedAt",
       source_order."paymentRefundBlocked",
@@ -665,6 +679,7 @@ BEGIN
      OR COALESCE(locked_order."fulfillmentMethod"::text, 'SHIPPING') <> 'SHIPPING'
      OR locked_order."labelStatus"::text = 'PURCHASED'
      OR public.grainline_order_refund_blocks_fulfillment(
+      locked_order.id,
       locked_order."sellerRefundId",
       locked_order."sellerRefundLockedAt",
       locked_order."paymentRefundBlocked",
@@ -775,6 +790,7 @@ BEGIN
     RETURN pg_catalog.jsonb_build_object('outcome', 'conflict', 'reason', 'unpaid');
   END IF;
   IF public.grainline_order_refund_blocks_fulfillment(
+      locked_order.id,
       locked_order."sellerRefundId",
       locked_order."sellerRefundLockedAt",
       locked_order."paymentRefundBlocked",
@@ -961,6 +977,7 @@ BEGIN
   END IF;
 
   refund_blocks_fulfillment := public.grainline_order_refund_blocks_fulfillment(
+      locked_order.id,
       locked_order."sellerRefundId",
       locked_order."sellerRefundLockedAt",
       locked_order."paymentRefundBlocked",

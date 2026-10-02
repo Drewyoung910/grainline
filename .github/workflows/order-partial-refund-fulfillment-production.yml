@@ -86,7 +86,7 @@ jobs:
           set -euo pipefail
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
           test "$latest" = "prisma/migrations/20261002010000_allow_partial_refund_fulfillment"
-          echo "aed37ac898eaa6ede56e13834019aefdd8825c4b521422ad30c17733d008172c  prisma/migrations/20261002010000_allow_partial_refund_fulfillment/migration.sql" | sha256sum --check --status
+          echo "48703a338824b827b96231cce7e45f305ed0b106244743fdceb399a80ffecfbe  prisma/migrations/20261002010000_allow_partial_refund_fulfillment/migration.sql" | sha256sum --check --status
           node --test \
             tests/order-fulfillment-authority-postgres.test.mjs \
             tests/order-label-authority-postgres.test.mjs \
@@ -110,9 +110,9 @@ jobs:
             '68e559e01dbeae663931110dcadfd4d42ca050c788eebd647727f434a9a72dba';
           const migration = '20261002010000_allow_partial_refund_fulfillment';
           const checksum =
-            'aed37ac898eaa6ede56e13834019aefdd8825c4b521422ad30c17733d008172c';
+            '48703a338824b827b96231cce7e45f305ed0b106244743fdceb399a80ffecfbe';
           const helper =
-            'public.grainline_order_refund_blocks_fulfillment(text,timestamp without time zone,boolean,integer,integer)';
+            'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)';
           const targets = [
             'public.grainline_order_seller_fulfillment_transition(text,text,text,text,text)',
             'public.grainline_order_buyer_receipt_confirm(text,text)',
@@ -259,12 +259,12 @@ jobs:
 
           const migration = '20261002010000_allow_partial_refund_fulfillment';
           const checksum =
-            'aed37ac898eaa6ede56e13834019aefdd8825c4b521422ad30c17733d008172c';
+            '48703a338824b827b96231cce7e45f305ed0b106244743fdceb399a80ffecfbe';
           const migrationSql = readFileSync(
             `prisma/migrations/${migration}/migration.sql`, 'utf8',
           );
           const helper =
-            'public.grainline_order_refund_blocks_fulfillment(text,timestamp without time zone,boolean,integer,integer)';
+            'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)';
           const targetSpecs = new Map([
             ['public.grainline_order_seller_fulfillment_transition(text,text,text,text,text)',
               ['$grainline_order_seller_fulfillment_transition$', 'plpgsql', 'v', 'u']],
@@ -370,7 +370,7 @@ jobs:
             assert.equal(helperRow.owner, 'neondb_owner');
             assert.equal(helperRow.language, 'sql');
             assert.equal(helperRow.prosrc, sourceFor('$grainline_order_refund_blocks_fulfillment$'));
-            assert.equal(helperRow.volatility, 'i');
+            assert.equal(helperRow.volatility, 's');
             assert.equal(helperRow.parallel_safety, 's');
             assert.equal(helperRow.security_definer, false);
             assert.equal(helperRow.leakproof, false);

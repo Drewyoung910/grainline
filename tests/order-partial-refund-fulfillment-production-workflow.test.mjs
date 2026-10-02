@@ -59,7 +59,7 @@ test("workflow is manual, exact-main, CI and Production-bound", () => {
 test("workflow admits only the exact latest migration after its predecessor", () => {
   assert.match(
     workflow,
-    /aed37ac898eaa6ede56e13834019aefdd8825c4b521422ad30c17733d008172c\s+prisma\/migrations\/20261002010000_allow_partial_refund_fulfillment\/migration\.sql/u,
+    /48703a338824b827b96231cce7e45f305ed0b106244743fdceb399a80ffecfbe\s+prisma\/migrations\/20261002010000_allow_partial_refund_fulfillment\/migration\.sql/u,
   );
   assert.match(
     workflow,
@@ -117,6 +117,10 @@ test("workflow proves exact functions, ACL preservation and unchanged RLS postur
   assert.match(workflow, /order-child-authority-catalog\.mjs/u);
   assert.match(workflow, /EXPECTED_ORDER_ITEM_RLS_FORCED: "true"/u);
   assert.match(workflow, /EXPECTED_ORDER_QUOTE_RLS_FORCED: "true"/u);
+  assert.match(
+    migration,
+    /FROM public\."CaseResolutionClaim" AS resolution_claim[\s\S]*resolution_claim\.status::text = 'FINALIZED'[\s\S]*jsonb_array_length\([\s\S]*resolution_claim\."stockRestorePlan"/u,
+  );
 });
 
 test("workflow cannot deploy the app or invoke payment and shipping providers", () => {

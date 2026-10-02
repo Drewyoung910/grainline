@@ -106,6 +106,12 @@ async function createDatabase() {
       "orderId" text NOT NULL,
       status text NOT NULL
     );
+    CREATE TABLE public."CaseResolutionClaim" (
+      id text PRIMARY KEY,
+      "orderId" text NOT NULL,
+      status text NOT NULL,
+      "stockRestorePlan" jsonb NOT NULL DEFAULT '[]'::jsonb
+    );
     CREATE TABLE public."SystemAuditLog" (
       id text PRIMARY KEY,
       "actorType" text NOT NULL,
@@ -282,12 +288,38 @@ describe("Order fulfillment fixed authority in PostgreSQL", () => {
         });
       }
 
+      await database.exec(`
+        UPDATE public."Order"
+           SET "sellerRefundId" = 're_restocked_partial',
+               "sellerRefundAmountCents" = 250,
+               "sellerRefundLockedAt" = NULL,
+               "paymentRefundBlocked" = true,
+               "chargedTotalCents" = 1000,
+               "fulfillmentStatus" = 'PENDING'
+         WHERE id = 'pickup-order';
+        INSERT INTO public."CaseResolutionClaim" (
+          id, "orderId", status, "stockRestorePlan"
+        ) VALUES (
+          'restocked-claim', 'pickup-order', 'FINALIZED',
+          '[{"listingId":"listing-1","quantity":1}]'::jsonb
+        );
+      `);
+      const restockedPartial = await asRuntime(database, `
+        SELECT public.grainline_order_seller_fulfillment_transition(
+          'seller-user-1', 'pickup-order', 'ready_for_pickup', NULL, NULL
+        ) AS result
+      `);
+      assert.deepEqual(restockedPartial.rows[0].result, {
+        outcome: "conflict",
+        reason: "refunded",
+      });
+
       const privileges = await database.query(`SELECT
         has_function_privilege('public',
-          'public.grainline_order_refund_blocks_fulfillment(text,timestamp without time zone,boolean,integer,integer)',
+          'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
           'EXECUTE') AS public_execute,
         has_function_privilege('grainline_app_runtime',
-          'public.grainline_order_refund_blocks_fulfillment(text,timestamp without time zone,boolean,integer,integer)',
+          'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
           'EXECUTE') AS runtime_execute`);
       assert.deepEqual(privileges.rows, [{
         public_execute: false,

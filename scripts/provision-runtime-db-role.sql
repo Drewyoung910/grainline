@@ -1353,7 +1353,7 @@ SELECT format(
 -- EXECUTE closed.
 WITH private_order_helper(function_signature) AS (
   VALUES
-    ('public."grainline_order_refund_blocks_fulfillment"(text, timestamp without time zone, boolean, integer, integer)')
+    ('public."grainline_order_refund_blocks_fulfillment"(text, text, timestamp without time zone, boolean, integer, integer)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM private_order_helper
@@ -1362,7 +1362,7 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
 
 WITH private_order_helper(function_signature) AS (
   VALUES
-    ('public."grainline_order_refund_blocks_fulfillment"(text, timestamp without time zone, boolean, integer, integer)')
+    ('public."grainline_order_refund_blocks_fulfillment"(text, text, timestamp without time zone, boolean, integer, integer)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',

@@ -120,6 +120,10 @@ async function createLabelDatabase({ corrected }) {
       "updatedAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE public."Case" (id text PRIMARY KEY, "orderId" text NOT NULL, status text NOT NULL);
+    CREATE TABLE public."CaseResolutionClaim" (
+      id text PRIMARY KEY, "orderId" text NOT NULL, status text NOT NULL,
+      "stockRestorePlan" jsonb NOT NULL DEFAULT '[]'::jsonb
+    );
     CREATE TABLE public."SystemAuditLog" (
       id text PRIMARY KEY, "actorType" text NOT NULL, "actorId" text,
       action text NOT NULL, "targetType" text NOT NULL, "targetId" text NOT NULL,
@@ -268,9 +272,10 @@ describe("Order label partial-refund successor in PostgreSQL", () => {
   });
 
   it("classifies refund evidence again when a refund races an in-flight label purchase", async () => {
-    for (const [refundAmount, expectedStatus, expectedClawback] of [
-      [500, "SHIPPED", "RETRYING"],
-      [2000, "PENDING", "MANUAL_REVIEW"],
+    for (const [refundAmount, expectedStatus, expectedClawback, restoredStock] of [
+      [500, "SHIPPED", "RETRYING", false],
+      [2000, "PENDING", "MANUAL_REVIEW", false],
+      [500, "PENDING", "MANUAL_REVIEW", true],
     ]) {
       const database = await createPartialRefundLabelDatabase();
       try {
@@ -286,6 +291,16 @@ describe("Order label partial-refund successor in PostgreSQL", () => {
                  "paymentRefundBlocked" = true
            WHERE id = 'order-1'
         `);
+        if (restoredStock) {
+          await database.exec(`
+            INSERT INTO public."CaseResolutionClaim" (
+              id, "orderId", status, "stockRestorePlan"
+            ) VALUES (
+              'race-restocked-claim', 'order-1', 'FINALIZED',
+              '[{"listingId":"listing-1","quantity":1}]'::jsonb
+            )
+          `);
+        }
         const recorded = (await asRuntime(database, `
           SELECT public.grainline_order_seller_label_provider_record(
             'seller-user-1', 'order-1', '${claim.claimId}',
@@ -329,6 +344,33 @@ describe("Order label partial-refund successor in PostgreSQL", () => {
       } finally {
         await database.close();
       }
+    }
+  });
+
+  it("keeps fulfillment blocked after a partial refund restored stock", async () => {
+    const database = await createPartialRefundLabelDatabase();
+    try {
+      await database.exec(`
+        UPDATE public."Order"
+           SET "sellerRefundId" = 're_restocked_partial',
+               "sellerRefundAmountCents" = 500,
+               "paymentRefundBlocked" = true
+         WHERE id = 'order-1';
+        INSERT INTO public."CaseResolutionClaim" (
+          id, "orderId", status, "stockRestorePlan"
+        ) VALUES (
+          'restocked-claim', 'order-1', 'FINALIZED',
+          '[{"listingId":"listing-1","quantity":1}]'::jsonb
+        );
+      `);
+      const result = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-1', 'order-1'
+        ) AS result
+      `);
+      assert.equal(result.rows[0].result.reason, "refunded");
+    } finally {
+      await database.close();
     }
   });
 });
