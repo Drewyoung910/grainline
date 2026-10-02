@@ -85,6 +85,18 @@ test("CI isolates the successor until every accepted predecessor is restored", (
   assert.ok(caseRecovery > isolate);
   assert.ok(restore > caseRecovery);
   assert.ok(apply > restore);
+  const isolateBlock = ci.slice(
+    isolate,
+    ci.indexOf("Verify Case refund provider-recovery source package", isolate),
+  );
+  assert.match(
+    isolateBlock,
+    /ORDER_PARTIAL_REFUND_FULFILLMENT_MIGRATION_PATH=.*migration\.sql/u,
+  );
+  assert.doesNotMatch(
+    isolateBlock,
+    /mv[\s\\]+tests\/order-(?:fulfillment|label)-authority-postgres\.test\.mjs/u,
+  );
   assert.match(
     ci,
     /Verify exact Order child catalog after partial-refund successor/u,

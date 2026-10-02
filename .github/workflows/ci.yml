@@ -98,12 +98,7 @@ jobs:
           mv \
             prisma/migrations/20261002010000_allow_partial_refund_fulfillment \
             "$holding/migration"
-          mv \
-            tests/order-fulfillment-authority-postgres.test.mjs \
-            "$holding/order-fulfillment-authority-postgres.test.mjs"
-          mv \
-            tests/order-label-authority-postgres.test.mjs \
-            "$holding/order-label-authority-postgres.test.mjs"
+          echo "ORDER_PARTIAL_REFUND_FULFILLMENT_MIGRATION_PATH=$holding/migration/migration.sql" >> "$GITHUB_ENV"
           mv \
             tests/order-partial-refund-fulfillment-production-workflow.test.mjs \
             "$holding/order-partial-refund-fulfillment-production-workflow.test.mjs"
@@ -2625,12 +2620,6 @@ jobs:
           mv \
             "$holding/migration" \
             prisma/migrations/20261002010000_allow_partial_refund_fulfillment
-          mv \
-            "$holding/order-fulfillment-authority-postgres.test.mjs" \
-            tests/order-fulfillment-authority-postgres.test.mjs
-          mv \
-            "$holding/order-label-authority-postgres.test.mjs" \
-            tests/order-label-authority-postgres.test.mjs
           mv \
             "$holding/order-partial-refund-fulfillment-production-workflow.test.mjs" \
             tests/order-partial-refund-fulfillment-production-workflow.test.mjs

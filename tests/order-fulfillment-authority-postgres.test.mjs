@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
@@ -11,8 +11,16 @@ const deauthorizationCorrection = readFileSync(
   "prisma/migrations/20260926012000_correct_order_seller_deauthorization_fulfillment/migration.sql",
   "utf8",
 );
-const partialRefundCorrection = readFileSync(
+const partialRefundCorrectionPath = [
+  process.env.ORDER_PARTIAL_REFUND_FULFILLMENT_MIGRATION_PATH,
   "prisma/migrations/20261002010000_allow_partial_refund_fulfillment/migration.sql",
+].find((candidate) => candidate && existsSync(candidate));
+assert.ok(
+  partialRefundCorrectionPath,
+  "partial-refund fulfillment migration is available",
+);
+const partialRefundCorrection = readFileSync(
+  partialRefundCorrectionPath,
   "utf8",
 );
 
