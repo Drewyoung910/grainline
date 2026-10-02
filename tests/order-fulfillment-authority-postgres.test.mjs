@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
@@ -11,6 +11,43 @@ const deauthorizationCorrection = readFileSync(
   "prisma/migrations/20260926012000_correct_order_seller_deauthorization_fulfillment/migration.sql",
   "utf8",
 );
+const partialRefundCorrectionPath = [
+  process.env.ORDER_PARTIAL_REFUND_FULFILLMENT_MIGRATION_PATH,
+  "prisma/migrations/20261002010000_allow_partial_refund_fulfillment/migration.sql",
+].find((candidate) => candidate && existsSync(candidate));
+assert.ok(
+  partialRefundCorrectionPath,
+  "partial-refund fulfillment migration is available",
+);
+const partialRefundCorrection = readFileSync(
+  partialRefundCorrectionPath,
+  "utf8",
+);
+
+function functionSql(source, name) {
+  const delimiter = `$${name}$`;
+  const start = source.search(new RegExp(
+    `CREATE(?: OR REPLACE)? FUNCTION public\\.${name}\\(`,
+  ));
+  const end = source.indexOf(`${delimiter};`, start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  return source.slice(start, end + delimiter.length + 1);
+}
+
+const partialRefundHelper = partialRefundCorrection.slice(
+  partialRefundCorrection.indexOf(
+    "CREATE FUNCTION public.grainline_order_refund_blocks_fulfillment(",
+  ),
+  partialRefundCorrection.indexOf(
+    "CREATE OR REPLACE FUNCTION public.grainline_order_seller_fulfillment_transition(",
+  ),
+);
+const partialRefundFulfillmentCorrection = `BEGIN;
+${partialRefundHelper}
+${functionSql(partialRefundCorrection, "grainline_order_seller_fulfillment_transition")}
+${functionSql(partialRefundCorrection, "grainline_order_buyer_receipt_confirm")}
+COMMIT;`;
 
 async function createDatabase() {
   const database = new PGlite();
@@ -49,8 +86,15 @@ async function createDatabase() {
       "sellerNotes" text,
       "estimatedDeliveryDate" timestamp(3) without time zone,
       "sellerRefundId" text,
+      "sellerRefundAmountCents" integer,
+      "sellerRefundLockedAt" timestamp(3) without time zone,
       "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
       "paymentOpenDisputeBlocked" boolean NOT NULL DEFAULT false,
+      "chargedTotalCents" integer,
+      "itemsSubtotalCents" integer NOT NULL DEFAULT 0,
+      "shippingAmountCents" integer NOT NULL DEFAULT 0,
+      "giftWrappingPriceCents" integer NOT NULL DEFAULT 0,
+      "taxAmountCents" integer NOT NULL DEFAULT 0,
       "reviewNeeded" boolean NOT NULL DEFAULT false,
       "reviewNote" text,
       "sellerDeauthorizedAt" timestamp(3) without time zone,
@@ -61,6 +105,12 @@ async function createDatabase() {
       id text PRIMARY KEY,
       "orderId" text NOT NULL,
       status text NOT NULL
+    );
+    CREATE TABLE public."CaseResolutionClaim" (
+      id text PRIMARY KEY,
+      "orderId" text NOT NULL,
+      status text NOT NULL,
+      "stockRestorePlan" jsonb NOT NULL DEFAULT '[]'::jsonb
     );
     CREATE TABLE public."SystemAuditLog" (
       id text PRIMARY KEY,
@@ -180,6 +230,101 @@ describe("Order fulfillment fixed authority in PostgreSQL", () => {
          ORDER BY "createdAt", id
       `);
       assert.deepEqual(audits.rows.map((row) => row.action).sort(), ["delivered", "shipped"]);
+    } finally {
+      await database.close();
+    }
+  });
+
+  it("continues fulfillment after an evidenced partial refund and blocks unsafe refund states", async () => {
+    const database = await createDatabase();
+    try {
+      await database.exec(partialRefundFulfillmentCorrection);
+      await database.exec(`
+        UPDATE public."Order"
+           SET "sellerRefundId" = 're_partial',
+               "sellerRefundAmountCents" = 250,
+               "paymentRefundBlocked" = true,
+               "chargedTotalCents" = 1000
+         WHERE id = 'shipping-order'
+      `);
+      const shipped = await asRuntime(database, `
+        SELECT public.grainline_order_seller_fulfillment_transition(
+          'seller-user-1', 'shipping-order', 'shipped', 'UPS', '1Z999AA10123456784'
+        ) AS result
+      `);
+      assert.equal(shipped.rows[0].result.outcome, "changed");
+      const received = await asRuntime(database, `
+        SELECT public.grainline_order_buyer_receipt_confirm(
+          'buyer-1', 'shipping-order'
+        ) AS result
+      `);
+      assert.equal(received.rows[0].result.newStatus, "DELIVERED");
+
+      for (const unsafe of [
+        { id: "re_full", amount: 1000, locked: null, blocked: true },
+        { id: "pending", amount: null, locked: "CURRENT_TIMESTAMP", blocked: false },
+        { id: "ambiguous_refund_pending_reconciliation", amount: null, locked: null, blocked: true },
+        { id: null, amount: 250, locked: null, blocked: true },
+        { id: "re_missing_amount", amount: null, locked: null, blocked: true },
+      ]) {
+        await database.exec(`
+          UPDATE public."Order"
+             SET "sellerRefundId" = ${unsafe.id === null ? "NULL" : `'${unsafe.id}'`},
+                 "sellerRefundAmountCents" = ${unsafe.amount ?? "NULL"},
+                 "sellerRefundLockedAt" = ${unsafe.locked ?? "NULL"},
+                 "paymentRefundBlocked" = ${unsafe.blocked},
+                 "chargedTotalCents" = 1000,
+                 "fulfillmentStatus" = 'PENDING'
+           WHERE id = 'pickup-order'
+        `);
+        const blocked = await asRuntime(database, `
+          SELECT public.grainline_order_seller_fulfillment_transition(
+            'seller-user-1', 'pickup-order', 'ready_for_pickup', NULL, NULL
+          ) AS result
+        `);
+        assert.deepEqual(blocked.rows[0].result, {
+          outcome: "conflict",
+          reason: "refunded",
+        });
+      }
+
+      await database.exec(`
+        UPDATE public."Order"
+           SET "sellerRefundId" = 're_restocked_partial',
+               "sellerRefundAmountCents" = 250,
+               "sellerRefundLockedAt" = NULL,
+               "paymentRefundBlocked" = true,
+               "chargedTotalCents" = 1000,
+               "fulfillmentStatus" = 'PENDING'
+         WHERE id = 'pickup-order';
+        INSERT INTO public."CaseResolutionClaim" (
+          id, "orderId", status, "stockRestorePlan"
+        ) VALUES (
+          'restocked-claim', 'pickup-order', 'FINALIZED',
+          '[{"listingId":"listing-1","quantity":1}]'::jsonb
+        );
+      `);
+      const restockedPartial = await asRuntime(database, `
+        SELECT public.grainline_order_seller_fulfillment_transition(
+          'seller-user-1', 'pickup-order', 'ready_for_pickup', NULL, NULL
+        ) AS result
+      `);
+      assert.deepEqual(restockedPartial.rows[0].result, {
+        outcome: "conflict",
+        reason: "refunded",
+      });
+
+      const privileges = await database.query(`SELECT
+        has_function_privilege('public',
+          'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
+          'EXECUTE') AS public_execute,
+        has_function_privilege('grainline_app_runtime',
+          'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
+          'EXECUTE') AS runtime_execute`);
+      assert.deepEqual(privileges.rows, [{
+        public_execute: false,
+        runtime_execute: false,
+      }]);
     } finally {
       await database.close();
     }

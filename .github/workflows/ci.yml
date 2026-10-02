@@ -83,6 +83,25 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify partial-refund fulfillment source package
+        run: >-
+          node --test
+          tests/order-fulfillment-authority-postgres.test.mjs
+          tests/order-label-authority-postgres.test.mjs
+          tests/order-partial-refund-fulfillment-production-workflow.test.mjs
+      - name: Isolate partial-refund fulfillment until every predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-partial-refund-fulfillment"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261002010000_allow_partial_refund_fulfillment \
+            "$holding/migration"
+          echo "ORDER_PARTIAL_REFUND_FULFILLMENT_MIGRATION_PATH=$holding/migration/migration.sql" >> "$GITHUB_ENV"
+          mv \
+            tests/order-partial-refund-fulfillment-production-workflow.test.mjs \
+            "$holding/order-partial-refund-fulfillment-production-workflow.test.mjs"
       - name: Verify Case refund provider-recovery source package
         run: >-
           node --test
@@ -291,9 +310,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          correction="$RUNNER_TEMP/order-label-sender-contact-correction"
           mv \
             prisma/migrations/20260928020000_correct_order_label_sender_contact \
-            "$RUNNER_TEMP/order-label-sender-contact-correction"
+            "$correction"
+          echo \
+            "ORDER_LABEL_SENDER_CONTACT_MIGRATION_PATH=$correction/migration.sql" \
+            >> "$GITHUB_ENV"
           mv \
             tests/order-label-sender-contact.test.mjs \
             "$RUNNER_TEMP/order-label-sender-contact.test.mjs"
@@ -2592,6 +2615,38 @@ jobs:
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261001070000_prepare_case_refund_provider_recovery/migration.sql
       - name: Audit runtime grants after Case refund provider recovery
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore partial-refund fulfillment successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-partial-refund-fulfillment"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261002010000_allow_partial_refund_fulfillment
+          mv \
+            "$holding/order-partial-refund-fulfillment-production-workflow.test.mjs" \
+            tests/order-partial-refund-fulfillment-production-workflow.test.mjs
+          rmdir "$holding"
+      - name: Re-verify partial-refund fulfillment source package
+        run: >-
+          node --test
+          tests/order-fulfillment-authority-postgres.test.mjs
+          tests/order-label-authority-postgres.test.mjs
+          tests/order-partial-refund-fulfillment-production-workflow.test.mjs
+      - name: Apply partial-refund fulfillment successor in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261002010000_allow_partial_refund_fulfillment/migration.sql
+      - name: Verify exact Order child catalog after partial-refund successor
+        run: node scripts/order-child-authority-catalog.mjs > /dev/null
+        env:
+          EXPECTED_ORDER_ITEM_RLS_ENABLED: "true"
+          EXPECTED_ORDER_ITEM_RLS_FORCED: "true"
+          EXPECTED_ORDER_QUOTE_RLS_ENABLED: "true"
+          EXPECTED_ORDER_QUOTE_RLS_FORCED: "true"
+      - name: Audit runtime grants after partial-refund fulfillment successor
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

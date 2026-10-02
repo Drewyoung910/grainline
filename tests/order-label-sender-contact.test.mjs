@@ -50,6 +50,7 @@ describe("Order label sender contact correction", () => {
     assert.doesNotMatch(migration, /ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY|DISABLE ROW LEVEL SECURITY|NO FORCE ROW LEVEL SECURITY/);
     assert.doesNotMatch(migration, /GRANT\s+.*\s+ON\s+(?:TABLE\s+)?public\./i);
     assert.match(ci, /Verify Order label sender-contact correction source package[\s\S]*Isolate Order label sender-contact correction until predecessors pass/);
+    assert.match(ci, /ORDER_LABEL_SENDER_CONTACT_MIGRATION_PATH=.*migration\.sql/);
     assert.match(ci, /Restore Order deauthorized Case-access correction[\s\S]*Restore Order label sender-contact correction[\s\S]*Apply only Order label sender-contact correction in disposable PostgreSQL/);
   });
 

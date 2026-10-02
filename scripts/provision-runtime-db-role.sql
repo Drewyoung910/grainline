@@ -1347,6 +1347,32 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Refund classification is an owner-internal helper called only by reviewed
+-- Order authority functions. It may be absent before its preparation
+-- migration; when present, keep both inherited/public and direct runtime
+-- EXECUTE closed.
+WITH private_order_helper(function_signature) AS (
+  VALUES
+    ('public."grainline_order_refund_blocks_fulfillment"(text, text, timestamp without time zone, boolean, integer, integer)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM private_order_helper
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH private_order_helper(function_signature) AS (
+  VALUES
+    ('public."grainline_order_refund_blocks_fulfillment"(text, text, timestamp without time zone, boolean, integer, integer)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM private_order_helper
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Stripe webhook generation-bound lease and maintenance operations are
 -- additive before their later table-RLS boundary. Keep PUBLIC closed, remove
 -- stale direct runtime ACLs, and grant only the exact reviewed signatures.

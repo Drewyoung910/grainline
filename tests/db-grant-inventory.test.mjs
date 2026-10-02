@@ -747,6 +747,7 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
       "grainline_checkout_reservation_listing_snapshot_witness",
+      "grainline_order_refund_blocks_fulfillment",
       "grainline_seller_deauthorization_application_immutable",
       "grainline_order_staff_detail_v2",
       "grainline_order_staff_page_v2",
@@ -1692,6 +1693,13 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_resolution_provider_recovery_record",
       "grainline_case_staff_resolution_recovery_finalize",
     ];
+    const partialRefundFulfillmentMigrationPath =
+      "prisma/migrations/20261002010000_allow_partial_refund_fulfillment/migration.sql";
+    const partialRefundFulfillmentMigrationPresent = existsSync(
+      partialRefundFulfillmentMigrationPath,
+    ) && source(partialRefundFulfillmentMigrationPath).includes(
+      "CREATE FUNCTION public.grainline_order_refund_blocks_fulfillment(",
+    );
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -1799,6 +1807,9 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
+      ...(partialRefundFulfillmentMigrationPresent
+        ? ["grainline_order_refund_blocks_fulfillment"]
+        : []),
       ...ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
@@ -1857,6 +1868,7 @@ describe("database grant inventory guardrails", () => {
         + (orderOpsHealthMigrationPresent ? 1 : 0)
         + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
         + (caseRefundProviderRecoveryMigrationPresent ? 5 : 0)
+        + (partialRefundFulfillmentMigrationPresent ? 1 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (conversationMessageAuthorityPrepared ? 25 : 0)
@@ -1942,6 +1954,9 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_resolution_reconcile",
       ...(caseRefundProviderRecoveryMigrationPresent
         ? caseRefundProviderRecoveryFunctionNames
+        : []),
+      ...(partialRefundFulfillmentMigrationPresent
+        ? ["grainline_order_refund_blocks_fulfillment"]
         : []),
       "grainline_order_buyer_pii_prune_batch",
     ]) {
