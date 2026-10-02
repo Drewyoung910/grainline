@@ -23,6 +23,18 @@ const senderContactCorrectionPath =
 const senderContactCorrection = existsSync(senderContactCorrectionPath)
   ? readFileSync(senderContactCorrectionPath, "utf8")
   : null;
+const fulfillmentMigration = readFileSync(
+  "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+  "utf8",
+);
+const fulfillmentDeauthorizationCorrection = readFileSync(
+  "prisma/migrations/20260926012000_correct_order_seller_deauthorization_fulfillment/migration.sql",
+  "utf8",
+);
+const partialRefundCorrection = readFileSync(
+  "prisma/migrations/20261002010000_allow_partial_refund_fulfillment/migration.sql",
+  "utf8",
+);
 
 async function createLabelDatabase({ corrected }) {
   const database = new PGlite();
@@ -63,8 +75,16 @@ async function createLabelDatabase({ corrected }) {
       "shipToCountry" text, "fulfillmentMethod" public."FulfillmentMethod",
       "fulfillmentStatus" public."FulfillmentStatus" NOT NULL DEFAULT 'PENDING',
       "trackingCarrier" text, "trackingNumber" text, "shippedAt" timestamp(3),
+      "pickupReadyAt" timestamp(3), "pickedUpAt" timestamp(3),
+      "deliveredAt" timestamp(3), "sellerNotes" text,
+      "buyerDataPurgedAt" timestamp(3),
       "estimatedDeliveryDate" timestamp(3), "quotedShippingAmountCents" integer,
       "quotedToName" text, "sellerRefundId" text, "sellerRefundLockedAt" timestamp(3),
+      "sellerRefundAmountCents" integer, "chargedTotalCents" integer,
+      "itemsSubtotalCents" integer NOT NULL DEFAULT 0,
+      "shippingAmountCents" integer NOT NULL DEFAULT 0,
+      "giftWrappingPriceCents" integer NOT NULL DEFAULT 0,
+      "taxAmountCents" integer NOT NULL DEFAULT 0,
       "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
       "paymentOpenDisputeBlocked" boolean NOT NULL DEFAULT false,
       "reviewNeeded" boolean NOT NULL DEFAULT false, "reviewNote" text,
@@ -167,6 +187,141 @@ async function asRuntime(database, sql, params = []) {
   try { return await database.query(sql, params); }
   finally { await database.exec("RESET ROLE"); }
 }
+
+async function createPartialRefundLabelDatabase() {
+  assert.notEqual(senderContactCorrection, null);
+  const database = await createLabelDatabase({ corrected: true });
+  await database.exec(deauthorizationCorrection);
+  await database.exec(senderContactCorrection);
+  await database.exec(fulfillmentMigration);
+  await database.exec(fulfillmentDeauthorizationCorrection);
+  await database.exec(partialRefundCorrection);
+  await database.exec(`
+    UPDATE public."SellerProfile"
+       SET "shipFromPhone" = '+15125550123'
+     WHERE id = 'seller-1';
+    UPDATE public."Order"
+       SET "chargedTotalCents" = 2000,
+           "itemsSubtotalCents" = 1100,
+           "shippingAmountCents" = 900
+     WHERE id = 'order-1';
+  `);
+  return database;
+}
+
+describe("Order label partial-refund successor in PostgreSQL", () => {
+  it("allows preflight, quote, claim, and provider success after a completed partial refund", async () => {
+    const database = await createPartialRefundLabelDatabase();
+    try {
+      await database.exec(`
+        UPDATE public."Order"
+           SET "sellerRefundId" = 're_partial',
+               "sellerRefundAmountCents" = 500,
+               "paymentRefundBlocked" = true
+         WHERE id = 'order-1'
+      `);
+      const preflight = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-1', 'order-1'
+        ) AS result
+      `);
+      assert.equal(preflight.rows[0].result.outcome, "ready");
+      const quote = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_quote_replace(
+          'seller-user-1', 'order-1', 'shipment-partial',
+          '[{"objectId":"rate-partial","amountCents":725,"currency":"usd","label":"UPS Ground","carrier":"UPS","service":"Ground"}]'::jsonb
+        ) AS result
+      `);
+      assert.equal(quote.rows[0].result.outcome, "changed");
+      const claim = (await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_claim(
+          'seller-user-1', 'order-1', 'rate-partial'
+        ) AS result
+      `)).rows[0].result;
+      assert.equal(claim.outcome, "claimed");
+      const recorded = (await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_provider_record(
+          'seller-user-1', 'order-1', '${claim.claimId}',
+          ${claim.claimGeneration}, 'SUCCESS', 'txn-partial',
+          'https://labels.example.test/partial.pdf', 'rate-partial', 725,
+          'usd', 'UPS', '1Z999AA10123456784', NULL
+        ) AS result
+      `)).rows[0].result;
+      assert.equal(recorded.fulfillmentStatus, "SHIPPED");
+      assert.equal(recorded.clawbackStatus, "RETRYING");
+      assert.equal(Number((await database.query(`
+        SELECT pg_catalog.count(*) AS count FROM public."Notification"
+      `)).rows[0].count), 1);
+    } finally {
+      await database.close();
+    }
+  });
+
+  it("classifies refund evidence again when a refund races an in-flight label purchase", async () => {
+    for (const [refundAmount, expectedStatus, expectedClawback] of [
+      [500, "SHIPPED", "RETRYING"],
+      [2000, "PENDING", "MANUAL_REVIEW"],
+    ]) {
+      const database = await createPartialRefundLabelDatabase();
+      try {
+        const claim = (await asRuntime(database, `
+          SELECT public.grainline_order_seller_label_claim(
+            'seller-user-1', 'order-1', NULL
+          ) AS result
+        `)).rows[0].result;
+        await database.exec(`
+          UPDATE public."Order"
+             SET "sellerRefundId" = 're_race_${refundAmount}',
+                 "sellerRefundAmountCents" = ${refundAmount},
+                 "paymentRefundBlocked" = true
+           WHERE id = 'order-1'
+        `);
+        const recorded = (await asRuntime(database, `
+          SELECT public.grainline_order_seller_label_provider_record(
+            'seller-user-1', 'order-1', '${claim.claimId}',
+            ${claim.claimGeneration}, 'SUCCESS', 'txn-race-${refundAmount}',
+            'https://labels.example.test/race.pdf', 'rate-old', 900,
+            'usd', 'UPS', '1Z999AA10123456784', NULL
+          ) AS result
+        `)).rows[0].result;
+        assert.equal(recorded.fulfillmentStatus, expectedStatus);
+        assert.equal(recorded.clawbackStatus, expectedClawback);
+      } finally {
+        await database.close();
+      }
+    }
+  });
+
+  it("keeps full, pending, ambiguous, and inconsistent refund evidence blocked", async () => {
+    for (const state of [
+      { id: "re_full", amount: 2000, locked: null, blocked: true },
+      { id: "pending", amount: null, locked: "CURRENT_TIMESTAMP", blocked: false },
+      { id: "ambiguous_refund_pending_reconciliation", amount: null, locked: null, blocked: true },
+      { id: null, amount: 500, locked: null, blocked: true },
+      { id: "re_missing_amount", amount: null, locked: null, blocked: true },
+    ]) {
+      const database = await createPartialRefundLabelDatabase();
+      try {
+        await database.exec(`
+          UPDATE public."Order"
+             SET "sellerRefundId" = ${state.id === null ? "NULL" : `'${state.id}'`},
+                 "sellerRefundAmountCents" = ${state.amount ?? "NULL"},
+                 "sellerRefundLockedAt" = ${state.locked ?? "NULL"},
+                 "paymentRefundBlocked" = ${state.blocked}
+           WHERE id = 'order-1'
+        `);
+        const result = await asRuntime(database, `
+          SELECT public.grainline_order_seller_label_preflight(
+            'seller-user-1', 'order-1'
+          ) AS result
+        `);
+        assert.equal(result.rows[0].result.reason, "refunded");
+      } finally {
+        await database.close();
+      }
+    }
+  });
+});
 
 for (const corrected of [false, true]) {
 describe(`Order label fixed authority in PostgreSQL (${corrected ? "corrected draft" : "historical"})`, () => {

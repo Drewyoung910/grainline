@@ -1,0 +1,421 @@
+name: Order Partial Refund Fulfillment Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-partial-refund-fulfillment
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed partial-refund fulfillment successor
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-order-partial-refund-fulfillment'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main and completed CI before credential access
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Partial-refund fulfillment release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Partial-refund fulfillment main/CI readback drifted');
+            }
+      - name: Verify exact migration source and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20261002010000_allow_partial_refund_fulfillment"
+          echo "aed37ac898eaa6ede56e13834019aefdd8825c4b521422ad30c17733d008172c  prisma/migrations/20261002010000_allow_partial_refund_fulfillment/migration.sql" | sha256sum --check --status
+          node --test \
+            tests/order-fulfillment-authority-postgres.test.mjs \
+            tests/order-label-authority-postgres.test.mjs \
+            tests/order-partial-refund-fulfillment-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture restart state and unchanged authority posture
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const predecessor = '20261001070000_prepare_case_refund_provider_recovery';
+          const predecessorChecksum =
+            '68e559e01dbeae663931110dcadfd4d42ca050c788eebd647727f434a9a72dba';
+          const migration = '20261002010000_allow_partial_refund_fulfillment';
+          const checksum =
+            'aed37ac898eaa6ede56e13834019aefdd8825c4b521422ad30c17733d008172c';
+          const helper =
+            'public.grainline_order_refund_blocks_fulfillment(text,timestamp without time zone,boolean,integer,integer)';
+          const targets = [
+            'public.grainline_order_seller_fulfillment_transition(text,text,text,text,text)',
+            'public.grainline_order_buyer_receipt_confirm(text,text)',
+            'public.grainline_order_seller_label_preflight(text,text)',
+            'public.grainline_order_seller_label_quote_replace(text,text,text,jsonb)',
+            'public.grainline_order_seller_label_claim(text,text,text)',
+            'public.grainline_order_seller_label_provider_record(text,text,text,bigint,text,text,text,text,integer,text,text,text,text)',
+          ];
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive,
+                     'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname)
+                     FROM pg_catalog.pg_policy AS policy
+                    WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+              JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = relation.relnamespace
+             WHERE namespace.nspname = 'public'
+               AND relation.relname = ANY($1::text[])
+             ORDER BY relation.relname`;
+          const functionsSql = `
+            WITH requested AS (
+              SELECT identity, pg_catalog.to_regprocedure(identity) AS oid
+                FROM pg_catalog.unnest($1::text[]) AS identity
+            )
+            SELECT requested.identity,
+                   requested.oid::text AS resolved,
+                   pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                   procedure.proacl::text AS acl,
+                   procedure.prosecdef AS security_definer,
+                   procedure.proconfig AS config
+              FROM requested
+              LEFT JOIN pg_catalog.pg_proc AS procedure
+                ON procedure.oid = requested.oid
+             ORDER BY requested.identity`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[predecessor, migration]]);
+            const rows = new Map(ledger.rows.map((row) => [row.migration_name, row]));
+            const required = rows.get(predecessor);
+            assert.ok(required, 'required Case refund recovery predecessor is not applied');
+            assert.equal(required.checksum, predecessorChecksum);
+            assert.ok(required.finished_at);
+            assert.equal(required.rolled_back_at, null);
+            assert.equal(Number(required.applied_steps_count), 1);
+            const candidate = rows.get(migration);
+            if (candidate) {
+              assert.equal(candidate.checksum, checksum);
+              assert.ok(candidate.finished_at);
+              assert.equal(candidate.rolled_back_at, null);
+              assert.equal(Number(candidate.applied_steps_count), 1);
+            } else {
+              assert.equal(
+                (await client.query('SELECT pg_catalog.to_regprocedure($1)::text AS helper', [helper])).rows[0].helper,
+                null,
+                'unledgered partial-refund helper exists',
+              );
+            }
+            const functions = await client.query(functionsSql, [targets]);
+            assert.equal(functions.rows.length, targets.length);
+            for (const row of functions.rows) {
+              assert.ok(row.resolved, `missing target function ${row.identity}`);
+              assert.equal(row.owner, 'neondb_owner');
+              assert.equal(row.security_definer, true);
+              assert.deepEqual(row.config, ['search_path=pg_catalog']);
+            }
+            const posture = await client.query(postureSql, [[
+              'Order', 'OrderItem', 'OrderShippingRateQuote',
+            ]]);
+            assert.equal(posture.rows.length, 3);
+            assert.deepEqual(
+              posture.rows.map((row) => [row.table_name, row.rls_enabled, row.force_enabled]),
+              [
+                ['Order', true, true],
+                ['OrderItem', true, true],
+                ['OrderShippingRateQuote', true, true],
+              ],
+            );
+            writeFileSync(
+              `${process.env.RUNNER_TEMP}/order-partial-refund-fulfillment-posture.json`,
+              JSON.stringify({posture: posture.rows, functions: functions.rows}),
+              {mode: 0o600, flag: 'wx'},
+            );
+            appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              `state=${candidate ? 'applied' : 'pending'}\n`,
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261002010000_allow_partial_refund_fulfillment
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected partial-refund fulfillment migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed partial-refund fulfillment migration
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger, functions and unchanged posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const migration = '20261002010000_allow_partial_refund_fulfillment';
+          const checksum =
+            'aed37ac898eaa6ede56e13834019aefdd8825c4b521422ad30c17733d008172c';
+          const migrationSql = readFileSync(
+            `prisma/migrations/${migration}/migration.sql`, 'utf8',
+          );
+          const helper =
+            'public.grainline_order_refund_blocks_fulfillment(text,timestamp without time zone,boolean,integer,integer)';
+          const targetSpecs = new Map([
+            ['public.grainline_order_seller_fulfillment_transition(text,text,text,text,text)',
+              ['$grainline_order_seller_fulfillment_transition$', 'plpgsql', 'v', 'u']],
+            ['public.grainline_order_buyer_receipt_confirm(text,text)',
+              ['$grainline_order_buyer_receipt_confirm$', 'plpgsql', 'v', 'u']],
+            ['public.grainline_order_seller_label_preflight(text,text)',
+              ['$grainline_order_seller_label_preflight$', 'plpgsql', 's', 's']],
+            ['public.grainline_order_seller_label_quote_replace(text,text,text,jsonb)',
+              ['$grainline_order_seller_label_quote_replace$', 'plpgsql', 'v', 'u']],
+            ['public.grainline_order_seller_label_claim(text,text,text)',
+              ['$grainline_order_seller_label_claim$', 'plpgsql', 'v', 'u']],
+            ['public.grainline_order_seller_label_provider_record(text,text,text,bigint,text,text,text,text,integer,text,text,text,text)',
+              ['$grainline_order_seller_label_provider_record$', 'plpgsql', 'v', 'u']],
+          ]);
+          function sourceFor(delimiter) {
+            const marker = `AS ${delimiter}`;
+            const start = migrationSql.indexOf(marker);
+            assert.ok(start >= 0, `missing function delimiter ${delimiter}`);
+            const bodyStart = start + marker.length;
+            const end = migrationSql.indexOf(`${delimiter};`, bodyStart);
+            assert.ok(end > bodyStart, `unterminated function delimiter ${delimiter}`);
+            return migrationSql.slice(bodyStart, end);
+          }
+          const functionsSql = `
+            WITH requested AS (
+              SELECT identity, pg_catalog.to_regprocedure(identity) AS oid
+                FROM pg_catalog.unnest($1::text[]) AS identity
+            )
+            SELECT requested.identity,
+                   requested.oid::text AS resolved,
+                   pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                   language.lanname AS language,
+                   procedure.prosrc,
+                   procedure.provolatile AS volatility,
+                   procedure.proparallel AS parallel_safety,
+                   procedure.prosecdef AS security_definer,
+                   procedure.proleakproof AS leakproof,
+                   procedure.proconfig AS config,
+                   procedure.proacl::text AS acl,
+                   pg_catalog.has_function_privilege(
+                     'public', requested.oid, 'EXECUTE'
+                   ) AS public_execute,
+                   pg_catalog.has_function_privilege(
+                     'grainline_app_runtime', requested.oid, 'EXECUTE'
+                   ) AS runtime_execute,
+                   (SELECT pg_catalog.count(*)::integer
+                      FROM pg_catalog.aclexplode(COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )) AS acl
+                     WHERE acl.grantee <> procedure.proowner) AS nonowner_acl_count
+              FROM requested
+              LEFT JOIN pg_catalog.pg_proc AS procedure
+                ON procedure.oid = requested.oid
+              LEFT JOIN pg_catalog.pg_language AS language
+                ON language.oid = procedure.prolang
+             ORDER BY requested.identity`;
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive,
+                     'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname)
+                     FROM pg_catalog.pg_policy AS policy
+                    WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+              JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = relation.relnamespace
+             WHERE namespace.nspname = 'public'
+               AND relation.relname = ANY($1::text[])
+             ORDER BY relation.relname`;
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/order-partial-refund-fulfillment-posture.json`,
+            'utf8',
+          ));
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+            const identities = [helper, ...targetSpecs.keys()];
+            const functions = await client.query(functionsSql, [identities]);
+            assert.equal(functions.rows.length, identities.length);
+            const rows = new Map(functions.rows.map((row) => [row.identity, row]));
+            const helperRow = rows.get(helper);
+            assert.ok(helperRow?.resolved);
+            assert.equal(helperRow.owner, 'neondb_owner');
+            assert.equal(helperRow.language, 'sql');
+            assert.equal(helperRow.prosrc, sourceFor('$grainline_order_refund_blocks_fulfillment$'));
+            assert.equal(helperRow.volatility, 'i');
+            assert.equal(helperRow.parallel_safety, 's');
+            assert.equal(helperRow.security_definer, false);
+            assert.equal(helperRow.leakproof, false);
+            assert.deepEqual(helperRow.config, ['search_path=pg_catalog']);
+            assert.equal(helperRow.public_execute, false);
+            assert.equal(helperRow.runtime_execute, false);
+            assert.equal(Number(helperRow.nonowner_acl_count), 0);
+            const previousByIdentity = new Map(
+              before.functions.map((row) => [row.identity, row]),
+            );
+            for (const [identity, spec] of targetSpecs) {
+              const row = rows.get(identity);
+              assert.ok(row?.resolved, `missing ${identity}`);
+              assert.equal(row.owner, 'neondb_owner');
+              assert.equal(row.language, spec[1]);
+              assert.equal(row.prosrc, sourceFor(spec[0]));
+              assert.equal(row.volatility, spec[2]);
+              assert.equal(row.parallel_safety, spec[3]);
+              assert.equal(row.security_definer, true);
+              assert.equal(row.leakproof, false);
+              assert.deepEqual(row.config, ['search_path=pg_catalog']);
+              assert.equal(row.acl, previousByIdentity.get(identity)?.acl);
+            }
+            const posture = await client.query(postureSql, [[
+              'Order', 'OrderItem', 'OrderShippingRateQuote',
+            ]]);
+            assert.deepEqual(posture.rows, before.posture);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Verify exact Order child catalog after migration
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_ORDER_ITEM_RLS_ENABLED: "true"
+          EXPECTED_ORDER_ITEM_RLS_FORCED: "true"
+          EXPECTED_ORDER_QUOTE_RLS_ENABLED: "true"
+          EXPECTED_ORDER_QUOTE_RLS_FORCED: "true"
+        run: node scripts/order-child-authority-catalog.mjs > /dev/null
+      - name: Audit runtime grants after migration
+        env:
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants
+      - name: Verify final Prisma migration status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate status
