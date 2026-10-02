@@ -247,7 +247,13 @@ export async function POST(
             });
             throw dbError;
           }
-          throw err;
+          return privateJson(
+            {
+              error:
+                "Stripe rejected the refund. Administrator reconciliation is required before retrying.",
+            },
+            { status: HTTP_STATUS.CONFLICT },
+          );
         }
 
         // Stripe explicitly supports replaying a POST with the same

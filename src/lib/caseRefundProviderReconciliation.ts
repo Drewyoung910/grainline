@@ -4,6 +4,7 @@ import type {
   PreparedCaseStaffResolution,
 } from "./caseStaffResolutionAuthority.ts";
 import { createMarketplaceRefund } from "./marketplaceRefunds.ts";
+import { isDefinitiveStripeRefundRejection } from "./stripeRefundProviderErrors.ts";
 
 const SAFE_IDEMPOTENCY_RETRY_MS = 23 * 60 * 60 * 1000;
 const MAX_REFUND_SCAN_PAGES = 20;
@@ -379,6 +380,9 @@ async function recoverProviderClaim(
 export async function resolveCaseRefundProviderOutcome(
   actorUserId: string,
   preparedInput: PreparedCaseStaffResolution,
+  options: {
+    createRefund?: typeof createMarketplaceRefund;
+  } = {},
 ) {
   requireRefundPrepared(preparedInput);
   let prepared: PreparedCaseStaffResolution = preparedInput;
@@ -453,18 +457,28 @@ export async function resolveCaseRefundProviderOutcome(
   }
 
   requireRefundPrepared(prepared);
-  const providerResult = await createMarketplaceRefund({
-    paymentIntentId: prepared.paymentIntentId,
-    resolution: prepared.resolution,
-    amountCents: prepared.refundAmountCents,
-    itemsSubtotalCents: prepared.itemsSubtotalCents,
-    shippingAmountCents: prepared.shippingAmountCents,
-    giftWrappingPriceCents: prepared.giftWrappingPriceCents,
-    taxAmountCents: prepared.taxAmountCents,
-    canReverseTransfer: prepared.canReverseTransfer,
-    idempotencyKeyBase: prepared.idempotencyScope,
-    claimMetadata: { claimId: prepared.claimId, source: "CASE" },
-    reason: "requested_by_customer",
-  });
+  let providerResult;
+  try {
+    providerResult = await (options.createRefund ?? createMarketplaceRefund)({
+      paymentIntentId: prepared.paymentIntentId,
+      resolution: prepared.resolution,
+      amountCents: prepared.refundAmountCents,
+      itemsSubtotalCents: prepared.itemsSubtotalCents,
+      shippingAmountCents: prepared.shippingAmountCents,
+      giftWrappingPriceCents: prepared.giftWrappingPriceCents,
+      taxAmountCents: prepared.taxAmountCents,
+      canReverseTransfer: prepared.canReverseTransfer,
+      idempotencyKeyBase: prepared.idempotencyScope,
+      claimMetadata: { claimId: prepared.claimId, source: "CASE" },
+      reason: "requested_by_customer",
+    });
+  } catch (error) {
+    if (isDefinitiveStripeRefundRejection(error)) {
+      throw new CaseRefundProviderReconciliationRequiredError(
+        "Stripe definitively rejected the Case refund request; administrator reconciliation is required",
+      );
+    }
+    throw error;
+  }
   return { prepared, providerResult };
 }

@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 const {
   inspectCaseRefundProviderEffect,
   isCaseRefundProviderReconciliationRequiredError,
+  resolveCaseRefundProviderOutcome,
 } = await import("../src/lib/caseRefundProviderReconciliation.ts");
 
 const claimId =
@@ -222,6 +223,39 @@ describe("Case refund provider reconciliation", () => {
         );
         return true;
       },
+    );
+  });
+
+  it("maps a definitive create rejection to reconciliation and preserves transient failures", async () => {
+    const definitive = {
+      type: "StripeCardError",
+      statusCode: 402,
+    };
+    await rejectsReconciliationRequired(
+      resolveCaseRefundProviderOutcome(
+        "staff_1",
+        prepared({ action: "prepared", status: "PROVIDER_PENDING" }),
+        {
+          async createRefund() {
+            throw definitive;
+          },
+        },
+      ),
+      /definitively rejected the Case refund request/,
+    );
+
+    const transient = new Error("Stripe connection reset");
+    await assert.rejects(
+      resolveCaseRefundProviderOutcome(
+        "staff_1",
+        prepared({ action: "prepared", status: "PROVIDER_PENDING" }),
+        {
+          async createRefund() {
+            throw transient;
+          },
+        },
+      ),
+      (error) => error === transient,
     );
   });
 });

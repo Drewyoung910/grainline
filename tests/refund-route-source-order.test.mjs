@@ -24,4 +24,31 @@ describe("seller refund route source-order guardrails", () => {
     assert.match(authority, /"caseResolutionClaimId" IS NULL/);
     assert.match(authority, /"refundClaimId" IS NULL/);
   });
+
+  it("returns a conflict after recording a definitive provider rejection", () => {
+    const route = readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
+    const definitive = route.indexOf(
+      "isOrderRefundProviderReconciliationRequiredError(err)",
+    );
+    const ambiguous = route.indexOf(
+      "await markOrderRefundClaimAmbiguous(",
+      definitive,
+    );
+    const conflict = route.indexOf(
+      "status: HTTP_STATUS.CONFLICT",
+      ambiguous,
+    );
+    const retryable = route.indexOf(
+      'source: "seller_refund_provider_retryable"',
+      conflict,
+    );
+
+    assert.ok(
+      definitive >= 0
+        && definitive < ambiguous
+        && ambiguous < conflict
+        && conflict < retryable,
+      "definitive rejection must become a recorded reconciliation conflict before the retryable branch",
+    );
+  });
 });
