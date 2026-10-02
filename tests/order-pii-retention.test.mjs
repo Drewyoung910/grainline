@@ -8,6 +8,7 @@ function source(path) {
 
 const {
   ORDER_BUYER_PII_RETENTION_DAYS,
+  ORDER_SHIPPING_EVIDENCE_RETENTION_DAYS,
   orderBuyerPiiRetentionCutoff,
 } = await import("../src/lib/orderPiiRetentionState.ts");
 
@@ -16,6 +17,7 @@ describe("order buyer PII retention helpers", () => {
     const now = new Date("2026-04-28T12:00:00.000Z");
 
     assert.equal(ORDER_BUYER_PII_RETENTION_DAYS, 90);
+    assert.equal(ORDER_SHIPPING_EVIDENCE_RETENTION_DAYS, 180);
     assert.equal(
       orderBuyerPiiRetentionCutoff({ now }).toISOString(),
       "2026-01-28T12:00:00.000Z",
@@ -48,13 +50,16 @@ describe("order buyer PII retention helpers", () => {
     assert.match(privacy, /buyer contact details/);
     assert.match(privacy, /gift notes/);
     assert.match(privacy, /seller fulfillment notes/);
-    assert.match(privacy, /tracking fields/);
+    assert.match(privacy, /Non-address tracking\s+fields/);
     assert.match(privacy, /Shippo shipment\/rate\/label identifiers/);
     assert.match(privacy, /label URLs/);
     assert.match(privacy, /shipping-rate quote snapshots/);
     assert.match(privacy, /after <strong>90 days<\/strong>/);
+    assert.match(privacy, /up to <strong>180 days<\/strong>/);
+    assert.match(privacy, /latest applicable payment,\s+delivery, or estimated-delivery date/);
+    assert.match(privacy, /unresolved manual label reconciliation may require longer retention/);
     assert.match(privacy, /Shipping providers\s+and carriers may retain label, tracking, and delivery records/s);
-    assert.match(privacy, /Stripe may retain shipping contact information and\s+gift notes copied into Checkout Session metadata/s);
+    assert.match(privacy, /Stripe may retain shipping contact information and\s+gift\s+notes copied into Checkout Session metadata/s);
     assert.match(privacy, /Shippo\s+receives sender and recipient name, address, and shipping contact phone information/s);
   });
 });

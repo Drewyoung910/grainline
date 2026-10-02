@@ -1,4 +1,5 @@
 export const ORDER_BUYER_PII_RETENTION_DAYS = 90;
+export const ORDER_SHIPPING_EVIDENCE_RETENTION_DAYS = 180;
 
 export function orderBuyerPiiRetentionCutoff({
   now = new Date(),

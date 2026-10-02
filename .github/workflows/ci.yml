@@ -83,6 +83,30 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify shipping-evidence retention source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test
+          tests/order-pii-retention.test.mjs
+          tests/order-shipping-evidence-retention.test.mjs
+          tests/order-shipping-evidence-retention-postgres.test.mjs
+          tests/order-shipping-evidence-retention-production-workflow.test.mjs
+      - name: Isolate shipping-evidence retention until every predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-shipping-evidence-retention"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261002030000_preserve_order_shipping_dispute_evidence \
+            "$holding/migration"
+          for test_file in \
+            tests/order-shipping-evidence-retention.test.mjs \
+            tests/order-shipping-evidence-retention-postgres.test.mjs \
+            tests/order-shipping-evidence-retention-production-workflow.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Verify Case refund provider-continuity source package
         run: >-
           node --test
@@ -2684,6 +2708,41 @@ jobs:
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261002020000_correct_case_refund_provider_recovery_continuity/migration.sql
       - name: Audit runtime grants after Case refund provider continuity successor
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore shipping-evidence retention successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-shipping-evidence-retention"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261002030000_preserve_order_shipping_dispute_evidence
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify shipping-evidence retention source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test
+          tests/order-pii-retention.test.mjs
+          tests/order-shipping-evidence-retention.test.mjs
+          tests/order-shipping-evidence-retention-postgres.test.mjs
+          tests/order-shipping-evidence-retention-production-workflow.test.mjs
+      - name: Apply shipping-evidence retention successor in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261002030000_preserve_order_shipping_dispute_evidence/migration.sql
+      - name: Verify exact Order child catalog after shipping-evidence retention
+        run: node scripts/order-child-authority-catalog.mjs > /dev/null
+        env:
+          EXPECTED_ORDER_ITEM_RLS_ENABLED: "true"
+          EXPECTED_ORDER_ITEM_RLS_FORCED: "true"
+          EXPECTED_ORDER_QUOTE_RLS_ENABLED: "true"
+          EXPECTED_ORDER_QUOTE_RLS_FORCED: "true"
+      - name: Audit runtime grants after shipping-evidence retention successor
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
