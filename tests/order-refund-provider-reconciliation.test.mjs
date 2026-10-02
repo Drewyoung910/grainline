@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 const {
   inspectOrderRefundProviderEffect,
   isOrderRefundProviderReconciliationRequiredError,
+  resolveOrderRefundProviderOutcome,
 } = await import(
   "../src/lib/orderRefundProviderReconciliation.ts"
 );
@@ -333,6 +334,31 @@ describe("Order refund provider reconciliation", () => {
         );
         return true;
       },
+    );
+  });
+
+  it("maps a definitive create rejection to reconciliation and preserves transient failures", async () => {
+    const definitive = {
+      type: "StripeInvalidRequestError",
+      statusCode: 400,
+    };
+    await rejectsReconciliationRequired(
+      resolveOrderRefundProviderOutcome(claim({ action: "claimed" }), {
+        async createRefund() {
+          throw definitive;
+        },
+      }),
+      /definitively rejected the refund request/,
+    );
+
+    const transient = new Error("Stripe connection reset");
+    await assert.rejects(
+      resolveOrderRefundProviderOutcome(claim({ action: "claimed" }), {
+        async createRefund() {
+          throw transient;
+        },
+      }),
+      (error) => error === transient,
     );
   });
 });

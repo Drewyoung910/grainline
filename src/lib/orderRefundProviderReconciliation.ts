@@ -5,6 +5,7 @@ import {
   type OrderRefundClaimProviderMetadata,
 } from "./marketplaceRefunds.ts";
 import type { OrderRefundClaim } from "./orderRefundClaimAuthority.ts";
+import { isDefinitiveStripeRefundRejection } from "./stripeRefundProviderErrors.ts";
 
 const SAFE_IDEMPOTENCY_RETRY_MS = 23 * 60 * 60 * 1000;
 const MAX_REFUND_SCAN_PAGES = 20;
@@ -332,6 +333,9 @@ async function activeClaimProviderAuthorizedAt(claim: OrderRefundClaim) {
 
 export async function resolveOrderRefundProviderOutcome(
   claim: OrderRefundClaim,
+  options: {
+    createRefund?: typeof createMarketplaceRefund;
+  } = {},
 ) {
   if (claim.action === "replay") {
     const authorizedAt = await activeClaimProviderAuthorizedAt(claim);
@@ -353,16 +357,25 @@ export async function resolveOrderRefundProviderOutcome(
     }
   }
 
-  return createMarketplaceRefund({
-    paymentIntentId: claim.paymentIntentId,
-    resolution: "FULL",
-    amountCents: claim.refundAmountCents,
-    itemsSubtotalCents: claim.itemsSubtotalCents,
-    shippingAmountCents: claim.shippingAmountCents,
-    giftWrappingPriceCents: claim.giftWrappingPriceCents,
-    taxAmountCents: claim.taxAmountCents,
-    canReverseTransfer: claim.canReverseTransfer,
-    idempotencyKeyBase: claim.idempotencyScope,
-    claimMetadata: claimMetadata(claim),
-  });
+  try {
+    return await (options.createRefund ?? createMarketplaceRefund)({
+      paymentIntentId: claim.paymentIntentId,
+      resolution: "FULL",
+      amountCents: claim.refundAmountCents,
+      itemsSubtotalCents: claim.itemsSubtotalCents,
+      shippingAmountCents: claim.shippingAmountCents,
+      giftWrappingPriceCents: claim.giftWrappingPriceCents,
+      taxAmountCents: claim.taxAmountCents,
+      canReverseTransfer: claim.canReverseTransfer,
+      idempotencyKeyBase: claim.idempotencyScope,
+      claimMetadata: claimMetadata(claim),
+    });
+  } catch (error) {
+    if (isDefinitiveStripeRefundRejection(error)) {
+      throw new OrderRefundProviderReconciliationRequiredError(
+        "Stripe definitively rejected the refund request; staff reconciliation is required",
+      );
+    }
+    throw error;
+  }
 }

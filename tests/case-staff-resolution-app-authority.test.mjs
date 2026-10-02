@@ -79,7 +79,10 @@ describe("Case staff-resolution application authority", () => {
       route,
       /prepared\.status === "RECONCILIATION_REQUIRED"[\s\S]*resolveCaseRefundProviderOutcome/,
     );
-    assert.match(reconciliation, /await createMarketplaceRefund\(\{/);
+    assert.match(
+      reconciliation,
+      /await \(options\.createRefund \?\? createMarketplaceRefund\)\(\{/,
+    );
   });
 
   it("lets the locked database protocol decide fresh work and exact replay", () => {
@@ -114,7 +117,9 @@ describe("Case staff-resolution application authority", () => {
     assert.match(reconciliation, /reason: "requested_by_customer"/);
     assert.ok(
       reconciliation.indexOf("requireRefundPrepared(prepared);")
-        < reconciliation.indexOf("await createMarketplaceRefund({"),
+        < reconciliation.indexOf(
+          "await (options.createRefund ?? createMarketplaceRefund)({",
+        ),
       "database-derived refund inputs must validate before the provider call",
     );
     assert.match(
