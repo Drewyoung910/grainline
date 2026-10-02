@@ -83,6 +83,27 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Case refund provider-continuity source package
+        run: >-
+          node --test
+          tests/case-refund-provider-continuity.test.mjs
+          tests/case-refund-provider-recovery-postgres.test.mjs
+          tests/case-refund-provider-continuity-production-workflow.test.mjs
+      - name: Isolate Case refund provider continuity until every predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/case-refund-provider-continuity"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261002020000_correct_case_refund_provider_recovery_continuity \
+            "$holding/migration"
+          mv \
+            tests/case-refund-provider-continuity.test.mjs \
+            "$holding/case-refund-provider-continuity.test.mjs"
+          mv \
+            tests/case-refund-provider-recovery-postgres.test.mjs \
+            "$holding/case-refund-provider-recovery-postgres.test.mjs"
       - name: Verify partial-refund fulfillment source package
         run: >-
           node --test
@@ -103,10 +124,7 @@ jobs:
             tests/order-partial-refund-fulfillment-production-workflow.test.mjs \
             "$holding/order-partial-refund-fulfillment-production-workflow.test.mjs"
       - name: Verify Case refund provider-recovery source package
-        run: >-
-          node --test
-          tests/case-refund-provider-recovery.test.mjs
-          tests/case-refund-provider-recovery-postgres.test.mjs
+        run: node --test tests/case-refund-provider-recovery.test.mjs
       - name: Verify staged quote FORCE source package
         run: >-
           node --test
@@ -171,9 +189,6 @@ jobs:
           mv \
             tests/case-refund-provider-recovery.test.mjs \
             "$holding/case-refund-provider-recovery.test.mjs"
-          mv \
-            tests/case-refund-provider-recovery-postgres.test.mjs \
-            "$holding/case-refund-provider-recovery-postgres.test.mjs"
           mv \
             tests/order-child-authority-catalog.test.mjs \
             "$holding/order-child-authority-catalog.test.mjs"
@@ -2465,9 +2480,6 @@ jobs:
             "$holding/case-refund-provider-recovery.test.mjs" \
             tests/case-refund-provider-recovery.test.mjs
           mv \
-            "$holding/case-refund-provider-recovery-postgres.test.mjs" \
-            tests/case-refund-provider-recovery-postgres.test.mjs
-          mv \
             "$holding/order-child-authority-catalog.test.mjs" \
             tests/order-child-authority-catalog.test.mjs
           mv \
@@ -2475,10 +2487,7 @@ jobs:
             tests/schema-drift-followups.test.mjs
           rmdir "$holding"
       - name: Re-verify Case refund provider-recovery source package
-        run: >-
-          node --test
-          tests/case-refund-provider-recovery.test.mjs
-          tests/case-refund-provider-recovery-postgres.test.mjs
+        run: node --test tests/case-refund-provider-recovery.test.mjs
       - name: Restore OrderItem ENABLE release
         shell: bash
         run: |
@@ -2647,6 +2656,34 @@ jobs:
           EXPECTED_ORDER_QUOTE_RLS_ENABLED: "true"
           EXPECTED_ORDER_QUOTE_RLS_FORCED: "true"
       - name: Audit runtime grants after partial-refund fulfillment successor
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Case refund provider continuity successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/case-refund-provider-continuity"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261002020000_correct_case_refund_provider_recovery_continuity
+          mv \
+            "$holding/case-refund-provider-continuity.test.mjs" \
+            tests/case-refund-provider-continuity.test.mjs
+          mv \
+            "$holding/case-refund-provider-recovery-postgres.test.mjs" \
+            tests/case-refund-provider-recovery-postgres.test.mjs
+          rmdir "$holding"
+      - name: Re-verify Case refund provider-continuity source package
+        run: >-
+          node --test
+          tests/case-refund-provider-continuity.test.mjs
+          tests/case-refund-provider-recovery-postgres.test.mjs
+          tests/case-refund-provider-continuity-production-workflow.test.mjs
+      - name: Apply Case refund provider continuity successor in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261002020000_correct_case_refund_provider_recovery_continuity/migration.sql
+      - name: Audit runtime grants after Case refund provider continuity successor
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

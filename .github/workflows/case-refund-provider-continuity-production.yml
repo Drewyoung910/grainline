@@ -1,0 +1,380 @@
+name: Case Refund Provider Continuity Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-case-refund-provider-continuity
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed Case refund provider continuity
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-case-refund-provider-continuity'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main and completed CI before credential access
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Case refund continuity release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Case refund continuity main/CI readback drifted');
+            }
+      - name: Verify exact migration source and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20261002020000_correct_case_refund_provider_recovery_continuity"
+          echo "dad13cbbaf2de845c591c0f8000a21d5d19ba7c19ccf61c9179ca92b4524a8ce  prisma/migrations/20261002020000_correct_case_refund_provider_recovery_continuity/migration.sql" | sha256sum --check --status
+          node --test \
+            tests/case-refund-provider-continuity.test.mjs \
+            tests/case-refund-provider-recovery-postgres.test.mjs \
+            tests/case-refund-provider-continuity-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture restart state and unchanged private-ledger posture
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const predecessor = '20261002010000_allow_partial_refund_fulfillment';
+          const predecessorChecksum =
+            '48703a338824b827b96231cce7e45f305ed0b106244743fdceb399a80ffecfbe';
+          const migration =
+            '20261002020000_correct_case_refund_provider_recovery_continuity';
+          const checksum =
+            'dad13cbbaf2de845c591c0f8000a21d5d19ba7c19ccf61c9179ca92b4524a8ce';
+          const expectedBefore = new Map([
+            ['public.grainline_case_resolution_claim_immutable()',
+              ['a010dd797a770fdbb1c821f3e09c3717c5b517de315723e33d34f1c493f2bf7f', false, false]],
+            ['public.grainline_case_staff_resolution_provider_recovery_load(text,text,public."CaseResolution",integer)',
+              ['19b554741fce36f911cbba1dc771af88756ef02213ec9424e3ed4c8311a1ddca', true, true]],
+            ['public.grainline_case_staff_resolution_provider_recovery_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)',
+              ['f2ff2bb23e2e0be1d35e6f4a0e91ae0575df10e7f7bcc844d50c1572a503f09d', true, true]],
+          ]);
+          const postureSql = `
+            SELECT pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive,
+                     'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname)
+                     FROM pg_catalog.pg_policy AS policy
+                    WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = 'public."CaseResolutionClaim"'::regclass`;
+          const functionsSql = `
+            SELECT expected.identity,
+                   procedure.prosrc,
+                   pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                   procedure.provolatile,
+                   procedure.proparallel,
+                   procedure.prosecdef,
+                   procedure.proconfig,
+                   pg_catalog.has_function_privilege(
+                     'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                   ) AS runtime_execute,
+                   EXISTS (
+                     SELECT 1
+                       FROM pg_catalog.aclexplode(COALESCE(
+                         procedure.proacl,
+                         pg_catalog.acldefault('f', procedure.proowner)
+                       )) AS acl
+                      WHERE acl.grantee = 0
+                        AND acl.privilege_type = 'EXECUTE'
+                   ) AS public_execute
+              FROM pg_catalog.unnest($1::text[]) AS expected(identity)
+              LEFT JOIN pg_catalog.pg_proc AS procedure
+                ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
+             ORDER BY expected.identity`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[predecessor, migration]]);
+            const rows = new Map(ledger.rows.map((row) => [row.migration_name, row]));
+            const required = rows.get(predecessor);
+            assert.ok(required, 'required partial-refund predecessor is not applied');
+            assert.equal(required.checksum, predecessorChecksum);
+            assert.ok(required.finished_at);
+            assert.equal(required.rolled_back_at, null);
+            assert.equal(Number(required.applied_steps_count), 1);
+            const candidate = rows.get(migration);
+            if (candidate) {
+              assert.equal(candidate.checksum, checksum);
+              assert.ok(candidate.finished_at);
+              assert.equal(candidate.rolled_back_at, null);
+              assert.equal(Number(candidate.applied_steps_count), 1);
+            }
+            const functions = await client.query(functionsSql, [[...expectedBefore.keys()]]);
+            assert.equal(functions.rows.length, expectedBefore.size);
+            if (!candidate) {
+              for (const row of functions.rows) {
+                const expected = expectedBefore.get(row.identity);
+                assert.ok(row.prosrc, `missing predecessor function ${row.identity}`);
+                assert.equal(createHash('sha256').update(row.prosrc).digest('hex'), expected[0]);
+                assert.equal(row.owner, 'neondb_owner');
+                assert.equal(row.provolatile, 'v');
+                assert.equal(row.proparallel, 'u');
+                assert.equal(row.prosecdef, expected[2]);
+                assert.deepEqual(row.proconfig, ['search_path=pg_catalog']);
+                assert.equal(row.runtime_execute, expected[1]);
+                assert.equal(row.public_execute, false);
+              }
+            }
+            const posture = await client.query(postureSql);
+            assert.equal(posture.rows.length, 1);
+            assert.equal(posture.rows[0].owner, 'neondb_owner');
+            assert.equal(posture.rows[0].rls_enabled, true);
+            assert.equal(posture.rows[0].force_enabled, true);
+            assert.deepEqual(posture.rows[0].policies, []);
+            assert.equal(
+              await client.query(`SELECT pg_catalog.has_table_privilege(
+                'grainline_app_runtime', 'public."CaseResolutionClaim"',
+                'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+              ) AS direct`).then((result) => result.rows[0].direct),
+              false,
+            );
+            writeFileSync(
+              `${process.env.RUNNER_TEMP}/case-refund-provider-continuity-posture.json`,
+              JSON.stringify(posture.rows),
+              {mode: 0o600, flag: 'wx'},
+            );
+            appendFileSync(process.env.GITHUB_OUTPUT, `state=${candidate ? 'applied' : 'pending'}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261002020000_correct_case_refund_provider_recovery_continuity
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected Case refund continuity migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed Case refund provider-continuity migration
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger, functions and unchanged posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const migration =
+            '20261002020000_correct_case_refund_provider_recovery_continuity';
+          const checksum =
+            'dad13cbbaf2de845c591c0f8000a21d5d19ba7c19ccf61c9179ca92b4524a8ce';
+          const migrationSql = readFileSync(`prisma/migrations/${migration}/migration.sql`, 'utf8');
+          const sourceSpecs = new Map([
+            ['public.grainline_case_resolution_claim_immutable()',
+              ['$grainline_case_resolution_claim_immutable$', false, false]],
+            ['public.grainline_case_staff_resolution_provider_recovery_load(text,text,public."CaseResolution",integer)',
+              ['$grainline_case_staff_resolution_provider_recovery_load$', true, true]],
+            ['public.grainline_case_staff_resolution_provider_recovery_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)',
+              ['$grainline_case_staff_resolution_provider_recovery_record$', true, true]],
+          ]);
+          function sourceFor(delimiter) {
+            const marker = `AS ${delimiter}`;
+            const start = migrationSql.indexOf(marker);
+            assert.ok(start >= 0, `missing function delimiter ${delimiter}`);
+            const bodyStart = start + marker.length;
+            const end = migrationSql.indexOf(`${delimiter};`, bodyStart);
+            assert.ok(end > bodyStart, `unterminated function delimiter ${delimiter}`);
+            return migrationSql.slice(bodyStart, end);
+          }
+          const postureSql = `
+            SELECT pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive,
+                     'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname)
+                     FROM pg_catalog.pg_policy AS policy
+                    WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+             WHERE relation.oid = 'public."CaseResolutionClaim"'::regclass`;
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/case-refund-provider-continuity-posture.json`, 'utf8',
+          ));
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+            const functions = await client.query(`
+              SELECT expected.identity,
+                     procedure.prosrc,
+                     pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                     procedure.provolatile,
+                     procedure.proparallel,
+                     procedure.prosecdef,
+                     procedure.proconfig,
+                     pg_catalog.has_function_privilege(
+                       'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                     ) AS runtime_execute,
+                     EXISTS (
+                       SELECT 1
+                         FROM pg_catalog.aclexplode(COALESCE(
+                           procedure.proacl,
+                           pg_catalog.acldefault('f', procedure.proowner)
+                         )) AS acl
+                        WHERE acl.grantee = 0
+                          AND acl.privilege_type = 'EXECUTE'
+                     ) AS public_execute
+                FROM pg_catalog.unnest($1::text[]) AS expected(identity)
+                LEFT JOIN pg_catalog.pg_proc AS procedure
+                  ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
+               ORDER BY expected.identity
+            `, [[...sourceSpecs.keys()]]);
+            assert.equal(functions.rows.length, sourceSpecs.size);
+            for (const row of functions.rows) {
+              const expected = sourceSpecs.get(row.identity);
+              assert.ok(expected, `unexpected function ${row.identity}`);
+              assert.equal(row.prosrc, sourceFor(expected[0]));
+              assert.equal(row.owner, 'neondb_owner');
+              assert.equal(row.provolatile, 'v');
+              assert.equal(row.proparallel, 'u');
+              assert.equal(row.prosecdef, expected[2]);
+              assert.deepEqual(row.proconfig, ['search_path=pg_catalog']);
+              assert.equal(row.runtime_execute, expected[1]);
+              assert.equal(row.public_execute, false);
+            }
+            assert.deepEqual((await client.query(postureSql)).rows, before);
+            assert.equal(
+              await client.query(`SELECT pg_catalog.has_table_privilege(
+                'grainline_app_runtime', 'public."CaseResolutionClaim"',
+                'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'
+              ) AS direct`).then((result) => result.rows[0].direct),
+              false,
+            );
+            process.stdout.write(
+              'Case refund provider continuity applied: exact ledger, functions, ACLs and posture\n',
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Audit exact runtime grants after continuity correction
+        run: npm run audit:db-grants
+        env:
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify final Prisma migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
