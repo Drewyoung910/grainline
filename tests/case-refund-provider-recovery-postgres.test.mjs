@@ -57,6 +57,7 @@ test("Case refund provider recovery applies to disposable PostgreSQL", async () 
       CREATE TABLE public."Order" (
         id text PRIMARY KEY,
         "caseResolutionClaimId" text,
+        currency varchar(3) NOT NULL DEFAULT 'usd',
         "itemsSubtotalCents" integer NOT NULL DEFAULT 1000,
         "shippingAmountCents" integer NOT NULL DEFAULT 100,
         "giftWrappingPriceCents" integer,
@@ -88,6 +89,17 @@ test("Case refund provider recovery applies to disposable PostgreSQL", async () 
         reason text,
         metadata jsonb,
         undone boolean NOT NULL DEFAULT false,
+        "createdAt" timestamp(3) NOT NULL
+      );
+      CREATE TABLE public."SystemAuditLog" (
+        id text PRIMARY KEY,
+        "actorType" text,
+        "actorId" text,
+        action text NOT NULL,
+        "targetType" text NOT NULL,
+        "targetId" text NOT NULL,
+        reason text,
+        metadata jsonb,
         "createdAt" timestamp(3) NOT NULL
       );
       CREATE TABLE public."CaseResolutionClaim" (
@@ -153,6 +165,11 @@ test("Case refund provider recovery applies to disposable PostgreSQL", async () 
       "utf8",
     );
     await db.exec(migration);
+    const continuityMigration = readFileSync(
+      "prisma/migrations/20261002020000_correct_case_refund_provider_recovery_continuity/migration.sql",
+      "utf8",
+    );
+    await db.exec(continuityMigration);
 
     const columns = await db.query(`
       SELECT column_name
@@ -208,7 +225,10 @@ test("Case refund provider recovery applies to disposable PostgreSQL", async () 
 
     await db.exec(`
       INSERT INTO public."User" (id, role)
-      VALUES ('staff-original', 'EMPLOYEE'), ('admin-recovery', 'ADMIN');
+      VALUES
+        ('staff-original', 'EMPLOYEE'),
+        ('admin-recovery', 'ADMIN'),
+        ('admin-successor', 'ADMIN');
 
       INSERT INTO public."Order" (
         id, "caseResolutionClaimId", "stripePaymentIntentId",
@@ -295,6 +315,150 @@ test("Case refund provider recovery applies to disposable PostgreSQL", async () 
         "RECOVER_CASE_RESOLUTION_PROVIDER_RECORD",
       ],
     );
+
+    const loaded = await db.query(`
+      SELECT public.grainline_case_staff_resolution_provider_recovery_load(
+        'admin-recovery', 'case-pending', 'REFUND_FULL', NULL
+      ) AS result
+    `);
+    assert.equal(loaded.rows[0].result.action, "recovered");
+    assert.equal(
+      loaded.rows[0].result.providerRecoveryAction,
+      "RETRY_EXISTING_SCOPE",
+    );
+
+    await assert.rejects(
+      db.query(`
+        SELECT public.grainline_case_staff_resolution_provider_recovery_load(
+          'admin-successor', 'case-recorded', 'REFUND_FULL', NULL
+        )
+      `),
+      (error) => error.code === "42501",
+    );
+
+    const ambiguous = await db.query(`
+      SELECT public.grainline_case_staff_resolution_provider_recovery_record(
+        'admin-recovery', 'claim-pending', 'AMBIGUOUS', NULL,
+        ARRAY[]::text[], ARRAY[]::text[], NULL, NULL, false, false
+      ) AS result
+    `);
+    assert.equal(ambiguous.rows[0].result.status, "RECONCILIATION_REQUIRED");
+    assert.equal(ambiguous.rows[0].result.action, "ambiguous");
+
+    const reset = await db.query(`
+      SELECT
+        claim.status::text AS status,
+        claim."providerRecoveryActorId" AS recovery_actor,
+        claim."providerRecoveryAction" AS recovery_action,
+        claim."providerRecoveryEvidenceSha256" AS recovery_digest,
+        orders."sellerRefundId" AS seller_refund_id,
+        orders."sellerRefundLockedAt" AS seller_refund_locked_at
+      FROM public."CaseResolutionClaim" AS claim
+      JOIN public."Order" AS orders ON orders.id = claim."orderId"
+      WHERE claim.id = 'claim-pending'
+    `);
+    assert.deepEqual(reset.rows, [{
+      status: "RECONCILIATION_REQUIRED",
+      recovery_actor: null,
+      recovery_action: null,
+      recovery_digest: null,
+      seller_refund_id: "ambiguous_refund_pending_reconciliation",
+      seller_refund_locked_at: null,
+    }]);
+
+    const availableAgain = await db.query(`
+      SELECT public.grainline_case_staff_resolution_provider_recovery_load(
+        'admin-successor', 'case-pending', 'REFUND_FULL', NULL
+      ) AS result
+    `);
+    assert.equal(availableAgain.rows[0].result.action, "recovery_required");
+    assert.equal(availableAgain.rows[0].result.providerRecoveryAction, null);
+
+    await db.exec(`
+      SELECT public.grainline_case_staff_resolution_provider_recover(
+        'admin-successor', 'claim-pending', 'RETRY_EXISTING_SCOPE',
+        EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)::bigint,
+        pg_catalog.repeat('c', 64)
+      );
+    `);
+    const recoveredAgain = await db.query(`
+      SELECT public.grainline_case_staff_resolution_provider_recovery_load(
+        'admin-successor', 'case-pending', 'REFUND_FULL', NULL
+      ) AS result
+    `);
+    assert.equal(recoveredAgain.rows[0].result.action, "recovered");
+    assert.equal(
+      recoveredAgain.rows[0].result.providerRecoveryAction,
+      "RETRY_EXISTING_SCOPE",
+    );
+    await db.exec(`
+      SELECT public.grainline_case_staff_resolution_provider_recovery_record(
+        'admin-successor', 'claim-pending', 'AMBIGUOUS', NULL,
+        ARRAY[]::text[], ARRAY[]::text[], NULL, NULL, false, false
+      );
+    `);
+
+    await db.exec(`
+      UPDATE public."User"
+         SET role = 'EMPLOYEE'
+       WHERE id = 'admin-recovery';
+    `);
+    const redelegated = await db.query(`
+      SELECT public.grainline_case_staff_resolution_provider_recovery_load(
+        'admin-successor', 'case-recorded', 'REFUND_FULL', NULL
+      ) AS result
+    `);
+    assert.equal(redelegated.rows[0].result.action, "recovered");
+    assert.equal(
+      redelegated.rows[0].result.providerRecoveryAction,
+      "RECORD_DISCOVERED_EFFECT",
+    );
+
+    const handoff = await db.query(`
+      SELECT
+        claim."providerRecoveryActorId" AS recovery_actor,
+        claim."providerRecoveryRecordedAt" IS NOT NULL AS recovery_recorded,
+        audit.action,
+        audit."adminId" AS admin_id,
+        audit.metadata->>'priorRecoveryActorId' AS prior_actor
+      FROM public."CaseResolutionClaim" AS claim
+      JOIN public."AdminAuditLog" AS audit
+        ON audit."targetId" = claim.id
+       AND audit.action = 'REDELEGATE_CASE_RESOLUTION_PROVIDER_RECOVERY'
+      WHERE claim.id = 'claim-recorded'
+    `);
+    assert.deepEqual(handoff.rows, [{
+      recovery_actor: "admin-successor",
+      recovery_recorded: true,
+      action: "REDELEGATE_CASE_RESOLUTION_PROVIDER_RECOVERY",
+      admin_id: "admin-successor",
+      prior_actor: "admin-recovery",
+    }]);
+
+    const ambiguousAudits = await db.query(`
+      SELECT action, "adminId" AS admin_id
+      FROM public."AdminAuditLog"
+      WHERE "targetId" = 'claim-pending'
+      ORDER BY action, "adminId"
+    `);
+    assert.deepEqual(ambiguousAudits.rows, [
+      {
+        action: "AUTHORIZE_CASE_RESOLUTION_PROVIDER_RECOVERY",
+        admin_id: "admin-recovery",
+      },
+      {
+        action: "AUTHORIZE_CASE_RESOLUTION_PROVIDER_RECOVERY",
+        admin_id: "admin-successor",
+      },
+      {
+        action: "RECOVER_CASE_RESOLUTION_PROVIDER_AMBIGUOUS",
+        admin_id: "admin-recovery",
+      },
+      {
+        action: "RECOVER_CASE_RESOLUTION_PROVIDER_AMBIGUOUS",
+        admin_id: "admin-successor",
+      },
+    ]);
   } finally {
     await db.close();
   }

@@ -703,20 +703,35 @@ export async function recordAmbiguousCaseStaffResolutionProvider(
   prepared: PreparedCaseStaffResolution,
   db: CaseStaffResolutionClient = prisma,
 ) {
-  const rows = await db.$queryRaw<Array<{ result: unknown }>>`
-    SELECT public.grainline_case_staff_resolution_provider_record(
-      ${actorUserId}::text,
-      ${prepared.claimId}::text,
-      'AMBIGUOUS'::text,
-      NULL::text,
-      ARRAY[]::text[],
-      ARRAY[]::text[],
-      NULL::text,
-      NULL::integer,
-      false,
-      false
-    ) AS result
-  `;
+  const rows = prepared.action === "recovered"
+    ? await db.$queryRaw<Array<{ result: unknown }>>`
+      SELECT public.grainline_case_staff_resolution_provider_recovery_record(
+        ${actorUserId}::text,
+        ${prepared.claimId}::text,
+        'AMBIGUOUS'::text,
+        NULL::text,
+        ARRAY[]::text[],
+        ARRAY[]::text[],
+        NULL::text,
+        NULL::integer,
+        false,
+        false
+      ) AS result
+    `
+    : await db.$queryRaw<Array<{ result: unknown }>>`
+      SELECT public.grainline_case_staff_resolution_provider_record(
+        ${actorUserId}::text,
+        ${prepared.claimId}::text,
+        'AMBIGUOUS'::text,
+        NULL::text,
+        ARRAY[]::text[],
+        ARRAY[]::text[],
+        NULL::text,
+        NULL::integer,
+        false,
+        false
+      ) AS result
+    `;
   return validateProviderResult(
     requireSingleResult(rows, "Case staff-resolution ambiguous provider"),
     prepared,

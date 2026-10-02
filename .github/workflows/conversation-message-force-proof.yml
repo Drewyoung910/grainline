@@ -107,6 +107,8 @@ jobs:
           450e4c100b1711139b165765b6a170accf515abad7d14a141cbb95621b1fcbd4 20261001050000_enable_order_shipping_rate_quote_rls
           390a307431fdc02c18af3daf8fc3d1ee7b34d2df84784379a523580c60f16d5a 20261001060000_force_order_shipping_rate_quote_rls
           68e559e01dbeae663931110dcadfd4d42ca050c788eebd647727f434a9a72dba 20261001070000_prepare_case_refund_provider_recovery
+          48703a338824b827b96231cce7e45f305ed0b106244743fdceb399a80ffecfbe 20261002010000_allow_partial_refund_fulfillment
+          dad13cbbaf2de845c591c0f8000a21d5d19ba7c19ccf61c9179ca92b4524a8ce 20261002020000_correct_case_refund_provider_recovery_continuity
           MIGRATIONS
       - name: Isolate staged Core Order ENABLE from historical proof
         shell: bash
@@ -173,7 +175,9 @@ jobs:
             20261001040000_force_order_item_rls \
             20261001050000_enable_order_shipping_rate_quote_rls \
             20261001060000_force_order_shipping_rate_quote_rls \
-            20261001070000_prepare_case_refund_provider_recovery
+            20261001070000_prepare_case_refund_provider_recovery \
+            20261002010000_allow_partial_refund_fulfillment \
+            20261002020000_correct_case_refund_provider_recovery_continuity
           do
             mv "$RUNNER_TEMP/$migration" "prisma/migrations/$migration"
           done

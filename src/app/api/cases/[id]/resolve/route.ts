@@ -251,6 +251,29 @@ export async function POST(
         refund = outcome.providerResult;
       } catch (stripeError) {
         if (isCaseRefundProviderReconciliationRequiredError(stripeError)) {
+          // A recovery_required snapshot can become stale inside
+          // resolveCaseRefundProviderOutcome after this ADMIN authorizes an
+          // exact retry. Re-read the claim before choosing the actor-bound
+          // ambiguous recorder. If no recovery was authorized, retain the
+          // existing reconciliation state without claiming ownership.
+          if (prepared.action === "recovery_required") {
+            try {
+              prepared = await loadCaseStaffResolutionProviderRecovery({
+                actorUserId: me.id,
+                caseId: id,
+                resolution,
+                partialRefundAmountCents:
+                  resolution === "REFUND_PARTIAL" ? refundAmountCents : null,
+              });
+            } catch (recoveryReloadError) {
+              const response = authorityFailureResponse(
+                recoveryReloadError,
+                "provider",
+              );
+              if (response) return response;
+              throw recoveryReloadError;
+            }
+          }
           if (
             prepared.status === "PROVIDER_PENDING"
             && prepared.action !== "recovery_required"
