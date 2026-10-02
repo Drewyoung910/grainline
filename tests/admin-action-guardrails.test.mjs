@@ -137,10 +137,7 @@ describe("admin server action guardrails", () => {
     assert.match(actions, /verifyAdminPinCookieValue/);
     const authority = source("docs/rls-drafts/order-staff-mutation-authority.sql");
     assert.match(authority, /"labelStatus" IS DISTINCT FROM 'PURCHASED'/);
-    assert.match(
-      authority,
-      /"labelClawbackStatus" IN \([\s\S]*'RETRY_PENDING', 'RETRYING', 'MANUAL_REVIEW'[\s\S]*\)/,
-    );
+    assert.match(authority, /"labelClawbackStatus" IN \('RETRY_PENDING', 'RETRYING'\)/);
     assert.match(authority, /"labelStatus" = 'VOIDED'/);
     assert.match(authority, /'RECORD_LABEL_VOIDED'/);
     assert.match(actions, /source: "admin_order_record_label_voided"/);

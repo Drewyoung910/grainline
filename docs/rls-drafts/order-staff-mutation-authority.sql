@@ -45,9 +45,7 @@ BEGIN
    FOR UPDATE;
   IF NOT FOUND
      OR locked_order."reviewNeeded" = false
-     OR locked_order."labelClawbackStatus" IN (
-       'RETRY_PENDING', 'RETRYING', 'MANUAL_REVIEW'
-     ) THEN
+     OR locked_order."labelClawbackStatus" IN ('RETRY_PENDING', 'RETRYING') THEN
     RETURN 'unchanged';
   END IF;
 

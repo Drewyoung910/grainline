@@ -40,7 +40,6 @@ async function database() {
     ) VALUES
       ('order-1', true, NULL, 'PURCHASED', NULL),
       ('order-clawback', true, NULL, 'PURCHASED', 'RETRY_PENDING'),
-      ('order-manual', true, NULL, 'PURCHASED', 'MANUAL_REVIEW'),
       ('order-expired', true, NULL, 'EXPIRED', NULL),
       ('order-overflow', true, repeat('x', 9995), 'PURCHASED', NULL);
     REVOKE ALL ON TABLE public."User", public."Order", public."AdminAuditLog"
@@ -132,7 +131,6 @@ describe("Order staff mutation authority in PostgreSQL", () => {
           /requires active staff/i,
         );
         assert.equal(await operation(db, "grainline_order_staff_mark_reviewed", ["admin-1", "order-clawback"]), "unchanged");
-        assert.equal(await operation(db, "grainline_order_staff_mark_reviewed", ["admin-1", "order-manual"]), "unchanged");
         assert.equal(await operation(db, "grainline_order_staff_record_label_voided", ["admin-1", "order-clawback"]), "active_clawback");
         assert.equal(await operation(db, "grainline_order_staff_record_label_voided", ["admin-1", "order-expired"]), "not_purchased");
         await assert.rejects(

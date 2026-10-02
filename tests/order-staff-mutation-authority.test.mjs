@@ -24,10 +24,7 @@ describe("Order staff mutation authority", () => {
 
   it("keeps label and note decisions database-derived and bounded", () => {
     assert.match(sql, /"labelStatus" IS DISTINCT FROM 'PURCHASED'/);
-    assert.match(
-      sql,
-      /"labelClawbackStatus" IN \([\s\S]*'RETRY_PENDING', 'RETRYING', 'MANUAL_REVIEW'[\s\S]*\)/,
-    );
+    assert.match(sql, /"labelClawbackStatus" IN \('RETRY_PENDING', 'RETRYING'\)/);
     assert.match(sql, /"labelStatus" = 'VOIDED'/);
     assert.match(sql, /pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'/);
     assert.match(sql, /pg_catalog\.char_length\(normalized_note\) NOT BETWEEN 1 AND 2000/);
