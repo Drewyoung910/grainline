@@ -778,14 +778,14 @@ describe("payment and fulfillment side-effect observability", () => {
       "src/lib/caseRefundProviderReconciliation.ts",
     );
     const refundStart = providerReconciliation.indexOf(
-      "await createMarketplaceRefund({",
+      "await (options.createRefund ?? createMarketplaceRefund)({",
     );
     const refundEnd = providerReconciliation.indexOf("});", refundStart);
     const refundCall = providerReconciliation.slice(refundStart, refundEnd);
 
     assert.ok(
       refundStart >= 0,
-      "Case provider reconciliation must use the shared marketplace refund helper",
+      "Case provider reconciliation must default its injectable seam to the shared marketplace refund helper",
     );
     assert.match(refundCall, /reason: "requested_by_customer"/);
     assert.doesNotMatch(refundCall, /fraudulent/);
