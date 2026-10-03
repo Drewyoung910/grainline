@@ -70,27 +70,38 @@ describe("UserEmailAddress authority preparation", () => {
   });
 
   it("backs both suppression-key lookups with matching partial indexes", () => {
-    const indexes = source(
+    const indexMigrations = [
       "prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql",
-    );
+      "prisma/migrations/20261002161000_add_user_email_address_suppression_key_index/migration.sql",
+      "prisma/migrations/20261002162000_add_user_email_address_current_unique_index/migration.sql",
+    ].map(source);
+    const indexes = indexMigrations.join("\n");
     const authority = source(
       "prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql",
     );
 
     assert.match(indexes, /User_active_email_suppression_key_idx/);
     assert.match(indexes, /UserEmailAddress_current_suppression_key_idx/);
-    const retrySafeIndexes = [
+    const reviewedIndexes = [
       "User_active_email_suppression_key_idx",
       "UserEmailAddress_current_suppression_key_idx",
       "UserEmailAddress_one_current_per_user_key",
     ];
 
-    for (const name of retrySafeIndexes) {
-      assert.match(indexes, new RegExp(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`));
+    for (const name of reviewedIndexes) {
+      assert.match(indexes, new RegExp(`CREATE(?: UNIQUE)? INDEX CONCURRENTLY "${name}"`));
       assert.doesNotMatch(
         indexes,
         new RegExp(`CREATE(?: UNIQUE)? INDEX CONCURRENTLY IF NOT EXISTS "${name}"`),
       );
+    }
+
+    for (const migration of indexMigrations) {
+      assert.equal(
+        (migration.match(/CREATE(?: UNIQUE)? INDEX CONCURRENTLY/g) ?? []).length,
+        1,
+      );
+      assert.doesNotMatch(migration, /^\s*DROP INDEX/m);
     }
 
     assert.match(indexes, /CREATE UNIQUE INDEX CONCURRENTLY "UserEmailAddress_one_current_per_user_key"/);
@@ -100,5 +111,28 @@ describe("UserEmailAddress authority preparation", () => {
     assert.match(authority, /address\."isCurrent" = true/);
     assert.match(authority, /address\."currentSinceAt" > p_issued_at/);
     assert.match(authority, /END = ANY\(p_suppression_keys\)/);
+  });
+
+  it("replays the recovery package through an isolated five-migration Prisma bundle", () => {
+    const ci = source(".github/workflows/ci.yml");
+    const stage = ci.indexOf(
+      "name: Stage only corrected UserEmailAddress package for Prisma",
+    );
+    const fixture = ci.indexOf(
+      "name: Stage exact zero-step UserEmailAddress failure in disposable PostgreSQL",
+    );
+    const deploy = ci.indexOf(
+      "name: Apply corrected UserEmailAddress package through Prisma in disposable PostgreSQL",
+    );
+
+    assert.ok(stage >= 0 && stage < fixture && fixture < deploy);
+    assert.match(
+      ci.slice(stage, fixture),
+      /USER_EMAIL_ADDRESS_AUTHORITY_PRISMA_SCHEMA=\$isolated\/schema\.prisma/,
+    );
+    assert.match(
+      ci.slice(deploy),
+      /npx prisma migrate deploy --schema "\$USER_EMAIL_ADDRESS_AUTHORITY_PRISMA_SCHEMA"/,
+    );
   });
 });

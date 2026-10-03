@@ -1,0 +1,224 @@
+name: UserEmailAddress Preparation Recovery Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact corrected main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI for the exact corrected main commit
+        required: true
+        type: string
+      failed_migration_run_id:
+        description: Type 37109191878
+        required: true
+        type: string
+      confirmation:
+        description: Type recover-user-email-address-preparation-exact
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Recover exact failed UserEmailAddress preparation
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.failed_migration_run_id == '37109191878' &&
+      inputs.confirmation == 'recover-user-email-address-preparation-exact'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      USER_EMAIL_ADDRESS_FAILED_RUN_ID: ${{ inputs.failed_migration_run_id }}
+      USER_EMAIL_ADDRESS_RECOVERY_CONFIRM: ${{ inputs.confirmation }}
+      USER_EMAIL_ADDRESS_RECOVERY_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind recovery to exact failed run, corrected main, and completed CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_FAILED_RUN_ID: ${{ inputs.failed_migration_run_id }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        with:
+          script: |
+            const parseRunId = (name) => {
+              const value = process.env[name];
+              if (!/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+                throw new Error(`${name} is not one positive run id`);
+              }
+              const parsed = Number(value);
+              if (!Number.isSafeInteger(parsed)) throw new Error(`${name} is unsafe`);
+              return parsed;
+            };
+            const releaseCommit = process.env.REVIEWED_RELEASE_COMMIT;
+            const failedRunId = parseRunId('REVIEWED_FAILED_RUN_ID');
+            const mainCiRunId = parseRunId('REVIEWED_MAIN_CI_RUN_ID');
+            if (!/^[0-9a-f]{40}$/.test(releaseCommit ?? '') ||
+                releaseCommit !== context.sha || failedRunId !== 37109191878 ||
+                failedRunId === mainCiRunId) {
+              throw new Error('UserEmailAddress recovery workflow bindings drifted');
+            }
+            const [{data: main}, {data: failed}, {data: ci}, jobs] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: failedRunId}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: mainCiRunId}),
+              github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                ...context.repo, run_id: failedRunId, per_page: 100,
+              }),
+            ]);
+            if (main.commit.sha !== releaseCommit ||
+                failed.name !== 'UserEmailAddress Preparation Production' ||
+                failed.event !== 'workflow_dispatch' || failed.head_branch !== 'main' ||
+                failed.head_sha !== '70c92a620a3c2d6443dc94794f8533d69662a0a6' ||
+                failed.status !== 'completed' || failed.conclusion !== 'failure' ||
+                ci.name !== 'CI' || ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== releaseCommit || ci.status !== 'completed' ||
+                ci.conclusion !== 'success') {
+              throw new Error('UserEmailAddress recovery run readback drifted');
+            }
+            const failedJob = jobs.find((job) =>
+              job.name === 'Apply reviewed UserEmailAddress preparation');
+            const failedSteps = failedJob?.steps?.filter((step) =>
+              step.conclusion === 'failure') ?? [];
+            if (failedJob?.conclusion !== 'failure' || failedSteps.length !== 1 ||
+                failedSteps[0].name !== 'Apply only the reviewed UserEmailAddress preparation') {
+              throw new Error('UserEmailAddress reviewed failure boundary drifted');
+            }
+      - name: Verify corrected source and recovery behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat <<'CHECKSUMS' | sha256sum --check --status
+          3f2e6061e1de1a6f6c92645979a686ec4d3ee36409dc4499c2c62c90dafe1cf8  prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql
+          a4b247ce83e871f657ee8228873c3113bdc5cf58adb7292a2e90206c147f67a8  prisma/migrations/20261002161000_add_user_email_address_suppression_key_index/migration.sql
+          02ccc97c9e4d1e48320b58bd7ccc23aa023b7330d0add6fcf76802cc266f567c  prisma/migrations/20261002162000_add_user_email_address_current_unique_index/migration.sql
+          4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933  prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql
+          b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e  prisma/migrations/20261003010000_repair_user_email_address_current_history/migration.sql
+          CHECKSUMS
+          node --test \
+            tests/user-email-address-history.test.mjs \
+            tests/user-email-address-authority.test.mjs \
+            tests/user-email-address-authority-postgres-proof.test.mjs \
+            tests/user-email-address-current-repair-postgres.test.mjs \
+            tests/user-email-address-preparation-production-recovery.test.mjs \
+            tests/user-email-address-preparation-recovery-production-workflow.test.mjs
+      - name: Inspect exact restart state read-only
+        id: inspect
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          USER_EMAIL_ADDRESS_RECOVERY_EVIDENCE_PATH: ${{ runner.temp }}/user-email-address-preparation-recovery-${{ inputs.release_commit }}-inspect.json
+        run: |
+          inspection_json="$(node scripts/user-email-address-preparation-production-recovery.mjs --inspect)"
+          printf '%s\n' "$inspection_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            if (!["failed", "resolved", "prepared"].includes(value.state)) {
+              throw new Error("invalid UserEmailAddress recovery state");
+            }
+            process.stdout.write(`state=${value.state}\n`);
+          ' "$inspection_json" >> "$GITHUB_OUTPUT"
+      - name: Mark only the exact failed zero-step row rolled back
+        if: steps.inspect.outputs.state == 'failed'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: >-
+          npx prisma migrate resolve
+          --rolled-back 20261002160000_add_user_email_suppression_key_index
+      - name: Prove exact resolved boundary read-only
+        if: steps.inspect.outputs.state != 'prepared'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          USER_EMAIL_ADDRESS_RECOVERY_EVIDENCE_PATH: ${{ runner.temp }}/user-email-address-preparation-recovery-${{ inputs.release_commit }}-resolved.json
+        run: node scripts/user-email-address-preparation-production-recovery.mjs --resolved
+      - name: Verify normal owner boundary after exact ledger resolution
+        if: steps.inspect.outputs.state != 'prepared'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: node scripts/guard-production-migration-runner.mjs
+      - name: Prove no unrelated migration is pending
+        if: steps.inspect.outputs.state != 'prepared'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          candidates=(
+            20261002160000_add_user_email_suppression_key_index
+            20261002161000_add_user_email_address_suppression_key_index
+            20261002162000_add_user_email_address_current_unique_index
+            20261002170000_prepare_user_email_address_authority
+            20261003010000_repair_user_email_address_current_history
+          )
+          holding="$(mktemp -d "$RUNNER_TEMP/user-email-address-recovery-pending.XXXXXX")"
+          restore_candidates() {
+            for migration in "${candidates[@]}"; do
+              if [[ -d "$holding/$migration" ]]; then
+                mv "$holding/$migration" "prisma/migrations/$migration"
+              fi
+            done
+            rmdir "$holding"
+          }
+          trap restore_candidates EXIT
+          for migration in "${candidates[@]}"; do
+            mv "prisma/migrations/$migration" "$holding/$migration"
+          done
+          npx prisma migrate status
+          restore_candidates
+          trap - EXIT
+      - name: Apply only the corrected UserEmailAddress preparation
+        if: steps.inspect.outputs.state != 'prepared'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Prove exact prepared boundary read-only
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          USER_EMAIL_ADDRESS_RECOVERY_EVIDENCE_PATH: ${{ runner.temp }}/user-email-address-preparation-recovery-${{ inputs.release_commit }}-prepared.json
+        run: node scripts/user-email-address-preparation-production-recovery.mjs --prepared
+      - name: Verify recovered migration status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate status
+      - name: Audit unchanged runtime grants and RLS catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized recovery evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: user-email-address-preparation-recovery-${{ github.run_id }}
+          path: ${{ runner.temp }}/user-email-address-preparation-recovery-${{ github.sha }}-*.json
+          if-no-files-found: warn
+          retention-days: 30
+          include-hidden-files: false

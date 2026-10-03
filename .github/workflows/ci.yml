@@ -91,6 +91,8 @@ jobs:
           tests/user-email-address-authority.test.mjs
           tests/user-email-address-authority-postgres-proof.test.mjs
           tests/user-email-address-history.test.mjs
+          tests/user-email-address-preparation-production-recovery.test.mjs
+          tests/user-email-address-preparation-recovery-production-workflow.test.mjs
           tests/user-email-address-preparation-production-workflow.test.mjs
       - name: Isolate UserEmailAddress authority until historical release guards pass
         shell: bash
@@ -101,6 +103,12 @@ jobs:
           mv \
             prisma/migrations/20261002160000_add_user_email_suppression_key_index \
             "$holding/20261002160000_add_user_email_suppression_key_index"
+          mv \
+            prisma/migrations/20261002161000_add_user_email_address_suppression_key_index \
+            "$holding/20261002161000_add_user_email_address_suppression_key_index"
+          mv \
+            prisma/migrations/20261002162000_add_user_email_address_current_unique_index \
+            "$holding/20261002162000_add_user_email_address_current_unique_index"
           mv \
             prisma/migrations/20261002170000_prepare_user_email_address_authority \
             "$holding/20261002170000_prepare_user_email_address_authority"
@@ -113,6 +121,8 @@ jobs:
             tests/user-email-address-authority.test.mjs \
             tests/user-email-address-authority-postgres-proof.test.mjs \
             tests/user-email-address-history.test.mjs \
+            tests/user-email-address-preparation-production-recovery.test.mjs \
+            tests/user-email-address-preparation-recovery-production-workflow.test.mjs \
             tests/user-email-address-preparation-production-workflow.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
@@ -2787,6 +2797,12 @@ jobs:
             "$holding/20261002160000_add_user_email_suppression_key_index" \
             prisma/migrations/20261002160000_add_user_email_suppression_key_index
           mv \
+            "$holding/20261002161000_add_user_email_address_suppression_key_index" \
+            prisma/migrations/20261002161000_add_user_email_address_suppression_key_index
+          mv \
+            "$holding/20261002162000_add_user_email_address_current_unique_index" \
+            prisma/migrations/20261002162000_add_user_email_address_current_unique_index
+          mv \
             "$holding/20261002170000_prepare_user_email_address_authority" \
             prisma/migrations/20261002170000_prepare_user_email_address_authority
           mv \
@@ -2805,22 +2821,119 @@ jobs:
           tests/user-email-address-authority.test.mjs
           tests/user-email-address-authority-postgres-proof.test.mjs
           tests/user-email-address-history.test.mjs
+          tests/user-email-address-preparation-production-recovery.test.mjs
+          tests/user-email-address-preparation-recovery-production-workflow.test.mjs
           tests/user-email-address-preparation-production-workflow.test.mjs
-      - name: Apply UserEmailAddress supporting indexes in disposable PostgreSQL
-        run: >-
-          psql "$DIRECT_URL"
-          --set=ON_ERROR_STOP=on
-          --file=prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql
-      - name: Apply UserEmailAddress runtime authority in disposable PostgreSQL
-        run: >-
-          psql "$DIRECT_URL"
-          --set=ON_ERROR_STOP=on
-          --file=prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql
-      - name: Repair UserEmailAddress current-history drift in disposable PostgreSQL
-        run: >-
-          psql "$DIRECT_URL"
-          --set=ON_ERROR_STOP=on
-          --file=prisma/migrations/20261003010000_repair_user_email_address_current_history/migration.sql
+      - name: Stage only corrected UserEmailAddress package for Prisma
+        shell: bash
+        run: |
+          set -euo pipefail
+          isolated="$RUNNER_TEMP/user-email-address-authority-prisma"
+          mkdir -p "$isolated/migrations"
+          cp prisma/schema.prisma "$isolated/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$isolated/migrations/migration_lock.toml"
+          for migration in \
+            20261002160000_add_user_email_suppression_key_index \
+            20261002161000_add_user_email_address_suppression_key_index \
+            20261002162000_add_user_email_address_current_unique_index \
+            20261002170000_prepare_user_email_address_authority \
+            20261003010000_repair_user_email_address_current_history
+          do
+            cp -a "prisma/migrations/$migration" "$isolated/migrations/$migration"
+          done
+          test "$(find "$isolated/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 5
+          echo "USER_EMAIL_ADDRESS_AUTHORITY_PRISMA_SCHEMA=$isolated/schema.prisma" >> "$GITHUB_ENV"
+      - name: Stage exact zero-step UserEmailAddress failure in disposable PostgreSQL
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, migration_name, logs, started_at, finished_at,
+            rolled_back_at, applied_steps_count
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000001',
+            'a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece',
+            '20261002160000_add_user_email_suppression_key_index',
+            'synthetic zero-step CI recovery fixture',
+            CURRENT_TIMESTAMP,
+            NULL,
+            NULL,
+            0
+          );
+          SQL
+      - name: Mark exact synthetic UserEmailAddress failure rolled back in disposable PostgreSQL
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          UPDATE public._prisma_migrations
+             SET rolled_back_at = CURRENT_TIMESTAMP
+           WHERE id = '00000000-0000-4000-8000-000000000001'
+             AND checksum = 'a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece'
+             AND migration_name = '20261002160000_add_user_email_suppression_key_index'
+             AND finished_at IS NULL
+             AND rolled_back_at IS NULL
+             AND applied_steps_count = 0;
+          DO $check$
+          BEGIN
+            IF (
+              SELECT COUNT(*)
+                FROM public._prisma_migrations
+               WHERE id = '00000000-0000-4000-8000-000000000001'
+                 AND rolled_back_at IS NOT NULL
+            ) <> 1 THEN
+              RAISE EXCEPTION 'synthetic UserEmailAddress rollback marker drifted';
+            END IF;
+          END
+          $check$;
+          SQL
+      - name: Apply corrected UserEmailAddress package through Prisma in disposable PostgreSQL
+        run: npx prisma migrate deploy --schema "$USER_EMAIL_ADDRESS_AUTHORITY_PRISMA_SCHEMA"
+      - name: Verify exact UserEmailAddress recovery ledger in disposable PostgreSQL
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+
+          const failedChecksum =
+            'a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece';
+          const expected = new Map([
+            ['20261002160000_add_user_email_suppression_key_index',
+             '3f2e6061e1de1a6f6c92645979a686ec4d3ee36409dc4499c2c62c90dafe1cf8'],
+            ['20261002161000_add_user_email_address_suppression_key_index',
+             'a4b247ce83e871f657ee8228873c3113bdc5cf58adb7292a2e90206c147f67a8'],
+            ['20261002162000_add_user_email_address_current_unique_index',
+             '02ccc97c9e4d1e48320b58bd7ccc23aa023b7330d0add6fcf76802cc266f567c'],
+            ['20261002170000_prepare_user_email_address_authority',
+             '4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933'],
+            ['20261003010000_repair_user_email_address_current_history',
+             'b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e'],
+          ]);
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            const rows = (await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY started_at, id
+            `, [[...expected.keys()]])).rows;
+            assert.equal(rows.length, expected.size + 1);
+            const failed = rows.filter((row) => row.checksum === failedChecksum);
+            assert.equal(failed.length, 1);
+            assert.equal(failed[0].finished_at, null);
+            assert.ok(failed[0].rolled_back_at);
+            assert.equal(Number(failed[0].applied_steps_count), 0);
+            for (const [name, checksum] of expected) {
+              const applied = rows.filter((row) =>
+                row.migration_name === name && row.checksum === checksum);
+              assert.equal(applied.length, 1, `${name} applied row drifted`);
+              assert.ok(applied[0].finished_at);
+              assert.equal(applied[0].rolled_back_at, null);
+              assert.equal(Number(applied[0].applied_steps_count), 1);
+            }
+          } finally {
+            await client.end();
+          }
+          NODE
       - name: Audit runtime grants after UserEmailAddress authority
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
