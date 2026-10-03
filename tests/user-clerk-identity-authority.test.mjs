@@ -96,6 +96,7 @@ describe("User Clerk identity authority", () => {
     const historical = workflow.indexOf(
       "name: Verify compatible Order checkout receipt authority release",
     );
+    const tests = workflow.indexOf("name: Tests");
     const restore = workflow.indexOf(
       "name: Restore User Clerk identity authority source package",
     );
@@ -111,6 +112,8 @@ describe("User Clerk identity authority", () => {
     assert.ok(verify < emailVerify);
     assert.ok(emailVerify < isolate);
     assert.ok(isolate < historical);
+    assert.ok(historical < tests);
+    assert.ok(tests < restore);
     assert.ok(historical < restore);
     assert.ok(restore < apply);
     assert.ok(apply < catalog);
@@ -118,6 +121,10 @@ describe("User Clerk identity authority", () => {
     assert.match(
       workflow.slice(isolate, historical),
       /mv \\\s+prisma\/migrations\/20261003100000_prepare_user_clerk_identity_authority \\\s+"\$holding\/migration"/u,
+    );
+    assert.match(
+      workflow.slice(tests, restore),
+      /USER_CLERK_IDENTITY_MIGRATION_PATH: \$\{\{ runner\.temp \}\}\/user-clerk-identity-authority\/migration\/migration\.sql/u,
     );
     assert.match(
       workflow.slice(restore, build),
