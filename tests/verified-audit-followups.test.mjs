@@ -158,10 +158,15 @@ describe("verified audit follow-up guardrails", () => {
 
   it("keeps terms acceptance enforced server-side instead of only in the signup form", () => {
     const middleware = source("src/middleware.ts");
+    const identityAccess = source("src/lib/userIdentityAccess.ts");
     assert.match(middleware, /isTermsAcceptanceAllowed/);
-    assert.match(middleware, /termsAcceptedAt: true/);
-    assert.match(middleware, /termsVersion: true/);
-    assert.match(middleware, /ageAttestedAt: true/);
+    assert.match(middleware, /userClerkGate\(prisma, userId\)/);
+    assert.match(identityAccess, /\| "termsAcceptedAt"/);
+    assert.match(identityAccess, /\| "termsVersion"/);
+    assert.match(identityAccess, /\| "ageAttestedAt"/);
+    assert.match(identityAccess, /gate\.termsAcceptedAt/);
+    assert.match(identityAccess, /gate\.termsVersion/);
+    assert.match(identityAccess, /gate\.ageAttestedAt/);
     assert.match(middleware, /shouldRequireTermsAcceptance\(account\)/);
     assert.match(middleware, /new URL\("\/accept-terms"/);
 

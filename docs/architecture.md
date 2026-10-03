@@ -33,13 +33,20 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 
 ## Request Boundaries
 
-Grainline uses database-level Row Level Security for `SavedSearch`,
+Grainline uses database-level Row Level Security for `UserEmailAddress`, `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
-`OrderRefundReconciliation`, and `OrderPaymentEvent`. Fourteen tables have
-production RLS and all fourteen have complete retained
-`FORCE ROW LEVEL SECURITY` acceptance. `OrderPaymentEvent` FORCE was applied
+`OrderRefundReconciliation`, and `OrderPaymentEvent`. Fifteen tables have
+production RLS and all fifteen have complete retained
+`FORCE ROW LEVEL SECURITY` acceptance. `UserEmailAddress` FORCE was applied by
+guarded run `37136042748` from exact main
+`e689e1ff1d76a65146d132ad25dc545a72b87aac` after CI `37133944427`; its exact
+ledger and policyless zero-direct catalog readbacks passed. Retain sanitized
+evidence SHA-256
+`86bcbc753adcbfe86bd7c8015c0375894a8494cd0fa277ac66b174a893e166fa` and
+`cf9d1b009f10a7a8357230aeeffc0341630b7b1a2c6ba9723f7b02c0d260e10d`.
+`OrderPaymentEvent` FORCE was applied
 by guarded run `33445073482` from exact main
 `6a20981b0af68f8322b6306715fc117e0826e36e` after CI `33443669979`; its
 distinct actual pooled-runtime postflight passed ten checks without mutation.

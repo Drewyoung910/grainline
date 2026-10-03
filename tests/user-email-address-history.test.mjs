@@ -9,6 +9,10 @@ const {
   uniqueAccountEmailAddresses,
 } = await import("../src/lib/userEmailAddresses.ts");
 
+const userClerkIdentityMigrationPath =
+  process.env.USER_CLERK_IDENTITY_MIGRATION_PATH
+  ?? "prisma/migrations/20261003100000_prepare_user_clerk_identity_authority/migration.sql";
+
 function source(path) {
   return readFileSync(path, "utf8");
 }
@@ -171,16 +175,17 @@ describe("user email address history", () => {
 
   it("captures current and previous emails when Clerk refreshes account state", () => {
     const ensureUser = source("src/lib/ensureUser.ts");
+    const identityAuthority = source(userClerkIdentityMigrationPath);
 
     assert.match(
       ensureUser,
-      /import \{ syncUserEmailAddressHistory \} from "@\/lib\/userEmailAddresses"/,
+      /import \{ ensureUserIdentityByClerkId \} from "@\/lib\/userIdentityAccess"/,
     );
-    assert.match(ensureUser, /previousEmail: existing\.email/);
-    assert.match(ensureUser, /currentEmail: updateData\.email/);
-    assert.match(ensureUser, /source: "ensure_user"/);
-    assert.match(ensureUser, /source: "ensure_user_create"/);
-    assert.match(ensureUser, /source: "ensure_user_create_email_conflict"/);
+    assert.match(ensureUser, /ensureUserIdentityByClerkId\(tx, identity\)/);
+    assert.match(identityAuthority, /grainline_user_email_address_sync/);
+    assert.match(identityAuthority, /'ensure_user'/);
+    assert.match(identityAuthority, /'ensure_user_create'/);
+    assert.match(identityAuthority, /'ensure_user_create_email_conflict'/);
     assert.match(ensureUser, /droppedField: "email"/);
   });
 

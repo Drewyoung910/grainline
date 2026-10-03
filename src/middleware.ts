@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { normalizeRequestId, requestHeadersWithRequestId, REQUEST_ID_HEADER } from "@/lib/requestId";
@@ -271,16 +272,7 @@ export default clerkMiddleware(async (auth, req) => {
   if (userId && (!isSuspendedAccountAllowed(req) || !isTermsAcceptanceAllowed(req))) {
     account = await getCachedAccountStateForMiddleware(
       userId,
-      () => prisma.user.findUnique({
-        where: { clerkId: userId },
-        select: {
-          banned: true,
-          deletedAt: true,
-          termsAcceptedAt: true,
-          termsVersion: true,
-          ageAttestedAt: true,
-        },
-      }),
+      () => userClerkGate(prisma, userId),
     );
   }
 

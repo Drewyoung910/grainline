@@ -4,6 +4,10 @@ import { describe, it } from "node:test";
 
 const { emailSuppressionLookupForEmails } = await import("../src/lib/emailAddressNormalization.ts");
 
+const userClerkIdentityMigrationPath =
+  process.env.USER_CLERK_IDENTITY_MIGRATION_PATH
+  ?? "prisma/migrations/20261003100000_prepare_user_clerk_identity_authority/migration.sql";
+
 function source(path) {
   return readFileSync(path, "utf8");
 }
@@ -37,6 +41,7 @@ describe("email normalization follow-ups", () => {
 
   it("normalizes durable user emails through the suppression helper", () => {
     const ensureUser = source("src/lib/ensureUser.ts");
+    const identityAuthority = source(userClerkIdentityMigrationPath);
     const deletion = source("src/lib/accountDeletion.ts");
     const newsletter = source("src/app/api/newsletter/route.ts");
     const unsubscribe = source("src/lib/unsubscribeToken.ts");
@@ -45,7 +50,11 @@ describe("email normalization follow-ups", () => {
 
     assert.match(ensureUser, /import \{ normalizeEmailAddress \} from "@\/lib\/emailSuppression"/);
     assert.match(ensureUser, /const normalizedEmail = normalizeEmailAddress\(opts\.email\)/);
-    assert.match(ensureUser, /const email =\s*normalizeEmailAddress\(opts\?\.email\) \?\? `\$\{clerkId\}@placeholder\.invalid`/);
+    assert.match(ensureUser, /if \(normalizedEmail\) identity\.email = normalizedEmail/);
+    assert.match(
+      identityAuthority,
+      /placeholder_email := p_clerk_id \|\| '@placeholder\.invalid'/,
+    );
     assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);
     assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);
     assert.doesNotMatch(deletion, /normalizeEmailSuppressionAddress\(user\.email\)/);
