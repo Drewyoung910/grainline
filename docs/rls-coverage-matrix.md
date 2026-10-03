@@ -7,11 +7,12 @@ Last updated: 2026-09-07
 This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Snapshot scope: 68 Prisma models.
 
+`UserEmailAddress` has complete retained policyless Phase-A acceptance.
 `SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
-`StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`, and
+`StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
 `OrderRefundReconciliation`, and `OrderPaymentEvent` have complete retained
-FORCE acceptance. These are all fourteen tables in this snapshot with
+FORCE acceptance. These are all fifteen tables in this snapshot with
 completed production RLS acceptance.
 SellerPayoutEvent closed its distinct actual
 pooled-runtime FORCE postflight from exact main
@@ -27,9 +28,10 @@ from exact main `5d3b402317084d9d2af6b8bdf52300a800eda0d8` after CI
 migration run `33445073482`, and a distinct actual pooled-runtime read-only
 postflight. Retain sanitized mode-`0600` evidence SHA-256
 `d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1`.
-Fourteen tables now have production RLS and all fourteen are FORCE-hardened.
-Every remaining row is **not active RLS** and remains work to design, prove,
-and promote.
+Fifteen tables now have production RLS: fourteen are FORCE-hardened and
+`UserEmailAddress` remains at Phase A pending its separate FORCE release.
+Every row except those fifteen is **not active RLS** and remains work to
+design, prove, and promote.
 The target column is a planning disposition, not a claim that the control is
 implemented. Re-read the production catalog before making any current-state
 claim because this document is a dated source snapshot.
