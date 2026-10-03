@@ -94,6 +94,9 @@ jobs:
           tests/user-email-address-preparation-production-recovery.test.mjs
           tests/user-email-address-preparation-recovery-production-workflow.test.mjs
           tests/user-email-address-preparation-production-workflow.test.mjs
+          tests/user-email-address-enable-release.test.mjs
+          tests/user-email-address-enable-postgres-proof.test.mjs
+          tests/user-email-address-enable-production-workflow.test.mjs
       - name: Isolate UserEmailAddress authority until historical release guards pass
         shell: bash
         run: |
@@ -115,6 +118,9 @@ jobs:
           mv \
             prisma/migrations/20261003010000_repair_user_email_address_current_history \
             "$holding/20261003010000_repair_user_email_address_current_history"
+          mv \
+            prisma/migrations/20261003020000_enable_user_email_address_rls \
+            "$holding/20261003020000_enable_user_email_address_rls"
           for test_file in \
             tests/account-privacy-observability.test.mjs \
             tests/user-email-address-current-repair-postgres.test.mjs \
@@ -123,7 +129,10 @@ jobs:
             tests/user-email-address-history.test.mjs \
             tests/user-email-address-preparation-production-recovery.test.mjs \
             tests/user-email-address-preparation-recovery-production-workflow.test.mjs \
-            tests/user-email-address-preparation-production-workflow.test.mjs
+            tests/user-email-address-preparation-production-workflow.test.mjs \
+            tests/user-email-address-enable-release.test.mjs \
+            tests/user-email-address-enable-postgres-proof.test.mjs \
+            tests/user-email-address-enable-production-workflow.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
@@ -2808,6 +2817,9 @@ jobs:
           mv \
             "$holding/20261003010000_repair_user_email_address_current_history" \
             prisma/migrations/20261003010000_repair_user_email_address_current_history
+          mv \
+            "$holding/20261003020000_enable_user_email_address_rls" \
+            prisma/migrations/20261003020000_enable_user_email_address_rls
           for test_file in "$holding"/*.mjs
           do
             mv "$test_file" "tests/$(basename "$test_file")"
@@ -2824,6 +2836,9 @@ jobs:
           tests/user-email-address-preparation-production-recovery.test.mjs
           tests/user-email-address-preparation-recovery-production-workflow.test.mjs
           tests/user-email-address-preparation-production-workflow.test.mjs
+          tests/user-email-address-enable-release.test.mjs
+          tests/user-email-address-enable-postgres-proof.test.mjs
+          tests/user-email-address-enable-production-workflow.test.mjs
       - name: Stage only corrected UserEmailAddress package for Prisma
         shell: bash
         run: |
@@ -2934,7 +2949,50 @@ jobs:
             await client.end();
           }
           NODE
-      - name: Audit runtime grants after UserEmailAddress authority
+      - name: Apply actual UserEmailAddress ENABLE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261003020000_enable_user_email_address_rls/migration.sql
+      - name: Verify policyless UserEmailAddress zero-direct catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_email_address_enable$
+          BEGIN
+            IF NOT (
+              SELECT class.relrowsecurity AND NOT class.relforcerowsecurity
+                FROM pg_catalog.pg_class AS class
+               WHERE class.oid = 'public."UserEmailAddress"'::pg_catalog.regclass
+            ) OR (
+              SELECT pg_catalog.count(*)
+                FROM pg_catalog.pg_policy AS policy
+               WHERE policy.polrelid = 'public."UserEmailAddress"'::pg_catalog.regclass
+            ) <> 0
+               OR pg_catalog.has_table_privilege(
+                 'grainline_app_runtime',
+                 'public."UserEmailAddress"',
+                 'SELECT,INSERT,UPDATE,DELETE'
+               )
+               OR (
+                 SELECT pg_catalog.count(*)
+                   FROM pg_catalog.pg_proc AS procedure
+                   JOIN pg_catalog.pg_namespace AS namespace
+                     ON namespace.oid = procedure.pronamespace
+                  WHERE namespace.nspname = 'public'
+                    AND pg_catalog.strpos(
+                      procedure.prosrc,
+                      '"UserEmailAddress"'
+                    ) > 0
+                    AND pg_catalog.has_function_privilege(
+                      'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                    )
+               ) <> 6 THEN
+              RAISE EXCEPTION 'UserEmailAddress disposable ENABLE posture drifted';
+            END IF;
+          END
+          $verify_user_email_address_enable$;
+          SQL
+      - name: Audit runtime grants after UserEmailAddress ENABLE
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

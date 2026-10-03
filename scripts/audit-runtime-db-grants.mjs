@@ -81,6 +81,7 @@ export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
 export const CORE_ORDER_TABLE = "Order";
 export const ORDER_ITEM_TABLE = "OrderItem";
 export const ORDER_QUOTE_TABLE = "OrderShippingRateQuote";
+export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
 const ORDER_STAFF_CAPABILITY_MIGRATION =
@@ -404,6 +405,18 @@ export function orderQuoteRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(ORDER_QUOTE_TABLE);
 }
 
+export function userEmailAddressRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(USER_EMAIL_ADDRESS_TABLE)
+    && !policies.has(USER_EMAIL_ADDRESS_TABLE);
+}
+
+export function userEmailAddressRlsForceExpected(inventory) {
+  return userEmailAddressRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(USER_EMAIL_ADDRESS_TABLE);
+}
+
 export function runtimePrivateFunctionNames(inventory) {
   const directUploadActivated = directUploadRlsActivationExpected(inventory);
   const reservationActivated =
@@ -570,6 +583,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(orderQuoteRlsActivationExpected(inventory)
       ? [ORDER_QUOTE_TABLE]
+      : []),
+    ...(userEmailAddressRlsActivationExpected(inventory)
+      ? [USER_EMAIL_ADDRESS_TABLE]
       : []),
   ];
 }
@@ -1483,6 +1499,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === ORDER_QUOTE_TABLE
       && orderQuoteRlsActivationExpected(inventory)
     )
+    || (
+      tableName === USER_EMAIL_ADDRESS_TABLE
+      && userEmailAddressRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -1532,6 +1552,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? orderItemRlsForceExpected(inventory)
         : tableName === ORDER_QUOTE_TABLE
           ? orderQuoteRlsForceExpected(inventory)
+        : tableName === USER_EMAIL_ADDRESS_TABLE
+          ? userEmailAddressRlsForceExpected(inventory)
         : true;
     if (!row) {
       issues.push(
@@ -2191,6 +2213,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       || (
         row.table_name === ORDER_QUOTE_TABLE
         && orderQuoteRlsActivationExpected(inventory)
+      )
+      || (
+        row.table_name === USER_EMAIL_ADDRESS_TABLE
+        && userEmailAddressRlsActivationExpected(inventory)
       );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(
