@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
@@ -64,6 +65,15 @@ const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 const ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50;
 const ACCOUNT_DELETION_LOCK_TTL_SECONDS = 120;
+const RELEASE_ACCOUNT_DELETION_LOCK_SCRIPT = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
+end
+return 0
+`;
+const releaseAccountDeletionLockScript = redis.createScript<number>(
+  RELEASE_ACCOUNT_DELETION_LOCK_SCRIPT,
+);
 const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted.thegrainline.local";
 const DELETED_SUPPORT_REQUEST_MESSAGE = "[Support request removed after account deletion]";
 const PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC = "delete";
@@ -71,6 +81,7 @@ const PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC = "delete";
 export type AccountDeletionLock = {
   key: string;
   userId: string;
+  ownerToken: string;
 };
 
 export type AccountDeletionBlocker = {
@@ -121,20 +132,24 @@ function providerDeletedAccountDataRequestMessage(input: {
 
 export async function acquireAccountDeletionLock(userId: string): Promise<AccountDeletionLock | null> {
   const key = accountDeletionLockKey(userId);
-  const lockResult = await redis.set(key, "1", {
+  const ownerToken = randomUUID();
+  const lockResult = await redis.set(key, ownerToken, {
     nx: true,
     ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS,
   });
-  return lockResult === "OK" ? { key, userId } : null;
+  return lockResult === "OK" ? { key, userId, ownerToken } : null;
 }
 
-export async function releaseAccountDeletionLock(lock: AccountDeletionLock) {
-  await redis.del(lock.key).catch((error) => {
+export async function releaseAccountDeletionLock(lock: AccountDeletionLock): Promise<boolean> {
+  return releaseAccountDeletionLockScript.eval([lock.key], [lock.ownerToken]).then((result) => (
+    result === 1
+  )).catch((error) => {
     Sentry.captureException(error, {
       level: "warning",
       tags: { source: "account_delete_lock_release" },
       extra: { userId: lock.userId },
     });
+    return false;
   });
 }
 
@@ -1001,12 +1016,12 @@ async function deferProviderDeletedAccountAnonymization(input: {
 
 export async function anonymizeUserAccount(
   userId: string,
-  options: { lockAlreadyAcquired?: boolean } = {},
+  options: { lock?: AccountDeletionLock } = {},
 ) {
-  const deletionLockKey = accountDeletionLockKey(userId);
-  const lock = options.lockAlreadyAcquired
-    ? { key: deletionLockKey, userId }
-    : await acquireAccountDeletionLock(userId);
+  if (options.lock && options.lock.userId !== userId) {
+    throw new Error("Account deletion lock does not belong to the requested user");
+  }
+  const lock = options.lock ?? await acquireAccountDeletionLock(userId);
   if (!lock) return { ok: false, alreadyDeleted: false, inProgress: true };
 
   try {

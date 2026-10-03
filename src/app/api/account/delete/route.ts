@@ -107,7 +107,7 @@ export async function POST(req: Request) {
 
   try {
     await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id);
-    const anonymized = await anonymizeUserAccount(me.id, { lockAlreadyAcquired: true });
+    const anonymized = await anonymizeUserAccount(me.id, { lock: deletionLock });
     if ("inProgress" in anonymized && anonymized.inProgress) {
       return privateJson({
         error: "Account deletion is already in progress. Please wait a moment.",

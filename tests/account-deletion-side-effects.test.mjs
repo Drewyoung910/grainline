@@ -41,7 +41,7 @@ describe("account deletion side-effect retries", () => {
     );
     assert.ok(
       route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)") <
-        route.indexOf("anonymizeUserAccount(me.id, { lockAlreadyAcquired: true })"),
+        route.indexOf("anonymizeUserAccount(me.id, { lock: deletionLock })"),
       "local recovery row must exist before route-level anonymization begins after Clerk deletion",
     );
     assert.ok(
