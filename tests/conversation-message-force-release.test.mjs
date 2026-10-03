@@ -238,6 +238,10 @@ describe("Conversation and Message FORCE release artifact", () => {
         "4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933",
         "20261002170000_prepare_user_email_address_authority",
       ],
+      [
+        "b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e",
+        "20261003010000_repair_user_email_address_current_history",
+      ],
     ]) {
       assert.match(workflow, new RegExp(`${digest} ${migration}`));
       assert.ok(workflow.indexOf(`${digest} ${migration}`) > successorFence);
@@ -261,6 +265,7 @@ describe("Conversation and Message FORCE release artifact", () => {
       "20261002030000_preserve_order_shipping_dispute_evidence",
       "20261002160000_add_user_email_suppression_key_index",
       "20261002170000_prepare_user_email_address_authority",
+      "20261003010000_repair_user_email_address_current_history",
     ]) {
       assert.match(restoreBlock, new RegExp(migration, "u"));
     }
