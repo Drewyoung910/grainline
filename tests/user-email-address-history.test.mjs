@@ -102,7 +102,7 @@ describe("user email address history", () => {
     assert.doesNotMatch(helper, /endsWith: "@gmail\.com"/);
     assert.match(
       migration,
-      /CREATE INDEX CONCURRENTLY IF NOT EXISTS "User_active_email_suppression_key_idx"/,
+      /DROP INDEX CONCURRENTLY IF EXISTS "User_active_email_suppression_key_idx";[\s\S]*CREATE INDEX CONCURRENTLY "User_active_email_suppression_key_idx"/,
     );
     assert.match(migration, canonicalExpression);
     assert.match(migration, /WHERE "deletedAt" IS NULL/);

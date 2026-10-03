@@ -79,7 +79,21 @@ describe("UserEmailAddress authority preparation", () => {
 
     assert.match(indexes, /User_active_email_suppression_key_idx/);
     assert.match(indexes, /UserEmailAddress_current_suppression_key_idx/);
-    assert.match(indexes, /CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "UserEmailAddress_one_current_per_user_key"/);
+    const retrySafeIndexes = [
+      "User_active_email_suppression_key_idx",
+      "UserEmailAddress_current_suppression_key_idx",
+      "UserEmailAddress_one_current_per_user_key",
+    ];
+
+    for (const name of retrySafeIndexes) {
+      assert.match(indexes, new RegExp(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`));
+      assert.doesNotMatch(
+        indexes,
+        new RegExp(`CREATE(?: UNIQUE)? INDEX CONCURRENTLY IF NOT EXISTS "${name}"`),
+      );
+    }
+
+    assert.match(indexes, /CREATE UNIQUE INDEX CONCURRENTLY "UserEmailAddress_one_current_per_user_key"/);
     assert.match(indexes, /ON "UserEmailAddress" \("userId"\)\s+WHERE "isCurrent" = true/);
     assert.match(indexes, /WHERE "isCurrent" = true/);
     assert.match(indexes, /"currentSinceAt" DESC/);
