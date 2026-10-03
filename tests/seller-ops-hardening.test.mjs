@@ -81,7 +81,7 @@ describe("seller operational route hardening", () => {
     assert.match(getRoute, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.ok(
       getRoute.indexOf("sellerBroadcastReadRatelimit,\n    userId") <
-        getRoute.indexOf("prisma.user.findUnique"),
+        getRoute.indexOf("userClerkGate(prisma, userId)"),
       "broadcast history GET should rate-limit before Prisma reads",
     );
   });
@@ -324,19 +324,19 @@ describe("seller operational route hardening", () => {
     assert.match(shopActions, /safeRateLimit\(listingMutationRatelimit, userId\)/);
     assert.ok(
       shopActions.indexOf("safeRateLimit(listingMutationRatelimit, userId)") <
-        shopActions.indexOf("prisma.user.findUnique"),
+        shopActions.indexOf("userClerkGate(prisma, userId)"),
       "shop listing actions should rate-limit before ownership DB lookups",
     );
 
     assert.match(dashboard, /listingMutationRatelimit/);
     assert.ok(
       dashboard.indexOf("safeRateLimit(listingMutationRatelimit, userId)") <
-        dashboard.indexOf("const me = await prisma.user.findUnique"),
+        dashboard.indexOf("const me = await userClerkGate(prisma, userId)"),
       "dashboard listing status action should rate-limit before ownership DB lookup",
     );
     assert.ok(
       dashboard.lastIndexOf("safeRateLimit(listingMutationRatelimit, userId)") <
-        dashboard.lastIndexOf("const me = await prisma.user.findUnique"),
+        dashboard.lastIndexOf("const me = await userClerkGate(prisma, userId)"),
       "dashboard listing archive action should rate-limit before ownership DB lookup",
     );
   });
@@ -398,10 +398,10 @@ describe("seller operational route hardening", () => {
     assert.match(notifications, /markReadRatelimit/);
     assert.ok(
       notifications.indexOf("safeRateLimit(markReadRatelimit, userId)") <
-        notifications.indexOf("prisma.user.findUnique"),
+        notifications.indexOf("userClerkGate(prisma, userId)"),
       "notification mark-all-read should rate-limit before current-user lookup",
     );
-    assert.match(notifications, /select: \{ id: true, banned: true, deletedAt: true \}/);
+    assert.match(notifications, /userClerkGate\(prisma, userId\)/);
     assert.match(notifications, /if \(me\.banned \|\| me\.deletedAt\) return/);
   });
 

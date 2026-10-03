@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
@@ -65,10 +66,7 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
   if (me.banned || me.deletedAt)
     return privateJson({ error: "Account is suspended" }, { status: 403 });
@@ -393,10 +391,7 @@ export async function GET(req: NextRequest) {
       rateLimitResponse(reset, "Too many broadcast history requests."),
     );
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
   if (me.banned || me.deletedAt)
     return privateJson({ error: "Account is suspended" }, { status: 403 });

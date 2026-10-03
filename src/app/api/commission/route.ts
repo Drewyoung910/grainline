@@ -2,6 +2,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Category } from "@prisma/client";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getBlockedIdsFor } from "@/lib/blocks";
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
   const { userId } = await auth();
   let meId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);

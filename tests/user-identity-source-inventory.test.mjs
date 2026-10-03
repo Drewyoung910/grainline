@@ -11,13 +11,13 @@ const report = JSON.parse(
 );
 
 test("User direct-access inventory records bounded Clerk identity conversions", () => {
-  assert.equal(report.count, 115);
-  assert.equal(report.files, 70);
+  assert.equal(report.count, 65);
+  assert.equal(report.files, 37);
   assert.deepEqual(report.byMethod, {
     count: 3,
     findFirst: 1,
     findMany: 5,
-    findUnique: 97,
+    findUnique: 47,
     update: 5,
     updateMany: 4,
   });
@@ -28,7 +28,7 @@ test("User direct-access inventory records bounded Clerk identity conversions", 
       call.select.length === 0 &&
       call.include.length === 0,
   );
-  assert.equal(fullRowReads.length, 10);
+  assert.equal(fullRowReads.length, 1);
 
   const writes = report.calls.filter((call) =>
     ["create", "update", "updateMany", "delete", "deleteMany", "upsert"].includes(
@@ -45,6 +45,23 @@ test("User direct-access inventory records bounded Clerk identity conversions", 
       [...call.select].sort().join(",") === "banned,deletedAt,id,role",
   );
   assert.equal(obsoleteClerkGateReads.length, 0);
+  const obsoleteClerkAccountStateReads = report.calls.filter(
+    (call) =>
+      call.method === "findUnique" &&
+      call.where.length === 1 &&
+      call.where[0] === "clerkId" &&
+      [...call.select].sort().join(",") === "banned,deletedAt,id",
+  );
+  assert.equal(obsoleteClerkAccountStateReads.length, 0);
+  const obsoleteClerkIdReads = report.calls.filter(
+    (call) =>
+      call.method === "findUnique" &&
+      call.where.length === 1 &&
+      call.where[0] === "clerkId" &&
+      call.select.length === 1 &&
+      call.select[0] === "id",
+  );
+  assert.equal(obsoleteClerkIdReads.length, 0);
   assert.deepEqual(
     [...new Set(writes.map((call) => call.file))].sort(),
     [

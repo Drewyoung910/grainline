@@ -649,9 +649,9 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ensureSeller, /export async function ensureSeller\(\)[\s\S]*const \{ userId \} = await auth\(\);[\s\S]*userAccountByClerkId\(prisma, userId\)[\s\S]*return \{ me, seller \}/);
     assert.doesNotMatch(ensureSeller, /prisma\.user\./);
     assert.match(accountOverview, /const me = await ensureUserForPage\("\/account"\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma, \{ take: 3 \}\)/);
-    assert.match(accountDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*where: \{ clerkId: userId \}[\s\S]*if \(!me \|\| me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
+    assert.match(accountDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*userClerkGate\(prisma, userId\)[\s\S]*if \(!me \|\| me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
     assert.match(accountSavedSearches, /const me = await ensureUserForPage\("\/account\/saved-searches"\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma\)/);
-    assert.match(dashboardDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*where: \{ clerkId: userId \}[\s\S]*if \(me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
+    assert.match(dashboardDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*userClerkGate\(prisma, userId\)[\s\S]*if \(!me\) return;[\s\S]*if \(me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
     assert.match(dashboard, /const \{ me, seller \} = await ensureSeller\(\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma, \{ take: 20 \}\)/);
     assert.match(savedRoute, /async function getDbUser\(\)[\s\S]*const \{ userId \} = await auth\(\);[\s\S]*return ensureUser\(\)/);
     assert.match(savedRoute, /const me = userResult\.me;[\s\S]*listOwnerSavedSearches\(me\.id, prisma\)/);

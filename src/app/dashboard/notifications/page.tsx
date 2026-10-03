@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { userClerkGate, userIdByClerkId } from "@/lib/userIdentityAccess";
 import {
   markOwnerNotificationsRead,
   ownerNotificationPageData,
@@ -80,10 +81,7 @@ async function markAllRead() {
   if (!userId) return;
   const { success } = await safeRateLimit(markReadRatelimit, userId);
   if (!success) return;
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return;
   if (me.banned || me.deletedAt) return;
   await markOwnerNotificationsRead(me.id);
@@ -98,7 +96,7 @@ export default async function NotificationsPage({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/notifications");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const me = await userIdByClerkId(prisma, userId);
   if (!me) redirect("/sign-in");
 
   const { page: pageStr } = await searchParams;

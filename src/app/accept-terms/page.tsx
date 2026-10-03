@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { safeInternalPath, signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { hasAcceptedCurrentTerms } from "@/lib/termsAcceptance";
 import AcceptTermsForm from "./AcceptTermsForm";
@@ -24,14 +25,7 @@ export default async function AcceptTermsPage({
     redirect(signInPathForRedirect(`/accept-terms?redirect_url=${encodeURIComponent(redirectUrl)}`, "/accept-terms"));
   }
 
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: {
-      termsAcceptedAt: true,
-      termsVersion: true,
-      ageAttestedAt: true,
-    },
-  });
+  const user = await userClerkGate(prisma, userId);
 
   if (hasAcceptedCurrentTerms(user)) {
     redirect(redirectUrl);

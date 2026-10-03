@@ -2,6 +2,7 @@
 // City + category filtered browse page — e.g. /browse/austin-tx/furniture
 
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -123,7 +124,7 @@ export default async function BrowseMetroCategoryPage({
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);

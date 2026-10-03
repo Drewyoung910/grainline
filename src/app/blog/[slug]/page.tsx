@@ -1,5 +1,6 @@
 // src/app/blog/[slug]/page.tsx
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
@@ -85,7 +86,7 @@ export default async function BlogPostPage({
   let blockedSellerIds: string[] = [];
 
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
     if (meId) {
       const { blockedUserIds, blockedSellerIds: blockedSellerIdList } = await getBlockedIdsFor(meId);

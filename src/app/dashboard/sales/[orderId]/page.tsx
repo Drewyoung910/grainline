@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import LabelSection from "@/components/LabelSection";
 import CaseReplyBox from "@/components/CaseReplyBox";
 import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
@@ -98,7 +99,7 @@ export default async function SellerOrderDetailPage({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/sales");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await userIdByClerkId(prisma, userId);
   if (!me) redirect("/sign-in?redirect_url=/dashboard/sales");
 
   const seller = await prisma.sellerProfile.findUnique({

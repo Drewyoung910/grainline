@@ -4,8 +4,9 @@
 
 This audit covers the Prisma `User` model and every application path that can
 read or mutate it. The refreshed inventory is based on source work in isolated
-worktree `.worktrees/user-clerk-gate-callers-20261003`, whose exact main base is
-`f156dd9b28e80e98ec1f5ec422f95eda4a0e0d0f`, on 2026-10-03.
+worktree `.worktrees/user-clerk-account-state-callers-20261003`, whose parent is
+the exact Clerk-gate caller commit
+`1d57b6c859d33c6062a3636f14527260d4c6e878`, on 2026-10-03.
 
 `UserEmailAddress` is a completed predecessor, not part of the remaining
 activation scope. Its policyless ENABLE plus FORCE release is live from exact
@@ -107,15 +108,23 @@ runtime-only operations in migration
   boundary. Its argument must remain a server-derived Clerk subject.
 
 `ensureUser.ts`, `ensureSeller.ts`, and the middleware fallback now use those
-operations instead of direct `prisma.user` or `tx.user` access. The current
-source-only follow-up routes 21 identical Clerk-id staff, blog-author, and
-listing-preview gate reads in 19 files through `userClerkGate(...)`. The resulting
-direct-delegate inventory is 115 calls in 70 files: 106 reads and nine writes.
-It has 97 `findUnique`, five `findMany`, one `findFirst`, three `count`, five
-`update`, and four `updateMany` calls. Full-row reads remain at 10, and
+operations instead of direct `prisma.user` or `tx.user` access. The two
+source-only caller packages route 43 Clerk-id account-gate reads in
+31 files through `userClerkGate(...)`. The second package also routes 28
+id-only lookups in 28 files through `userIdByClerkId(...)`, which selects only
+`id` from that same fixed database function. Together the packages replace 71
+direct reads across 57 unique files. The resulting direct-delegate inventory
+is 65 calls in 37 files: 56 reads and nine writes. It has 47 `findUnique`, five
+`findMany`, one `findFirst`, three `count`, five
+`update`, and four `updateMany` calls. One full-row read remains, and
 the remaining direct writes are confined to seven reviewed files for terms,
 shipping, Clerk welcome reservation, deletion, audit, ban/unban, and
-unsubscribe behavior.
+unsubscribe behavior. The second caller package has 116 passing focused
+source-contract and regression tests. Three additional local test modules
+cannot load after the application restart because this isolated worktree has
+no installed `marked`, `@prisma/client`, or `sanitize-html`; exact-head CI
+must install dependencies and run the complete ordered suite. `git diff
+--check` passes.
 
 A disposable PostgreSQL proof applies the existing email-history authority
 and this candidate against representative `User` and `UserEmailAddress`
@@ -128,8 +137,8 @@ TypeScript result is unavailable because the reusable dependency tree has no
 generated Prisma client; exact-head CI must regenerate Prisma before the
 candidate can be accepted for integration.
 
-The live package and source-only follow-up reduce the real activation surface
-but do not change the NO-GO decision. The remaining 115 delegates, 32 raw-SQL references, nested
+The live package and source-only follow-ups reduce the real activation surface
+but do not change the NO-GO decision. The remaining 65 delegates, 32 raw-SQL references, nested
 relations, public identity reads, owner-private operations, staff/service
 operations, and lifecycle writes still need their reviewed operation families.
 

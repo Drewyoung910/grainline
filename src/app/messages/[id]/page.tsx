@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
@@ -58,7 +59,7 @@ export default async function ThreadPage({
   const { userId, sessionId } = await auth();
   if (!userId) redirect(`/sign-in?redirect_url=/messages/${id}`);
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await userClerkGate(prisma, userId);
   if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
 
   const conversation = await getActorConversation(me.id, id);
@@ -421,10 +422,7 @@ export default async function ThreadPage({
     "use server";
     const { userId } = await auth();
     if (!userId) redirect(`/sign-in?redirect_url=/messages/${id}`);
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true, banned: true, deletedAt: true },
-    });
+    const me = await userClerkGate(prisma, userId);
     if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
     if (me.banned || me.deletedAt) return { ok: false };
     const { conversationStateRatelimit, safeRateLimit } = await import("@/lib/ratelimit");
@@ -450,10 +448,7 @@ export default async function ThreadPage({
     "use server";
     const { userId } = await auth();
     if (!userId) redirect(`/sign-in?redirect_url=/messages/${id}`);
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true, banned: true, deletedAt: true },
-    });
+    const me = await userClerkGate(prisma, userId);
     if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
     if (me.banned || me.deletedAt) return { ok: false };
     const { conversationStateRatelimit, safeRateLimit } = await import("@/lib/ratelimit");

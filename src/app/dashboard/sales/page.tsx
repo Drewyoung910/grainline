@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
@@ -78,7 +79,7 @@ async function SalesContent({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/sales");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await userIdByClerkId(prisma, userId);
   if (!me) redirect("/sign-in?redirect_url=/dashboard/sales");
 
   const seller = await prisma.sellerProfile.findUnique({

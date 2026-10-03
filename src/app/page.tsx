@@ -2,6 +2,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { unstable_cache } from "next/cache";
@@ -277,7 +278,7 @@ export default async function HomePage() {
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);

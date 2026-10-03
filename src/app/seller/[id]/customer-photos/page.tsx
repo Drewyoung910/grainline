@@ -4,6 +4,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
@@ -71,7 +72,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
   const { userId } = await auth();
   let meId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
   const isOwner = !!userId && seller.user?.clerkId === userId;

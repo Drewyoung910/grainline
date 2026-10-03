@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { getIP, profileViewRatelimit, safeRateLimitOpen, viewRatelimit } from "@/lib/ratelimit";
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
@@ -43,10 +44,7 @@ export async function POST(
 
   const { userId } = await auth();
   if (userId) {
-    const viewer = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
-    });
+    const viewer = await userIdByClerkId(prisma, userId);
     if (viewer?.id === seller.userId) return telemetryJson({ ok: true, skipped: true });
   }
 

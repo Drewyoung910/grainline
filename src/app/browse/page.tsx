@@ -2,6 +2,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Category, ListingType, Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
@@ -250,7 +251,7 @@ async function BrowseContent({
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const me = await userIdByClerkId(prisma, userId);
     meDbId = me?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);

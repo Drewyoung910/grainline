@@ -3,6 +3,7 @@
 // Major metro pages aggregate all child metros; child metro pages show only that city.
 
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -124,7 +125,7 @@ async function BrowseMetroContent({
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);

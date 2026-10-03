@@ -2,6 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
@@ -54,10 +55,7 @@ export async function GET(
     const { userId } = await auth();
     let blockedSellerIds: string[] = [];
     if (userId) {
-      const me = await prisma.user.findUnique({
-        where: { clerkId: userId },
-        select: { id: true, banned: true, deletedAt: true },
-      });
+      const me = await userClerkGate(prisma, userId);
       if (me?.banned || me?.deletedAt) {
         return privateJson({ error: "Account restricted" }, { status: 403 });
       }
