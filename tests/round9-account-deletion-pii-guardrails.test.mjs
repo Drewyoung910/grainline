@@ -270,7 +270,8 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /subject: "Email removed after account deletion"/);
     assert.match(deletion, /tx\.emailFailureCount\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
     assert.match(deletion, /tx\.newsletterSubscriber\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
-    assert.match(deletion, /tx\.userEmailAddress\.deleteMany\(\{\s*where: \{ userId: user\.id \},\s*\}\)/s);
+    assert.match(deletion, /await deleteCurrentUserEmailAddressHistory\(tx\)/);
+    assert.doesNotMatch(deletion, /tx\.userEmailAddress\./);
     assert.match(
       deletion,
       /await releaseDirectUploadsForAccount\(\{\s*client: tx,\s*userId: user\.id,\s*\}\)/s,

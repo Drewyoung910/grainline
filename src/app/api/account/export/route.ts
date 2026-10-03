@@ -15,8 +15,8 @@ import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
 import {
   accountEmailFallbackEmailsForUser,
   accountEmailSuppressionKeysForEmails,
-  userAccountEmailAddressState,
 } from "@/lib/userEmailAddresses";
+import { ownerUserAccountEmailAddressState } from "@/lib/userEmailAddressOwnerAccess";
 import {
   ACCOUNT_EXPORT_REVERIFICATION,
   hasFreshAccountExportSession,
@@ -50,10 +50,10 @@ function jsonDownload(data: unknown, userId: string) {
 
 async function buildExport(user: NonNullable<ExportableUser>) {
   const accountEmail = normalizeEmailAddress(user.email ?? "") ?? user.email?.trim().toLowerCase() ?? null;
-  const accountEmailState = await userAccountEmailAddressState(prisma, {
-    userId: user.id,
-    currentEmail: accountEmail,
-  });
+  const accountEmailState = await ownerUserAccountEmailAddressState(
+    user.id,
+    accountEmail,
+  );
   const accountEmails = await accountEmailFallbackEmailsForUser(prisma, {
     userId: user.id,
     emails: accountEmailState.emails,

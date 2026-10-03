@@ -33,3 +33,10 @@ ON "UserEmailAddress" (
   "currentSinceAt" DESC
 )
 WHERE "isCurrent" = true;
+
+-- Fail closed if historical drift contains more than one current row for a
+-- user. The inspection gate must report zero duplicate-current user groups
+-- before this migration is authorized for Production.
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "UserEmailAddress_one_current_per_user_key"
+ON "UserEmailAddress" ("userId")
+WHERE "isCurrent" = true;

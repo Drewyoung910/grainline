@@ -10,6 +10,7 @@ import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
   accountEmailFallbackEmailsForUser,
   accountEmailSuppressionKeysForEmails,
+  deleteCurrentUserEmailAddressHistory,
   userAccountEmailAddressState,
 } from "@/lib/userEmailAddresses";
 import { supportRequestAccountExportWhere, supportRequestSlaDueAt } from "@/lib/supportRequest";
@@ -1142,7 +1143,6 @@ export async function anonymizeUserAccount(
     const deletedClerkId = `deleted:${user.id}:${now.getTime()}`;
     const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
     const accountEmailState = await userAccountEmailAddressState(tx, {
-      userId: user.id,
       currentEmail: user.email,
     });
     const accountEmails = await accountEmailFallbackEmailsForUser(tx, {
@@ -1520,9 +1520,7 @@ export async function anonymizeUserAccount(
       },
     });
 
-    await tx.userEmailAddress.deleteMany({
-      where: { userId: user.id },
-    });
+    await deleteCurrentUserEmailAddressHistory(tx);
 
     await tx.user.update({
       where: { id: user.id },
