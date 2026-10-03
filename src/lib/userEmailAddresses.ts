@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { emailSuppressionAddressKeys, normalizeEmailAddress } from "./emailAddressNormalization.ts";
 
 type UserEmailAddressClient = Pick<Prisma.TransactionClient, "userEmailAddress">;
-type UserEmailOwnerClient = Pick<Prisma.TransactionClient, "user">;
+type UserEmailOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 export type UserEmailAddressExportRow = {
   email: string;
@@ -35,33 +35,34 @@ export async function accountEmailFallbackEmailsForUser(
   const emails = uniqueAccountEmailAddresses(input.emails);
   if (emails.length === 0) return [];
   const suppressionKeyCandidates = accountEmailSuppressionKeysForEmails(emails);
-  const ownerEmailCandidates = [...new Set([...emails, ...suppressionKeyCandidates])];
-  const needsGmailCollisionScan = suppressionKeyCandidates.some((email) => email.endsWith("@gmail.com"));
-
-  const claimedByOtherActiveUsers = await client.user.findMany({
-    where: {
-      id: { not: input.userId },
-      deletedAt: null,
-      OR: [
-        { email: { in: ownerEmailCandidates } },
-        ...(needsGmailCollisionScan
-          ? [
-              { email: { endsWith: "@gmail.com" } },
-              { email: { endsWith: "@googlemail.com" } },
-            ]
-          : []),
-      ],
-    },
-    select: { email: true },
-  });
-  const blockedExactEmails = new Set(
-    claimedByOtherActiveUsers.map((user) => normalizeEmailAddress(user.email)).filter(Boolean),
+  const claimedKeys = await client.$queryRaw<Array<{ suppressionKey: string }>>`
+    SELECT DISTINCT
+      CASE
+        WHEN lower(split_part(btrim("email"), '@', 2)) IN ('gmail.com', 'googlemail.com')
+        THEN replace(
+          split_part(lower(split_part(btrim("email"), '@', 1)), '+', 1),
+          '.',
+          ''
+        ) || '@gmail.com'
+        ELSE lower(btrim("email"))
+      END AS "suppressionKey"
+    FROM "User"
+    WHERE "id" <> ${input.userId}
+      AND "deletedAt" IS NULL
+      AND CASE
+        WHEN lower(split_part(btrim("email"), '@', 2)) IN ('gmail.com', 'googlemail.com')
+        THEN replace(
+          split_part(lower(split_part(btrim("email"), '@', 1)), '+', 1),
+          '.',
+          ''
+        ) || '@gmail.com'
+        ELSE lower(btrim("email"))
+      END = ANY(${suppressionKeyCandidates}::text[])
+  `;
+  const blockedSuppressionKeys = new Set(claimedKeys.map((row) => row.suppressionKey));
+  return emails.filter(
+    (email) => !emailSuppressionAddressKeys(email).some((key) => blockedSuppressionKeys.has(key)),
   );
-  const blockedSuppressionKeys = new Set(accountEmailSuppressionKeysForEmails([...blockedExactEmails]));
-  return emails.filter((email) => {
-    if (blockedExactEmails.has(email)) return false;
-    return !emailSuppressionAddressKeys(email).some((key) => blockedSuppressionKeys.has(key));
-  });
 }
 
 function emailAddressSource(source: string | null | undefined) {
