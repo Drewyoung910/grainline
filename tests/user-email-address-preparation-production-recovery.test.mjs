@@ -136,7 +136,7 @@ function baseState(incompleteMigrationCount) {
   };
 }
 
-function catalog(prepared = false) {
+function catalog(prepared = false, activeSuppressionKeyCollisionGroups = 0) {
   return {
     result: {
       rlsEnabled: false,
@@ -148,7 +148,7 @@ function catalog(prepared = false) {
         duplicateCurrentRowExcess: 0,
         currentRowsWithoutMatchingActiveUser: 0,
         activeUsersWithoutCurrentRow: prepared ? 0 : 1,
-        activeSuppressionKeyCollisionGroups: 0,
+        activeSuppressionKeyCollisionGroups,
       },
       supportingIndexesPresent: prepared,
       preparedAuthorityFunctionCount: prepared ? 4 : 0,
@@ -241,6 +241,35 @@ test("read-only recovery inspection admits the one exact failure and no other dr
   });
   assert.equal(result.state, "failed");
   assert.equal(result.ledger.failedZeroStepRowPresent, true);
+  assert.equal(result.productionChanged, false);
+});
+
+test("recovery admits nonunique active suppression-key collisions", async () => {
+  const config = {
+    directUrl: DIRECT_URL,
+    directUrlSha256: DIRECT_URL_SHA256,
+    failedRunId: USER_EMAIL_ADDRESS_PREPARATION_FAILED_RUN_ID,
+    mainCiRunId: "37120000000",
+    mode: "inspect",
+    recoveryRunId: "37120000001",
+    releaseCommit: COMMIT,
+  };
+  const result = await inspectUserEmailAddressPreparationRecovery(config, {
+    readGitState: () => ({ head: COMMIT, status: "" }),
+    readLedgerState: async () => ({
+      rows: [failedRow()],
+      incomplete: [
+        {
+          migration_name: USER_EMAIL_ADDRESS_PREPARATION_MIGRATIONS[0].name,
+          checksum: FAILED_USER_EMAIL_ADDRESS_INDEX_SHA256,
+          applied_steps_count: 0,
+        },
+      ],
+    }),
+    readBaseState: async () => baseState(1),
+    readCatalog: async () => catalog(false, 1),
+  });
+  assert.equal(result.catalog.counts.activeSuppressionKeyCollisionGroups, 1);
   assert.equal(result.productionChanged, false);
 });
 
