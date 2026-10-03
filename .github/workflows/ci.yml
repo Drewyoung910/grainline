@@ -3008,7 +3008,19 @@ jobs:
           $verify_user_email_address_enable$;
           SQL
       - name: Audit runtime grants after UserEmailAddress ENABLE
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          force_migration=prisma/migrations/20261003030000_force_user_email_address_rls
+          holding="$RUNNER_TEMP/unapplied-user-email-address-force"
+          test -d "$force_migration"
+          test ! -e "$holding"
+          mv "$force_migration" "$holding"
+          restore_force_migration() {
+            mv "$holding" "$force_migration"
+          }
+          trap restore_force_migration EXIT
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Apply actual UserEmailAddress FORCE in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"
