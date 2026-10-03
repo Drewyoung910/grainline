@@ -86,6 +86,7 @@ jobs:
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
+          tests/account-privacy-observability.test.mjs
           tests/user-email-address-authority.test.mjs
           tests/user-email-address-authority-postgres-proof.test.mjs
           tests/user-email-address-history.test.mjs
@@ -102,6 +103,7 @@ jobs:
             prisma/migrations/20261002170000_prepare_user_email_address_authority \
             "$holding/20261002170000_prepare_user_email_address_authority"
           for test_file in \
+            tests/account-privacy-observability.test.mjs \
             tests/user-email-address-authority.test.mjs \
             tests/user-email-address-authority-postgres-proof.test.mjs \
             tests/user-email-address-history.test.mjs
@@ -2788,6 +2790,7 @@ jobs:
       - name: Re-verify UserEmailAddress authority source package
         run: >-
           node --test
+          tests/account-privacy-observability.test.mjs
           tests/user-email-address-authority.test.mjs
           tests/user-email-address-authority-postgres-proof.test.mjs
           tests/user-email-address-history.test.mjs
