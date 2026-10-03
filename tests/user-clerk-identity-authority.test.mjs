@@ -81,4 +81,47 @@ describe("User Clerk identity authority", () => {
       assert.doesNotMatch(applicationSource, /\b(?:prisma|tx)\.user\./);
     }
   });
+
+  it("isolates the package from historical cutoffs, then proves it in disposable PostgreSQL", () => {
+    const workflow = source(".github/workflows/ci.yml");
+    const verify = workflow.indexOf(
+      "name: Verify User Clerk identity authority source package",
+    );
+    const isolate = workflow.indexOf(
+      "name: Isolate User Clerk identity authority until historical release guards pass",
+    );
+    const historical = workflow.indexOf(
+      "name: Verify compatible Order checkout receipt authority release",
+    );
+    const restore = workflow.indexOf(
+      "name: Restore User Clerk identity authority source package",
+    );
+    const apply = workflow.indexOf(
+      "name: Apply User Clerk identity authority in disposable PostgreSQL",
+    );
+    const catalog = workflow.indexOf(
+      "name: Verify User Clerk identity authority catalog",
+    );
+    const build = workflow.indexOf("name: Production build");
+
+    assert.ok(verify >= 0);
+    assert.ok(verify < isolate);
+    assert.ok(isolate < historical);
+    assert.ok(historical < restore);
+    assert.ok(restore < apply);
+    assert.ok(apply < catalog);
+    assert.ok(catalog < build);
+    assert.match(
+      workflow.slice(isolate, historical),
+      /mv \\\s+prisma\/migrations\/20261003100000_prepare_user_clerk_identity_authority \\\s+"\$holding\/migration"/u,
+    );
+    assert.match(
+      workflow.slice(restore, build),
+      /--file=prisma\/migrations\/20261003100000_prepare_user_clerk_identity_authority\/migration\.sql/u,
+    );
+    assert.match(
+      workflow.slice(catalog, build),
+      /Audit runtime grants after User Clerk identity authority/u,
+    );
+  });
 });

@@ -83,6 +83,28 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify User Clerk identity authority source package
+        run: >-
+          node --test
+          tests/user-clerk-identity-authority.test.mjs
+          tests/user-clerk-identity-authority-postgres.test.mjs
+          tests/user-identity-source-inventory.test.mjs
+      - name: Isolate User Clerk identity authority until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-clerk-identity-authority"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261003100000_prepare_user_clerk_identity_authority \
+            "$holding/migration"
+          for test_file in \
+            tests/user-clerk-identity-authority.test.mjs \
+            tests/user-clerk-identity-authority-postgres.test.mjs \
+            tests/user-identity-source-inventory.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
@@ -3065,6 +3087,80 @@ jobs:
           $verify_user_email_address_force$;
           SQL
       - name: Audit runtime grants after UserEmailAddress FORCE
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User Clerk identity authority source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-clerk-identity-authority"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261003100000_prepare_user_clerk_identity_authority
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify User Clerk identity authority source package
+        run: >-
+          node --test
+          tests/user-clerk-identity-authority.test.mjs
+          tests/user-clerk-identity-authority-postgres.test.mjs
+          tests/user-identity-source-inventory.test.mjs
+      - name: Apply User Clerk identity authority in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261003100000_prepare_user_clerk_identity_authority/migration.sql
+      - name: Verify User Clerk identity authority catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_clerk_identity_authority$
+          DECLARE
+            catalog_is_exact boolean;
+          BEGIN
+            SELECT
+              pg_catalog.count(*) = 3
+              AND pg_catalog.bool_and(procedure.prosecdef)
+              AND pg_catalog.bool_and(
+                procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+              )
+              AND pg_catalog.bool_and(
+                pg_catalog.has_function_privilege(
+                  'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                EXISTS (
+                  SELECT 1
+                    FROM pg_catalog.aclexplode(
+                      COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )
+                    ) AS privilege
+                   WHERE privilege.grantee = 0
+                     AND privilege.privilege_type = 'EXECUTE'
+                )
+              )
+              INTO catalog_is_exact
+              FROM pg_catalog.pg_proc AS procedure
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.proname = ANY(ARRAY[
+                 'grainline_user_clerk_account',
+                 'grainline_user_clerk_gate',
+                 'grainline_user_clerk_identity_ensure'
+               ]::text[]);
+
+            IF catalog_is_exact IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'User Clerk identity authority catalog drifted';
+            END IF;
+          END
+          $verify_user_clerk_identity_authority$;
+          SQL
+      - name: Audit runtime grants after User Clerk identity authority
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
