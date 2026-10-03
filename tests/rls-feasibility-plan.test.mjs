@@ -646,7 +646,8 @@ describe("RLS feasibility plan guardrails", () => {
     // the current server-authenticated Clerk user.
     assert.match(ensureUser, /export async function ensureUser\(\)[\s\S]*const u = await currentUser\(\);[\s\S]*ensureUserByClerkId\(u\.id, userFields\)/);
     assert.match(pageAuth, /export async function ensureUserForPage\(redirectUrl: string\)[\s\S]*const me = await ensureUser\(\);[\s\S]*return me/);
-    assert.match(ensureSeller, /export async function ensureSeller\(\)[\s\S]*const \{ userId \} = await auth\(\);[\s\S]*where: \{ clerkId: userId \}[\s\S]*return \{ me, seller \}/);
+    assert.match(ensureSeller, /export async function ensureSeller\(\)[\s\S]*const \{ userId \} = await auth\(\);[\s\S]*userAccountByClerkId\(prisma, userId\)[\s\S]*return \{ me, seller \}/);
+    assert.doesNotMatch(ensureSeller, /prisma\.user\./);
     assert.match(accountOverview, /const me = await ensureUserForPage\("\/account"\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma, \{ take: 3 \}\)/);
     assert.match(accountDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*where: \{ clerkId: userId \}[\s\S]*if \(!me \|\| me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
     assert.match(accountSavedSearches, /const me = await ensureUserForPage\("\/account\/saved-searches"\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma\)/);

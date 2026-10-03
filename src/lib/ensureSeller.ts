@@ -2,6 +2,7 @@
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { AccountAccessError, ensureUserByClerkId } from "@/lib/ensureUser";
+import { userAccountByClerkId } from "@/lib/userIdentityAccess";
 import {
   normalizeDisplayNameForLookup,
   sanitizeUserName,
@@ -12,7 +13,7 @@ export async function ensureSeller() {
   if (!userId) throw new Error("Not signed in");
 
   // 1) Ensure we have a local User row
-  let me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  let me = await userAccountByClerkId(prisma, userId);
 
   if (!me) {
     // Use currentUser first (cheap), fall back to clerkClient

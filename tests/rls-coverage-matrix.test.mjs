@@ -85,7 +85,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(
       liveRows.map((row) => [row.model, row.status]),
       [
-        ["UserEmailAddress", "RLS_LIVE_PHASE_A"],
+        ["UserEmailAddress", "RLS_LIVE_FORCE"],
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
         ["OrderPaymentEvent", "RLS_LIVE_FORCE"],
@@ -119,17 +119,17 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*fourteen are FORCE-hardened[\s\S]*UserEmailAddress` remains at Phase A pending its separate FORCE release[\s\S]*Every row except those fifteen is \*\*not active RLS\*\*/,
+      /UserEmailAddress` closed its policyless FORCE release[\s\S]*37133944427[\s\S]*37136042748[\s\S]*OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*all fifteen are FORCE-hardened[\s\S]*Every row except those fifteen is \*\*not active RLS\*\*/,
     );
     assert.match(
       matrix,
-      /UserEmailAddress`[\s\S]*e935667852d1bcbae3084819182db689ceaf4c6f[\s\S]*37125414050[\s\S]*37127420604/,
+      /UserEmailAddress`[\s\S]*e689e1ff1d76a65146d132ad25dc545a72b87aac[\s\S]*37133944427[\s\S]*37136042748/,
     );
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /Fourteen tables have[\s\S]*production RLS and all fourteen have complete retained[\s\S]*`FORCE ROW LEVEL SECURITY` acceptance[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
+      /Fifteen tables have[\s\S]*production RLS and all fifteen have complete retained[\s\S]*`FORCE ROW LEVEL SECURITY` acceptance[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(

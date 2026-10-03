@@ -7,13 +7,21 @@ Last updated: 2026-09-07
 This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Snapshot scope: 68 Prisma models.
 
-`UserEmailAddress` has complete retained policyless Phase-A acceptance.
-`SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`,
+`UserEmailAddress`, `SavedSearch`, `Notification`, `Conversation`, `Message`,
+`DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
 `OrderRefundReconciliation`, and `OrderPaymentEvent` have complete retained
 FORCE acceptance. These are all fifteen tables in this snapshot with
 completed production RLS acceptance.
+`UserEmailAddress` closed its policyless FORCE release from exact main
+`e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded
+Production run `37136042748`. The exact ledger and catalog readbacks retain
+zero policies, zero runtime direct CRUD, six fixed operations, and sanitized
+evidence SHA-256
+`86bcbc753adcbfe86bd7c8015c0375894a8494cd0fa277ac66b174a893e166fa`
+and
+`cf9d1b009f10a7a8357230aeeffc0341630b7b1a2c6ba9723f7b02c0d260e10d`.
 SellerPayoutEvent closed its distinct actual
 pooled-runtime FORCE postflight from exact main
 `fb350c31772938ef52ef796c61bf670d9cf0750e` after CI `32675227286` passed;
@@ -28,8 +36,7 @@ from exact main `5d3b402317084d9d2af6b8bdf52300a800eda0d8` after CI
 migration run `33445073482`, and a distinct actual pooled-runtime read-only
 postflight. Retain sanitized mode-`0600` evidence SHA-256
 `d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1`.
-Fifteen tables now have production RLS: fourteen are FORCE-hardened and
-`UserEmailAddress` remains at Phase A pending its separate FORCE release.
+Fifteen tables now have production RLS and all fifteen are FORCE-hardened.
 Every row except those fifteen is **not active RLS** and remains work to
 design, prove, and promote.
 The target column is a planning disposition, not a claim that the control is
@@ -223,7 +230,7 @@ completed alternative.
 | Prisma model | Target | Activation owner/group | Data and actors | Blocking prerequisite or next proof |
 |---|---|---|---|---|
 | `User` | `BLOCKED_DESIGN` | Identity and account core | Account identity, contact and shipping PII; self, staff, Clerk lifecycle and deletion jobs | Separate public identity projections from private account columns; design self, staff and provider operations |
-| `UserEmailAddress` | `RLS_LIVE_PHASE_A` | Identity and account core | Private email history; account owner, Clerk lifecycle, signed-unsubscribe replay defense, export and deletion | Policyless ENABLE and zero direct runtime/PUBLIC table authority are live from exact main `e935667852d1bcbae3084819182db689ceaf4c6f`, CI `37125414050`, and guarded run `37127420604`; six exact fixed operations remain. The isolated posture-only FORCE candidate is next. See `docs/user-email-address-rls-release.md` |
+| `UserEmailAddress` | `RLS_LIVE_FORCE` | Identity and account core | Private email history; account owner, Clerk lifecycle, signed-unsubscribe replay defense, export and deletion | Policyless ENABLE plus FORCE and zero direct runtime/PUBLIC table authority are live from exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded run `37136042748`; six exact fixed operations remain. See `docs/user-email-address-rls-release.md` |
 | `SellerProfile` | `BLOCKED_DESIGN` | Seller public-private split | Public shop profile mixed with Stripe, ship-from address and moderation state; public, seller, staff, Stripe and cron | Split private operational fields or expose reviewed public views before restricting base rows |
 | `SellerFaq` | `BLOCKED_DESIGN` | Seller public-private split | Public shop content with seller-owned writes | Parent-seller write policy and public-read design tied to visible profiles |
 | `FoundingMakerGrant` | `ALTERNATIVE_REVIEW` | Service and allocation ledgers | System allocation and badge state; allocation job, staff and public badge consumers | Revoke ordinary writes and choose service-only mutation plus minimal read projection |
