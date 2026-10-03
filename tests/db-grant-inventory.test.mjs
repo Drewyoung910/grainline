@@ -2357,6 +2357,9 @@ describe("database grant inventory guardrails", () => {
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
+        ...(userEmailAddressRlsForceExpected(inventory)
+          ? ["UserEmailAddress"]
+          : []),
       ],
     );
   });

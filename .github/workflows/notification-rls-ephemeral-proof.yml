@@ -113,6 +113,7 @@ jobs:
           4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933 20261002170000_prepare_user_email_address_authority
           b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e 20261003010000_repair_user_email_address_current_history
           d61df27c1c565d6fffde2fea130eb27b2ef95e842dbffef5e6b2862cd57bcbee 20261003020000_enable_user_email_address_rls
+          68bc032ecf38a63bd4ab9a219e315b69d8fa505bc3b99b6abf20e7d435812402 20261003030000_force_user_email_address_rls
           MIGRATIONS
       - name: Isolate staged Core Order ENABLE from historical proof
         shell: bash
@@ -188,7 +189,8 @@ jobs:
             20261002162000_add_user_email_address_current_unique_index \
             20261002170000_prepare_user_email_address_authority \
             20261003010000_repair_user_email_address_current_history \
-            20261003020000_enable_user_email_address_rls
+            20261003020000_enable_user_email_address_rls \
+            20261003030000_force_user_email_address_rls
           do
             mv "$RUNNER_TEMP/$migration" "prisma/migrations/$migration"
           done
