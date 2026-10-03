@@ -38,17 +38,19 @@ test("UserEmailAddress preparation is exact-main, CI-bound, restart-aware, and e
   );
 
   for (const [digest, migration] of [
-    ["a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece", "20261002160000_add_user_email_suppression_key_index"],
+    ["3f2e6061e1de1a6f6c92645979a686ec4d3ee36409dc4499c2c62c90dafe1cf8", "20261002160000_add_user_email_suppression_key_index"],
+    ["a4b247ce83e871f657ee8228873c3113bdc5cf58adb7292a2e90206c147f67a8", "20261002161000_add_user_email_address_suppression_key_index"],
+    ["02ccc97c9e4d1e48320b58bd7ccc23aa023b7330d0add6fcf76802cc266f567c", "20261002162000_add_user_email_address_current_unique_index"],
     ["4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933", "20261002170000_prepare_user_email_address_authority"],
     ["b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e", "20261003010000_repair_user_email_address_current_history"],
   ]) {
     assert.match(workflow, new RegExp(`${digest}[\\s\\S]*${migration}|${migration}[\\s\\S]*${digest}`));
   }
 
-  assert.match(workflow, /state, \/\^\(\?:000\|100\|110\|111\)\$\//);
+  assert.match(workflow, /state, \/\^\(\?:00000\|10000\|11000\|11100\|11110\|11111\)\$\//);
   assert.match(workflow, /applied prefix/);
-  assert.match(workflow, /activeUsersWithoutCurrentRow, state === '111' \? 0 : 1/);
-  assert.match(workflow, /steps\.ledger\.outputs\.state != '111'/);
+  assert.match(workflow, /activeUsersWithoutCurrentRow, state === '11111' \? 0 : 1/);
+  assert.match(workflow, /steps\.ledger\.outputs\.state != '11111'/);
   assert.match(workflow, /name: Prove no unrelated migration is pending/);
   assert.match(workflow, /PREPARATION_STATE: \$\{\{ steps\.ledger\.outputs\.state \}\}/);
   assert.match(workflow, /if \[\[ "\$\{PREPARATION_STATE:index:1\}" == "0" \]\]/);

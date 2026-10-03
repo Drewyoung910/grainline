@@ -425,8 +425,16 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
         "20261002030000_preserve_order_shipping_dispute_evidence",
       ],
       [
-        "a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece",
+        "3f2e6061e1de1a6f6c92645979a686ec4d3ee36409dc4499c2c62c90dafe1cf8",
         "20261002160000_add_user_email_suppression_key_index",
+      ],
+      [
+        "a4b247ce83e871f657ee8228873c3113bdc5cf58adb7292a2e90206c147f67a8",
+        "20261002161000_add_user_email_address_suppression_key_index",
+      ],
+      [
+        "02ccc97c9e4d1e48320b58bd7ccc23aa023b7330d0add6fcf76802cc266f567c",
+        "20261002162000_add_user_email_address_current_unique_index",
       ],
       [
         "4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933",
@@ -458,6 +466,8 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     for (const migration of [
       "20261002030000_preserve_order_shipping_dispute_evidence",
       "20261002160000_add_user_email_suppression_key_index",
+      "20261002161000_add_user_email_address_suppression_key_index",
+      "20261002162000_add_user_email_address_current_unique_index",
       "20261002170000_prepare_user_email_address_authority",
       "20261003010000_repair_user_email_address_current_history",
     ]) {

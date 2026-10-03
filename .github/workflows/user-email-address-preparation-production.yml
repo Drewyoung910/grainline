@@ -87,7 +87,9 @@ jobs:
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
           test "$latest" = "prisma/migrations/20261003010000_repair_user_email_address_current_history"
           cat <<'CHECKSUMS' | sha256sum --check --status
-          a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece  prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql
+          3f2e6061e1de1a6f6c92645979a686ec4d3ee36409dc4499c2c62c90dafe1cf8  prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql
+          a4b247ce83e871f657ee8228873c3113bdc5cf58adb7292a2e90206c147f67a8  prisma/migrations/20261002161000_add_user_email_address_suppression_key_index/migration.sql
+          02ccc97c9e4d1e48320b58bd7ccc23aa023b7330d0add6fcf76802cc266f567c  prisma/migrations/20261002162000_add_user_email_address_current_unique_index/migration.sql
           4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933  prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql
           b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e  prisma/migrations/20261003010000_repair_user_email_address_current_history/migration.sql
           CHECKSUMS
@@ -117,7 +119,11 @@ jobs:
           ];
           const candidates = [
             ['20261002160000_add_user_email_suppression_key_index',
-             'a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece'],
+             '3f2e6061e1de1a6f6c92645979a686ec4d3ee36409dc4499c2c62c90dafe1cf8'],
+            ['20261002161000_add_user_email_address_suppression_key_index',
+             'a4b247ce83e871f657ee8228873c3113bdc5cf58adb7292a2e90206c147f67a8'],
+            ['20261002162000_add_user_email_address_current_unique_index',
+             '02ccc97c9e4d1e48320b58bd7ccc23aa023b7330d0add6fcf76802cc266f567c'],
             ['20261002170000_prepare_user_email_address_authority',
              '4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933'],
             ['20261003010000_repair_user_email_address_current_history',
@@ -132,6 +138,7 @@ jobs:
                      applied_steps_count
                 FROM public._prisma_migrations
                WHERE migration_name = ANY($1::text[])
+                 AND rolled_back_at IS NULL
                ORDER BY migration_name
             `, [[predecessor[0], ...candidates.map(([name]) => name)]]);
             const rows = new Map(result.rows.map((row) => [row.migration_name, row]));
@@ -151,7 +158,7 @@ jobs:
               'UserEmailAddress preparation ledger is not an applied prefix',
             );
             const state = applied.map((value) => value ? '1' : '0').join('');
-            assert.match(state, /^(?:000|100|110|111)$/);
+            assert.match(state, /^(?:00000|10000|11000|11100|11110|11111)$/);
             appendFileSync(process.env.GITHUB_OUTPUT, `state=${state}\n`);
           } finally {
             try { await client.query('ROLLBACK'); } catch {}
@@ -182,9 +189,9 @@ jobs:
           assert.equal(counts.duplicateCurrentUserGroups, 0);
           assert.equal(counts.currentRowsWithoutMatchingActiveUser, 0);
           const state = '${{ steps.ledger.outputs.state }}';
-          assert.equal(counts.activeUsersWithoutCurrentRow, state === '111' ? 0 : 1);
-          assert.equal(result.supportingIndexesPresent, state !== '000');
-          assert.equal(result.preparedAuthorityFunctionCount, state === '000' || state === '100' ? 0 : 4);
+          assert.equal(counts.activeUsersWithoutCurrentRow, state === '11111' ? 0 : 1);
+          assert.equal(result.supportingIndexesPresent, state.slice(0, 3) === '111');
+          assert.equal(result.preparedAuthorityFunctionCount, state[3] === '1' ? 4 : 0);
           NODE
           mkdir -m 700 "${{ runner.temp }}/pre"
           mv "$USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH" "${{ runner.temp }}/pre/"
@@ -197,6 +204,8 @@ jobs:
           set -euo pipefail
           candidates=(
             20261002160000_add_user_email_suppression_key_index
+            20261002161000_add_user_email_address_suppression_key_index
+            20261002162000_add_user_email_address_current_unique_index
             20261002170000_prepare_user_email_address_authority
             20261003010000_repair_user_email_address_current_history
           )
@@ -218,7 +227,7 @@ jobs:
           restore_candidates
           trap - EXIT
       - name: Apply only the reviewed UserEmailAddress preparation
-        if: steps.ledger.outputs.state != '111'
+        if: steps.ledger.outputs.state != '11111'
         run: npx prisma migrate deploy
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
@@ -310,7 +319,11 @@ jobs:
           import pg from 'pg';
           const expected = new Map([
             ['20261002160000_add_user_email_suppression_key_index',
-             'a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece'],
+             '3f2e6061e1de1a6f6c92645979a686ec4d3ee36409dc4499c2c62c90dafe1cf8'],
+            ['20261002161000_add_user_email_address_suppression_key_index',
+             'a4b247ce83e871f657ee8228873c3113bdc5cf58adb7292a2e90206c147f67a8'],
+            ['20261002162000_add_user_email_address_current_unique_index',
+             '02ccc97c9e4d1e48320b58bd7ccc23aa023b7330d0add6fcf76802cc266f567c'],
             ['20261002170000_prepare_user_email_address_authority',
              '4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933'],
             ['20261003010000_repair_user_email_address_current_history',
@@ -325,6 +338,7 @@ jobs:
                      applied_steps_count
                 FROM public._prisma_migrations
                WHERE migration_name = ANY($1::text[])
+                 AND rolled_back_at IS NULL
                ORDER BY migration_name
             `, [[...expected.keys()]]);
             assert.equal(result.rows.length, expected.size);

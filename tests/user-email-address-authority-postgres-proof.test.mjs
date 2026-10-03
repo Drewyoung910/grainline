@@ -7,10 +7,14 @@ const migration = readFileSync(
   "prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql",
   "utf8",
 );
-const indexMigration = readFileSync(
+const indexMigration = [
   "prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql",
-  "utf8",
-).replaceAll(" INDEX CONCURRENTLY ", " INDEX ");
+  "prisma/migrations/20261002161000_add_user_email_address_suppression_key_index/migration.sql",
+  "prisma/migrations/20261002162000_add_user_email_address_current_unique_index/migration.sql",
+]
+  .map((path) => readFileSync(path, "utf8"))
+  .join("\n")
+  .replaceAll(" INDEX CONCURRENTLY ", " INDEX ");
 
 async function createDatabase() {
   const database = new PGlite();
