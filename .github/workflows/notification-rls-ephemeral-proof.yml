@@ -106,6 +106,9 @@ jobs:
           68e559e01dbeae663931110dcadfd4d42ca050c788eebd647727f434a9a72dba 20261001070000_prepare_case_refund_provider_recovery
           48703a338824b827b96231cce7e45f305ed0b106244743fdceb399a80ffecfbe 20261002010000_allow_partial_refund_fulfillment
           dad13cbbaf2de845c591c0f8000a21d5d19ba7c19ccf61c9179ca92b4524a8ce 20261002020000_correct_case_refund_provider_recovery_continuity
+          a648437f13d93e1673f64935d381630e6ec2b19e7633c33837e88938240ef5c7 20261002030000_preserve_order_shipping_dispute_evidence
+          a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece 20261002160000_add_user_email_suppression_key_index
+          4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933 20261002170000_prepare_user_email_address_authority
           MIGRATIONS
       - name: Isolate staged Core Order ENABLE from historical proof
         shell: bash
@@ -174,7 +177,10 @@ jobs:
             20261001060000_force_order_shipping_rate_quote_rls \
             20261001070000_prepare_case_refund_provider_recovery \
             20261002010000_allow_partial_refund_fulfillment \
-            20261002020000_correct_case_refund_provider_recovery_continuity
+            20261002020000_correct_case_refund_provider_recovery_continuity \
+            20261002030000_preserve_order_shipping_dispute_evidence \
+            20261002160000_add_user_email_suppression_key_index \
+            20261002170000_prepare_user_email_address_authority
           do
             mv "$RUNNER_TEMP/$migration" "prisma/migrations/$migration"
           done

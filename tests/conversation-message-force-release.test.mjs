@@ -225,6 +225,25 @@ describe("Conversation and Message FORCE release artifact", () => {
     );
     const coreRestore = workflow.indexOf("Restore staged Core Order ENABLE");
     assert.ok(successorFence >= 0);
+    for (const [digest, migration] of [
+      [
+        "a648437f13d93e1673f64935d381630e6ec2b19e7633c33837e88938240ef5c7",
+        "20261002030000_preserve_order_shipping_dispute_evidence",
+      ],
+      [
+        "a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece",
+        "20261002160000_add_user_email_suppression_key_index",
+      ],
+      [
+        "4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933",
+        "20261002170000_prepare_user_email_address_authority",
+      ],
+    ]) {
+      assert.match(workflow, new RegExp(`${digest} ${migration}`));
+      assert.ok(workflow.indexOf(`${digest} ${migration}`) > successorFence);
+      assert.ok(workflow.indexOf(`${digest} ${migration}`) < compatibleApply);
+      assert.ok(workflow.lastIndexOf(migration) > successorRestore);
+    }
     assert.ok(successorFence < compatibleApply);
     assert.ok(successorFence < currentApply);
     assert.ok(coreFence > successorFence && coreFence < compatibleApply);
@@ -238,6 +257,13 @@ describe("Conversation and Message FORCE release artifact", () => {
         successorRestore,
       ),
     );
+    for (const migration of [
+      "20261002030000_preserve_order_shipping_dispute_evidence",
+      "20261002160000_add_user_email_suppression_key_index",
+      "20261002170000_prepare_user_email_address_authority",
+    ]) {
+      assert.match(restoreBlock, new RegExp(migration, "u"));
+    }
     for (const [migration, digest] of ORDER_RELEASE_SUCCESSORS) {
       assert.match(fenceBlock, new RegExp(`${digest} ${migration}`, "u"));
       assert.match(restoreBlock, new RegExp(migration, "u"));
