@@ -21,6 +21,21 @@ test("UserEmailAddress preparation is exact-main, CI-bound, restart-aware, and e
   assert.match(workflow, /run\.conclusion !== 'success'/);
   assert.match(workflow, /guard-production-migration-runner\.mjs/);
   assert.doesNotMatch(workflow, /(?:^|\n)\s+DATABASE_URL:/);
+  assert.doesNotMatch(workflow, /(?:^|\n)\s+RUNNER_TEMP:/);
+  assert.match(
+    workflow,
+    /USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH: \$\{\{ runner\.temp \}\}\/user-email-address-production-inspection-/,
+  );
+  assert.match(workflow, /mkdir -m 700 "\$\{\{ runner\.temp \}\}\/pre"/);
+  assert.match(workflow, /mkdir -m 700 "\$\{\{ runner\.temp \}\}\/post"/);
+  assert.match(
+    workflow,
+    /mv "\$USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH" "\$\{\{ runner\.temp \}\}\/pre\/"/,
+  );
+  assert.match(
+    workflow,
+    /mv "\$USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH" "\$\{\{ runner\.temp \}\}\/post\/"/,
+  );
 
   for (const [digest, migration] of [
     ["a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece", "20261002160000_add_user_email_suppression_key_index"],

@@ -164,11 +164,9 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           USER_EMAIL_ADDRESS_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
           USER_EMAIL_ADDRESS_INSPECT_CONFIRM: inspect-user-email-address-preparation
-          USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/pre/user-email-address-production-inspection-${{ inputs.release_commit }}.json
-          RUNNER_TEMP: ${{ runner.temp }}/pre
+          USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/user-email-address-production-inspection-${{ inputs.release_commit }}.json
         run: |
           set -euo pipefail
-          mkdir -m 700 "$RUNNER_TEMP"
           node scripts/user-email-address-production-inspect.mjs
           node --input-type=module - <<'NODE'
           import assert from 'node:assert/strict';
@@ -188,6 +186,8 @@ jobs:
           assert.equal(result.supportingIndexesPresent, state !== '000');
           assert.equal(result.preparedAuthorityFunctionCount, state === '000' || state === '100' ? 0 : 4);
           NODE
+          mkdir -m 700 "${{ runner.temp }}/pre"
+          mv "$USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH" "${{ runner.temp }}/pre/"
       - name: Prove no unrelated migration is pending
         shell: bash
         env:
@@ -228,11 +228,9 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           USER_EMAIL_ADDRESS_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
           USER_EMAIL_ADDRESS_INSPECT_CONFIRM: inspect-user-email-address-preparation
-          USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/post/user-email-address-production-inspection-${{ inputs.release_commit }}.json
-          RUNNER_TEMP: ${{ runner.temp }}/post
+          USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/user-email-address-production-inspection-${{ inputs.release_commit }}.json
         run: |
           set -euo pipefail
-          mkdir -m 700 "$RUNNER_TEMP"
           node scripts/user-email-address-production-inspect.mjs
           node --input-type=module - <<'NODE'
           import assert from 'node:assert/strict';
@@ -301,6 +299,8 @@ jobs:
           assert.equal(evidence.transaction.readOnly, true);
           assert.equal(evidence.transaction.rolledBack, true);
           NODE
+          mkdir -m 700 "${{ runner.temp }}/post"
+          mv "$USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH" "${{ runner.temp }}/post/"
       - name: Verify exact applied ledger
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
