@@ -83,6 +83,31 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify UserEmailAddress authority source package
+        run: >-
+          node --test
+          tests/user-email-address-authority.test.mjs
+          tests/user-email-address-authority-postgres-proof.test.mjs
+          tests/user-email-address-history.test.mjs
+      - name: Isolate UserEmailAddress authority until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-email-address-authority"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261002160000_add_user_email_suppression_key_index \
+            "$holding/20261002160000_add_user_email_suppression_key_index"
+          mv \
+            prisma/migrations/20261002170000_prepare_user_email_address_authority \
+            "$holding/20261002170000_prepare_user_email_address_authority"
+          for test_file in \
+            tests/user-email-address-authority.test.mjs \
+            tests/user-email-address-authority-postgres-proof.test.mjs \
+            tests/user-email-address-history.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Verify shipping-evidence retention source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -2743,6 +2768,40 @@ jobs:
           EXPECTED_ORDER_QUOTE_RLS_ENABLED: "true"
           EXPECTED_ORDER_QUOTE_RLS_FORCED: "true"
       - name: Audit runtime grants after shipping-evidence retention successor
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore UserEmailAddress authority source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-email-address-authority"
+          mv \
+            "$holding/20261002160000_add_user_email_suppression_key_index" \
+            prisma/migrations/20261002160000_add_user_email_suppression_key_index
+          mv \
+            "$holding/20261002170000_prepare_user_email_address_authority" \
+            prisma/migrations/20261002170000_prepare_user_email_address_authority
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify UserEmailAddress authority source package
+        run: >-
+          node --test
+          tests/user-email-address-authority.test.mjs
+          tests/user-email-address-authority-postgres-proof.test.mjs
+          tests/user-email-address-history.test.mjs
+      - name: Apply UserEmailAddress supporting indexes in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql
+      - name: Apply UserEmailAddress runtime authority in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql
+      - name: Audit runtime grants after UserEmailAddress authority
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
