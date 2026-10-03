@@ -4,6 +4,18 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Complete UserEmailAddress Phase A (2026-10-03)
+
+Production preparation is accepted: current-history coverage is complete,
+catalog drift is absent, the application has zero direct table calls, and six
+fixed owner/service operations are live. The next identity-domain boundary is
+the isolated policyless `UserEmailAddress` ENABLE candidate in
+`docs/user-email-address-rls-release.md`. Merge its exact source only after the
+focused PostgreSQL proof and full CI pass, then run the separately authorized
+Production workflow. Keep FORCE as a distinct later release and do not add a
+direct-owner read policy or reopen the completed preparation package without
+new evidence.
+
 ### Finish the bounded Order release (2026-09-07)
 
 After the bounded broad audit, Drew resumed solo implementation (no agents).

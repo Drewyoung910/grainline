@@ -125,6 +125,7 @@ const {
   ORDER_QUOTE_TABLE,
   ORDER_PAYMENT_EVENT_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
+  USER_EMAIL_ADDRESS_TABLE,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -145,6 +146,8 @@ const {
   orderItemRlsForceExpected,
   orderQuoteRlsActivationExpected,
   orderQuoteRlsForceExpected,
+  userEmailAddressRlsActivationExpected,
+  userEmailAddressRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -1003,6 +1006,77 @@ describe("database grant inventory guardrails", () => {
     }), false);
   });
 
+  it("accepts UserEmailAddress policyless ENABLE and audits FORCE separately", () => {
+    const predecessor = {
+      tables: [USER_EMAIL_ADDRESS_TABLE],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const enabled = {
+      ...predecessor,
+      rlsEnableTables: [USER_EMAIL_ADDRESS_TABLE],
+    };
+    const forced = {
+      ...enabled,
+      rlsForceTables: [USER_EMAIL_ADDRESS_TABLE],
+    };
+    assert.equal(userEmailAddressRlsActivationExpected(predecessor), false);
+    assert.equal(userEmailAddressRlsActivationExpected(enabled), true);
+    assert.equal(userEmailAddressRlsForceExpected(enabled), false);
+    assert.equal(userEmailAddressRlsForceExpected(forced), true);
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(USER_EMAIL_ADDRESS_TABLE, predecessor),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(USER_EMAIL_ADDRESS_TABLE, enabled),
+      [],
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(predecessor).includes(
+        USER_EMAIL_ADDRESS_TABLE,
+      ),
+      false,
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(enabled).includes(
+        USER_EMAIL_ADDRESS_TABLE,
+      ),
+      true,
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          {
+            table_name: USER_EMAIL_ADDRESS_TABLE,
+            rls_enabled: true,
+            rls_forced: false,
+            policy_count: 0,
+          },
+        ],
+        enabled,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          {
+            table_name: USER_EMAIL_ADDRESS_TABLE,
+            rls_enabled: true,
+            rls_forced: false,
+            policy_count: 0,
+          },
+        ],
+        forced,
+      ),
+      [
+        "service-only table UserEmailAddress must have FORCE ROW LEVEL SECURITY enabled",
+      ],
+    );
+  });
+
   it("pins policyless service ledgers to ENABLE plus FORCE", () => {
     const inventory = {
       tables: [
@@ -1704,6 +1778,16 @@ describe("database grant inventory guardrails", () => {
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
       );
+    const userEmailAddressAuthorityFunctionNames = [
+      "grainline_user_email_address_delete_for_current_user",
+      "grainline_user_email_address_newer_current_claim",
+      "grainline_user_email_address_owner_rows",
+      "grainline_user_email_address_sync",
+    ];
+    const userEmailAddressAuthorityPrepared =
+      userEmailAddressAuthorityFunctionNames.every(
+        (functionName) => inventory.functions.includes(functionName),
+      );
     const orderDeauthorizedCaseAccessPrepared =
       ORDER_DEAUTHORIZED_CASE_ACCESS_RUNTIME_FUNCTIONS.every(
         (identity) => inventory.functions.includes(
@@ -1837,6 +1921,9 @@ describe("database grant inventory guardrails", () => {
       "grainline_stripe_webhook_fail",
       "grainline_stripe_webhook_health_summary",
       "grainline_stripe_webhook_prune_batch",
+      ...(userEmailAddressAuthorityPrepared
+        ? userEmailAddressAuthorityFunctionNames
+        : []),
       "grainline_legacy_stock_restore_claim",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
@@ -1871,6 +1958,8 @@ describe("database grant inventory guardrails", () => {
         + (partialRefundFulfillmentMigrationPresent ? 1 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
+        + (userEmailAddressRlsActivationExpected(inventory) ? 1 : 0)
+        + (userEmailAddressAuthorityPrepared ? 4 : 0)
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
@@ -2234,6 +2323,9 @@ describe("database grant inventory guardrails", () => {
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
+        ...(userEmailAddressRlsActivationExpected(inventory)
+          ? ["UserEmailAddress"]
+          : []),
       ],
     );
     assert.deepEqual(
@@ -3211,7 +3303,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 20);
+    assert.equal(guardResultCount, 21);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -3277,6 +3369,22 @@ describe("database grant inventory guardrails", () => {
       provision,
       /\\if :core_order_rls_active\s+REVOKE ALL ON TABLE public\."Order"\s+FROM PUBLIC, :"runtime_role";\s+\\endif/,
     );
+    assert.match(
+      provision,
+      /UserEmailAddress RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :user_email_address_rls_active\s+REVOKE ALL ON TABLE public\."UserEmailAddress"\s+FROM PUBLIC, :"runtime_role";\s+\\endif/,
+    );
+    for (const functionName of [
+      "grainline_user_email_address_delete_for_current_user",
+      "grainline_user_email_address_newer_current_claim",
+      "grainline_user_email_address_owner_rows",
+      "grainline_user_email_address_sync",
+    ]) {
+      assert.match(provision, new RegExp(`public\\."${functionName}"\\(`));
+    }
     assert.match(
       provision,
       /OrderPaymentEvent RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
