@@ -10,16 +10,15 @@ const report = JSON.parse(
   ),
 );
 
-test("User direct-access inventory is pinned to the audited baseline", () => {
-  assert.equal(report.count, 144);
-  assert.equal(report.files, 90);
+test("User direct-access inventory records the first Clerk identity conversion", () => {
+  assert.equal(report.count, 136);
+  assert.equal(report.files, 87);
   assert.deepEqual(report.byMethod, {
     count: 3,
-    create: 2,
     findFirst: 1,
     findMany: 5,
-    findUnique: 122,
-    update: 7,
+    findUnique: 118,
+    update: 5,
     updateMany: 4,
   });
 
@@ -29,14 +28,14 @@ test("User direct-access inventory is pinned to the audited baseline", () => {
       call.select.length === 0 &&
       call.include.length === 0,
   );
-  assert.equal(fullRowReads.length, 13);
+  assert.equal(fullRowReads.length, 10);
 
   const writes = report.calls.filter((call) =>
     ["create", "update", "updateMany", "delete", "deleteMany", "upsert"].includes(
       call.method,
     ),
   );
-  assert.equal(writes.length, 13);
+  assert.equal(writes.length, 9);
   assert.deepEqual(
     [...new Set(writes.map((call) => call.file))].sort(),
     [
@@ -46,7 +45,6 @@ test("User direct-access inventory is pinned to the audited baseline", () => {
       "src/lib/accountDeletion.ts",
       "src/lib/audit.ts",
       "src/lib/ban.ts",
-      "src/lib/ensureUser.ts",
       "src/lib/unsubscribe.ts",
     ],
   );

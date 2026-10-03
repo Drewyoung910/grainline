@@ -81,6 +81,54 @@ queue, not an assertion that every similarly named relation targets `User`.
 Activation requires review of the relation model for each candidate rather
 than relying on the name alone.
 
+## First source conversion candidate
+
+The first bounded conversion is prepared locally on
+`codex/user-identity-rls-20261003` after audit commit `ccddf959`. It is an
+additive database/source compatibility package only. It does not enable RLS,
+revoke a table grant, deploy an application, or change Production.
+
+The package adds three `SECURITY DEFINER`, `search_path=pg_catalog`,
+runtime-only operations in migration
+`20261003100000_prepare_user_clerk_identity_authority`, SHA-256
+`1aaebc3f8ef52af7692a4f3701ba39549d3a285e8245976876a16d3cf0bc6bf9`:
+
+- `grainline_user_clerk_gate(text)` returns only local id, role, ban/deletion,
+  and legal-gate fields for middleware;
+- `grainline_user_clerk_identity_ensure(...)` serializes a Clerk identity,
+  creates or refreshes its local row, preserves placeholder and unique-email
+  behavior, and co-commits `UserEmailAddress` history; and
+- `grainline_user_clerk_account(text)` is a temporary private one-row
+  compatibility projection used by `ensureUserByClerkId(...)` and
+  `ensureSeller(...)`. It returns the mixed account row, so it is deliberately
+  not a public identity projection and cannot be treated as the final User RLS
+  boundary. Its argument must remain a server-derived Clerk subject.
+
+`ensureUser.ts`, `ensureSeller.ts`, and the middleware fallback now use those
+operations instead of direct `prisma.user` or `tx.user` access. The resulting
+direct-delegate inventory is 136 calls in 87 files: 127 reads and nine writes.
+It has 118 `findUnique`, five `findMany`, one `findFirst`, three `count`, five
+`update`, and four `updateMany` calls. Full-row reads fall from 13 to 10, and
+the remaining direct writes are confined to seven reviewed files for terms,
+shipping, Clerk welcome reservation, deletion, audit, ban/unban, and
+unsubscribe behavior.
+
+A disposable PostgreSQL proof applies the existing email-history authority
+and this candidate against representative `User` and `UserEmailAddress`
+schemas. It proves create, update, duplicate-email fallback, history
+co-commit, profile preservation after conflict, blocked-account immutability,
+idempotent competing retries, exact function ACLs, and denial of direct
+runtime `User` table access. The focused source and regression sets pass
+71/71, targeted ESLint passes, and `git diff --check` passes. A local full
+TypeScript result is unavailable because the reusable dependency tree has no
+generated Prisma client; exact-head CI must regenerate Prisma before the
+candidate can be accepted for integration.
+
+The candidate reduces the real activation surface but does not change the
+NO-GO decision. The remaining 136 delegates, 32 raw-SQL references, nested
+relations, public identity reads, owner-private operations, staff/service
+operations, and lifecycle writes still need their reviewed operation families.
+
 ## Operation and principal matrix
 
 | Operation family | Principal | Minimum result or mutation | Required boundary |
@@ -151,11 +199,12 @@ silently bundled into RLS activation.
 
 1. Preserve this exact inventory and add focused tests for the scanner's
    direct-call contract.
-2. Design and prove the Clerk bootstrap and identity-sync functions, including
-   unique email/clerk races, placeholder email, ban/deletion denial,
-   `UserEmailAddress` co-commit, and bounded return fields.
-3. Convert the bootstrap/identity callers as one source package; do not deploy
-   application code before its additive database functions exist.
+2. Review and integrate the prepared Clerk bootstrap and identity-sync source
+   package. Apply its additive database functions before moving any canonical
+   application alias to source that calls them.
+3. Confirm the first candidate through exact-head CI and a deployment-disabled
+   build; retain the predecessor alias until the additive migration and its
+   catalog readback succeed.
 4. Define and convert the public identity/active-user projection, including
    nested Prisma and raw aggregate joins.
 5. Convert self-private, eligibility/service, staff/ban, and lifecycle/deletion

@@ -12,7 +12,8 @@ describe("middleware account-state cache", () => {
     const cache = source("src/lib/accountStateCache.ts");
 
     assert.match(middleware, /getCachedAccountStateForMiddleware/);
-    assert.match(middleware, /prisma\.user\.findUnique\(\{/);
+    assert.match(middleware, /userClerkGate\(prisma, userId\)/);
+    assert.doesNotMatch(middleware, /prisma\.user\./);
     assert.match(middleware, /shouldRequireTermsAcceptance\(account\)/);
     assert.match(cache, /ACCOUNT_STATE_CACHE_TTL_SECONDS = 60/);
     assert.match(cache, /await loadAccount\(\)/);
