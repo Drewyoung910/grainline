@@ -2862,6 +2862,8 @@ jobs:
           done
           rmdir "$holding"
       - name: Re-verify UserEmailAddress authority source package
+        env:
+          USER_CLERK_IDENTITY_MIGRATION_PATH: ${{ runner.temp }}/user-clerk-identity-authority/migration/migration.sql
         run: >-
           node --test
           tests/account-privacy-observability.test.mjs
