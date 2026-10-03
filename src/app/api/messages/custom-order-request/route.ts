@@ -17,6 +17,7 @@ import { z } from "zod";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { createCustomOrderRequestMessage } from "@/lib/customOrderRequestAccess";
+import { userClerkActor } from "@/lib/userIdentityAccess";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
 
@@ -43,10 +44,7 @@ export async function POST(req: Request) {
   const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests. Try again later."));
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, name: true, email: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkActor(prisma, userId);
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
   if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: 403 });
 

@@ -11,13 +11,13 @@ const report = JSON.parse(
 );
 
 test("User direct-access inventory records bounded Clerk identity conversions", () => {
-  assert.equal(report.count, 65);
-  assert.equal(report.files, 37);
+  assert.equal(report.count, 56);
+  assert.equal(report.files, 31);
   assert.deepEqual(report.byMethod, {
     count: 3,
     findFirst: 1,
     findMany: 5,
-    findUnique: 47,
+    findUnique: 38,
     update: 5,
     updateMany: 4,
   });
@@ -28,7 +28,7 @@ test("User direct-access inventory records bounded Clerk identity conversions", 
       call.select.length === 0 &&
       call.include.length === 0,
   );
-  assert.equal(fullRowReads.length, 1);
+  assert.equal(fullRowReads.length, 0);
 
   const writes = report.calls.filter((call) =>
     ["create", "update", "updateMany", "delete", "deleteMany", "upsert"].includes(

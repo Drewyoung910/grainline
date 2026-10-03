@@ -146,7 +146,8 @@ describe("public location source boundaries", () => {
     const route = source("src/app/api/commission/route.ts");
     const page = source("src/app/commission/page.tsx");
 
-    assert.match(route, /radiusMeters: true/);
+    assert.match(route, /userClerkCommissionContext\(prisma, userId\)/);
+    assert.match(route, /me\.sellerProfile\?\.radiusMeters/);
     assert.match(route, /COMMISSION_LOCATION_MIN_PRIVACY_RADIUS_METERS/);
     assert.match(route, /privacySafeLocationPoint\(/);
     assert.match(route, /lat: reqLat,\s+lng: reqLng/);

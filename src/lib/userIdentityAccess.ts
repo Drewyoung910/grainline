@@ -22,6 +22,53 @@ export type UserClerkGate = Pick<
 
 type UserClerkId = Pick<User, "id">;
 
+export type UserClerkActor = Pick<
+  User,
+  "id" | "name" | "banned" | "deletedAt"
+>;
+
+type UserClerkCommissionContextRow = UserClerkActor & {
+  sellerProfileId: string | null;
+  sellerDisplayName: string | null;
+  sellerAvatarImageUrl: string | null;
+  sellerChargesEnabled: boolean | null;
+  sellerVacationMode: boolean | null;
+  sellerLat: number | null;
+  sellerLng: number | null;
+  sellerRadiusMeters: number | null;
+};
+
+export type UserClerkCommissionContext = UserClerkActor & {
+  sellerProfile: null | {
+    id: string;
+    displayName: string;
+    avatarImageUrl: string | null;
+    chargesEnabled: boolean;
+    vacationMode: boolean;
+    lat: number | null;
+    lng: number | null;
+    radiusMeters: number | null;
+  };
+};
+
+function validOptionalString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+function validOptionalNumber(value: unknown): value is number | null {
+  return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
+function validUserClerkActor(row: UserClerkActor | undefined): row is UserClerkActor {
+  return Boolean(
+    row
+    && typeof row.id === "string"
+    && validOptionalString(row.name)
+    && typeof row.banned === "boolean"
+    && (row.deletedAt === null || row.deletedAt instanceof Date),
+  );
+}
+
 function validUserRow(row: User | undefined, clerkId: string): row is User {
   return Boolean(
     row
@@ -89,6 +136,77 @@ export async function userIdByClerkId(
     throw new Error("Clerk local-id authority returned an invalid result");
   }
   return user ?? null;
+}
+
+export async function userClerkActor(
+  client: UserIdentityClient,
+  clerkId: string,
+) {
+  const rows = await client.$queryRaw<UserClerkActor[]>`
+    SELECT *
+      FROM public.grainline_user_clerk_actor(${clerkId}::text)
+  `;
+  const actor = rows[0];
+  if (rows.length > 1 || (actor && !validUserClerkActor(actor))) {
+    throw new Error("Clerk actor authority returned an invalid result");
+  }
+  return actor ?? null;
+}
+
+export async function userClerkCommissionContext(
+  client: UserIdentityClient,
+  clerkId: string,
+): Promise<UserClerkCommissionContext | null> {
+  const rows = await client.$queryRaw<UserClerkCommissionContextRow[]>`
+    SELECT *
+      FROM public.grainline_user_clerk_commission_context(${clerkId}::text)
+  `;
+  const row = rows[0];
+  const hasSeller = row?.sellerProfileId !== null;
+  const validSeller = !row || !hasSeller || (
+    typeof row.sellerProfileId === "string"
+    && typeof row.sellerDisplayName === "string"
+    && validOptionalString(row.sellerAvatarImageUrl)
+    && typeof row.sellerChargesEnabled === "boolean"
+    && typeof row.sellerVacationMode === "boolean"
+    && validOptionalNumber(row.sellerLat)
+    && validOptionalNumber(row.sellerLng)
+    && (row.sellerRadiusMeters === null || Number.isSafeInteger(row.sellerRadiusMeters))
+  );
+  const emptySeller = !row || hasSeller || (
+    row.sellerDisplayName === null
+    && row.sellerAvatarImageUrl === null
+    && row.sellerChargesEnabled === null
+    && row.sellerVacationMode === null
+    && row.sellerLat === null
+    && row.sellerLng === null
+    && row.sellerRadiusMeters === null
+  );
+  if (
+    rows.length > 1
+    || (row && !validUserClerkActor(row))
+    || !validSeller
+    || !emptySeller
+  ) {
+    throw new Error("Clerk commission authority returned an invalid result");
+  }
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    banned: row.banned,
+    deletedAt: row.deletedAt,
+    sellerProfile: row.sellerProfileId === null ? null : {
+      id: row.sellerProfileId,
+      displayName: row.sellerDisplayName as string,
+      avatarImageUrl: row.sellerAvatarImageUrl,
+      chargesEnabled: row.sellerChargesEnabled as boolean,
+      vacationMode: row.sellerVacationMode as boolean,
+      lat: row.sellerLat,
+      lng: row.sellerLng,
+      radiusMeters: row.sellerRadiusMeters,
+    },
+  };
 }
 
 export async function ensureUserIdentityByClerkId(

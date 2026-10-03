@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { userClerkGate } from "@/lib/userIdentityAccess";
+import { userClerkActor, userClerkGate } from "@/lib/userIdentityAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
@@ -200,7 +200,7 @@ export default async function ThreadPage({
     const { userId } = await auth();
     if (!userId) return { ok: false };
 
-    const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+    const me = await userClerkActor(prisma, userId);
     if (!me) return { ok: false };
     if (me.banned || me.deletedAt) return { ok: false, error: "Your account has been suspended." };
 

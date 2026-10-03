@@ -149,12 +149,8 @@ export async function POST(req: Request) {
     // Gift wrap price is resolved below from the seller's server-side
     // giftWrappingPriceCents — do NOT trust client input for this.
 
-    // Fetch buyer email for tax calculation
-    const userWithEmail = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { email: true },
-    });
-    const buyerEmail = userWithEmail?.email;
+    // The signed Clerk bootstrap already returned the same account row.
+    const buyerEmail = me.email;
     if (!buyerEmail) {
       return privateJson({ error: "Buyer email required for tax calculation" }, { status: HTTP_STATUS.BAD_REQUEST });
     }

@@ -16,6 +16,7 @@ import { logSecurityEvent } from "@/lib/security";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { createCommissionInterestMessage } from "@/lib/commissionInterestMessageAccess";
+import { userClerkCommissionContext } from "@/lib/userIdentityAccess";
 
 export async function POST(
   req: NextRequest,
@@ -39,24 +40,7 @@ export async function POST(
       rateLimitResponse(reset, "Too many interest expressions today."),
     );
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: {
-      id: true,
-      name: true,
-      banned: true,
-      deletedAt: true,
-      sellerProfile: {
-        select: {
-          id: true,
-          displayName: true,
-          avatarImageUrl: true,
-          chargesEnabled: true,
-          vacationMode: true,
-        },
-      },
-    },
-  });
+  const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: 401 });
   if (me.banned || me.deletedAt)
     return privateJson({ error: "Account is suspended" }, { status: 403 });
