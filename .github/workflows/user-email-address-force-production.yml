@@ -1,0 +1,273 @@
+name: UserEmailAddress FORCE Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type force-reviewed-user-email-address-rls
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  force:
+    name: FORCE-harden policyless UserEmailAddress RLS
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'force-reviewed-user-email-address-rls'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind FORCE to exact main and successful full CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '')) {
+              throw new Error('UserEmailAddress FORCE binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            if (!Number.isSafeInteger(ciRunId)) {
+              throw new Error('UserEmailAddress FORCE CI run id is unsafe');
+            }
+            const [{data: main}, {data: ci}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+            ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.status !== 'completed' ||
+                ci.conclusion !== 'success') {
+              throw new Error('UserEmailAddress FORCE main/CI readback drifted');
+            }
+      - name: Verify exact policyless FORCE release
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20261003030000_force_user_email_address_rls"
+          echo "68bc032ecf38a63bd4ab9a219e315b69d8fa505bc3b99b6abf20e7d435812402  prisma/migrations/20261003030000_force_user_email_address_rls/migration.sql" | sha256sum --check --status
+          node --test \
+            tests/user-email-address-force-release.test.mjs \
+            tests/user-email-address-force-postgres-proof.test.mjs \
+            tests/user-email-address-force-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture exact prepared or restart state
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync} from 'node:fs';
+          import pg from 'pg';
+          const failed = Object.freeze({
+            name: '20261002160000_add_user_email_suppression_key_index',
+            checksum: 'a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece',
+          });
+          const prepared = new Map([
+            ['20261002160000_add_user_email_suppression_key_index',
+             '3f2e6061e1de1a6f6c92645979a686ec4d3ee36409dc4499c2c62c90dafe1cf8'],
+            ['20261002161000_add_user_email_address_suppression_key_index',
+             'a4b247ce83e871f657ee8228873c3113bdc5cf58adb7292a2e90206c147f67a8'],
+            ['20261002162000_add_user_email_address_current_unique_index',
+             '02ccc97c9e4d1e48320b58bd7ccc23aa023b7330d0add6fcf76802cc266f567c'],
+            ['20261002170000_prepare_user_email_address_authority',
+             '4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933'],
+            ['20261003010000_repair_user_email_address_current_history',
+             'b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e'],
+          ]);
+          const activation = Object.freeze({
+            name: '20261003020000_enable_user_email_address_rls',
+            checksum: 'd61df27c1c565d6fffde2fea130eb27b2ef95e842dbffef5e6b2862cd57bcbee',
+          });
+          const force = Object.freeze({
+            name: '20261003030000_force_user_email_address_rls',
+            checksum: '68bc032ecf38a63bd4ab9a219e315b69d8fa505bc3b99b6abf20e7d435812402',
+          });
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const names = [...prepared.keys(), activation.name, force.name];
+            const rows = (await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY started_at, id
+            `, [names])).rows;
+            const accepted = (row, checksum) => row?.checksum === checksum &&
+              row.finished_at && row.rolled_back_at === null &&
+              Number(row.applied_steps_count) === 1;
+            const failedRows = rows.filter((row) =>
+              row.migration_name === failed.name && row.checksum === failed.checksum);
+            assert.equal(failedRows.length, 1);
+            assert.equal(failedRows[0].finished_at, null);
+            assert.ok(failedRows[0].rolled_back_at);
+            assert.equal(Number(failedRows[0].applied_steps_count), 0);
+            for (const [name, checksum] of prepared) {
+              assert.equal(
+                rows.filter((row) => row.migration_name === name &&
+                  accepted(row, checksum)).length,
+                1,
+                `${name} prepared row drifted`,
+              );
+            }
+            const activationRows = rows.filter((row) =>
+              row.migration_name === activation.name);
+            assert.equal(activationRows.length, 1);
+            assert.equal(accepted(activationRows[0], activation.checksum), true);
+            const forceRows = rows.filter((row) =>
+              row.migration_name === force.name);
+            assert.ok(forceRows.length === 0 ||
+              (forceRows.length === 1 && accepted(forceRows[0], force.checksum)));
+            assert.equal(rows.length, prepared.size + 2 + forceRows.length);
+            const incomplete = await client.query(`
+              SELECT count(*)::integer AS count
+                FROM public._prisma_migrations
+               WHERE finished_at IS NULL AND rolled_back_at IS NULL
+            `);
+            assert.equal(incomplete.rows[0].count, 0);
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${forceRows.length === 1 ? 'applied' : 'pending'}\n`);
+            await client.query('ROLLBACK');
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261003030000_force_user_email_address_rls
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected UserEmailAddress FORCE state" >&2
+            exit 1
+          fi
+      - name: Apply only reviewed UserEmailAddress FORCE
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          umask 077
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20261003030000_force_user_email_address_rls';
+          const checksum = '68bc032ecf38a63bd4ab9a219e315b69d8fa505bc3b99b6abf20e7d435812402';
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const rows = (await client.query(`
+              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [migration])).rows;
+            assert.equal(rows.length, 1);
+            assert.equal(rows[0].checksum, checksum);
+            assert.ok(rows[0].finished_at);
+            assert.equal(rows[0].rolled_back_at, null);
+            assert.equal(Number(rows[0].applied_steps_count), 1);
+            await client.query('ROLLBACK');
+            writeFileSync(
+              `${process.env.RUNNER_TEMP}/user-email-address-force-ledger.json`,
+              `${JSON.stringify({status: 'passed', migration, checksum,
+                appliedStepsCount: 1}, null, 2)}\n`,
+              {mode: 0o600, flag: 'wx'},
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Read back exact policyless zero-direct catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_USER_EMAIL_ADDRESS_RLS_ENABLED: "true"
+          EXPECTED_USER_EMAIL_ADDRESS_RLS_FORCED: "true"
+          EXPECTED_USER_EMAIL_ADDRESS_RUNTIME_DIRECT_CRUD: "false"
+        run: |
+          umask 077
+          node scripts/user-email-address-authority-catalog.mjs \
+            > "$RUNNER_TEMP/user-email-address-force-catalog.json"
+      - name: Audit runtime grants after UserEmailAddress FORCE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=neondb_owner
+          npm run audit:db-grants
+      - name: Preserve sanitized FORCE evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: user-email-address-force-${{ github.run_id }}
+          path: ${{ runner.temp }}/user-email-address-force-*.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

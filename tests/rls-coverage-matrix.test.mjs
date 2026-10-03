@@ -66,6 +66,7 @@ describe("site-wide RLS coverage matrix", () => {
   it("does not overstate current production RLS coverage", () => {
     const liveRows = matrixRows().filter((row) => row.status.startsWith("RLS_LIVE"));
     assert.deepEqual(liveRows.map((row) => row.model), [
+      "UserEmailAddress",
       "Conversation",
       "Message",
       "OrderPaymentEvent",
@@ -84,6 +85,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(
       liveRows.map((row) => [row.model, row.status]),
       [
+        ["UserEmailAddress", "RLS_LIVE_PHASE_A"],
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
         ["OrderPaymentEvent", "RLS_LIVE_FORCE"],
@@ -105,7 +107,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /all fourteen tables in this[\s\S]*snapshot with[\s\S]*completed production RLS acceptance/,
+      /all fifteen tables in this[\s\S]*snapshot with[\s\S]*completed production RLS acceptance/,
     );
     assert.match(
       matrix,
@@ -117,7 +119,11 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*all fourteen are FORCE-hardened[\s\S]*Every remaining row is \*\*not active RLS\*\*/,
+      /OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*fourteen are FORCE-hardened[\s\S]*UserEmailAddress` remains at Phase A pending its separate FORCE release[\s\S]*Every row except those fifteen is \*\*not active RLS\*\*/,
+    );
+    assert.match(
+      matrix,
+      /UserEmailAddress`[\s\S]*e935667852d1bcbae3084819182db689ceaf4c6f[\s\S]*37125414050[\s\S]*37127420604/,
     );
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
