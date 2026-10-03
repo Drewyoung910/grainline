@@ -604,14 +604,18 @@ export default function PrivacyPage() {
               minimum of <strong>7 years</strong> to comply with tax, accounting, and legal
               requirements.
               Buyer address components, buyer contact details, gift notes, seller fulfillment notes,
-              tracking fields, Shippo shipment/rate/label identifiers, label URLs, label tracking
-              details, and shipping-rate quote snapshots for fulfilled orders are removed from
-              active application views after <strong>90 days</strong>, unless a dispute, legal hold,
-              fraud investigation, or tax obligation requires longer retention. Shipping providers
-              and carriers may retain label, tracking, and delivery records under their own legal
-              and operational retention policies. Stripe may retain shipping contact information and
-              gift notes copied into Checkout Session metadata under its own legal and operational
-              retention policies after Grainline removes those fields from active application views.
+              and shipping-rate quote snapshots for fulfilled orders are removed from active
+              application views after <strong>90 days</strong>, unless a dispute, legal hold, fraud
+              investigation, or tax obligation requires longer retention. Non-address tracking
+              fields, Shippo shipment/rate/label identifiers, label URLs, and label tracking details
+              are retained for up to <strong>180 days</strong> after the latest applicable payment,
+              delivery, or estimated-delivery date so Grainline can respond to payment disputes and
+              reconcile shipping-label transactions. An open dispute, active case, review hold, or
+              unresolved manual label reconciliation may require longer retention. Shipping providers
+              and carriers may retain label, tracking, and delivery records under their own legal and
+              operational retention policies. Stripe may retain shipping contact information and gift
+              notes copied into Checkout Session metadata under its own legal and operational retention
+              policies after Grainline removes those fields from active application views.
             </li>
             <li>
               <strong>Sales tax records.</strong> Sales tax records, including transaction details

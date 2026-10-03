@@ -5,6 +5,7 @@ import {
 
 export {
   ORDER_BUYER_PII_RETENTION_DAYS,
+  ORDER_SHIPPING_EVIDENCE_RETENTION_DAYS,
   orderBuyerPiiRetentionCutoff,
 } from "@/lib/orderPiiRetentionState";
 const DEFAULT_BATCH_SIZE = 1000;

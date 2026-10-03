@@ -1,0 +1,423 @@
+name: Order Shipping Evidence Retention Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-shipping-evidence-retention
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed shipping-evidence retention successor
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-order-shipping-evidence-retention'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main and completed CI before credential access
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Shipping-evidence retention release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Shipping-evidence retention main/CI readback drifted');
+            }
+      - name: Verify exact migration source and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20261002030000_preserve_order_shipping_dispute_evidence"
+          echo "a648437f13d93e1673f64935d381630e6ec2b19e7633c33837e88938240ef5c7  prisma/migrations/20261002030000_preserve_order_shipping_dispute_evidence/migration.sql" | sha256sum --check --status
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
+            --experimental-strip-types --test \
+            tests/order-pii-retention.test.mjs \
+            tests/order-shipping-evidence-retention.test.mjs \
+            tests/order-shipping-evidence-retention-postgres.test.mjs \
+            tests/order-shipping-evidence-retention-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture restart state and unchanged authority posture
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const predecessor =
+            '20261002020000_correct_case_refund_provider_recovery_continuity';
+          const predecessorChecksum =
+            'dad13cbbaf2de845c591c0f8000a21d5d19ba7c19ccf61c9179ca92b4524a8ce';
+          const migration =
+            '20261002030000_preserve_order_shipping_dispute_evidence';
+          const checksum =
+            'a648437f13d93e1673f64935d381630e6ec2b19e7633c33837e88938240ef5c7';
+          const functionSpecs = [
+            {
+              identity: 'public.grainline_order_buyer_pii_prune_batch(integer)',
+              predecessor: '148d3a7041af2b92f159ece8c8be3999bc4906b47f578231990322d8dc456e0b',
+              successor: '26fa4de85784ae8b1fb4b509004be06768c879dbd5e3b459dac5a858edd12a08',
+              acl: ['grainline_app_runtime:EXECUTE:false'],
+            },
+            {
+              identity: 'public.grainline_order_account_deletion_blockers(text)',
+              predecessor: '115fbe5b54f5bc31426ee7925018c6c9d3f9ced9ab300069f37d49d848c63255',
+              successor: '4f91bdb5df181632a3b72766987279fae04319b325f10a0ee332adb1ec05f483',
+              acl: ['grainline_app_runtime:EXECUTE:false'],
+            },
+            {
+              identity: 'public.grainline_order_staff_mark_reviewed(text,text)',
+              predecessor: '86b2fcac89439b5b17789e58bebab33ea5c718bf51fb8be5964d94a2317c2c2f',
+              successor: '84195010343f715d2568edcff1c0ccf2ff40a98de0991088089df2269510eda1',
+              acl: ['grainline_staff_read_runtime:EXECUTE:false'],
+            },
+          ];
+          const postureSql = `
+            SELECT relation.relname AS table_name,
+                   pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                   relation.relrowsecurity AS rls_enabled,
+                   relation.relforcerowsecurity AS force_enabled,
+                   relation.relacl::text AS table_acl,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                     'name', policy.polname, 'command', policy.polcmd,
+                     'permissive', policy.polpermissive,
+                     'roles', policy.polroles::text,
+                     'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                     'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                   ) ORDER BY policy.polname)
+                     FROM pg_catalog.pg_policy AS policy
+                    WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+              FROM pg_catalog.pg_class AS relation
+              JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = relation.relnamespace
+             WHERE namespace.nspname = 'public'
+               AND relation.relname = ANY($1::text[])
+             ORDER BY relation.relname`;
+          const functionSql = `
+            SELECT pg_catalog.pg_get_userbyid(routine.proowner) AS owner,
+                   language.lanname AS language,
+                   routine.prosrc,
+                   routine.provolatile AS volatility,
+                   routine.proparallel AS parallel_safety,
+                   routine.prosecdef AS security_definer,
+                   routine.proleakproof AS leakproof,
+                   routine.proconfig AS config,
+                   ARRAY(
+                     SELECT pg_catalog.format(
+                       '%s:%s:%s',
+                       CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
+                            ELSE pg_catalog.pg_get_userbyid(acl.grantee) END,
+                       acl.privilege_type,
+                       CASE WHEN acl.is_grantable THEN 'true' ELSE 'false' END
+                     )
+                     FROM pg_catalog.aclexplode(COALESCE(
+                       routine.proacl,
+                       pg_catalog.acldefault('f', routine.proowner)
+                     )) AS acl
+                    WHERE acl.grantee <> routine.proowner
+                    ORDER BY 1
+                   ) AS nonowner_acl
+              FROM pg_catalog.pg_proc AS routine
+              JOIN pg_catalog.pg_language AS language
+                ON language.oid = routine.prolang
+             WHERE routine.oid = pg_catalog.to_regprocedure($1)`;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[predecessor, migration]]);
+            const rows = new Map(ledger.rows.map((row) => [row.migration_name, row]));
+            const required = rows.get(predecessor);
+            assert.ok(required, 'required continuity predecessor is not applied');
+            assert.equal(required.checksum, predecessorChecksum);
+            assert.ok(required.finished_at);
+            assert.equal(required.rolled_back_at, null);
+            assert.equal(Number(required.applied_steps_count), 1);
+            const candidate = rows.get(migration);
+            if (candidate) {
+              assert.equal(candidate.checksum, checksum);
+              assert.ok(candidate.finished_at);
+              assert.equal(candidate.rolled_back_at, null);
+              assert.equal(Number(candidate.applied_steps_count), 1);
+            }
+            for (const spec of functionSpecs) {
+              const functions = await client.query(functionSql, [spec.identity]);
+              assert.equal(functions.rows.length, 1, `${spec.identity} is missing`);
+              const routine = functions.rows[0];
+              assert.equal(routine.owner, 'neondb_owner');
+              assert.equal(routine.language, 'plpgsql');
+              assert.equal(routine.volatility, 'v');
+              assert.equal(routine.parallel_safety, 'u');
+              assert.equal(routine.security_definer, true);
+              assert.equal(routine.leakproof, false);
+              assert.deepEqual(routine.config, ['search_path=pg_catalog']);
+              assert.deepEqual(routine.nonowner_acl, spec.acl);
+              assert.equal(
+                createHash('sha256').update(routine.prosrc).digest('hex'),
+                candidate ? spec.successor : spec.predecessor,
+                `unledgered or drifted function: ${spec.identity}`,
+              );
+            }
+            const posture = await client.query(postureSql, [[
+              'Case', 'Order', 'OrderDisputeRecovery', 'OrderShippingRateQuote',
+            ]]);
+            assert.equal(posture.rows.length, 4);
+            writeFileSync(
+              `${process.env.RUNNER_TEMP}/order-shipping-evidence-retention-posture.json`,
+              JSON.stringify({posture: posture.rows}),
+              {mode: 0o600, flag: 'wx'},
+            );
+            appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              `state=${candidate ? 'applied' : 'pending'}\n`,
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every predecessor applied and no other pending migration
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261002030000_preserve_order_shipping_dispute_evidence
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected shipping-evidence retention migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed shipping-evidence retention migration
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact ledger, function and unchanged posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const migration =
+            '20261002030000_preserve_order_shipping_dispute_evidence';
+          const checksum =
+            'a648437f13d93e1673f64935d381630e6ec2b19e7633c33837e88938240ef5c7';
+          const functionSpecs = [
+            {
+              name: 'grainline_order_buyer_pii_prune_batch',
+              identity: 'public.grainline_order_buyer_pii_prune_batch(integer)',
+              acl: ['grainline_app_runtime:EXECUTE:false'],
+            },
+            {
+              name: 'grainline_order_account_deletion_blockers',
+              identity: 'public.grainline_order_account_deletion_blockers(text)',
+              acl: ['grainline_app_runtime:EXECUTE:false'],
+            },
+            {
+              name: 'grainline_order_staff_mark_reviewed',
+              identity: 'public.grainline_order_staff_mark_reviewed(text,text)',
+              acl: ['grainline_staff_read_runtime:EXECUTE:false'],
+            },
+          ];
+          const sql = readFileSync(
+            `prisma/migrations/${migration}/migration.sql`, 'utf8',
+          );
+          function expectedSource(name) {
+            const delimiter = `$${name}$`;
+            const marker = `AS ${delimiter}`;
+            const start = sql.indexOf(marker);
+            const bodyStart = start + marker.length;
+            const end = sql.indexOf(`${delimiter};`, bodyStart);
+            assert.ok(start >= 0 && end > bodyStart, `${name} body is missing`);
+            return sql.slice(bodyStart, end);
+          }
+          const postureBefore = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/order-shipping-evidence-retention-posture.json`,
+            'utf8',
+          )).posture;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const ledger = await client.query(`
+              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+            const functionSql = `
+              SELECT pg_catalog.pg_get_userbyid(procedure.proowner) AS owner,
+                     language.lanname AS language,
+                     procedure.prosrc,
+                     procedure.provolatile AS volatility,
+                     procedure.proparallel AS parallel_safety,
+                     procedure.prosecdef AS security_definer,
+                     procedure.proleakproof AS leakproof,
+                     procedure.proconfig AS config,
+                     ARRAY(
+                       SELECT pg_catalog.format(
+                         '%s:%s:%s',
+                         CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
+                              ELSE pg_catalog.pg_get_userbyid(acl.grantee) END,
+                         acl.privilege_type,
+                         CASE WHEN acl.is_grantable THEN 'true' ELSE 'false' END
+                       )
+                       FROM pg_catalog.aclexplode(COALESCE(
+                         procedure.proacl,
+                         pg_catalog.acldefault('f', procedure.proowner)
+                       )) AS acl
+                      WHERE acl.grantee <> procedure.proowner
+                      ORDER BY 1
+                     ) AS nonowner_acl
+                FROM pg_catalog.pg_proc AS procedure
+                JOIN pg_catalog.pg_language AS language
+                  ON language.oid = procedure.prolang
+               WHERE procedure.oid = pg_catalog.to_regprocedure($1)`;
+            for (const spec of functionSpecs) {
+              const routine = await client.query(functionSql, [spec.identity]);
+              assert.equal(routine.rows.length, 1, `${spec.identity} is missing`);
+              assert.deepEqual(routine.rows[0], {
+                owner: 'neondb_owner',
+                language: 'plpgsql',
+                prosrc: expectedSource(spec.name),
+                volatility: 'v',
+                parallel_safety: 'u',
+                security_definer: true,
+                leakproof: false,
+                config: ['search_path=pg_catalog'],
+                nonowner_acl: spec.acl,
+              });
+            }
+            const posture = await client.query(`
+              SELECT relation.relname AS table_name,
+                     pg_catalog.pg_get_userbyid(relation.relowner) AS owner,
+                     relation.relrowsecurity AS rls_enabled,
+                     relation.relforcerowsecurity AS force_enabled,
+                     relation.relacl::text AS table_acl,
+                     COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                       'name', policy.polname, 'command', policy.polcmd,
+                       'permissive', policy.polpermissive,
+                       'roles', policy.polroles::text,
+                       'using', pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                       'check', pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)
+                     ) ORDER BY policy.polname)
+                       FROM pg_catalog.pg_policy AS policy
+                      WHERE policy.polrelid = relation.oid), '[]'::jsonb) AS policies
+                FROM pg_catalog.pg_class AS relation
+                JOIN pg_catalog.pg_namespace AS namespace
+                  ON namespace.oid = relation.relnamespace
+               WHERE namespace.nspname = 'public'
+                 AND relation.relname = ANY($1::text[])
+               ORDER BY relation.relname
+            `, [[
+              'Case', 'Order', 'OrderDisputeRecovery', 'OrderShippingRateQuote',
+            ]]);
+            assert.deepEqual(posture.rows, postureBefore);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Verify exact Order child catalog after migration
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_ORDER_ITEM_RLS_ENABLED: "true"
+          EXPECTED_ORDER_ITEM_RLS_FORCED: "true"
+          EXPECTED_ORDER_QUOTE_RLS_ENABLED: "true"
+          EXPECTED_ORDER_QUOTE_RLS_FORCED: "true"
+        run: node scripts/order-child-authority-catalog.mjs > /dev/null
+      - name: Audit runtime grants after migration
+        env:
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants
+      - name: Verify final Prisma migration status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate status
