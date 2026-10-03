@@ -1,0 +1,359 @@
+name: UserEmailAddress Preparation Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-user-email-address-preparation
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed UserEmailAddress preparation
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-user-email-address-preparation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind preparation to exact main and completed CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('UserEmailAddress preparation binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('UserEmailAddress preparation main/CI readback drifted');
+            }
+      - name: Verify exact migration sources and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20261003010000_repair_user_email_address_current_history"
+          cat <<'CHECKSUMS' | sha256sum --check --status
+          a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece  prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql
+          4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933  prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql
+          b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e  prisma/migrations/20261003010000_repair_user_email_address_current_history/migration.sql
+          CHECKSUMS
+          node --test \
+            tests/user-email-address-current-repair-postgres.test.mjs \
+            tests/user-email-address-authority.test.mjs \
+            tests/user-email-address-authority-postgres-proof.test.mjs \
+            tests/user-email-address-history.test.mjs \
+            tests/user-email-address-preparation-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read exact migration ledger state
+        id: ledger
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const predecessor = [
+            '20261002030000_preserve_order_shipping_dispute_evidence',
+            'a648437f13d93e1673f64935d381630e6ec2b19e7633c33837e88938240ef5c7',
+          ];
+          const candidates = [
+            ['20261002160000_add_user_email_suppression_key_index',
+             'a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece'],
+            ['20261002170000_prepare_user_email_address_authority',
+             '4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933'],
+            ['20261003010000_repair_user_email_address_current_history',
+             'b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e'],
+          ];
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const result = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[predecessor[0], ...candidates.map(([name]) => name)]]);
+            const rows = new Map(result.rows.map((row) => [row.migration_name, row]));
+            const exactApplied = ([name, checksum]) => {
+              const row = rows.get(name);
+              if (!row) return false;
+              assert.equal(row.checksum, checksum, `${name} checksum drifted`);
+              assert.ok(row.finished_at, `${name} is unfinished`);
+              assert.equal(row.rolled_back_at, null, `${name} was rolled back`);
+              assert.equal(Number(row.applied_steps_count), 1, `${name} step count drifted`);
+              return true;
+            };
+            assert.equal(exactApplied(predecessor), true, 'reviewed predecessor is not applied');
+            const applied = candidates.map(exactApplied);
+            assert.ok(
+              applied.every((value, index) => value || applied.slice(index).every((later) => !later)),
+              'UserEmailAddress preparation ledger is not an applied prefix',
+            );
+            const state = applied.map((value) => value ? '1' : '0').join('');
+            assert.match(state, /^(?:000|100|110|111)$/);
+            appendFileSync(process.env.GITHUB_OUTPUT, `state=${state}\n`);
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Capture read-only preflight evidence
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          USER_EMAIL_ADDRESS_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          USER_EMAIL_ADDRESS_INSPECT_CONFIRM: inspect-user-email-address-preparation
+          USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/pre/user-email-address-production-inspection-${{ inputs.release_commit }}.json
+          RUNNER_TEMP: ${{ runner.temp }}/pre
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP"
+          node scripts/user-email-address-production-inspect.mjs
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const evidence = JSON.parse(readFileSync(process.env.USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH, 'utf8'));
+          const result = evidence.result;
+          const counts = result.counts;
+          assert.equal(evidence.productionChanged, false);
+          assert.equal(result.rlsEnabled, false);
+          assert.equal(result.rlsForced, false);
+          assert.equal(result.policyCount, 0);
+          assert.deepEqual(result.runtimeCrud, {select: true, insert: true, update: true, delete: true});
+          assert.equal(counts.duplicateCurrentUserGroups, 0);
+          assert.equal(counts.currentRowsWithoutMatchingActiveUser, 0);
+          const state = '${{ steps.ledger.outputs.state }}';
+          assert.equal(counts.activeUsersWithoutCurrentRow, state === '111' ? 0 : 1);
+          assert.equal(result.supportingIndexesPresent, state !== '000');
+          assert.equal(result.preparedAuthorityFunctionCount, state === '000' || state === '100' ? 0 : 4);
+          NODE
+      - name: Prove no unrelated migration is pending
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PREPARATION_STATE: ${{ steps.ledger.outputs.state }}
+        run: |
+          set -euo pipefail
+          candidates=(
+            20261002160000_add_user_email_suppression_key_index
+            20261002170000_prepare_user_email_address_authority
+            20261003010000_repair_user_email_address_current_history
+          )
+          holding="$(mktemp -d "$RUNNER_TEMP/user-email-address-pending.XXXXXX")"
+          restore_candidates() {
+            shopt -s nullglob
+            for path in "$holding"/*; do
+              mv "$path" "prisma/migrations/$(basename "$path")"
+            done
+            rmdir "$holding"
+          }
+          trap restore_candidates EXIT
+          for index in "${!candidates[@]}"; do
+            if [[ "${PREPARATION_STATE:index:1}" == "0" ]]; then
+              mv "prisma/migrations/${candidates[$index]}" "$holding/"
+            fi
+          done
+          npx prisma migrate status
+          restore_candidates
+          trap - EXIT
+      - name: Apply only the reviewed UserEmailAddress preparation
+        if: steps.ledger.outputs.state != '111'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture read-only postflight evidence
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          USER_EMAIL_ADDRESS_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          USER_EMAIL_ADDRESS_INSPECT_CONFIRM: inspect-user-email-address-preparation
+          USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/post/user-email-address-production-inspection-${{ inputs.release_commit }}.json
+          RUNNER_TEMP: ${{ runner.temp }}/post
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP"
+          node scripts/user-email-address-production-inspect.mjs
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const evidence = JSON.parse(readFileSync(process.env.USER_EMAIL_ADDRESS_INSPECT_EVIDENCE_PATH, 'utf8'));
+          const result = evidence.result;
+          const counts = result.counts;
+          assert.equal(evidence.productionChanged, false);
+          assert.equal(result.rlsEnabled, false);
+          assert.equal(result.rlsForced, false);
+          assert.equal(result.policyCount, 0);
+          assert.deepEqual(result.runtimeCrud, {select: true, insert: true, update: true, delete: true});
+          assert.equal(counts.duplicateCurrentUserGroups, 0);
+          assert.equal(counts.currentRowsWithoutMatchingActiveUser, 0);
+          assert.equal(counts.activeUsersWithoutCurrentRow, 0);
+          assert.equal(result.currentHistoryDriftPresent, false);
+          assert.equal(result.supportingIndexesPresent, true);
+          assert.equal(result.preparedAuthorityFunctionCount, 4);
+          const expectedIndexes = new Map([
+            ['User_active_email_suppression_key_idx', {table: 'User', unique: false}],
+            ['UserEmailAddress_current_suppression_key_idx', {table: 'UserEmailAddress', unique: false}],
+            ['UserEmailAddress_one_current_per_user_key', {table: 'UserEmailAddress', unique: true}],
+          ]);
+          for (const [name, expected] of expectedIndexes) {
+            const index = evidence.catalog.indexes.find((entry) => entry.index_name === name);
+            assert.ok(index, `${name} is missing`);
+            assert.equal(index.table_name, expected.table);
+            assert.equal(index.unique_index, expected.unique);
+            assert.equal(index.valid, true);
+            assert.equal(index.ready, true);
+            assert.equal(index.live, true);
+          }
+          const expectedPreparedFunctions = new Map([
+            ['grainline_user_email_address_delete_for_current_user', {md5: 'd570b850599eafe3629aa8240fe8c6d7', volatility: 'v'}],
+            ['grainline_user_email_address_newer_current_claim', {md5: '873863dc1595a6fa738c9f5f31e5cb0b', volatility: 's'}],
+            ['grainline_user_email_address_owner_rows', {md5: 'd8c04787918ab4aafa1b630757cca39c', volatility: 's'}],
+            ['grainline_user_email_address_sync', {md5: '04d09b22c99b0ce62ef2acdc16167c20', volatility: 'v'}],
+          ]);
+          const expectedExistingFunctions = new Map([
+            ['grainline_case_account_deletion_redact', 'b9e24ec8efa43b689b357f4965f8e722'],
+            ['grainline_message_redact_for_account_deletion', 'e19c1b6b5b3adf968df8e2acab8851df'],
+          ]);
+          assert.deepEqual(
+            [...evidence.catalog.functions.map((entry) => entry.function_name)].sort(),
+            [...expectedPreparedFunctions.keys(), ...expectedExistingFunctions.keys()].sort(),
+          );
+          for (const entry of evidence.catalog.functions) {
+            assert.equal(entry.owner_name, 'neondb_owner');
+            assert.equal(entry.language_name, 'plpgsql');
+            assert.equal(entry.function_kind, 'f');
+            assert.equal(entry.security_definer, true);
+            assert.equal(entry.leakproof, false);
+            assert.equal(entry.parallel_safety, 'u');
+            assert.deepEqual(entry.function_config, ['search_path=pg_catalog']);
+            assert.equal(entry.contains_dynamic_execute, false);
+            assert.deepEqual(entry.nonowner_acl, ['grainline_app_runtime:EXECUTE:false']);
+            if (expectedPreparedFunctions.has(entry.function_name)) {
+              const expected = expectedPreparedFunctions.get(entry.function_name);
+              assert.equal(entry.source_md5, expected.md5);
+              assert.equal(entry.volatility, expected.volatility);
+            } else {
+              assert.equal(entry.source_md5, expectedExistingFunctions.get(entry.function_name));
+              assert.equal(entry.volatility, 'v');
+            }
+          }
+          assert.equal(evidence.transaction.readOnly, true);
+          assert.equal(evidence.transaction.rolledBack, true);
+          NODE
+      - name: Verify exact applied ledger
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          const expected = new Map([
+            ['20261002160000_add_user_email_suppression_key_index',
+             'a28a86aeec3084e4a41341d415fd1fd98446d32939f0fe55d0e53d5e27d8dece'],
+            ['20261002170000_prepare_user_email_address_authority',
+             '4b058ca847eac24428f8bd4733ed81fed26c6aa138437740e18c58da80bb2933'],
+            ['20261003010000_repair_user_email_address_current_history',
+             'b64751439f75fce70850ab43446c35ce6df45301b2a03970b560306898df1f2e'],
+          ]);
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN READ ONLY');
+            const result = await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [[...expected.keys()]]);
+            assert.equal(result.rows.length, expected.size);
+            for (const row of result.rows) {
+              assert.equal(row.checksum, expected.get(row.migration_name));
+              assert.ok(row.finished_at);
+              assert.equal(row.rolled_back_at, null);
+              assert.equal(Number(row.applied_steps_count), 1);
+            }
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Audit unchanged runtime grants after preparation
+        env:
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants
+      - name: Verify final Prisma migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Preserve sanitized preflight and postflight evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: user-email-address-preparation-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/pre/user-email-address-production-inspection-${{ github.sha }}.json
+            ${{ runner.temp }}/post/user-email-address-production-inspection-${{ github.sha }}.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

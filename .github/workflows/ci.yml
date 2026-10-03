@@ -87,9 +87,11 @@ jobs:
         run: >-
           node --test
           tests/account-privacy-observability.test.mjs
+          tests/user-email-address-current-repair-postgres.test.mjs
           tests/user-email-address-authority.test.mjs
           tests/user-email-address-authority-postgres-proof.test.mjs
           tests/user-email-address-history.test.mjs
+          tests/user-email-address-preparation-production-workflow.test.mjs
       - name: Isolate UserEmailAddress authority until historical release guards pass
         shell: bash
         run: |
@@ -102,11 +104,16 @@ jobs:
           mv \
             prisma/migrations/20261002170000_prepare_user_email_address_authority \
             "$holding/20261002170000_prepare_user_email_address_authority"
+          mv \
+            prisma/migrations/20261003010000_repair_user_email_address_current_history \
+            "$holding/20261003010000_repair_user_email_address_current_history"
           for test_file in \
             tests/account-privacy-observability.test.mjs \
+            tests/user-email-address-current-repair-postgres.test.mjs \
             tests/user-email-address-authority.test.mjs \
             tests/user-email-address-authority-postgres-proof.test.mjs \
-            tests/user-email-address-history.test.mjs
+            tests/user-email-address-history.test.mjs \
+            tests/user-email-address-preparation-production-workflow.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
@@ -2782,6 +2789,9 @@ jobs:
           mv \
             "$holding/20261002170000_prepare_user_email_address_authority" \
             prisma/migrations/20261002170000_prepare_user_email_address_authority
+          mv \
+            "$holding/20261003010000_repair_user_email_address_current_history" \
+            prisma/migrations/20261003010000_repair_user_email_address_current_history
           for test_file in "$holding"/*.mjs
           do
             mv "$test_file" "tests/$(basename "$test_file")"
@@ -2791,9 +2801,11 @@ jobs:
         run: >-
           node --test
           tests/account-privacy-observability.test.mjs
+          tests/user-email-address-current-repair-postgres.test.mjs
           tests/user-email-address-authority.test.mjs
           tests/user-email-address-authority-postgres-proof.test.mjs
           tests/user-email-address-history.test.mjs
+          tests/user-email-address-preparation-production-workflow.test.mjs
       - name: Apply UserEmailAddress supporting indexes in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"
@@ -2804,6 +2816,11 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql
+      - name: Repair UserEmailAddress current-history drift in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261003010000_repair_user_email_address_current_history/migration.sql
       - name: Audit runtime grants after UserEmailAddress authority
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
