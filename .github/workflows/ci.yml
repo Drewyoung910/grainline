@@ -89,22 +89,6 @@ jobs:
           tests/user-clerk-identity-authority.test.mjs
           tests/user-clerk-identity-authority-postgres.test.mjs
           tests/user-identity-source-inventory.test.mjs
-      - name: Isolate User Clerk identity authority until historical release guards pass
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/user-clerk-identity-authority"
-          mkdir "$holding"
-          mv \
-            prisma/migrations/20261003100000_prepare_user_clerk_identity_authority \
-            "$holding/migration"
-          for test_file in \
-            tests/user-clerk-identity-authority.test.mjs \
-            tests/user-clerk-identity-authority-postgres.test.mjs \
-            tests/user-identity-source-inventory.test.mjs
-          do
-            mv "$test_file" "$holding/$(basename "$test_file")"
-          done
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
@@ -122,6 +106,22 @@ jobs:
           tests/user-email-address-force-release.test.mjs
           tests/user-email-address-force-postgres-proof.test.mjs
           tests/user-email-address-force-production-workflow.test.mjs
+      - name: Isolate User Clerk identity authority until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-clerk-identity-authority"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261003100000_prepare_user_clerk_identity_authority \
+            "$holding/migration"
+          for test_file in \
+            tests/user-clerk-identity-authority.test.mjs \
+            tests/user-clerk-identity-authority-postgres.test.mjs \
+            tests/user-identity-source-inventory.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Isolate UserEmailAddress authority until historical release guards pass
         shell: bash
         run: |

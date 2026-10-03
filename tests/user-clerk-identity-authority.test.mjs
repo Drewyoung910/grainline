@@ -90,6 +90,9 @@ describe("User Clerk identity authority", () => {
     const isolate = workflow.indexOf(
       "name: Isolate User Clerk identity authority until historical release guards pass",
     );
+    const emailVerify = workflow.indexOf(
+      "name: Verify UserEmailAddress authority source package",
+    );
     const historical = workflow.indexOf(
       "name: Verify compatible Order checkout receipt authority release",
     );
@@ -105,7 +108,8 @@ describe("User Clerk identity authority", () => {
     const build = workflow.indexOf("name: Production build");
 
     assert.ok(verify >= 0);
-    assert.ok(verify < isolate);
+    assert.ok(verify < emailVerify);
+    assert.ok(emailVerify < isolate);
     assert.ok(isolate < historical);
     assert.ok(historical < restore);
     assert.ok(restore < apply);
