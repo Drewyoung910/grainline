@@ -161,7 +161,15 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /function accountDeletionLockKey\(userId: string\)/);
     assert.match(accountDeletion, /return `account-delete:\$\{userId\}`/);
     assert.match(accountDeletion, /export async function acquireAccountDeletionLock/);
-    assert.match(accountDeletion, /redis\.set\(key, "1", \{\s*nx: true,\s*ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS/s);
+    assert.match(accountDeletion, /const ownerToken = randomUUID\(\)/);
+    assert.match(accountDeletion, /redis\.set\(key, ownerToken, \{\s*nx: true,\s*ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS/s);
+    assert.match(accountDeletion, /redis\.call\("GET", KEYS\[1\]\) == ARGV\[1\]/);
+    assert.match(accountDeletion, /redis\.call\("DEL", KEYS\[1\]\)/);
+    assert.match(
+      accountDeletion,
+      /releaseAccountDeletionLockScript\.eval\(\[lock\.key\], \[lock\.ownerToken\]\)/,
+    );
+    assert.doesNotMatch(accountDeletion, /redis\.del\(lock\.key\)/);
     const anonymizeStart = accountDeletion.indexOf("export async function anonymizeUserAccount");
     assert.ok(
       accountDeletion.indexOf("await acquireAccountDeletionLock(userId)", anonymizeStart) <
@@ -182,7 +190,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
         route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)"),
       "account deletion route must not enqueue local anonymization until Clerk deletion succeeds",
     );
-    assert.match(route, /anonymizeUserAccount\(me\.id, \{ lockAlreadyAcquired: true \}\)/);
+    assert.match(route, /anonymizeUserAccount\(me\.id, \{ lock: deletionLock \}\)/);
     assert.match(route, /"inProgress" in anonymized && anonymized\.inProgress/);
     assert.match(route, /status: HTTP_STATUS\.CONFLICT/);
   });

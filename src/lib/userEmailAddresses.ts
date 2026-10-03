@@ -1,8 +1,9 @@
 import type { Prisma } from "@prisma/client";
+import type { DbUserContextTransactionClient } from "./dbUserContext.ts";
 import { emailSuppressionAddressKeys, normalizeEmailAddress } from "./emailAddressNormalization.ts";
 
-type UserEmailAddressClient = Pick<Prisma.TransactionClient, "userEmailAddress">;
-type UserEmailOwnerClient = Pick<Prisma.TransactionClient, "user">;
+type UserEmailAddressClient = Pick<Prisma.TransactionClient, "$queryRaw">;
+type UserEmailOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 export type UserEmailAddressExportRow = {
   email: string;
@@ -35,33 +36,34 @@ export async function accountEmailFallbackEmailsForUser(
   const emails = uniqueAccountEmailAddresses(input.emails);
   if (emails.length === 0) return [];
   const suppressionKeyCandidates = accountEmailSuppressionKeysForEmails(emails);
-  const ownerEmailCandidates = [...new Set([...emails, ...suppressionKeyCandidates])];
-  const needsGmailCollisionScan = suppressionKeyCandidates.some((email) => email.endsWith("@gmail.com"));
-
-  const claimedByOtherActiveUsers = await client.user.findMany({
-    where: {
-      id: { not: input.userId },
-      deletedAt: null,
-      OR: [
-        { email: { in: ownerEmailCandidates } },
-        ...(needsGmailCollisionScan
-          ? [
-              { email: { endsWith: "@gmail.com" } },
-              { email: { endsWith: "@googlemail.com" } },
-            ]
-          : []),
-      ],
-    },
-    select: { email: true },
-  });
-  const blockedExactEmails = new Set(
-    claimedByOtherActiveUsers.map((user) => normalizeEmailAddress(user.email)).filter(Boolean),
+  const claimedKeys = await client.$queryRaw<Array<{ suppressionKey: string }>>`
+    SELECT DISTINCT
+      CASE
+        WHEN lower(split_part(btrim("email"), '@', 2)) IN ('gmail.com', 'googlemail.com')
+        THEN replace(
+          split_part(lower(split_part(btrim("email"), '@', 1)), '+', 1),
+          '.',
+          ''
+        ) || '@gmail.com'
+        ELSE lower(btrim("email"))
+      END AS "suppressionKey"
+    FROM "User"
+    WHERE "id" <> ${input.userId}
+      AND "deletedAt" IS NULL
+      AND CASE
+        WHEN lower(split_part(btrim("email"), '@', 2)) IN ('gmail.com', 'googlemail.com')
+        THEN replace(
+          split_part(lower(split_part(btrim("email"), '@', 1)), '+', 1),
+          '.',
+          ''
+        ) || '@gmail.com'
+        ELSE lower(btrim("email"))
+      END = ANY(${suppressionKeyCandidates}::text[])
+  `;
+  const blockedSuppressionKeys = new Set(claimedKeys.map((row) => row.suppressionKey));
+  return emails.filter(
+    (email) => !emailSuppressionAddressKeys(email).some((key) => blockedSuppressionKeys.has(key)),
   );
-  const blockedSuppressionKeys = new Set(accountEmailSuppressionKeysForEmails([...blockedExactEmails]));
-  return emails.filter((email) => {
-    if (blockedExactEmails.has(email)) return false;
-    return !emailSuppressionAddressKeys(email).some((key) => blockedSuppressionKeys.has(key));
-  });
 }
 
 function emailAddressSource(source: string | null | undefined) {
@@ -75,89 +77,68 @@ export async function syncUserEmailAddressHistory(
     previousEmail?: string | null;
     currentEmail?: string | null;
     source: string;
-    now?: Date;
   },
 ) {
-  const now = input.now ?? new Date();
   const previousEmail = normalizedExactEmail(input.previousEmail);
   const currentEmail = normalizedExactEmail(input.currentEmail);
   const source = emailAddressSource(input.source);
 
-  if (!previousEmail && !currentEmail) return [];
+  if (!currentEmail) return uniqueAccountEmailAddresses([previousEmail]);
 
-  if (currentEmail) {
-    await client.userEmailAddress.updateMany({
-      where: { userId: input.userId, isCurrent: true, email: { not: currentEmail } },
-      data: { isCurrent: false, lastSeenAt: now },
-    });
-  }
-
-  if (previousEmail && previousEmail !== currentEmail) {
-    await client.userEmailAddress.upsert({
-      where: { userId_email: { userId: input.userId, email: previousEmail } },
-      create: {
-        userId: input.userId,
-        email: previousEmail,
-        source,
-        isCurrent: false,
-        firstSeenAt: now,
-        lastSeenAt: now,
-        currentSinceAt: now,
-      },
-      update: { isCurrent: false, lastSeenAt: now },
-    });
-  }
-
-  if (currentEmail) {
-    const reactivated = await client.userEmailAddress.updateMany({
-      where: { userId: input.userId, email: currentEmail, isCurrent: false },
-      data: { isCurrent: true, source, lastSeenAt: now, currentSinceAt: now },
-    });
-    if (reactivated.count === 0) {
-      const refreshed = await client.userEmailAddress.updateMany({
-        where: { userId: input.userId, email: currentEmail, isCurrent: true },
-        data: { source, lastSeenAt: now },
-      });
-      if (refreshed.count === 0) {
-        await client.userEmailAddress.upsert({
-          where: { userId_email: { userId: input.userId, email: currentEmail } },
-          create: {
-            userId: input.userId,
-            email: currentEmail,
-            source,
-            isCurrent: true,
-            firstSeenAt: now,
-            lastSeenAt: now,
-            currentSinceAt: now,
-          },
-          update: { isCurrent: true, source, lastSeenAt: now, currentSinceAt: now },
-        });
-      }
-    }
+  const rows = await client.$queryRaw<Array<{ syncedCount: number }>>`
+    SELECT public.grainline_user_email_address_sync(
+      ${input.userId}::text,
+      ${currentEmail}::text,
+      ${source}::text
+    )::integer AS "syncedCount"
+  `;
+  if (rows.length !== 1 || rows[0]?.syncedCount !== 1) {
+    throw new Error("User email-address sync authority returned an invalid result");
   }
 
   return uniqueAccountEmailAddresses([previousEmail, currentEmail]);
 }
 
 export async function userAccountEmailAddressState(
-  client: UserEmailAddressClient,
-  input: { userId: string; currentEmail?: string | null },
+  client: DbUserContextTransactionClient,
+  input: { currentEmail?: string | null },
 ) {
-  const rows = await client.userEmailAddress.findMany({
-    where: { userId: input.userId },
-    orderBy: [{ isCurrent: "desc" }, { lastSeenAt: "desc" }, { email: "asc" }],
-    select: {
-      email: true,
-      source: true,
-      isCurrent: true,
-      firstSeenAt: true,
-      lastSeenAt: true,
-      currentSinceAt: true,
-    },
-  });
+  const rows = await client.$queryRaw<UserEmailAddressExportRow[]>`
+    SELECT *
+      FROM public.grainline_user_email_address_owner_rows()
+  `;
+  if (!Array.isArray(rows) || rows.some((row) => (
+    typeof row.email !== "string"
+    || (row.source !== null && typeof row.source !== "string")
+    || typeof row.isCurrent !== "boolean"
+    || !(row.firstSeenAt instanceof Date)
+    || !(row.lastSeenAt instanceof Date)
+    || !(row.currentSinceAt instanceof Date)
+  ))) {
+    throw new Error("User email-address owner authority returned an invalid result");
+  }
   const emails = uniqueAccountEmailAddresses([input.currentEmail, ...rows.map((row) => row.email)]);
   return {
     rows,
     emails,
   };
+}
+
+export async function deleteCurrentUserEmailAddressHistory(
+  client: DbUserContextTransactionClient,
+) {
+  const rows = await client.$queryRaw<Array<{ deletedCount: number }>>`
+    SELECT public.grainline_user_email_address_delete_for_current_user()::integer
+      AS "deletedCount"
+  `;
+  const deletedCount = rows[0]?.deletedCount;
+  if (
+    rows.length !== 1
+    || typeof deletedCount !== "number"
+    || !Number.isSafeInteger(deletedCount)
+    || deletedCount < 0
+  ) {
+    throw new Error("User email-address deletion authority returned an invalid result");
+  }
+  return { count: deletedCount };
 }

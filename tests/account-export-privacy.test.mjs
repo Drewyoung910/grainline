@@ -278,8 +278,8 @@ describe("account export privacy coverage", () => {
 
     assert.match(route, /accountEmailFallbackEmailsForUser/);
     assert.match(route, /accountEmailSuppressionKeysForEmails/);
-    assert.match(route, /userAccountEmailAddressState/);
-    assert.match(route, /const accountEmailState = await userAccountEmailAddressState\(prisma, \{/);
+    assert.match(route, /ownerUserAccountEmailAddressState/);
+    assert.match(route, /const accountEmailState = await ownerUserAccountEmailAddressState\(/);
     assert.match(route, /const accountEmails = await accountEmailFallbackEmailsForUser\(prisma, \{/);
     assert.match(route, /emails: accountEmailState\.emails/);
     assert.match(route, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
@@ -335,16 +335,16 @@ describe("account export privacy coverage", () => {
     const route = source("src/app/api/account/export/route.ts");
     const payload = source("src/lib/accountExportPayload.ts");
 
-    const historyStart = route.indexOf("const accountEmailState = await userAccountEmailAddressState");
+    const historyStart = route.indexOf("const accountEmailState = await ownerUserAccountEmailAddressState");
     const sellerProfileStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
     const historyBlock = route.slice(historyStart, sellerProfileStart);
     const newsletterStart = route.indexOf("prisma.newsletterSubscriber.findMany");
     const newsletterEnd = route.indexOf("sellerProfile\n      ? prisma.sellerBroadcast.findMany", newsletterStart);
     const newsletterBlock = route.slice(newsletterStart, newsletterEnd);
 
-    assert.match(historyBlock, /userId: user\.id/);
-    assert.match(historyBlock, /currentEmail: accountEmail/);
-    assert.match(source("src/lib/userEmailAddresses.ts"), /currentSinceAt: true/);
+    assert.match(historyBlock, /user\.id/);
+    assert.match(historyBlock, /accountEmail/);
+    assert.match(source("src/lib/userEmailAddresses.ts"), /grainline_user_email_address_owner_rows/);
     assert.match(historyBlock, /accountEmailFallbackEmailsForUser\(prisma/);
     assert.match(historyBlock, /emails: accountEmailState\.emails/);
     assert.match(route, /const accountEmailAddresses = accountEmailState\.rows/);

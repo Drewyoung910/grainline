@@ -323,6 +323,9 @@ describe("account and privacy route observability guardrails", () => {
     );
     const unsubscribeRoute = source("src/app/api/email/unsubscribe/route.ts");
     const unsubscribe = source("src/lib/unsubscribe.ts");
+    const userEmailAddressAuthority = source(
+      "prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql",
+    );
     const validateStart = unsubscribeRoute.indexOf(
       "async function validateUnsubscribeRequest",
     );
@@ -381,13 +384,13 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.match(unsubscribe, /ORDER BY "createdAt" DESC/);
     assert.match(unsubscribe, /if \(newerAccountClaim\) return true/);
-    assert.match(unsubscribe, /FROM "UserEmailAddress" uea/);
-    assert.match(unsubscribe, /INNER JOIN "User" u ON u\."id" = uea\."userId"/);
-    assert.match(unsubscribe, /emailSuppressionMatchWhereSql\(lookup, Prisma\.sql`uea\."email"`\)/);
-    assert.match(unsubscribe, /AND uea\."isCurrent" = true/);
-    assert.match(unsubscribe, /AND uea\."currentSinceAt" > \$\{new Date\(issuedAt\)\}/);
-    assert.match(unsubscribe, /ORDER BY uea\."currentSinceAt" DESC/);
-    assert.match(unsubscribe, /if \(newerCurrentEmailClaim\) return true/);
+    assert.match(unsubscribe, /grainline_user_email_address_newer_current_claim/);
+    assert.doesNotMatch(unsubscribe, /FROM "UserEmailAddress"/);
+    assert.match(userEmailAddressAuthority, /INNER JOIN public\."User" AS account_user/);
+    assert.match(userEmailAddressAuthority, /address\."isCurrent" = true/);
+    assert.match(userEmailAddressAuthority, /address\."currentSinceAt" > p_issued_at/);
+    assert.match(userEmailAddressAuthority, /END = ANY\(p_suppression_keys\)/);
+    assert.match(unsubscribe, /if \(newerCurrentEmailClaim\.superseded\) return true/);
     assert.match(
       unsubscribe,
       /AND "emailPreferenceOptInAt" IS NOT NULL/,

@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+import {
+  partitionFullBlockingEntries,
+} from "../scripts/audit-dependencies.mjs";
+
 function json(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -90,7 +94,8 @@ describe("dependency hygiene guardrails", () => {
     assert.match(workflow, /npm run audit:dependencies/);
     assert.match(auditScript, /runAudit\(\["--omit=dev"\]\)/);
     assert.match(auditScript, /Full dependency audit failed/);
-    assert.doesNotMatch(auditScript, /REVIEWED_DEV_ONLY/);
+    assert.match(auditScript, /GHSA-vfj7-8cjw-p6xm/);
+    assert.match(auditScript, /2026-10-17T00:00:00\.000Z/);
     assert.equal(pkg.overrides?.["brace-expansion"], undefined);
     assert.equal(
       lock.packages?.["node_modules/brace-expansion"]?.version,
@@ -111,6 +116,61 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(
       lock.packages?.["node_modules/js-yaml"]?.version,
       "4.3.2",
+    );
+  });
+
+  it("allows only the exact expiring dev-tool advisory chain", () => {
+    const report = {
+      vulnerabilities: {
+        braces: {
+          severity: "high",
+          via: [{ source: 1240992, severity: "high" }],
+        },
+        micromatch: { severity: "high", via: ["braces"] },
+        "fast-glob": { severity: "high", via: ["micromatch"] },
+        "@next/eslint-plugin-next": {
+          severity: "high",
+          via: ["fast-glob"],
+        },
+        "eslint-config-next": {
+          severity: "high",
+          via: ["@next/eslint-plugin-next"],
+        },
+      },
+    };
+    const accepted = partitionFullBlockingEntries(
+      report,
+      new Date("2026-10-03T00:00:00.000Z"),
+    );
+    assert.equal(accepted.blocking.length, 0);
+    assert.deepEqual(
+      accepted.excepted.map(({ packageName }) => packageName).sort(),
+      [
+        "@next/eslint-plugin-next",
+        "braces",
+        "eslint-config-next",
+        "fast-glob",
+        "micromatch",
+      ],
+    );
+
+    const expired = partitionFullBlockingEntries(
+      report,
+      new Date("2026-10-17T00:00:00.000Z"),
+    );
+    assert.equal(expired.blocking.length, 5);
+
+    const unrelated = structuredClone(report);
+    unrelated.vulnerabilities.remoteParser = {
+      severity: "critical",
+      via: [{ source: 9999999, severity: "critical" }],
+    };
+    assert.deepEqual(
+      partitionFullBlockingEntries(
+        unrelated,
+        new Date("2026-10-03T00:00:00.000Z"),
+      ).blocking.map(([name]) => name),
+      ["remoteParser"],
     );
   });
 

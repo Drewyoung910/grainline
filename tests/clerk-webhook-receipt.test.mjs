@@ -150,6 +150,14 @@ test("the actual deletion helper distinguishes absent and already deleted users 
       // Use Prisma's real value helpers while keeping all database I/O mocked.
       if (name === "@prisma/client") return require(name);
       if (name === "node:crypto" || name === "crypto") return require(name);
+      if (name === "@/lib/ratelimit") return {
+        redis: {
+          createScript: () => ({
+            eval: () => { throw new Error("Unexpected Redis script evaluation"); },
+          }),
+          set: () => { throw new Error("Unexpected Redis lock write"); },
+        },
+      };
       return new Proxy({}, { get: (_, key) => key === "__esModule" ? false : () => { throw new Error(`Unexpected dependency: ${name}`); } });
     }, mod, mod.exports);
     const result = await mod.exports.anonymizeUserAccountByClerkId(SENTINEL);
