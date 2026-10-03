@@ -29,7 +29,7 @@ describe("server-action rate-limit sweep", () => {
     assert.doesNotMatch(page, /blogCreateRatelimit/);
     assert.ok(
       page.indexOf("safeRateLimit(blogStatusRatelimit, userId)") <
-        page.indexOf("prisma.user.findUnique"),
+        page.indexOf("userClerkGate(prisma, userId)"),
       "blog status server action should rate-limit before local user lookup",
     );
     assert.match(limiter, /prefix: "rl:blog_status"/);

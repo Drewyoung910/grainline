@@ -2,6 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
@@ -49,10 +50,7 @@ async function getOwnedListing(listingId: string): Promise<OwnedListingResult> {
   const { success } = await safeRateLimit(listingMutationRatelimit, userId);
   if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
 

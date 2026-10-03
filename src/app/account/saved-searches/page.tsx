@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { deleteOwnerSavedSearch, listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
@@ -19,10 +20,7 @@ async function deleteSavedSearch(searchId: string) {
   if (!userId) return;
   const { success } = await safeRateLimit(savedSearchRatelimit, `account-delete:${userId}`);
   if (!success) return;
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me || me.banned || me.deletedAt) return;
   await deleteOwnerSavedSearch(me.id, searchId, prisma);
   revalidatePath("/account");

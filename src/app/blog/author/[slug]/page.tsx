@@ -10,6 +10,7 @@ import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { extractRouteId, publicBlogAuthorPath, publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
@@ -112,10 +113,7 @@ export default async function BlogAuthorPage({
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
-    });
+    const me = await userIdByClerkId(prisma, userId);
     meDbId = me?.id ?? null;
   }
 

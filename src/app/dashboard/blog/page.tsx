@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { revalidatePath } from "next/cache";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import BlogStatusButton from "@/components/BlogStatusButton";
@@ -23,10 +24,7 @@ async function archivePost(postId: string) {
   if (!userId) redirect("/sign-in");
   const { success } = await safeRateLimit(blogStatusRatelimit, userId);
   if (!success) redirect("/dashboard/blog?postAction=rate-limited");
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) redirect("/sign-in");
   if (me.banned || me.deletedAt) redirect("/dashboard/blog?postAction=unavailable");
 
@@ -50,10 +48,7 @@ async function unarchivePost(postId: string) {
   if (!userId) redirect("/sign-in");
   const { success } = await safeRateLimit(blogStatusRatelimit, userId);
   if (!success) redirect("/dashboard/blog?postAction=rate-limited");
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) redirect("/sign-in");
   if (me.banned || me.deletedAt) redirect("/dashboard/blog?postAction=unavailable");
 
@@ -97,10 +92,7 @@ async function DashboardBlogContent({
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/blog");
   const params = searchParams ? await searchParams : {};
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) redirect("/sign-in");
 
   const requestedPage = parseBoundedPositiveIntParam(params.page, 1, 1000);

@@ -109,7 +109,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     );
     assert.match(customRequestFunction, /transaction_isolation'\) <> 'read committed'/);
 
-    assert.match(threadPage, /select: \{ id: true, banned: true, deletedAt: true \}/);
+    assert.match(threadPage, /userClerkGate\(prisma, userId\)/);
     assert.match(threadPage, /if \(me\.banned \|\| me\.deletedAt\) return \{ ok: false \};/);
   });
 

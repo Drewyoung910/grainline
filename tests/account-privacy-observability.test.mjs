@@ -99,8 +99,7 @@ describe("account and privacy route observability guardrails", () => {
     const accountLink = source("src/lib/supportRequestAccount.ts");
 
     assert.match(accountLink, /auth\(\)/);
-    assert.match(accountLink, /where: \{ clerkId: clerkUserId \}/);
-    assert.match(accountLink, /select: \{ id: true \}/);
+    assert.match(accountLink, /userIdByClerkId\(prisma, clerkUserId\)/);
     for (const route of [support, dataRequest]) {
       assert.match(route, /currentSupportRequestUserId\(\)/);
       assert.match(route, /userId: requesterUserId/);

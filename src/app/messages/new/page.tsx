@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import {
   canAttachConversationContextListing,
   canStartConversationWith,
@@ -26,10 +27,7 @@ export default async function NewConversationPage({
   const { userId } = await auth();
   if (!userId) redirect(`/sign-in?redirect_url=${encodeURIComponent(requestedPath)}`);
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me || me.banned || me.deletedAt || !to) redirect("/messages");
   const targetUserId = to;
 
@@ -88,10 +86,7 @@ export default async function NewConversationPage({
 
     const { userId } = await auth();
     if (!userId) return { ok: false, error: "Sign in to start a conversation." };
-    const currentUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true, banned: true, deletedAt: true },
-    });
+    const currentUser = await userClerkGate(prisma, userId);
     if (!currentUser || currentUser.banned || currentUser.deletedAt) {
       return { ok: false, error: "Your account is not available." };
     }

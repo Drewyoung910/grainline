@@ -20,6 +20,8 @@ export type UserClerkGate = Pick<
   | "ageAttestedAt"
 >;
 
+type UserClerkId = Pick<User, "id">;
+
 function validUserRow(row: User | undefined, clerkId: string): row is User {
   return Boolean(
     row
@@ -72,6 +74,21 @@ export async function userClerkGate(
     throw new Error("Clerk account gate authority returned an invalid result");
   }
   return gate ?? null;
+}
+
+export async function userIdByClerkId(
+  client: UserIdentityClient,
+  clerkId: string,
+) {
+  const rows = await client.$queryRaw<UserClerkId[]>`
+    SELECT id
+      FROM public.grainline_user_clerk_gate(${clerkId}::text)
+  `;
+  const user = rows[0];
+  if (rows.length > 1 || (user && typeof user.id !== "string")) {
+    throw new Error("Clerk local-id authority returned an invalid result");
+  }
+  return user ?? null;
 }
 
 export async function ensureUserIdentityByClerkId(

@@ -1,5 +1,6 @@
 // src/app/account/commissions/page.tsx
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -32,7 +33,7 @@ export default async function MyCommissionsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/account/commissions");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const me = await userIdByClerkId(prisma, userId);
   if (!me) redirect("/sign-in");
 
   const requestRows = await prisma.commissionRequest.findMany({

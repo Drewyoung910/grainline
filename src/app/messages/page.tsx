@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { parseFileMessageBody } from "@/lib/messageBodies";
 import { truncateText } from "@/lib/sanitize";
 import MessageTime from "@/components/MessageTime";
@@ -105,7 +106,7 @@ async function MessagesInbox({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/messages");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await userIdByClerkId(prisma, userId);
   if (!me) redirect("/sign-in?redirect_url=/messages");
 
   const isArchivedTab = tab === "archived";

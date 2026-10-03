@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { userClerkGate, userIdByClerkId } from "@/lib/userIdentityAccess";
 import { CommissionStatus } from "@prisma/client";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getBlockedIdsFor } from "@/lib/blocks";
@@ -41,7 +42,7 @@ export async function GET(
   const { userId } = await auth();
   let meId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
@@ -116,10 +117,7 @@ export async function PATCH(
   const { success, reset } = await safeRateLimit(commissionStatusRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many commission status updates."));
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: 401 });
   if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: 403 });
 

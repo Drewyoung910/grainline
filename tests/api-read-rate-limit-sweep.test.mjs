@@ -37,7 +37,7 @@ describe("API read route rate-limit sweep", () => {
       ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "await ownerNotificationBellData"],
       ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
       ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
-      ["src/app/api/seller/broadcast/route.ts", "safeRateLimit(\n    sellerBroadcastReadRatelimit,\n    userId,\n  )", "prisma.user.findUnique"],
+      ["src/app/api/seller/broadcast/route.ts", "safeRateLimit(\n    sellerBroadcastReadRatelimit,\n    userId,\n  )", "userClerkGate(prisma, userId)"],
     ]) {
       const file = source(path);
       const text = path === "src/app/api/seller/broadcast/route.ts"

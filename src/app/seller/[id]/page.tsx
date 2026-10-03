@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { safeJsonLd } from "@/lib/json-ld";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import DynamicMapCard from "@/components/DynamicMapCard";
 import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
@@ -224,7 +225,7 @@ async function SellerPublicContent({
   const { userId } = authResult;
   let meId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
   const isOwner = !!meId && seller.userId === meId;

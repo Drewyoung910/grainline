@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import InlineActionButton from "@/components/InlineActionButton";
@@ -51,7 +52,7 @@ async function setStatus(
   if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
 
   // ensure ownership
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
 
@@ -122,7 +123,7 @@ async function deleteListing(
   const { success } = await safeRateLimit(listingMutationRatelimit, userId);
   if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
 
@@ -175,7 +176,7 @@ async function withdrawListingReview(
   const { success } = await safeRateLimit(listingMutationRatelimit, userId);
   if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
 
@@ -221,7 +222,7 @@ async function deleteSavedSearch(searchId: string) {
   if (!userId) return;
   const { success } = await safeRateLimit(savedSearchRatelimit, `dashboard-delete:${userId}`);
   if (!success) return;
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, banned: true, deletedAt: true } });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return;
   if (me.banned || me.deletedAt) return;
   await deleteOwnerSavedSearch(me.id, searchId, prisma);

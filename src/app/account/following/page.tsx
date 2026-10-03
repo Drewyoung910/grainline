@@ -2,6 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import type { Metadata } from "next";
 import FollowButton from "@/components/FollowButton";
@@ -27,7 +28,7 @@ export default async function FollowingPage({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/account/following");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const me = await userIdByClerkId(prisma, userId);
   if (!me) redirect("/sign-in");
 
   const { page: pageParam } = await searchParams;

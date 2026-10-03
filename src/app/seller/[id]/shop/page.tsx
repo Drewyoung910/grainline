@@ -5,6 +5,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Category, Prisma } from "@prisma/client";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
@@ -133,7 +134,7 @@ export default async function SellerShopPage({
   const { userId } = authResult;
   let meId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
 

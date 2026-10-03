@@ -73,6 +73,8 @@ describe("User Clerk identity authority", () => {
     assert.match(access, /grainline_user_clerk_account/);
     assert.match(access, /grainline_user_clerk_gate/);
     assert.match(access, /grainline_user_clerk_identity_ensure/);
+    assert.match(access, /export async function userIdByClerkId/);
+    assert.match(access, /SELECT id\s+FROM public\.grainline_user_clerk_gate/);
     assert.match(ensureUser, /ensureUserIdentityByClerkId\(tx, identity\)/);
     assert.match(ensureSeller, /userAccountByClerkId\(prisma, userId\)/);
     assert.match(middleware, /userClerkGate\(prisma, userId\)/);
@@ -82,6 +84,8 @@ describe("User Clerk identity authority", () => {
     }
 
     const gateCallers = [
+      "src/app/accept-terms/page.tsx",
+      "src/app/account/saved-searches/page.tsx",
       "src/app/admin/actions.ts",
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
@@ -97,21 +101,72 @@ describe("User Clerk identity authority", () => {
       "src/app/api/admin/reviews/[id]/route.ts",
       "src/app/api/admin/users/[id]/ban/route.ts",
       "src/app/api/admin/verify-pin/route.ts",
+      "src/app/api/commission/[id]/route.ts",
+      "src/app/api/listings/[id]/similar/route.ts",
+      "src/app/api/reviews/[id]/route.ts",
+      "src/app/api/seller/broadcast/route.ts",
       "src/app/dashboard/blog/[id]/edit/page.tsx",
       "src/app/dashboard/blog/new/page.tsx",
+      "src/app/dashboard/blog/page.tsx",
+      "src/app/dashboard/notifications/page.tsx",
+      "src/app/dashboard/page.tsx",
       "src/app/listing/[id]/page.tsx",
+      "src/app/messages/[id]/page.tsx",
+      "src/app/messages/new/page.tsx",
+      "src/app/seller/[id]/shop/actions.ts",
       "src/lib/adminPageAccess.ts",
     ];
     const gateCalls = gateCallers.reduce((count, path) => {
       const text = source(path);
-      assert.match(text, /import \{ userClerkGate \} from ["']@\/lib\/userIdentityAccess["']/);
+      assert.match(text, /import \{[^}]*\buserClerkGate\b[^}]*\} from ["']@\/lib\/userIdentityAccess["']/);
       assert.doesNotMatch(
         text,
         /prisma\.user\.findUnique\(\{[\s\S]*?where:\s*\{\s*clerkId[\s\S]*?select:\s*\{\s*id:\s*true,\s*role:\s*true,\s*banned:\s*true,\s*deletedAt:\s*true/,
       );
       return count + (text.match(/userClerkGate\(prisma,\s*(?:userId|uid|clerkId)\)/g) ?? []).length;
     }, 0);
-    assert.equal(gateCalls, 21);
+    assert.equal(gateCalls, 43);
+
+    const idCallers = [
+      "src/app/account/commissions/page.tsx",
+      "src/app/account/following/page.tsx",
+      "src/app/api/blog/[slug]/comments/route.ts",
+      "src/app/api/commission/[id]/route.ts",
+      "src/app/api/commission/route.ts",
+      "src/app/api/seller/[id]/view/route.ts",
+      "src/app/blog/[slug]/page.tsx",
+      "src/app/blog/author/[slug]/page.tsx",
+      "src/app/blog/page.tsx",
+      "src/app/browse/[metroSlug]/[category]/page.tsx",
+      "src/app/browse/[metroSlug]/page.tsx",
+      "src/app/browse/page.tsx",
+      "src/app/commission/[param]/page.tsx",
+      "src/app/dashboard/notifications/page.tsx",
+      "src/app/dashboard/orders/[id]/page.tsx",
+      "src/app/dashboard/orders/page.tsx",
+      "src/app/dashboard/sales/[orderId]/page.tsx",
+      "src/app/dashboard/sales/page.tsx",
+      "src/app/makers/[metroSlug]/page.tsx",
+      "src/app/map/page.tsx",
+      "src/app/messages/page.tsx",
+      "src/app/page.tsx",
+      "src/app/seller/[id]/customer-photos/page.tsx",
+      "src/app/seller/[id]/page.tsx",
+      "src/app/seller/[id]/shop/page.tsx",
+      "src/app/sellers/map/page.tsx",
+      "src/app/tag/[slug]/page.tsx",
+      "src/lib/supportRequestAccount.ts",
+    ];
+    const idCalls = idCallers.reduce((count, path) => {
+      const text = source(path);
+      assert.match(text, /userIdByClerkId/);
+      assert.doesNotMatch(
+        text,
+        /prisma\.user\.findUnique\(\{\s*where:\s*\{\s*clerkId:[^}]+\},\s*select:\s*\{\s*id:\s*true\s*\},?\s*\}\)/,
+      );
+      return count + (text.match(/userIdByClerkId\(prisma,\s*[A-Za-z][A-Za-z0-9]*\)/g) ?? []).length;
+    }, 0);
+    assert.equal(idCalls, 28);
   });
 
   it("isolates the package from historical cutoffs, then proves it in disposable PostgreSQL", () => {

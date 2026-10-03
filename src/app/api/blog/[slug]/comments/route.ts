@@ -1,6 +1,7 @@
 // src/app/api/blog/[slug]/comments/route.ts
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { auth } from "@clerk/nextjs/server";
 import { blogCommentRatelimit, getIP, safeRateLimit, rateLimitResponse, searchRatelimit } from "@/lib/ratelimit";
 import { containsProfanity } from "@/lib/profanity";
@@ -64,7 +65,7 @@ export async function GET(
   const { userId } = await auth();
   let blockedUserIds: string[] = [];
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const me = await userIdByClerkId(prisma, userId);
     if (me) {
       blockedUserIds = [...await getBlockedUserIdsFor(me.id)];
       if (post.authorId && blockedUserIds.includes(post.authorId)) {

@@ -7,6 +7,7 @@ import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { normalizeTag } from "@/lib/tags";
@@ -115,10 +116,7 @@ export default async function TagLandingPage({
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
-    });
+    const me = await userIdByClerkId(prisma, userId);
     meDbId = me?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);

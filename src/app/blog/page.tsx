@@ -1,5 +1,6 @@
 // src/app/blog/page.tsx
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
@@ -77,7 +78,7 @@ async function BlogIndexPageContent({
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);

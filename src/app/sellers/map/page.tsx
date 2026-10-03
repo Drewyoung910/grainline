@@ -1,5 +1,6 @@
 // src/app/sellers/map/page.tsx
 import { prisma } from "@/lib/db";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import SellersMap from "@/components/SellersMap";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { auth } from "@clerk/nextjs/server";
@@ -11,7 +12,7 @@ export default async function SellersMapPage() {
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
