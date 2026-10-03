@@ -10,14 +10,14 @@ const report = JSON.parse(
   ),
 );
 
-test("User direct-access inventory records the first Clerk identity conversion", () => {
-  assert.equal(report.count, 136);
-  assert.equal(report.files, 87);
+test("User direct-access inventory records bounded Clerk identity conversions", () => {
+  assert.equal(report.count, 115);
+  assert.equal(report.files, 70);
   assert.deepEqual(report.byMethod, {
     count: 3,
     findFirst: 1,
     findMany: 5,
-    findUnique: 118,
+    findUnique: 97,
     update: 5,
     updateMany: 4,
   });
@@ -36,6 +36,15 @@ test("User direct-access inventory records the first Clerk identity conversion",
     ),
   );
   assert.equal(writes.length, 9);
+
+  const obsoleteClerkGateReads = report.calls.filter(
+    (call) =>
+      call.method === "findUnique" &&
+      call.where.length === 1 &&
+      call.where[0] === "clerkId" &&
+      [...call.select].sort().join(",") === "banned,deletedAt,id,role",
+  );
+  assert.equal(obsoleteClerkGateReads.length, 0);
   assert.deepEqual(
     [...new Set(writes.map((call) => call.file))].sort(),
     [

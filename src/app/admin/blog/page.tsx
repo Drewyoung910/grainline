@@ -1,5 +1,6 @@
 // src/app/admin/blog/page.tsx
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -21,10 +22,7 @@ async function requireAdmin() {
   if (!userId) redirect("/");
   const { success } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) redirect("/");
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me || me.banned || me.deletedAt || (me.role !== "EMPLOYEE" && me.role !== "ADMIN")) redirect("/");
   return me;
 }

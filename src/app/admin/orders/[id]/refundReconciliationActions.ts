@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import {
   ADMIN_PIN_COOKIE_NAME,
   verifyAdminPinCookieValue,
@@ -53,10 +54,7 @@ async function requirePinnedAdmin() {
     sessionId,
   );
   if (!pinVerified) throw new Error("Admin PIN required");
-  const admin = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const admin = await userClerkGate(prisma, userId);
   if (
     !admin
     || admin.role !== "ADMIN"

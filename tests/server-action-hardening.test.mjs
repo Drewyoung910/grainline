@@ -21,10 +21,10 @@ describe("server action hardening guardrails", () => {
   it("keeps admin server actions behind local active-staff gates", () => {
     for (const path of ["src/app/admin/actions.ts", "src/app/admin/support/actions.ts"]) {
       const actions = source(path);
-      assert.match(actions, /select: \{ id: true, role: true, banned: true, deletedAt: true \}/);
+      assert.match(actions, /userClerkGate\(prisma,\s*userId\)/);
       assert.match(actions, /user\.banned/);
       assert.match(actions, /user\.deletedAt/);
-      assert.match(actions, /user\.role !== "EMPLOYEE" && user\.role !== "ADMIN"/);
+      assert.match(actions, /user\.role !== "EMPLOYEE"\s*&&\s*user\.role !== "ADMIN"/);
     }
   });
 

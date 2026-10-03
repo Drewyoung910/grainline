@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 
 type AdminPageRole = "STAFF" | "ADMIN";
@@ -10,10 +11,7 @@ export async function requireAdminPageAccess(requiredRole: AdminPageRole = "STAF
   const { userId, sessionId } = await auth();
   if (!userId) redirect("/");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const user = await userClerkGate(prisma, userId);
   if (!user || user.banned || user.deletedAt) redirect("/");
   if (requiredRole === "ADMIN" && user.role !== "ADMIN") redirect("/");
   if (requiredRole === "STAFF" && user.role !== "EMPLOYEE" && user.role !== "ADMIN") redirect("/");

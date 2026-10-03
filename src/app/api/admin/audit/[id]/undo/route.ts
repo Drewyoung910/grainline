@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
+import { userClerkGate } from '@/lib/userIdentityAccess'
 import { undoAdminAction } from '@/lib/audit'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import {
@@ -25,10 +26,7 @@ export async function POST(
 ) {
   const { userId, sessionId } = await auth()
   if (!userId) return privateJson({ error: 'Unauthorized' }, { status: HTTP_STATUS.UNAUTHORIZED })
-  const admin = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true }
-  })
+  const admin = await userClerkGate(prisma, userId)
   if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return privateJson({ error: 'Forbidden' }, { status: HTTP_STATUS.FORBIDDEN })
   const pinResponse = await requireStaffAdminPinForApi(request, userId, sessionId)
   if (pinResponse) return pinResponse

@@ -18,13 +18,8 @@ describe("admin server action guardrails", () => {
       const text = source(path);
       assert.match(
         text,
-        /banned:\s*true/,
-        `${path} must select staff banned state inside admin server actions`,
-      );
-      assert.match(
-        text,
-        /deletedAt:\s*true/,
-        `${path} must select staff deletion state inside admin server actions`,
+        /userClerkGate\(prisma,\s*userId\)/,
+        `${path} must use the bounded current-user gate inside admin server actions`,
       );
       assert.match(
         text,
@@ -48,13 +43,8 @@ describe("admin server action guardrails", () => {
       const text = source(path);
       assert.match(
         text,
-        /banned:\s*true/,
-        `${path} must select staff banned state before admin access`,
-      );
-      assert.match(
-        text,
-        /deletedAt:\s*true/,
-        `${path} must select staff deletion state before admin access`,
+        /userClerkGate\(prisma,\s*(?:userId|clerkId)\)/,
+        `${path} must use the bounded current-user gate before admin access`,
       );
       assert.match(
         text,
@@ -67,10 +57,9 @@ describe("admin server action guardrails", () => {
   it("keeps sensitive admin pages locally guarded before page data queries", () => {
     const helper = source("src/lib/adminPageAccess.ts");
     assert.match(helper, /auth\(\)/);
-    assert.match(helper, /banned:\s*true/);
-    assert.match(helper, /deletedAt:\s*true/);
+    assert.match(helper, /userClerkGate\(prisma,\s*userId\)/);
     assert.match(helper, /user\.banned\s*\|\|\s*user\.deletedAt/);
-    assert.match(helper, /user\.role !== "EMPLOYEE" && user\.role !== "ADMIN"/);
+    assert.match(helper, /user\.role !== "EMPLOYEE"\s*&&\s*user\.role !== "ADMIN"/);
     assert.match(helper, /verifyAdminPinCookieValue\(/);
     assert.match(helper, /cookieStore\.get\(ADMIN_PIN_COOKIE_NAME\)/);
     assert.match(helper, /sessionId/);
@@ -121,7 +110,7 @@ describe("admin server action guardrails", () => {
       assert.match(text, /safeRateLimit\(adminActionRatelimit, userId\)/, `${path} must rate-limit by Clerk userId before DB lookup`);
       assert.ok(
         text.indexOf("safeRateLimit(adminActionRatelimit, userId)") <
-          text.indexOf("prisma.user.findUnique"),
+          text.indexOf("userClerkGate(prisma, userId)"),
         `${path} must rate-limit before local admin user lookup`,
       );
     }
@@ -178,7 +167,10 @@ describe("admin server action guardrails", () => {
     const route = source("src/app/api/admin/email/route.ts");
     const usersPage = source("src/app/admin/users/page.tsx");
 
-    assert.match(route, /privateResponse\(rateLimitResponse\(rl\.reset, "Too many admin email attempts\."\)\)/);
+    assert.match(
+      route,
+      /privateResponse\(\s*rateLimitResponse\(rl\.reset,\s*"Too many admin email attempts\."\),?\s*\)/,
+    );
     assert.match(route, /Admin email can only be sent to an existing Grainline user/);
     assert.match(route, /where: \{ email: normalizedInputEmail \}/);
     assert.match(route, /recipientUserId = recipient\.id/);

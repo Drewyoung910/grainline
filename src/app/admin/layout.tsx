@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star, File } from "@/components/icons";
 import AdminMobileNav from "@/components/AdminMobileNav";
@@ -16,10 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { userId, sessionId } = await auth();
   if (!userId) redirect("/");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const user = await userClerkGate(prisma, userId);
   if (!user || user.banned || user.deletedAt || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
   const cookieStore = await cookies();

@@ -32,6 +32,7 @@ const identity = { userId: "staff-page-proof", sessionId: "staff-session-proof" 
 const staff = { id: "local-staff-proof", role: "EMPLOYEE", banned: false, deletedAt: null };
 function helperFixture({ cookie, login = identity, user = staff } = {}) {
   const calls = [];
+  const client = {};
   const guard = loadSubject("src/lib/adminPageAccess.ts", {
     "@clerk/nextjs/server": { auth: async () => { calls.push("auth"); return login; } },
     "next/navigation": { redirect: (path) => { throw new Error(`redirect:${path}`); } },
@@ -39,10 +40,12 @@ function helperFixture({ cookie, login = identity, user = staff } = {}) {
       assert.equal(name, ADMIN_PIN_COOKIE_NAME);
       calls.push("cookie"); return cookie === undefined ? undefined : { value: cookie };
     } }) },
-    "@/lib/db": { prisma: { user: { findUnique: async (query) => {
-      assert.equal(query.where.clerkId, login.userId);
+    "@/lib/db": { prisma: client },
+    "@/lib/userIdentityAccess": { userClerkGate: async (receivedClient, clerkId) => {
+      assert.equal(receivedClient, client);
+      assert.equal(clerkId, login.userId);
       calls.push("current-user"); return user;
-    } } } },
+    } },
     "@/lib/adminPin": { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue },
   });
   return { guard: guard.requireAdminPageAccess, calls };

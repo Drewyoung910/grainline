@@ -80,6 +80,38 @@ describe("User Clerk identity authority", () => {
     for (const applicationSource of [ensureUser, ensureSeller, middleware]) {
       assert.doesNotMatch(applicationSource, /\b(?:prisma|tx)\.user\./);
     }
+
+    const gateCallers = [
+      "src/app/admin/actions.ts",
+      "src/app/admin/blog/page.tsx",
+      "src/app/admin/broadcasts/page.tsx",
+      "src/app/admin/layout.tsx",
+      "src/app/admin/orders/[id]/refundReconciliationActions.ts",
+      "src/app/admin/support/actions.ts",
+      "src/app/admin/verification/page.tsx",
+      "src/app/api/admin/audit/[id]/undo/route.ts",
+      "src/app/api/admin/email/route.ts",
+      "src/app/api/admin/listings/[id]/review/route.ts",
+      "src/app/api/admin/listings/[id]/route.ts",
+      "src/app/api/admin/reports/[id]/resolve/route.ts",
+      "src/app/api/admin/reviews/[id]/route.ts",
+      "src/app/api/admin/users/[id]/ban/route.ts",
+      "src/app/api/admin/verify-pin/route.ts",
+      "src/app/dashboard/blog/[id]/edit/page.tsx",
+      "src/app/dashboard/blog/new/page.tsx",
+      "src/app/listing/[id]/page.tsx",
+      "src/lib/adminPageAccess.ts",
+    ];
+    const gateCalls = gateCallers.reduce((count, path) => {
+      const text = source(path);
+      assert.match(text, /import \{ userClerkGate \} from ["']@\/lib\/userIdentityAccess["']/);
+      assert.doesNotMatch(
+        text,
+        /prisma\.user\.findUnique\(\{[\s\S]*?where:\s*\{\s*clerkId[\s\S]*?select:\s*\{\s*id:\s*true,\s*role:\s*true,\s*banned:\s*true,\s*deletedAt:\s*true/,
+      );
+      return count + (text.match(/userClerkGate\(prisma,\s*(?:userId|uid|clerkId)\)/g) ?? []).length;
+    }, 0);
+    assert.equal(gateCalls, 21);
   });
 
   it("isolates the package from historical cutoffs, then proves it in disposable PostgreSQL", () => {

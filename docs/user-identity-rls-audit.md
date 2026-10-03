@@ -3,9 +3,9 @@
 ## Scope and exact source
 
 This audit covers the Prisma `User` model and every application path that can
-read or mutate it. The refreshed inventory is based on exact main
-`e689e1ff1d76a65146d132ad25dc545a72b87aac` in isolated worktree
-`.worktrees/user-identity-rls-20261003` on 2026-10-03.
+read or mutate it. The refreshed inventory is based on source work in isolated
+worktree `.worktrees/user-clerk-gate-callers-20261003`, whose exact main base is
+`f156dd9b28e80e98ec1f5ec422f95eda4a0e0d0f`, on 2026-10-03.
 
 `UserEmailAddress` is a completed predecessor, not part of the remaining
 activation scope. Its policyless ENABLE plus FORCE release is live from exact
@@ -42,8 +42,8 @@ RLS.
 
 `scripts/audit-user-direct-calls.mjs` inventories direct
 `prisma.user.*(...)` and `tx.user.*(...)` calls without loading application
-modules or credentials. On the exact source above it reports 144 calls in 90
-files:
+modules or credentials. The initial audit baseline at
+`e689e1ff1d76a65146d132ad25dc545a72b87aac` reported 144 calls in 90 files:
 
 | Delegate method | Calls | Authority class |
 | --- | ---: | --- |
@@ -81,12 +81,14 @@ queue, not an assertion that every similarly named relation targets `User`.
 Activation requires review of the relation model for each candidate rather
 than relying on the name alone.
 
-## First source conversion candidate
+## First source conversion and live compatibility package
 
-The first bounded conversion is prepared locally on
-`codex/user-identity-rls-20261003` after audit commit `ccddf959`. It is an
-additive database/source compatibility package only. It does not enable RLS,
-revoke a table grant, deploy an application, or change Production.
+The first bounded conversion is live in Production from main
+`f156dd9b28e80e98ec1f5ec422f95eda4a0e0d0f`, CI `37150764030`, guarded
+migration run `37152569812`, and deployment
+`dpl_5415ejcep8tkBTBENn9nByYrxEGy`. The deployment carries marker
+`user-identity-staged-f156dd9b-20261003-01`. This package did not enable User
+RLS or revoke a User table grant.
 
 The package adds three `SECURITY DEFINER`, `search_path=pg_catalog`,
 runtime-only operations in migration
@@ -105,10 +107,12 @@ runtime-only operations in migration
   boundary. Its argument must remain a server-derived Clerk subject.
 
 `ensureUser.ts`, `ensureSeller.ts`, and the middleware fallback now use those
-operations instead of direct `prisma.user` or `tx.user` access. The resulting
-direct-delegate inventory is 136 calls in 87 files: 127 reads and nine writes.
-It has 118 `findUnique`, five `findMany`, one `findFirst`, three `count`, five
-`update`, and four `updateMany` calls. Full-row reads fall from 13 to 10, and
+operations instead of direct `prisma.user` or `tx.user` access. The current
+source-only follow-up routes 21 identical Clerk-id staff, blog-author, and
+listing-preview gate reads in 19 files through `userClerkGate(...)`. The resulting
+direct-delegate inventory is 115 calls in 70 files: 106 reads and nine writes.
+It has 97 `findUnique`, five `findMany`, one `findFirst`, three `count`, five
+`update`, and four `updateMany` calls. Full-row reads remain at 10, and
 the remaining direct writes are confined to seven reviewed files for terms,
 shipping, Clerk welcome reservation, deletion, audit, ban/unban, and
 unsubscribe behavior.
@@ -124,8 +128,8 @@ TypeScript result is unavailable because the reusable dependency tree has no
 generated Prisma client; exact-head CI must regenerate Prisma before the
 candidate can be accepted for integration.
 
-The candidate reduces the real activation surface but does not change the
-NO-GO decision. The remaining 136 delegates, 32 raw-SQL references, nested
+The live package and source-only follow-up reduce the real activation surface
+but do not change the NO-GO decision. The remaining 115 delegates, 32 raw-SQL references, nested
 relations, public identity reads, owner-private operations, staff/service
 operations, and lifecycle writes still need their reviewed operation families.
 

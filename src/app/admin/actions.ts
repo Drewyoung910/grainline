@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import {
   ADMIN_PIN_COOKIE_NAME,
   verifyAdminPinCookieValue,
@@ -27,10 +28,7 @@ async function requireAdmin() {
   if (!userId) throw new Error("Unauthorized");
   const { success } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) throw new Error("Rate limited");
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const user = await userClerkGate(prisma, userId);
   if (
     !user ||
     user.banned ||

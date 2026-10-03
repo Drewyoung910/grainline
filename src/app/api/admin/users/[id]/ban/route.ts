@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
+import { userClerkGate } from '@/lib/userIdentityAccess'
 import { BanUserPolicyError, banUser, unbanUser } from '@/lib/ban'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import {
@@ -19,10 +20,7 @@ const BanSchema = z.object({
 const ADMIN_USER_BAN_BODY_MAX_BYTES = 16 * 1024
 
 async function getAdmin(clerkId: string) {
-  return prisma.user.findUnique({
-    where: { clerkId },
-    select: { id: true, role: true, banned: true, deletedAt: true }
-  })
+  return userClerkGate(prisma, clerkId)
 }
 
 export async function POST(

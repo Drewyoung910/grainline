@@ -125,7 +125,7 @@ describe("Case seller aggregate application authority", () => {
     assert.match(admin, /if \(!pinVerified\) redirect\("\/admin"\)/);
     assert.ok(
       admin.indexOf("if (!pinVerified)") <
-        admin.indexOf("const me = await prisma.user.findUnique"),
+        admin.indexOf("const me = await userClerkGate(prisma, userId)"),
     );
   });
 });
