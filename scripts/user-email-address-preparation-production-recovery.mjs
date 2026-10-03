@@ -208,6 +208,9 @@ export function classifyUserEmailAddressPreparationRecoveryLedger(rows) {
 }
 
 function assertCatalogForState(result, state) {
+  // Gmail-family suppression keys are lookup keys, not account-identity keys.
+  // Their supporting indexes are intentionally nonunique; cross-account
+  // collisions are handled conservatively by the application authority path.
   if (
     result.rlsEnabled !== false ||
     result.rlsForced !== false ||
@@ -221,8 +224,7 @@ function assertCatalogForState(result, state) {
       }) ||
     result.counts.duplicateCurrentUserGroups !== 0 ||
     result.counts.duplicateCurrentRowExcess !== 0 ||
-    result.counts.currentRowsWithoutMatchingActiveUser !== 0 ||
-    result.counts.activeSuppressionKeyCollisionGroups !== 0
+    result.counts.currentRowsWithoutMatchingActiveUser !== 0
   ) {
     throw new Error("UserEmailAddress recovery table posture drifted");
   }
