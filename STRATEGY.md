@@ -4,17 +4,22 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Complete UserEmailAddress Phase B (2026-10-03)
+### Complete the `User` identity/account design audit (2026-10-03)
 
-Production preparation and Phase A are accepted: current-history coverage is
-complete, catalog drift is absent, policyless RLS is enabled, direct
-runtime/PUBLIC table authority is zero, and six fixed owner/service operations
-remain live. The next identity-domain boundary is the isolated posture-only
-`UserEmailAddress` FORCE candidate in `docs/user-email-address-rls-release.md`.
-Merge its exact source only after the focused PostgreSQL proof and one full CI
-pass, then run the separately authorized Production workflow. Do not add a
-direct-owner read policy or reopen the completed preparation/ENABLE packages
-without new evidence.
+`UserEmailAddress` is complete in Production through policyless FORCE from
+exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and
+guarded run `37136042748`. It retains zero direct runtime/PUBLIC table
+authority and six fixed owner/service operations. Do not add a direct-owner
+read policy or reopen that accepted release without new evidence.
+
+The next identity-domain boundary is `User`. Keep it at `BLOCKED_DESIGN` until
+the exact-main caller audit covers direct delegates, raw SQL, nested relation
+reads, Clerk bootstrap and lifecycle, self PII, public identity, service
+eligibility, staff access, ban/unban, and deletion. One row mixes public
+identity with email, shipping, legal, preference, role, ban, and deletion
+state, so a broad active-user SELECT policy is rejected. Define the
+operation-by-principal matrix and the Clerk-to-local bootstrap resolver before
+converting callers or preparing grants/RLS migrations.
 
 ### Finish the bounded Order release (2026-09-07)
 
