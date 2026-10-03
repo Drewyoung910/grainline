@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
@@ -18,10 +19,7 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const admin = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const admin = await userClerkGate(prisma, userId);
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
     return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }

@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { normalizeSupportRequestClosureEvidence } from "@/lib/supportRequest";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
@@ -20,10 +21,7 @@ async function requireAdmin() {
   const { success } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) throw new Error("Rate limited");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const user = await userClerkGate(prisma, userId);
   if (
     !user ||
     user.banned ||

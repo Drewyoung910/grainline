@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { z } from "zod";
 import { adminEmailRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
@@ -44,10 +45,7 @@ export async function POST(request: Request) {
   const { userId: clerkId } = await auth();
   if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const admin = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const admin = await userClerkGate(prisma, clerkId);
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
     return privateJson({ error: "Forbidden — ADMIN only" }, { status: HTTP_STATUS.FORBIDDEN });
   }

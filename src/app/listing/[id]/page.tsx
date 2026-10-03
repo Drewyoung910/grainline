@@ -1,5 +1,6 @@
 // src/app/listing/[id]/page.tsx
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
@@ -203,10 +204,7 @@ export default async function ListingPage({
   let me: { id: string; role: string; banned: boolean; deletedAt: Date | null } | null = null;
   let meId: string | null = null;
   if (userId) {
-    me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true, role: true, banned: true, deletedAt: true },
-    });
+    me = await userClerkGate(prisma, userId);
     meId = me?.id ?? null;
   }
   const blockedUserIds = await getBlockedUserIdsFor(meId);

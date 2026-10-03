@@ -1,5 +1,6 @@
 // src/app/admin/broadcasts/page.tsx
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
@@ -22,10 +23,7 @@ async function deleteBroadcast(formData: FormData) {
   if (!userId) redirect("/sign-in");
   const { success } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) return;
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const user = await userClerkGate(prisma, userId);
   if (!user || user.banned || user.deletedAt || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
   const id = String(formData.get("id") ?? "");

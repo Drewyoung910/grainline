@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { BLOG_BODY_MAX_CHARS, generateSlug, calculateReadingTime } from "@/lib/blog";
 import { BlogPostType, BlogAuthorType, Prisma } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
@@ -23,10 +24,7 @@ export default async function NewBlogPostPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/blog/new");
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) redirect("/sign-in");
   if (me.banned || me.deletedAt) redirect("/dashboard");
 
@@ -43,10 +41,7 @@ export default async function NewBlogPostPage() {
     "use server";
     const { userId: uid } = await auth();
     if (!uid) redirect("/sign-in");
-    const author = await prisma.user.findUnique({
-      where: { clerkId: uid },
-      select: { id: true, role: true, banned: true, deletedAt: true },
-    });
+    const author = await userClerkGate(prisma, uid);
     if (!author) redirect("/sign-in");
     if (author.banned || author.deletedAt) return { ok: false, error: "Account is suspended." };
 

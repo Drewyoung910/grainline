@@ -1,6 +1,7 @@
 // src/app/admin/verification/page.tsx
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -158,10 +159,7 @@ async function requireStaff() {
     sessionId,
   );
   if (!pinVerified) redirect("/admin");
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) redirect("/");
   if (me.banned || me.deletedAt) redirect("/banned");
   if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") redirect("/");

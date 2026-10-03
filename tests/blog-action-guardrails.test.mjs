@@ -16,13 +16,13 @@ describe("blog dashboard action guardrails", () => {
       const text = source(path);
       assert.match(
         text,
-        /banned:\s*true/,
-        `${path} must select account banned state inside the action/page`,
+        /(?:userClerkGate\(prisma,\s*(?:userId|uid)\)|banned:\s*true)/,
+        `${path} must load account banned state inside the action/page`,
       );
       assert.match(
         text,
-        /deletedAt:\s*true/,
-        `${path} must select account deletion state inside the action/page`,
+        /(?:userClerkGate\(prisma,\s*(?:userId|uid)\)|deletedAt:\s*true)/,
+        `${path} must load account deletion state inside the action/page`,
       );
       assert.match(
         text,

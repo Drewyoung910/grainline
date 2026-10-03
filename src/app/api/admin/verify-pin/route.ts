@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
@@ -72,10 +73,7 @@ export async function POST(req: Request) {
   if (!userId) return privateJson({}, { status: HTTP_STATUS.UNAUTHORIZED });
 
   // Verify user is allowed into the admin surface.
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
+  const user = await userClerkGate(prisma, userId);
   if (!user || user.banned || user.deletedAt || (user.role !== "ADMIN" && user.role !== "EMPLOYEE")) {
     return privateJson({}, { status: HTTP_STATUS.FORBIDDEN });
   }
