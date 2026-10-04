@@ -22,13 +22,18 @@ state, so a broad active-user SELECT policy is rejected.
 The Clerk bootstrap/lifecycle, owner-private and signed-unsubscribe additive
 families are accepted in Production through exact main `235450c0` and guarded
 run `37184090133`, with User RLS still off and predecessor table authority
-unchanged. The next bounded family is outbound email delivery. Its exact-source
-audit is `docs/user-email-delivery-pre-rls-audit.md`: replace seventeen direct
-User reads, close queued-address continuity after Clerk email changes, and
-inventory relation-backed email projections without absorbing Follow, Guild,
-Order, staff or moderation authority. This authorizes isolated preparation
-only; User activation remains blocked on every remaining direct, raw-SQL,
-relation and installed-function family.
+unchanged. The outbound email-delivery source package is merged at exact main
+`d8a6d1c4`; its additive migration is accepted in Production through guarded
+run `37215932608`, while caller deployment remains a separate decision.
+
+The next bounded family is public and relationship identity. Follow
+`docs/user-public-identity-pre-rls-audit.md`: unify the active-member count,
+remove public Clerk-id dependencies, and replace public raw/nested User access
+with domain-bound operations that preserve database-side visibility, block
+filters, ranking, counts, and pagination. Do not create a generic active-user
+directory: an active buyer without a public artifact is not public identity.
+This authorizes isolated preparation only; User activation remains blocked on
+every remaining direct, raw-SQL, relation and installed-function family.
 
 ### Finish the bounded Order release (2026-09-07)
 

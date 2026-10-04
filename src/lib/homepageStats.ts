@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { getPublicFulfilledOrderCount } from "@/lib/orderPublicAggregateAuthority";
+import { getPublicActiveMemberCount } from "@/lib/userPublicIdentityAccess";
 
 export const HOMEPAGE_STATS_REVALIDATE_SECONDS = 5 * 60;
 
@@ -21,9 +22,7 @@ async function loadHomepageStats(): Promise<HomepageStats> {
         listings: { some: publicListingWhere() },
       }),
     }),
-    prisma.user.count({
-      where: { banned: false, deletedAt: null },
-    }),
+    getPublicActiveMemberCount(),
     getPublicFulfilledOrderCount(),
   ]);
 

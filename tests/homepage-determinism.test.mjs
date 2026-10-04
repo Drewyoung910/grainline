@@ -45,7 +45,9 @@ describe("homepage deterministic query guardrails", () => {
     assert.match(stats, /await Promise\.all\(\[/);
     assert.match(stats, /prisma\.listing\.count\(\{ where: publicListingWhere\(\) \}\)/);
     assert.match(stats, /prisma\.sellerProfile\.count\(\{[\s\S]*activeSellerProfileWhere\([\s\S]*listings: \{ some: publicListingWhere\(\) \}/);
-    assert.match(stats, /prisma\.user\.count\(\{[\s\S]*banned: false, deletedAt: null/);
+    assert.match(stats, /import \{ getPublicActiveMemberCount \} from "@\/lib\/userPublicIdentityAccess"/);
+    assert.match(stats, /getPublicActiveMemberCount\(\)/);
+    assert.doesNotMatch(stats, /prisma\.user\.(count|findMany|findFirst|findUnique)\(/);
     assert.match(stats, /getPublicFulfilledOrderCount\(\)/);
     assert.match(authority, /source_order\."sellerRefundId" IS NULL/);
     assert.match(authority, /source_order\."paymentRefundBlocked" = false/);

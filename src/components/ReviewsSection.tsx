@@ -71,7 +71,7 @@ export default async function ReviewsSection({
   listingId,
   listingTitle,
   meId,
-  sellerUserId,              // Clerk user id (validated again in API)
+  sellerUserId,
   initialSort = "top",
   edit = false,              // ?redit=1 toggles edit UI
   blockedUserIds,
@@ -173,8 +173,8 @@ export default async function ReviewsSection({
   // Fetch the seller profile once so the reply card can show the seller's
   // display name + avatar (much clearer than a generic "Seller reply" label).
   const sellerProfile = sellerUserId
-    ? await prisma.sellerProfile.findFirst({
-        where: { user: { clerkId: sellerUserId } },
+    ? await prisma.sellerProfile.findUnique({
+        where: { userId: sellerUserId },
         select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } },
       })
     : null;
@@ -374,9 +374,9 @@ export default async function ReviewsSection({
                           canVote={!!meId && !viewerIsSeller && meId !== r.reviewer.id}
                           signedIn={!!meId}
                         />
-                        {!r.sellerReply && sellerUserId && (
+                        {!r.sellerReply && viewerIsSeller && (
                           <div className="ml-auto">
-                            <SellerReplyForm reviewId={r.id} canReply={!!sellerUserId} />
+                            <SellerReplyForm reviewId={r.id} canReply={viewerIsSeller} />
                           </div>
                         )}
                       </div>

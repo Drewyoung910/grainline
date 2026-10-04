@@ -3,10 +3,9 @@
 ## Scope and exact source
 
 This audit covers the Prisma `User` model and every application path that can
-read or mutate it. The refreshed inventory is based on source work in isolated
-worktree `.worktrees/user-clerk-account-state-callers-20261003`, whose parent is
-the exact Clerk-gate caller commit
-`1d57b6c859d33c6062a3636f14527260d4c6e878`, on 2026-10-03.
+read or mutate it. The current inventory is based on exact merged main
+`d8a6d1c4b96f12015b6f329140b7e4b7a0054914` in isolated worktree
+`.worktrees/user-public-identity-20261004` on 2026-10-04.
 
 `UserEmailAddress` is a completed predecessor, not part of the remaining
 activation scope. Its policyless ENABLE plus FORCE release is live from exact
@@ -65,12 +64,15 @@ therefore materialize the full mixed-sensitivity row. Those broad reads occur
 in dashboard/order/message identity lookup, `ensureSeller.ts`, and
 `ensureUser.ts`.
 
-The separate raw-SQL scan finds 32 `FROM`, `JOIN`, or `UPDATE` references to
-`"User"` across 18 source files. Most are public/catalog eligibility joins;
-two are owner notification-preference updates. The scan also finds 61
-`ensureUserByClerkId(...)` call expressions in 57 files, excluding its
-declaration. These callers depend on the full inferred Prisma return type even
-when most consume only `id` and account-gate state.
+After the accepted Clerk, owner-private, unsubscribe, and email-delivery source
+packages, the exact scanner reports 31 direct calls in 16 files: 19
+`findUnique`, three `findMany`, one `findFirst`, three `count`, two `update`,
+and three `updateMany` calls. No full-row direct read remains. The separate
+raw-SQL scan now finds 27 `FROM`, `JOIN`, or `UPDATE` references to `"User"`
+across 16 source files. Twenty-three of those references across twelve files
+belong to public catalog, identity, or aggregate behavior. The retained direct
+and raw operations belong to explicitly named later families rather than one
+generic cleanup queue.
 
 Direct delegates and raw SQL are not the complete surface. Prisma relations
 reach `User` through seller profiles, reserved listings, reviews,
@@ -137,10 +139,14 @@ TypeScript result is unavailable because the reusable dependency tree has no
 generated Prisma client; exact-head CI must regenerate Prisma before the
 candidate can be accepted for integration.
 
-The live package and source-only follow-ups reduce the real activation surface
-but do not change the NO-GO decision. The remaining 65 delegates, 32 raw-SQL references, nested
-relations, public identity reads, owner-private operations, staff/service
-operations, and lifecycle writes still need their reviewed operation families.
+The live package and subsequent source packages reduce the real activation
+surface but do not change the NO-GO decision. The email-delivery source package
+is merged at exact main `d8a6d1c4...` and its additive Production migration is
+accepted through guarded run `37215932608`; caller deployment remains separate.
+The local first public-identity package reduces the remaining direct inventory
+to 29 delegates in fourteen files. Those calls, 27 raw-SQL references, nested
+relations, staff/service operations, lifecycle writes, and installed-function
+dependencies still need their reviewed operation families.
 
 ## Operation and principal matrix
 
@@ -148,7 +154,7 @@ operations, and lifecycle writes still need their reviewed operation families.
 | --- | --- | --- | --- |
 | Resolve current local account | Signed Clerk request | local id, role, ban/deletion, legal gate | Fixed Clerk-id bootstrap projection; no email, shipping, preferences, or public-directory scan |
 | Create or refresh identity | Signed Clerk webhook or server-resolved Clerk session | bounded Clerk id, normalized current email, name, image, and co-committed email history | Fixed identity-sync operation retaining unique-conflict and placeholder behavior |
-| Read public identity | Public/catalog or relationship-authorized caller | id plus reviewed name/image/availability fields | Public-safe projection or view that cannot return Clerk id, email, shipping, legal, preferences, staff role, or ban evidence |
+| Read public identity | Public/catalog or relationship-authorized caller | id plus reviewed name/image fields attached to a visible artifact | Domain-bound projection that cannot enumerate unrelated users or return Clerk id, email, shipping, legal, preferences, staff role, or ban evidence |
 | Read private account | Current owner | own contact, legal, shipping, and preference state | Context-bound fixed owner projections by purpose |
 | Accept legal terms | Current owner | terms version and acceptance/age timestamps plus audit row | One atomic owner operation |
 | Update shipping | Current owner | seven validated shipping fields | One bounded owner mutation |
@@ -187,18 +193,20 @@ table owner becomes subject to RLS.
 
 ### `FIX_BEFORE_ACTIVATION`: direct and indirect runtime access
 
-The 144 direct delegate calls, 32 raw-SQL references, and confirmed nested
-relations must reach reviewed targets before table grants change. In
-particular, all 13 full-row reads and all 15 direct/raw mutation statements
-must be removed or routed through bounded operations. Converting only the
-Clerk bootstrap family does not close this finding.
+The historical 144-call baseline, current 31 direct calls, current 27 raw-SQL
+references, and confirmed nested relations must reach reviewed targets before
+table grants change. All current mutations and private/staff reads must be
+routed through bounded operations. The accepted Clerk and email families do
+not close the remaining public, eligibility, staff, lifecycle, or installed
+function work.
 
 ### `FIX_BEFORE_ACTIVATION`: public aggregate joins
 
 Catalog and search queries join `User` only to filter banned or deleted actors.
-They must use an active-user projection or aggregate authority that cannot
-materialize private account columns. Repeating this predicate across raw SQL
-does not constitute a reviewed RLS boundary.
+They must use a domain-bound active-user projection or aggregate authority that
+cannot materialize private account columns or enumerate unrelated active
+buyers. Repeating this predicate across raw SQL does not constitute a reviewed
+RLS boundary.
 
 ### `DEFERRED_PRODUCT_WORK`: schema normalization beyond the release need
 
@@ -210,25 +218,21 @@ silently bundled into RLS activation.
 
 ## Ordered continuation
 
-1. Preserve this exact inventory and add focused tests for the scanner's
-   direct-call contract.
-2. Review and integrate the prepared Clerk bootstrap and identity-sync source
-   package. Apply its additive database functions before moving any canonical
-   application alias to source that calls them.
-3. Confirm the first candidate through exact-head CI and a deployment-disabled
-   build; retain the predecessor alias until the additive migration and its
-   catalog readback succeed.
-4. Complete the outbound email-delivery family in
-   `docs/user-email-delivery-pre-rls-audit.md`: fixed recipient/state
-   operations, seventeen direct-read conversions, queued-address continuity and
-   an explicit relation-backed inventory.
-5. Define and convert the public identity/active-user projection, including
-   nested Prisma and raw aggregate joins.
-6. Convert the remaining eligibility/service, staff/ban and lifecycle/deletion
-   families in cohesive packages.
-7. Run a read-only Production catalog inspection for table/grant/data posture
+1. Deploy the merged email-delivery callers only after their separately bound
+   application release; their additive database authority is live through
+   guarded run `37215932608`.
+2. Integrate the first package in `docs/user-public-identity-pre-rls-audit.md`,
+   which corrects the three public Clerk-id dependencies and unifies the
+   active-member aggregate; then prove domain-bound listing/seller, blog,
+   review, and commission projections.
+3. Re-run the direct, raw-SQL, nested-relation, and installed-function
+   inventories after each cohesive source package without treating one scanner
+   as the whole activation surface.
+4. Convert the remaining eligibility/service, staff/ban, and
+   lifecycle/deletion families in cohesive packages.
+5. Run a read-only Production catalog inspection for table/grant/data posture
    and every dependent function.
-8. Only after source access reaches the reviewed target, prepare disposable
+6. Only after source access reaches the reviewed target, prepare disposable
    PostgreSQL proof, rollback proof, and a separate policyless or projected
    Phase-A decision. Keep FORCE separate.
 

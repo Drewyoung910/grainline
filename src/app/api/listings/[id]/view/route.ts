@@ -13,6 +13,7 @@ import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCooki
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
 import { privateResponse } from "@/lib/privateResponse";
+import { userIdByClerkId } from "@/lib/userIdentityAccess";
 
 const VIEWED_LISTING_IDS_COOKIE = "viewed_listing_ids";
 
@@ -70,11 +71,15 @@ export async function POST(
   const dailyCapOk = await claimListingAnalyticsDailyCap("view", id);
   if (!dailyCapOk) return telemetryJson({ ok: true, skipped: true });
 
+  const viewer = userId ? await userIdByClerkId(prisma, userId) : null;
+  if (userId && !viewer) return telemetryJson({ ok: true, skipped: true });
+  const viewerUserId = viewer?.id ?? null;
+
   const tracked = await prisma.$transaction(async (tx) => {
     const updated = await tx.listing.updateMany({
       where: publicListingWhere({
         id,
-        ...(userId ? { seller: { user: { clerkId: { not: userId } } } } : {}),
+        ...(viewerUserId ? { seller: { userId: { not: viewerUserId } } } : {}),
       }),
       data: { viewCount: { increment: 1 } },
     });

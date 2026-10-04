@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { getPublicActiveMemberCount } from "@/lib/userPublicIdentityAccess";
 
 export const metadata: Metadata = {
   title: "About Grainline",
@@ -20,7 +21,7 @@ export default async function AboutPage() {
     prisma.sellerProfile.count({
       where: activeSellerProfileWhere({ listings: { some: publicListingWhere() } }),
     }),
-    prisma.user.count({ where: { banned: false } }),
+    getPublicActiveMemberCount(),
   ]);
 
   return (

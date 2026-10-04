@@ -391,8 +391,6 @@ export default async function ListingPage({
       : "#";
   const hideMessage = !!meId && !!sellerUserId && meId === sellerUserId;
 
-  const canReplyClerkId = viewerIsSeller ? userId : null;
-
   const isActive = listing.status === "ACTIVE";
   const isOwnListing = viewerIsSeller;
 
@@ -935,7 +933,7 @@ export default async function ListingPage({
           listingId={listingId}
           listingTitle={listing.title}
           meId={meId}
-          sellerUserId={canReplyClerkId}
+          sellerUserId={sellerUserId}
           initialSort={sortKey}
           edit={editingMine}
           blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
