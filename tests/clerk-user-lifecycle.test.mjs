@@ -150,6 +150,7 @@ describe("Clerk webhook welcome email reservation", () => {
     assert.match(email, /export function renderWelcomeSellerEmail/);
     assert.match(route, /sendRenderedEmail\(buyerWelcomeEmail, \{ throwOnFailure: true \}\)/);
     assert.match(route, /sendRenderedEmail\(sellerWelcomeEmail, \{ throwOnFailure: true \}\)/);
+    assert.match(route, /reserveUserClerkWelcomeEmail\(prisma, \{\s*clerkId: id,\s*userId: user\.id/);
     assert.match(route, /enqueueWelcomeFallbackEmail\(buyerWelcomeEmail, `welcome-buyer:\$\{user\.id\}`, user\.id\)/);
     assert.match(route, /enqueueWelcomeFallbackEmail\(sellerWelcomeEmail, `welcome-seller:\$\{user\.id\}`, user\.id\)/);
     assert.match(route, /source: "clerk_webhook_welcome_email_outbox"/);

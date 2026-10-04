@@ -97,6 +97,14 @@ jobs:
           tests/user-current-clerk-authorities-postgres.test.mjs
           tests/user-current-clerk-authorities-production-inspect.test.mjs
           tests/user-current-clerk-authorities-preparation-production-workflow.test.mjs
+      - name: Verify User Clerk provider lifecycle source package
+        run: >-
+          node --test
+          tests/clerk-user-lifecycle.test.mjs
+          tests/user-clerk-provider-lifecycle.test.mjs
+          tests/user-clerk-provider-lifecycle-postgres.test.mjs
+          tests/user-clerk-provider-lifecycle-production-inspect.test.mjs
+          tests/user-clerk-provider-lifecycle-preparation-production-workflow.test.mjs
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
@@ -126,6 +134,21 @@ jobs:
           for test_file in \
             tests/user-current-clerk-authorities.test.mjs \
             tests/user-current-clerk-authorities-postgres.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
+      - name: Isolate User Clerk provider lifecycle until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-clerk-provider-lifecycle"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261004000000_prepare_user_clerk_provider_lifecycle \
+            "$holding/migration"
+          for test_file in \
+            tests/user-clerk-provider-lifecycle.test.mjs \
+            tests/user-clerk-provider-lifecycle-postgres.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
@@ -3269,6 +3292,89 @@ jobs:
           $verify_user_current_clerk_authority$;
           SQL
       - name: Audit runtime grants after User current-Clerk authority
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User Clerk provider lifecycle source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-clerk-provider-lifecycle"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261004000000_prepare_user_clerk_provider_lifecycle
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify User Clerk provider lifecycle source package
+        run: >-
+          node --test
+          tests/clerk-user-lifecycle.test.mjs
+          tests/user-clerk-provider-lifecycle.test.mjs
+          tests/user-clerk-provider-lifecycle-postgres.test.mjs
+          tests/user-clerk-provider-lifecycle-production-inspect.test.mjs
+          tests/user-clerk-provider-lifecycle-preparation-production-workflow.test.mjs
+      - name: Apply User Clerk provider lifecycle in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261004000000_prepare_user_clerk_provider_lifecycle/migration.sql
+      - name: Verify User Clerk provider lifecycle catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_clerk_provider_lifecycle$
+          DECLARE
+            catalog_is_exact boolean;
+          BEGIN
+            SELECT
+              pg_catalog.count(*) = 2
+              AND pg_catalog.bool_and(procedure.prosecdef)
+              AND pg_catalog.bool_and(
+                procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+              )
+              AND pg_catalog.bool_and(procedure.proparallel = 'u')
+              AND pg_catalog.bool_and(
+                CASE procedure.proname
+                  WHEN 'grainline_user_clerk_lifecycle_state' THEN procedure.provolatile = 's'
+                  WHEN 'grainline_user_clerk_welcome_reserve' THEN procedure.provolatile = 'v'
+                  ELSE false
+                END
+              )
+              AND pg_catalog.bool_and(
+                pg_catalog.has_function_privilege(
+                  'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                EXISTS (
+                  SELECT 1
+                    FROM pg_catalog.aclexplode(
+                      COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )
+                    ) AS privilege
+                   WHERE privilege.grantee = 0
+                     AND privilege.privilege_type = 'EXECUTE'
+                )
+              )
+              INTO catalog_is_exact
+              FROM pg_catalog.pg_proc AS procedure
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.proname = ANY(ARRAY[
+                 'grainline_user_clerk_lifecycle_state',
+                 'grainline_user_clerk_welcome_reserve'
+               ]::text[]);
+
+            IF catalog_is_exact IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'User Clerk provider lifecycle catalog drifted';
+            END IF;
+          END
+          $verify_user_clerk_provider_lifecycle$;
+          SQL
+      - name: Audit runtime grants after User Clerk provider lifecycle
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
