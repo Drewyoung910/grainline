@@ -143,9 +143,12 @@ test("the actual deletion helper distinguishes absent and already deleted users 
     { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
   for (const user of [null, { id: "synthetic_user", deletedAt: new Date() }]) {
     let reads = 0; const mod = { exports: {} };
-    const prisma = { user: { findUnique: async () => { reads++; return user; } } };
+    const prisma = { user: { findUnique: async () => { throw new Error("Unexpected direct User read"); } } };
     new Function("require", "module", "exports", compiled.outputText)(name => {
       if (name === "@/lib/db") return { prisma };
+      if (name === "@/lib/userIdentityAccess") return {
+        userClerkGate: async () => { reads++; return user; },
+      };
       // The deployed-main helper builds static SQL fragments at module load.
       // Use Prisma's real value helpers while keeping all database I/O mocked.
       if (name === "@prisma/client") return require(name);

@@ -1,7 +1,7 @@
 // src/app/api/blog/[slug]/comments/route.ts
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { userIdByClerkId } from "@/lib/userIdentityAccess";
+import { userClerkGate, userIdByClerkId } from "@/lib/userIdentityAccess";
 import { auth } from "@clerk/nextjs/server";
 import { blogCommentRatelimit, getIP, safeRateLimit, rateLimitResponse, searchRatelimit } from "@/lib/ratelimit";
 import { containsProfanity } from "@/lib/profanity";
@@ -134,10 +134,7 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, name: true, email: true, banned: true, deletedAt: true },
-  });
+  const me = await userClerkGate(prisma, userId);
   if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
 

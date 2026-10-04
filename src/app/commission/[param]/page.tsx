@@ -5,7 +5,7 @@
 // isMetroSlug() distinguishes the two cases.
 
 import { prisma } from "@/lib/db";
-import { userIdByClerkId } from "@/lib/userIdentityAccess";
+import { userClerkCommissionContext, userIdByClerkId } from "@/lib/userIdentityAccess";
 import { notFound } from "next/navigation";
 import { truncateText } from "@/lib/sanitize";
 import Link from "next/link";
@@ -358,10 +358,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
   let alreadyInterested = false;
 
   if (userId) {
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true, sellerProfile: { select: { id: true } } },
-    });
+    const me = await userClerkCommissionContext(prisma, userId);
     if (me) {
       meId = me.id;
       sellerProfileId = me.sellerProfile?.id ?? null;

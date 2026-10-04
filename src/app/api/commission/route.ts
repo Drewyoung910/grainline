@@ -2,7 +2,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { userIdByClerkId } from "@/lib/userIdentityAccess";
+import { userClerkCommissionContext, userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Category } from "@prisma/client";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getBlockedIdsFor } from "@/lib/blocks";
@@ -125,15 +125,7 @@ export async function POST(req: NextRequest) {
   const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
   if (!rlOk) return privateResponse(rateLimitResponse(reset, "You can post up to 5 commission requests per day."));
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: {
-      id: true,
-      banned: true,
-      deletedAt: true,
-      sellerProfile: { select: { lat: true, lng: true, radiusMeters: true } },
-    },
-  });
+  const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.UNAUTHORIZED });
   if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
 

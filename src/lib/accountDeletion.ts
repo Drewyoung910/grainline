@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
@@ -1617,10 +1618,7 @@ export async function anonymizeUserAccount(
 }
 
 export async function anonymizeUserAccountByClerkId(clerkId: string) {
-  const user = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { id: true, deletedAt: true },
-  });
+  const user = await userClerkGate(prisma, clerkId);
   if (!user) return { ok: true, alreadyDeleted: true, userAbsent: true };
   if (user.deletedAt) return { ok: true, alreadyDeleted: true };
 

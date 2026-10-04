@@ -1,5 +1,6 @@
 // src/app/commission/page.tsx
 import { prisma } from "@/lib/db";
+import { userClerkCommissionContext } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import type { Metadata } from "next";
@@ -65,13 +66,7 @@ async function CommissionPageContent({
   let viewerLng: number | null = null;
 
   if (userId) {
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: {
-        id: true,
-        sellerProfile: { select: { id: true, lat: true, lng: true } },
-      },
-    });
+    const me = await userClerkCommissionContext(prisma, userId);
     if (me) {
       meId = me.id;
       sellerProfileId = me.sellerProfile?.id ?? null;
