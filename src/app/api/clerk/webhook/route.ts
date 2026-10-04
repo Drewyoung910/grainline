@@ -26,6 +26,10 @@ import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { prepareClerkSentinelReceipt } from "@/lib/clerkWebhookReceipt.mjs";
+import {
+  reserveUserClerkWelcomeEmail,
+  userClerkLifecycleState,
+} from "@/lib/userIdentityAccess";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
@@ -259,10 +263,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const existingLocalUser = await prisma.user.findUnique({
-      where: { clerkId: id },
-      select: { id: true, email: true, banned: true, deletedAt: true },
-    });
+    const existingLocalUser = await userClerkLifecycleState(prisma, id);
     if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
       await markClerkWebhookProcessed(svixId);
       return NextResponse.json({ ok: true });
@@ -317,11 +318,11 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      const reserved = await prisma.user.updateMany({
-        where: { id: user.id, welcomeEmailSentAt: null },
-        data: { welcomeEmailSentAt: new Date() },
+      const reserved = await reserveUserClerkWelcomeEmail(prisma, {
+        clerkId: id,
+        userId: user.id,
       });
-      if (reserved.count !== 1) {
+      if (!reserved) {
         await markClerkWebhookProcessed(svixId);
         return NextResponse.json({ ok: true });
       }

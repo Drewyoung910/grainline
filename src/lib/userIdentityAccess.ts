@@ -27,6 +27,15 @@ export type UserClerkActor = Pick<
   "id" | "name" | "banned" | "deletedAt"
 >;
 
+export type UserClerkLifecycleState = Pick<
+  User,
+  "id" | "banned" | "deletedAt"
+> & { email: string | null };
+
+type UserClerkWelcomeReservationRow = {
+  reserved: boolean;
+};
+
 type UserClerkCommissionContextRow = UserClerkActor & {
   sellerProfileId: string | null;
   sellerDisplayName: string | null;
@@ -64,6 +73,19 @@ function validUserClerkActor(row: UserClerkActor | undefined): row is UserClerkA
     row
     && typeof row.id === "string"
     && validOptionalString(row.name)
+    && typeof row.banned === "boolean"
+    && (row.deletedAt === null || row.deletedAt instanceof Date),
+  );
+}
+
+function validUserClerkLifecycleState(
+  row: UserClerkLifecycleState | undefined,
+): row is UserClerkLifecycleState {
+  const blocked = Boolean(row?.banned || row?.deletedAt);
+  return Boolean(
+    row
+    && typeof row.id === "string"
+    && (blocked ? row.email === null : typeof row.email === "string")
     && typeof row.banned === "boolean"
     && (row.deletedAt === null || row.deletedAt instanceof Date),
   );
@@ -151,6 +173,45 @@ export async function userClerkActor(
     throw new Error("Clerk actor authority returned an invalid result");
   }
   return actor ?? null;
+}
+
+export async function userClerkLifecycleState(
+  client: UserIdentityClient,
+  clerkId: string,
+) {
+  const rows = await client.$queryRaw<UserClerkLifecycleState[]>`
+    SELECT *
+      FROM public.grainline_user_clerk_lifecycle_state(${clerkId}::text)
+  `;
+  const state = rows[0];
+  if (
+    rows.length > 1
+    || (state && !validUserClerkLifecycleState(state))
+  ) {
+    throw new Error("Clerk provider lifecycle authority returned an invalid result");
+  }
+  return state ?? null;
+}
+
+export async function reserveUserClerkWelcomeEmail(
+  client: UserIdentityClient,
+  input: { clerkId: string; userId: string },
+) {
+  const rows = await client.$queryRaw<UserClerkWelcomeReservationRow[]>`
+    SELECT public.grainline_user_clerk_welcome_reserve(
+      ${input.clerkId}::text,
+      ${input.userId}::text
+    ) AS reserved
+  `;
+  const outcome = rows[0];
+  if (
+    rows.length !== 1
+    || !outcome
+    || typeof outcome.reserved !== "boolean"
+  ) {
+    throw new Error("Clerk welcome reservation authority returned an invalid result");
+  }
+  return outcome.reserved;
 }
 
 export async function userClerkCommissionContext(

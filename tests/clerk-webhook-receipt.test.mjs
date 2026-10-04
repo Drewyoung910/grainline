@@ -40,6 +40,10 @@ function route(controls = {}) {
     "@/lib/requestBody": { ...bodyModule.exports, readBoundedWebhookText: async (req, limit) => {
       if (controls.bodyFailure) throw new Error("bad stream"); return bodyModule.exports.readBoundedWebhookText(req, limit);
     } },
+    "@/lib/userIdentityAccess": {
+      userClerkLifecycleState: unexpected,
+      reserveUserClerkWelcomeEmail: unexpected,
+    },
     "@/lib/httpStatus": { HTTP_STATUS: { BAD_REQUEST: 400, INTERNAL_SERVER_ERROR: 500, SERVICE_UNAVAILABLE: 503, PAYLOAD_TOO_LARGE: 413 } },
     "@sentry/nextjs": { captureException() {}, captureMessage() {} },
     "@/lib/webhookFailureSpike": { recordWebhookFailureSpike: async () => {} },
