@@ -26,16 +26,13 @@ const DEFAULT_OFF_EMAIL: NotificationPreferenceKey[] = ["EMAIL_SELLER_BROADCAST"
 export default async function AccountSettingsPage() {
   const me = await ensureUserForPage("/account/settings");
 
-  const user = await prisma.user.findUnique({
-    where: { id: me.id },
-    select: {
-      notificationPreferences: true,
-      sellerProfile: { select: { id: true } },
-    },
+  const sellerProfile = await prisma.sellerProfile.findUnique({
+    where: { userId: me.id },
+    select: { id: true },
   });
 
-  const prefs = normalizeNotificationPreferences(user?.notificationPreferences);
-  const hasSeller = !!user?.sellerProfile;
+  const prefs = normalizeNotificationPreferences(me.notificationPreferences);
+  const hasSeller = !!sellerProfile;
 
   function isEnabled(type: NotificationPreferenceKey) {
     if (DEFAULT_OFF.includes(type)) return prefs[type] === true;

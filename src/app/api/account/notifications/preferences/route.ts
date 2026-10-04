@@ -16,6 +16,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { updateUserOwnerNotificationPreference } from "@/lib/userOwnerPrivateAccess";
 import { z } from "zod";
 
 const PreferencesSchema = z.object({
@@ -56,23 +57,16 @@ export async function POST(request: NextRequest) {
   const { type, enabled } = body;
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
-      UPDATE "User"
-      SET "notificationPreferences" = jsonb_set(
-        COALESCE("notificationPreferences", '{}'::jsonb),
-        ARRAY[${type}]::text[],
-        to_jsonb(${enabled}::boolean),
-        true
-      )
-      WHERE "id" = ${me.id}
-    `;
+    const updated = await updateUserOwnerNotificationPreference(tx, {
+      userId: me.id,
+      preferenceKey: type,
+      enabled,
+    });
+    if (!updated) {
+      throw new Error("Notification preference authority did not update active user");
+    }
 
     if (enabled && isValidEmailPreferenceKey(type)) {
-      await tx.$executeRaw`
-        UPDATE "User"
-        SET "emailPreferenceOptInAt" = ${new Date()}
-        WHERE "id" = ${me.id}
-      `;
       await clearOneClickEmailSuppression(me.email, tx);
     }
   });

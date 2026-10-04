@@ -60,9 +60,10 @@ describe("R49 account-state route guardrails", () => {
     assert.match(shippingRoute, /safeRateLimit\(shippingAddressRatelimit, userId\)/);
     assert.ok(
       shippingRoute.indexOf("safeRateLimit(shippingAddressRatelimit, userId)") <
-        shippingRoute.indexOf("prisma.user.findUnique"),
-      "shipping-address GET should rate-limit before reading the saved address",
+        shippingRoute.indexOf("name: user.shippingName ?? null"),
+      "shipping-address GET should rate-limit before returning the saved address",
     );
+    assert.doesNotMatch(shippingRoute, /prisma\.user\./);
 
     const savedSearchRoute = source("src/app/api/search/saved/route.ts");
     const savedSearchGet = savedSearchRoute.slice(
