@@ -4,12 +4,13 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUser } from "@/lib/ensureUser";
 import { prisma } from "@/lib/db";
 import { safeRateLimit, termsAcceptanceRatelimit, rateLimitResponse } from "@/lib/ratelimit";
-import { CURRENT_TERMS_VERSION, currentTermsAcceptanceUpdate } from "@/lib/termsAcceptance";
+import { CURRENT_TERMS_VERSION } from "@/lib/termsAcceptance";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import { logUserAuditActionOrThrow } from "@/lib/audit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { acceptUserOwnerLegalTerms } from "@/lib/userOwnerPrivateAccess";
 
 const AcceptTermsSchema = z.object({
   termsAccepted: z.literal(true),
@@ -53,16 +54,10 @@ export async function POST(req: Request) {
 
   if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const acceptedAt = new Date();
   const user = await prisma.$transaction(async (tx) => {
-    const updated = await tx.user.update({
-      where: { id: me.id },
-      data: currentTermsAcceptanceUpdate(me, acceptedAt),
-      select: {
-        termsAcceptedAt: true,
-        termsVersion: true,
-        ageAttestedAt: true,
-      },
+    const updated = await acceptUserOwnerLegalTerms(tx, {
+      userId: me.id,
+      termsVersion: CURRENT_TERMS_VERSION,
     });
     await logUserAuditActionOrThrow({
       client: tx,
@@ -72,8 +67,8 @@ export async function POST(req: Request) {
       targetId: me.id,
       metadata: {
         termsVersion: updated.termsVersion,
-        termsAcceptedAt: updated.termsAcceptedAt?.toISOString() ?? acceptedAt.toISOString(),
-        ageAttestedAt: updated.ageAttestedAt?.toISOString() ?? null,
+        termsAcceptedAt: updated.termsAcceptedAt.toISOString(),
+        ageAttestedAt: updated.ageAttestedAt.toISOString(),
         route: "/api/account/accept-terms",
       },
     });
@@ -83,8 +78,8 @@ export async function POST(req: Request) {
 
   return privateJson({
     ok: true,
-    termsAcceptedAt: user.termsAcceptedAt?.toISOString() ?? null,
+    termsAcceptedAt: user.termsAcceptedAt.toISOString(),
     termsVersion: user.termsVersion,
-    ageAttestedAt: user.ageAttestedAt?.toISOString() ?? null,
+    ageAttestedAt: user.ageAttestedAt.toISOString(),
   });
 }

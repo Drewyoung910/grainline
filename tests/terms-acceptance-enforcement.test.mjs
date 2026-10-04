@@ -79,14 +79,14 @@ describe("terms acceptance enforcement", () => {
 
     assert.match(route, /import \{ logUserAuditActionOrThrow \} from "@\/lib\/audit"/);
     assert.match(route, /const user = await prisma\.\$transaction\(async \(tx\) => \{/);
-    assert.match(route, /await tx\.user\.update\(\{/);
+    assert.match(route, /await acceptUserOwnerLegalTerms\(tx, \{/);
     assert.match(route, /await logUserAuditActionOrThrow\(\{/);
     assert.match(route, /client: tx/);
     assert.match(route, /action: "TERMS_ACCEPTED"/);
     assert.match(route, /targetType: "USER"/);
     assert.match(route, /termsVersion: updated\.termsVersion/);
-    assert.match(route, /termsAcceptedAt: updated\.termsAcceptedAt\?\.toISOString\(\) \?\? acceptedAt\.toISOString\(\)/);
-    assert.match(route, /ageAttestedAt: updated\.ageAttestedAt\?\.toISOString\(\) \?\? null/);
+    assert.match(route, /termsAcceptedAt: updated\.termsAcceptedAt\.toISOString\(\)/);
+    assert.match(route, /ageAttestedAt: updated\.ageAttestedAt\.toISOString\(\)/);
     assert.match(route, /route: "\/api\/account\/accept-terms"/);
   });
 
@@ -103,10 +103,10 @@ describe("terms acceptance enforcement", () => {
       /termsAcceptedAt\?:|termsVersion\?:|ageAttestedAt\?:/,
       "generic identity synchronization must not accept legal-state write authority",
     );
-    assert.match(acceptance, /const acceptedAt = new Date\(\)/);
+    assert.match(acceptance, /termsVersion: CURRENT_TERMS_VERSION/);
     assert.match(acceptance, /action: "TERMS_ACCEPTED"/);
     assert.ok(
-      acceptance.indexOf("await tx.user.update") < acceptance.indexOf("await logUserAuditActionOrThrow"),
+      acceptance.indexOf("acceptUserOwnerLegalTerms(tx") < acceptance.indexOf("await logUserAuditActionOrThrow"),
       "the trusted audit row must be written after the legal state in the same transaction",
     );
   });

@@ -183,10 +183,11 @@ describe("account and privacy route observability guardrails", () => {
       route,
       /import \{ isValidEmailPreferenceKey, VALID_PREFERENCE_KEYS \}/,
     );
+    assert.match(route, /updateUserOwnerNotificationPreference\(tx, \{/);
     assert.match(route, /clearOneClickEmailSuppression\(me\.email, tx\)/);
     assert.match(route, /if \(enabled && isValidEmailPreferenceKey\(type\)\)/);
     assert.ok(
-      route.indexOf("tx.$executeRaw") <
+      route.indexOf("updateUserOwnerNotificationPreference(tx") <
         route.indexOf("clearOneClickEmailSuppression(me.email, tx)"),
       "preference opt-in should write the preference before clearing one-click suppression",
     );
@@ -340,10 +341,10 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.match(
       preferencesRoute,
-      /SET "emailPreferenceOptInAt" = \$\{new Date\(\)\}/,
+      /updateUserOwnerNotificationPreference\(tx, \{/,
     );
     assert.ok(
-      preferencesRoute.indexOf('SET "emailPreferenceOptInAt"') <
+      preferencesRoute.indexOf("updateUserOwnerNotificationPreference(tx") <
         preferencesRoute.indexOf("clearOneClickEmailSuppression(me.email, tx)"),
       "email opt-in epoch should be written before one-click suppression is cleared",
     );

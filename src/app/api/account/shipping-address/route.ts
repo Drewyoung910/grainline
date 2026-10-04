@@ -11,6 +11,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { updateUserOwnerShippingAddress } from "@/lib/userOwnerPrivateAccess";
 import { z } from "zod";
 
 const US_STATE_CODES = new Set([
@@ -68,28 +69,14 @@ export async function GET() {
   const { success, reset } = await safeRateLimit(shippingAddressRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many requests."));
 
-  const me = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: {
-      shippingName: true,
-      shippingLine1: true,
-      shippingLine2: true,
-      shippingCity: true,
-      shippingState: true,
-      shippingPostalCode: true,
-      shippingPhone: true,
-    },
-  });
-  if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.NOT_FOUND });
-
   return privateJson({
-    name: me.shippingName ?? null,
-    line1: me.shippingLine1 ?? null,
-    line2: me.shippingLine2 ?? null,
-    city: me.shippingCity ?? null,
-    state: me.shippingState?.toUpperCase() ?? null,
-    postalCode: me.shippingPostalCode ?? null,
-    phone: me.shippingPhone ?? null,
+    name: user.shippingName ?? null,
+    line1: user.shippingLine1 ?? null,
+    line2: user.shippingLine2 ?? null,
+    city: user.shippingCity ?? null,
+    state: user.shippingState?.toUpperCase() ?? null,
+    postalCode: user.shippingPostalCode ?? null,
+    phone: user.shippingPhone ?? null,
   });
 }
 
@@ -126,18 +113,13 @@ export async function PUT(req: Request) {
     throw e;
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      shippingName: body.name,
-      shippingLine1: body.line1,
-      shippingLine2: body.line2,
-      shippingCity: body.city,
-      shippingState: body.state,
-      shippingPostalCode: body.postalCode,
-      shippingPhone: body.phone,
-    },
+  const updated = await updateUserOwnerShippingAddress(prisma, {
+    userId: user.id,
+    ...body,
   });
+  if (!updated) {
+    return privateJson({ error: "User not found" }, { status: HTTP_STATUS.NOT_FOUND });
+  }
 
   return privateJson({ ok: true });
 }
