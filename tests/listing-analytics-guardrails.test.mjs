@@ -45,10 +45,15 @@ describe("listing analytics guardrails", () => {
       const transactionIndex = route.indexOf("prisma.$transaction");
 
       assert.match(route, /import \{ auth \} from "@clerk\/nextjs\/server"/);
+      assert.match(route, /import \{ userIdByClerkId \} from "@\/lib\/userIdentityAccess"/);
       assert.match(route, /const \{ userId \} = await auth\(\)/);
       assert.match(route, /claimListingAnalyticsDailyCap\("(view|click)", id\)/);
       assert.ok(capIndex >= 0 && capIndex < transactionIndex, `${path} must check daily cap before DB writes`);
-      assert.match(route, /seller: \{ user: \{ clerkId: \{ not: userId \} \} \}/);
+      assert.match(route, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
+      assert.match(route, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
+      assert.match(route, /const viewerUserId = viewer\?\.id \?\? null/);
+      assert.match(route, /viewerUserId \? \{ seller: \{ userId: \{ not: viewerUserId \} \} \} : \{\}/);
+      assert.doesNotMatch(route, /seller: \{ user: \{ clerkId:/);
       assert.match(route, new RegExp(`data: \\{ ${counter}: \\{ increment: 1 \\} \\}`));
       assert.match(route, /publicListingWhere\(\{/);
     }
