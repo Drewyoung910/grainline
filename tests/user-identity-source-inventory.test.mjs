@@ -11,10 +11,10 @@ const report = JSON.parse(
 );
 
 test("User direct-access inventory records cumulative bounded conversions", () => {
-  assert.equal(report.count, 31);
-  assert.equal(report.files, 16);
+  assert.equal(report.count, 29);
+  assert.equal(report.files, 14);
   assert.deepEqual(report.byMethod, {
-    count: 3,
+    count: 1,
     findFirst: 1,
     findMany: 3,
     findUnique: 19,

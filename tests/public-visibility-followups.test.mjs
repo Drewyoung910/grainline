@@ -120,6 +120,8 @@ describe("public visibility follow-ups", () => {
     const listingPage = read("src/app/listing/[id]/page.tsx");
     const sellerPage = read("src/app/seller/[id]/page.tsx");
     const sellerShopPage = read("src/app/seller/[id]/shop/page.tsx");
+    const customerPhotosPage = read("src/app/seller/[id]/customer-photos/page.tsx");
+    const reviewsSection = read("src/components/ReviewsSection.tsx");
     const visibility = read("src/lib/listingVisibility.ts");
 
     assert.doesNotMatch(listingPage, /user: \{ select: \{ id: true/);
@@ -133,6 +135,25 @@ describe("public visibility follow-ups", () => {
     assert.match(sellerShopPage, /const blockedUserIds = await getBlockedUserIdsFor\(meId\)/);
     assert.match(sellerShopPage, /!isOwner && blockedUserIds\.has\(seller\.userId\)/);
     assert.match(visibility, /listing\.seller\.userId === viewer\.dbUserId/);
+
+    assert.doesNotMatch(customerPhotosPage, /clerkId: true/);
+    assert.match(customerPhotosPage, /const isOwner = !!meId && seller\.user\?\.id === meId/);
+    assert.match(reviewsSection, /where: \{ userId: sellerUserId \}/);
+    assert.match(reviewsSection, /!r\.sellerReply && viewerIsSeller/);
+    assert.doesNotMatch(reviewsSection, /where: \{ clerkId: sellerUserId \}/);
+  });
+
+  it("resolves analytics ownership to local ids and fails closed for missing local users", () => {
+    for (const routePath of [
+      "src/app/api/listings/[id]/click/route.ts",
+      "src/app/api/listings/[id]/view/route.ts",
+    ]) {
+      const source = read(routePath);
+      assert.match(source, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
+      assert.match(source, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
+      assert.match(source, /seller: \{ userId: \{ not: viewerUserId \} \}/);
+      assert.doesNotMatch(source, /seller: \{ user: \{ clerkId:/);
+    }
   });
 
   it("allows sellers to clear their workshop gallery explicitly", () => {

@@ -27,7 +27,7 @@ const getSellerProfileForCustomerPhotosPage = cache(async (sellerId: string) =>
       displayName: true,
       chargesEnabled: true,
       stripeAccountVersion: true,
-      user: { select: { id: true, banned: true, deletedAt: true, clerkId: true } },
+      user: { select: { id: true, banned: true, deletedAt: true } },
     },
   })
 );
@@ -75,7 +75,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const isOwner = !!userId && seller.user?.clerkId === userId;
+  const isOwner = !!meId && seller.user?.id === meId;
   if (!isOwner && !sellerPhotosIsPubliclyVisible(seller)) return notFound();
 
   const blockedUserIds = await getBlockedUserIdsFor(meId);

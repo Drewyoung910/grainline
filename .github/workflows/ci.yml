@@ -134,6 +134,15 @@ jobs:
           tests/user-email-delivery-authorities-postgres.test.mjs
           tests/user-email-delivery-production-inspect.test.mjs
           tests/user-email-delivery-preparation-production-workflow.test.mjs
+      - name: Verify User public-identity first source package
+        run: >-
+          node --test
+          tests/public-visibility-followups.test.mjs
+          tests/user-public-identity-source.test.mjs
+          tests/user-public-identity-state.test.mjs
+          tests/user-public-member-aggregate-postgres.test.mjs
+          tests/user-public-member-aggregate-production-inspect.test.mjs
+          tests/user-public-member-aggregate-preparation-production-workflow.test.mjs
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
@@ -151,6 +160,24 @@ jobs:
           tests/user-email-address-force-release.test.mjs
           tests/user-email-address-force-postgres-proof.test.mjs
           tests/user-email-address-force-production-workflow.test.mjs
+      - name: Isolate User public-identity first package until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-public-identity"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261004040000_prepare_user_public_member_aggregate \
+            "$holding/migration"
+          for test_file in \
+            tests/user-public-identity-source.test.mjs \
+            tests/user-public-identity-state.test.mjs \
+            tests/user-public-member-aggregate-postgres.test.mjs \
+            tests/user-public-member-aggregate-production-inspect.test.mjs \
+            tests/user-public-member-aggregate-preparation-production-workflow.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Isolate User email-delivery authority until historical release guards pass
         shell: bash
         run: |
@@ -3703,6 +3730,85 @@ jobs:
           $verify_user_email_delivery_authority$;
           SQL
       - name: Audit runtime grants after User email-delivery authority
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User public-identity first source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-public-identity"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261004040000_prepare_user_public_member_aggregate
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify User public-identity first source package
+        run: >-
+          node --test
+          tests/public-visibility-followups.test.mjs
+          tests/user-public-identity-source.test.mjs
+          tests/user-public-identity-state.test.mjs
+          tests/user-public-member-aggregate-postgres.test.mjs
+          tests/user-public-member-aggregate-production-inspect.test.mjs
+          tests/user-public-member-aggregate-preparation-production-workflow.test.mjs
+      - name: Apply User public active-member aggregate in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261004040000_prepare_user_public_member_aggregate/migration.sql
+      - name: Verify User public active-member aggregate catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_public_member_aggregate$
+          DECLARE
+            catalog_is_exact boolean;
+          BEGIN
+            SELECT
+              pg_catalog.count(*) = 1
+              AND pg_catalog.bool_and(procedure.prosecdef)
+              AND pg_catalog.bool_and(
+                procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+              )
+              AND pg_catalog.bool_and(procedure.provolatile = 's')
+              AND pg_catalog.bool_and(procedure.proparallel = 's')
+              AND NOT pg_catalog.bool_or(
+                pg_catalog.strpos(pg_catalog.upper(procedure.prosrc), 'EXECUTE') > 0
+              )
+              AND pg_catalog.bool_and(
+                pg_catalog.has_function_privilege(
+                  'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                EXISTS (
+                  SELECT 1
+                    FROM pg_catalog.aclexplode(
+                      COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )
+                    ) AS privilege
+                   WHERE privilege.grantee = 0
+                     AND privilege.privilege_type = 'EXECUTE'
+                )
+              )
+              INTO catalog_is_exact
+              FROM pg_catalog.pg_proc AS procedure
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.proname =
+                 'grainline_user_public_active_member_count';
+
+            IF catalog_is_exact IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'User public active-member aggregate catalog drifted';
+            END IF;
+          END
+          $verify_user_public_member_aggregate$;
+          SQL
+      - name: Audit runtime grants after User public active-member aggregate
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
