@@ -201,8 +201,9 @@ describe("account-state residue hardening", () => {
     const outbox = source("src/lib/emailOutbox.ts");
 
     assert.match(outbox, /async function inactiveQueuedEmailRecipientReason/);
-    assert.match(outbox, /if \(job\.userId\) \{[\s\S]*where: \{ id: job\.userId \}/);
-    assert.match(outbox, /where: \{ email: job\.recipientEmail \}/);
+    assert.match(outbox, /if \(job\.userId\) \{[\s\S]*userEmailAccountStateById\(prisma, \{[\s\S]*userId: job\.userId,[\s\S]*expectedEmail: job\.recipientEmail/);
+    assert.match(outbox, /userEmailAccountStateByEmail\(prisma, job\.recipientEmail\)/);
+    assert.doesNotMatch(outbox, /prisma\.user\.(?:findUnique|findFirst|findMany)/);
     assert.match(outbox, /const inactiveReason = await inactiveQueuedEmailRecipientReason\(job\)/);
     assert.match(outbox, /skipEmailOutboxJob\(job\.id, inactiveReason\)/);
     assert.ok(

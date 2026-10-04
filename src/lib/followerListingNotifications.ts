@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/db";
 import { renderNewListingFromFollowedMakerEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { mapWithConcurrency } from "@/lib/concurrency";
+import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
 
 const FOLLOWER_FANOUT_PAGE_SIZE = 1000;
 
@@ -62,7 +63,7 @@ export async function fanOutListingToFollowers({
       orderBy: { id: "asc" },
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       take: FOLLOWER_FANOUT_PAGE_SIZE,
-      select: { id: true, followerId: true, follower: { select: { email: true } } },
+      select: { id: true, followerId: true },
     });
 
     if (followers.length === 0) return;
@@ -80,25 +81,31 @@ export async function fanOutListingToFollowers({
       }),
     );
 
-    await mapWithConcurrency(followers.filter((f) => f.follower?.email), 5, async (f) => {
-      if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
-        const email = renderNewListingFromFollowedMakerEmail({
-          to: f.follower.email!,
-          makerName: sellerDisplay,
-          listingTitle: publicListing.title,
-          listingPrice,
-          listingUrl,
-        });
-        await enqueueEmailOutbox({
-          ...email,
-          dedupKey: emailDedupKey(f.followerId),
-          templateName: "followed_maker_new_listing",
-          userId: f.followerId,
+    const emailRecipients = (await Promise.all(
+      chunkArray(followers.map((f) => f.followerId), 500).map((userIds) =>
+        userEmailDeliveryRecipients(prisma, {
+          userIds,
           preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
-          sourceType: "followed_maker_new_listing",
-          sourceId: publicListing.id,
-        });
-      }
+        }),
+      ),
+    )).flat();
+    await mapWithConcurrency(emailRecipients, 5, async (recipient) => {
+      const email = renderNewListingFromFollowedMakerEmail({
+        to: recipient.email,
+        makerName: sellerDisplay,
+        listingTitle: publicListing.title,
+        listingPrice,
+        listingUrl,
+      });
+      await enqueueEmailOutbox({
+        ...email,
+        dedupKey: emailDedupKey(recipient.userId),
+        templateName: "followed_maker_new_listing",
+        userId: recipient.userId,
+        preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
+        sourceType: "followed_maker_new_listing",
+        sourceId: publicListing.id,
+      });
     });
 
     if (followers.length < FOLLOWER_FANOUT_PAGE_SIZE) return;

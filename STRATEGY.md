@@ -17,9 +17,18 @@ the exact-main caller audit covers direct delegates, raw SQL, nested relation
 reads, Clerk bootstrap and lifecycle, self PII, public identity, service
 eligibility, staff access, ban/unban, and deletion. One row mixes public
 identity with email, shipping, legal, preference, role, ban, and deletion
-state, so a broad active-user SELECT policy is rejected. Define the
-operation-by-principal matrix and the Clerk-to-local bootstrap resolver before
-converting callers or preparing grants/RLS migrations.
+state, so a broad active-user SELECT policy is rejected.
+
+The Clerk bootstrap/lifecycle, owner-private and signed-unsubscribe additive
+families are accepted in Production through exact main `235450c0` and guarded
+run `37184090133`, with User RLS still off and predecessor table authority
+unchanged. The next bounded family is outbound email delivery. Its exact-source
+audit is `docs/user-email-delivery-pre-rls-audit.md`: replace seventeen direct
+User reads, close queued-address continuity after Clerk email changes, and
+inventory relation-backed email projections without absorbing Follow, Guild,
+Order, staff or moderation authority. This authorizes isolated preparation
+only; User activation remains blocked on every remaining direct, raw-SQL,
+relation and installed-function family.
 
 ### Finish the bounded Order release (2026-09-07)
 

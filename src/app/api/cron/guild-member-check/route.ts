@@ -7,8 +7,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { sendGuildMemberRevokedEmail } from "@/lib/email";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
@@ -104,7 +105,6 @@ async function fetchGuildMemberBatch(cursorId: string | null) {
       userId: true,
       guildLevel: true,
       listingsBelowThresholdSince: true,
-      user: { select: { name: true, email: true } },
     },
   });
 }
@@ -151,7 +151,7 @@ async function checkGuildMemberSeller(
 }
 
 async function revokeMember(
-  seller: { id: string; userId: string; user: { name?: string | null; email?: string | null } | null },
+  seller: { id: string; userId: string },
   reason: string,
   guard: GuildMemberRevocationGuard,
   now: Date,
@@ -218,10 +218,14 @@ async function revokeMember(
     sourceId: revocationAuditId,
   });
 
-  if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: seller.userId,
+    preferenceKey: "EMAIL_VERIFICATION_REJECTED",
+  });
+  if (emailRecipient) {
     try {
       await sendGuildMemberRevokedEmail({
-        seller: { displayName: seller.user.name, email: seller.user.email },
+        seller: { displayName: emailRecipient.name, email: emailRecipient.email },
         reason,
       });
     } catch (err) {

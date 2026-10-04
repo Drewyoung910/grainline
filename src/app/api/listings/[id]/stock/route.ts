@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { findRecentOwnerLowStockNotification } from "@/lib/notificationOwnerAccess";
 import { claimBackInStockNotification } from "@/lib/notificationServiceAccess";
@@ -32,6 +32,7 @@ import { z } from "zod";
 import {
   prepareListingStockMutation, recordListingStockMutation, StockMutationConflict, StockMutationExpired,
 } from "@/lib/listingStockMutation";
+import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
 
 const StockPatchSchema = z.object({
   quantity: z.number().int().min(0).max(MAX_MANUAL_STOCK_QUANTITY),
@@ -338,31 +339,25 @@ export async function PATCH(
               claimedSubscribers.map((sub) => sub.userId),
               BACK_IN_STOCK_USER_LOOKUP_BATCH_SIZE,
             )) {
-              const activeSubscribers = await prisma.user.findMany({
-                where: {
-                  id: { in: userIdChunk },
-                  banned: false,
-                  deletedAt: null,
-                },
-                select: { id: true, name: true, email: true },
+              const activeSubscribers = await userEmailDeliveryRecipients(prisma, {
+                userIds: userIdChunk,
+                preferenceKey: "EMAIL_BACK_IN_STOCK",
               });
               await mapWithConcurrency(activeSubscribers, 5, async (sub) => {
-                if (sub.email && await shouldSendEmail(sub.id, "EMAIL_BACK_IN_STOCK")) {
-                  const stockNotificationId = stockNotificationIdByUserId.get(sub.id);
-                  if (!stockNotificationId) return;
-                  const email = renderBackInStockEmail({
-                    buyer: { name: sub.name, email: sub.email },
-                    listingTitle: updated.title,
-                    listingId: id,
-                  });
-                  await enqueueEmailOutbox({
-                    ...email,
-                    dedupKey: `back-in-stock:${id}:${stockNotificationId}`,
-                    templateName: "back_in_stock",
-                    userId: sub.id,
-                    preferenceKey: "EMAIL_BACK_IN_STOCK",
-                  });
-                }
+                const stockNotificationId = stockNotificationIdByUserId.get(sub.userId);
+                if (!stockNotificationId) return;
+                const email = renderBackInStockEmail({
+                  buyer: { name: sub.name, email: sub.email },
+                  listingTitle: updated.title,
+                  listingId: id,
+                });
+                await enqueueEmailOutbox({
+                  ...email,
+                  dedupKey: `back-in-stock:${id}:${stockNotificationId}`,
+                  templateName: "back_in_stock",
+                  userId: sub.userId,
+                  preferenceKey: "EMAIL_BACK_IN_STOCK",
+                });
               });
             }
 

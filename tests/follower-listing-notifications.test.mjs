@@ -30,9 +30,11 @@ describe("follower listing notification guardrails", () => {
     );
     assert.ok(
       fanout.indexOf("blockedBy: { none: { blockerId: sellerUserId } }") <
-        fanout.indexOf("await mapWithConcurrency(followers.filter"),
+        fanout.indexOf("userEmailDeliveryRecipients(prisma, {"),
       "block filtering must happen before email fanout",
     );
+    assert.match(fanout, /preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING"/);
+    assert.match(fanout, /await mapWithConcurrency\(emailRecipients, 5/);
   });
 
   it("keeps blog follower notifications behind the same reciprocal block filters", () => {
@@ -88,8 +90,9 @@ describe("follower listing notification guardrails", () => {
     );
     assert.ok(
       broadcastRoute.indexOf("blockedBy: { none: { blockerId: me.id } }") <
-        broadcastRoute.indexOf("const emailFollowers = followers.filter"),
+        broadcastRoute.indexOf("const emailFollowers = (await Promise.all("),
       "broadcast block filtering must happen before email recipient filtering",
     );
+    assert.match(broadcastRoute, /userEmailDeliveryRecipients\(prisma, \{[\s\S]*preferenceKey: "EMAIL_SELLER_BROADCAST"/);
   });
 });

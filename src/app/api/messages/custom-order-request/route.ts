@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import * as Sentry from "@sentry/nextjs";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCustomOrderRequest } from "@/lib/email";
 import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -18,6 +18,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { createCustomOrderRequestMessage } from "@/lib/customOrderRequestAccess";
 import { userClerkActor } from "@/lib/userIdentityAccess";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
 
@@ -100,6 +101,7 @@ export async function POST(req: Request) {
           stripeAccountVersion: true,
           chargesEnabled: true,
           vacationMode: true,
+          displayName: true,
         },
       },
     },
@@ -172,26 +174,20 @@ export async function POST(req: Request) {
   }
 
   try {
-    if (await shouldSendEmail(sellerUserId, "EMAIL_CUSTOM_ORDER")) {
-      const sellerUser = await prisma.user.findUnique({
-        where: { id: sellerUserId },
-        select: { name: true, email: true, sellerProfile: { select: { displayName: true } } },
+    const sellerRecipient = await userEmailDeliveryRecipient(prisma, {
+      userId: sellerUserId,
+      preferenceKey: "EMAIL_CUSTOM_ORDER",
+    });
+    if (sellerRecipient) {
+      await sendCustomOrderRequest({
+        seller: {
+          displayName: seller.sellerProfile.displayName ?? sellerRecipient.name,
+          email: sellerRecipient.email,
+        },
+        buyerName: me.name,
+        description: cleanedDescription,
+        conversationId: requestMessage.conversationId,
       });
-      if (sellerUser?.email) {
-        const buyerUser = await prisma.user.findUnique({
-          where: { id: me.id },
-          select: { name: true },
-        });
-        await sendCustomOrderRequest({
-          seller: {
-            displayName: sellerUser.sellerProfile?.displayName ?? sellerUser.name,
-            email: sellerUser.email,
-          },
-          buyerName: buyerUser?.name,
-          description: cleanedDescription,
-          conversationId: requestMessage.conversationId,
-        });
-      }
     }
   } catch (error) {
     Sentry.captureException(error, {

@@ -64,6 +64,7 @@ function route({ failGuild = false, authenticated = true, owned = true, rejectRe
     "@/lib/notificationSources": { NOTIFICATION_SOURCE_TYPES: {} },
     "@/lib/notificationOwnerAccess": { findRecentOwnerLowStockNotification: async () => null },
     "@/lib/notificationServiceAccess": {}, "@/lib/email": {}, "@/lib/emailOutbox": {},
+    "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipients: async () => [] },
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "owner" }) },
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }) },
     "@/lib/concurrency": {}, "@/lib/stockMutationState": stock,

@@ -46,7 +46,8 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
     assert.match(notifications, /logServerError\(e, \{\s*source: "email_preference_check"/);
     assert.match(notifications, /extra: \{ userId, prefKey, failClosed: true \}/);
     assert.match(notifications, /return emailPreferenceLookupFailureAllowsSend\(\)/);
-    assert.match(notifications, /select: \{ notificationPreferences: true, banned: true, deletedAt: true \}/);
+    assert.match(notifications, /userEmailDeliveryRecipient\(prisma, \{[\s\S]*userId,[\s\S]*preferenceKey: prefKey/);
+    assert.doesNotMatch(notifications, /prisma\.user\.(?:findUnique|findFirst|findMany)/);
     assert.match(notificationServiceSql, /recipient\.banned = false/);
     assert.match(notificationServiceSql, /recipient\."deletedAt" IS NULL/);
     assert.match(notificationServiceSql, /recipient_preferences -> \(p_type::text\) = 'false'::jsonb/);

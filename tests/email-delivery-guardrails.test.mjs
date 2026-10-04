@@ -34,7 +34,9 @@ describe("email delivery guardrails", () => {
     assert.match(sendBody, /if \(opts\.throwOnFailure\) throw emailDeliverySkippedError\("invalid recipient"\)/);
     assert.match(sendBody, /if \(opts\.throwOnFailure\) throw emailDeliverySkippedError\("email provider not configured"\)/);
     assert.match(sendBody, /isEmailDeliverySuppressed\(recipient\)[\s\S]*?throw emailDeliverySkippedError\("recipient suppressed"\)/);
-    assert.match(sendBody, /account\?\.banned \|\| account\?\.deletedAt[\s\S]*?emailDeliverySkippedError\(account\.banned \? "recipient banned" : "recipient deleted"\)/);
+    assert.match(sendBody, /const accountState = await findInactiveEmailAccount\(recipient, sanitizedSubject\)/);
+    assert.match(sendBody, /accountState === "banned" \|\| accountState === "deleted"[\s\S]*?emailDeliverySkippedError\(`recipient \$\{accountState\}`\)/);
+    assert.match(email, /userEmailAccountStateByEmail\(prisma, recipient\)/);
     const outbox = source("src/lib/emailOutbox.ts");
     assert.match(outbox, /isEmailDeliverySuppressed\(job\.recipientEmail\)/);
     assert.match(outbox, /Recipient email is suppressed after a bounce, complaint, or account deletion/);

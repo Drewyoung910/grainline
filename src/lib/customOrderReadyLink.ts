@@ -1,9 +1,10 @@
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { sendCustomOrderReady } from "@/lib/email";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { publicListingPath } from "@/lib/publicPaths";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import {
   sendActorCustomOrderReady,
   type SentActorCustomOrderReady,
@@ -68,21 +69,19 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
 
   if (committed.created) {
     try {
-      if (await shouldSendEmail(source.buyerUserId, "EMAIL_CUSTOM_ORDER")) {
-        const buyerUser = await prisma.user.findUnique({
-          where: { id: source.buyerUserId },
-          select: { name: true, email: true },
+      const buyerRecipient = await userEmailDeliveryRecipient(prisma, {
+        userId: source.buyerUserId,
+        preferenceKey: "EMAIL_CUSTOM_ORDER",
+      });
+      if (buyerRecipient) {
+        await sendCustomOrderReady({
+          buyer: { name: buyerRecipient.name, email: buyerRecipient.email },
+          sellerName: source.sellerName ?? "Grainline maker",
+          listingTitle: source.listingTitle,
+          priceCents: source.priceCents,
+          currency: source.currency,
+          listingId: source.listingId,
         });
-        if (buyerUser?.email) {
-          await sendCustomOrderReady({
-            buyer: { name: buyerUser.name, email: buyerUser.email },
-            sellerName: source.sellerName ?? "Grainline maker",
-            listingTitle: source.listingTitle,
-            priceCents: source.priceCents,
-            currency: source.currency,
-            listingId: source.listingId,
-          });
-        }
       }
     } catch (error) {
       Sentry.captureException(error, {

@@ -35,7 +35,7 @@ test("seller refund record, notification, and email reservation share one transa
   ordered(seller, [
     "recordSellerOrderRefund(input, tx)",
     "createNotificationOrThrow({",
-    "const buyer = await tx.user.findUnique({",
+    "const buyer = await userEmailDeliveryRecipient(tx, {",
     "enqueueEmailOutboxOnce(",
   ]);
   assert.match(seller, /type: "REFUND_ISSUED"/);
@@ -71,7 +71,7 @@ test("blocked-checkout refund record and participant delivery share one transact
   ordered(blocked, [
     "recordBlockedCheckoutOrderRefund(input, tx)",
     "createNotificationOrThrow({",
-    "const buyer = await tx.user.findUnique({",
+    "const buyer = await userEmailDeliveryRecipient(tx, {",
     "enqueueEmailOutboxOnce(",
   ]);
   assert.match(blocked, /userId: result\.buyerUserId/);

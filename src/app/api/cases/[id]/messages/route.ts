@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCaseMessage } from "@/lib/email";
 import {
@@ -36,6 +36,7 @@ import type { CaseReplyResult } from "@/lib/caseReplyResult";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
 import { z } from "zod";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 const CaseMessageSchema = z.object({
   body: z.string().min(1).max(5000),
@@ -291,24 +292,17 @@ export async function POST(
       try {
         const [buyer, seller] = await Promise.all([
           committedCaseRecord.buyerId
-            ? prisma.user.findUnique({
-                where: { id: committedCaseRecord.buyerId },
-                select: { name: true, email: true },
+            ? userEmailDeliveryRecipient(prisma, {
+                userId: committedCaseRecord.buyerId,
+                preferenceKey: "EMAIL_CASE_MESSAGE",
               })
             : Promise.resolve(null),
-          prisma.user.findUnique({
-            where: { id: committedCaseRecord.sellerId },
-            select: { name: true, email: true },
+          userEmailDeliveryRecipient(prisma, {
+            userId: committedCaseRecord.sellerId,
+            preferenceKey: "EMAIL_CASE_MESSAGE",
           }),
         ]);
-        if (
-          committedCaseRecord.buyerId &&
-          buyer?.email &&
-          (await shouldSendEmail(
-            committedCaseRecord.buyerId,
-            "EMAIL_CASE_MESSAGE",
-          ))
-        ) {
+        if (committedCaseRecord.buyerId && buyer) {
           await sendCaseMessage({
             recipientName: buyer.name,
             recipientEmail: buyer.email,
@@ -317,13 +311,7 @@ export async function POST(
             messageSnippet: messageBody,
           });
         }
-        if (
-          seller?.email &&
-          (await shouldSendEmail(
-            committedCaseRecord.sellerId,
-            "EMAIL_CASE_MESSAGE",
-          ))
-        ) {
+        if (seller) {
           await sendCaseMessage({
             recipientName: seller.name,
             recipientEmail: seller.email,
@@ -375,20 +363,18 @@ export async function POST(
         }
 
         try {
-          if (await shouldSendEmail(recipientId, "EMAIL_CASE_MESSAGE")) {
-            const recipient = await prisma.user.findUnique({
-              where: { id: recipientId },
-              select: { name: true, email: true },
+          const recipient = await userEmailDeliveryRecipient(prisma, {
+            userId: recipientId,
+            preferenceKey: "EMAIL_CASE_MESSAGE",
+          });
+          if (recipient) {
+            await sendCaseMessage({
+              recipientName: recipient.name,
+              recipientEmail: recipient.email,
+              senderName: me.name,
+              caseLink: `${appUrl}${caseLink}`,
+              messageSnippet: messageBody,
             });
-            if (recipient?.email) {
-              await sendCaseMessage({
-                recipientName: recipient.name,
-                recipientEmail: recipient.email,
-                senderName: me.name,
-                caseLink: `${appUrl}${caseLink}`,
-                messageSnippet: messageBody,
-              });
-            }
           }
         } catch (emailError) {
           Sentry.captureException(emailError, {

@@ -137,7 +137,8 @@ describe("message and case policy guardrails", () => {
     assert.match(threadPage, /createdAttachment\.recipientId !== recipientId/);
     assert.match(threadPage, /createdText\.recipientId !== recipientId/);
     assert.match(threadPage, /userId: committedRecipientId/);
-    assert.match(threadPage, /shouldSendEmail\(committedRecipientId, "EMAIL_NEW_MESSAGE"\)/);
+    assert.match(threadPage, /userEmailDeliveryRecipient\(prisma, \{[\s\S]*userId: committedRecipientId,[\s\S]*preferenceKey: "EMAIL_NEW_MESSAGE"/);
+    assert.match(threadPage, /recipientEmail: recipientUser\.email/);
   });
 
   it("verifies uploaded message attachments at persistence time before creating messages", () => {

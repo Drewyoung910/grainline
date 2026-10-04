@@ -70,7 +70,9 @@ describe("buyer Case-open application authority", () => {
       /sourceId: result\.caseId/,
       /link: `\/dashboard\/sales\/\$\{result\.orderId\}`/,
       /relatedUserId: result\.buyerUserId/,
-      /where: \{ id: result\.sellerUserId \}/,
+      /userEmailDeliveryRecipient\(prisma, \{/,
+      /preferenceKey: "EMAIL_CASE_OPENED"/,
+      /email: sellerRecipient\.email/,
       /orderId: result\.orderId/,
       /caseId: result\.caseId/,
       /sellerId: result\.sellerUserId/,
@@ -100,7 +102,7 @@ describe("buyer Case-open application authority", () => {
       ["fixed authority", "await openCaseWithFixedAuthority({"],
       ["replay response", 'if (result.action === "replay")'],
       ["notification", "await createNotification({"],
-      ["email preference", "await shouldSendEmail("],
+      ["email recipient authority", "await userEmailDeliveryRecipient(prisma, {"],
     ]);
   });
 

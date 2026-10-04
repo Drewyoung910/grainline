@@ -12,8 +12,9 @@ import {
   GUILD_MASTER_REQUIREMENTS,
   listingViewDailyRetentionCutoff,
 } from "@/lib/metrics";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import {
   sendGuildMasterWarningEmail,
   sendGuildMasterRevokedEmail,
@@ -178,7 +179,6 @@ async function fetchGuildSellerBatch(cursorId: string | null) {
       guildLevel: true,
       consecutiveMetricFailures: true,
       metricWarningSentAt: true,
-      user: { select: { name: true, email: true } },
     },
   });
 }
@@ -260,10 +260,14 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
       sourceId: warningAuditId,
     });
 
-    if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {
+    const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+      userId: seller.userId,
+      preferenceKey: "EMAIL_VERIFICATION_REJECTED",
+    });
+    if (emailRecipient) {
       try {
         await sendGuildMasterWarningEmail({
-          seller: { displayName: seller.user.name, email: seller.user.email },
+          seller: { displayName: emailRecipient.name, email: emailRecipient.email },
           failedCriteria: failedLabels,
         });
       } catch (err) {
@@ -371,10 +375,14 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     sourceId: revocationAuditId,
   });
 
-  if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: seller.userId,
+    preferenceKey: "EMAIL_VERIFICATION_REJECTED",
+  });
+  if (emailRecipient) {
     try {
       await sendGuildMasterRevokedEmail({
-        seller: { displayName: seller.user.name, email: seller.user.email },
+        seller: { displayName: emailRecipient.name, email: emailRecipient.email },
       });
     } catch (err) {
       Sentry.captureException(err, { tags: { source: "cron_guild_metrics_revoked_email", sellerId: seller.id } });

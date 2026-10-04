@@ -14,6 +14,7 @@ import {
 } from "@/lib/caseResolutionCopy";
 import { createNotificationOrThrow } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 /**
  * Commits the Case transition and every durable participant-delivery record in
@@ -66,9 +67,8 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
 
     let emailOutboxId: string | null = null;
     if (result.buyerUserId) {
-      const buyer = await tx.user.findUnique({
-        where: { id: result.buyerUserId },
-        select: { name: true, email: true },
+      const buyer = await userEmailDeliveryRecipient(tx, {
+        userId: result.buyerUserId,
       });
       if (buyer?.email) {
         const email = renderCaseResolvedEmail({
