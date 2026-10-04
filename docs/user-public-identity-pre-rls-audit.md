@@ -307,5 +307,42 @@ cumulative User predecessor and inventory checks also pass; focused ESLint
 passes; TypeScript passes; both changed workflow YAML files parse; and
 `git diff --check` passes. No broad local suite was repeated. The protected
 aggregate workflow is hard-bound to accepted email-delivery run `37215932608`.
-This is still source preparation only. The aggregate migration has not been
-published, merged, applied, or deployed, and User RLS remains off.
+The corrected first package was published as PR #521 and passed exact-head CI
+`37218222116` plus three independent proof runs. It merged as exact main
+`dbe8694fec4a51957bd957fa81eeb88096f7fbcd`; merged-main CI
+`37242135938` passed on attempt 1 on that exact commit, including the full
+tests and Production build. The aggregate migration has not been applied, the
+application callers have not been deployed, and User RLS remains off.
+
+## Seller/listing continuation checkpoint
+
+The next isolated worktree is
+`.worktrees/user-public-seller-listing-20261004` at exact merged main
+`dbe8694fec4a51957bd957fa81eeb88096f7fbcd`. The seller/listing surface is
+materially larger than the ten raw User joins. Outside the three shared
+predicate definitions, 41 unique source files consume at least one of
+`publicListingWhere`, `publicListingDetailWhere`,
+`activeSellerProfileWhere`, `visibleSellerProfileWhere`, or
+`savedListingFavoriteWhere`. Including their definitions, those predicates
+appear in 28, seven, nineteen, five, and three files respectively.
+
+The raw operations also have distinct contracts that must survive conversion:
+
+- homepage top-reviewed fallback filters before review-count order and
+  `LIMIT 4`, then applies weekly rotation;
+- browse radius selection combines active seller/listing state, viewer blocks,
+  public location privacy and distance before later listing pagination;
+- similar listings filters before category/tag/price/recency order and
+  `LIMIT 24`, then returns at most twelve scored rows;
+- fuzzy suggestions filter before similarity/recency order and `LIMIT 2`;
+- global and seller-bound tag aggregation filter before count/order and their
+  respective caller or fixed bounds;
+- quality scoring uses an id cursor and batches of 200, with active,
+  non-blocked favorite actors included before metric calculation; and
+- the site rating snapshot filters before its aggregate.
+
+This proves that anonymous catalog, authenticated block-aware catalog,
+seller-bound aggregate, and scheduled-maintenance operations cannot be
+collapsed into one generic active-User lookup. The next design must preserve
+the complete database-side domain predicate without granting runtime a route
+to unrelated User identity.
