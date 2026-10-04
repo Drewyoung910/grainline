@@ -47,6 +47,7 @@ describe("user text normalization followups", () => {
 
   it("keeps shipping address fields single-line after sanitization", () => {
     const route = source("src/app/api/account/shipping-address/route.ts");
+    const ownerPrivateAccess = source("src/lib/userOwnerPrivateAccess.ts");
     const seller = source("src/app/dashboard/seller/page.tsx");
     const checkoutSeller = source("src/app/api/cart/checkout-seller/route.ts");
     const checkoutSingle = source("src/app/api/cart/checkout/single/route.ts");
@@ -81,8 +82,9 @@ describe("user text normalization followups", () => {
     assert.match(route, /line1: sanitizeAddressField\(raw\.line1, 200\)/);
     assert.match(route, /city: sanitizeAddressField\(raw\.city, 100\)/);
     assert.match(route, /state: sanitizeAddressField\(raw\.state, 2\)\.toUpperCase\(\)/);
-    assert.match(route, /shippingName: body\.name/);
-    assert.match(route, /shippingLine1: body\.line1/);
+    assert.match(route, /updateUserOwnerShippingAddress\(prisma, \{\s*userId: user\.id,\s*\.\.\.body,/s);
+    assert.match(ownerPrivateAccess, /\$\{input\.name\}::text/);
+    assert.match(ownerPrivateAccess, /\$\{input\.line1\}::text/);
     assert.match(seller, /shipFromLine1[\s\S]*sanitizeAddressField\(rawShipFromLine1, 200\)/);
     assert.match(seller, /shipFromPhone[\s\S]*sanitizeOptionalE164Phone\(rawShipFromPhone\)/);
     assert.match(seller, /shipFromPhone !== null && !isE164Phone\(shipFromPhone\)/);

@@ -174,7 +174,9 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(acceptRoute, /termsAccepted: z\.literal\(true\)/);
     assert.match(acceptRoute, /ageAttested: z\.literal\(true\)/);
     assert.match(acceptRoute, /termsVersion: z\.literal\(CURRENT_TERMS_VERSION\)/);
-    assert.match(acceptRoute, /currentTermsAcceptanceUpdate\(me, acceptedAt\)/);
+    assert.match(acceptRoute, /acceptUserOwnerLegalTerms\(tx, \{/);
+    assert.match(acceptRoute, /userId: me\.id/);
+    assert.match(acceptRoute, /termsVersion: CURRENT_TERMS_VERSION/);
 
     const acceptForm = source("src/app/accept-terms/AcceptTermsForm.tsx");
     assert.match(acceptForm, /fetch\("\/api\/account\/accept-terms"/);
