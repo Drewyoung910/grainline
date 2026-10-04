@@ -6,10 +6,13 @@ import {
   normalizeEmailSuppressionAddress,
 } from "@/lib/emailSuppression";
 import {
-  normalizeNotificationPreferences,
   VALID_EMAIL_PREFERENCE_KEYS,
 } from "@/lib/notificationPreferenceKeys";
 import { normalizeUnsubscribeEmail } from "@/lib/unsubscribeToken";
+import {
+  disableUserSignedUnsubscribeEmailPreferences,
+  userSignedUnsubscribeTokenSuperseded,
+} from "@/lib/userSignedUnsubscribeAccess";
 
 export {
   buildUnsubscribeUrl,
@@ -41,18 +44,6 @@ function emailSuppressionMatchWhereSql(
     : Prisma.sql`false`;
 
   return Prisma.sql`(${exactMatch} OR ${gmailMatch})`;
-}
-
-async function userIdsMatchingSuppressionLookup(
-  client: EmailSuppressionLookupClient,
-  lookup: EmailSuppressionLookup,
-) {
-  if (lookup.exactEmails.length === 0) return [];
-  return client.$queryRaw<{ id: string }[]>(Prisma.sql`
-    SELECT "id"
-    FROM "User"
-    WHERE ${emailSuppressionMatchWhereSql(lookup)}
-  `);
 }
 
 async function newsletterIdsMatchingSuppressionLookup(
@@ -132,16 +123,10 @@ export async function unsubscribeTokenSuperseded(
     suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [normalized];
   const lookup = emailSuppressionLookupForEmails(emails);
 
-  const [newerAccountClaim] = await prisma.$queryRaw<{ createdAt: Date }[]>(Prisma.sql`
-    SELECT "createdAt"
-    FROM "User"
-    WHERE ${emailSuppressionMatchWhereSql(lookup)}
-      AND "deletedAt" IS NULL
-      AND "createdAt" > ${new Date(issuedAt)}
-    ORDER BY "createdAt" DESC
-    LIMIT 1
-  `);
-  if (newerAccountClaim) return true;
+  if (await userSignedUnsubscribeTokenSuperseded(prisma, {
+    suppressionKeys: emails,
+    issuedAt: new Date(issuedAt),
+  })) return true;
 
   const [newerCurrentEmailClaim] = await prisma.$queryRaw<{ superseded: boolean }[]>`
     SELECT public.grainline_user_email_address_newer_current_claim(
@@ -151,20 +136,6 @@ export async function unsubscribeTokenSuperseded(
   `;
   if (typeof newerCurrentEmailClaim?.superseded !== "boolean") return true;
   if (newerCurrentEmailClaim.superseded) return true;
-
-  const [user] = await prisma.$queryRaw<{ emailPreferenceOptInAt: Date | null }[]>(Prisma.sql`
-    SELECT "emailPreferenceOptInAt"
-    FROM "User"
-    WHERE ${emailSuppressionMatchWhereSql(lookup)}
-      AND "emailPreferenceOptInAt" IS NOT NULL
-    ORDER BY "emailPreferenceOptInAt" DESC
-    LIMIT 1
-  `);
-  if (
-    user?.emailPreferenceOptInAt &&
-    user.emailPreferenceOptInAt.getTime() > issuedAt
-  )
-    return true;
 
   const [newsletter] = await prisma.$queryRaw<{ confirmedAt: Date | null }[]>(Prisma.sql`
     SELECT "confirmedAt"
@@ -208,26 +179,11 @@ export async function unsubscribeEmail(
       newsletterUpdated = newsletter.count;
     }
 
-    const userIds = (await userIdsMatchingSuppressionLookup(tx, lookup)).map((row) => row.id);
-    const users = await tx.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true, notificationPreferences: true },
-    });
-
-    for (const user of users) {
-      const preferences = normalizeNotificationPreferences(
-        user.notificationPreferences,
-      );
-      for (const key of EMAIL_PREFS_TO_DISABLE) {
-        preferences[key] = false;
-      }
-
-      await tx.user.update({
-        where: { id: user.id },
-        data: { notificationPreferences: preferences },
-      });
-    }
-    userUpdated = users.length > 0;
+    const usersUpdated = await disableUserSignedUnsubscribeEmailPreferences(
+      tx,
+      emails,
+    );
+    userUpdated = usersUpdated > 0;
 
     await setOneClickEmailSuppression(tx, normalized);
   });

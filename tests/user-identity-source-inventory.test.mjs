@@ -11,14 +11,14 @@ const report = JSON.parse(
 );
 
 test("User direct-access inventory records bounded Clerk identity conversions", () => {
-  assert.equal(report.count, 50);
-  assert.equal(report.files, 27);
+  assert.equal(report.count, 48);
+  assert.equal(report.files, 26);
   assert.deepEqual(report.byMethod, {
     count: 3,
     findFirst: 1,
-    findMany: 5,
+    findMany: 4,
     findUnique: 35,
-    update: 3,
+    update: 2,
     updateMany: 3,
   });
 
@@ -35,7 +35,7 @@ test("User direct-access inventory records bounded Clerk identity conversions", 
       call.method,
     ),
   );
-  assert.equal(writes.length, 6);
+  assert.equal(writes.length, 5);
 
   const obsoleteClerkGateReads = report.calls.filter(
     (call) =>
@@ -68,7 +68,6 @@ test("User direct-access inventory records bounded Clerk identity conversions", 
       "src/lib/accountDeletion.ts",
       "src/lib/audit.ts",
       "src/lib/ban.ts",
-      "src/lib/unsubscribe.ts",
     ],
   );
 });
