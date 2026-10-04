@@ -323,6 +323,7 @@ describe("account and privacy route observability guardrails", () => {
     );
     const unsubscribeRoute = source("src/app/api/email/unsubscribe/route.ts");
     const unsubscribe = source("src/lib/unsubscribe.ts");
+    const unsubscribeAccess = source("src/lib/userSignedUnsubscribeAccess.ts");
     const userEmailAddressAuthority = source(
       "prisma/migrations/20261002170000_prepare_user_email_address_authority/migration.sql",
     );
@@ -378,12 +379,10 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(unsubscribe, /function emailSuppressionMatchWhereSql/);
     assert.match(unsubscribe, /split_part\(\$\{emailColumn\}, '@', 2\) IN \('gmail\.com', 'googlemail\.com'\)/);
     assert.match(unsubscribe, /replace\(split_part\(split_part\(\$\{emailColumn\}, '@', 1\), '\+', 1\), '\.', ''\) IN/);
-    assert.match(
-      unsubscribe,
-      /WHERE \$\{emailSuppressionMatchWhereSql\(lookup\)\}\s+AND "deletedAt" IS NULL\s+AND "createdAt" > \$\{new Date\(issuedAt\)\}/,
-    );
-    assert.match(unsubscribe, /ORDER BY "createdAt" DESC/);
-    assert.match(unsubscribe, /if \(newerAccountClaim\) return true/);
+    assert.match(unsubscribe, /userSignedUnsubscribeTokenSuperseded\(prisma, \{/);
+    assert.match(unsubscribe, /suppressionKeys: emails/);
+    assert.match(unsubscribe, /issuedAt: new Date\(issuedAt\)/);
+    assert.match(unsubscribeAccess, /grainline_user_unsubscribe_token_superseded/);
     assert.match(unsubscribe, /grainline_user_email_address_newer_current_claim/);
     assert.doesNotMatch(unsubscribe, /FROM "UserEmailAddress"/);
     assert.match(userEmailAddressAuthority, /INNER JOIN public\."User" AS account_user/);
@@ -391,15 +390,8 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(userEmailAddressAuthority, /address\."currentSinceAt" > p_issued_at/);
     assert.match(userEmailAddressAuthority, /END = ANY\(p_suppression_keys\)/);
     assert.match(unsubscribe, /if \(newerCurrentEmailClaim\.superseded\) return true/);
-    assert.match(
-      unsubscribe,
-      /AND "emailPreferenceOptInAt" IS NOT NULL/,
-    );
-    assert.match(unsubscribe, /ORDER BY "emailPreferenceOptInAt" DESC/);
-    assert.match(
-      unsubscribe,
-      /user\.emailPreferenceOptInAt\.getTime\(\) > issuedAt/,
-    );
+    assert.doesNotMatch(unsubscribe, /FROM "User"/);
+    assert.doesNotMatch(unsubscribe, /emailPreferenceOptInAt/);
     assert.match(unsubscribe, /FROM "NewsletterSubscriber"/);
     assert.match(
       unsubscribe,
@@ -437,14 +429,11 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.match(
       unsubscribeEmailHelper,
-      /userIdsMatchingSuppressionLookup\(tx, lookup\)/,
+      /disableUserSignedUnsubscribeEmailPreferences\(\s*tx,\s*emails,\s*\)/,
     );
-    assert.match(
-      unsubscribeEmailHelper,
-      /user\.findMany\(\{\s*where: \{ id: \{ in: userIds \} \}/s,
-    );
-    assert.match(unsubscribeEmailHelper, /for \(const user of users\)/);
-    assert.match(unsubscribeEmailHelper, /userUpdated = users\.length > 0/);
+    assert.match(unsubscribeEmailHelper, /userUpdated = usersUpdated > 0/);
+    assert.doesNotMatch(unsubscribeEmailHelper, /userIdsMatchingSuppressionLookup/);
+    assert.doesNotMatch(unsubscribeEmailHelper, /tx\.user\./);
     assert.doesNotMatch(
       unsubscribeEmailHelper,
       /newsletterSubscriber\.updateMany\(\{\s*where: \{ email: normalized \}/s,
