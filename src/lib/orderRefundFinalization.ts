@@ -14,6 +14,7 @@ import {
   recordSellerOrderRefund,
   type OrderRefundProviderEvidence,
 } from "@/lib/orderRefundRecordAuthority";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 const SELLER_REFUND_ACTION = "SELLER_REFUND_RECORDED";
 const BLOCKED_CHECKOUT_REFUND_ACTION = "BLOCKED_CHECKOUT_REFUND_RECORDED";
@@ -50,9 +51,8 @@ export async function finalizeSellerOrderRefund(input: {
       relatedUserId: input.actorUserId,
     }, tx);
 
-    const buyer = await tx.user.findUnique({
-      where: { id: result.buyerUserId },
-      select: { name: true, email: true },
+    const buyer = await userEmailDeliveryRecipient(tx, {
+      userId: result.buyerUserId,
     });
     let emailOutboxId: string | null = null;
     if (buyer?.email) {
@@ -131,9 +131,8 @@ export async function finalizeBlockedCheckoutOrderRefund(input: {
       sourceId,
     }, tx);
 
-    const buyer = await tx.user.findUnique({
-      where: { id: result.buyerUserId },
-      select: { name: true, email: true },
+    const buyer = await userEmailDeliveryRecipient(tx, {
+      userId: result.buyerUserId,
     });
     let emailOutboxId: string | null = null;
     if (buyer?.email) {

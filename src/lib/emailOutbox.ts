@@ -24,6 +24,10 @@ import {
 } from "@/lib/emailOutboxQuota";
 import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
+import {
+  userEmailAccountStateByEmail,
+  userEmailAccountStateById,
+} from "@/lib/userEmailDeliveryAccess";
 
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 2;
@@ -125,22 +129,20 @@ async function inactiveQueuedEmailRecipientReason(job: {
   recipientEmail: string;
 }) {
   if (job.userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: job.userId },
-      select: { banned: true, deletedAt: true },
+    const state = await userEmailAccountStateById(prisma, {
+      userId: job.userId,
+      expectedEmail: job.recipientEmail,
     });
-    if (!user) return "Recipient account no longer exists";
-    if (user.banned) return "Recipient account is banned";
-    if (user.deletedAt) return "Recipient account is deleted";
+    if (state === "missing") return "Recipient account no longer exists";
+    if (state === "banned") return "Recipient account is banned";
+    if (state === "deleted") return "Recipient account is deleted";
+    if (state === "email_changed") return "Recipient account email changed after enqueue";
     return null;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: job.recipientEmail },
-    select: { banned: true, deletedAt: true },
-  });
-  if (user?.banned) return "Recipient account is banned";
-  if (user?.deletedAt) return "Recipient account is deleted";
+  const state = await userEmailAccountStateByEmail(prisma, job.recipientEmail);
+  if (state === "banned") return "Recipient account is banned";
+  if (state === "deleted") return "Recipient account is deleted";
   return null;
 }
 

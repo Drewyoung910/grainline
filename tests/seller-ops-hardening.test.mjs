@@ -108,11 +108,11 @@ describe("seller operational route hardening", () => {
     assert.match(route, /Date\.now\(\) - latest\.sentAt\.getTime\(\) < BROADCAST_COOLDOWN_MS/);
     assert.match(route, /dedupScope: broadcast\.id/);
     assert.match(route, /link: `\/account\/feed\?broadcast=\$\{broadcast\.id\}`/);
-    assert.match(route, /isEmailNotificationEnabled\(\s*f\.follower\.notificationPreferences,\s*"EMAIL_SELLER_BROADCAST",\s*\)/s);
+    assert.match(route, /userEmailDeliveryRecipients\(prisma, \{[\s\S]*preferenceKey: "EMAIL_SELLER_BROADCAST"/);
     assert.match(route, /renderSellerBroadcastEmail/);
     assert.match(route, /enqueueEmailOutbox\(\{/);
     assert.match(route, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
-    assert.match(route, /dedupKey: `seller-broadcast:\$\{broadcast\.id\}:\$\{f\.followerId\}`/);
+    assert.match(route, /dedupKey: `seller-broadcast:\$\{broadcast\.id\}:\$\{f\.userId\}`/);
     assert.match(route, /const currentBroadcast = await prisma\.sellerBroadcast\.findUnique/);
     assert.match(route, /!currentBroadcast\s*\|\|[\s\S]*!currentBroadcast\.sellerProfile\.chargesEnabled[\s\S]*currentBroadcast\.sellerProfile\.vacationMode[\s\S]*currentBroadcast\.sellerProfile\.user\.banned[\s\S]*currentBroadcast\.sellerProfile\.user\.deletedAt/);
     assert.match(route, /nextAvailableAt: nextAvailable\.toISOString\(\)/);

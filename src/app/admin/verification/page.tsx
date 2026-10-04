@@ -6,7 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   sendGuildMasterRevokedEmail,
@@ -48,6 +48,7 @@ import {
   ADMIN_PIN_COOKIE_NAME,
   verifyAdminPinCookieValue,
 } from "@/lib/adminPin";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -189,7 +190,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
           userId: true,
           id: true,
           displayName: true,
-          user: { select: { email: true, createdAt: true, banned: true, deletedAt: true } },
+          user: { select: { createdAt: true, banned: true, deletedAt: true } },
         },
       },
     },
@@ -302,15 +303,16 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     sourceId: approvalAuditId,
   });
 
-  if (
-    verification.sellerProfile.user?.email &&
-    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")
-  ) {
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: verification.sellerProfile.userId,
+    preferenceKey: "EMAIL_VERIFICATION_APPROVED",
+  });
+  if (emailRecipient) {
     try {
       await sendVerificationApproved({
         seller: {
           displayName: verification.sellerProfile.displayName,
-          email: verification.sellerProfile.user.email,
+          email: emailRecipient.email,
         },
         profileId: verification.sellerProfile.id,
       });
@@ -338,7 +340,7 @@ async function rejectGuildMember(formData: FormData) {
       status: true,
       sellerProfileId: true,
       sellerProfile: {
-        select: { userId: true, displayName: true, user: { select: { email: true } } },
+        select: { userId: true, displayName: true },
       },
     },
   });
@@ -380,15 +382,16 @@ async function rejectGuildMember(formData: FormData) {
     });
   }
 
-  if (
-    verification?.sellerProfile.user?.email &&
-    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_REJECTED")
-  ) {
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: verification.sellerProfile.userId,
+    preferenceKey: "EMAIL_VERIFICATION_REJECTED",
+  });
+  if (emailRecipient) {
     try {
       await sendVerificationRejected({
         seller: {
           displayName: verification.sellerProfile.displayName,
-          email: verification.sellerProfile.user.email,
+          email: emailRecipient.email,
         },
         notes: reviewNotes,
       });
@@ -411,7 +414,7 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },
-    select: { userId: true, displayName: true, user: { select: { email: true } } },
+    select: { userId: true, displayName: true },
   });
 
   const revokedAt = new Date();
@@ -470,14 +473,16 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
       sourceId: revocationAuditId,
     });
   }
-  if (
-    seller?.userId &&
-    seller.user?.email &&
-    await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")
-  ) {
+  const emailRecipient = seller?.userId
+    ? await userEmailDeliveryRecipient(prisma, {
+        userId: seller.userId,
+        preferenceKey: "EMAIL_VERIFICATION_REJECTED",
+      })
+    : null;
+  if (emailRecipient && seller) {
     try {
       await sendGuildMemberRevokedEmail({
-        seller: { displayName: seller.displayName, email: seller.user.email },
+        seller: { displayName: seller.displayName, email: emailRecipient.email },
         reason: "Your Guild Member badge was revoked by Grainline staff.",
       });
     } catch (error) {
@@ -508,7 +513,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
           userId: true,
           id: true,
           displayName: true,
-          user: { select: { email: true, banned: true, deletedAt: true } },
+          user: { select: { banned: true, deletedAt: true } },
           sellerMetrics: {
             select: {
               calculatedAt: true,
@@ -605,15 +610,16 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
     sourceId: approvalAuditId,
   });
 
-  if (
-    verification.sellerProfile.user?.email &&
-    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")
-  ) {
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: verification.sellerProfile.userId,
+    preferenceKey: "EMAIL_VERIFICATION_APPROVED",
+  });
+  if (emailRecipient) {
     try {
       await sendVerificationApproved({
         seller: {
           displayName: verification.sellerProfile.displayName,
-          email: verification.sellerProfile.user.email,
+          email: emailRecipient.email,
         },
         profileId: verification.sellerProfile.id,
       });
@@ -641,7 +647,7 @@ async function rejectGuildMaster(formData: FormData) {
       status: true,
       sellerProfileId: true,
       sellerProfile: {
-        select: { userId: true, displayName: true, user: { select: { email: true } } },
+        select: { userId: true, displayName: true },
       },
     },
   });
@@ -694,7 +700,7 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },
-    select: { userId: true, displayName: true, user: { select: { email: true } } },
+    select: { userId: true, displayName: true },
   });
 
   const revokedAt = new Date();
@@ -754,14 +760,16 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
       sourceId: revocationAuditId,
     });
   }
-  if (
-    seller?.userId &&
-    seller.user?.email &&
-    await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")
-  ) {
+  const emailRecipient = seller?.userId
+    ? await userEmailDeliveryRecipient(prisma, {
+        userId: seller.userId,
+        preferenceKey: "EMAIL_VERIFICATION_REJECTED",
+      })
+    : null;
+  if (emailRecipient && seller) {
     try {
       await sendGuildMasterRevokedEmail({
-        seller: { displayName: seller.displayName, email: seller.user.email },
+        seller: { displayName: seller.displayName, email: emailRecipient.email },
       });
     } catch (error) {
       captureVerificationEmailFailure(error, "admin_verification_email", {

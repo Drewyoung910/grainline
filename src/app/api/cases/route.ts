@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCaseOpened } from "@/lib/email";
 import {
@@ -18,6 +18,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { openCaseWithFixedAuthority } from "@/lib/caseOpenAuthority";
@@ -164,24 +165,17 @@ export async function POST(req: Request) {
     }
 
     try {
-      if (
-        await shouldSendEmail(
-          result.sellerUserId,
-          "EMAIL_CASE_OPENED",
-        )
-      ) {
-        const sellerUser = await prisma.user.findUnique({
-          where: { id: result.sellerUserId },
-          select: { name: true, email: true },
+      const sellerRecipient = await userEmailDeliveryRecipient(prisma, {
+        userId: result.sellerUserId,
+        preferenceKey: "EMAIL_CASE_OPENED",
+      });
+      if (sellerRecipient) {
+        await sendCaseOpened({
+          orderId: result.orderId,
+          seller: { name: sellerRecipient.name, email: sellerRecipient.email },
+          buyer: { name: me.name },
+          caseDescription: description,
         });
-        if (sellerUser?.email) {
-          await sendCaseOpened({
-            orderId: result.orderId,
-            seller: { name: sellerUser.name, email: sellerUser.email },
-            buyer: { name: me.name },
-            caseDescription: description,
-          });
-        }
       }
     } catch (emailError) {
       Sentry.captureException(emailError, {

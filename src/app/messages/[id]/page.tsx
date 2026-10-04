@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { userClerkActor, userClerkGate } from "@/lib/userIdentityAccess";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewMessageEmail } from "@/lib/email";
@@ -46,6 +46,7 @@ import {
 } from "@/lib/conversationMessageAuthority";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 export default async function ThreadPage({
   params,
@@ -386,12 +387,12 @@ export default async function ThreadPage({
 
     // Email notification for new message (fire-and-forget, 5-min atomic throttle)
     try {
-      if (hasMessageContent && (await shouldSendEmail(committedRecipientId, "EMAIL_NEW_MESSAGE"))) {
-        const recipientUser = await prisma.user.findUnique({
-          where: { id: committedRecipientId },
-          select: { email: true, name: true },
+      if (hasMessageContent) {
+        const recipientUser = await userEmailDeliveryRecipient(prisma, {
+          userId: committedRecipientId,
+          preferenceKey: "EMAIL_NEW_MESSAGE",
         });
-        if (recipientUser?.email) {
+        if (recipientUser) {
           const emailClaim = await claimActorConversationMessageEmail(
             me.id,
             committedNotificationMessageId,

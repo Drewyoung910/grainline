@@ -73,7 +73,9 @@ describe("notification email preferences", () => {
     const emailBlock = messageThread.slice(emailStart, messageThread.indexOf("} catch (emailError)", emailStart));
 
     assert.match(messageThread, /const hasMessageContent = atts\.length > 0 \|\| !!body/);
-    assert.match(emailBlock, /hasMessageContent && \(await shouldSendEmail\(committedRecipientId, "EMAIL_NEW_MESSAGE"\)\)/);
+    assert.match(emailBlock, /if \(hasMessageContent\)/);
+    assert.match(emailBlock, /userEmailDeliveryRecipient\(prisma, \{[\s\S]*userId: committedRecipientId,[\s\S]*preferenceKey: "EMAIL_NEW_MESSAGE"/);
+    assert.match(emailBlock, /if \(recipientUser\)/);
     assert.match(emailBlock, /messagePreview: body \? truncateText\(body, 200\) : "Sent an attachment"/);
     assert.doesNotMatch(emailBlock, /if \(body &&/);
   });
@@ -106,20 +108,22 @@ describe("notification email preferences", () => {
     assert.match(accountSettings, /type="EMAIL_CUSTOM_ORDER"/);
     assert.match(accountSettings, /label="Custom order updates"/);
     assert.match(sellerSettings, /type: "EMAIL_CUSTOM_ORDER", label: "Custom order updates"/);
-    assert.match(requestRoute, /shouldSendEmail\(sellerUserId, "EMAIL_CUSTOM_ORDER"\)/);
-    assert.match(readyLink, /shouldSendEmail\(source\.buyerUserId, "EMAIL_CUSTOM_ORDER"\)/);
+    assert.match(requestRoute, /userEmailDeliveryRecipient\(prisma, \{[\s\S]*userId: sellerUserId,[\s\S]*preferenceKey: "EMAIL_CUSTOM_ORDER"/);
+    assert.match(readyLink, /userEmailDeliveryRecipient\(prisma, \{[\s\S]*userId: source\.buyerUserId,[\s\S]*preferenceKey: "EMAIL_CUSTOM_ORDER"/);
   });
 
   it("honors verification email preferences before admin verification emails", () => {
     const adminVerification = source("src/app/admin/verification/page.tsx");
-    const firstApprovalPref = adminVerification.indexOf('shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")');
+    const approvalPreference = 'preferenceKey: "EMAIL_VERIFICATION_APPROVED"';
+    const rejectedPreference = 'preferenceKey: "EMAIL_VERIFICATION_REJECTED"';
+    const firstApprovalPref = adminVerification.indexOf(approvalPreference);
     const firstApprovalSend = adminVerification.indexOf("await sendVerificationApproved");
-    const firstRejectionPref = adminVerification.indexOf('shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_REJECTED")');
+    const firstRejectionPref = adminVerification.indexOf(rejectedPreference);
     const firstRejectionSend = adminVerification.indexOf("await sendVerificationRejected");
-    const revokePref = adminVerification.indexOf('shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")');
+    const revokePref = adminVerification.indexOf(rejectedPreference, firstRejectionPref + 1);
     const revokeMemberSend = adminVerification.indexOf("await sendGuildMemberRevokedEmail");
-    const secondApprovalPref = adminVerification.indexOf('shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")', firstApprovalPref + 1);
-    const secondRevokePref = adminVerification.indexOf('shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")', revokePref + 1);
+    const secondApprovalPref = adminVerification.indexOf(approvalPreference, firstApprovalPref + 1);
+    const secondRevokePref = adminVerification.indexOf(rejectedPreference, revokePref + 1);
     const revokeMasterSend = adminVerification.indexOf("await sendGuildMasterRevokedEmail");
 
     assert.ok(firstApprovalPref >= 0 && firstApprovalPref < firstApprovalSend);
@@ -132,11 +136,12 @@ describe("notification email preferences", () => {
   it("honors verification email preferences before cron Guild warning and revocation emails", () => {
     const guildMemberCheck = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetrics = source("src/app/api/cron/guild-metrics/route.ts");
-    const memberPref = guildMemberCheck.indexOf('shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")');
+    const rejectedPreference = 'preferenceKey: "EMAIL_VERIFICATION_REJECTED"';
+    const memberPref = guildMemberCheck.indexOf(rejectedPreference);
     const memberSend = guildMemberCheck.indexOf("await sendGuildMemberRevokedEmail");
-    const warningPref = guildMetrics.indexOf('shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")');
+    const warningPref = guildMetrics.indexOf(rejectedPreference);
     const warningSend = guildMetrics.indexOf("await sendGuildMasterWarningEmail");
-    const revokePref = guildMetrics.indexOf('shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")', warningPref + 1);
+    const revokePref = guildMetrics.indexOf(rejectedPreference, warningPref + 1);
     const revokeSend = guildMetrics.indexOf("await sendGuildMasterRevokedEmail");
 
     assert.ok(memberPref >= 0 && memberPref < memberSend);

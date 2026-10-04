@@ -16,6 +16,7 @@ import { orderTotalCents } from "@/lib/orderTotals";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { requiredProductionEnv } from "@/lib/env";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
+import { userEmailAccountStateByEmail } from "@/lib/userEmailDeliveryAccess";
 
 const EMAIL_FROM = requiredProductionEnv("EMAIL_FROM");
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!EMAIL_FROM;
@@ -228,10 +229,7 @@ async function findInactiveEmailAccount(recipient: string, subject: string) {
   const emailHash = hashEmailForTelemetry(recipient);
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      return await prisma.user.findUnique({
-        where: { email: recipient },
-        select: { banned: true, deletedAt: true },
-      });
+      return await userEmailAccountStateByEmail(prisma, recipient);
     } catch (err) {
       if (attempt === 2) {
         console.error("[email] inactive-account lookup failed; skipping send:", sanitizeEmailOutboxError(err));
@@ -288,10 +286,10 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
       if (opts.throwOnFailure) throw emailDeliverySkippedError("recipient suppressed");
       return;
     }
-    const account = await findInactiveEmailAccount(recipient, sanitizedSubject);
-    if (account?.banned || account?.deletedAt) {
+    const accountState = await findInactiveEmailAccount(recipient, sanitizedSubject);
+    if (accountState === "banned" || accountState === "deleted") {
       console.warn("[email] inactive recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
-      if (opts.throwOnFailure) throw emailDeliverySkippedError(account.banned ? "recipient banned" : "recipient deleted");
+      if (opts.throwOnFailure) throw emailDeliverySkippedError(`recipient ${accountState}`);
       return;
     }
 

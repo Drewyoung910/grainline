@@ -6,8 +6,9 @@ import {
   NOTIFICATION_LINK_MAX_LENGTH,
   limitNotificationText,
 } from "@/lib/notificationPayload";
-import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
 import { emailPreferenceLookupFailureAllowsSend } from "./notificationPreferenceState.ts";
+import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { logServerError } from "@/lib/serverErrorLogger";
 import {
   createNotificationServiceRow,
@@ -43,12 +44,11 @@ function notificationTelemetryExtra({
 
 export async function shouldSendEmail(userId: string, prefKey: string): Promise<boolean> {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { notificationPreferences: true, banned: true, deletedAt: true },
-    });
-    if (!user || user.banned || user.deletedAt) return false; // don't email suspended/deleted users
-    return isEmailNotificationEnabled(user.notificationPreferences, prefKey);
+    if (!isValidEmailPreferenceKey(prefKey)) return false;
+    return Boolean(await userEmailDeliveryRecipient(prisma, {
+      userId,
+      preferenceKey: prefKey,
+    }));
   } catch (e) {
     logServerError(e, {
       source: "email_preference_check",

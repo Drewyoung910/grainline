@@ -5,7 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewReviewEmail } from "@/lib/email";
@@ -29,6 +29,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { z } from "zod";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 const ReviewPhotoUrlsSchema = z.array(z.string().url().refine(
   (u) => isFirstPartyMediaUrl(u),
@@ -237,22 +238,20 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      if (await shouldSendEmail(listing.seller.userId, "EMAIL_NEW_REVIEW")) {
-        const sellerUser = await prisma.user.findUnique({
-          where: { id: listing.seller.userId },
-          select: { email: true, name: true },
+      const sellerRecipient = await userEmailDeliveryRecipient(prisma, {
+        userId: listing.seller.userId,
+        preferenceKey: "EMAIL_NEW_REVIEW",
+      });
+      if (sellerRecipient) {
+        await sendNewReviewEmail({
+          sellerEmail: sellerRecipient.email,
+          sellerName: sellerRecipient.name ?? "there",
+          buyerName: me.name ?? "A buyer",
+          listingTitle: listing.title,
+          rating: ratingX2 / 2,
+          reviewPreview: truncateText(comment ?? "", 200),
+          reviewUrl: new URL(`${publicListingPath(listingId, listing.title)}#reviews`, EMAIL_APP_URL).toString(),
         });
-        if (sellerUser?.email) {
-          await sendNewReviewEmail({
-            sellerEmail: sellerUser.email,
-            sellerName: sellerUser.name ?? "there",
-            buyerName: me.name ?? "A buyer",
-            listingTitle: listing.title,
-            rating: ratingX2 / 2,
-            reviewPreview: truncateText(comment ?? "", 200),
-            reviewUrl: new URL(`${publicListingPath(listingId, listing.title)}#reviews`, EMAIL_APP_URL).toString(),
-          });
-        }
       }
     } catch (e) {
       console.error("Failed to send review notification email:", sanitizeEmailOutboxError(e));

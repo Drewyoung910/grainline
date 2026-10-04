@@ -9,10 +9,10 @@ import { userClerkGate } from "@/lib/userIdentityAccess";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
-import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
 import { renderSellerBroadcastEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
-import { mapWithConcurrency } from "@/lib/concurrency";
+import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
+import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
 import {
   broadcastAttemptRatelimit,
   broadcastRatelimit,
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
     },
     select: {
       followerId: true,
-      follower: { select: { email: true, notificationPreferences: true } },
+      follower: { select: { notificationPreferences: true } },
     },
     take: 10000,
   });
@@ -207,15 +207,6 @@ export async function POST(req: NextRequest) {
       "SELLER_BROADCAST",
     ),
   );
-  const emailFollowers = followers.filter(
-    (f) =>
-      !!f.follower.email &&
-      isEmailNotificationEnabled(
-        f.follower.notificationPreferences,
-        "EMAIL_SELLER_BROADCAST",
-      ),
-  );
-
   const { success: rlOk, reset } = await safeRateLimit(
     broadcastRatelimit,
     seller.id,
@@ -330,21 +321,29 @@ export async function POST(req: NextRequest) {
           data: { recipientCount: deliveredCount },
         });
       }
+      const emailFollowers = (await Promise.all(
+        chunkArray(followers.map((f) => f.followerId), 500).map((userIds) =>
+          userEmailDeliveryRecipients(prisma, {
+            userIds,
+            preferenceKey: "EMAIL_SELLER_BROADCAST",
+          }),
+        ),
+      )).flat();
       const emailResults = await mapWithConcurrency(
         emailFollowers,
         5,
         async (f) => {
           const email = renderSellerBroadcastEmail({
-            to: f.follower.email!,
+            to: f.email,
             makerName: sellerName,
             message,
             imageUrl,
           });
           return enqueueEmailOutbox({
             ...email,
-            dedupKey: `seller-broadcast:${broadcast.id}:${f.followerId}`,
+            dedupKey: `seller-broadcast:${broadcast.id}:${f.userId}`,
             templateName: "seller_broadcast",
-            userId: f.followerId,
+            userId: f.userId,
             preferenceKey: "EMAIL_SELLER_BROADCAST",
             sourceType: "seller_broadcast",
             sourceId: broadcast.id,
@@ -359,7 +358,7 @@ export async function POST(req: NextRequest) {
           extra: {
             broadcastId: broadcast.id,
             sellerProfileId: seller.id,
-            followerId: emailFollowers[index]?.followerId ?? null,
+            followerId: emailFollowers[index]?.userId ?? null,
           },
         });
       });

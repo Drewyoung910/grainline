@@ -218,13 +218,17 @@ silently bundled into RLS activation.
 3. Confirm the first candidate through exact-head CI and a deployment-disabled
    build; retain the predecessor alias until the additive migration and its
    catalog readback succeed.
-4. Define and convert the public identity/active-user projection, including
+4. Complete the outbound email-delivery family in
+   `docs/user-email-delivery-pre-rls-audit.md`: fixed recipient/state
+   operations, seventeen direct-read conversions, queued-address continuity and
+   an explicit relation-backed inventory.
+5. Define and convert the public identity/active-user projection, including
    nested Prisma and raw aggregate joins.
-5. Convert self-private, eligibility/service, staff/ban, and lifecycle/deletion
+6. Convert the remaining eligibility/service, staff/ban and lifecycle/deletion
    families in cohesive packages.
-6. Run a read-only Production catalog inspection for table/grant/data posture
+7. Run a read-only Production catalog inspection for table/grant/data posture
    and every dependent function.
-7. Only after source access reaches the reviewed target, prepare disposable
+8. Only after source access reaches the reviewed target, prepare disposable
    PostgreSQL proof, rollback proof, and a separate policyless or projected
    Phase-A decision. Keep FORCE separate.
 

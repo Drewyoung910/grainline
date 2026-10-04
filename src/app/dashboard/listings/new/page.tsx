@@ -37,6 +37,7 @@ import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import type { Metadata } from "next";
 
@@ -334,13 +335,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
       select: { id: true },
     });
     if (firstListing?.id === created.id) {
-      const sellerWithUser = await prisma.sellerProfile.findUnique({
-        where: { id: seller.id },
-        select: { displayName: true, user: { select: { email: true } } },
+      const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+        userId: seller.userId,
       });
-      if (sellerWithUser?.user?.email) {
+      if (emailRecipient) {
         const email = renderFirstListingCongratsEmail({
-          seller: { displayName: sellerWithUser.displayName, email: sellerWithUser.user.email },
+          seller: { displayName: seller.displayName, email: emailRecipient.email },
           listing: { id: created.id, title: created.title, priceCents: created.priceCents },
         });
         await enqueueEmailOutbox({
