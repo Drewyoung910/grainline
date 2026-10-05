@@ -11,7 +11,7 @@ export function publicCommissionInterestWhere(
             chargesEnabled: true,
             OR: [{ stripeAccountVersion: null }, { stripeAccountVersion: "v2" }],
             vacationMode: false,
-            user: { banned: false, deletedAt: null },
+            ownerAccountActive: true,
           },
         ],
       },

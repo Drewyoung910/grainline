@@ -26,7 +26,7 @@ describe("blog visibility", () => {
                   { stripeAccountVersion: "v2" },
                 ],
                 vacationMode: false,
-                user: { banned: false, deletedAt: null },
+                ownerAccountActive: true,
               },
             },
           ],

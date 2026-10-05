@@ -161,6 +161,10 @@ model SellerProfile {
   id                    String   @id @default(cuid())
   userId                String   @unique
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Public seller-domain snapshot maintained by database triggers from User.
+  // Public catalog reads use these bounded fields instead of broad User access.
+  ownerAccountActive    Boolean  @default(false)
+  ownerImageUrl         String?  @db.VarChar(2048)
   displayName           String   @db.VarChar(100)
   displayNameNormalized String   @db.VarChar(100)
   bio                   String?  @db.VarChar(500)

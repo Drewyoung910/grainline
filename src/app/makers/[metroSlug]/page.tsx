@@ -118,7 +118,7 @@ export default async function MakersMetroPage({
       bannerImageUrl: true,
       guildLevel: true,
       isVerifiedMaker: true,
-      user: { select: { imageUrl: true } },
+      ownerImageUrl: true,
       listings: {
         where: publicListingWhere(),
         take: 1,
@@ -174,7 +174,7 @@ export default async function MakersMetroPage({
         "name": s.displayName,
         "description": s.tagline ?? `Handmade woodworking by ${s.displayName}`,
         "url": `${BASE_URL}${publicSellerPath(s.id, s.displayName)}`,
-        "image": s.avatarImageUrl ?? s.user?.imageUrl,
+        "image": s.avatarImageUrl ?? s.ownerImageUrl,
         ...(s.city && s.state ? { "address": { "@type": "PostalAddress", "addressLocality": s.city, "addressRegion": s.state } } : {}),
         "knowsAbout": "Handmade Woodworking",
       },
@@ -229,7 +229,7 @@ export default async function MakersMetroPage({
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {sellers.map((seller) => {
-            const avatar = seller.avatarImageUrl ?? seller.user?.imageUrl;
+            const avatar = seller.avatarImageUrl ?? seller.ownerImageUrl;
             const coverPhoto = seller.bannerImageUrl ?? seller.listings[0]?.photos[0]?.url;
             const activeCount = seller._count.listings;
             return (

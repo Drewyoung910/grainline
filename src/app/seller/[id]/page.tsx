@@ -117,7 +117,8 @@ const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
       foundingMakerNumber: true,
       chargesEnabled: true,
       stripeAccountVersion: true,
-      user: { select: { imageUrl: true, banned: true, deletedAt: true } },
+      ownerAccountActive: true,
+      ownerImageUrl: true,
       faqs: { orderBy: { sortOrder: "asc" }, select: { id: true, question: true, answer: true } },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
@@ -143,8 +144,7 @@ function sellerIsPubliclyVisible(
     seller &&
       seller.chargesEnabled &&
       isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
-      !seller.user?.banned &&
-      !seller.user?.deletedAt,
+      seller.ownerAccountActive,
   );
 }
 
@@ -168,7 +168,7 @@ export async function generateMetadata({
   let img =
     seller.bannerImageUrl ||
     seller.avatarImageUrl ||
-    seller.user?.imageUrl ||
+    seller.ownerImageUrl ||
     null;
   if (!img) {
     const previewListings = await getSellerProfileListingPreview(sellerId);
@@ -219,7 +219,7 @@ async function SellerPublicContent({
   ]);
 
   if (!seller) return notFound();
-  if (seller.user?.banned || seller.user?.deletedAt) return notFound();
+  if (!seller.ownerAccountActive) return notFound();
 
   // Current viewer
   const { userId } = authResult;
@@ -454,10 +454,10 @@ async function SellerPublicContent({
             />
           </div>
           <div className="absolute bottom-0 left-6 sm:left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-[#F7F5F0] shadow-sm">
-            {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
+            {seller.avatarImageUrl ?? seller.ownerImageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={(seller.avatarImageUrl ?? seller.user?.imageUrl)!}
+                src={(seller.avatarImageUrl ?? seller.ownerImageUrl)!}
                 alt={seller.displayName}
                 className="h-full w-full object-cover"
               />
@@ -653,7 +653,7 @@ async function SellerPublicContent({
             const sellerChip = {
               id: seller.id,
               displayName: seller.displayName ?? null,
-              avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+              avatarImageUrl: seller.avatarImageUrl ?? seller.ownerImageUrl ?? null,
               guildLevel: seller.guildLevel ?? null,
               city: seller.city ?? null,
               state: seller.state ?? null,
@@ -865,7 +865,7 @@ async function SellerPublicContent({
                           seller: {
                             id: seller.id,
                             displayName: seller.displayName ?? null,
-                            avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                            avatarImageUrl: seller.avatarImageUrl ?? seller.ownerImageUrl ?? null,
                             guildLevel: seller.guildLevel ?? null,
                             city: seller.city ?? null,
                             state: seller.state ?? null,

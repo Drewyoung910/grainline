@@ -40,7 +40,7 @@ const TAG_LISTING_SELECT = {
       city: true,
       state: true,
       acceptingNewOrders: true,
-      user: { select: { imageUrl: true } },
+      ownerImageUrl: true,
     },
   },
 } satisfies Prisma.ListingSelect;
@@ -179,7 +179,7 @@ export default async function TagLandingPage({
             seller: {
               id: listing.sellerId,
               displayName: listing.seller.displayName ?? null,
-              avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null,
+              avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.ownerImageUrl ?? null,
               guildLevel: listing.seller.guildLevel ?? null,
               city: listing.seller.city ?? null,
               state: listing.seller.state ?? null,

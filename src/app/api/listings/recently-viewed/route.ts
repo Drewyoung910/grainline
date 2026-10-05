@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         select: {
           displayName: true,
           avatarImageUrl: true,
-          user: { select: { imageUrl: true } },
+          ownerImageUrl: true,
         },
       },
     },
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
     currency: r.currency,
     photoUrl: r.photos[0]?.url ?? null,
     sellerDisplayName: r.seller.displayName ?? "Maker",
-    sellerAvatarImageUrl: r.seller.avatarImageUrl ?? r.seller.user?.imageUrl ?? null,
+    sellerAvatarImageUrl: r.seller.avatarImageUrl ?? r.seller.ownerImageUrl ?? null,
     saved: savedListingIds.has(r.id),
   }));
 

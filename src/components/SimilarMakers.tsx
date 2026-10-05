@@ -26,7 +26,7 @@ const similarMakerSelect = {
   guildLevel: true,
   avatarImageUrl: true,
   bannerImageUrl: true,
-  user: { select: { imageUrl: true } },
+  ownerImageUrl: true,
   listings: {
     where: publicListingWhere(),
     orderBy: [{ qualityScore: "desc" }, { id: "desc" }],
@@ -113,7 +113,7 @@ export default async function SimilarMakers({
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {makers.map((maker) => {
           const rating = ratings.get(maker.id) ?? null;
-          const avatar = maker.avatarImageUrl ?? maker.user?.imageUrl ?? null;
+          const avatar = maker.avatarImageUrl ?? maker.ownerImageUrl ?? null;
           const cover = maker.bannerImageUrl ?? maker.listings[0]?.photos[0]?.url ?? null;
           return (
             <li key={maker.id} className="card-listing group">

@@ -41,7 +41,7 @@ export async function GET(
         foundingMakerNumber: true,
         avatarImageUrl: true,
         bannerImageUrl: true,
-        user: { select: { imageUrl: true } },
+        ownerImageUrl: true,
         listings: {
           where: publicListingWhere(),
           orderBy: [{ qualityScore: "desc" }, { id: "desc" }],
@@ -67,7 +67,7 @@ export async function GET(
       id: seller.id,
       name: seller.displayName ?? "Maker",
       path: publicSellerPath(seller.id, seller.displayName),
-      avatarUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+      avatarUrl: seller.avatarImageUrl ?? seller.ownerImageUrl ?? null,
       photoUrl: seller.bannerImageUrl ?? seller.listings[0]?.photos[0]?.url ?? null,
       guildLevel: seller.guildLevel ?? null,
       isFoundingMaker: seller.isFoundingMaker,

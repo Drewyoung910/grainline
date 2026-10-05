@@ -64,7 +64,7 @@ export default async function FollowingPage({
           vacationMode: true,
           vacationReturnDate: true,
           guildLevel: true,
-          user: { select: { imageUrl: true } },
+          ownerImageUrl: true,
           _count: { select: { followers: true, listings: { where: publicListingWhere() } } },
           listings: {
             where: publicListingWhere(),
@@ -108,7 +108,7 @@ export default async function FollowingPage({
       ) : (
         <ul className="space-y-3">
           {follows.map(({ sellerProfile: s, createdAt }) => {
-            const avatar = s.avatarImageUrl ?? s.user?.imageUrl ?? null;
+            const avatar = s.avatarImageUrl ?? s.ownerImageUrl ?? null;
             const location = [s.city, s.state].filter(Boolean).join(", ");
             return (
               <li key={s.id} className="card-section flex flex-col gap-4 p-4 sm:flex-row sm:items-start">

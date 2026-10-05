@@ -64,7 +64,8 @@ const getSellerProfileForShopPage = cache(async (sellerId: string) =>
       vacationMessage: true,
       isFoundingMaker: true,
       foundingMakerNumber: true,
-      user: { select: { imageUrl: true, banned: true, deletedAt: true } },
+      ownerAccountActive: true,
+      ownerImageUrl: true,
     },
   })
 );
@@ -78,8 +79,7 @@ function sellerShopIsPubliclyVisible(
     seller &&
       seller.chargesEnabled &&
       isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
-      !seller.user?.banned &&
-      !seller.user?.deletedAt,
+      seller.ownerAccountActive,
   );
 }
 
@@ -139,7 +139,7 @@ export default async function SellerShopPage({
   }
 
   const isOwner = !!meId && seller.userId === meId;
-  if (seller.user?.banned || seller.user?.deletedAt) {
+  if (!seller.ownerAccountActive) {
     return notFound();
   }
   if (!isOwner && !sellerShopIsPubliclyVisible(seller)) return notFound();
@@ -269,7 +269,7 @@ export default async function SellerShopPage({
     return `${sellerShopHref}${qs ? `?${qs}` : ""}`;
   }
 
-  const avatarSrc = seller.avatarImageUrl ?? seller.user?.imageUrl ?? null;
+  const avatarSrc = seller.avatarImageUrl ?? seller.ownerImageUrl ?? null;
 
   return (
     <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -466,7 +466,7 @@ export default async function SellerShopPage({
                       seller: {
                         id: seller.id,
                         displayName: seller.displayName ?? null,
-                        avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                        avatarImageUrl: seller.avatarImageUrl ?? seller.ownerImageUrl ?? null,
                         guildLevel: seller.guildLevel ?? null,
                         city: seller.city ?? null,
                         state: seller.state ?? null,

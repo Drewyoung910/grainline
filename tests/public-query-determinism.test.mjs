@@ -151,12 +151,11 @@ describe("public query determinism", () => {
     const geoBlock = browse.slice(geoStart, geoEnd);
 
     assert.match(geoBlock, /FROM "SellerProfile" sp/);
-    assert.match(geoBlock, /INNER JOIN "User" u ON u\.id = sp\."userId"/);
     assert.match(geoBlock, /sp\."chargesEnabled" = true/);
     assert.match(geoBlock, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
     assert.match(geoBlock, /sp\."vacationMode" = false/);
-    assert.match(geoBlock, /u\.banned = false/);
-    assert.match(geoBlock, /u\."deletedAt" IS NULL/);
+    assert.match(geoBlock, /sp\."ownerAccountActive" = true/);
+    assert.doesNotMatch(geoBlock, /JOIN "User"/);
     assert.match(geoBlock, /blockedSellerGeoSql/);
     assert.match(geoBlock, /EXISTS \(\s*SELECT 1\s*FROM "Listing" l/);
     assert.match(geoBlock, /l\."sellerId" = sp\.id/);

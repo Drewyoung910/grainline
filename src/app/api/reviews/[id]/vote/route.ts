@@ -44,10 +44,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           seller: {
             select: {
               userId: true,
+              ownerAccountActive: true,
               chargesEnabled: true,
               stripeAccountVersion: true,
               vacationMode: true,
-              user: { select: { id: true, clerkId: true, banned: true, deletedAt: true } },
             },
           },
         },

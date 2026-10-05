@@ -27,7 +27,8 @@ const getSellerProfileForCustomerPhotosPage = cache(async (sellerId: string) =>
       displayName: true,
       chargesEnabled: true,
       stripeAccountVersion: true,
-      user: { select: { id: true, banned: true, deletedAt: true } },
+      userId: true,
+      ownerAccountActive: true,
     },
   })
 );
@@ -41,8 +42,7 @@ function sellerPhotosIsPubliclyVisible(
     seller &&
       seller.chargesEnabled &&
       isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
-      !seller.user?.banned &&
-      !seller.user?.deletedAt,
+      seller.ownerAccountActive,
   );
 }
 
@@ -67,7 +67,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
 
   const seller = await getSellerProfileForCustomerPhotosPage(sellerId);
   if (!seller) return notFound();
-  if (seller.user?.banned || seller.user?.deletedAt) return notFound();
+  if (!seller.ownerAccountActive) return notFound();
 
   const { userId } = await auth();
   let meId: string | null = null;
@@ -75,11 +75,11 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const isOwner = !!meId && seller.user?.id === meId;
+  const isOwner = !!meId && seller.userId === meId;
   if (!isOwner && !sellerPhotosIsPubliclyVisible(seller)) return notFound();
 
   const blockedUserIds = await getBlockedUserIdsFor(meId);
-  if (seller.user?.id && blockedUserIds.has(seller.user.id)) {
+  if (blockedUserIds.has(seller.userId)) {
     return notFound();
   }
 

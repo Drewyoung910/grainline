@@ -34,7 +34,7 @@ describe("commission interest counts", () => {
                 chargesEnabled: true,
                 OR: [{ stripeAccountVersion: null }, { stripeAccountVersion: "v2" }],
                 vacationMode: false,
-                user: { banned: false, deletedAt: null },
+                ownerAccountActive: true,
               },
             ],
           },
@@ -76,8 +76,8 @@ describe("commission interest counts", () => {
     assert.match(nearJoin, /isp\."chargesEnabled" = true/);
     assert.match(nearJoin, /isp\."stripeAccountVersion" IS NULL OR isp\."stripeAccountVersion" = 'v2'/);
     assert.match(nearJoin, /isp\."vacationMode" = false/);
-    assert.match(nearJoin, /iu\.banned = false/);
-    assert.match(nearJoin, /iu\."deletedAt" IS NULL/);
+    assert.match(nearJoin, /isp\."ownerAccountActive" = true/);
+    assert.doesNotMatch(nearJoin, /JOIN "User"/);
     assert.doesNotMatch(page, /LEFT JOIN \(\s*SELECT "commissionRequestId", COUNT\(\*\)::int AS "interestCount"[\s\S]*GROUP BY "commissionRequestId"/);
   });
 });

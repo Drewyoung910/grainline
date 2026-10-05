@@ -9,7 +9,7 @@ const PUBLIC_SELLER_STATE = {
     { stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION },
   ],
   vacationMode: false,
-  user: { banned: false, deletedAt: null },
+  ownerAccountActive: true,
 } satisfies Prisma.SellerProfileWhereInput;
 
 function isSupportedPublicStripeAccountVersion(version: string | null | undefined) {
@@ -48,15 +48,10 @@ type ListingVisibilityInput = {
   reservedForUserId?: string | null;
   seller: {
     userId?: string | null;
+    ownerAccountActive: boolean;
     chargesEnabled: boolean;
     stripeAccountVersion?: string | null;
     vacationMode?: boolean | null;
-    user?: {
-      id?: string | null;
-      clerkId?: string | null;
-      banned?: boolean | null;
-      deletedAt?: Date | string | null;
-    } | null;
   };
 };
 
@@ -67,8 +62,7 @@ export function isPublicListing(listing: ListingVisibilityInput) {
     listing.seller.chargesEnabled &&
     isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
     !listing.seller.vacationMode &&
-    !listing.seller.user?.banned &&
-    !listing.seller.user?.deletedAt
+    listing.seller.ownerAccountActive
   );
 }
 
@@ -79,8 +73,7 @@ export function isPublicListingDetail(listing: ListingVisibilityInput) {
     listing.seller.chargesEnabled &&
     isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
     !listing.seller.vacationMode &&
-    !listing.seller.user?.banned &&
-    !listing.seller.user?.deletedAt
+    listing.seller.ownerAccountActive
   );
 }
 
@@ -88,7 +81,6 @@ export function canViewListingDetail(
   listing: ListingVisibilityInput,
   viewer: {
     dbUserId?: string | null;
-    clerkUserId?: string | null;
     preview?: boolean;
     staffPreview?: boolean;
     role?: string | null;
@@ -107,10 +99,7 @@ export function canViewListingDetail(
 
   if (!viewerAccountActive) return false;
 
-  const isOwner =
-    (!!viewer.dbUserId && listing.seller.userId === viewer.dbUserId) ||
-    (!!viewer.dbUserId && listing.seller.user?.id === viewer.dbUserId) ||
-    (!!viewer.clerkUserId && listing.seller.user?.clerkId === viewer.clerkUserId);
+  const isOwner = !!viewer.dbUserId && listing.seller.userId === viewer.dbUserId;
   if (viewer.preview && isOwner) return true;
   if (isOwner) return true;
 
@@ -125,8 +114,7 @@ export function canViewListingDetail(
       listing.seller.chargesEnabled &&
       isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
       !listing.seller.vacationMode &&
-      !listing.seller.user?.banned &&
-      !listing.seller.user?.deletedAt
+      listing.seller.ownerAccountActive
     );
   }
 

@@ -110,8 +110,8 @@ describe("public visibility follow-ups", () => {
     assert.match(popularTags, /l\."isPrivate" = false/);
     assert.match(popularTags, /sp\."chargesEnabled" = true/);
     assert.match(popularTags, /sp\."vacationMode" = false/);
-    assert.match(popularTags, /u\.banned = false/);
-    assert.match(popularTags, /u\."deletedAt" IS NULL/);
+    assert.match(popularTags, /sp\."ownerAccountActive" = true/);
+    assert.doesNotMatch(popularTags, /JOIN "User"/);
     assert.match(popularTags, /LIMIT \$\{PUBLIC_SELLER_TOP_TAG_LIMIT\}/);
     assert.match(popularTags, /tags: \["popular-listing-tags"\]/);
   });
@@ -137,7 +137,7 @@ describe("public visibility follow-ups", () => {
     assert.match(visibility, /listing\.seller\.userId === viewer\.dbUserId/);
 
     assert.doesNotMatch(customerPhotosPage, /clerkId: true/);
-    assert.match(customerPhotosPage, /const isOwner = !!meId && seller\.user\?\.id === meId/);
+    assert.match(customerPhotosPage, /const isOwner = !!meId && seller\.userId === meId/);
     assert.match(reviewsSection, /where: \{ userId: sellerUserId \}/);
     assert.match(reviewsSection, /!r\.sellerReply && viewerIsSeller/);
     assert.doesNotMatch(reviewsSection, /where: \{ clerkId: sellerUserId \}/);
@@ -178,7 +178,7 @@ describe("public visibility follow-ups", () => {
                 { stripeAccountVersion: "v2" },
               ],
               vacationMode: false,
-              user: { banned: false, deletedAt: null },
+              ownerAccountActive: true,
             },
           },
           { sellerId: { notIn: ["seller_2"] } },

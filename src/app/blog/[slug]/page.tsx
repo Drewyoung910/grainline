@@ -110,7 +110,7 @@ export default async function BlogPostPage({
     where: viewerBlogPostWhere({ slug }),
     include: {
       author: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
-      sellerProfile: { select: { id: true, userId: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
+      sellerProfile: { select: { id: true, userId: true, displayName: true, avatarImageUrl: true } },
       comments: {
         where: { ...commentVisibilityWhere, parentId: null },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],

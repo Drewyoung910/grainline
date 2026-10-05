@@ -91,7 +91,7 @@ export default async function SavedPage({
                 state: true,
                 acceptingNewOrders: true,
                 userId: true,
-                user: { select: { imageUrl: true } },
+                ownerImageUrl: true,
               },
             },
             photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
@@ -133,7 +133,7 @@ export default async function SavedPage({
                         seller: {
                           id: l.seller.id,
                           displayName: l.seller.displayName ?? null,
-                          avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                          avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.ownerImageUrl ?? null,
                           guildLevel: l.seller.guildLevel ?? null,
                           city: l.seller.city ?? null,
                           state: l.seller.state ?? null,
