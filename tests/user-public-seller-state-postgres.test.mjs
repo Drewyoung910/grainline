@@ -3,8 +3,14 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
+import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
+
 const migration = readFileSync(
   "prisma/migrations/20261004050000_prepare_user_public_seller_state/migration.sql",
+  "utf8",
+);
+const runtimeProvisioning = readFileSync(
+  "scripts/provision-runtime-db-role.sql",
   "utf8",
 );
 
@@ -150,6 +156,28 @@ describe("User public seller-state PostgreSQL proof", () => {
       assert.equal(privileges.rows[0].public_execute_count, 0);
     } finally {
       await database.close();
+    }
+  });
+
+  it("keeps both trigger functions runtime-private in grant convergence", () => {
+    for (const functionName of [
+      "grainline_seller_owner_public_state_bind",
+      "grainline_user_public_seller_state_sync",
+    ]) {
+      assert.equal(RUNTIME_PRIVATE_FUNCTIONS.includes(functionName), true);
+      assert.equal(
+        (runtimeProvisioning.match(
+          new RegExp(`public\\."${functionName}"\\(\\)`, "gu"),
+        ) ?? []).length,
+        2,
+      );
+      assert.doesNotMatch(
+        runtimeProvisioning,
+        new RegExp(
+          `GRANT EXECUTE ON FUNCTION public\\."${functionName}"\\(\\)`,
+          "u",
+        ),
+      );
     }
   });
 });

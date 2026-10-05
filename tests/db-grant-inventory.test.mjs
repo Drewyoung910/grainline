@@ -746,6 +746,8 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_item_seller_key_complete",
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
+      "grainline_seller_owner_public_state_bind",
+      "grainline_user_public_seller_state_sync",
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
