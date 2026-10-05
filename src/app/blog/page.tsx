@@ -143,7 +143,6 @@ async function BlogIndexPageContent({
       SELECT "BlogPost".id FROM "BlogPost"
       JOIN "User" author_user ON author_user.id = "BlogPost"."authorId"
       LEFT JOIN "SellerProfile" sp ON sp.id = "BlogPost"."sellerProfileId"
-      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
       WHERE "BlogPost".status = 'PUBLISHED'
         AND "BlogPost"."publishedAt" IS NOT NULL
         AND "BlogPost"."publishedAt" <= NOW()
@@ -155,8 +154,7 @@ async function BlogIndexPageContent({
             sp."chargesEnabled" = true
             AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
             AND sp."vacationMode" = false
-            AND seller_user.banned = false
-            AND seller_user."deletedAt" IS NULL
+            AND sp."ownerAccountActive" = true
           )
         )
         ${typeSql}

@@ -252,11 +252,11 @@ describe("verified audit follow-up guardrails", () => {
   it("keeps global blog search suggestions on the public blog visibility predicate", () => {
     const text = source("src/app/api/search/suggestions/route.ts");
     assert.match(text, /LEFT JOIN "SellerProfile" sp ON sp\.id = bp\."sellerProfileId"/);
-    assert.match(text, /LEFT JOIN "User" seller_user ON seller_user\.id = sp\."userId"/);
     assert.match(text, /sp\."chargesEnabled" = true/);
     assert.match(text, /sp\."vacationMode" = false/);
     assert.match(text, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
-    assert.match(text, /seller_user\.banned = false/);
+    assert.match(text, /sp\."ownerAccountActive" = true/);
+    assert.doesNotMatch(text, /seller_user/);
     assert.match(text, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(text, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
   });

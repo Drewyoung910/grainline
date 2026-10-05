@@ -102,10 +102,10 @@ export default async function ThreadPage({
           seller: {
             select: {
               userId: true,
+              ownerAccountActive: true,
               chargesEnabled: true,
               stripeAccountVersion: true,
               vacationMode: true,
-              user: { select: { id: true, banned: true, deletedAt: true } },
             },
           },
           photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
@@ -137,7 +137,8 @@ export default async function ThreadPage({
                 chargesEnabled: true,
                 stripeAccountVersion: true,
                 vacationMode: true,
-                user: { select: { id: true, banned: true, deletedAt: true } },
+                userId: true,
+                ownerAccountActive: true,
               },
             },
           },

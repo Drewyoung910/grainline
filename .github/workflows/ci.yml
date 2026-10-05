@@ -143,6 +143,18 @@ jobs:
           tests/user-public-member-aggregate-postgres.test.mjs
           tests/user-public-member-aggregate-production-inspect.test.mjs
           tests/user-public-member-aggregate-preparation-production-workflow.test.mjs
+      - name: Verify User public seller-state source package
+        run: >-
+          node --test
+          tests/blog-visibility.test.mjs
+          tests/commission-interest-count.test.mjs
+          tests/listing-visibility.test.mjs
+          tests/observability-cleanup-followups.test.mjs
+          tests/public-query-determinism.test.mjs
+          tests/public-visibility-followups.test.mjs
+          tests/user-public-seller-state-source.test.mjs
+          tests/user-public-seller-state-postgres.test.mjs
+          tests/verified-audit-followups.test.mjs
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
@@ -175,6 +187,21 @@ jobs:
             tests/user-public-member-aggregate-postgres.test.mjs \
             tests/user-public-member-aggregate-production-inspect.test.mjs \
             tests/user-public-member-aggregate-preparation-production-workflow.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
+      - name: Isolate User public seller-state package until its predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-public-seller-state"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261004050000_prepare_user_public_seller_state \
+            "$holding/migration"
+          for test_file in \
+            tests/user-public-seller-state-source.test.mjs \
+            tests/user-public-seller-state-postgres.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
@@ -3809,6 +3836,133 @@ jobs:
           $verify_user_public_member_aggregate$;
           SQL
       - name: Audit runtime grants after User public active-member aggregate
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User public seller-state source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-public-seller-state"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261004050000_prepare_user_public_seller_state
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify User public seller-state source package
+        run: >-
+          node --test
+          tests/blog-visibility.test.mjs
+          tests/commission-interest-count.test.mjs
+          tests/listing-visibility.test.mjs
+          tests/observability-cleanup-followups.test.mjs
+          tests/public-query-determinism.test.mjs
+          tests/public-visibility-followups.test.mjs
+          tests/user-public-seller-state-source.test.mjs
+          tests/user-public-seller-state-postgres.test.mjs
+          tests/verified-audit-followups.test.mjs
+      - name: Apply User public seller-state snapshot in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261004050000_prepare_user_public_seller_state/migration.sql
+      - name: Verify User public seller-state snapshot catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_public_seller_state$
+          DECLARE
+            columns_are_exact boolean;
+            functions_are_exact boolean;
+            triggers_are_exact boolean;
+          BEGIN
+            SELECT
+              pg_catalog.count(*) = 2
+              AND pg_catalog.bool_and(
+                CASE
+                  WHEN attribute.attname = 'ownerAccountActive'
+                    THEN attribute.attnotnull
+                  ELSE NOT attribute.attnotnull
+                END
+              )
+              INTO columns_are_exact
+              FROM pg_catalog.pg_attribute AS attribute
+             WHERE attribute.attrelid = 'public."SellerProfile"'::pg_catalog.regclass
+               AND attribute.attname = ANY(ARRAY[
+                 'ownerAccountActive',
+                 'ownerImageUrl'
+               ]::text[])
+               AND attribute.attnum > 0
+               AND NOT attribute.attisdropped;
+
+            SELECT
+              pg_catalog.count(*) = 2
+              AND pg_catalog.bool_and(procedure.prosecdef)
+              AND pg_catalog.bool_and(
+                procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+              )
+              AND NOT pg_catalog.bool_or(
+                pg_catalog.has_function_privilege(
+                  'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                EXISTS (
+                  SELECT 1
+                    FROM pg_catalog.aclexplode(
+                      COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )
+                    ) AS privilege
+                   WHERE privilege.grantee = 0
+                     AND privilege.privilege_type = 'EXECUTE'
+                )
+              )
+              INTO functions_are_exact
+              FROM pg_catalog.pg_proc AS procedure
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.proname = ANY(ARRAY[
+                 'grainline_seller_owner_public_state_bind',
+                 'grainline_user_public_seller_state_sync'
+               ]::text[]);
+
+            SELECT
+              pg_catalog.count(*) = 2
+              AND pg_catalog.bool_and(trigger.tgenabled = 'O')
+              INTO triggers_are_exact
+              FROM pg_catalog.pg_trigger AS trigger
+             WHERE NOT trigger.tgisinternal
+               AND trigger.tgname = ANY(ARRAY[
+                 'grainline_seller_owner_public_state_bind',
+                 'grainline_user_public_seller_state_sync'
+               ]::text[]);
+
+            IF columns_are_exact IS DISTINCT FROM true
+               OR functions_are_exact IS DISTINCT FROM true
+               OR triggers_are_exact IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'User public seller-state catalog drifted';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+                FROM public."SellerProfile" AS seller
+                JOIN public."User" AS account_user
+                  ON account_user.id = seller."userId"
+               WHERE seller."ownerAccountActive" IS DISTINCT FROM (
+                       account_user.banned = false
+                       AND account_user."deletedAt" IS NULL
+                     )
+                  OR seller."ownerImageUrl" IS DISTINCT FROM account_user."imageUrl"
+            ) THEN
+              RAISE EXCEPTION 'User public seller-state snapshot drifted';
+            END IF;
+          END
+          $verify_user_public_seller_state$;
+          SQL
+      - name: Audit runtime grants after User public seller-state snapshot
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

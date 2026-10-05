@@ -93,7 +93,8 @@ const getListingForDetailPage = cache(async (listingId: string) =>
           guildLevel: true,
           isFoundingMaker: true,
           foundingMakerNumber: true,
-          user: { select: { imageUrl: true, banned: true, deletedAt: true } },
+          ownerAccountActive: true,
+          ownerImageUrl: true,
         },
       },
       metroId: true,
@@ -235,7 +236,6 @@ export default async function ListingPage({
 
   if (!canViewListingDetail(listing, {
     dbUserId: meId,
-    clerkUserId: userId,
     preview: sp.preview === "1",
     staffPreview,
     role: me?.role,
@@ -365,7 +365,7 @@ export default async function ListingPage({
 
   const sellerName = listing.seller.displayName ?? "Maker";
   const sellerHref = publicSellerPath(listing.sellerId, sellerName);
-  const sellerAvatar = listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null;
+  const sellerAvatar = listing.seller.avatarImageUrl ?? listing.seller.ownerImageUrl ?? null;
 
   const sellerUserId = listing.seller.userId;
 

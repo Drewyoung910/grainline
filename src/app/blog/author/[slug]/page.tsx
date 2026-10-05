@@ -49,7 +49,8 @@ const getPublicBlogAuthor = cache(async (sellerProfileId: string) =>
       tagline: true,
       avatarImageUrl: true,
       bannerImageUrl: true,
-      user: { select: { id: true, imageUrl: true } },
+      userId: true,
+      ownerImageUrl: true,
     },
   })
 );
@@ -75,7 +76,7 @@ export async function generateMetadata({
     ? `Read woodworking stories, guides, and updates from ${author.displayName}: ${author.tagline}`
     : `Read woodworking stories, guides, and updates from ${author.displayName} on Grainline.`;
   const canonical = `${BASE_URL}${publicBlogAuthorPath(author.id, author.displayName)}${page > 1 ? `?page=${page}` : ""}`;
-  const image = author.bannerImageUrl ?? author.avatarImageUrl ?? author.user.imageUrl ?? undefined;
+  const image = author.bannerImageUrl ?? author.avatarImageUrl ?? author.ownerImageUrl ?? undefined;
 
   return {
     title,
@@ -119,7 +120,7 @@ export default async function BlogAuthorPage({
 
   if (meDbId) {
     const blockedUserIds = await getBlockedUserIdsFor(meDbId);
-    if (blockedUserIds.has(author.user.id)) return notFound();
+    if (blockedUserIds.has(author.userId)) return notFound();
   }
 
   const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 500);
@@ -147,7 +148,7 @@ export default async function BlogAuthorPage({
     savedSet = new Set(saved.map((savedPost) => savedPost.blogPostId));
   }
 
-  const avatar = author.avatarImageUrl ?? author.user.imageUrl ?? null;
+  const avatar = author.avatarImageUrl ?? author.ownerImageUrl ?? null;
 
   function pageHref(n: number) {
     return `${canonicalPath}${n > 1 ? `?page=${n}` : ""}`;

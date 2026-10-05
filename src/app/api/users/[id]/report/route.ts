@@ -114,10 +114,10 @@ export async function POST(
               seller: {
                 select: {
                   userId: true,
+                  ownerAccountActive: true,
                   chargesEnabled: true,
                   stripeAccountVersion: true,
                   vacationMode: true,
-                  user: { select: { id: true, clerkId: true, banned: true, deletedAt: true } },
                 },
               },
             },
@@ -176,10 +176,10 @@ export async function POST(
                   seller: {
                     select: {
                       userId: true,
+                      ownerAccountActive: true,
                       chargesEnabled: true,
                       stripeAccountVersion: true,
                       vacationMode: true,
-                      user: { select: { id: true, clerkId: true, banned: true, deletedAt: true } },
                     },
                   },
                 },

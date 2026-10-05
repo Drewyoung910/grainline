@@ -9,15 +9,13 @@ export const getPopularListingTags = unstable_cache(
       SELECT tag, COUNT(*) AS count
       FROM "Listing" l
       INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      INNER JOIN "User" u ON u.id = sp."userId",
-           unnest(l.tags) AS tag
+      CROSS JOIN LATERAL unnest(l.tags) AS tag
       WHERE l.status = 'ACTIVE'
         AND l."isPrivate" = false
         AND sp."chargesEnabled" = true
         AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
         AND sp."vacationMode" = false
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
+        AND sp."ownerAccountActive" = true
       GROUP BY tag
       ORDER BY count DESC, tag ASC
       LIMIT ${limit}
@@ -35,16 +33,14 @@ export const getCachedPublicSellerTopTags = unstable_cache(
       SELECT tag, COUNT(*) AS count
       FROM "Listing" l
       INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      INNER JOIN "User" u ON u.id = sp."userId",
-           unnest(l.tags) AS tag
+      CROSS JOIN LATERAL unnest(l.tags) AS tag
       WHERE l."sellerId" = ${sellerId}
         AND l.status = 'ACTIVE'
         AND l."isPrivate" = false
         AND sp."chargesEnabled" = true
         AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
         AND sp."vacationMode" = false
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
+        AND sp."ownerAccountActive" = true
       GROUP BY tag
       ORDER BY count DESC, tag ASC
       LIMIT ${PUBLIC_SELLER_TOP_TAG_LIMIT}

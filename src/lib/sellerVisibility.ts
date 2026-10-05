@@ -20,7 +20,7 @@ export function visibleSellerProfileWhere(extra: Prisma.SellerProfileWhereInput 
     {
       chargesEnabled: true,
       ...supportedStripeAccountVersionWhere(),
-      user: { banned: false, deletedAt: null },
+      ownerAccountActive: true,
     },
   ];
   if (Object.keys(extra).length > 0) parts.push(extra);
@@ -35,7 +35,7 @@ export function activeSellerProfileWhere(extra: Prisma.SellerProfileWhereInput =
       chargesEnabled: true,
       ...supportedStripeAccountVersionWhere(),
       vacationMode: false,
-      user: { banned: false, deletedAt: null },
+      ownerAccountActive: true,
     },
   ];
   if (Object.keys(extra).length > 0) parts.push(extra);

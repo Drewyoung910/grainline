@@ -28,13 +28,11 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
           SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
           FROM "Listing" l
           INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-          INNER JOIN "User" u ON u.id = sp."userId"
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
             AND sp."chargesEnabled" = true
             AND sp."vacationMode" = false
             AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-            AND u.banned = false
-            AND u."deletedAt" IS NULL
+            AND sp."ownerAccountActive" = true
             AND l.title % ${q}
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
@@ -47,13 +45,11 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
           SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
           FROM "Listing" l
           INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-          INNER JOIN "User" u ON u.id = sp."userId"
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
             AND sp."chargesEnabled" = true
             AND sp."vacationMode" = false
             AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-            AND u.banned = false
-            AND u."deletedAt" IS NULL
+            AND sp."ownerAccountActive" = true
             AND l.title % ${q}
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
@@ -81,7 +77,6 @@ async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], bloc
       FROM "BlogPost" bp
       INNER JOIN "User" u ON u.id = bp."authorId"
       LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
         AND bp."publishedAt" <= NOW()
@@ -93,8 +88,7 @@ async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], bloc
             sp."chargesEnabled" = true
             AND sp."vacationMode" = false
             AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-            AND seller_user.banned = false
-            AND seller_user."deletedAt" IS NULL
+            AND sp."ownerAccountActive" = true
           )
         )
         ${blockedAuthorPredicate}

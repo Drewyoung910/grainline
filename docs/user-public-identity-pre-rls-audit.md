@@ -307,5 +307,119 @@ cumulative User predecessor and inventory checks also pass; focused ESLint
 passes; TypeScript passes; both changed workflow YAML files parse; and
 `git diff --check` passes. No broad local suite was repeated. The protected
 aggregate workflow is hard-bound to accepted email-delivery run `37215932608`.
-This is still source preparation only. The aggregate migration has not been
-published, merged, applied, or deployed, and User RLS remains off.
+The corrected first package was published as PR #521 and passed exact-head CI
+`37218222116` plus three independent proof runs. It merged as exact main
+`dbe8694fec4a51957bd957fa81eeb88096f7fbcd`; merged-main CI
+`37242135938` passed on attempt 1 on that exact commit, including the full
+tests and Production build. The first Production attempt stopped before
+database access because its workflow had not generated Prisma Client. PR #522
+corrected that ordering and merged as
+`b7782b6c68c2fccb5c4bddee9e4211fd58afd0ba`; merged-main CI `37264880513`
+passed. Corrected protected run `37266377281` then applied and accepted the
+aggregate migration with sanitized preflight/postflight, unchanged predecessor
+catalog digests, runtime-grant audit, and final migration-status evidence. The
+application callers have not been deployed, and User RLS remains off.
+
+## Seller/listing continuation checkpoint
+
+The next isolated worktree is
+`.worktrees/user-public-seller-listing-20261004` at exact merged main
+`b7782b6c68c2fccb5c4bddee9e4211fd58afd0ba`. The seller/listing surface is
+materially larger than the ten raw User joins. Outside the three shared
+predicate definitions, 41 unique source files consume at least one of
+`publicListingWhere`, `publicListingDetailWhere`,
+`activeSellerProfileWhere`, `visibleSellerProfileWhere`, or
+`savedListingFavoriteWhere`. Including their definitions, those predicates
+appear in 28, seven, nineteen, five, and three files respectively.
+
+The raw operations also have distinct contracts that must survive conversion:
+
+- homepage top-reviewed fallback filters before review-count order and
+  `LIMIT 4`, then applies weekly rotation;
+- browse radius selection combines active seller/listing state, viewer blocks,
+  public location privacy and distance before later listing pagination;
+- similar listings filters before category/tag/price/recency order and
+  `LIMIT 24`, then returns at most twelve scored rows;
+- fuzzy suggestions filter before similarity/recency order and `LIMIT 2`;
+- global and seller-bound tag aggregation filter before count/order and their
+  respective caller or fixed bounds;
+- quality scoring uses an id cursor and batches of 200, with active,
+  non-blocked favorite actors included before metric calculation; and
+- the site rating snapshot filters before its aggregate.
+
+This proves that anonymous catalog, authenticated block-aware catalog,
+seller-bound aggregate, and scheduled-maintenance operations cannot be
+collapsed into one generic active-User lookup. The next design must preserve
+the complete database-side domain predicate without granting runtime a route
+to unrelated User identity.
+
+## Seller-state implementation checkpoint
+
+The seller/listing package is now implemented in isolated branch
+`codex/user-public-seller-listing-20261004`, rebased onto exact merged main
+`b7782b6c68c2fccb5c4bddee9e4211fd58afd0ba`. It adds two bounded fields to
+`SellerProfile`:
+
+- `ownerAccountActive`, derived only from `User.banned = false AND
+  User.deletedAt IS NULL`; and
+- `ownerImageUrl`, the existing public seller-avatar fallback.
+
+Migration `20261004050000_prepare_user_public_seller_state` backfills those
+fields and installs two fixed `SECURITY DEFINER` trigger functions with
+`search_path=pg_catalog`. A SellerProfile insert, owner rebind, or attempted
+snapshot edit re-reads and locks the owning User row before binding the exact
+state. A User ban, deletion-state change, unban, or image change synchronizes
+the seller snapshot in the same transaction. PUBLIC execution is revoked from
+both trigger functions, runtime receives no function grant, and the migration
+does not update User rows or change User grants, policies, ENABLE RLS, or FORCE
+RLS. The low-selectivity standalone boolean index was rejected and removed.
+
+Application conversion preserves the database-side behavior documented above:
+
+- all shared listing, seller, saved-listing, seller-linked blog, and public
+  commission-interest predicates use `ownerAccountActive`;
+- listing, seller, home, browse, metro, tag, maker, map-card, following, saved,
+  recently-viewed, and related-maker rendering use `ownerImageUrl` only behind
+  `SellerProfile.avatarImageUrl`;
+- homepage maker selection, browse radius selection, listing and blog search
+  suggestions, similar listings, listing and blog tag aggregation, quality
+  scoring, site metrics, stock subscriber selection, seller-linked blog search,
+  and commission-interest counts filter the snapshot before their existing
+  count, order, cursor, pagination, or limit; and
+- listing detail ownership uses the already resolved local User id and no
+  longer retains a Clerk-id fallback.
+
+The raw-SQL User inventory is reduced from 27 references to eleven. No
+seller-account join remains. The residual eleven references are deliberately
+outside this seller-state package: five blog-author checks, two commission-buyer
+checks, one favorite-actor check, and the existing email, block, and account-
+deletion authorities. The direct-delegate inventory remains 29 calls in
+fourteen files, all in the already named later families.
+
+CI verifies the package before isolation, removes its migration and dedicated
+tests while historical release guards run, restores it only after the public
+active-member aggregate predecessor is applied to disposable PostgreSQL, then
+re-verifies the source, applies the snapshot migration, checks its columns,
+functions, triggers, ACLs, and row consistency, and re-runs the runtime grant
+audit before the Production build.
+
+Focused package verification passes 71/71 across the shared visibility,
+ordering, audit-regression, source-boundary, and disposable PostgreSQL proofs.
+Prisma schema validation and client generation pass, TypeScript passes, changed-
+file ESLint passes, the CI YAML parses, and `git diff --check` passes. The only
+lint output is the repository's existing unresolved-expression warning from
+`jsx-ast-utils`; ESLint exits successfully.
+
+This checkpoint is **source-prepared only**. Migration
+`20261004040000_prepare_user_public_member_aggregate` is accepted in Production
+through protected run `37266377281`. This seller-state migration is not
+applied, these application callers are not deployed, and User RLS remains
+disabled and unforced. The ordered continuation is:
+
+1. publish and merge this seller-state source package only after exact-head CI;
+2. prepare its Production inspection/workflow using accepted aggregate run
+   `37266377281` as the exact predecessor, then request a separate Production
+   SQL decision;
+3. deploy the converted callers only after the snapshot exists; and
+4. continue the blog-author, review/favorite-actor, commission-buyer, and later
+   service/staff/deletion packages before proposing User ENABLE or FORCE RLS.

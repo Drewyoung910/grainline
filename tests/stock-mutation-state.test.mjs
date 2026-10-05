@@ -132,15 +132,14 @@ describe("stock mutation state", () => {
     );
 
     assert.match(fanoutSql, /INNER JOIN "SellerProfile" sp ON sp\.id = l\."sellerId"/);
-    assert.match(fanoutSql, /INNER JOIN "User" u ON u\.id = sp\."userId"/);
+    assert.doesNotMatch(fanoutSql, /JOIN "User"/);
     assert.match(fanoutSql, /l\.status = 'ACTIVE'::"ListingStatus"/);
     assert.match(fanoutSql, /l\."isPrivate" = false/);
     assert.match(fanoutSql, /COALESCE\(l\."stockQuantity", 0\) > 0/);
     assert.match(fanoutSql, /sp\."chargesEnabled" = true/);
     assert.match(fanoutSql, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
     assert.match(fanoutSql, /sp\."vacationMode" = false/);
-    assert.match(fanoutSql, /u\.banned = false/);
-    assert.match(fanoutSql, /u\."deletedAt" IS NULL/);
+    assert.match(fanoutSql, /sp\."ownerAccountActive" = true/);
   });
 
   it("uses subscription-scoped email dedup keys for repeat back-in-stock subscriptions", () => {

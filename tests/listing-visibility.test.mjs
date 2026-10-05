@@ -19,14 +19,9 @@ function listing(overrides = {}) {
     reservedForUserId: null,
     seller: {
       userId: "user_1",
+      ownerAccountActive: true,
       chargesEnabled: true,
       vacationMode: false,
-      user: {
-        id: "user_1",
-        clerkId: "clerk_1",
-        banned: false,
-        deletedAt: null,
-      },
     },
     ...overrides,
   };
@@ -58,7 +53,7 @@ describe("listing visibility", () => {
               { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
             ],
             vacationMode: false,
-            user: { banned: false, deletedAt: null },
+            ownerAccountActive: true,
           },
         },
         { sellerId: "seller_1" },
@@ -77,7 +72,7 @@ describe("listing visibility", () => {
               { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
             ],
             vacationMode: false,
-            user: { banned: false, deletedAt: null },
+            ownerAccountActive: true,
           },
         },
         { seller: { id: "seller_1" } },
@@ -98,7 +93,7 @@ describe("listing visibility", () => {
               { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
             ],
             vacationMode: false,
-            user: { banned: false, deletedAt: null },
+            ownerAccountActive: true,
           },
         },
         { sellerId: "seller_1" },
@@ -116,37 +111,28 @@ describe("listing visibility", () => {
     assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: "legacy-v1" } })), false);
     assert.equal(isPublicListing(listing({ seller: { ...listing().seller, vacationMode: true } })), false);
     assert.equal(
-      isPublicListing(listing({ seller: { ...listing().seller, user: { ...listing().seller.user, banned: true } } })),
+      isPublicListing(listing({ seller: { ...listing().seller, ownerAccountActive: false } })),
       false,
     );
     assert.equal(
-      isPublicListing(listing({ seller: { ...listing().seller, user: { ...listing().seller.user, deletedAt: new Date() } } })),
+      isPublicListing(listing({ seller: { ...listing().seller, ownerAccountActive: false } })),
       false,
     );
   });
 
   it("allows owners and reserved buyers without bypassing seller account safety", () => {
-    assert.equal(canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), { clerkUserId: "clerk_1" }), true);
+    assert.equal(canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), {}), false);
     assert.equal(canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), { dbUserId: "user_1" }), true);
     assert.equal(
       canViewListingDetail(
-        listing({
-          status: ListingStatus.HIDDEN,
-          seller: { ...listing().seller, user: { ...listing().seller.user, clerkId: undefined } },
-        }),
+        listing({ status: ListingStatus.HIDDEN }),
         { dbUserId: "user_1", preview: true },
       ),
       true,
     );
     assert.equal(
       canViewListingDetail(
-        listing({
-          status: ListingStatus.HIDDEN,
-          seller: {
-            ...listing().seller,
-            user: { banned: false, deletedAt: null },
-          },
-        }),
+        listing({ status: ListingStatus.HIDDEN }),
         { dbUserId: "user_1", preview: true },
       ),
       true,
@@ -200,7 +186,7 @@ describe("listing visibility", () => {
         listing({
           isPrivate: true,
           reservedForUserId: "buyer_1",
-          seller: { ...listing().seller, user: { ...listing().seller.user, banned: true } },
+          seller: { ...listing().seller, ownerAccountActive: false },
         }),
         { dbUserId: "buyer_1" },
       ),

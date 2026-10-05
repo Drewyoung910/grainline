@@ -277,7 +277,6 @@ export async function PATCH(
                 SELECT l.id
                 FROM "Listing" l
                 INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-                INNER JOIN "User" u ON u.id = sp."userId"
                 WHERE l.id = ${id}
                   AND l.status = 'ACTIVE'::"ListingStatus"
                   AND l."isPrivate" = false
@@ -285,8 +284,7 @@ export async function PATCH(
                   AND sp."chargesEnabled" = true
                   AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
                   AND sp."vacationMode" = false
-                  AND u.banned = false
-                  AND u."deletedAt" IS NULL
+                  AND sp."ownerAccountActive" = true
               ),
               next_subscribers AS (
                 SELECT sn.id, sn."userId"

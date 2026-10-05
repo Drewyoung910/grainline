@@ -9,7 +9,7 @@ const SAVED_LISTING_PUBLIC_SELLER_STATE = {
     { stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION },
   ],
   vacationMode: false,
-  user: { banned: false, deletedAt: null },
+  ownerAccountActive: true,
 } satisfies Prisma.SellerProfileWhereInput;
 
 export function savedListingFavoriteWhere(

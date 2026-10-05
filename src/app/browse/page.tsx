@@ -116,7 +116,7 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
           city: true,
           state: true,
           acceptingNewOrders: true,
-          user: { select: { imageUrl: true } },
+          ownerImageUrl: true,
         },
       },
       ...(withFavCount ? { _count: { select: { favorites: true } } } : {}),
@@ -333,15 +333,13 @@ async function BrowseContent({
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       SELECT sp.id
       FROM "SellerProfile" sp
-      INNER JOIN "User" u ON u.id = sp."userId"
       WHERE sp.lat IS NOT NULL AND sp.lng IS NOT NULL
       AND sp.lat BETWEEN -90 AND 90
       AND sp.lng BETWEEN -180 AND 180
       AND sp."chargesEnabled" = true
       AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
       AND sp."vacationMode" = false
-      AND u.banned = false
-      AND u."deletedAt" IS NULL
+      AND sp."ownerAccountActive" = true
       ${blockedSellerGeoSql}
       AND EXISTS (
         SELECT 1
@@ -657,7 +655,7 @@ async function BrowseContent({
             seller: {
               id: l.sellerId,
               displayName: l.seller.displayName ?? null,
-              avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+              avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.ownerImageUrl ?? null,
               guildLevel: l.seller.guildLevel ?? null,
               city: l.seller.city ?? null,
               state: l.seller.state ?? null,

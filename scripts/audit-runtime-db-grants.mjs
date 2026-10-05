@@ -264,6 +264,8 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_message_participants_match_conversation",
   "grainline_message_route_immutable",
   "grainline_message_maintain_thread_state",
+  "grainline_seller_owner_public_state_bind",
+  "grainline_user_public_seller_state_sync",
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",
   "grainline_order_seller_key_assert",

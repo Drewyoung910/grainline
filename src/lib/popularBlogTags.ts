@@ -14,8 +14,7 @@ export const getPopularBlogTagRows = unstable_cache(
       FROM "BlogPost" bp
       INNER JOIN "User" u ON u.id = bp."authorId"
       LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId",
-           unnest(bp.tags) AS tag
+      CROSS JOIN LATERAL unnest(bp.tags) AS tag
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
         AND bp."publishedAt" <= NOW()
@@ -27,8 +26,7 @@ export const getPopularBlogTagRows = unstable_cache(
             sp."chargesEnabled" = true
             AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
             AND sp."vacationMode" = false
-            AND seller_user.banned = false
-            AND seller_user."deletedAt" IS NULL
+            AND sp."ownerAccountActive" = true
           )
         )
       GROUP BY tag

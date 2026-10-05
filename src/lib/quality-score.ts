@@ -86,14 +86,12 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
       FROM "Photo" p WHERE p."listingId" = l.id
     ) ph ON true
     LEFT JOIN "SellerRatingSummary" sr ON sr."sellerProfileId" = l."sellerId"
-    JOIN "User" u ON u.id = sp."userId"
     WHERE l.status = 'ACTIVE'
       AND l."isPrivate" = false
       AND sp."chargesEnabled" = true
       AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
       AND sp."vacationMode" = false
-      AND u.banned = false
-      AND u."deletedAt" IS NULL
+      AND sp."ownerAccountActive" = true
       ${cursorPredicate}
     ORDER BY l.id ASC
     LIMIT ${BATCH_SIZE}
@@ -146,8 +144,7 @@ export async function recalculateAllQualityScores(): Promise<{
         { isPrivate: true },
         { seller: { chargesEnabled: false } },
         { seller: { vacationMode: true } },
-        { seller: { user: { banned: true } } },
-        { seller: { user: { deletedAt: { not: null } } } },
+        { seller: { ownerAccountActive: false } },
       ],
       qualityScore: { gt: 0 },
     },

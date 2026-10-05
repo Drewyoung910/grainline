@@ -167,13 +167,11 @@ async function CommissionPageContent({
         SELECT COUNT(*)::int AS "interestCount"
         FROM "CommissionInterest" ci
         INNER JOIN "SellerProfile" isp ON isp.id = ci."sellerProfileId"
-        INNER JOIN "User" iu ON iu.id = isp."userId"
         WHERE ci."commissionRequestId" = cr.id
           AND isp."chargesEnabled" = true
           AND (isp."stripeAccountVersion" IS NULL OR isp."stripeAccountVersion" = 'v2')
           AND isp."vacationMode" = false
-          AND iu.banned = false
-          AND iu."deletedAt" IS NULL
+          AND isp."ownerAccountActive" = true
       ) ci ON true
       WHERE cr.status = 'OPEN'
         AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())

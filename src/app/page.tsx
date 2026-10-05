@@ -68,7 +68,7 @@ const featuredMakerSelect = {
   guildLevel: true,
   isFoundingMaker: true,
   foundingMakerNumber: true,
-  user: { select: { imageUrl: true } },
+  ownerImageUrl: true,
 } satisfies Prisma.SellerProfileSelect;
 
 type FeaturedMaker = Prisma.SellerProfileGetPayload<{ select: typeof featuredMakerSelect }>;
@@ -141,13 +141,11 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
     const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
       SELECT sp.id AS "sellerId"
       FROM "SellerProfile" sp
-      JOIN "User" u ON u.id = sp."userId"
       LEFT JOIN "SellerRatingSummary" srs ON srs."sellerProfileId" = sp.id
       WHERE sp."chargesEnabled" = true
         AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
         AND sp."vacationMode" = false
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
+        AND sp."ownerAccountActive" = true
         AND EXISTS (
           SELECT 1
           FROM "Listing" l
@@ -216,7 +214,7 @@ const homeListingCardSelect = {
       city: true,
       state: true,
       acceptingNewOrders: true,
-      user: { select: { imageUrl: true } },
+      ownerImageUrl: true,
     },
   },
 } satisfies Prisma.ListingSelect;
@@ -375,7 +373,7 @@ export default async function HomePage() {
     listings[0]?.photos[0]?.url ??
     maker.workshopImageUrl ??
     maker.avatarImageUrl ??
-    maker.user?.imageUrl ??
+    maker.ownerImageUrl ??
     null
   );
 
@@ -673,7 +671,7 @@ export default async function HomePage() {
                           seller: {
                             id: l.sellerId,
                             displayName: l.seller.displayName ?? null,
-                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.ownerImageUrl ?? null,
                             guildLevel: l.seller.guildLevel ?? null,
                             city: l.seller.city ?? null,
                             state: l.seller.state ?? null,
@@ -755,7 +753,7 @@ export default async function HomePage() {
                           seller: {
                             id: l.sellerId,
                             displayName: l.seller.displayName ?? null,
-                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.ownerImageUrl ?? null,
                             guildLevel: l.seller.guildLevel ?? null,
                             city: l.seller.city ?? null,
                             state: l.seller.state ?? null,
@@ -842,7 +840,7 @@ export default async function HomePage() {
           const spotlight = spotlightBlock.maker;
           const spotlightListings = spotlightBlock.listings;
           const spotlightRating = sellerRatings.get(spotlight.id) ?? null;
-          const spotlightAvatar = spotlight.avatarImageUrl ?? spotlight.user?.imageUrl ?? null;
+          const spotlightAvatar = spotlight.avatarImageUrl ?? spotlight.ownerImageUrl ?? null;
           // Image priority favors ratios that crop well in the tall slot:
           // workshop (3:2), then the maker's best listing photo (4:5), then
           // the 3:1 banner as a last resort before the gradient fallback.
@@ -1002,7 +1000,7 @@ export default async function HomePage() {
               {alsoBlock && (() => {
                 const also = alsoBlock.maker;
                 const alsoRating = sellerRatings.get(also.id) ?? null;
-                const alsoAvatar = also.avatarImageUrl ?? also.user?.imageUrl ?? null;
+                const alsoAvatar = also.avatarImageUrl ?? also.ownerImageUrl ?? null;
                 return (
                   <div className="mt-4 card-section !bg-[#EFEAE0] flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
                     <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
