@@ -7,6 +7,7 @@ const workflow = readFileSync(
   ".github/workflows/user-public-seller-state-preparation-production.yml",
   "utf8",
 );
+const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const migration = readFileSync(
   "prisma/migrations/20261004050000_prepare_user_public_seller_state/migration.sql",
 );
@@ -109,4 +110,25 @@ test("seller-state preparation preserves all predecessor catalogs and User postu
     /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/,
   );
   assert.match(workflow, /retention-days: 30/);
+});
+
+test("seller-state production tests follow the isolated migration lifecycle", () => {
+  for (const testFile of [
+    "tests/user-public-seller-state-production-inspect.test.mjs",
+    "tests/user-public-seller-state-preparation-production-workflow.test.mjs",
+  ]) {
+    assert.equal(
+      ciWorkflow.split(testFile).length - 1,
+      2,
+      `${testFile} must be isolated with migration 050 and re-verified after restore`,
+    );
+  }
+  assert.match(
+    ciWorkflow,
+    /Isolate User public seller-state package until its predecessor passes[\s\S]*tests\/user-public-seller-state-production-inspect\.test\.mjs[\s\S]*tests\/user-public-seller-state-preparation-production-workflow\.test\.mjs[\s\S]*- name: Isolate User email-delivery authority/,
+  );
+  assert.match(
+    ciWorkflow,
+    /Restore User public seller-state source package[\s\S]*Re-verify User public seller-state source package[\s\S]*tests\/user-public-seller-state-production-inspect\.test\.mjs[\s\S]*tests\/user-public-seller-state-preparation-production-workflow\.test\.mjs[\s\S]*- name: Apply User public seller-state snapshot/,
+  );
 });
