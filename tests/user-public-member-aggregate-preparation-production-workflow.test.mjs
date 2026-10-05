@@ -36,6 +36,14 @@ test("public-member preparation is exact-main, predecessor-bound, and restart-aw
 });
 
 test("public-member preparation applies only the checksum-pinned migration", () => {
+  const installIndex = workflow.indexOf("- run: npm ci --ignore-scripts");
+  const generateIndex = workflow.indexOf("- run: npx prisma generate");
+  const verifyIndex = workflow.indexOf(
+    "- name: Verify exact User public-member aggregate source package",
+  );
+  assert.ok(installIndex >= 0);
+  assert.ok(generateIndex > installIndex);
+  assert.ok(verifyIndex > generateIndex);
   assert.match(
     workflow,
     /79356a45557837d5788ede525813388fca68ff1ebaf78113d81de6c1fc5167cc[\s\S]*20261004040000_prepare_user_public_member_aggregate/,

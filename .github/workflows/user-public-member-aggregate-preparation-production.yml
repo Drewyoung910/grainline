@@ -59,6 +59,7 @@ jobs:
           package-manager-cache: false
           token: ""
       - run: npm ci --ignore-scripts
+      - run: npx prisma generate
       - name: Bind preparation to exact main, CI, and email-delivery predecessor
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
