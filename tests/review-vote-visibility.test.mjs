@@ -17,8 +17,9 @@ describe("review vote visibility guardrails", () => {
     assert.match(source, /chargesEnabled: true/);
     assert.match(source, /stripeAccountVersion: true/);
     assert.match(source, /vacationMode: true/);
-    assert.match(source, /banned: true/);
-    assert.match(source, /deletedAt: true/);
+    assert.match(source, /ownerAccountActive: true/);
+    assert.doesNotMatch(source, /banned: true/);
+    assert.doesNotMatch(source, /deletedAt: true/);
     assert.match(
       source,
       /canViewListingDetail\(review\.listing, \{ dbUserId: me\.id \}\)/,
