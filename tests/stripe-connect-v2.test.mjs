@@ -285,8 +285,13 @@ describe("Stripe Connect v2 migration guardrails", () => {
 
   it("reads Connect version diagnostics before deletion and clears them during anonymization", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
-    assert.match(accountDeletion, /stripeAccountVersion: true/);
-    assert.match(accountDeletion, /stripeControllerType: true/);
+    assert.match(accountDeletion, /getUserAccountDeletionPreflight\(/);
+    assert.match(accountDeletion, /if \(account\.userId !== userId\)/);
+    assert.match(accountDeletion, /const stripeAccountVersion = account\.stripeAccountVersion/);
+    assert.match(accountDeletion, /const stripeControllerType = account\.stripeControllerType/);
+    const access = source("src/lib/userAccountDeletionAccess.ts");
+    assert.match(access, /optionalString\(row\.stripeAccountVersion\)/);
+    assert.match(access, /optionalString\(row\.stripeControllerType\)/);
     assert.match(accountDeletion, /runAccountDeletionStripeRejectSideEffect\(\{/);
     assert.match(accountDeletion, /stripeAccountVersion,/);
     assert.match(accountDeletion, /stripeControllerType,/);

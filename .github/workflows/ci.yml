@@ -172,6 +172,43 @@ jobs:
           tests/user-email-address-force-release.test.mjs
           tests/user-email-address-force-postgres-proof.test.mjs
           tests/user-email-address-force-production-workflow.test.mjs
+      - name: Verify accumulated User access source package
+        run: >-
+          node --test
+          tests/user-staff-ban-authorities.test.mjs
+          tests/user-account-deletion-authorities.test.mjs
+          tests/user-relationship-authorities.test.mjs
+          tests/user-authority-catalog.test.mjs
+          tests/user-accumulated-access-ci.test.mjs
+          tests/user-indirect-access-inventory.test.mjs
+          tests/user-owner-relation-removal.test.mjs
+          tests/order-ban-review-authority.test.mjs
+          tests/staff-preview-pin-boundary.test.mjs
+          tests/admin-action-guardrails.test.mjs
+          tests/admin-page-pin-boundary.test.mjs
+      - name: Isolate accumulated User access until its predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-accumulated-access"
+          mkdir "$holding"
+          for migration in \
+            20261006010000_prepare_user_staff_ban_authorities \
+            20261006020000_prepare_user_account_deletion_authorities \
+            20261006030000_prepare_user_relationship_authorities
+          do
+            mv "prisma/migrations/$migration" "$holding/$migration"
+          done
+          for test_file in \
+            tests/user-staff-ban-authorities.test.mjs \
+            tests/user-account-deletion-authorities.test.mjs \
+            tests/user-relationship-authorities.test.mjs \
+            tests/user-authority-catalog.test.mjs \
+            tests/user-accumulated-access-ci.test.mjs \
+            tests/order-ban-review-authority.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Isolate User public-identity first package until historical release guards pass
         shell: bash
         run: |
@@ -3967,6 +4004,37 @@ jobs:
           $verify_user_public_seller_state$;
           SQL
       - name: Audit runtime grants after User public seller-state snapshot
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore accumulated User access source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-accumulated-access"
+          for migration in \
+            20261006010000_prepare_user_staff_ban_authorities \
+            20261006020000_prepare_user_account_deletion_authorities \
+            20261006030000_prepare_user_relationship_authorities
+          do
+            mv "$holding/$migration" "prisma/migrations/$migration"
+          done
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Apply accumulated User access in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in \
+            20261006010000_prepare_user_staff_ban_authorities \
+            20261006020000_prepare_user_account_deletion_authorities \
+            20261006030000_prepare_user_relationship_authorities
+          do
+            psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+              --file="prisma/migrations/$migration/migration.sql"
+          done
+      - name: Audit runtime grants after accumulated User access
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

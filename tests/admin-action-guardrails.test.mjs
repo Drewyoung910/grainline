@@ -74,7 +74,7 @@ describe("admin server action guardrails", () => {
       ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
       ["src/app/admin/verification/page.tsx", "prisma.makerVerification.findMany"],
       ["src/app/admin/audit/page.tsx", "prisma.adminAuditLog.count"],
-      ["src/app/admin/users/page.tsx", "prisma.user.count"],
+      ["src/app/admin/users/page.tsx", "userStaffDirectoryCount("],
       ["src/app/admin/reviews/page.tsx", "prisma.review.count"],
       ["src/app/admin/review/page.tsx", "prisma.listing.count"],
       ["src/app/admin/reports/page.tsx", "prisma.userReport.findMany"],
@@ -172,7 +172,7 @@ describe("admin server action guardrails", () => {
       /privateResponse\(\s*rateLimitResponse\(rl\.reset,\s*"Too many admin email attempts\."\),?\s*\)/,
     );
     assert.match(route, /Admin email can only be sent to an existing Grainline user/);
-    assert.match(route, /where: \{ email: normalizedInputEmail \}/);
+    assert.match(route, /userStaffEmailRecipient\(staffClient, \{\s*actorId: admin\.id,\s*email: normalizedInputEmail,/s);
     assert.match(route, /recipientUserId = recipient\.id/);
     assert.match(route, /userId: recipientUserId/);
     assert.match(usersPage, /No Grainline user exists for/);

@@ -257,6 +257,8 @@ test("repair projection is bound to the exact active ban audit record", async ()
 });
 
 test("source conversion and role convergence expose only the reviewed surfaces", () => {
+  assert.match(migration, /ORDER BY account_user\."createdAt" DESC, account_user\.id DESC/u);
+  assert.match(migration, /RETURNS TABLE \(id text, name text, email text, "deletedAt" timestamp\(3\)\)/u);
   for (const path of [
     "src/app/admin/reports/page.tsx",
     "src/app/admin/users/page.tsx",

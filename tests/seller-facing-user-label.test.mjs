@@ -39,6 +39,7 @@ describe("seller-facing user labels", () => {
     const sales = source("src/app/dashboard/sales/page.tsx");
     const saleDetail = source("src/app/dashboard/sales/[orderId]/page.tsx");
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
+    const relationshipAccess = source("src/lib/userRelationshipAccess.ts");
     const recentSalesRoute = source("src/app/api/seller/analytics/recent-sales/route.ts");
     const sellerProjection = source(
       process.env.ORDER_SELLER_BUYER_EMAIL_PROJECTION_MIGRATION_PATH
@@ -48,7 +49,7 @@ describe("seller-facing user labels", () => {
 
     for (const text of [customListing]) {
       assert.match(text, /import \{ sellerFacingUserLabel \} from "@\/lib\/sellerFacingUser"/);
-      assert.match(text, /deletedAt: true/);
+      assert.match(text, /userConversationParticipants\(prisma, \{/);
       assert.doesNotMatch(text, /\?\.name \?\? [^.]+\.buyer\?\.email/);
       assert.doesNotMatch(text, /buyer\?\.name \|\| buyer\?\.email/);
     }
@@ -64,7 +65,8 @@ describe("seller-facing user labels", () => {
     assert.doesNotMatch(saleDetail, /buyer: \{ select: \{[^}]*name: true/s);
 
     assert.match(customListing, /sellerFacingUserLabel\(buyer, "the buyer"\)/);
-    assert.match(customListing, /select: \{ name: true, deletedAt: true \}/);
+    assert.match(relationshipAccess, /deletedAt: Date \| null/);
+    assert.match(relationshipAccess, /nullableDate\(row\.deletedAt\)/);
     assert.doesNotMatch(customListing, /select: \{ name: true, email: true/);
 
     assert.match(recentSalesRoute, /import \{ sellerFacingOrderBuyerLabel \} from "@\/lib\/sellerFacingUser"/);
