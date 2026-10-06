@@ -41,7 +41,7 @@ describe("account deletion side-effect retries", () => {
     );
     assert.ok(
       route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)") <
-        route.indexOf("anonymizeUserAccount(me.id, { lock: deletionLock })"),
+        route.indexOf("anonymizeUserAccount(me.id, {"),
       "local recovery row must exist before route-level anonymization begins after Clerk deletion",
     );
     assert.ok(
@@ -49,10 +49,15 @@ describe("account deletion side-effect retries", () => {
         deletion.indexOf("runAccountDeletionStripeRejectSideEffect", deletion.indexOf("export async function anonymizeUserAccount")),
       "local recovery row must exist before Stripe rejection",
     );
+    const transactionEnd = deletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch");
     assert.ok(
-      deletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch") <
-        deletion.indexOf("markAccountDeletionLocalAnonymizeDone(prisma, userId)"),
+      transactionEnd <
+        deletion.indexOf("markAccountDeletionLocalAnonymizeDone(", transactionEnd),
       "local recovery row should stay pending if the anonymization transaction fails",
+    );
+    assert.match(
+      route,
+      /catch \(error\) \{\s*await releaseAccountDeletionLock\(deletionLock\)\.catch/s,
     );
   });
 

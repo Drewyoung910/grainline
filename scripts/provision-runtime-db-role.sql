@@ -3064,6 +3064,42 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Account deletion must keep its source-bound User authorities executable after
+-- role convergence. These functions derive the affected User from either the
+-- signed-provider Clerk identity or the exact durable LOCAL_ANONYMIZE effect;
+-- ordinary runtime receives EXECUTE only.
+WITH user_account_deletion_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_provider_deleted_defer"(text)'),
+    ('public."grainline_user_account_deletion_preflight"(text)'),
+    ('public."grainline_user_account_deletion_snapshot"(text)'),
+    ('public."grainline_user_account_deletion_finalize"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_account_deletion_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_account_deletion_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_provider_deleted_defer"(text)'),
+    ('public."grainline_user_account_deletion_preflight"(text)'),
+    ('public."grainline_user_account_deletion_snapshot"(text)'),
+    ('public."grainline_user_account_deletion_finalize"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_account_deletion_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- UserEmailAddress authority is prepared before its policyless RLS activation.
 -- Converge the exact source-bound runtime operations whenever that preparation
 -- exists; helpers used only by account-deletion flows remain governed by their

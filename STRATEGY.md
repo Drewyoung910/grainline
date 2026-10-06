@@ -4,7 +4,7 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Complete the `User` identity/account design audit (updated 2026-10-05)
+### Complete the `User` identity/account design audit (updated 2026-10-06)
 
 `UserEmailAddress` is complete in Production through policyless FORCE from
 exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and
@@ -33,19 +33,24 @@ The seven prerequisite authority proofs remain separately accepted. This
 release changed application callers and additive operations; it did not enable
 User RLS or revoke predecessor table authority.
 
-The active bounded family is staff/ban. Follow
-`docs/user-staff-ban-pre-rls-audit.md`. Local preparation removes its 17 direct
-calls and reduces the scanner from 29 calls in 14 files to 12 calls in seven
-files. Eight reads/mints require the exact isolated staff database session;
-shared runtime receives only two one-use capability consumers. The package
-also makes failed Clerk-ban retry provider-only, compare-and-sets manual and
-undo unban, binds repair to the exact active ban audit, and fails closed on an
-admin-email recipient race. Focused source guardrails pass 22/22; disposable
-PGlite and final staff-role catalog proofs pass 5/5; focused ESLint and diff
-validation pass. Commit the cohesive source package, then continue account
-deletion and messaging/custom-order/owner leftovers and repeat raw, relation
+The staff/ban family is complete as local commit `8668c53c`; follow
+`docs/user-staff-ban-pre-rls-audit.md`. Its 17 direct calls are removed through
+isolated staff-session reads/mints and two one-use shared-runtime capability
+consumers. Publication, merge, migration, and deployment remain separate
+decisions.
+
+The active bounded family is account deletion; follow
+`docs/user-account-deletion-pre-rls-audit.md`. Its isolated candidate removes
+five direct User calls and the raw User lock, binds preflight/snapshot/finalize
+to the exact retained `LOCAL_ANONYMIZE` side effect, derives provider-blocked
+deferral from Clerk id, and releases the Redis deletion lock if durable enqueue
+fails. The direct scanner is now seven read calls in six files with zero
+ordinary application User writes. Do not overstate this as arbitrary-runtime
+resistance: `AccountDeletionSideEffect` and `ClerkWebhookEvent` are still
+separate service-ledger hardening groups. Continue the seven
+messaging/custom-order/report/owner-preference reads, then repeat raw, relation,
 and installed-function inventories. User remains blocked for grants, policies,
-ENABLE and FORCE until all families close.
+ENABLE, and FORCE until all families and those dependencies close.
 
 ### Finish the bounded Order release (2026-09-07)
 

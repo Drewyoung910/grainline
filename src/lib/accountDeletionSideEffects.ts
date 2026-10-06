@@ -146,10 +146,16 @@ export async function enqueueAccountDeletionLocalAnonymizeSideEffect(
 
 export async function markAccountDeletionLocalAnonymizeDone(
   db: AccountDeletionSideEffectDb,
+  sideEffectId: string,
   userId: string,
 ) {
   await db.accountDeletionSideEffect.updateMany({
-    where: { dedupKey: accountDeletionLocalAnonymizeDedupKey(userId) },
+    where: {
+      id: sideEffectId,
+      userId,
+      kind: ACCOUNT_DELETION_SIDE_EFFECT_KIND.LOCAL_ANONYMIZE,
+      dedupKey: accountDeletionLocalAnonymizeDedupKey(userId),
+    },
     data: {
       status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.DONE,
       processedAt: new Date(),
@@ -234,7 +240,9 @@ async function performAccountDeletionSideEffect(effect: {
 
   if (effect.kind === ACCOUNT_DELETION_SIDE_EFFECT_KIND.LOCAL_ANONYMIZE) {
     const { anonymizeUserAccount } = await import("@/lib/accountDeletion");
-    const result = await anonymizeUserAccount(effect.userId);
+    const result = await anonymizeUserAccount(effect.userId, {
+      sideEffectId: effect.id,
+    });
     if ("inProgress" in result && result.inProgress) {
       throw new Error("Account deletion anonymization is already in progress");
     }
