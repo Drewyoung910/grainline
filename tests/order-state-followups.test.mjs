@@ -11,6 +11,17 @@ function source(path) {
 }
 
 describe("order-state audit follow-up guardrails", () => {
+  it("uses database-bound owner activity while retaining legacy lifecycle denial", () => {
+    assert.equal(sellerOrderBlockReason({ ownerAccountActive: true }), null);
+    for (const ownerAccountActive of [false, null, undefined, "true", 1]) {
+      assert.equal(sellerOrderBlockReason({ ownerAccountActive }), "inactive_account");
+    }
+    assert.equal(sellerOrderBlockReason({ ownerAccountActive: true, user: { banned: true } }), "inactive_account");
+    assert.equal(sellerOrderBlockReason({ ownerAccountActive: true, user: { deletedAt: new Date() } }), "inactive_account");
+    assert.equal(sellerOrderBlockReason({ ownerAccountActive: true, vacationMode: true }), "vacation");
+    assert.equal(sellerOrderBlockReason({ ownerAccountActive: true, acceptingNewOrders: false }), "not_accepting_orders");
+  });
+
   it("keeps acceptingNewOrders as a server-side purchase blocker", () => {
     assert.equal(sellerOrderBlockReason({ acceptingNewOrders: false }), "not_accepting_orders");
     assert.equal(sellerOrderBlockReason({ stripeAccountVersion: null, acceptingNewOrders: true, vacationMode: false }), null);
@@ -54,10 +65,11 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(shippingQuote, /quoteBlockedResponse\(sellerOrderBlockMessage\(sellerBlockReason\)\)/);
 
     const customOrder = source("src/app/api/messages/custom-order-request/route.ts");
-    assert.match(customOrder, /acceptingNewOrders: true/);
-    assert.match(customOrder, /stripeAccountVersion: true/);
-    assert.match(customOrder, /!seller\.sellerProfile\.chargesEnabled \|\| !seller\.sellerProfile\.stripeAccountId/);
-    assert.match(customOrder, /sellerOrderBlockReason\(\{ \.\.\.seller\.sellerProfile, user: seller \}\)/);
+    assert.match(customOrder, /userCustomOrderSellerState\(prisma, \{/);
+    assert.match(customOrder, /acceptingNewOrders: seller\.acceptingNewOrders/);
+    assert.match(customOrder, /stripeAccountVersion: seller\.stripeAccountVersion/);
+    assert.match(customOrder, /!seller\.chargesEnabled \|\| !seller\.stripeAccountId/);
+    assert.match(customOrder, /sellerOrderBlockReason\(\{[\s\S]*?user: seller/);
 
     const listingPage = source("src/app/listing/[id]/page.tsx");
     assert.match(listingPage, /listing\.seller\.acceptingNewOrders !== false/);

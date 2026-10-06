@@ -53,9 +53,12 @@ provisioning. The migration does not alter User table grants or RLS state.
   credential patterns.
 
 Zero direct calls is a meaningful milestone, but it is not User RLS readiness.
-A preliminary accumulated-source scan still flags nested User relation
-projections in 22 files and 10 raw User SQL statements across nine files.
-Those inventories must be classified and converted or proven compatible before
+A preliminary accumulated-source scan flagged nested User relation
+projections in 22 files. The successor schema-aware inventory in
+`docs/user-indirect-access-pre-rls-audit.md` supersedes that estimate: 93 visible
+edges in 48 files before owner/cart conversions and 77 edges in 37 files after,
+plus two typed filter definitions, ten raw SQL calls in nine files and explicitly
+reported opaque shapes. These inventories must be converted or proven compatible before
 any User table grant or RLS decision. Installed-function and service-ledger
 inventories also remain open.
 

@@ -481,7 +481,7 @@ export async function POST(req: Request) {
       const listing = await prisma.listing.findUnique({
         where: { id: body.listingId ?? "" },
         include: {
-          seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
+          seller: true,
           variantGroups: { include: { options: true } },
         },
       });

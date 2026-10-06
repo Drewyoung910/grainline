@@ -57,6 +57,7 @@
     "migrate:deploy:guarded": "node scripts/guard-saved-search-rls-deploy.mjs && prisma migrate deploy && npm run audit:db-grants -- --require-direct-url",
     "verify:rls-release-artifact": "node scripts/verify-saved-search-rls-release-artifact.mjs",
     "audit:db-grants": "node scripts/audit-runtime-db-grants.mjs",
+    "audit:user-indirect-access": "node scripts/audit-user-indirect-access.mjs",
     "audit:rls-context": "node scripts/rls-context-acceptance-gate.mjs",
     "audit:rls-saved-search": "node scripts/saved-search-rls-acceptance-gate.mjs",
     "audit:rls-saved-search-force": "node scripts/saved-search-force-maintenance-proof.mjs",

@@ -90,11 +90,14 @@ silently remove these required calls or reopen table access.
   target derivation.
 - Targeted lint and diff checks pass; the package diff contains no credential
   patterns.
-- The repository-wide database grant-inventory test has an inherited mainline
-  expectation gap: its unchanged expected catalog omits the already-landed
+- At this package checkpoint, the repository-wide database grant-inventory test
+  had an inherited mainline expectation gap: its unchanged expected catalog
+  omitted the already-landed
   recent User authority family. This package does not treat that unrelated
   baseline failure as proof for or against these four functions; the focused
   test separately pins their role-provisioning convergence.
+  The successor in `user-indirect-access-pre-rls-audit.md` closes the source
+  expectation and provisioning gaps; its focused global inventory now passes.
 
 ## Findings and boundaries
 

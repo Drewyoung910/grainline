@@ -363,12 +363,12 @@ export default async function ProfilePage({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/profile");
 
-  const { seller } = await ensureSeller();
+  const { me, seller } = await ensureSeller();
 
   const [fullSeller, activeListings] = await Promise.all([
     prisma.sellerProfile.findUnique({
       where: { id: seller.id },
-      include: { faqs: { orderBy: { sortOrder: "asc" } }, user: { select: { imageUrl: true } } },
+      include: { faqs: { orderBy: { sortOrder: "asc" } } },
     }),
     prisma.listing.findMany({
       where: { sellerId: seller.id, status: "ACTIVE" },
@@ -423,9 +423,9 @@ export default async function ProfilePage({
               </div>
             )}
             <div className="mt-3 flex items-center gap-3">
-              {fullSeller.user?.imageUrl ? (
+              {me.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={fullSeller.user.imageUrl} alt="Manage Account photo" className="h-10 w-10 rounded-full object-cover border border-neutral-200" />
+                <img src={me.imageUrl} alt="Manage Account photo" className="h-10 w-10 rounded-full object-cover border border-neutral-200" />
               ) : (
                 <div className="h-10 w-10 rounded-full bg-neutral-200 border border-neutral-200 shrink-0" />
               )}

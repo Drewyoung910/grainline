@@ -94,7 +94,7 @@ async function getGuildMemberEligibility({
 }
 
 export default async function VerificationPage() {
-  const { seller } = await ensureSeller();
+  const { me, seller } = await ensureSeller();
   if (!seller) redirect("/sign-in");
 
   const fullSeller = await prisma.sellerProfile.findUnique({
@@ -116,7 +116,6 @@ export default async function VerificationPage() {
       lastMetricCheckAt: true,
       metricWarningSentAt: true,
       makerVerification: true,
-      user: { select: { createdAt: true } },
     },
   });
   if (!fullSeller) redirect("/sign-in");
@@ -169,7 +168,7 @@ export default async function VerificationPage() {
     const eligibility = await getGuildMemberEligibility({
       sellerProfileId: seller.id,
       sellerUserId: fullSeller.userId,
-      accountCreatedAt: fullSeller.user?.createdAt,
+      accountCreatedAt: me.createdAt,
     });
     activeListings = eligibility.activeListings;
     totalSalesCents = eligibility.totalSalesCents;
@@ -194,7 +193,7 @@ export default async function VerificationPage() {
     if (!userId) redirect("/sign-in?redirect_url=/dashboard/verification");
     const { success } = await safeRateLimit(verificationApplyRatelimit, userId);
     if (!success) return;
-    const { seller: s } = await ensureSeller();
+    const { me: actor, seller: s } = await ensureSeller();
     const craftDescription = truncateText(sanitizeText(String(formData.get("craftDescription") ?? "")), 500);
     const yearsExperience = parseInt(String(formData.get("yearsExperience") ?? "0"), 10);
     const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
@@ -209,7 +208,6 @@ export default async function VerificationPage() {
         userId: true,
         guildLevel: true,
         makerVerification: { select: { status: true, reviewedAt: true } },
-        user: { select: { createdAt: true } },
       },
     });
     if (
@@ -225,7 +223,7 @@ export default async function VerificationPage() {
     const eligibility = await getGuildMemberEligibility({
       sellerProfileId: s.id,
       sellerUserId: current.userId,
-      accountCreatedAt: current.user?.createdAt,
+      accountCreatedAt: actor.createdAt,
     });
     if (!(eligibility.criteriaListingsMet && eligibility.criteriaSalesMet && eligibility.criteriaAgeMet && eligibility.criteriaCasesMet)) {
       redirect("/dashboard/verification");

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import pg from "pg";
+import { USER_AUTHORITY_GROUPS } from "../scripts/user-authority-catalog.mjs";
 import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
@@ -1790,6 +1791,9 @@ describe("database grant inventory guardrails", () => {
       userEmailAddressAuthorityFunctionNames.every(
         (functionName) => inventory.functions.includes(functionName),
       );
+    const userAuthorityFunctions = USER_AUTHORITY_GROUPS
+      .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
+      .flatMap(({ functions }) => functions);
     const orderDeauthorizedCaseAccessPrepared =
       ORDER_DEAUTHORIZED_CASE_ACCESS_RUNTIME_FUNCTIONS.every(
         (identity) => inventory.functions.includes(
@@ -1926,6 +1930,7 @@ describe("database grant inventory guardrails", () => {
       ...(userEmailAddressAuthorityPrepared
         ? userEmailAddressAuthorityFunctionNames
         : []),
+      ...userAuthorityFunctions.map(({ name }) => name),
       "grainline_legacy_stock_restore_claim",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
@@ -1962,6 +1967,7 @@ describe("database grant inventory guardrails", () => {
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userEmailAddressRlsActivationExpected(inventory) ? 1 : 0)
         + (userEmailAddressAuthorityPrepared ? 4 : 0)
+        + userAuthorityFunctions.length
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)

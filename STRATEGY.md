@@ -49,16 +49,31 @@ ordinary application User writes. Do not overstate this as arbitrary-runtime
 resistance: `AccountDeletionSideEffect` and `ClerkWebhookEvent` are still
 separate service-ledger hardening groups.
 
-The active stacked family is relationship projection; follow
+The stacked relationship family is complete as local commit `ae5f0cb5`; follow
 `docs/user-relationship-pre-rls-audit.md`. Four purpose-bound operations remove
 the final seven ordinary direct User reads. The direct scanner is now exactly
 zero calls across zero files. This does not mean the User table is ready:
-preliminary accumulated-source scans still flag nested User relations in 22
-files and 10 raw User SQL statements across nine files. Convert the private
+the schema-aware indirect inventory supersedes the preliminary 22-file search.
+It found 93 visible User relation edges across 48 caller files. Compatible owner
+reuse and cart/quote/checkout preflight conversion remove 16 edges, leaving 77
+in 37 files, two typed User filter definitions, and 10 raw User SQL calls across
+nine files. `docs/user-indirect-access-pre-rls-audit.md` records the product,
+authority and concurrency review; `docs/user-indirect-source-inventory.md` pins
+the caller roster and scanner limits. The 222 opaque caller shapes and 14 opaque
+factory-return shapes still need bounded review; they are not 236 security
+findings. Convert the private
 identity/lifecycle paths or prove their compatible boundary, then inspect the
 installed function/grant catalog. User remains blocked for grants, policies,
 ENABLE, and FORCE until those inventories and service-ledger dependencies
 close.
+
+The indirect-access successor also closes the inherited source grant-inventory
+debt: an explicit 37-function User catalog and canonical provisioning preserve
+27 runtime operations versus ten private operations, including all eight isolated
+staff functions. Disposable execution of the actual provisioning CTEs converges
+twice, and the grant-inventory suite passes 28 tests with one intentional skip.
+This is source readiness only; inspect the installed catalog after the remaining
+access families close.
 
 ### Finish the bounded Order release (2026-09-07)
 

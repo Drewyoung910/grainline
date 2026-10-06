@@ -164,7 +164,7 @@ export async function POST(req: Request) {
             defaultPkgLengthCm: true,
             defaultPkgWidthCm: true,
             defaultPkgHeightCm: true,
-            user: { select: { banned: true, deletedAt: true } },
+            ownerAccountActive: true,
           },
         },
         variantGroups: { include: { options: true } },

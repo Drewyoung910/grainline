@@ -11,6 +11,7 @@ import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { userAccountByClerkId } from "@/lib/userIdentityAccess";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -38,19 +39,21 @@ async function getSeller(): Promise<{
   const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
   if (!success) throw new Error(SELLER_PROFILE_RATE_LIMITED);
 
-  const seller = await prisma.sellerProfile.findFirst({
-    where: { user: { clerkId: userId } },
+  const me = await userAccountByClerkId(prisma, userId);
+  if (!me) throw new Error("No seller profile");
+  if (me.banned || me.deletedAt) throw new Error("Account suspended");
+
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { userId: me.id },
     select: {
       id: true,
       userId: true,
       onboardingStep: true,
       chargesEnabled: true,
       _count: { select: { listings: true } },
-      user: { select: { banned: true, deletedAt: true } },
     },
   });
   if (!seller) throw new Error("No seller profile");
-  if (seller.user.banned || seller.user.deletedAt) throw new Error("Account suspended");
   return {
     id: seller.id,
     userId: seller.userId,

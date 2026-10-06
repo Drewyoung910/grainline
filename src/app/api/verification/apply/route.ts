@@ -67,7 +67,6 @@ export async function POST(req: Request) {
         userId: true,
         guildLevel: true,
         makerVerification: { select: { status: true, reviewedAt: true } },
-        user: { select: { createdAt: true } },
       },
     });
 
@@ -105,8 +104,8 @@ export async function POST(req: Request) {
       }),
     ]);
 
-    const accountAgeDays = sellerData.user?.createdAt
-      ? Math.floor((Date.now() - new Date(sellerData.user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+    const accountAgeDays = me.createdAt
+      ? Math.floor((Date.now() - new Date(me.createdAt).getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
     if (activeListings < REQUIRED_LISTINGS) {

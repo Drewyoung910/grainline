@@ -20,7 +20,8 @@ type CheckoutSourceSeller = Readonly<{
   defaultPkgLengthCm: number | null;
   defaultPkgWidthCm: number | null;
   defaultPkgHeightCm: number | null;
-  user: Readonly<{ banned: boolean; deletedAt: Date | null }>;
+  ownerAccountActive?: boolean | null;
+  user?: Readonly<{ banned: boolean; deletedAt: Date | null }>;
 }>;
 
 type CheckoutSourceListing = Readonly<{
@@ -73,6 +74,10 @@ function isNullableFinite(value: number | null) {
 }
 
 function sellerSource(seller: CheckoutSourceSeller) {
+  const snapshotPresent = "ownerAccountActive" in seller;
+  const localAccountActive = snapshotPresent
+    ? seller.ownerAccountActive === true
+    : seller.user?.banned === false && seller.user.deletedAt === null;
   if (
     !seller.id ||
     !seller.userId ||
@@ -82,8 +87,9 @@ function sellerSource(seller: CheckoutSourceSeller) {
     !isNullableFinite(seller.defaultPkgLengthCm) ||
     !isNullableFinite(seller.defaultPkgWidthCm) ||
     !isNullableFinite(seller.defaultPkgHeightCm) ||
-    seller.user.banned ||
-    seller.user.deletedAt !== null ||
+    !localAccountActive ||
+    seller.user?.banned ||
+    (seller.user && seller.user.deletedAt !== null) ||
     !seller.chargesEnabled ||
     seller.vacationMode ||
     !seller.acceptingNewOrders ||
@@ -202,8 +208,11 @@ function sellerSourceWitness(seller: CheckoutSourceSeller) {
     defaultPkgLengthCm: seller.defaultPkgLengthCm,
     defaultPkgWidthCm: seller.defaultPkgWidthCm,
     defaultPkgHeightCm: seller.defaultPkgHeightCm,
-    userBanned: seller.user.banned,
-    userDeleted: seller.user.deletedAt !== null,
+    // All witness builders first require an active seller. The trigger-bound
+    // true snapshot proves both facts false; retain the exact installed SQL
+    // witness format, which independently rereads the locked User row.
+    userBanned: false,
+    userDeleted: false,
   };
 }
 

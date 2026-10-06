@@ -51,7 +51,6 @@ export async function POST(req: Request) {
       stripeAccountVersion: true,
       chargesEnabled: true,
       shipFromCountry: true,
-      user: { select: { email: true } },
     },
   });
   if (!seller) return privateJson({ error: "Seller profile not found" }, { status: HTTP_STATUS.NOT_FOUND });
@@ -72,7 +71,7 @@ export async function POST(req: Request) {
 
   if (!accountId) {
     const account = await createStripeConnectV2Account({
-      email: seller.user.email,
+      email: me.email,
       country: seller.shipFromCountry,
       idempotencyKey: `connect-v2-account:${seller.id}`,
     });

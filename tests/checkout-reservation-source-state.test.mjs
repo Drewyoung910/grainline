@@ -85,6 +85,29 @@ function cartItem(id, listingId, overrides = {}) {
 }
 
 describe("checkout reservation source state", () => {
+  it("preserves exact database witness bytes when using the trigger-bound owner snapshot", () => {
+    const legacyListing = listing("listing-a");
+    const projectedListing = { ...legacyListing, seller: seller({ user: undefined, ownerAccountActive: true }) };
+    assert.equal(
+      singleCheckoutReservationSnapshotWitness("buyer", projectedListing, 1, []),
+      singleCheckoutReservationSnapshotWitness("buyer", legacyListing, 1, []),
+    );
+    const legacyItem = cartItem("cart-a", "listing-a");
+    const projectedItem = { ...legacyItem, listing: { ...legacyItem.listing, seller: projectedListing.seller } };
+    assert.equal(
+      cartCheckoutReservationSnapshotWitness("buyer", "seller-a", [projectedItem]),
+      cartCheckoutReservationSnapshotWitness("buyer", "seller-a", [legacyItem]),
+    );
+    for (const ownerAccountActive of [false, null, undefined, "true", 1]) {
+      const unavailable = { ...projectedListing, seller: { ...projectedListing.seller, ownerAccountActive } };
+      assert.equal(singleCheckoutReservationSnapshotWitness("buyer", unavailable, 1, []), null);
+    }
+    for (const user of [{ banned: true, deletedAt: null }, { banned: false, deletedAt: new Date() }]) {
+      assert.equal(singleCheckoutReservationSnapshotWitness("buyer", { ...projectedListing, seller: { ...projectedListing.seller, user } }, 1, []), null);
+    }
+    assert.equal(singleCheckoutReservationSnapshotWitness("buyer", { ...legacyListing, seller: seller({ user: undefined }) }, 1, []), null);
+  });
+
   it("produces one stable cart signature independent of item query order", () => {
     const first = cartItem("cart-b", "listing-b");
     const second = cartItem("cart-a", "listing-a");

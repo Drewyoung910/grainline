@@ -288,7 +288,11 @@ test("source conversion and role convergence expose only the reviewed surfaces",
     "grainline_user_ban_repair_target",
   ]) {
     assert.match(staffProvisioning, new RegExp(name, "u"), name);
-    assert.doesNotMatch(runtimeProvisioning, new RegExp(name, "u"), name);
+    const privateConvergence = runtimeProvisioning.match(/WITH user_isolated_staff_private\(function_signature\) AS \([\s\S]*?;\n\\gexec/u)?.[0];
+    assert.ok(privateConvergence, "isolated staff revocation convergence is required");
+    assert.match(privateConvergence, new RegExp(name, "u"), name);
+    assert.match(privateConvergence, /REVOKE ALL ON FUNCTION/u);
+    assert.doesNotMatch(privateConvergence, /GRANT EXECUTE/u);
   }
   for (const name of [
     "grainline_user_staff_ban_apply",

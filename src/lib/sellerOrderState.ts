@@ -14,6 +14,7 @@ export type SellerOrderState = {
   acceptingNewOrders?: boolean | null;
   vacationMode?: boolean | null;
   stripeAccountVersion?: string | null;
+  ownerAccountActive?: boolean | null;
   user?: {
     banned?: boolean | null;
     deletedAt?: Date | string | null;
@@ -24,6 +25,7 @@ export function sellerOrderBlockReason(
   seller: SellerOrderState | null | undefined,
 ): SellerOrderBlockReason | null {
   if (!seller) return "inactive_account";
+  if ("ownerAccountActive" in seller && seller.ownerAccountActive !== true) return "inactive_account";
   if (seller.user?.banned || seller.user?.deletedAt) return "inactive_account";
   if (
     "stripeAccountVersion" in seller &&

@@ -113,7 +113,7 @@ export async function POST(req: Request) {
               vacationMode: true,
               acceptingNewOrders: true,
               stripeAccountVersion: true,
-              user: { select: { banned: true, deletedAt: true } },
+              ownerAccountActive: true,
             },
           },
         },
@@ -127,8 +127,7 @@ export async function POST(req: Request) {
       if (
         !listing.seller.chargesEnabled ||
         !listing.seller.stripeAccountId ||
-        listing.seller.user.banned ||
-        listing.seller.user.deletedAt
+        !listing.seller.ownerAccountActive
       ) {
         return privateJson({ error: "This seller is not currently accepting orders." }, { status: HTTP_STATUS.BAD_REQUEST });
       }

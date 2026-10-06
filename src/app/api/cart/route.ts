@@ -25,17 +25,7 @@ export async function GET() {
     const cart = await ownerCartForDisplay(me.id);
 
     const items = (cart?.items ?? []).map((ci) => {
-      const seller = ci.listing.seller as {
-        displayName?: string | null;
-        freeShippingOverCents?: number | null;
-        shippingFlatRateCents?: number | null;
-        allowLocalPickup?: boolean | null;
-        offersGiftWrapping?: boolean | null;
-        giftWrappingPriceCents?: number | null;
-        chargesEnabled?: boolean | null;
-        vacationMode?: boolean | null;
-        user?: { banned?: boolean | null; deletedAt?: Date | string | null } | null;
-      };
+      const seller = ci.listing.seller;
       const freeOverCents = seller?.freeShippingOverCents ?? null;
       const shippingFlatRateCents = seller?.shippingFlatRateCents ?? null;
       // Resolve variant option labels
@@ -90,8 +80,7 @@ export async function GET() {
           sellerUnavailable:
             !seller?.chargesEnabled ||
             !!seller?.vacationMode ||
-            !!seller?.user?.banned ||
-            !!seller?.user?.deletedAt,
+            seller?.ownerAccountActive !== true,
           photos: ci.listing.photos.map((p) => ({ url: p.url })),
           // expose seller shipping knobs so Cart UI can display hints
           shippingFlatRate: shippingFlatRateCents != null ? shippingFlatRateCents / 100 : null,

@@ -34,12 +34,7 @@ export async function ownerCartForDisplay(userId: string, db: CartOwnerAccessCli
                   allowLocalPickup: true,
                   offersGiftWrapping: true,
                   giftWrappingPriceCents: true,
-                  user: {
-                    select: {
-                      banned: true,
-                      deletedAt: true,
-                    },
-                  },
+                  ownerAccountActive: true,
                 },
               },
               variantGroups: { include: { options: true } },
@@ -258,7 +253,7 @@ export async function ownerCartForCheckoutSeller(
         include: {
           listing: {
             include: {
-              seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
+              seller: true,
               photos: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
               variantGroups: { include: { options: true } },
             },
@@ -306,7 +301,7 @@ export async function ownerCartForShippingQuoteById(
         include: {
           listing: {
             include: {
-              seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
+              seller: true,
             },
           },
         },
@@ -328,7 +323,7 @@ export async function ownerCartForShippingQuote(
         include: {
           listing: {
             include: {
-              seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
+              seller: true,
             },
           },
         },
