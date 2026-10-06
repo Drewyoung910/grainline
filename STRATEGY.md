@@ -39,7 +39,7 @@ isolated staff-session reads/mints and two one-use shared-runtime capability
 consumers. Publication, merge, migration, and deployment remain separate
 decisions.
 
-The active bounded family is account deletion; follow
+The account-deletion family is complete as local commit `80b4955b`; follow
 `docs/user-account-deletion-pre-rls-audit.md`. Its isolated candidate removes
 five direct User calls and the raw User lock, binds preflight/snapshot/finalize
 to the exact retained `LOCAL_ANONYMIZE` side effect, derives provider-blocked
@@ -47,10 +47,18 @@ deferral from Clerk id, and releases the Redis deletion lock if durable enqueue
 fails. The direct scanner is now seven read calls in six files with zero
 ordinary application User writes. Do not overstate this as arbitrary-runtime
 resistance: `AccountDeletionSideEffect` and `ClerkWebhookEvent` are still
-separate service-ledger hardening groups. Continue the seven
-messaging/custom-order/report/owner-preference reads, then repeat raw, relation,
-and installed-function inventories. User remains blocked for grants, policies,
-ENABLE, and FORCE until all families and those dependencies close.
+separate service-ledger hardening groups.
+
+The active stacked family is relationship projection; follow
+`docs/user-relationship-pre-rls-audit.md`. Four purpose-bound operations remove
+the final seven ordinary direct User reads. The direct scanner is now exactly
+zero calls across zero files. This does not mean the User table is ready:
+preliminary accumulated-source scans still flag nested User relations in 22
+files and 10 raw User SQL statements across nine files. Convert the private
+identity/lifecycle paths or prove their compatible boundary, then inspect the
+installed function/grant catalog. User remains blocked for grants, policies,
+ENABLE, and FORCE until those inventories and service-ledger dependencies
+close.
 
 ### Finish the bounded Order release (2026-09-07)
 

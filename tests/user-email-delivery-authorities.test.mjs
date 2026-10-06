@@ -137,15 +137,10 @@ describe("User email-delivery authorities", () => {
       ["scripts/audit-user-direct-calls.mjs", "--json"],
       { encoding: "utf8" },
     ));
-    assert.equal(directReport.count, 12);
-    assert.equal(directReport.files, 7);
-    assert.deepEqual(directReport.byMethod, {
-      findMany: 1,
-      findUnique: 9,
-      update: 1,
-      updateMany: 1,
-    });
-
+    assert.equal(directReport.count, 0);
+    assert.equal(directReport.files, 0);
+    assert.deepEqual(directReport.byMethod, {});
+    assert.deepEqual(directReport.calls, []);
     for (const path of [
       "src/app/admin/verification/page.tsx",
       "src/app/api/cron/guild-member-check/route.ts",

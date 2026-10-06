@@ -137,10 +137,11 @@ target or replacement values.
 **GO for isolated compatible source preparation. NO-GO for Production SQL,
 deployment, User grants, policies, ENABLE, or FORCE RLS.**
 
-Next:
+The subsequent stacked relationship candidate closes item 1 below and moves
+the direct-call scanner to zero. The retained list remains the accumulated
+activation frontier:
 
-1. close the remaining seven messaging/custom-order/report/owner-preference
-   direct reads;
+1. preserve the zero-direct frontier established by the relationship package;
 2. repeat the raw-SQL and nested-relation inventory across exact accumulated
    source;
 3. review and harden the `AccountDeletionSideEffect` and Clerk webhook ledgers

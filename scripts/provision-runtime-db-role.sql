@@ -3100,6 +3100,41 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Remaining relationship-facing User reads use purpose-bound projections.
+-- Preserve those exact operations across role convergence without restoring
+-- direct User table access.
+WITH user_relationship_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_relationship_target_state"(text, text)'),
+    ('public."grainline_user_conversation_participants"(text, text)'),
+    ('public."grainline_user_custom_order_seller_state"(text, text)'),
+    ('public."grainline_user_owner_notification_preferences"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_relationship_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_relationship_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_relationship_target_state"(text, text)'),
+    ('public."grainline_user_conversation_participants"(text, text)'),
+    ('public."grainline_user_custom_order_seller_state"(text, text)'),
+    ('public."grainline_user_owner_notification_preferences"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_relationship_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- UserEmailAddress authority is prepared before its policyless RLS activation.
 -- Converge the exact source-bound runtime operations whenever that preparation
 -- exists; helpers used only by account-deletion flows remain governed by their

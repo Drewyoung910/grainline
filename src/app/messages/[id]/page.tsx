@@ -47,6 +47,7 @@ import {
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
+import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 
 export default async function ThreadPage({
   params,
@@ -80,9 +81,9 @@ export default async function ThreadPage({
     );
     if (!canStaffReviewThread) return notFound();
   }
-  const conversationUsers = await prisma.user.findMany({
-    where: { id: { in: [conversation.userAId, conversation.userBId] } },
-    select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true },
+  const conversationUsers = await userConversationParticipants(prisma, {
+    actorId: me.id,
+    conversationId: conversation.id,
   });
   const userById = new Map(conversationUsers.map((user) => [user.id, user]));
   const userA = userById.get(conversation.userAId);
@@ -246,10 +247,11 @@ export default async function ThreadPage({
     ) return { ok: false };
 
     const recipientId = c.userAId === me.id ? c.userBId : c.userAId;
-    const recipient = await prisma.user.findUnique({
-      where: { id: recipientId },
-      select: { banned: true, deletedAt: true },
+    const currentParticipants = await userConversationParticipants(prisma, {
+      actorId: me.id,
+      conversationId: c.id,
     });
+    const recipient = currentParticipants.find((participant) => participant.id === recipientId);
     const unavailableReason = messagingUnavailableReason(recipient);
     if (unavailableReason) return { ok: false, error: unavailableReason };
 
