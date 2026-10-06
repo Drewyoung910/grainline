@@ -120,15 +120,13 @@ describe("User owner-private authorities", () => {
       ["scripts/audit-user-direct-calls.mjs", "--json"],
       { encoding: "utf8" },
     ));
-    assert.equal(report.count, 29);
-    assert.equal(report.files, 14);
+    assert.equal(report.count, 12);
+    assert.equal(report.files, 7);
     assert.deepEqual(report.byMethod, {
-      count: 1,
-      findFirst: 1,
-      findMany: 3,
-      findUnique: 19,
-      update: 2,
-      updateMany: 3,
+      findMany: 1,
+      findUnique: 9,
+      update: 1,
+      updateMany: 1,
     });
   });
 

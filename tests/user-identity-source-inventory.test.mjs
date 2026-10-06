@@ -11,15 +11,13 @@ const report = JSON.parse(
 );
 
 test("User direct-access inventory records cumulative bounded conversions", () => {
-  assert.equal(report.count, 29);
-  assert.equal(report.files, 14);
+  assert.equal(report.count, 12);
+  assert.equal(report.files, 7);
   assert.deepEqual(report.byMethod, {
-    count: 1,
-    findFirst: 1,
-    findMany: 3,
-    findUnique: 19,
-    update: 2,
-    updateMany: 3,
+    findMany: 1,
+    findUnique: 9,
+    update: 1,
+    updateMany: 1,
   });
 
   const fullRowReads = report.calls.filter(
@@ -35,7 +33,7 @@ test("User direct-access inventory records cumulative bounded conversions", () =
       call.method,
     ),
   );
-  assert.equal(writes.length, 5);
+  assert.equal(writes.length, 2);
 
   const obsoleteClerkGateReads = report.calls.filter(
     (call) =>
@@ -64,10 +62,6 @@ test("User direct-access inventory records cumulative bounded conversions", () =
   assert.equal(obsoleteClerkIdReads.length, 0);
   assert.deepEqual(
     [...new Set(writes.map((call) => call.file))].sort(),
-    [
-      "src/lib/accountDeletion.ts",
-      "src/lib/audit.ts",
-      "src/lib/ban.ts",
-    ],
+    ["src/lib/accountDeletion.ts"],
   );
 });

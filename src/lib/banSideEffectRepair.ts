@@ -4,6 +4,8 @@ import { banClerkUserAndRevokeSessions } from "@/lib/clerkUserLifecycle";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { readBanAuditMetadata } from "@/lib/banAuditMetadata";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { userBanRepairTarget } from "@/lib/userStaffAccess";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 const BAN_SYNC_REPAIR_LOOKBACK_DAYS = 14;
 const BAN_SYNC_REPAIR_SCAN_LIMIT = 100;
@@ -86,26 +88,21 @@ export async function repairBanUserExternalSideEffects(input: {
 }) {
   const latestSyncAction = await latestClerkSyncActionForBan(input.originalActionId, input.targetId);
 
-  const target = await prisma.user.findUnique({
-    where: { id: input.targetId },
-    select: {
-      clerkId: true,
-      banned: true,
-      deletedAt: true,
-      sellerProfile: { select: { id: true, stripeAccountId: true } },
-    },
+  const target = await userBanRepairTarget(getOrderStaffReadClient(), {
+    originalActionId: input.originalActionId,
+    targetId: input.targetId,
   });
   if (!target || target.deletedAt || !target.banned) return { status: "skipped_target_state" as const };
 
   let checkoutRepaired = false;
   let checkoutFailed = false;
-  if (target.sellerProfile?.stripeAccountId) {
+  if (target.sellerProfileId && target.stripeAccountId) {
     const checkoutAlreadyExpired = await hasCheckoutExpiryLogForBan(input.originalActionId, input.targetId);
     if (!checkoutAlreadyExpired) {
       try {
         const expiryResult = await expireOpenCheckoutSessionsForSeller({
-          sellerId: target.sellerProfile.id,
-          stripeAccountId: target.sellerProfile.stripeAccountId,
+          sellerId: target.sellerProfileId,
+          stripeAccountId: target.stripeAccountId,
           source: "ban_user_repair",
         });
         await createBanSideEffectAuditLog({
@@ -115,8 +112,8 @@ export async function repairBanUserExternalSideEffects(input: {
           originalActionId: input.originalActionId,
           metadata: {
             retry: true,
-            sellerId: target.sellerProfile.id,
-            stripeAccountId: target.sellerProfile.stripeAccountId,
+            sellerId: target.sellerProfileId,
+            stripeAccountId: target.stripeAccountId,
             ...expiryResult,
           },
         });
@@ -128,7 +125,7 @@ export async function repairBanUserExternalSideEffects(input: {
           extra: {
             targetId: input.targetId,
             originalActionId: input.originalActionId,
-            sellerId: target.sellerProfile.id,
+            sellerId: target.sellerProfileId,
           },
         });
       }

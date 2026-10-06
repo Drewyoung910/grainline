@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { inactiveAdminEmailRecipientReason } = await import("../src/lib/adminEmailRecipient.ts");
@@ -15,5 +16,11 @@ describe("admin email recipient state", () => {
       inactiveAdminEmailRecipientReason({ banned: false, deletedAt: new Date("2026-04-30T00:00:00.000Z") }),
       /deleted/,
     );
+  });
+
+  it("fails closed if the account or address changes before delivery", () => {
+    const route = readFileSync("src/app/api/admin/email/route.ts", "utf8");
+    assert.match(route, /if \(!recipientAccount \|\| recipientAccount\.id !== recipientUserId\)/u);
+    assert.match(route, /Recipient account or email changed before delivery/u);
   });
 });

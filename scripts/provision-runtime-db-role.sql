@@ -3033,6 +3033,37 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- User ban consumers accept only short-lived capabilities minted through the
+-- separately authenticated staff role. The shared runtime receives neither
+-- staff reads nor capability minting authority.
+WITH user_staff_ban_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_staff_ban_apply"(text, text, timestamp without time zone, text)'),
+    ('public."grainline_user_staff_unban_apply"(text, text, timestamp without time zone)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_staff_ban_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_staff_ban_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_staff_ban_apply"(text, text, timestamp without time zone, text)'),
+    ('public."grainline_user_staff_unban_apply"(text, text, timestamp without time zone)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_staff_ban_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- UserEmailAddress authority is prepared before its policyless RLS activation.
 -- Converge the exact source-bound runtime operations whenever that preparation
 -- exists; helpers used only by account-deletion flows remain governed by their

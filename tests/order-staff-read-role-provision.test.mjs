@@ -38,7 +38,7 @@ test("staff-read role convergence requires the restricted login posture", () => 
   assert.match(script, /NOT set_option/u);
 });
 
-test("isolated staff role receives exactly six reviewed operations and no tables", () => {
+test("isolated staff role receives exactly fourteen reviewed operations and no tables", () => {
   for (const signature of [
     "grainline_order_staff_page_v2\\(text, text, integer, integer\\)",
     "grainline_order_staff_detail_v2\\(text, text\\)",
@@ -46,13 +46,21 @@ test("isolated staff role receives exactly six reviewed operations and no tables
     "grainline_order_staff_record_label_voided\\(text, text\\)",
     "grainline_order_staff_append_note\\(text, text, text\\)",
     "grainline_order_staff_capability_mint\\(text, text, text, jsonb\\)",
+    "grainline_user_staff_directory_count\\(text, text\\)",
+    "grainline_user_staff_directory_page\\(text, text, integer\\)",
+    "grainline_user_staff_exact_email_target\\(text, text\\)",
+    "grainline_user_staff_report_labels\\(text, text\\[\\]\\)",
+    "grainline_user_staff_email_recipient\\(text, text, text\\)",
+    "grainline_user_staff_ban_target\\(text, text\\)",
+    "grainline_user_staff_capability_mint\\(text, text, text, timestamp without time zone\\)",
+    "grainline_user_ban_repair_target\\(text, text\\)",
   ]) {
     assert.match(
       script,
       new RegExp(`GRANT EXECUTE ON FUNCTION\\s+public\\.${signature}`, "u"),
     );
   }
-  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 6);
+  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 14);
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public/u);

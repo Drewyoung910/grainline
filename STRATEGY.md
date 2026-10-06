@@ -4,7 +4,7 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Complete the `User` identity/account design audit (2026-10-03)
+### Complete the `User` identity/account design audit (updated 2026-10-05)
 
 `UserEmailAddress` is complete in Production through policyless FORCE from
 exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and
@@ -26,14 +26,26 @@ unchanged. The outbound email-delivery source package is merged at exact main
 `d8a6d1c4`; its additive migration is accepted in Production through guarded
 run `37215932608`, while caller deployment remains a separate decision.
 
-The next bounded family is public and relationship identity. Follow
-`docs/user-public-identity-pre-rls-audit.md`: unify the active-member count,
-remove public Clerk-id dependencies, and replace public raw/nested User access
-with domain-bound operations that preserve database-side visibility, block
-filters, ranking, counts, and pagination. Do not create a generic active-user
-directory: an active buyer without a public artifact is not public identity.
-This authorizes isolated preparation only; User activation remains blocked on
-every remaining direct, raw-SQL, relation and installed-function family.
+The public and relationship application package is now live from exact source
+`66746f47e87a73a6efce2ee6833542be5a86cc57`, CI `37376845782`, and candidate
+`dpl_BSDP31g6krQTVe1xG1V7igrFnM1w` on all five canonical Production aliases.
+The seven prerequisite authority proofs remain separately accepted. This
+release changed application callers and additive operations; it did not enable
+User RLS or revoke predecessor table authority.
+
+The active bounded family is staff/ban. Follow
+`docs/user-staff-ban-pre-rls-audit.md`. Local preparation removes its 17 direct
+calls and reduces the scanner from 29 calls in 14 files to 12 calls in seven
+files. Eight reads/mints require the exact isolated staff database session;
+shared runtime receives only two one-use capability consumers. The package
+also makes failed Clerk-ban retry provider-only, compare-and-sets manual and
+undo unban, binds repair to the exact active ban audit, and fails closed on an
+admin-email recipient race. Focused source guardrails pass 22/22; disposable
+PGlite and final staff-role catalog proofs pass 5/5; focused ESLint and diff
+validation pass. Commit the cohesive source package, then continue account
+deletion and messaging/custom-order/owner leftovers and repeat raw, relation
+and installed-function inventories. User remains blocked for grants, policies,
+ENABLE and FORCE until all families close.
 
 ### Finish the bounded Order release (2026-09-07)
 

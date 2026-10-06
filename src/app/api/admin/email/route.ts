@@ -21,6 +21,8 @@ import {
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { userStaffEmailRecipient } from "@/lib/userStaffAccess";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 const APP_URL = EMAIL_APP_URL;
 const ADMIN_EMAIL_BODY_MAX_BYTES = 64 * 1024;
@@ -68,11 +70,12 @@ export async function POST(request: Request) {
 
   let recipientEmail: string;
   let recipientUserId: string | null = body.userId ?? null;
+  const staffClient = getOrderStaffReadClient();
 
   if (body.userId) {
-    const recipient = await prisma.user.findUnique({
-      where: { id: body.userId },
-      select: { email: true, name: true, banned: true, deletedAt: true },
+    const recipient = await userStaffEmailRecipient(staffClient, {
+      actorId: admin.id,
+      userId: body.userId,
     });
     if (!recipient?.email) {
       return privateJson({ error: "User not found or no email" }, { status: HTTP_STATUS.NOT_FOUND });
@@ -87,9 +90,9 @@ export async function POST(request: Request) {
     if (!normalizedInputEmail) {
       return privateJson({ error: "Invalid recipient email" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
-    const recipient = await prisma.user.findUnique({
-      where: { email: normalizedInputEmail },
-      select: { id: true, email: true, name: true, banned: true, deletedAt: true },
+    const recipient = await userStaffEmailRecipient(staffClient, {
+      actorId: admin.id,
+      email: normalizedInputEmail,
     });
     if (!recipient?.email) {
       return privateJson(
@@ -115,10 +118,16 @@ export async function POST(request: Request) {
     return privateJson({ error: "Recipient email is suppressed or unsubscribed" }, { status: HTTP_STATUS.CONFLICT });
   }
 
-  const recipientAccount = await prisma.user.findUnique({
-    where: { email: normalizedRecipientEmail },
-    select: { banned: true, deletedAt: true },
+  const recipientAccount = await userStaffEmailRecipient(staffClient, {
+    actorId: admin.id,
+    email: normalizedRecipientEmail,
   });
+  if (!recipientAccount || recipientAccount.id !== recipientUserId) {
+    return privateJson(
+      { error: "Recipient account or email changed before delivery. Refresh and try again." },
+      { status: HTTP_STATUS.CONFLICT },
+    );
+  }
   const inactiveReason = inactiveAdminEmailRecipientReason(recipientAccount);
   if (inactiveReason) {
     return privateJson({ error: inactiveReason }, { status: HTTP_STATUS.CONFLICT });

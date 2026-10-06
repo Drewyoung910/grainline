@@ -1,10 +1,10 @@
--- Grainline Order isolated-staff least-privilege convergence.
+-- Grainline Order and User isolated-staff least-privilege convergence.
 --
 -- This script never creates a role or sets a password. The reviewed provider
 -- operator must first create grainline_staff_read_runtime as a separately
 -- authenticated LOGIN. The historical role name is retained, but its authority
 -- is the exact bounded staff read-and-mutation surface below. Run this only
--- after the corrected v2 projections and staff mutations exist:
+-- after the corrected Order v2 operations and User staff authorities exist:
 --
 --   psql "$DIRECT_URL" \
 --     -v staff_role=grainline_staff_read_runtime \
@@ -223,7 +223,15 @@ WITH required(function_signature) AS (
     ('public."grainline_order_staff_mark_reviewed"(text, text)'),
     ('public."grainline_order_staff_record_label_voided"(text, text)'),
     ('public."grainline_order_staff_append_note"(text, text, text)'),
-    ('public."grainline_order_staff_capability_mint"(text, text, text, jsonb)')
+    ('public."grainline_order_staff_capability_mint"(text, text, text, jsonb)'),
+    ('public."grainline_user_staff_directory_count"(text, text)'),
+    ('public."grainline_user_staff_directory_page"(text, text, integer)'),
+    ('public."grainline_user_staff_exact_email_target"(text, text)'),
+    ('public."grainline_user_staff_report_labels"(text, text[])'),
+    ('public."grainline_user_staff_email_recipient"(text, text, text)'),
+    ('public."grainline_user_staff_ban_target"(text, text)'),
+    ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),
+    ('public."grainline_user_ban_repair_target"(text, text)')
 ), missing AS (
   SELECT function_signature FROM required
   WHERE pg_catalog.to_regprocedure(function_signature) IS NULL
@@ -261,6 +269,30 @@ GRANT EXECUTE ON FUNCTION
   TO :"staff_role";
 GRANT EXECUTE ON FUNCTION
   public.grainline_order_staff_capability_mint(text, text, text, jsonb)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_staff_directory_count(text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_staff_directory_page(text, text, integer)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_staff_exact_email_target(text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_staff_report_labels(text, text[])
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_staff_email_recipient(text, text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_staff_ban_target(text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_staff_capability_mint(text, text, text, timestamp without time zone)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_ban_repair_target(text, text)
   TO :"staff_role";
 
 WITH table_authority AS (
@@ -312,7 +344,15 @@ WITH table_authority AS (
     ('public."grainline_order_staff_mark_reviewed"(text, text)'),
     ('public."grainline_order_staff_record_label_voided"(text, text)'),
     ('public."grainline_order_staff_append_note"(text, text, text)'),
-    ('public."grainline_order_staff_capability_mint"(text, text, text, jsonb)')
+    ('public."grainline_order_staff_capability_mint"(text, text, text, jsonb)'),
+    ('public."grainline_user_staff_directory_count"(text, text)'),
+    ('public."grainline_user_staff_directory_page"(text, text, integer)'),
+    ('public."grainline_user_staff_exact_email_target"(text, text)'),
+    ('public."grainline_user_staff_report_labels"(text, text[])'),
+    ('public."grainline_user_staff_email_recipient"(text, text, text)'),
+    ('public."grainline_user_staff_ban_target"(text, text)'),
+    ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),
+    ('public."grainline_user_ban_repair_target"(text, text)')
 ), expected_authority AS (
   SELECT function_signature,
          pg_catalog.has_function_privilege(

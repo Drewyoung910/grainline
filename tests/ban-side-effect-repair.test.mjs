@@ -11,6 +11,7 @@ describe("ban side-effect repair cron guardrails", () => {
     const ban = source("src/lib/ban.ts");
     const metadata = source("src/lib/banAuditMetadata.ts");
     const audit = source("src/lib/audit.ts");
+    const staffAuthority = source("src/lib/userStaffAccess.ts");
 
     assert.match(ban, /const bannedAt = new Date\(\)/);
     assert.match(ban, /appliedBannedAt: bannedAt/);
@@ -24,7 +25,8 @@ describe("ban side-effect repair cron guardrails", () => {
     assert.match(metadata, /appliedBannedAt: appliedBannedAt\?\.toISOString\(\) \?\? null/);
     assert.match(metadata, /externalSyncVersion = 1/);
     assert.match(audit, /dateFromMetadata\(banMetadata\?\.appliedBannedAt \?\? null\)/);
-    assert.match(audit, /bannedAt: appliedBannedAt/);
+    assert.match(audit, /expectedBannedAt: appliedBannedAt/);
+    assert.match(staffAuthority, /grainline_user_staff_unban_apply/);
     assert.match(audit, /User ban state changed before undo could be applied/);
   });
 

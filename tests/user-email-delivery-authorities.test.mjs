@@ -137,15 +137,13 @@ describe("User email-delivery authorities", () => {
       ["scripts/audit-user-direct-calls.mjs", "--json"],
       { encoding: "utf8" },
     ));
-    assert.equal(directReport.count, 29);
-    assert.equal(directReport.files, 14);
+    assert.equal(directReport.count, 12);
+    assert.equal(directReport.files, 7);
     assert.deepEqual(directReport.byMethod, {
-      count: 1,
-      findFirst: 1,
-      findMany: 3,
-      findUnique: 19,
-      update: 2,
-      updateMany: 3,
+      findMany: 1,
+      findUnique: 9,
+      update: 1,
+      updateMany: 1,
     });
 
     for (const path of [

@@ -33,6 +33,22 @@ test("staff grant final catalog executes in PostgreSQL and rejects PUBLIC leakag
         RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
       CREATE FUNCTION public.grainline_order_staff_capability_mint(text,text,text,jsonb)
         RETURNS text LANGUAGE sql SECURITY DEFINER AS 'SELECT ''00000000-0000-4000-8000-000000000000''';
+      CREATE FUNCTION public.grainline_user_staff_directory_count(text,text)
+        RETURNS bigint LANGUAGE sql SECURITY DEFINER AS 'SELECT 0::bigint';
+      CREATE FUNCTION public.grainline_user_staff_directory_page(text,text,integer)
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_user_staff_exact_email_target(text,text)
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_user_staff_report_labels(text,text[])
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_user_staff_email_recipient(text,text,text)
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_user_staff_ban_target(text,text)
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+      CREATE FUNCTION public.grainline_user_staff_capability_mint(text,text,text,timestamp without time zone)
+        RETURNS text LANGUAGE sql SECURITY DEFINER AS 'SELECT ''00000000-0000-4000-8000-000000000000''';
+      CREATE FUNCTION public.grainline_user_ban_repair_target(text,text)
+        RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
       REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
       GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO grainline_staff_read_runtime;
     `);

@@ -11,6 +11,11 @@ const ban = fs.readFileSync("src/lib/ban.ts", "utf8");
 const audit = fs.readFileSync("src/lib/audit.ts", "utf8");
 const banRoute = fs.readFileSync("src/app/api/admin/users/[id]/ban/route.ts", "utf8");
 const undoRoute = fs.readFileSync("src/app/api/admin/audit/[id]/undo/route.ts", "utf8");
+const userStaffSql = fs.readFileSync(
+  "prisma/migrations/20261006010000_prepare_user_staff_ban_authorities/migration.sql",
+  "utf8",
+);
+const userStaffAccess = fs.readFileSync("src/lib/userStaffAccess.ts", "utf8");
 
 describe("Order ban review authority", () => {
   it("derives the seller and exact eligible Orders under deterministic locks", () => {
@@ -73,7 +78,7 @@ describe("Order ban review authority", () => {
   it("preserves missing and invalid target policy errors before capability mint", () => {
     assert.match(
       ban,
-      /async function requireBanReviewTarget\([\s\S]*select: \{ role: true, deletedAt: true, banned: true, clerkId: true \}[\s\S]*new BanUserPolicyError\('User not found', 404\)[\s\S]*target\.role === 'ADMIN'/u,
+      /async function requireBanReviewTarget\([\s\S]*userStaffBanTarget\(getOrderStaffReadClient\(\),[\s\S]*new BanUserPolicyError\('User not found', 404\)[\s\S]*target\.role === 'ADMIN'/u,
     );
     const banFunction = ban.slice(
       ban.indexOf("export async function banUser"),
@@ -81,11 +86,11 @@ describe("Order ban review authority", () => {
     );
     const unbanFunction = ban.slice(ban.indexOf("export async function unbanUser"));
     assert.ok(
-      banFunction.indexOf("await requireBanReviewTarget(userId, 'ban')")
+      banFunction.indexOf("await requireBanReviewTarget(adminId, userId, 'ban')")
         < banFunction.indexOf("await mintBanReviewCapability("),
     );
     assert.ok(
-      unbanFunction.indexOf("await requireBanReviewTarget(userId, 'unban')")
+      unbanFunction.indexOf("await requireBanReviewTarget(adminId, userId, 'unban')")
         < unbanFunction.indexOf("await mintBanReviewCapability("),
     );
     assert.match(ban, /source-validating authority boundary across concurrent state changes/u);
@@ -95,9 +100,37 @@ describe("Order ban review authority", () => {
     const unbanFunction = ban.slice(ban.indexOf("export async function unbanUser"));
     assert.match(
       unbanFunction,
-      /const target = await requireBanReviewTarget\(userId, 'unban'\)[\s\S]*if \(!target\.banned\) \{[\s\S]*await convergeAlreadyUnbannedClerkTarget\([\s\S]*return \{ sellerRestoreWarning: null \}[\s\S]*mintBanReviewCapability\(/u,
+      /const target = await requireBanReviewTarget\(adminId, userId, 'unban'\)[\s\S]*if \(!target\.banned\) \{[\s\S]*await convergeAlreadyUnbannedClerkTarget\([\s\S]*return \{ sellerRestoreWarning: null \}[\s\S]*mintBanReviewCapability\(/u,
     );
     assert.match(ban, /idempotentConvergence: true/u);
     assert.match(ban, /originalActionId: clerkSync\.unbanAuditLogId/u);
+  });
+
+  it("converges an already-banned account without replaying the local ban transaction", () => {
+    const banFunction = ban.slice(
+      ban.indexOf("export async function banUser"),
+      ban.indexOf("export async function unbanUser"),
+    );
+    assert.match(
+      banFunction,
+      /const reviewedTarget = await requireBanReviewTarget\(adminId, userId, 'ban'\)[\s\S]*if \(reviewedTarget\.banned\) \{[\s\S]*convergeAlreadyBannedExternalSideEffects\([\s\S]*return[\s\S]*mintBanReviewCapability\(/u,
+    );
+    assert.match(ban, /repairBanUserExternalSideEffects\(\{/u);
+    assert.match(ban, /metadata\.appliedBannedAt === bannedAt\?\.toISOString\(\)/u);
+    assert.match(banFunction, /userStaffBanApply\(tx, \{/u);
+    assert.match(banFunction, /capabilityId: userBanCapability/u);
+    assert.match(userStaffSql, /target_banned[\s\S]*RAISE EXCEPTION 'User ban state changed'/u);
+  });
+
+  it("uses the reviewed ban timestamp as a compare-and-set guard for manual unban", () => {
+    const unbanFunction = ban.slice(ban.indexOf("export async function unbanUser"));
+    assert.match(
+      unbanFunction,
+      /userStaffUnbanApply\(tx, \{[\s\S]*expectedBannedAt: target\.bannedAt/u,
+    );
+    assert.match(userStaffAccess, /grainline_user_staff_unban_apply/u);
+    assert.match(unbanFunction, /capabilityId: userUnbanCapability/u);
+    assert.match(userStaffSql, /prior_banned_at IS DISTINCT FROM p_expected_banned_at/u);
+    assert.doesNotMatch(unbanFunction, /(?:prisma|tx)\.user\./u);
   });
 });
