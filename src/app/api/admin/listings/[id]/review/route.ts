@@ -32,10 +32,9 @@ const ADMIN_LISTING_REVIEW_BODY_MAX_BYTES = 16 * 1024
 function sellerUnavailableReason(seller: {
   chargesEnabled: boolean
   vacationMode: boolean
-  user: { banned: boolean; deletedAt: Date | null } | null
+  ownerAccountActive: boolean
 }) {
-  if (!seller.user || seller.user.deletedAt) return 'Seller account is unavailable.'
-  if (seller.user.banned) return 'Seller account is suspended.'
+  if (!seller.ownerAccountActive) return 'Seller account is unavailable.'
   if (!seller.chargesEnabled) return 'Seller payouts are not connected.'
   if (seller.vacationMode) return 'Seller is in vacation mode.'
   return null
@@ -119,7 +118,7 @@ export async function PATCH(
           displayName: true,
           chargesEnabled: true,
           vacationMode: true,
-          user: { select: { banned: true, deletedAt: true } },
+          ownerAccountActive: true,
         },
       },
     },
@@ -140,7 +139,7 @@ export async function PATCH(
           seller: {
             chargesEnabled: true,
             vacationMode: false,
-            user: { banned: false, deletedAt: null },
+            ownerAccountActive: true,
           },
         },
         data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
@@ -183,7 +182,7 @@ export async function PATCH(
               displayName: true,
               chargesEnabled: true,
               vacationMode: true,
-              user: { select: { banned: true, deletedAt: true } },
+              ownerAccountActive: true,
             },
           },
         },

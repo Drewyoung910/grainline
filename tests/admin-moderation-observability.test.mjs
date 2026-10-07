@@ -46,7 +46,9 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(reviewRoute, /function sellerUnavailableReason/);
     assert.match(reviewRoute, /chargesEnabled: true/);
     assert.match(reviewRoute, /vacationMode: false/);
-    assert.match(reviewRoute, /user: \{ banned: false, deletedAt: null \}/);
+    assert.match(reviewRoute, /if \(!seller\.ownerAccountActive\) return 'Seller account is unavailable\.'/);
+    assert.match(reviewRoute, /seller: \{[\s\S]*ownerAccountActive: true/);
+    assert.match(reviewRoute, /listing\.updateMany\(\{[\s\S]*ownerAccountActive: true/);
     assert.match(reviewRoute, /status: 'PENDING_REVIEW'/);
     assert.match(reviewRoute, /SET status = 'SOLD_OUT'/);
     assert.match(reviewRoute, /"listingType" = 'IN_STOCK'/);

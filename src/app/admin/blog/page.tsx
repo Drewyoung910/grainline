@@ -16,6 +16,8 @@ import AdminPinGate from "@/components/AdminPinGate";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteBlogCommentNotificationServiceRows } from "@/lib/notificationServiceAccess";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -55,12 +57,15 @@ async function approveComment(commentId: string) {
         body: true,
         parentId: true,
         authorId: true,
-        author: { select: { name: true, email: true } },
         post: { select: { slug: true, title: true, authorId: true } },
       },
     });
     if (comment) {
-      const commenterName = comment.author.name ?? "Someone";
+      const [commenter] = await userStaffAdminLabels(getOrderStaffReadClient(), {
+        actorId: me.id,
+        userIds: [comment.authorId],
+      });
+      const commenterName = commenter?.name ?? "Someone";
       if (comment.parentId) {
         // Reply — notify the parent comment author
         const parent = await prisma.blogComment.findUnique({
@@ -141,8 +146,7 @@ export default async function AdminBlogPage() {
     take: 50,
     select: {
       id: true, slug: true, title: true, type: true, status: true,
-      publishedAt: true,
-      author: { select: { name: true, email: true } },
+      publishedAt: true, authorId: true,
       _count: { select: { comments: { where: { approved: false } } } },
     },
   });
@@ -153,10 +157,18 @@ export default async function AdminBlogPage() {
     take: 30,
     select: {
       id: true, body: true, createdAt: true,
-      author: { select: { name: true, email: true } },
+      authorId: true,
       post: { select: { title: true, slug: true } },
     },
   });
+  const commentAuthorLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
+    actorId: staff.id,
+    userIds: [
+      ...pendingComments.map((comment) => comment.authorId),
+      ...posts.map((post) => post.authorId).filter((id): id is string => Boolean(id)),
+    ],
+  });
+  const commentAuthorById = new Map(commentAuthorLabels.map((label) => [label.id, label]));
 
   const STATUS_COLORS: Record<string, string> = {
     DRAFT: "bg-neutral-100 text-neutral-600",
@@ -184,7 +196,9 @@ export default async function AdminBlogPage() {
               <div key={c.id} className="card-section p-4 space-y-2">
                 <div className="flex items-start justify-between gap-4">
                   <div className="text-xs text-neutral-500">
-                    <span className="font-medium text-neutral-700">{c.author.name ?? c.author.email}</span>
+                    <span className="font-medium text-neutral-700">
+                      {commentAuthorById.get(c.authorId)?.name ?? commentAuthorById.get(c.authorId)?.email ?? "Unknown"}
+                    </span>
                     {" on "}
                     <Link href={`/blog/${c.post.slug}`} target="_blank" rel="noopener noreferrer" className="underline">
                       {c.post.title}
@@ -237,7 +251,9 @@ export default async function AdminBlogPage() {
                   </div>
                   <div className="font-medium truncate">{p.title}</div>
                   <div className="text-xs text-neutral-500">
-                    by {p.author?.name ?? p.author?.email ?? "Former author"}
+                    by {p.authorId
+                      ? commentAuthorById.get(p.authorId)?.name ?? commentAuthorById.get(p.authorId)?.email ?? "Former author"
+                      : "Former author"}
                     {p.publishedAt && ` · ${new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
                   </div>
                 </div>

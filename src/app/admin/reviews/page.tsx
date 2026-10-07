@@ -6,6 +6,8 @@ import type { Metadata } from "next";
 import { DeleteReviewButton } from "@/components/admin/DeleteReviewButton";
 import { publicListingPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 
 export const metadata: Metadata = { title: "Reviews — Admin" };
 
@@ -30,11 +32,15 @@ export default async function AdminReviewsPage({
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     include: {
-      reviewer: { select: { name: true, email: true } },
       listing: { select: { id: true, title: true } },
       photos: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
     },
   });
+  const reviewerLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
+    actorId: staff.id,
+    userIds: reviews.map((review) => review.reviewerId),
+  });
+  const reviewerLabelById = new Map(reviewerLabels.map((label) => [label.id, label]));
 
   return (
     <main className="p-6 max-w-7xl mx-auto">
@@ -54,7 +60,7 @@ export default async function AdminReviewsPage({
                     {"★".repeat(Math.round(r.ratingX2 / 2))}{"☆".repeat(5 - Math.round(r.ratingX2 / 2))}
                   </span>
                   <span className="text-xs text-neutral-500">
-                    by {r.reviewer.name ?? r.reviewer.email ?? "Unknown"}
+                    by {reviewerLabelById.get(r.reviewerId)?.name ?? reviewerLabelById.get(r.reviewerId)?.email ?? "Unknown"}
                   </span>
                   <span className="text-xs text-neutral-500">on</span>
                   <Link href={publicListingPath(r.listing.id, r.listing.title)} className="text-xs text-neutral-600 hover:underline">

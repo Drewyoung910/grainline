@@ -24,6 +24,10 @@ export type UserStaffReportLabel = UserStaffEmailTarget & {
   deletedAt: Date | null;
 };
 
+export type UserStaffAdminLabel = UserStaffReportLabel & {
+  createdAt: Date;
+};
+
 export type UserStaffRecipient = UserStaffReportLabel & {
   banned: boolean;
 };
@@ -177,6 +181,36 @@ export async function userStaffReportLabels(
     return !valid;
   })) {
     throw new Error("User staff report-label authority returned an invalid result");
+  }
+  return rows;
+}
+
+export async function userStaffAdminLabels(
+  client: UserStaffClient,
+  input: { actorId: string; userIds: string[] },
+) {
+  if (input.userIds.length === 0) return [];
+  if (input.userIds.length > 200) {
+    throw new Error("User staff admin-label authority input exceeds its bound");
+  }
+  const requested = new Set(input.userIds);
+  const returned = new Set<string>();
+  const rows = await client.$queryRaw<UserStaffAdminLabel[]>`
+    SELECT * FROM public.grainline_user_staff_admin_labels(
+      ${input.actorId}::text,
+      ${input.userIds}::text[]
+    )
+  `;
+  if (rows.length > requested.size || rows.some((row) => {
+    const valid = validStaffEmailTarget(row)
+      && optionalDate(row.deletedAt)
+      && row.createdAt instanceof Date
+      && requested.has(row.id)
+      && !returned.has(row.id);
+    returned.add(row.id);
+    return !valid;
+  })) {
+    throw new Error("User staff admin-label authority returned an invalid result");
   }
   return rows;
 }

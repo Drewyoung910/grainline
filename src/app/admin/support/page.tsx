@@ -12,6 +12,8 @@ import {
   supportRequestEmailNotificationState,
 } from "@/lib/supportRequest";
 import { setSupportRequestStatus } from "./actions";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 
 export const metadata: Metadata = { title: "Support Requests — Admin" };
 
@@ -32,11 +34,12 @@ const SUPPORT_REQUEST_ROW_SELECT = {
   emailLastError: true,
   closureEvidence: true,
   closureEvidenceAt: true,
-  closureEvidenceBy: { select: { email: true } },
+  closureEvidenceById: true,
   createdAt: true,
 } satisfies Prisma.SupportRequestSelect;
 
-type SupportRequestRow = Prisma.SupportRequestGetPayload<{ select: typeof SUPPORT_REQUEST_ROW_SELECT }>;
+type SupportRequestBaseRow = Prisma.SupportRequestGetPayload<{ select: typeof SUPPORT_REQUEST_ROW_SELECT }>;
+type SupportRequestRow = SupportRequestBaseRow & { closureEvidenceBy: { email: string } | null };
 
 function formatDate(value: Date) {
   return value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -208,7 +211,7 @@ export default async function AdminSupportPage({
   const totalPages = Math.max(1, Math.ceil(activeCount / ACTIVE_PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
 
-  const [activeRequests, recentlyClosed] = await Promise.all([
+  const [activeRequestRows, recentlyClosedRows] = await Promise.all([
     prisma.supportRequest.findMany({
       where: activeWhere,
       orderBy: [{ slaDueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
@@ -223,6 +226,21 @@ export default async function AdminSupportPage({
       select: SUPPORT_REQUEST_ROW_SELECT,
     }),
   ]);
+  const closureLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
+    actorId: staff.id,
+    userIds: [...activeRequestRows, ...recentlyClosedRows]
+      .map((request) => request.closureEvidenceById)
+      .filter((id): id is string => Boolean(id)),
+  });
+  const closureLabelById = new Map(closureLabels.map((label) => [label.id, label]));
+  const attachClosureLabel = (request: SupportRequestBaseRow): SupportRequestRow => ({
+    ...request,
+    closureEvidenceBy: request.closureEvidenceById
+      ? { email: closureLabelById.get(request.closureEvidenceById)?.email ?? "Unknown" }
+      : null,
+  });
+  const activeRequests = activeRequestRows.map(attachClosureLabel);
+  const recentlyClosed = recentlyClosedRows.map(attachClosureLabel);
 
   return (
     <main className="mx-auto max-w-7xl p-6">

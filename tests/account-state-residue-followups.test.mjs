@@ -101,12 +101,12 @@ describe("account-state residue hardening", () => {
     assert.match(reportsPage, /if \(user\.deletedAt\) return "Deleted user"/);
     assert.match(reportsPage, /function reportUserSearchValue/);
     assert.match(reportsPage, /if \(!user \|\| user\.deletedAt\) return ""/);
-    assert.match(reportsPage, /reporter: \{ select: \{ name: true, email: true, deletedAt: true \} \}/);
-    assert.match(reportsPage, /reported: \{ select: \{ name: true, email: true, deletedAt: true \} \}/);
+    assert.match(reportsPage, /userStaffAdminLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: reports\.flatMap\(\(report\) => \[report\.reporterId, report\.reportedId\]\),/s);
+    assert.match(reportsPage, /const reportUserById = new Map\(reportUsers\.map\(\(user\) => \[user\.id, user\]\)\)/);
     assert.match(reportsPage, /userStaffReportLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: topReporters\.map\(\(r\) => r\.reporterId\),/s);
     assert.match(source("src/lib/userStaffAccess.ts"), /UserStaffReportLabel = UserStaffEmailTarget & \{\s*deletedAt: Date \| null;/s);
-    assert.match(reportsPage, /reportUserLabel\(r\.reporter\)/);
-    assert.match(reportsPage, /reportUserLabel\(r\.reported\)/);
+    assert.match(reportsPage, /reportUserLabel\(reportUserById\.get\(r\.reporterId\)\)/);
+    assert.match(reportsPage, /reportUserLabel\(reportUserById\.get\(r\.reportedId\)\)/);
     assert.doesNotMatch(reportsPage, /r\.reported\.email \?\? r\.reported\.name/);
   });
 

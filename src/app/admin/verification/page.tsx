@@ -39,6 +39,8 @@ import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { readOrderSellerMetricsFacts } from "@/lib/orderSellerMetricsAuthority";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 import { formatCurrencyCents } from "@/lib/money";
 import {
   getCaseGuildUnresolvedGuard,
@@ -190,14 +192,18 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
           userId: true,
           id: true,
           displayName: true,
-          user: { select: { createdAt: true, banned: true, deletedAt: true } },
+          ownerAccountActive: true,
         },
       },
     },
   });
   if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
   if (verification.status !== "PENDING") return { ok: false, error: "Application is no longer pending. Refresh this page." };
-  if (verification.sellerProfile.user.banned || verification.sellerProfile.user.deletedAt) {
+  const [sellerAccount] = await userStaffAdminLabels(getOrderStaffReadClient(), {
+    actorId: me.id,
+    userIds: [verification.sellerProfile.userId],
+  });
+  if (!verification.sellerProfile.ownerAccountActive || !sellerAccount || sellerAccount.deletedAt) {
     return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
   }
 
@@ -224,7 +230,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
   }
   const totalSalesCents = orderFacts.totalSalesCents;
   const accountAgeDays = Math.floor(
-    (Date.now() - new Date(verification.sellerProfile.user.createdAt).getTime()) / (1000 * 60 * 60 * 24),
+    (Date.now() - sellerAccount.createdAt.getTime()) / (1000 * 60 * 60 * 24),
   );
   const unmetRequirements = [
     activeListings < 5 ? `${activeListings}/5 active public listings` : null,
@@ -268,7 +274,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
       const sellerUpdated = await tx.sellerProfile.updateMany({
         where: {
           id: verification.sellerProfileId,
-          user: { banned: false, deletedAt: null },
+          ownerAccountActive: true,
         },
         data: {
           isVerifiedMaker: true,
@@ -513,7 +519,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
           userId: true,
           id: true,
           displayName: true,
-          user: { select: { banned: true, deletedAt: true } },
+          ownerAccountActive: true,
           sellerMetrics: {
             select: {
               calculatedAt: true,
@@ -536,7 +542,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
   if (verification.status !== "GUILD_MASTER_PENDING") {
     return { ok: false, error: "Application is no longer pending. Refresh this page." };
   }
-  if (verification.sellerProfile.user.banned || verification.sellerProfile.user.deletedAt) {
+  if (!verification.sellerProfile.ownerAccountActive) {
     return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
   }
 
@@ -580,7 +586,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
       const sellerUpdated = await tx.sellerProfile.updateMany({
         where: {
           id: verification.sellerProfileId,
-          user: { banned: false, deletedAt: null },
+          ownerAccountActive: true,
         },
         data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: approvedAt },
       });
@@ -798,10 +804,10 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
         select: {
           userId: true,
           displayName: true,
-          user: { select: { banned: true, deletedAt: true } },
+          ownerAccountActive: true,
         },
       });
-      if (!seller || seller.user.banned || seller.user.deletedAt) return null;
+      if (!seller || !seller.ownerAccountActive) return null;
 
       const longCase = await getCaseGuildUnresolvedGuard(
         sellerProfileId,
@@ -833,7 +839,7 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
           id: sellerProfileId,
           guildLevel: "NONE",
           guildMemberApprovedAt: { not: null },
-          user: { banned: false, deletedAt: null },
+          ownerAccountActive: true,
         },
         data: {
           guildLevel: "GUILD_MEMBER",

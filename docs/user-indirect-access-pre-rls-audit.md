@@ -60,12 +60,13 @@ added to the inline/shared count.
 
 Typed query-shape factory return bodies are inventoried separately. Their argument
 composition, computed properties and dynamic SQL generation are not fully
-resolved. There are 222 opaque caller shapes and 14 opaque factory-return shapes
-in the current source. Many caller shapes are ordinary
-scalar updates or public-filter helpers. They are manual review candidates, not
-confirmed User dependencies. The scanner cannot authorize grants or activation,
-and zero discovered edges would still require resolving its opaque frontier.
-Migrations and installed function bodies need a separate source/catalog audit.
+resolved by the scanner. The current 222 opaque caller shapes and 14 opaque
+factory-return shapes have now received a bounded semantic review. They are
+reviewed lifecycle-snapshot/ownership helpers, scalar filters, ordering and
+mutation payload construction; none hides a User relation, direct delegate or
+raw User SQL call. Line-independent signature digests make any change fail a
+focused review test. See `docs/user-opaque-query-review.md`. Migrations and
+installed function bodies still need a separate source/catalog audit.
 
 ## Failure and concurrency review
 
@@ -132,12 +133,17 @@ all 37 exact callable signatures, proving the final 27/10 runtime partition
 and retention of all eight staff-role grants. Stub bodies make this a DCL
 convergence proof, not a repeat of function-behavior or Production authentication
 proof. The full focused db-grant-inventory suite passes 28 tests with one
-intentional skip. Installed Production catalog comparison remains open.
+intentional skip. Installed Production catalog comparison remains open. The
+separate service-ledger scope decision is closed without claiming those ledgers
+are hardened.
 
 GO for these compatible source conversions. NO-GO for User policies, table
-revocation, ENABLE or FORCE until every remaining dependency, opaque shape,
-service ledger and installed-function catalog is resolved. Compatible publication,
-SQL installation and deployment remain separate release actions.
+revocation, ENABLE or FORCE until the installed-function catalog and final
+grant/policy design are resolved. The service-ledger scope decision is closed
+in `docs/user-service-ledger-separation-decision.md`; it preserves both ledgers'
+predecessor state and tracks their hardening as separate releases.
+Compatible publication, SQL installation and deployment remain separate release
+actions.
 
 ## 2026-10-07 follower-authority continuation
 
@@ -163,5 +169,31 @@ The explicit callable catalog now contains **44 exact functions: 34
 ordinary-runtime and ten private**. Canonical provisioning includes the three
 new signatures and keeps the existing private split unchanged. Staff/admin
 projections are the next cohesive conversion group. Installed Production
-catalog comparison, service-ledger closure, opaque/manual review and final
+catalog comparison, the service-ledger decision and final
 grant/policy design remain activation gates.
+
+## 2026-10-07 staff admin-label continuation
+
+The isolated staff admin-label successor removes the ten display-only relation
+edges from audit, blog, broadcasts, reports, reviews and support pages. One
+bounded isolated-role projection returns only id, name, email, deletion and
+creation timestamps for at most 200 requested ids after independently verifying
+an active employee/admin actor. Guild verification uses the creation timestamp
+for its existing account-age requirement. Guild verification and listing review
+repeat account activity at each mutation through the transactionally maintained
+`SellerProfile.ownerAccountActive` snapshot; the User lifecycle trigger and the
+seller-row mutation serialize changes without a stale preflight relation. The
+exact frontier is now **zero relation edges**, zero direct delegates and zero raw
+User SQL. The complete explicit catalog is now **53 functions: 34
+ordinary-runtime and nineteen private**, including nine isolated staff functions
+and ten snapshot trigger functions. Follow
+`docs/user-staff-admin-labels-pre-rls-audit.md`.
+
+## 2026-10-07 opaque-query closure
+
+The 222 opaque caller shapes and fourteen typed factory-return shapes were
+classified and read against their helper implementations. The current set uses
+durable lifecycle snapshots, scalar ownership/cursor filters, orderings and
+mutation payload builders; it contains no hidden User relation, direct User
+delegate or raw User SQL access. A line-independent signature gate now requires
+fresh review for any change. Follow `docs/user-opaque-query-review.md`.

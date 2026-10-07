@@ -60,6 +60,18 @@ const groups = [
     ["grainline_user_custom_order_seller_state(text, text)", true],
     ["grainline_user_owner_notification_preferences(text)", true],
   ]],
+  ["20261007010000_prepare_user_public_blog_state", [
+    ["grainline_blog_post_author_public_state_bind()", false],
+    ["grainline_blog_comment_author_public_state_bind()", false],
+    ["grainline_user_public_blog_state_sync()", false],
+    ["grainline_seller_public_blog_state_sync()", false],
+  ]],
+  ["20261007020000_prepare_user_public_review_commission_state", [
+    ["grainline_review_reviewer_public_state_bind()", false],
+    ["grainline_commission_buyer_public_state_bind()", false],
+    ["grainline_user_public_review_commission_state_sync()", false],
+    ["grainline_seller_public_commission_state_sync()", false],
+  ]],
   ["20261007030000_prepare_user_block_email_authorities", [
     ["grainline_user_block_targets()", true],
     ["grainline_user_blocked_account_page()", true],
@@ -71,6 +83,9 @@ const groups = [
     ["grainline_user_owner_broadcast_follower_page(text, text, integer, boolean)", true],
     ["grainline_user_public_listing_favorite_counts(text[])", true],
   ]],
+  ["20261007150000_prepare_user_staff_admin_labels", [
+    ["grainline_user_staff_admin_labels(text, text[])", false],
+  ]],
 ];
 
 export const USER_AUTHORITY_GROUPS = Object.freeze(groups.map(([migration, entries]) => Object.freeze({
@@ -79,6 +94,10 @@ export const USER_AUTHORITY_GROUPS = Object.freeze(groups.map(([migration, entri
 })));
 
 export const USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES = Object.freeze(
-  USER_AUTHORITY_GROUPS.find(({ migration }) => migration === "20261006010000_prepare_user_staff_ban_authorities")
-    .functions.filter(({ runtimeExecute }) => !runtimeExecute).map(({ name }) => name),
+  USER_AUTHORITY_GROUPS
+    .filter(({ migration }) => [
+      "20261006010000_prepare_user_staff_ban_authorities",
+      "20261007150000_prepare_user_staff_admin_labels",
+    ].includes(migration))
+    .flatMap(({ functions }) => functions.filter(({ runtimeExecute }) => !runtimeExecute).map(({ name }) => name)),
 );

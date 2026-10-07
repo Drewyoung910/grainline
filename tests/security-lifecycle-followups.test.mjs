@@ -37,9 +37,9 @@ describe("security lifecycle follow-ups", () => {
     const page = source("src/app/admin/verification/page.tsx");
     const reinstateBody = functionBody(page, "reinstateGuildMember");
 
-    assert.match(reinstateBody, /user: \{ select: \{ banned: true, deletedAt: true \} \}/);
-    assert.match(reinstateBody, /seller\.user\.banned \|\| seller\.user\.deletedAt/);
-    assert.match(reinstateBody, /user: \{ banned: false, deletedAt: null \}/);
+    assert.match(reinstateBody, /ownerAccountActive: true/);
+    assert.match(reinstateBody, /!seller \|\| !seller\.ownerAccountActive/);
+    assert.match(reinstateBody, /sellerProfile\.updateMany\(\{[\s\S]*ownerAccountActive: true/);
     assert.match(reinstateBody, /title: "Guild Member badge reinstated"/);
     assert.match(reinstateBody, /publicSellerPath\(sellerProfileId, reinstatedSeller\.displayName\)/);
   });
@@ -50,9 +50,9 @@ describe("security lifecycle follow-ups", () => {
     for (const action of ["approveGuildMember", "approveGuildMaster"]) {
       const body = functionBody(page, action);
 
-      assert.match(body, /user: \{ select: \{[^}]*banned: true, deletedAt: true/s, `${action} must load account state`);
-      assert.match(body, /sellerProfile\.user\.banned \|\| verification\.sellerProfile\.user\.deletedAt/, `${action} must block inactive accounts before approval`);
-      assert.match(body, /sellerProfile\.updateMany\(\{[\s\S]*user: \{ banned: false, deletedAt: null \}/, `${action} must guard the seller write by active account state`);
+      assert.match(body, /ownerAccountActive: true/, `${action} must load account state`);
+      assert.match(body, /!verification\.sellerProfile\.ownerAccountActive/, `${action} must block inactive accounts before approval`);
+      assert.match(body, /sellerProfile\.updateMany\(\{[\s\S]*ownerAccountActive: true/, `${action} must guard the seller write by active account state`);
       assert.match(body, /assertGuildVerificationTransition\(sellerUpdated\.count, "approve Guild/, `${action} must surface approval races`);
     }
   });

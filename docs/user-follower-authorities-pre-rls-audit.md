@@ -104,8 +104,8 @@ policies, ENABLE, or FORCE from this document alone. Before User activation:
    callers while preserving Admin-PIN and staff-session boundaries;
 2. compare the complete installed Production function and privilege catalog to
    the source catalog;
-3. close the `ClerkWebhookEvent` and `AccountDeletionSideEffect` service-ledger
-   dependencies;
+3. preserve the `ClerkWebhookEvent` and `AccountDeletionSideEffect` predecessor
+   state under the separate scope decision and retain both ledger backlog rows;
 4. complete bounded review of opaque query composition and the final
    grant/policy design; and
 5. obtain separate exact authorization for every publication, Production SQL,

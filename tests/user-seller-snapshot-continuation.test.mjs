@@ -41,11 +41,11 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   );
 });
 
-test("seller, blog, review, block-email, and follower continuations reduce the User relation frontier", () => {
+test("seller snapshots and bounded authorities close the User relation frontier", () => {
   const report = auditUserIndirectAccess(process.cwd());
   assert.equal(report.directCount, 0);
-  assert.equal(report.relationCount, 19);
-  assert.equal(report.relationFiles, 8);
+  assert.equal(report.relationCount, 0);
+  assert.equal(report.relationFiles, 0);
   assert.equal(report.rawSqlCount, 0);
   assert.equal(report.rawSqlFiles, 0);
   assert.equal(report.factoryRelations.length, 0);
@@ -59,6 +59,14 @@ test("seller, blog, review, block-email, and follower continuations reduce the U
     "src/lib/followerListingNotifications.ts",
     "src/lib/quality-score.ts",
     "src/lib/stripeWebhookMirror.ts",
+    "src/app/admin/audit/page.tsx",
+    "src/app/admin/blog/page.tsx",
+    "src/app/admin/broadcasts/page.tsx",
+    "src/app/admin/reports/page.tsx",
+    "src/app/admin/reviews/page.tsx",
+    "src/app/admin/support/page.tsx",
+    "src/app/admin/verification/page.tsx",
+    "src/app/api/admin/listings/[id]/review/route.ts",
   ]);
   assert.deepEqual(
     report.relations.filter((edge) => removedFiles.has(edge.query.file)),

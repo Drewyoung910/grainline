@@ -3058,6 +3058,7 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_user_staff_directory_page"(text, text, integer)'),
     ('public."grainline_user_staff_exact_email_target"(text, text)'),
     ('public."grainline_user_staff_report_labels"(text, text[])'),
+    ('public."grainline_user_staff_admin_labels"(text, text[])'),
     ('public."grainline_user_staff_email_recipient"(text, text, text)'),
     ('public."grainline_user_staff_ban_target"(text, text)'),
     ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),

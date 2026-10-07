@@ -189,6 +189,14 @@ jobs:
           tests/user-follower-authorities-source.test.mjs
           tests/user-follower-authorities-postgres.test.mjs
           tests/user-public-seller-state-source.test.mjs
+      - name: Verify User staff admin-label source package
+        run: >-
+          node --test
+          tests/account-state-residue-followups.test.mjs
+          tests/admin-action-guardrails.test.mjs
+          tests/admin-query-and-email-guardrails.test.mjs
+          tests/user-seller-snapshot-continuation.test.mjs
+          tests/user-staff-admin-labels.test.mjs
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
@@ -345,6 +353,24 @@ jobs:
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
+      - name: Isolate User staff admin labels until follower passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-staff-admin-labels"
+          mkdir "$holding"
+          historical=120a90ea98d4376577ffc85b8e7296adc34285b9
+          git cat-file -e "$historical^{commit}"
+          git merge-base --is-ancestor "$historical" HEAD
+          mv scripts/user-authority-catalog.mjs "$holding/user-authority-catalog-script"
+          git show "$historical:scripts/user-authority-catalog.mjs" > scripts/user-authority-catalog.mjs
+          test "$(git hash-object scripts/user-authority-catalog.mjs)" = "e34aaafee610e6ed6b5d4f3074ee0a4dea7a8d2b"
+          mv \
+            prisma/migrations/20261007150000_prepare_user_staff_admin_labels \
+            "$holding/migration"
+          mv \
+            tests/user-staff-admin-labels.test.mjs \
+            "$holding/user-staff-admin-labels.test.mjs"
       - name: Isolate User follower authority until block-email passes
         shell: bash
         run: |
@@ -4462,6 +4488,15 @@ jobs:
           do
             mv "$test_file" "tests/$(basename "$test_file")"
           done
+          staff_holding="$RUNNER_TEMP/user-staff-admin-labels"
+          staff_historical=120a90ea98d4376577ffc85b8e7296adc34285b9
+          mv \
+            tests/user-authority-catalog.test.mjs \
+            "$staff_holding/user-authority-catalog-test"
+          git show \
+            "$staff_historical:tests/user-authority-catalog.test.mjs" \
+            > tests/user-authority-catalog.test.mjs
+          test "$(git hash-object tests/user-authority-catalog.test.mjs)" = "6d0a46c02fa040e7651b675696cec67ad1b2fdd3"
           follower_holding="$RUNNER_TEMP/user-follower-authority"
           historical=4caa8ae4f0398814d614bccb0a5259becb94d50c
           mv \
@@ -4705,6 +4740,108 @@ jobs:
           $verify_user_follower_authorities$;
           SQL
       - name: Audit runtime grants after User follower authorities
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User staff admin-label source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-staff-admin-labels"
+          rm \
+            scripts/user-authority-catalog.mjs \
+            tests/user-authority-catalog.test.mjs
+          mv \
+            "$holding/user-authority-catalog-script" \
+            scripts/user-authority-catalog.mjs
+          mv \
+            "$holding/user-authority-catalog-test" \
+            tests/user-authority-catalog.test.mjs
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261007150000_prepare_user_staff_admin_labels
+          mv \
+            "$holding/user-staff-admin-labels.test.mjs" \
+            tests/user-staff-admin-labels.test.mjs
+          rmdir "$holding"
+      - name: Re-verify User staff admin-label source package
+        run: >-
+          node --test
+          tests/account-state-residue-followups.test.mjs
+          tests/admin-action-guardrails.test.mjs
+          tests/admin-query-and-email-guardrails.test.mjs
+          tests/user-authority-catalog.test.mjs
+          tests/user-indirect-access-inventory.test.mjs
+          tests/user-seller-snapshot-continuation.test.mjs
+          tests/user-staff-admin-labels.test.mjs
+      - name: Apply User staff admin-label authority in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261007150000_prepare_user_staff_admin_labels/migration.sql
+      - name: Verify User staff admin-label authority catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_staff_admin_labels$
+          DECLARE
+            function_is_exact boolean;
+            rls_posture_is_unchanged boolean;
+          BEGIN
+            SELECT
+              pg_catalog.count(*) = 1
+              AND pg_catalog.bool_and(procedure.prosecdef)
+              AND pg_catalog.bool_and(
+                procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+              )
+              AND pg_catalog.bool_and(
+                pg_catalog.has_function_privilege(
+                  'grainline_staff_read_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                pg_catalog.has_function_privilege(
+                  'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                EXISTS (
+                  SELECT 1
+                    FROM pg_catalog.aclexplode(
+                      COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )
+                    ) AS privilege
+                   WHERE privilege.grantee = 0
+                     AND privilege.privilege_type = 'EXECUTE'
+                )
+              )
+              INTO function_is_exact
+              FROM pg_catalog.pg_proc AS procedure
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.oid =
+                 'public.grainline_user_staff_admin_labels(text, text[])'::pg_catalog.regprocedure;
+
+            SELECT
+              pg_catalog.count(*) = 1
+              AND NOT pg_catalog.bool_or(
+                table_state.relrowsecurity OR table_state.relforcerowsecurity
+              )
+              INTO rls_posture_is_unchanged
+              FROM pg_catalog.pg_class AS table_state
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = table_state.relnamespace
+             WHERE namespace.nspname = 'public'
+               AND table_state.relname = 'User';
+
+            IF function_is_exact IS DISTINCT FROM true
+               OR rls_posture_is_unchanged IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'User staff admin-label authority catalog drifted';
+            END IF;
+          END
+          $verify_user_staff_admin_labels$;
+          SQL
+      - name: Audit runtime grants after User staff admin-label authority
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
