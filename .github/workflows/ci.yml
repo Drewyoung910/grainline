@@ -188,6 +188,10 @@ jobs:
           tests/admin-page-pin-boundary.test.mjs
           tests/order-staff-read-role-provision.test.mjs
           tests/order-staff-read-role-catalog-postgres.test.mjs
+          tests/account-deletion-blocker-refund-state.test.mjs
+          tests/account-deletion-timeout-fix.test.mjs
+          tests/round9-account-deletion-pii-guardrails.test.mjs
+          tests/conversation-message-pre-rls-audit.test.mjs
       - name: Isolate accumulated User access until its predecessors pass
         shell: bash
         run: |
@@ -215,7 +219,11 @@ jobs:
             tests/user-accumulated-access-ci.test.mjs \
             tests/order-ban-review-authority.test.mjs \
             tests/order-staff-read-role-provision.test.mjs \
-            tests/order-staff-read-role-catalog-postgres.test.mjs
+            tests/order-staff-read-role-catalog-postgres.test.mjs \
+            tests/account-deletion-blocker-refund-state.test.mjs \
+            tests/account-deletion-timeout-fix.test.mjs \
+            tests/round9-account-deletion-pii-guardrails.test.mjs \
+            tests/conversation-message-pre-rls-audit.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done

@@ -38,6 +38,14 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
   it("serializes ordinary sends with blocks and account deletion without a per-pair send mutex", () => {
     const page = source("src/app/messages/[id]/page.tsx");
     const deletion = source("src/lib/accountDeletion.ts");
+    const deletionAccess = source("src/lib/userAccountDeletionAccess.ts");
+    const deletionSql = source(
+      "prisma/migrations/20261006020000_prepare_user_account_deletion_authorities/migration.sql",
+    );
+    const snapshotStart = deletionSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_user_account_deletion_snapshot(");
+    const snapshotEnd = deletionSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_user_account_deletion_finalize(");
+    assert.ok(snapshotStart >= 0 && snapshotEnd > snapshotStart);
+    const snapshotSql = deletionSql.slice(snapshotStart, snapshotEnd);
     const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
     const ordinaryFunction = serviceSql.slice(
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_ordinary"),
@@ -55,7 +63,16 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.ok(timestamp < messageCreate);
     assert.match(ordinaryFunction, /FROM public\."Conversation" AS conversation[\s\S]{0,320}FOR UPDATE/);
     assert.match(serviceSql, /ORDER BY account_user\.id\s+FOR SHARE/);
-    assert.match(deletion, /FROM "User" AS deletion_user[\s\S]{0,180}FOR UPDATE/);
+    assert.match(deletion, /getUserAccountDeletionSnapshot\(\s*tx,\s*localAnonymizeSideEffectId/);
+    assert.match(deletionAccess, /public\.grainline_user_account_deletion_snapshot/);
+    assert.match(snapshotSql, /FROM public\."User" AS account_user[\s\S]{0,180}FOR UPDATE/);
+    const deletionTx = deletion.indexOf("const result = await withDbUserContext");
+    const snapshotCall = deletion.indexOf("getUserAccountDeletionSnapshot(", deletionTx);
+    const redactionCall = deletion.indexOf("await redactActorMessagesForAccountDeletion(user.id, tx)", deletionTx);
+    assert.ok(
+      deletionTx >= 0 && snapshotCall > deletionTx && redactionCall > snapshotCall,
+      "the locked snapshot must precede message redaction",
+    );
     assert.match(page, /sendActorOrdinaryMessage\(/);
     assert.doesNotMatch(page, /prisma\.(?:conversation|message)\./);
     assert.doesNotMatch(ordinaryFunction, /pg_advisory_xact_lock/);

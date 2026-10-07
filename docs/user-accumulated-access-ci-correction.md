@@ -103,3 +103,29 @@ diff checks and workflow YAML parsing pass. No full historical database replay
 or application test batch was repeated locally. Public publication and
 conditional merge require a new exact source-head decision because the
 `7219cd3d` gate failed.
+
+## Complete held-migration test dependency closure
+
+Approved `64f24668` passed the formerly failing real staff-login convergence
+stage and all three independent Order checks. CI `37560369695` then reached
+the full test phase: 5,000 passed, four failed and nine skipped. Three failures
+were ENOENT in account-deletion guards that read the intentionally held new User
+migration. The fourth was a conversation/deletion serialization guard still
+expecting the removed inline User lock. No source merge occurred.
+
+All four affected guard files are now verified before isolation and held with
+their migration. The serialization assertion follows the actual transaction's
+effect-bound snapshot wrapper and the snapshot SQL's User FOR UPDATE, preserving
+the requirement that this lock precede message redaction. It isolates that
+function body so the finalizer's later lock cannot satisfy the assertion.
+
+A TypeScript-syntax dependency census checks every root test module for literal
+paths into the held migration families. Any omitted reader fails the short
+initial package check instead of waiting for the long historical replay. This
+is literal-path closure, not a claim to resolve arbitrary dynamic dependencies.
+
+The five-file focused test batch passed 45/45. After strengthening the snapshot
+body/order assertion, that one changed case passed again. Targeted ESLint and
+diff checks pass. No application or migration SQL was changed, and no broad
+local proof was rerun. The failed exact-head CI remains preserved evidence;
+publication of this changed source head needs its own conditional decision.

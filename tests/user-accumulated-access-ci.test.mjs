@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import ts from "typescript";
 import { deriveGrantInventory } from "../scripts/audit-runtime-db-grants.mjs";
 import { USER_AUTHORITY_GROUPS } from "../scripts/user-authority-catalog.mjs";
 
@@ -23,6 +24,10 @@ const heldTests = [
   "order-ban-review-authority.test.mjs",
   "order-staff-read-role-provision.test.mjs",
   "order-staff-read-role-catalog-postgres.test.mjs",
+  "account-deletion-blocker-refund-state.test.mjs",
+  "account-deletion-timeout-fix.test.mjs",
+  "round9-account-deletion-pii-guardrails.test.mjs",
+  "conversation-message-pre-rls-audit.test.mjs",
 ];
 const staffScript = "scripts/provision-order-staff-read-role.sql";
 const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
@@ -38,6 +43,21 @@ function step(name) {
 function bashBody(name) {
   return step(name).split("        run: |\n")[1].split("\n").map((line) => line.startsWith("          ") ? line.slice(10) : line).join("\n");
 }
+
+test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
+  const omitted = [];
+  for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
+    const parsed = ts.createSourceFile(file, readFileSync(path.join("tests", file), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    function visit(node) {
+      if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+        && migrations.some((migration) => node.text.startsWith("prisma/migrations/" + migration + "/"))
+        && !heldTests.includes(file)) omitted.push(file);
+      ts.forEachChild(node, visit);
+    }
+    visit(parsed);
+  }
+  assert.deepEqual([...new Set(omitted)], []);
+});
 
 test("new User families are proved then isolated until historical prerequisites finish", () => {
   const verify = "Verify accumulated User access source package";
