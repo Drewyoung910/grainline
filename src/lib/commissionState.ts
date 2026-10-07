@@ -4,7 +4,7 @@ export function openCommissionBaseWhere(now = new Date()): Prisma.CommissionRequ
   return {
     status: CommissionStatus.OPEN,
     OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-    buyer: { banned: false, deletedAt: null },
+    buyerAccountActive: true,
   };
 }
 

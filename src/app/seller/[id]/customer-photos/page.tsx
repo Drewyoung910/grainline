@@ -94,7 +94,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
   const photoWhere = {
     review: {
       ...blockedReviewerFilter,
-      reviewer: { banned: false, deletedAt: null },
+      reviewerAccountActive: true,
       listing: publicListingDetailWhere({ sellerId: seller.id }),
     },
   };

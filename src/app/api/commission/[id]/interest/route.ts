@@ -72,14 +72,12 @@ export async function POST(
       budgetMinCents: true,
       budgetMaxCents: true,
       timeline: true,
-      buyer: {
-        select: { id: true, name: true, banned: true, deletedAt: true },
-      },
+      buyerAccountActive: true,
     },
   });
   if (!commissionRequest)
     return privateJson({ error: "Not found" }, { status: 404 });
-  if (commissionRequest.buyer.banned || commissionRequest.buyer.deletedAt) {
+  if (!commissionRequest.buyerAccountActive) {
     return privateJson({ error: "Not found" }, { status: 404 });
   }
   if (

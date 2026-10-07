@@ -171,6 +171,16 @@ jobs:
           tests/public-visibility-followups.test.mjs
           tests/user-public-blog-state-source.test.mjs
           tests/user-public-blog-state-postgres.test.mjs
+      - name: Verify User public review-commission source package
+        run: >-
+          node --test
+          tests/commission-expiry.test.mjs
+          tests/commission-interest-count.test.mjs
+          tests/listing-visibility.test.mjs
+          tests/public-query-determinism.test.mjs
+          tests/public-visibility-followups.test.mjs
+          tests/user-public-review-commission-state-source.test.mjs
+          tests/user-public-review-commission-state-postgres.test.mjs
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
@@ -290,6 +300,21 @@ jobs:
           for test_file in \
             tests/user-public-blog-state-source.test.mjs \
             tests/user-public-blog-state-postgres.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
+      - name: Isolate User public review-commission package until its predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-public-review-commission"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261007020000_prepare_user_public_review_commission_state \
+            "$holding/migration"
+          for test_file in \
+            tests/user-public-review-commission-state-source.test.mjs \
+            tests/user-public-review-commission-state-postgres.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
@@ -4212,6 +4237,163 @@ jobs:
           $verify_user_public_blog_state$;
           SQL
       - name: Audit runtime grants after User public blog-state snapshot
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User public review-commission source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-public-review-commission"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261007020000_prepare_user_public_review_commission_state
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify User public review-commission source package
+        run: >-
+          node --test
+          tests/commission-expiry.test.mjs
+          tests/commission-interest-count.test.mjs
+          tests/listing-visibility.test.mjs
+          tests/public-query-determinism.test.mjs
+          tests/public-visibility-followups.test.mjs
+          tests/user-public-review-commission-state-source.test.mjs
+          tests/user-public-review-commission-state-postgres.test.mjs
+      - name: Apply User public review-commission snapshot in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261007020000_prepare_user_public_review_commission_state/migration.sql
+      - name: Verify User public review-commission snapshot catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_public_review_commission_state$
+          DECLARE
+            columns_are_exact boolean;
+            functions_are_exact boolean;
+            triggers_are_exact boolean;
+          BEGIN
+            SELECT
+              pg_catalog.count(*) = 8
+              AND pg_catalog.bool_and(
+                CASE
+                  WHEN attribute.attname IN ('reviewerAccountActive', 'buyerAccountActive')
+                    THEN attribute.attnotnull
+                  ELSE NOT attribute.attnotnull
+                END
+              )
+              INTO columns_are_exact
+              FROM pg_catalog.pg_attribute AS attribute
+             WHERE attribute.attrelid = ANY(ARRAY[
+                     'public."Review"'::pg_catalog.regclass,
+                     'public."CommissionRequest"'::pg_catalog.regclass
+                   ]::pg_catalog.oid[])
+               AND attribute.attname = ANY(ARRAY[
+                 'reviewerAccountActive',
+                 'reviewerName',
+                 'reviewerImageUrl',
+                 'buyerAccountActive',
+                 'buyerName',
+                 'buyerImageUrl',
+                 'buyerSellerCity',
+                 'buyerSellerState'
+               ]::text[])
+               AND attribute.attnum > 0
+               AND NOT attribute.attisdropped;
+
+            SELECT
+              pg_catalog.count(*) = 4
+              AND pg_catalog.bool_and(procedure.prosecdef)
+              AND pg_catalog.bool_and(
+                procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+              )
+              AND NOT pg_catalog.bool_or(
+                pg_catalog.has_function_privilege(
+                  'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                EXISTS (
+                  SELECT 1
+                    FROM pg_catalog.aclexplode(
+                      COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )
+                    ) AS privilege
+                   WHERE privilege.grantee = 0
+                     AND privilege.privilege_type = 'EXECUTE'
+                )
+              )
+              INTO functions_are_exact
+              FROM pg_catalog.pg_proc AS procedure
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.proname = ANY(ARRAY[
+                 'grainline_review_reviewer_public_state_bind',
+                 'grainline_commission_buyer_public_state_bind',
+                 'grainline_user_public_review_commission_state_sync',
+                 'grainline_seller_public_commission_state_sync'
+               ]::text[]);
+
+            SELECT
+              pg_catalog.count(*) = 7
+              AND pg_catalog.bool_and(trigger.tgenabled = 'O')
+              INTO triggers_are_exact
+              FROM pg_catalog.pg_trigger AS trigger
+             WHERE NOT trigger.tgisinternal
+               AND trigger.tgname = ANY(ARRAY[
+                 'grainline_review_reviewer_public_state_bind',
+                 'grainline_review_reviewer_snapshot_bind',
+                 'grainline_commission_buyer_public_state_bind',
+                 'grainline_commission_buyer_user_state_bind',
+                 'grainline_commission_buyer_seller_state_bind',
+                 'grainline_user_public_review_commission_state_sync',
+                 'grainline_seller_public_commission_state_sync'
+               ]::text[]);
+
+            IF columns_are_exact IS DISTINCT FROM true
+               OR functions_are_exact IS DISTINCT FROM true
+               OR triggers_are_exact IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'User public review-commission catalog drifted';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+                FROM public."Review" AS review
+                JOIN public."User" AS account_user
+                  ON account_user.id = review."reviewerId"
+               WHERE review."reviewerAccountActive" IS DISTINCT FROM (
+                       account_user.banned = false
+                       AND account_user."deletedAt" IS NULL
+                     )
+                  OR review."reviewerName" IS DISTINCT FROM account_user.name
+                  OR review."reviewerImageUrl" IS DISTINCT FROM account_user."imageUrl"
+            ) OR EXISTS (
+              SELECT 1
+                FROM public."CommissionRequest" AS commission
+                JOIN public."User" AS account_user
+                  ON account_user.id = commission."buyerId"
+                LEFT JOIN public."SellerProfile" AS seller
+                  ON seller."userId" = commission."buyerId"
+               WHERE commission."buyerAccountActive" IS DISTINCT FROM (
+                       account_user.banned = false
+                       AND account_user."deletedAt" IS NULL
+                     )
+                  OR commission."buyerName" IS DISTINCT FROM account_user.name
+                  OR commission."buyerImageUrl" IS DISTINCT FROM account_user."imageUrl"
+                  OR commission."buyerSellerCity" IS DISTINCT FROM seller.city
+                  OR commission."buyerSellerState" IS DISTINCT FROM seller.state
+            ) THEN
+              RAISE EXCEPTION 'User public review-commission snapshot drifted';
+            END IF;
+          END
+          $verify_user_public_review_commission_state$;
+          SQL
+      - name: Audit runtime grants after User public review-commission snapshot
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Restore accumulated User access source package
         shell: bash

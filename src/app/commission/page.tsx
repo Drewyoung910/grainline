@@ -116,12 +116,10 @@ async function CommissionPageContent({
 
     const countSql = `
       SELECT COUNT(*) FROM "CommissionRequest" cr
-      JOIN "User" u ON u.id = cr."buyerId"
       WHERE cr.status = 'OPEN'
         AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
-        AND NOT (u.id = ANY($4::text[]))
+        AND cr."buyerAccountActive" = true
+        AND NOT (cr."buyerId" = ANY($4::text[]))
         ${categoryConditionCount}
         AND (
           cr."isNational" = true
@@ -149,7 +147,7 @@ async function CommissionPageContent({
         cr."budgetMinCents", cr."budgetMaxCents", cr.timeline,
         cr."referenceImageUrls", COALESCE(ci."interestCount", 0)::int AS "interestedCount", cr."createdAt",
         cr."isNational",
-        u.id AS "buyerId", u.name AS "buyerName", u."imageUrl" AS "buyerImageUrl",
+        cr."buyerId", cr."buyerName", cr."buyerImageUrl",
         CASE
           WHEN cr.lat BETWEEN -90 AND 90 AND cr.lng BETWEEN -180 AND 180
           THEN (6371000 * acos(
@@ -162,7 +160,6 @@ async function CommissionPageContent({
           ELSE NULL
         END AS distance_m
       FROM "CommissionRequest" cr
-      JOIN "User" u ON u.id = cr."buyerId"
       LEFT JOIN LATERAL (
         SELECT COUNT(*)::int AS "interestCount"
         FROM "CommissionInterest" ci
@@ -175,9 +172,8 @@ async function CommissionPageContent({
       ) ci ON true
       WHERE cr.status = 'OPEN'
         AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
-        AND NOT (u.id = ANY($8::text[]))
+        AND cr."buyerAccountActive" = true
+        AND NOT (cr."buyerId" = ANY($8::text[]))
         ${categoryConditionSelect}
         AND (
           cr."isNational" = true
@@ -256,15 +252,17 @@ async function CommissionPageContent({
         _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
         createdAt: true,
         isNational: true,
-        buyer: { select: { name: true, imageUrl: true } },
+        buyerName: true,
+        buyerImageUrl: true,
       },
     });
-    requests = found.map(({ _count, ...request }) => ({
+    requests = found.map(({ _count, buyerName, buyerImageUrl, ...request }) => ({
       ...request,
       interestedCount: resolvedInterestedCount({
         interestedCount: request.interestedCount,
         _count,
       }),
+      buyer: { name: buyerName, imageUrl: buyerImageUrl },
     }));
   }
 

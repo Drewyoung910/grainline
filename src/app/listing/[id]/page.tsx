@@ -262,7 +262,7 @@ export default async function ListingPage({
     blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {};
   const visibleListingReviewWhere = {
     listingId,
-    reviewer: { banned: false, deletedAt: null },
+    reviewerAccountActive: true,
     ...blockedReviewerFilter,
   };
 
@@ -306,7 +306,7 @@ export default async function ListingPage({
         ratingX2: true,
         comment: true,
         createdAt: true,
-        reviewer: { select: { name: true } },
+        reviewerName: true,
       },
     }),
     meId
@@ -459,7 +459,7 @@ export default async function ListingPage({
   if (topReviews.length > 0) {
     productLd.review = topReviews.map((r) => ({
       "@type": "Review",
-      author: { "@type": "Person", name: r.reviewer.name ?? "Grainline Buyer" },
+      author: { "@type": "Person", name: r.reviewerName ?? "Grainline Buyer" },
       datePublished: r.createdAt.toISOString(),
       reviewRating: {
         "@type": "Rating",

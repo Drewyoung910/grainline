@@ -34,19 +34,18 @@ function Stars({ value }: { value: number }) {
 }
 
 type ReviewAuthorDisplay = {
-  name: string | null;
-  imageUrl: string | null;
-  banned?: boolean | null;
-  deletedAt?: Date | null;
+  reviewerAccountActive: boolean;
+  reviewerName: string | null;
+  reviewerImageUrl: string | null;
 };
 
 function reviewerUnavailable(reviewer: ReviewAuthorDisplay) {
-  return Boolean(reviewer.deletedAt || reviewer.banned);
+  return !reviewer.reviewerAccountActive;
 }
 
 function reviewerName(reviewer: ReviewAuthorDisplay) {
   if (reviewerUnavailable(reviewer)) return "Former buyer";
-  return reviewer.name ?? "Buyer";
+  return reviewer.reviewerName ?? "Buyer";
 }
 
 function reviewerInitials(reviewer: ReviewAuthorDisplay) {
@@ -94,7 +93,7 @@ export default async function ReviewsSection({
       : {};
   const visibleReviewWhere: Prisma.ReviewWhereInput = {
     listingId,
-    reviewer: { banned: false, deletedAt: null },
+    reviewerAccountActive: true,
     ...blockedReviewerFilter,
   };
 
@@ -123,7 +122,6 @@ export default async function ReviewsSection({
     ? await prisma.review.findFirst({
       where: { listingId, reviewerId: meId },
       include: {
-          reviewer: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
           photos: { orderBy: { sortOrder: "asc" } },
         },
       })
@@ -153,7 +151,6 @@ export default async function ReviewsSection({
     orderBy: reviewOrderByForSort(sort),
     take: LISTING_REVIEW_DISPLAY_LIMIT,
     include: {
-      reviewer: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
       photos: { orderBy: { sortOrder: "asc" } },
     },
   });
@@ -241,12 +238,12 @@ export default async function ReviewsSection({
           ) : (
             <div className="flex items-start gap-3">
               <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
-                {!reviewerUnavailable(mine.reviewer) && mine.reviewer.imageUrl ? (
+                {!reviewerUnavailable(mine) && mine.reviewerImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={mine.reviewer.imageUrl} alt="" className="h-full w-full object-cover" />
+                  <img src={mine.reviewerImageUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <span className="text-[10px] font-medium text-neutral-700">
-                    {reviewerInitials(mine.reviewer)}
+                    {reviewerInitials(mine)}
                   </span>
                 )}
               </div>
@@ -316,16 +313,16 @@ export default async function ReviewsSection({
         <ul className="space-y-4">
           {others.map((r) => {
             const stars = r.ratingX2 / 2;
-            const displayName = reviewerName(r.reviewer);
-            const initials = reviewerInitials(r.reviewer);
+            const displayName = reviewerName(r);
+            const initials = reviewerInitials(r);
 
             return (
               <li key={r.id} className="card-section px-4 py-3">
                 <div className="flex items-start gap-3">
                   <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
-                    {!reviewerUnavailable(r.reviewer) && r.reviewer.imageUrl ? (
+                    {!reviewerUnavailable(r) && r.reviewerImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.reviewer.imageUrl} alt="" className="h-full w-full object-cover" />
+                      <img src={r.reviewerImageUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
                     )}
@@ -344,9 +341,9 @@ export default async function ReviewsSection({
                         <span className="text-xs text-neutral-500">
                           {new Date(r.createdAt).toLocaleDateString("en-US")}
                         </span>
-                        {meId && meId !== r.reviewer.id && !reviewerUnavailable(r.reviewer) && (
+                        {meId && meId !== r.reviewerId && !reviewerUnavailable(r) && (
                           <BlockReportButton
-                            targetUserId={r.reviewer.id}
+                            targetUserId={r.reviewerId}
                             targetName={displayName}
                             targetType="REVIEW"
                             targetId={r.id}
@@ -371,7 +368,7 @@ export default async function ReviewsSection({
                           reviewId={r.id}
                           initialCount={r.helpfulCount}
                           initiallyVoted={votedReviewIds.has(r.id)}
-                          canVote={!!meId && !viewerIsSeller && meId !== r.reviewer.id}
+                          canVote={!!meId && !viewerIsSeller && meId !== r.reviewerId}
                           signedIn={!!meId}
                         />
                         {!r.sellerReply && viewerIsSeller && (

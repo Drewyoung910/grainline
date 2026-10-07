@@ -461,19 +461,22 @@ model Favorite {
 }
 
 model Review {
-  id            String    @id @default(cuid())
-  listingId     String
-  listing       Listing   @relation(fields: [listingId], references: [id], onDelete: Restrict)
-  reviewerId    String
-  reviewer      User      @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
-  ratingX2      Int
-  comment       String?   @db.VarChar(2000)
-  verified      Boolean   @default(false)
-  helpfulCount  Int       @default(0)
-  sellerReply   String?   @db.VarChar(2000)
-  sellerReplyAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  listingId             String
+  listing               Listing   @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  reviewerId            String
+  reviewer              User      @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewerAccountActive Boolean   @default(false)
+  reviewerName          String?   @db.VarChar(100)
+  reviewerImageUrl      String?   @db.VarChar(2048)
+  ratingX2              Int
+  comment               String?   @db.VarChar(2000)
+  verified              Boolean   @default(false)
+  helpfulCount          Int       @default(0)
+  sellerReply           String?   @db.VarChar(2000)
+  sellerReplyAt         DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   photos ReviewPhoto[]
   votes  ReviewVote[]
@@ -1844,6 +1847,11 @@ model CommissionRequest {
   id                 String           @id @default(cuid())
   buyerId            String
   buyer              User             @relation("CommissionRequests", fields: [buyerId], references: [id], onDelete: Restrict)
+  buyerAccountActive Boolean          @default(false)
+  buyerName          String?          @db.VarChar(100)
+  buyerImageUrl      String?          @db.VarChar(2048)
+  buyerSellerCity    String?          @db.VarChar(100)
+  buyerSellerState   String?          @db.VarChar(50)
   title              String           @db.VarChar(150)
   description        String           @db.VarChar(5000)
   category           Category?

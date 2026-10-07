@@ -98,14 +98,15 @@ export async function generateMetadata({
       budgetMaxCents: true,
       interestedCount: true,
       _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
-      buyer: { select: { sellerProfile: { select: { city: true, state: true } } } },
+      buyerSellerCity: true,
+      buyerSellerState: true,
     },
   });
   if (!req) notFound();
 
   const location = req.isNational
     ? "Ships Anywhere"
-    : [req.buyer.sellerProfile?.city, req.buyer.sellerProfile?.state].filter(Boolean).join(", ") || "Local";
+    : [req.buyerSellerCity, req.buyerSellerState].filter(Boolean).join(", ") || "Local";
 
   const title = `${req.title} — ${location} | Custom Woodworking Commission`;
 
@@ -180,7 +181,8 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       _count: { select: { interests: { where: visibleInterestWhere } } },
       createdAt: true,
       referenceImageUrls: true,
-      buyer: { select: { name: true, imageUrl: true } },
+      buyerName: true,
+      buyerImageUrl: true,
     },
   });
   const commissions = rawCommissions.map(({ _count, ...commission }) => ({
@@ -274,7 +276,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       ) : (
         <ul className="space-y-4 mb-12">
           {commissions.map((c) => {
-            const buyerName = c.buyer.name?.split(" ")[0] ?? "Buyer";
+            const buyerName = c.buyerName?.split(" ")[0] ?? "Buyer";
             const daysAgo = Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000);
             const timeStr = daysAgo < 1 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo}d ago`;
             return (
@@ -395,15 +397,10 @@ async function CommissionDetailPage({ id }: { id: string }) {
       cityMetroId: true,
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
-      buyer: {
-        select: {
-          name: true,
-          imageUrl: true,
-          banned: true,
-          deletedAt: true,
-          sellerProfile: { select: { city: true, state: true } },
-        },
-      },
+      buyerName: true,
+      buyerImageUrl: true,
+      buyerSellerCity: true,
+      buyerSellerState: true,
       interests: {
         where: visibleInterestWhere,
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -436,11 +433,11 @@ async function CommissionDetailPage({ id }: { id: string }) {
   }
 
   const isOwner = meId === request.buyerId;
-  const buyerName = request.buyer.name?.split(" ")[0] ?? "Buyer";
+  const buyerName = request.buyerName?.split(" ")[0] ?? "Buyer";
 
   const locationName = request.isNational
     ? "United States"
-    : [request.buyer.sellerProfile?.city, request.buyer.sellerProfile?.state].filter(Boolean).join(", ") || "United States";
+    : [request.buyerSellerCity, request.buyerSellerState].filter(Boolean).join(", ") || "United States";
 
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -528,9 +525,9 @@ async function CommissionDetailPage({ id }: { id: string }) {
       <section className="mb-6 pb-6 border-b border-neutral-100">
         <h2 className="font-semibold text-neutral-800 mb-2">Posted by</h2>
         <div className="flex items-center gap-2">
-          {request.buyer.imageUrl ? (
+          {request.buyerImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={request.buyer.imageUrl} alt={buyerName} className="w-8 h-8 rounded-full object-cover" />
+            <img src={request.buyerImageUrl} alt={buyerName} className="w-8 h-8 rounded-full object-cover" />
           ) : (
             <div className="w-8 h-8 rounded-full bg-neutral-200" />
           )}

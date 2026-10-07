@@ -107,6 +107,22 @@ The next cohesive source family is public review/commission identity and
 lifecycle state, followed by block/email service paths, staff projections and
 the installed catalog/service-ledger reconciliation.
 
+The public review/commission successor is now implemented locally on top of the
+public-blog package. It adds artifact-bound reviewer and commission-buyer
+lifecycle/public-label snapshots, plus commission buyer-seller city/state, and
+keeps them current with four runtime-private definer functions and seven
+narrow triggers. Public review aggregates/cards/customer photos and public
+commission browse/detail/API/distance/interest paths no longer traverse
+`User`; existing nested API response shapes, block filters, pre-limit
+visibility, actor ownership, and commission location fallbacks are preserved.
+The exact scanner frontier is now zero direct delegates, 28 relation edges in
+13 files, and three raw User SQL calls in three files. Prisma validation, the
+focused source proof, and the disposable PostgreSQL backfill/synchronization/
+tamper/rebind/privilege proof pass. Follow
+`docs/user-public-review-commission-pre-rls-audit.md`. This remains unpublished
+source preparation; block/email services, staff projections, installed catalog
+comparison, service ledgers, and final grant/policy design still block User RLS.
+
 ### Finish the bounded Order release (2026-09-07)
 
 After the bounded broad audit, Drew resumed solo implementation (no agents).
