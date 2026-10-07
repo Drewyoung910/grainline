@@ -43,8 +43,9 @@ describe("R49 account-state route guardrails", () => {
 
   it("keeps review seller side effects behind a fresh seller-account check", () => {
     const text = source("src/app/api/reviews/route.ts");
-    assert.match(text, /user: \{ select: \{ banned: true, deletedAt: true \} \}/);
-    assert.match(text, /if \(listing\?\.seller\.userId && !listing\.seller\.user\.banned && !listing\.seller\.user\.deletedAt\)/);
+    assert.match(text, /ownerAccountActive: true/);
+    assert.match(text, /if \(listing\?\.seller\.userId && listing\.seller\.ownerAccountActive === true\)/);
+    assert.doesNotMatch(text, /seller:\s*\{[\s\S]*?user:\s*\{/);
   });
 
   it("logs block follow-cleanup failures through the shared server logger", () => {

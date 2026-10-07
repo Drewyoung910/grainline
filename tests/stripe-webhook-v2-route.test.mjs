@@ -82,8 +82,9 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
 
     assert.match(mirror, /export async function mirrorStripeChargesEnabled/);
     assert.match(mirror, /where: \{ stripeAccountId: accountId \}/);
-    assert.match(mirror, /user: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/);
-    assert.match(mirror, /const localAccountActive = !seller\.user\.banned && !seller\.user\.deletedAt/);
+    assert.match(mirror, /ownerAccountActive: true/);
+    assert.match(mirror, /const localAccountActive = seller\.ownerAccountActive === true/);
+    assert.doesNotMatch(mirror, /sellerProfile\.findFirst\([\s\S]*?user:\s*\{/);
     assert.match(mirror, /const effectiveChargesEnabled = chargesEnabled && localAccountActive/);
     assert.match(mirror, /changed: seller\.chargesEnabled !== effectiveChargesEnabled/);
     assert.match(mirror, /if \(!localAccountActive && chargesEnabled\) \{/);
