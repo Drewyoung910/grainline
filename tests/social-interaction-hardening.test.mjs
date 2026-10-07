@@ -17,11 +17,9 @@ describe("social interaction route hardening", () => {
     assert.match(route, /take: TOP_LEVEL_BLOG_COMMENT_LIMIT/);
     assert.match(route, /take: BLOG_REPLY_COMMENT_LIMIT/);
     assert.match(route, /take: BLOG_NESTED_REPLY_COMMENT_LIMIT/);
-    assert.match(route, /parent\.author\.banned/);
-    assert.match(route, /parent\.author\.deletedAt/);
+    assert.match(route, /parent\.authorAccountActive !== true/);
     assert.match(route, /!parent\.approved/);
-    assert.match(route, /grandparent\.author\.banned/);
-    assert.match(route, /grandparent\.author\.deletedAt/);
+    assert.match(route, /grandparent\.authorAccountActive !== true/);
     assert.match(route, /!grandparent\.approved/);
   });
 

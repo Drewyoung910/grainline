@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
   const totalPages = Math.ceil(total / pageSize);
   const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
 
-  const posts = await prisma.blogPost.findMany({
+  const rows = await prisma.blogPost.findMany({
     where,
     orderBy,
     skip: (clampedPage - 1) * pageSize,
@@ -67,11 +67,28 @@ export async function GET(req: NextRequest) {
       readingTimeMinutes: true,
       publishedAt: true,
       authorType: true,
-      author: { select: { id: true, name: true, imageUrl: true } },
+      authorId: true,
+      authorName: true,
+      authorImageUrl: true,
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true } },
-      _count: { select: { comments: { where: { approved: true } } } },
+      _count: {
+        select: {
+          comments: {
+            where: {
+              approved: true,
+              authorAccountActive: true,
+              ...(blockedUserIdList.length > 0 ? { authorId: { notIn: blockedUserIdList } } : {}),
+            },
+          },
+        },
+      },
     },
   });
+
+  const posts = rows.map(({ authorId, authorName, authorImageUrl, ...post }) => ({
+    ...post,
+    author: authorId ? { id: authorId, name: authorName, imageUrl: authorImageUrl } : null,
+  }));
 
   return NextResponse.json({ posts, total, page: clampedPage, pageSize });
 }

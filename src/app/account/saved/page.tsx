@@ -181,8 +181,13 @@ export default async function SavedPage({
           <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {savedPosts.map(({ blogPost: p }) => {
               if (!p) return null;
-              const avatar = p.sellerProfile?.avatarImageUrl ?? p.author?.imageUrl;
-              const name = p.sellerProfile?.displayName ?? p.author?.name ?? "Former author";
+              const avatar = p.sellerProfile?.avatarImageUrl
+                ?? p.authorSellerAvatarUrl
+                ?? p.authorImageUrl;
+              const name = p.sellerProfile?.displayName
+                ?? p.authorSellerName
+                ?? p.authorName
+                ?? "Former author";
               return (
                 <li key={p.id} className="relative card-listing">
                   <div className="absolute top-2 right-2 z-10">

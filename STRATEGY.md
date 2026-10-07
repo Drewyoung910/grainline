@@ -88,6 +88,25 @@ publication, integration and deployment are separate. Buyer/reviewer identity,
 public lifecycle filters, raw SQL, service ledgers and installed catalog
 comparison still block User activation.
 
+The next stacked public-blog successor is now implemented locally. It stores
+blog-bound author lifecycle and public label snapshots on `BlogPost` and
+`BlogComment`, synchronizes them with four runtime-private definer functions
+and eight narrowly scoped triggers,
+and removes public blog rendering, search, suggestions, tag aggregation, saved
+posts, feeds and comment trees from `User`. The measured frontier falls from 64
+relation edges in 30 files plus ten raw calls in nine files to 46 edges in 22
+files plus five raw calls in four files. Public comment counts now use the same
+active-author and viewer-block rules as the visible tree. Prisma validation,
+targeted lint and 63 focused checks pass; the PostgreSQL proof covers backfill,
+same-transaction lifecycle
+and identity synchronization, tamper resistance and PUBLIC privilege denial.
+Follow `docs/user-public-blog-projection-pre-rls-audit.md`. This remains local
+source preparation stacked on unpublished seller commit `971d42d3`; it does not
+authorize publication, migration, deployment, User grants, ENABLE or FORCE.
+The next cohesive source family is public review/commission identity and
+lifecycle state, followed by block/email service paths, staff projections and
+the installed catalog/service-ledger reconciliation.
+
 ### Finish the bounded Order release (2026-09-07)
 
 After the bounded broad audit, Drew resumed solo implementation (no agents).

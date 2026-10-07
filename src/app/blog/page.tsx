@@ -111,14 +111,17 @@ async function BlogIndexPageContent({
     readingTimeMinutes: number | null;
     publishedAt: Date | null;
     authorType: string;
-    author: { name: string | null; imageUrl: string | null; sellerProfile: { avatarImageUrl: string | null; displayName: string | null } | null };
+    authorName: string | null;
+    authorImageUrl: string | null;
+    authorSellerName: string | null;
+    authorSellerAvatarUrl: string | null;
     sellerProfile: { displayName: string; avatarImageUrl: string | null } | null;
   };
 
   const POST_SELECT = {
     id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, type: true,
     tags: true, readingTimeMinutes: true, publishedAt: true, authorType: true,
-    author: { select: { name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
+    authorName: true, authorImageUrl: true, authorSellerName: true, authorSellerAvatarUrl: true,
     sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
   } as const;
 
@@ -141,13 +144,11 @@ async function BlogIndexPageContent({
       : Prisma.empty;
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT "BlogPost".id FROM "BlogPost"
-      JOIN "User" author_user ON author_user.id = "BlogPost"."authorId"
       LEFT JOIN "SellerProfile" sp ON sp.id = "BlogPost"."sellerProfileId"
       WHERE "BlogPost".status = 'PUBLISHED'
         AND "BlogPost"."publishedAt" IS NOT NULL
         AND "BlogPost"."publishedAt" <= NOW()
-        AND author_user.banned = false
-        AND author_user."deletedAt" IS NULL
+        AND "BlogPost"."authorAccountActive" = true
         AND (
           "BlogPost"."sellerProfileId" IS NULL
           OR (
@@ -275,7 +276,7 @@ async function BlogIndexPageContent({
       datePublished: post.publishedAt?.toISOString(),
       author: {
         "@type": "Person",
-        name: post.sellerProfile?.displayName ?? post.author.sellerProfile?.displayName ?? post.author.name ?? "Grainline",
+        name: post.sellerProfile?.displayName ?? post.authorSellerName ?? post.authorName ?? "Grainline",
       },
     })),
   };
@@ -439,9 +440,13 @@ async function BlogIndexPageContent({
                   )}
                   <div className="flex items-center gap-2 pt-1">
                     {(() => {
-                      const authorProfile = featured.sellerProfile ?? featured.author.sellerProfile;
-                      const avatar = authorProfile?.avatarImageUrl ?? featured.author.imageUrl;
-                      const name = authorProfile?.displayName ?? featured.author.name ?? "Staff";
+                      const avatar = featured.sellerProfile?.avatarImageUrl
+                        ?? featured.authorSellerAvatarUrl
+                        ?? featured.authorImageUrl;
+                      const name = featured.sellerProfile?.displayName
+                        ?? featured.authorSellerName
+                        ?? featured.authorName
+                        ?? "Staff";
                       return (
                         <>
                           {avatar ? (
@@ -472,9 +477,13 @@ async function BlogIndexPageContent({
           {rest.length > 0 && (
             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-10">
               {rest.map((post) => {
-                const authorProfile = post.sellerProfile ?? post.author.sellerProfile;
-                const avatar = authorProfile?.avatarImageUrl ?? post.author.imageUrl;
-                const name = authorProfile?.displayName ?? post.author.name ?? "Staff";
+                const avatar = post.sellerProfile?.avatarImageUrl
+                  ?? post.authorSellerAvatarUrl
+                  ?? post.authorImageUrl;
+                const name = post.sellerProfile?.displayName
+                  ?? post.authorSellerName
+                  ?? post.authorName
+                  ?? "Staff";
                 const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
                   <li key={post.id} className="relative card-listing">

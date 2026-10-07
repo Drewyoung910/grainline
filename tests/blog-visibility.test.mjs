@@ -15,7 +15,7 @@ describe("blog visibility", () => {
         {
           status: BlogPostStatus.PUBLISHED,
           publishedAt: where.AND[0].publishedAt,
-          author: { banned: false, deletedAt: null },
+          authorAccountActive: true,
           OR: [
             { sellerProfileId: null },
             {

@@ -41,14 +41,14 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   );
 });
 
-test("seller snapshot continuation removes seven more User relation edges", () => {
+test("seller and public-blog snapshot continuations reduce the User relation frontier", () => {
   const report = auditUserIndirectAccess(process.cwd());
   assert.equal(report.directCount, 0);
-  assert.equal(report.relationCount, 64);
-  assert.equal(report.relationFiles, 30);
-  assert.equal(report.rawSqlCount, 10);
-  assert.equal(report.rawSqlFiles, 9);
-  assert.equal(report.factoryRelations.length, 2);
+  assert.equal(report.relationCount, 46);
+  assert.equal(report.relationFiles, 22);
+  assert.equal(report.rawSqlCount, 5);
+  assert.equal(report.rawSqlFiles, 4);
+  assert.equal(report.factoryRelations.length, 1);
 
   const removedFiles = new Set([
     "src/app/dashboard/listings/[id]/edit/page.tsx",

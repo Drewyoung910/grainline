@@ -1350,30 +1350,35 @@ enum BlogAuthorType {
 }
 
 model BlogPost {
-  id                 String          @id @default(cuid())
-  slug               String          @unique @db.VarChar(255)
-  title              String          @db.VarChar(200)
-  excerpt            String?         @db.VarChar(500)
-  body               String          @db.VarChar(50000)
-  materialDisclosure String?         @db.VarChar(500)
-  coverImageUrl      String?         @db.VarChar(2048)
-  videoUrl           String?         @db.VarChar(2048)
-  authorId           String?
-  author             User?           @relation("BlogPostsAuthored", fields: [authorId], references: [id], onDelete: SetNull)
-  authorType         BlogAuthorType
-  sellerProfileId    String?
-  sellerProfile      SellerProfile?  @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
-  type               BlogPostType    @default(STANDARD)
-  status             BlogPostStatus  @default(DRAFT)
-  featuredListingIds String[]        @default([])
-  tags               String[]        @default([])
-  metaDescription    String?         @db.VarChar(320)
-  readingTimeMinutes Int?
-  publishedAt        DateTime?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  comments           BlogComment[]
-  savedBy            SavedBlogPost[]
+  id                    String          @id @default(cuid())
+  slug                  String          @unique @db.VarChar(255)
+  title                 String          @db.VarChar(200)
+  excerpt               String?         @db.VarChar(500)
+  body                  String          @db.VarChar(50000)
+  materialDisclosure    String?         @db.VarChar(500)
+  coverImageUrl         String?         @db.VarChar(2048)
+  videoUrl              String?         @db.VarChar(2048)
+  authorId              String?
+  author                User?           @relation("BlogPostsAuthored", fields: [authorId], references: [id], onDelete: SetNull)
+  authorAccountActive   Boolean         @default(false)
+  authorName            String?         @db.VarChar(100)
+  authorImageUrl        String?         @db.VarChar(2048)
+  authorSellerName      String?         @db.VarChar(100)
+  authorSellerAvatarUrl String?         @db.VarChar(2048)
+  authorType            BlogAuthorType
+  sellerProfileId       String?
+  sellerProfile         SellerProfile?  @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  type                  BlogPostType    @default(STANDARD)
+  status                BlogPostStatus  @default(DRAFT)
+  featuredListingIds    String[]        @default([])
+  tags                  String[]        @default([])
+  metaDescription       String?         @db.VarChar(320)
+  readingTimeMinutes    Int?
+  publishedAt           DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  comments              BlogComment[]
+  savedBy               SavedBlogPost[]
 
   @@index([status, publishedAt])
   @@index([authorId])
@@ -1383,17 +1388,22 @@ model BlogPost {
 }
 
 model BlogComment {
-  id        String        @id @default(cuid())
-  postId    String
-  post      BlogPost      @relation(fields: [postId], references: [id], onDelete: Restrict)
-  authorId  String
-  author    User          @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
-  body      String        @db.VarChar(2000)
-  approved  Boolean       @default(false)
-  parentId  String?
-  parent    BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
-  replies   BlogComment[] @relation("CommentReplies")
-  createdAt DateTime      @default(now())
+  id                         String        @id @default(cuid())
+  postId                     String
+  post                       BlogPost      @relation(fields: [postId], references: [id], onDelete: Restrict)
+  authorId                   String
+  author                     User          @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
+  authorAccountActive        Boolean       @default(false)
+  authorName                 String?       @db.VarChar(100)
+  authorImageUrl             String?       @db.VarChar(2048)
+  authorSellerProfilePresent Boolean       @default(false)
+  authorSellerAvatarUrl      String?       @db.VarChar(2048)
+  body                       String        @db.VarChar(2000)
+  approved                   Boolean       @default(false)
+  parentId                   String?
+  parent                     BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies                    BlogComment[] @relation("CommentReplies")
+  createdAt                  DateTime      @default(now())
 
   @@index([postId])
   @@index([postId, createdAt])

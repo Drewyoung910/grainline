@@ -23,11 +23,12 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { z } from "zod";
 
-const AUTHOR_SELECT = {
-  id: true,
-  name: true,
-  imageUrl: true,
-  sellerProfile: { select: { avatarImageUrl: true } },
+const AUTHOR_SNAPSHOT_SELECT = {
+  authorId: true,
+  authorName: true,
+  authorImageUrl: true,
+  authorSellerProfilePresent: true,
+  authorSellerAvatarUrl: true,
 } as const;
 
 const CommentSchema = z.object({
@@ -42,7 +43,7 @@ export const runtime = "nodejs";
 function visibleBlogCommentWhere(blockedUserIds: string[]) {
   return {
     approved: true,
-    author: { banned: false, deletedAt: null },
+    authorAccountActive: true,
     ...(blockedUserIds.length > 0 ? { authorId: { notIn: blockedUserIds } } : {}),
   };
 }
@@ -84,7 +85,7 @@ export async function GET(
       id: true,
       body: true,
       createdAt: true,
-      author: { select: AUTHOR_SELECT },
+      ...AUTHOR_SNAPSHOT_SELECT,
       replies: {
         where: commentVisibilityWhere,
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -93,7 +94,7 @@ export async function GET(
           id: true,
           body: true,
           createdAt: true,
-          author: { select: AUTHOR_SELECT },
+          ...AUTHOR_SNAPSHOT_SELECT,
           replies: {
             where: commentVisibilityWhere,
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -102,7 +103,7 @@ export async function GET(
               id: true,
               body: true,
               createdAt: true,
-              author: { select: AUTHOR_SELECT },
+              ...AUTHOR_SNAPSHOT_SELECT,
             },
           },
         },
@@ -110,15 +111,41 @@ export async function GET(
     },
   });
 
+  function authorFromSnapshot(row: {
+    authorId: string;
+    authorName: string | null;
+    authorImageUrl: string | null;
+    authorSellerProfilePresent: boolean;
+    authorSellerAvatarUrl: string | null;
+  }) {
+    return {
+      id: row.authorId,
+      name: row.authorName,
+      imageUrl: row.authorImageUrl,
+      sellerProfile: row.authorSellerProfilePresent
+        ? { avatarImageUrl: row.authorSellerAvatarUrl }
+        : null,
+    };
+  }
+
   const mapped = comments.map((c) => ({
-    ...c,
-    avatarUrl: c.author.sellerProfile?.avatarImageUrl ?? c.author.imageUrl,
+    id: c.id,
+    body: c.body,
+    createdAt: c.createdAt,
+    author: authorFromSnapshot(c),
+    avatarUrl: c.authorSellerAvatarUrl ?? c.authorImageUrl,
     replies: c.replies.map((r) => ({
-      ...r,
-      avatarUrl: r.author.sellerProfile?.avatarImageUrl ?? r.author.imageUrl,
+      id: r.id,
+      body: r.body,
+      createdAt: r.createdAt,
+      author: authorFromSnapshot(r),
+      avatarUrl: r.authorSellerAvatarUrl ?? r.authorImageUrl,
       replies: r.replies.map((r3) => ({
-        ...r3,
-        avatarUrl: r3.author.sellerProfile?.avatarImageUrl ?? r3.author.imageUrl,
+        id: r3.id,
+        body: r3.body,
+        createdAt: r3.createdAt,
+        author: authorFromSnapshot(r3),
+        avatarUrl: r3.authorSellerAvatarUrl ?? r3.authorImageUrl,
       })),
     })),
   }));
@@ -189,15 +216,14 @@ export async function POST(
         postId: true,
         parentId: true,
         approved: true,
-        author: { select: { banned: true, deletedAt: true } },
+        authorAccountActive: true,
       },
     });
     if (
       !parent ||
       parent.postId !== post.id ||
       !parent.approved ||
-      parent.author.banned ||
-      parent.author.deletedAt
+      parent.authorAccountActive !== true
     ) {
       return privateJson({ error: "Invalid parent comment" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
@@ -214,15 +240,14 @@ export async function POST(
           parentId: true,
           postId: true,
           approved: true,
-          author: { select: { banned: true, deletedAt: true } },
+          authorAccountActive: true,
         },
       });
       if (
         !grandparent ||
         grandparent.postId !== post.id ||
         !grandparent.approved ||
-        grandparent.author.banned ||
-        grandparent.author.deletedAt
+        grandparent.authorAccountActive !== true
       ) {
         return privateJson({ error: "Invalid parent comment" }, { status: HTTP_STATUS.BAD_REQUEST });
       }

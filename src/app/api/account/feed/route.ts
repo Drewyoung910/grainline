@@ -154,7 +154,7 @@ export async function GET(req: NextRequest) {
         status: "PUBLISHED",
         publishedAt: { not: null },
         ...timestampCursorWhere("blog", "publishedAt"),
-        author: { banned: false, deletedAt: null },
+        authorAccountActive: true,
         sellerProfile: followedSellerVisibility,
       },
       orderBy: [{ publishedAt: "desc" }, { id: "desc" }],

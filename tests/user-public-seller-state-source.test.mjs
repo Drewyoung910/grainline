@@ -65,7 +65,8 @@ describe("User public seller-state source boundary", () => {
     }
 
     const suggestions = read("src/app/api/search/suggestions/route.ts");
-    assert.match(suggestions, /JOIN "User" u ON u\.id = bp\."authorId"/);
+    assert.match(suggestions, /bp\."authorAccountActive" = true/);
+    assert.doesNotMatch(suggestions, /JOIN "User" [a-z_]+ ON [a-z_]+\.id = bp\."authorId"/);
     assert.doesNotMatch(suggestions, /seller_user|u\.id = sp\."userId"/);
 
     for (const path of [
@@ -75,7 +76,8 @@ describe("User public seller-state source boundary", () => {
       "src/lib/popularBlogTags.ts",
     ]) {
       const source = read(path);
-      assert.match(source, /JOIN "User" [a-z_]+ ON [a-z_]+\.id = (?:bp|"BlogPost")\."authorId"/);
+      assert.match(source, /(?:bp|"BlogPost")\."authorAccountActive" = true/);
+      assert.doesNotMatch(source, /JOIN "User" [a-z_]+ ON [a-z_]+\.id = (?:bp|"BlogPost")\."authorId"/);
       assert.match(source, /sp\."ownerAccountActive" = true/);
       assert.doesNotMatch(source, /seller_user/);
     }
