@@ -32,6 +32,7 @@ import {
   type QualityScoreGlobalMeans,
 } from "./qualityScoreFormula.ts";
 import { getPublicListingOrderCounts } from "@/lib/orderPublicAggregateAuthority";
+import { userPublicListingFavoriteCounts } from "@/lib/userFollowerAccess";
 
 const BATCH_SIZE = 200;
 
@@ -49,13 +50,12 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
     ? Prisma.sql`AND l.id > ${cursorId}`
     : Prisma.empty;
 
-  const rows = await prisma.$queryRaw<Array<Omit<ListingQualityScoreRow, "orderCount">>>(Prisma.sql`
+  const rows = await prisma.$queryRaw<Array<Omit<ListingQualityScoreRow, "orderCount" | "favCount">>>(Prisma.sql`
     SELECT
       l.id,
       l."sellerId",
       l."viewCount",
       l."clickCount",
-      COALESCE(fav.cnt, 0) AS "favCount",
       COALESCE(ph.cnt, 0) AS "photoCount",
       COALESCE(ph."hasAlt", false) AS "hasAltText",
       COALESCE(LENGTH(l.description), 0) AS "descLength",
@@ -67,19 +67,6 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
       COALESCE(sr."reviewCount", 0) AS "sellerReviewCount"
     FROM "Listing" l
     JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-    LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS cnt
-      FROM "Favorite" f
-      JOIN "User" fu ON fu.id = f."userId"
-      WHERE f."listingId" = l.id
-        AND fu.banned = false
-        AND fu."deletedAt" IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM "Block" b
-          WHERE (b."blockerId" = fu.id AND b."blockedId" = sp."userId")
-             OR (b."blockerId" = sp."userId" AND b."blockedId" = fu.id)
-        )
-    ) fav ON true
     LEFT JOIN LATERAL (
       SELECT COUNT(*) AS cnt,
              BOOL_OR(p."altText" IS NOT NULL AND p."altText" != '') AS "hasAlt"
@@ -97,9 +84,14 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
     LIMIT ${BATCH_SIZE}
   `);
   if (rows.length === 0) return [];
-  const orderCounts = await getPublicListingOrderCounts(rows.map((row) => row.id));
+  const listingIds = rows.map((row) => row.id);
+  const [orderCounts, favoriteCounts] = await Promise.all([
+    getPublicListingOrderCounts(listingIds),
+    userPublicListingFavoriteCounts(prisma, listingIds),
+  ]);
   return rows.map((row) => ({
     ...row,
+    favCount: favoriteCounts.get(row.id) ?? 0n,
     orderCount: orderCounts.get(row.id) ?? 0n,
   }));
 }

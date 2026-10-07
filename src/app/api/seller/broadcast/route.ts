@@ -13,6 +13,7 @@ import { renderSellerBroadcastEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
+import { userOwnerBroadcastFollowers } from "@/lib/userFollowerAccess";
 import {
   broadcastAttemptRatelimit,
   broadcastRatelimit,
@@ -183,27 +184,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Get followers (optionally filtered to sellers only)
-  const followers = await prisma.follow.findMany({
-    where: {
-      sellerProfileId: seller.id,
-      followerId: { not: me.id },
-      follower: {
-        banned: false,
-        deletedAt: null,
-        blocks: { none: { blockedId: me.id } },
-        blockedBy: { none: { blockerId: me.id } },
-        ...(sellersOnly ? { sellerProfile: { isNot: null } } : {}),
-      },
-    },
-    select: {
-      followerId: true,
-      follower: { select: { notificationPreferences: true } },
-    },
-    take: 10000,
+  const followers = await userOwnerBroadcastFollowers(me.id, {
+    sellerProfileId: seller.id,
+    sellersOnly,
   });
   const notificationFollowers = followers.filter((f) =>
     isInAppNotificationEnabled(
-      f.follower.notificationPreferences,
+      f.notificationPreferences,
       "SELLER_BROADCAST",
     ),
   );

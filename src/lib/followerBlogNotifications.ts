@@ -3,6 +3,7 @@ import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { userFollowerNotificationPage } from "@/lib/userFollowerAccess";
 
 const BLOG_FOLLOWER_FANOUT_PAGE_SIZE = 1000;
 
@@ -29,21 +30,10 @@ export async function fanOutBlogPostToFollowers({
   let cursor: string | undefined;
 
   while (true) {
-    const followers = await prisma.follow.findMany({
-      where: {
-        sellerProfileId,
-        followerId: { not: sellerUserId },
-        follower: {
-          banned: false,
-          deletedAt: null,
-          blocks: { none: { blockedId: sellerUserId } },
-          blockedBy: { none: { blockerId: sellerUserId } },
-        },
-      },
-      orderBy: { id: "asc" },
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: { id: true, followerId: true },
-      take: BLOG_FOLLOWER_FANOUT_PAGE_SIZE,
+    const followers = await userFollowerNotificationPage(prisma, {
+      sellerProfileId,
+      afterFollowId: cursor,
+      limit: BLOG_FOLLOWER_FANOUT_PAGE_SIZE,
     });
 
     if (followers.length === 0) return;
@@ -62,6 +52,6 @@ export async function fanOutBlogPostToFollowers({
     );
 
     if (followers.length < BLOG_FOLLOWER_FANOUT_PAGE_SIZE) return;
-    cursor = followers[followers.length - 1].id;
+    cursor = followers[followers.length - 1].followId;
   }
 }

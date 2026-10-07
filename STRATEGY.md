@@ -67,15 +67,16 @@ installed function/grant catalog. User remains blocked for grants, policies,
 ENABLE, and FORCE until those inventories and service-ledger dependencies
 close.
 
-The indirect-access successor also closes the inherited source grant-inventory
-debt: an explicit 41-function User catalog and canonical provisioning preserve
-31 runtime operations versus ten private operations, including all eight isolated
+The current indirect-access successor chain also closes the inherited source
+grant-inventory debt: an explicit 44-function User catalog and canonical
+provisioning preserve 34 runtime operations versus ten private operations,
+including all eight isolated
 staff functions. Disposable execution of the actual provisioning CTEs converges
 twice, and the grant-inventory suite passes 28 tests with one intentional skip.
 This is source readiness only; inspect the installed catalog after the remaining
 access families close.
 
-The isolated seller-relation successor stack reuses the installed public owner
+The seller-relation successor reuses the installed public owner
 image, durable owner id and activity snapshots for seller-bound review,
 commission, conversation, broadcast, listing and Stripe-mirror surfaces. It
 removes thirteen visible User relation edges across nine callers (64 remain in
@@ -83,8 +84,10 @@ removes thirteen visible User relation edges across nine callers (64 remain in
 atomic actor/empty-reply predicate. Follow
 `docs/user-seller-relation-reuse-pre-rls-audit.md` and
 `docs/user-seller-snapshot-continuation-pre-rls-audit.md` for the bounded
-product review and focused validation. This stack is local source preparation;
-publication, integration and deployment are separate. Buyer/reviewer identity,
+product review and focused validation. PR #527 merged as exact main
+`fc26e1112555bed6ceedf03bfa7a5bb0360e2ff2`; its three specialized merged-main
+proofs passed and its exact-main CI remains the publication gate for the stacked
+local successors. Buyer/reviewer identity,
 public lifecycle filters, raw SQL, service ledgers and installed catalog
 comparison still block User activation.
 
@@ -101,7 +104,7 @@ targeted lint and 63 focused checks pass; the PostgreSQL proof covers backfill,
 same-transaction lifecycle
 and identity synchronization, tamper resistance and PUBLIC privilege denial.
 Follow `docs/user-public-blog-projection-pre-rls-audit.md`. This remains local
-source preparation stacked on unpublished seller commit `971d42d3`; it does not
+source preparation at commit `93163dae`; it does not
 authorize publication, migration, deployment, User grants, ENABLE or FORCE.
 The continuation order is public review/commission identity and lifecycle
 state, then block/email service paths, staff projections, and the installed
@@ -135,10 +138,27 @@ transaction context. The exact scanner frontier is now zero direct delegates,
 `src/lib/quality-score.ts`. The focused source and disposable PostgreSQL proofs
 pass, and CI stages this package after review/commission and accumulated access
 with an exact catalog, unchanged-RLS, and grant audit. Follow
-`docs/user-block-email-pre-rls-audit.md`. Publication, Production SQL,
-deployment, grants, ENABLE, and FORCE remain unapproved; staff/provider/follower
-projections, installed catalog comparison, and service-ledger closure still
-block User activation.
+`docs/user-block-email-pre-rls-audit.md`. At that checkpoint, publication,
+Production SQL, deployment, grants, ENABLE, and FORCE remained unapproved;
+staff/provider/follower projections, installed catalog comparison, and
+service-ledger closure still blocked User activation.
+
+The follower-authority successor is now implemented locally on top of the
+block/email package. Separate fixed operations provide id-only public-source
+fanout, authenticated seller-owner broadcast recipients with preferences, and
+aggregate-only public listing favorite counts. They preserve deterministic
+paging, reciprocal-block and lifecycle suppression, seller-only filtering, the
+10,000-recipient broadcast cap, and public listing eligibility without exposing
+unneeded User fields. The exact scanner frontier is zero direct delegates,
+19 relation edges in eight staff/admin callers, and zero raw User SQL calls.
+Focused source and disposable PostgreSQL proof, Prisma validation, accumulated
+User CI staging, fixed-path catalog checks, direct-table denial and PUBLIC
+execute denial pass. The callable catalog is now 44 functions: 34 runtime and
+ten private. Follow `docs/user-follower-authorities-pre-rls-audit.md`.
+Publication, Production SQL, deployment, grants, ENABLE and FORCE remain
+separate decisions. The next cohesive source group is the eight staff/admin
+projection callers; installed catalog comparison, service-ledger closure,
+opaque/manual review and final grant/policy design still block User activation.
 
 ### Finish the bounded Order release (2026-09-07)
 

@@ -138,3 +138,30 @@ GO for these compatible source conversions. NO-GO for User policies, table
 revocation, ENABLE or FORCE until every remaining dependency, opaque shape,
 service ledger and installed-function catalog is resolved. Compatible publication,
 SQL installation and deployment remain separate release actions.
+
+## 2026-10-07 follower-authority continuation
+
+The seller, public-blog, public review/commission and block/email successors
+reduce the original indirect frontier to 23 relation edges in eleven files and
+one raw User SQL call. The next isolated follower-authority successor removes
+four relation edges across seller broadcast and blog/listing fanout, then
+replaces the final raw User favorite-count join with a bounded aggregate
+operation. The exact local frontier is now **19 relation edges in eight files**,
+**zero raw User SQL calls**, and zero direct delegates.
+
+The follower work deliberately separates an id-only source-derived service page
+from an authenticated seller-owner broadcast page that may return notification
+preferences. A third aggregate-only operation returns public listing favorite
+counts without favoriter identity. Deterministic paging, lifecycle and reciprocal
+block suppression, owner binding, the 10,000-recipient application cap, public
+listing eligibility, input bounds, direct-table denial and PUBLIC execute denial
+have focused source and disposable PostgreSQL proof. See
+`docs/user-follower-authorities-pre-rls-audit.md` for the product, privacy,
+concurrency and release decision.
+
+The explicit callable catalog now contains **44 exact functions: 34
+ordinary-runtime and ten private**. Canonical provisioning includes the three
+new signatures and keeps the existing private split unchanged. Staff/admin
+projections are the next cohesive conversion group. Installed Production
+catalog comparison, service-ledger closure, opaque/manual review and final
+grant/policy design remain activation gates.

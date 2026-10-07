@@ -181,6 +181,14 @@ jobs:
           tests/public-visibility-followups.test.mjs
           tests/user-public-review-commission-state-source.test.mjs
           tests/user-public-review-commission-state-postgres.test.mjs
+      - name: Verify User follower authority source package
+        run: >-
+          node --test
+          tests/follower-listing-notifications.test.mjs
+          tests/quality-score-query-guardrails.test.mjs
+          tests/user-follower-authorities-source.test.mjs
+          tests/user-follower-authorities-postgres.test.mjs
+          tests/user-public-seller-state-source.test.mjs
       - name: Verify UserEmailAddress authority source package
         run: >-
           node --test
@@ -334,6 +342,23 @@ jobs:
             tests/query-param-state.test.mjs \
             tests/user-block-email-authorities-source.test.mjs \
             tests/user-block-email-authorities-postgres.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
+      - name: Isolate User follower authority until block-email passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-follower-authority"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261007040000_prepare_user_follower_authorities \
+            "$holding/migration"
+          for test_file in \
+            tests/follower-listing-notifications.test.mjs \
+            tests/quality-score-query-guardrails.test.mjs \
+            tests/user-follower-authorities-source.test.mjs \
+            tests/user-follower-authorities-postgres.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
@@ -4557,6 +4582,105 @@ jobs:
           $verify_user_block_email_authorities$;
           SQL
       - name: Audit runtime grants after User block-email authorities
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User follower authority source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-follower-authority"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261007040000_prepare_user_follower_authorities
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify User follower authority source package
+        run: >-
+          node --test
+          tests/follower-listing-notifications.test.mjs
+          tests/quality-score-query-guardrails.test.mjs
+          tests/user-authority-catalog.test.mjs
+          tests/user-follower-authorities-source.test.mjs
+          tests/user-follower-authorities-postgres.test.mjs
+          tests/user-indirect-access-inventory.test.mjs
+          tests/user-public-seller-state-source.test.mjs
+      - name: Apply User follower authorities in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261007040000_prepare_user_follower_authorities/migration.sql
+      - name: Verify User follower authority catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_follower_authorities$
+          DECLARE
+            functions_are_exact boolean;
+            rls_posture_is_unchanged boolean;
+          BEGIN
+            SELECT
+              pg_catalog.count(*) = 3
+              AND pg_catalog.bool_and(procedure.prosecdef)
+              AND pg_catalog.bool_and(
+                procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+              )
+              AND pg_catalog.bool_and(
+                pg_catalog.has_function_privilege(
+                  'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                EXISTS (
+                  SELECT 1
+                    FROM pg_catalog.aclexplode(
+                      COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )
+                    ) AS privilege
+                   WHERE privilege.grantee = 0
+                     AND privilege.privilege_type = 'EXECUTE'
+                )
+              )
+              INTO functions_are_exact
+              FROM pg_catalog.pg_proc AS procedure
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.oid = ANY(ARRAY[
+                 'public.grainline_user_follower_notification_page(text, text, integer)'::pg_catalog.regprocedure,
+                 'public.grainline_user_owner_broadcast_follower_page(text, text, integer, boolean)'::pg_catalog.regprocedure,
+                 'public.grainline_user_public_listing_favorite_counts(text[])'::pg_catalog.regprocedure
+               ]::pg_catalog.oid[]);
+
+            SELECT
+              pg_catalog.count(*) = 6
+              AND NOT pg_catalog.bool_or(
+                table_state.relrowsecurity OR table_state.relforcerowsecurity
+              )
+              INTO rls_posture_is_unchanged
+              FROM pg_catalog.pg_class AS table_state
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = table_state.relnamespace
+             WHERE namespace.nspname = 'public'
+               AND table_state.relname = ANY(ARRAY[
+                 'User',
+                 'SellerProfile',
+                 'Follow',
+                 'Block',
+                 'Listing',
+                 'Favorite'
+               ]::text[]);
+
+            IF functions_are_exact IS DISTINCT FROM true
+               OR rls_posture_is_unchanged IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'User follower authority catalog drifted';
+            END IF;
+          END
+          $verify_user_follower_authorities$;
+          SQL
+      - name: Audit runtime grants after User follower authorities
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

@@ -2,7 +2,7 @@
 
 Recorded 2026-10-06 on the isolated account-deletion branch and reconciled on
 2026-10-07 through the seller identity, public-blog, public
-review/commission, and block/email successors. Regenerate with
+review/commission, block/email, and follower-authority successors. Regenerate with
 `npm run audit:user-indirect-access -- --json`. Each edge is one statically
 visible relation path per query; shared objects report both definition and
 query locations. These are dependencies, not verified security findings.
@@ -17,15 +17,18 @@ raw calls in four files. The review/commission successor removes another
 eighteen relation edges across nine public callers, both remaining public
 commission raw User joins, and the typed buyer lifecycle relation. The exact
 block/email successor removes five more relation edges across two callers and
-two raw User calls across two files. The exact frontier is now **23 edges in 11
-caller files** and **one raw call in one file**. Direct delegates remain zero. Opaque caller/factory shapes are listed
+two raw User calls across two files. The follower-authority successor removes
+four more relation edges across three callers and the final raw User SQL call.
+The exact frontier is now **19 edges in eight caller files** and **zero raw
+calls**. Direct delegates remain zero. Opaque caller/factory shapes are listed
 separately. See
 `user-indirect-access-pre-rls-audit.md`,
 `user-seller-relation-reuse-pre-rls-audit.md` and
 `user-seller-snapshot-continuation-pre-rls-audit.md`, plus
 `user-public-blog-projection-pre-rls-audit.md` and
 `user-public-review-commission-pre-rls-audit.md` and
-`user-block-email-pre-rls-audit.md`, for intended product
+`user-block-email-pre-rls-audit.md` and
+`user-follower-authorities-pre-rls-audit.md`, for intended product
 behavior and authority decisions. This file supersedes the earlier preliminary
 22-file list.
 
@@ -41,9 +44,6 @@ behavior and authority decisions. This file supersedes the earlier preliminary
 | `src/app/admin/support/page.tsx` | 2 |
 | `src/app/admin/verification/page.tsx` | 6 |
 | `src/app/api/admin/listings/[id]/review/route.ts` | 3 |
-| `src/app/api/seller/broadcast/route.ts` | 2 |
-| `src/lib/followerBlogNotifications.ts` | 1 |
-| `src/lib/followerListingNotifications.ts` | 1 |
 
 The scanner reports 222 opaque caller shapes and 14 opaque
 typed factory-return shapes. These include dynamic conditions, scalar updates,
@@ -52,25 +52,22 @@ arguments; absence from this roster does not prove User independence.
 
 ## Raw User SQL calls
 
-| Caller | Calls | Intended boundary still to prepare |
-| --- | ---: | --- |
-| `src/lib/quality-score.ts` | 1 | Background score count over eligible followers |
-
-Static SQL fragments are inspected; ordinary bound interpolation values,
-comments and SQL string literals are excluded from table-name matching.
-Arbitrary SQL factories and installed definer bodies require manual inventory.
+The scanner reports zero raw User SQL calls. Static SQL fragments are inspected;
+ordinary bound interpolation values, comments and SQL string literals are
+excluded from table-name matching. Arbitrary SQL factories and installed
+definer bodies still require manual inventory.
 
 ## Next cohesive groups
 
-1. Staff investigation projections and provider/follower jobs: maintain the
-   PIN/isolation boundary and source-derived targeting.
+1. Staff and admin investigation projections: maintain the PIN/isolation
+   boundary and return only bounded target facts.
 2. Reconcile installed functions/grants, ClerkWebhookEvent and
    AccountDeletionSideEffect ledgers before
    any User table revocation or activation.
 
 The inherited source grant-inventory expectations are corrected locally in this
-package. The explicit 41-function callable User catalog and canonical
-provisioning preserve the 31 ordinary-runtime versus ten private split. The four
+package. The explicit 44-function callable User catalog and canonical
+provisioning preserve the 34 ordinary-runtime versus ten private split. The four
 blog and four review/commission snapshot trigger functions are additionally
 registered as runtime-private.
 This source/DCL proof does not replace the installed Production catalog inspection.

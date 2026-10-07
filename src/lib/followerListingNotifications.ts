@@ -9,6 +9,7 @@ import { formatCurrencyCents } from "@/lib/money";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
+import { userFollowerNotificationPage } from "@/lib/userFollowerAccess";
 
 const FOLLOWER_FANOUT_PAGE_SIZE = 1000;
 
@@ -49,21 +50,10 @@ export async function fanOutListingToFollowers({
   let cursor: string | undefined;
 
   while (true) {
-    const followers = await prisma.follow.findMany({
-      where: {
-        sellerProfileId,
-        followerId: { not: sellerUserId },
-        follower: {
-          banned: false,
-          deletedAt: null,
-          blocks: { none: { blockedId: sellerUserId } },
-          blockedBy: { none: { blockerId: sellerUserId } },
-        },
-      },
-      orderBy: { id: "asc" },
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      take: FOLLOWER_FANOUT_PAGE_SIZE,
-      select: { id: true, followerId: true },
+    const followers = await userFollowerNotificationPage(prisma, {
+      sellerProfileId,
+      afterFollowId: cursor,
+      limit: FOLLOWER_FANOUT_PAGE_SIZE,
     });
 
     if (followers.length === 0) return;
@@ -109,6 +99,6 @@ export async function fanOutListingToFollowers({
     });
 
     if (followers.length < FOLLOWER_FANOUT_PAGE_SIZE) return;
-    cursor = followers[followers.length - 1].id;
+    cursor = followers[followers.length - 1].followId;
   }
 }
