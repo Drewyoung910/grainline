@@ -223,6 +223,7 @@ jobs:
           tests/user-staff-ban-authorities.test.mjs
           tests/user-account-deletion-authorities.test.mjs
           tests/user-relationship-authorities.test.mjs
+          tests/user-cross-domain-authority-convergence.test.mjs
           tests/user-authority-catalog.test.mjs
           tests/user-accumulated-access-ci.test.mjs
           tests/user-indirect-access-inventory.test.mjs
@@ -252,7 +253,8 @@ jobs:
           for migration in \
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
-            20261006030000_prepare_user_relationship_authorities
+            20261006030000_prepare_user_relationship_authorities \
+            20261007160000_converge_user_cross_domain_authorities
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -260,6 +262,7 @@ jobs:
             tests/user-staff-ban-authorities.test.mjs \
             tests/user-account-deletion-authorities.test.mjs \
             tests/user-relationship-authorities.test.mjs \
+            tests/user-cross-domain-authority-convergence.test.mjs \
             tests/user-authority-catalog.test.mjs \
             tests/user-accumulated-access-ci.test.mjs \
             tests/order-ban-review-authority.test.mjs \
@@ -4487,7 +4490,8 @@ jobs:
           for migration in \
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
-            20261006030000_prepare_user_relationship_authorities
+            20261006030000_prepare_user_relationship_authorities \
+            20261007160000_converge_user_cross_domain_authorities
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -4521,7 +4525,8 @@ jobs:
           for migration in \
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
-            20261006030000_prepare_user_relationship_authorities
+            20261006030000_prepare_user_relationship_authorities \
+            20261007160000_converge_user_cross_domain_authorities
           do
             psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
               --file="prisma/migrations/$migration/migration.sql"
