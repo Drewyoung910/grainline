@@ -361,7 +361,7 @@ export async function readUserInstalledCatalog(client, expectation) {
   }
   const functions = await client.query(`
     SELECT procedure.proname::text AS function_name,
-           pg_catalog.pg_get_function_identity_arguments(procedure.oid)::text AS identity_arguments,
+           pg_catalog.oidvectortypes(procedure.proargtypes)::text AS identity_arguments,
            pg_catalog.pg_get_userbyid(procedure.proowner)::text AS owner_name,
            language.lanname::text AS language_name,
            procedure.prokind AS function_kind,
