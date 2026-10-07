@@ -24,7 +24,7 @@ describe("public visibility follow-ups", () => {
     const listingPage = read("src/app/listing/[id]/page.tsx");
 
     assert.match(listingPage, /import \{ canViewListingDetail, isPublicListingDetail, publicListingWhere \}/);
-    assert.match(listingPage, /const visibleListingReviewWhere = \{[\s\S]*?reviewer: \{ banned: false, deletedAt: null \},[\s\S]*?\.\.\.blockedReviewerFilter,/);
+    assert.match(listingPage, /const visibleListingReviewWhere = \{[\s\S]*?reviewerAccountActive: true,[\s\S]*?\.\.\.blockedReviewerFilter,/);
     assert.match(listingPage, /prisma\.review\.aggregate\(\{\s*where: visibleListingReviewWhere,/);
     assert.match(listingPage, /prisma\.review\.findMany\(\{\s*where: visibleListingReviewWhere,/);
     assert.match(listingPage, /prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\{\s*sellerId: listing\.sellerId,\s*id: \{ not: listing\.id \},\s*\}\),/);
@@ -67,7 +67,7 @@ describe("public visibility follow-ups", () => {
     const reviewsSection = read("src/components/ReviewsSection.tsx");
 
     assert.match(reviewsSection, /const blockedReviewerFilter: Prisma\.ReviewWhereInput =/);
-    assert.match(reviewsSection, /const visibleReviewWhere: Prisma\.ReviewWhereInput = \{[\s\S]*listingId,[\s\S]*reviewer: \{ banned: false, deletedAt: null \},[\s\S]*\.\.\.blockedReviewerFilter,[\s\S]*\};/);
+    assert.match(reviewsSection, /const visibleReviewWhere: Prisma\.ReviewWhereInput = \{[\s\S]*listingId,[\s\S]*reviewerAccountActive: true,[\s\S]*\.\.\.blockedReviewerFilter,[\s\S]*\};/);
     assert.match(reviewsSection, /prisma\.review\.aggregate\(\{\s*where: visibleReviewWhere,/);
     assert.match(reviewsSection, /prisma\.review\.findMany\(\{\s*where: \{\s*\.\.\.visibleReviewWhere,/);
   });

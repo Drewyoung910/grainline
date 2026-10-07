@@ -7,16 +7,18 @@ function source(path) {
 }
 
 describe("account-state residue hardening", () => {
-  it("redacts banned reviewers the same way as deleted reviewers", () => {
+  it("redacts inactive reviewer snapshots without joining User", () => {
     const reviews = source("src/components/ReviewsSection.tsx");
 
-    assert.match(reviews, /banned\?: boolean \| null/);
+    assert.match(reviews, /reviewerAccountActive: boolean/);
+    assert.match(reviews, /reviewerName: string \| null/);
+    assert.match(reviews, /reviewerImageUrl: string \| null/);
     assert.match(reviews, /function reviewerUnavailable/);
-    assert.match(reviews, /reviewer\.deletedAt \|\| reviewer\.banned/);
-    assert.match(reviews, /reviewer: \{ select: \{ id: true, name: true, imageUrl: true, banned: true, deletedAt: true \} \}/);
-    assert.doesNotMatch(reviews, /reviewer:\s*\{\s*select:\s*\{[^}]*email:\s*true/s);
-    assert.match(reviews, /!reviewerUnavailable\(r\.reviewer\).*BlockReportButton/s);
-    assert.doesNotMatch(reviews, /!r\.reviewer\.deletedAt && r\.reviewer\.imageUrl/);
+    assert.match(reviews, /return !reviewer\.reviewerAccountActive/);
+    assert.match(reviews, /reviewerAccountActive: true/);
+    assert.doesNotMatch(reviews, /reviewer:\s*\{\s*select:/);
+    assert.match(reviews, /!reviewerUnavailable\(r\).*BlockReportButton/s);
+    assert.doesNotMatch(reviews, /r\.reviewer\.(?:banned|deletedAt|imageUrl)/);
   });
 
   it("removes banned or deleted sellers from commission interest counts", () => {

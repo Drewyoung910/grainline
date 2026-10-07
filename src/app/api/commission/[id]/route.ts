@@ -69,7 +69,8 @@ export async function GET(
       _count: { select: { interests: { where: visibleInterestWhere } } },
       expiresAt: true,
       createdAt: true,
-      buyer: { select: { name: true, imageUrl: true } },
+      buyerName: true,
+      buyerImageUrl: true,
       interests: {
         where: visibleInterestWhere,
         take: COMMISSION_INTEREST_DISPLAY_LIMIT,
@@ -91,14 +92,14 @@ export async function GET(
 
   if (!request) return privateJson({ error: "Not found" }, { status: 404 });
 
-  const { _count, buyer, interests, ...requestBody } = request;
+  const { _count, buyerName, buyerImageUrl, interests, ...requestBody } = request;
   return privateJson({
     ...requestBody,
     interestedCount: resolvedInterestedCount({
       interestedCount: request.interestedCount,
       _count,
     }),
-    buyer: { name: buyer.name, imageUrl: buyer.imageUrl },
+    buyer: { name: buyerName, imageUrl: buyerImageUrl },
     interests: interests.map((interest) => ({
       createdAt: interest.createdAt,
       sellerProfile: interest.sellerProfile,

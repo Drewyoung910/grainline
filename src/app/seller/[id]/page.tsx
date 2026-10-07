@@ -306,7 +306,7 @@ async function SellerPublicContent({
       where: {
         review: {
           listing: publicListingDetailWhere({ sellerId: seller.id }),
-          reviewer: { banned: false, deletedAt: null },
+          reviewerAccountActive: true,
           ...(blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {}),
         },
       },
@@ -316,7 +316,7 @@ async function SellerPublicContent({
         id: true,
         url: true,
         altText: true,
-        review: { select: { listingId: true, reviewer: { select: { id: true } }, listing: { select: { title: true } } } },
+        review: { select: { listingId: true, reviewerId: true, listing: { select: { title: true } } } },
       },
     }),
   ]);
@@ -358,7 +358,7 @@ async function SellerPublicContent({
 
   const hasMoreCustomerPhotos = customerPhotoRows.length > CUSTOMER_PHOTO_PREVIEW_SIZE;
   const customerPhotos = customerPhotoRows.slice(0, CUSTOMER_PHOTO_PREVIEW_SIZE);
-  const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.review.reviewer.id)).size;
+  const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.review.reviewerId)).size;
 
   // ── JSON-LD ─────────────────────────────────────────────────────────────────
   const hasStructuredAddress = Boolean(cityState);

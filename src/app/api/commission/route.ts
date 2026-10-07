@@ -104,15 +104,17 @@ export async function GET(req: NextRequest) {
       _count: { select: { interests: { where: visibleInterestWhere } } },
       expiresAt: true,
       createdAt: true,
-      buyer: { select: { name: true, imageUrl: true } },
+      buyerName: true,
+      buyerImageUrl: true,
     },
   });
-  const requests = requestRows.map(({ _count, ...request }) => ({
+  const requests = requestRows.map(({ _count, buyerName, buyerImageUrl, ...request }) => ({
     ...request,
     interestedCount: resolvedInterestedCount({
       interestedCount: request.interestedCount,
       _count,
     }),
+    buyer: { name: buyerName, imageUrl: buyerImageUrl },
   }));
 
   return privateJson({ requests, total, page: currentPage, totalPages: Math.ceil(total / pageSize) });

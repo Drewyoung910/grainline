@@ -722,7 +722,8 @@ describe("post-launch UI follow-ups", () => {
 
     assert.match(sellerPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
     assert.match(customerPhotosPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
-    assert.match(customerPhotosPage, /reviewer: \{ banned: false, deletedAt: null \}/);
+    assert.match(customerPhotosPage, /reviewerAccountActive: true/);
+    assert.doesNotMatch(customerPhotosPage, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.match(customerPhotosPage, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
     assert.doesNotMatch(customerPhotosPage, /review: \{ listing: \{ sellerId: seller\.id \} \}/);
     assert.match(sitemap, /publicListingDetailWhere\(\{\s*reviews: \{ some: \{ photos: \{ some: \{\} \} \} \},\s*\}\)/s);

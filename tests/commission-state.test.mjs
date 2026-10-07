@@ -10,7 +10,7 @@ describe("commission mutation state", () => {
     assert.deepEqual(openCommissionBaseWhere(now), {
       status: "OPEN",
       OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      buyer: { banned: false, deletedAt: null },
+      buyerAccountActive: true,
     });
     assert.deepEqual(openCommissionWhere(undefined, now), openCommissionBaseWhere(now));
   });
@@ -22,7 +22,7 @@ describe("commission mutation state", () => {
         {
           status: "OPEN",
           OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-          buyer: { banned: false, deletedAt: null },
+          buyerAccountActive: true,
         },
         { id: "commission_1" },
         {},
