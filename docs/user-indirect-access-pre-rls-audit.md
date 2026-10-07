@@ -133,7 +133,9 @@ all 37 exact callable signatures, proving the final 27/10 runtime partition
 and retention of all eight staff-role grants. Stub bodies make this a DCL
 convergence proof, not a repeat of function-behavior or Production authentication
 proof. The full focused db-grant-inventory suite passes 28 tests with one
-intentional skip. Installed Production catalog comparison remains open. The
+intentional skip. The complete read-only Production catalog inspection is
+prepared in `docs/user-installed-catalog-production-inspection.md`; its run and
+sanitized evidence readback remain open. The
 separate service-ledger scope decision is closed without claiming those ledgers
 are hardened.
 

@@ -168,10 +168,18 @@ separate decisions. The exact scanner frontier is now zero direct delegates,
 zero relation edges and zero raw User SQL calls. The service-ledger scope
 decision now keeps `ClerkWebhookEvent` and `AccountDeletionSideEffect` as
 separately tracked hardening groups while User activation preserves their
-predecessor grants and posture. Installed catalog comparison, guarded
-application of every confirmed source-only authority migration, compatible-app
-promotion and smoke, and final grant/policy design still block User activation; see
-`docs/user-service-ledger-separation-decision.md`.
+predecessor grants and posture. The complete 53-function source catalog now has
+an exact-main, read-only Production inspection prepared in
+`docs/user-installed-catalog-production-inspection.md`. Its successful run and
+evidence readback still precede Production mutation. The same immutable source
+package now prepares the separately dispatched, restart-safe eight-migration
+successor runner in `docs/user-authority-successor-production-release.md`.
+That runner accepts only a contiguous checksum-exact prefix, stages only the
+reviewed successors, and requires complete 53-function postflight evidence.
+Its guarded application, compatible-app promotion and smoke, and final
+grant/policy design still block User activation.
+See `docs/user-service-ledger-separation-decision.md` for the residual ledger
+risk that this inspection does not close.
 
 ### Finish the bounded Order release (2026-09-07)
 
