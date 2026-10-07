@@ -60,21 +60,21 @@ in 37 files, two typed User filter definitions, and 10 raw User SQL calls across
 nine files. `docs/user-indirect-access-pre-rls-audit.md` records the product,
 authority and concurrency review; `docs/user-indirect-source-inventory.md` pins
 the caller roster and scanner limits. The 222 opaque caller shapes and 14 opaque
-factory-return shapes still need bounded review; they are not 236 security
-findings. Convert the private
+factory-return shapes are not 236 security findings. Their bounded semantic
+review is complete and a canonical signature gate now reopens review on any
+change; see `docs/user-opaque-query-review.md`. Convert the private
 identity/lifecycle paths or prove their compatible boundary, then inspect the
 installed function/grant catalog. User remains blocked for grants, policies,
-ENABLE, and FORCE until those inventories and service-ledger dependencies
+ENABLE, and FORCE until those inventories and the service-ledger decision
 close.
 
-The current indirect-access successor chain also closes the inherited source
-grant-inventory debt: an explicit 44-function User catalog and canonical
-provisioning preserve 34 runtime operations versus ten private operations,
-including all eight isolated
-staff functions. Disposable execution of the actual provisioning CTEs converges
-twice, and the grant-inventory suite passes 28 tests with one intentional skip.
-This is source readiness only; inspect the installed catalog after the remaining
-access families close.
+The complete indirect-access successor chain also closes the inherited source
+grant-inventory debt: an explicit 53-function User catalog and canonical
+provisioning preserve 34 runtime operations versus nineteen private operations,
+including nine isolated staff functions and ten snapshot-trigger functions.
+Disposable execution of the actual provisioning CTEs converges twice. This is
+source readiness only; the exact-main read-only installed-catalog inspection
+must still pass before final grant and policy design.
 
 The seller-relation successor reuses the installed public owner
 image, durable owner id and activity snapshots for seller-bound review,
@@ -149,16 +149,29 @@ fanout, authenticated seller-owner broadcast recipients with preferences, and
 aggregate-only public listing favorite counts. They preserve deterministic
 paging, reciprocal-block and lifecycle suppression, seller-only filtering, the
 10,000-recipient broadcast cap, and public listing eligibility without exposing
-unneeded User fields. The exact scanner frontier is zero direct delegates,
-19 relation edges in eight staff/admin callers, and zero raw User SQL calls.
+unneeded User fields. Its scanner frontier was zero direct delegates, 19
+relation edges in eight staff/admin callers, and zero raw User SQL calls. The
+isolated staff admin-label successor removes ten display-only edges from six
+Admin-PIN-protected pages. It also closes the final nine guild-verification and
+listing-review edges by using the transactionally maintained
+`SellerProfile.ownerAccountActive` snapshot at each mutation and the isolated
+staff projection for the one account-creation timestamp needed by eligibility.
 Focused source and disposable PostgreSQL proof, Prisma validation, accumulated
 User CI staging, fixed-path catalog checks, direct-table denial and PUBLIC
-execute denial pass. The callable catalog is now 44 functions: 34 runtime and
-ten private. Follow `docs/user-follower-authorities-pre-rls-audit.md`.
+execute denial pass. The complete catalog after the label successor is 53
+functions: 34 runtime and nineteen private, consisting of nine isolated staff
+functions and ten snapshot trigger functions. Follow
+`docs/user-follower-authorities-pre-rls-audit.md` and
+`docs/user-staff-admin-labels-pre-rls-audit.md`.
 Publication, Production SQL, deployment, grants, ENABLE and FORCE remain
-separate decisions. The next cohesive source group is the eight staff/admin
-projection callers; installed catalog comparison, service-ledger closure,
-opaque/manual review and final grant/policy design still block User activation.
+separate decisions. The exact scanner frontier is now zero direct delegates,
+zero relation edges and zero raw User SQL calls. The service-ledger scope
+decision now keeps `ClerkWebhookEvent` and `AccountDeletionSideEffect` as
+separately tracked hardening groups while User activation preserves their
+predecessor grants and posture. Installed catalog comparison, guarded
+application of every confirmed source-only authority migration, compatible-app
+promotion and smoke, and final grant/policy design still block User activation; see
+`docs/user-service-ledger-separation-decision.md`.
 
 ### Finish the bounded Order release (2026-09-07)
 

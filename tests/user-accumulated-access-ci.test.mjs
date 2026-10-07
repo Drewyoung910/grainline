@@ -32,6 +32,7 @@ const heldTests = [
 const staffScript = "scripts/provision-order-staff-read-role.sql";
 const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
 const historicalStaffBlob = "46fd8e1bfa086cb097adf194eb193389122ee9d9";
+const historicalStaffCatalogBlob = "6d0a46c02fa040e7651b675696cec67ad1b2fdd3";
 
 function step(name) {
   const start = workflow.indexOf(`      - name: ${name}\n`);
@@ -119,6 +120,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     const heldFunctions = USER_AUTHORITY_GROUPS.filter(({ migration }) => migrations.includes(migration)).flatMap(({ functions }) => functions.map(({ name }) => name));
     const historical = deriveGrantInventory(root);
     assert.ok(heldFunctions.every((name) => !historical.functions.includes(name)));
+    mkdirSync(path.join(holding, "user-staff-admin-labels"));
     mkdirSync(path.join(holding, "user-follower-authority"));
     execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
     for (const [index, relative] of trackedPaths.entries()) {
@@ -129,8 +131,12 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       "ac17d95ad53501515550b2bb967eb5a149f094d9",
     );
     assert.equal(
-      createHash("sha256").update(readFileSync(path.join(holding, "user-follower-authority", "user-authority-catalog-test"))).digest("hex"),
+      createHash("sha256").update(readFileSync(path.join(holding, "user-staff-admin-labels", "user-authority-catalog-test"))).digest("hex"),
       original[catalogIndex],
+    );
+    assert.equal(
+      execFileSync("git", ["hash-object", path.join(holding, "user-follower-authority", "user-authority-catalog-test")], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(),
+      historicalStaffCatalogBlob,
     );
     assert.match(readFileSync(path.join(root, staffScript), "utf8"), /grainline_user_staff_directory_page/);
     const restored = deriveGrantInventory(root);

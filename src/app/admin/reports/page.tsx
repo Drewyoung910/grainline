@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ResolveReportButton } from "@/components/admin/ResolveReportButton";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { userStaffReportLabels } from "@/lib/userStaffAccess";
+import { userStaffAdminLabels, userStaffReportLabels } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 export const metadata: Metadata = { title: "Reports — Admin" };
@@ -46,10 +46,15 @@ export default async function AdminReportsPage() {
       targetType: true,
       targetId: true,
       createdAt: true,
-      reporter: { select: { name: true, email: true, deletedAt: true } },
-      reported: { select: { name: true, email: true, deletedAt: true } },
+      reporterId: true,
+      reportedId: true,
     },
   });
+  const reportUsers = await userStaffAdminLabels(getOrderStaffReadClient(), {
+    actorId: staff.id,
+    userIds: reports.flatMap((report) => [report.reporterId, report.reportedId]),
+  });
+  const reportUserById = new Map(reportUsers.map((user) => [user.id, user]));
 
   // Batch-resolve context URLs for REVIEW and BLOG_COMMENT reports
   const reviewTargetIds = reports
@@ -157,9 +162,9 @@ export default async function AdminReportsPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <div className="text-sm">
-                  <span className="font-medium">{reportUserLabel(r.reporter)}</span>
+                  <span className="font-medium">{reportUserLabel(reportUserById.get(r.reporterId))}</span>
                   <span className="text-neutral-500"> reported </span>
-                  <Link href={`/admin/users?q=${encodeURIComponent(reportUserSearchValue(r.reported))}`} className="font-medium hover:underline">{reportUserLabel(r.reported)}</Link>
+                  <Link href={`/admin/users?q=${encodeURIComponent(reportUserSearchValue(reportUserById.get(r.reportedId)))}`} className="font-medium hover:underline">{reportUserLabel(reportUserById.get(r.reportedId))}</Link>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-red-50 text-red-700 border border-red-200 rounded-full px-2 py-0.5">

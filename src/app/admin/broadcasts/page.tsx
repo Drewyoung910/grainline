@@ -16,6 +16,8 @@ import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteSellerBroadcastNotificationServiceRows } from "@/lib/notificationServiceAccess";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -103,12 +105,17 @@ export default async function AdminBroadcastsPage({
       sellerProfile: {
         select: {
           id: true,
+          userId: true,
           displayName: true,
-          user: { select: { email: true } },
         },
       },
     },
   });
+  const sellerLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
+    actorId: staff.id,
+    userIds: broadcasts.map((broadcast) => broadcast.sellerProfile.userId),
+  });
+  const sellerLabelById = new Map(sellerLabels.map((label) => [label.id, label]));
 
   function buildHref(overrides: Record<string, string>) {
     const p = new URLSearchParams();
@@ -165,7 +172,7 @@ export default async function AdminBroadcastsPage({
                       {b.sellerProfile?.displayName ?? "Unknown maker"}
                     </Link>
                     <span className="text-xs text-neutral-500">
-                      {b.sellerProfile?.user?.email}
+                      {sellerLabelById.get(b.sellerProfile.userId)?.email ?? "Unknown"}
                     </span>
                     <span className="text-xs text-neutral-300">·</span>
                     <span className="text-xs text-neutral-500">

@@ -5,6 +5,8 @@ import { UndoActionButton } from "@/components/UndoActionButton";
 import { isUndoableAdminAction } from "@/lib/audit";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { truncateText } from "@/lib/sanitize";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Audit Log — Admin" };
@@ -54,10 +56,12 @@ export default async function AdminAuditPage({
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * perPage,
     take: perPage,
-    include: {
-      admin: { select: { name: true, email: true } },
-    },
   });
+  const adminLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
+    actorId: staff.id,
+    userIds: logs.map((log) => log.adminId),
+  });
+  const adminLabelById = new Map(adminLabels.map((label) => [label.id, label]));
 
   const now = Date.now();
 
@@ -115,6 +119,7 @@ export default async function AdminAuditPage({
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {logs.map((log) => {
+              const adminLabel = adminLabelById.get(log.adminId);
               const hoursAgo = (now - new Date(log.createdAt).getTime()) / 3600000;
               const undoable = isUndoableAdminAction(log.action);
               const canUndo =
@@ -137,8 +142,8 @@ export default async function AdminAuditPage({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-medium">{log.admin.name ?? "—"}</div>
-                    <div className="text-xs text-neutral-500">{log.admin.email}</div>
+                    <div className="font-medium">{adminLabel?.name ?? "—"}</div>
+                    <div className="text-xs text-neutral-500">{adminLabel?.email ?? "Unknown"}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-xs text-neutral-500">{log.targetType}</div>

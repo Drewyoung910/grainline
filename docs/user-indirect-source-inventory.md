@@ -2,7 +2,8 @@
 
 Recorded 2026-10-06 on the isolated account-deletion branch and reconciled on
 2026-10-07 through the seller identity, public-blog, public
-review/commission, block/email, and follower-authority successors. Regenerate with
+review/commission, block/email, follower-authority and staff admin-label
+successors. Regenerate with
 `npm run audit:user-indirect-access -- --json`. Each edge is one statically
 visible relation path per query; shared objects report both definition and
 query locations. These are dependencies, not verified security findings.
@@ -19,7 +20,10 @@ commission raw User joins, and the typed buyer lifecycle relation. The exact
 block/email successor removes five more relation edges across two callers and
 two raw User calls across two files. The follower-authority successor removes
 four more relation edges across three callers and the final raw User SQL call.
-The exact frontier is now **19 edges in eight caller files** and **zero raw
+The staff admin-label successor removes ten display-only edges across six
+Admin-PIN-protected pages, then closes the last nine mutation predicates through
+the existing seller lifecycle snapshot and one bounded account-age projection.
+The exact frontier is now **zero edges in zero caller files** and **zero raw
 calls**. Direct delegates remain zero. Opaque caller/factory shapes are listed
 separately. See
 `user-indirect-access-pre-rls-audit.md`,
@@ -34,21 +38,18 @@ behavior and authority decisions. This file supersedes the earlier preliminary
 
 ## Remaining query caller roster
 
-| File | Statically visible User relation edges |
-| --- | ---: |
-| `src/app/admin/audit/page.tsx` | 1 |
-| `src/app/admin/blog/page.tsx` | 3 |
-| `src/app/admin/broadcasts/page.tsx` | 1 |
-| `src/app/admin/reports/page.tsx` | 2 |
-| `src/app/admin/reviews/page.tsx` | 1 |
-| `src/app/admin/support/page.tsx` | 2 |
-| `src/app/admin/verification/page.tsx` | 6 |
-| `src/app/api/admin/listings/[id]/review/route.ts` | 3 |
+No statically visible direct delegate, relation edge or raw User SQL caller
+remains.
 
-The scanner reports 222 opaque caller shapes and 14 opaque
-typed factory-return shapes. These include dynamic conditions, scalar updates,
-input spreads and shared filters. Review the actual helper implementation and
-arguments; absence from this roster does not prove User independence.
+The scanner reports 222 opaque caller shapes and 14 opaque typed factory-return
+shapes. Their helper implementations and arguments have received a bounded
+semantic review: 185 caller rows use reviewed visibility/lifecycle-snapshot or
+scalar-ownership helpers; the other 37 are scalar filters, ordering, mutation
+payload and deletion/retention queue construction. No reviewed shape hides a
+User relation, direct delegate or raw User SQL access. Canonical signature
+digests fail on change and require renewed review. See
+`docs/user-opaque-query-review.md`; the scanner alone still does not prove User
+independence.
 
 ## Raw User SQL calls
 
@@ -59,15 +60,16 @@ definer bodies still require manual inventory.
 
 ## Next cohesive groups
 
-1. Staff and admin investigation projections: maintain the PIN/isolation
-   boundary and return only bounded target facts.
-2. Reconcile installed functions/grants, ClerkWebhookEvent and
-   AccountDeletionSideEffect ledgers before
-   any User table revocation or activation.
+1. Reconcile installed User functions/grants before any User table revocation
+   or activation. The `ClerkWebhookEvent` and `AccountDeletionSideEffect`
+   scope decision is closed in `docs/user-service-ledger-separation-decision.md`:
+   preserve their predecessor state during User activation and complete their
+   separately tracked ledger releases afterward.
 
 The inherited source grant-inventory expectations are corrected locally in this
-package. The explicit 44-function callable User catalog and canonical
-provisioning preserve the 34 ordinary-runtime versus ten private split. The four
-blog and four review/commission snapshot trigger functions are additionally
-registered as runtime-private.
+package. The complete 53-function User catalog and canonical provisioning
+preserve 34 ordinary-runtime functions, nine isolated staff functions, and ten
+runtime-private snapshot trigger functions. The catalog explicitly includes the
+four blog and four review/commission trigger functions that the earlier global
+list omitted.
 This source/DCL proof does not replace the installed Production catalog inspection.
