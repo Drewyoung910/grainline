@@ -331,6 +331,7 @@ jobs:
             tests/account-export-privacy.test.mjs \
             tests/block-filter-guardrails.test.mjs \
             tests/notification-block-race-guardrails.test.mjs \
+            tests/query-param-state.test.mjs \
             tests/user-block-email-authorities-source.test.mjs \
             tests/user-block-email-authorities-postgres.test.mjs
           do
@@ -4473,6 +4474,7 @@ jobs:
           tests/account-export-privacy.test.mjs
           tests/block-filter-guardrails.test.mjs
           tests/notification-block-race-guardrails.test.mjs
+          tests/query-param-state.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/user-authority-catalog.test.mjs
           tests/user-block-email-authorities-source.test.mjs
