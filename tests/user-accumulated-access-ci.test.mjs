@@ -14,6 +14,7 @@ const migrations = [
   "20261006010000_prepare_user_staff_ban_authorities",
   "20261006020000_prepare_user_account_deletion_authorities",
   "20261006030000_prepare_user_relationship_authorities",
+  "20261007160000_converge_user_cross_domain_authorities",
 ];
 const heldTests = [
   "user-staff-ban-authorities.test.mjs",
