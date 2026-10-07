@@ -12,6 +12,8 @@ export type ConversationContextListingState = {
   isPrivate: boolean;
   reservedForUserId?: string | null;
   seller: {
+    userId?: string | null;
+    ownerAccountActive?: boolean | null;
     chargesEnabled: boolean;
     stripeAccountVersion?: string | null;
     vacationMode?: boolean | null;
@@ -24,12 +26,14 @@ export type ConversationContextListingState = {
 } | null | undefined;
 
 function hasActiveSeller(listing: Exclude<ConversationContextListingState, null | undefined>) {
+  const accountActive = "ownerAccountActive" in listing.seller
+    ? listing.seller.ownerAccountActive === true
+    : !listing.seller.user?.banned && !listing.seller.user?.deletedAt;
   return (
+    accountActive &&
     listing.seller.chargesEnabled &&
     (listing.seller.stripeAccountVersion == null || listing.seller.stripeAccountVersion === "v2") &&
-    !listing.seller.vacationMode &&
-    !listing.seller.user?.banned &&
-    !listing.seller.user?.deletedAt
+    !listing.seller.vacationMode
   );
 }
 
@@ -56,7 +60,7 @@ export function canAttachConversationContextListing(
   }
 
   const participants = new Set(participantUserIds);
-  const sellerUserId = listing.seller.user?.id;
+  const sellerUserId = listing.seller.userId ?? listing.seller.user?.id;
   if (!sellerUserId || !participants.has(sellerUserId)) return false;
 
   if (!listing.isPrivate) return true;

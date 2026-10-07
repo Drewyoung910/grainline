@@ -131,7 +131,7 @@ export async function PATCH(
       interests: {
         where: {
           sellerProfile: {
-            user: { banned: false, deletedAt: null },
+            ownerAccountActive: true,
           },
         },
         take: COMMISSION_INTEREST_NOTIFY_LIMIT,

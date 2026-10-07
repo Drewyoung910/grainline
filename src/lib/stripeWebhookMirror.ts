@@ -23,15 +23,16 @@ export async function mirrorStripeChargesEnabled({
     where: { stripeAccountId: accountId },
     select: {
       id: true,
+      userId: true,
+      ownerAccountActive: true,
       chargesEnabled: true,
       stripeAccountId: true,
-      user: { select: { id: true, banned: true, deletedAt: true } },
     },
   });
 
   if (!seller) return { matched: false as const };
 
-  const localAccountActive = !seller.user.banned && !seller.user.deletedAt;
+  const localAccountActive = seller.ownerAccountActive === true;
   const effectiveChargesEnabled = chargesEnabled && localAccountActive;
   const result = {
     matched: true as const,
@@ -43,7 +44,7 @@ export async function mirrorStripeChargesEnabled({
   };
   if (!localAccountActive && chargesEnabled) {
     logSecurityEvent("ownership_violation", {
-      userId: seller.user.id,
+      userId: seller.userId,
       route,
       reason: `Ignored Stripe charges_enabled=true for inactive local account: ${accountId}`,
     });
@@ -79,7 +80,7 @@ export async function mirrorStripeChargesEnabled({
   if (!effectiveChargesEnabled) {
     if (!chargesEnabled || localAccountActive) {
       logSecurityEvent("ownership_violation", {
-        userId: seller.user.id,
+        userId: seller.userId,
         route,
         reason: `Seller Stripe account disabled by Stripe: ${accountId}`,
       });

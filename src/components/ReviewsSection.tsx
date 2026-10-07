@@ -175,11 +175,11 @@ export default async function ReviewsSection({
   const sellerProfile = sellerUserId
     ? await prisma.sellerProfile.findUnique({
         where: { userId: sellerUserId },
-        select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } },
+        select: { id: true, displayName: true, avatarImageUrl: true, ownerImageUrl: true },
       })
     : null;
   const sellerName = sellerProfile?.displayName ?? "Maker";
-  const sellerAvatarUrl = sellerProfile?.avatarImageUrl ?? sellerProfile?.user?.imageUrl ?? null;
+  const sellerAvatarUrl = sellerProfile?.avatarImageUrl ?? sellerProfile?.ownerImageUrl ?? null;
 
   // Link builders (always target listing path + #reviews)
   const sortHref = (k: "top" | "new" | "rating" | "photos", keepEdit = false) =>

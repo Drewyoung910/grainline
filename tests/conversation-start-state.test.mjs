@@ -68,5 +68,36 @@ describe("conversation start state", () => {
       ),
       false,
     );
+    assert.equal(
+      canAttachConversationContextListing(
+        {
+          ...activeListing,
+          seller: {
+            ...activeListing.seller,
+            userId: "seller_user",
+            ownerAccountActive: false,
+            user: { id: "seller_user", banned: false, deletedAt: null },
+          },
+        },
+        ["seller_user", "buyer_user"],
+      ),
+      false,
+    );
+  });
+
+  it("uses the trigger-bound seller snapshot and durable owner id when present", () => {
+    const snapshotListing = {
+      ...activeListing,
+      seller: {
+        userId: "seller_user",
+        ownerAccountActive: true,
+        chargesEnabled: true,
+        vacationMode: false,
+      },
+    };
+    assert.equal(
+      canAttachConversationContextListing(snapshotListing, ["seller_user", "buyer_user"]),
+      true,
+    );
   });
 });

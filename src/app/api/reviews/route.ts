@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       seller: {
         select: {
           userId: true,
-          user: { select: { banned: true, deletedAt: true } },
+          ownerAccountActive: true,
         },
       },
     },
@@ -112,13 +112,11 @@ export async function POST(req: NextRequest) {
     logSecurityEvent("spam_attempt", { userId: me.id, route: "/api/reviews", reason: "self-review attempt" });
     return privateJson({ error: "Cannot review your own listing" }, { status: 403 });
   }
-  if (listingForOwnerCheck?.seller?.user.banned || listingForOwnerCheck?.seller?.user.deletedAt) {
+  if (listingForOwnerCheck && listingForOwnerCheck.seller.ownerAccountActive !== true) {
     logSecurityEvent("account_state_violation", {
       userId: me.id,
       route: "/api/reviews",
-      reason: listingForOwnerCheck.seller.user.banned
-        ? "review target seller banned"
-        : "review target seller deleted",
+      reason: "review target seller inactive",
       listingId,
     });
     return privateJson(
@@ -208,12 +206,12 @@ export async function POST(req: NextRequest) {
           userId: true,
           id: true,
           displayName: true,
-          user: { select: { banned: true, deletedAt: true } },
+          ownerAccountActive: true,
         },
       },
     },
   });
-  if (listing?.seller.userId && !listing.seller.user.banned && !listing.seller.user.deletedAt) {
+  if (listing?.seller.userId && listing.seller.ownerAccountActive === true) {
     const stars = (ratingX2 / 2).toFixed(1).replace(".0", "");
     const reviewerName = me.name ?? "A buyer";
     try {

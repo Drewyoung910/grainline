@@ -1,24 +1,28 @@
 # User indirect source inventory
 
-Recorded 2026-10-06 on the isolated branch `codex/user-account-deletion-20261006`,
-following `ae5f0cb5` and accepted main `66746f47`. Regenerate with
+Recorded 2026-10-06 on the isolated account-deletion branch and reconciled on
+2026-10-07 through the combined seller identity successor. Regenerate with
 `npm run audit:user-indirect-access -- --json`. Each edge is one statically
 visible relation path per query; shared objects report both definition and
 query locations. These are dependencies, not verified security findings.
 
 The owner/cart conversion removes **16 edges across 11 caller files**, taking
 the scanner-visible frontier from 93 edges/48 files to **77 edges/37 files**.
-Direct delegates remain zero. Raw SQL remains ten calls in nine files. Two
-typed filter definitions and opaque caller/factory shapes are listed separately.
-See `user-indirect-access-pre-rls-audit.md` for intended product behavior and
-authority decisions. This file supersedes the earlier preliminary 22-file list.
+The combined seller identity successor removes thirteen more edges across nine
+callers, leaving **64 edges in 30 caller files**. Direct delegates remain zero.
+Raw SQL remains ten calls in nine files. Two typed filter definitions and opaque
+caller/factory shapes are listed separately. See
+`user-indirect-access-pre-rls-audit.md`,
+`user-seller-relation-reuse-pre-rls-audit.md` and
+`user-seller-snapshot-continuation-pre-rls-audit.md` for intended product
+behavior and authority decisions. This file supersedes the earlier preliminary
+22-file list.
 
 ## Remaining query caller roster
 
 | File | Statically visible User relation edges |
 | --- | ---: |
 | `src/app/account/blocked/page.tsx` | 1 |
-| `src/app/account/commissions/page.tsx` | 1 |
 | `src/app/admin/audit/page.tsx` | 1 |
 | `src/app/admin/blog/page.tsx` | 3 |
 | `src/app/admin/broadcasts/page.tsx` | 1 |
@@ -32,28 +36,22 @@ authority decisions. This file supersedes the earlier preliminary 22-file list.
 | `src/app/api/blog/route.ts` | 1 |
 | `src/app/api/blog/search/route.ts` | 2 |
 | `src/app/api/commission/[id]/interest/route.ts` | 1 |
-| `src/app/api/commission/[id]/route.ts` | 2 |
+| `src/app/api/commission/[id]/route.ts` | 1 |
 | `src/app/api/commission/route.ts` | 1 |
-| `src/app/api/cron/commission-expire/route.ts` | 1 |
-| `src/app/api/reviews/[id]/reply/route.ts` | 1 |
-| `src/app/api/reviews/route.ts` | 2 |
-| `src/app/api/seller/broadcast/route.ts` | 3 |
+| `src/app/api/seller/broadcast/route.ts` | 2 |
 | `src/app/blog/[slug]/page.tsx` | 5 |
 | `src/app/blog/page.tsx` | 2 |
-| `src/app/commission/[param]/page.tsx` | 4 |
+| `src/app/commission/[param]/page.tsx` | 3 |
 | `src/app/commission/page.tsx` | 1 |
-| `src/app/dashboard/listings/[id]/edit/page.tsx` | 2 |
 | `src/app/listing/[id]/page.tsx` | 3 |
-| `src/app/messages/new/page.tsx` | 1 |
 | `src/app/page.tsx` | 1 |
 | `src/app/seller/[id]/customer-photos/page.tsx` | 2 |
 | `src/app/seller/[id]/page.tsx` | 2 |
-| `src/components/ReviewsSection.tsx` | 5 |
+| `src/components/ReviewsSection.tsx` | 4 |
 | `src/lib/blocks.ts` | 4 |
 | `src/lib/followerBlogNotifications.ts` | 1 |
 | `src/lib/followerListingNotifications.ts` | 1 |
 | `src/lib/savedBlogPostOwnerAccess.ts` | 1 |
-| `src/lib/stripeWebhookMirror.ts` | 1 |
 
 ## Typed filter definitions
 
@@ -65,7 +63,7 @@ authority decisions. This file supersedes the earlier preliminary 22-file list.
   public expiry/visibility and mutation eligibility when replacing this relation.
 
 Definition edges are not multiplied by factory invocation count or added to the
-77 query-site edges. The scanner reports 222 opaque caller shapes and 14 opaque
+64 query-site edges. The scanner reports 222 opaque caller shapes and 14 opaque
 typed factory-return shapes. These include dynamic conditions, scalar updates,
 input spreads and shared filters. Review the actual helper implementation and
 arguments; absence from this roster does not prove User independence.

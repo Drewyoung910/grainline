@@ -268,9 +268,9 @@ export async function POST(req: NextRequest) {
         select: {
           sellerProfile: {
             select: {
+              ownerAccountActive: true,
               chargesEnabled: true,
               vacationMode: true,
-              user: { select: { banned: true, deletedAt: true } },
             },
           },
         },
@@ -279,8 +279,7 @@ export async function POST(req: NextRequest) {
         !currentBroadcast ||
         !currentBroadcast.sellerProfile.chargesEnabled ||
         currentBroadcast.sellerProfile.vacationMode ||
-        currentBroadcast.sellerProfile.user.banned ||
-        currentBroadcast.sellerProfile.user.deletedAt
+        currentBroadcast.sellerProfile.ownerAccountActive !== true
       ) {
         return;
       }

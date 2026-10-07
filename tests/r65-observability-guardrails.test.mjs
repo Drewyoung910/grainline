@@ -48,7 +48,7 @@ describe("R65 observability guardrails", () => {
 
     const reviews = source("src/app/api/reviews/route.ts");
     assert.match(reviews, /logSecurityEvent\("account_state_violation"/);
-    assert.match(reviews, /review target seller banned/);
+    assert.match(reviews, /review target seller inactive/);
 
     const adminPin = source("src/app/api/admin/verify-pin/route.ts");
     assert.match(adminPin, /logSecurityEvent\("auth_challenge_failed"/);
