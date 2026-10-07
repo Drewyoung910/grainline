@@ -147,6 +147,10 @@ describe("User public blog-state source boundary", () => {
     assert.ok(apply < catalog);
     assert.ok(catalog < audit);
     assert.ok(audit < build);
+    assert.match(
+      workflow,
+      /pg_catalog\.count\(\*\) = 10[\s\S]*WHEN attribute\.attname = ANY\(ARRAY\[[\s\S]*'authorAccountActive',[\s\S]*'authorSellerProfilePresent'[\s\S]*THEN attribute\.attnotnull/,
+    );
     assert.match(workflow, /pg_catalog\.count\(\*\) = 8[\s\S]*grainline_blog_post_author_user_state_bind[\s\S]*grainline_blog_comment_author_seller_state_bind/);
   });
 });

@@ -4090,7 +4090,10 @@ jobs:
               pg_catalog.count(*) = 10
               AND pg_catalog.bool_and(
                 CASE
-                  WHEN attribute.attname = 'authorAccountActive'
+                  WHEN attribute.attname = ANY(ARRAY[
+                    'authorAccountActive',
+                    'authorSellerProfilePresent'
+                  ]::text[])
                     THEN attribute.attnotnull
                   ELSE NOT attribute.attnotnull
                 END
