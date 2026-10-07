@@ -1,43 +1,32 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-
-const {
-  blockedUserIdsFromRows,
-  sellerProfileIdsFromRows,
-} = await import("../src/lib/blockFilterState.ts");
+import assert from "node:assert/strict";
 
 function source(path) {
   return readFileSync(path, "utf8");
 }
 
 describe("block filter guardrails", () => {
-  it("builds blocked user sets from both directions and excludes deleted participants", () => {
+  it("uses the owner-scoped block target authority for reciprocal filters", () => {
     const blocks = source("src/lib/blocks.ts");
+    const migration = source("prisma/migrations/20261007030000_prepare_user_block_email_authorities/migration.sql");
 
-    assert.match(blocks, /blockerId: meId/);
-    assert.match(blocks, /blockedId: meId/);
-    assert.match(blocks, /blocker: \{ deletedAt: null \}/);
-    assert.match(blocks, /blocked: \{ deletedAt: null \}/);
-    const blocked = blockedUserIdsFromRows({
-      blockedByMe: [{ blockedId: "user_b" }, { blockedId: "user_c" }],
-      blockingMe: [{ blockerId: "user_d" }, { blockerId: "user_b" }],
-    });
-
-    assert.deepEqual([...blocked].sort(), ["user_b", "user_c", "user_d"]);
+    assert.match(blocks, /withDbUserContext\(userId, userBlockTargets\)/);
+    assert.match(blocks, /grainline_user_block_targets\(\)/);
+    assert.doesNotMatch(blocks, /prisma\.(?:block|user)\./);
+    assert.match(migration, /relationship\."blockerId" = request_user_id[\s\S]*relationship\."blockedId" = request_user_id/);
+    assert.equal((migration.match(/counterpart\."deletedAt" IS NULL/g) ?? []).length, 1);
   });
 
-  it("derives blocked seller profile ids from blocked user ids", () => {
+  it("returns user and seller ids from one bounded result and isolates the owner page", () => {
     const blocks = source("src/lib/blocks.ts");
+    const page = source("src/app/account/blocked/page.tsx");
 
     assert.match(blocks, /getBlockedSellerProfileIdsFor/);
-    assert.match(blocks, /userId: \{ in: \[\.\.\.blockedUserIds\] \}/);
-    assert.match(blocks, /sellerProfileIdsFromRows\(sellers\)/);
     assert.match(blocks, /getBlockedIdsFor/);
-    assert.match(blocks, /blockedSellerIds: sellerProfileIdsFromRows\(sellers\)/);
-    assert.deepEqual(sellerProfileIdsFromRows([{ id: "seller_1" }, { id: "seller_2" }]), [
-      "seller_1",
-      "seller_2",
-    ]);
+    assert.match(blocks, /row\.sellerProfileId \? \[row\.sellerProfileId\] : \[\]/);
+    assert.match(blocks, /grainline_user_blocked_account_page\(\)/);
+    assert.match(page, /getBlockedAccountsFor\(me\.id\)/);
+    assert.doesNotMatch(page, /prisma\.block\.findMany/);
   });
 });

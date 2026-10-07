@@ -60,6 +60,12 @@ const groups = [
     ["grainline_user_custom_order_seller_state(text, text)", true],
     ["grainline_user_owner_notification_preferences(text)", true],
   ]],
+  ["20261007030000_prepare_user_block_email_authorities", [
+    ["grainline_user_block_targets()", true],
+    ["grainline_user_blocked_account_page()", true],
+    ["grainline_user_block_pair_lock(text)", true],
+    ["grainline_user_email_fallback_addresses()", true],
+  ]],
 ];
 
 export const USER_AUTHORITY_GROUPS = Object.freeze(groups.map(([migration, entries]) => Object.freeze({

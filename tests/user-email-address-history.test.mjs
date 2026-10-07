@@ -50,22 +50,16 @@ describe("user email address history", () => {
     const client = {
       $queryRaw: async (strings, ...values) => {
         query = { sql: strings.join("?"), values };
-        return [{ suppressionKey: "old@example.com" }];
+        return [{ email: "current@example.com" }];
       },
     };
 
     assert.deepEqual(
-      await accountEmailFallbackEmailsForUser(client, {
-        userId: "user_1",
-        emails: ["old@example.com", "current@example.com", "old@example.com"],
-      }),
+      await accountEmailFallbackEmailsForUser(client),
       ["current@example.com"],
     );
-    assert.match(query.sql, /SELECT DISTINCT/);
-    assert.match(query.sql, /"id" <> \?/);
-    assert.match(query.sql, /"deletedAt" IS NULL/);
-    assert.match(query.sql, /= ANY\(\?::text\[\]\)/);
-    assert.deepEqual(query.values, ["user_1", ["old@example.com", "current@example.com"]]);
+    assert.match(query.sql, /grainline_user_email_fallback_addresses\(\)/);
+    assert.deepEqual(query.values, []);
   });
 
   it("does not use historical Gmail aliases whose suppression key belongs to another active account", async () => {
@@ -73,48 +67,16 @@ describe("user email address history", () => {
     const client = {
       $queryRaw: async (strings, ...values) => {
         query = { sql: strings.join("?"), values };
-        return [{ suppressionKey: "firstlast@gmail.com" }];
+        return [{ email: "woodworker@example.com" }];
       },
     };
 
     assert.deepEqual(
-      await accountEmailFallbackEmailsForUser(client, {
-        userId: "user_1",
-        emails: ["First.Last+tag@gmail.com", "woodworker@example.com"],
-      }),
+      await accountEmailFallbackEmailsForUser(client),
       ["woodworker@example.com"],
     );
-    assert.match(query.sql, /lower\(split_part\(btrim\("email"\), '@', 2\)\)/);
-    assert.match(query.sql, /replace\(/);
-    assert.match(query.sql, /\|\| '@gmail\.com'/);
-    assert.deepEqual(query.values, [
-      "user_1",
-      ["first.last+tag@gmail.com", "firstlast@gmail.com", "woodworker@example.com"],
-    ]);
-  });
-
-  it("backs the bounded active-account collision lookup with the matching partial index", () => {
-    const helper = source("src/lib/userEmailAddresses.ts");
-    const migration = source(
-      "prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql",
-    );
-    const canonicalExpression = /WHEN lower\(split_part\(btrim\("email"\), '@', 2\)\) IN \('gmail\.com', 'googlemail\.com'\)[\s\S]*\|\| '@gmail\.com'[\s\S]*ELSE lower\(btrim\("email"\)\)/;
-
-    assert.match(helper, /SELECT DISTINCT/);
-    assert.match(helper, /= ANY\(\$\{suppressionKeyCandidates\}::text\[\]\)/);
-    assert.match(helper, canonicalExpression);
-    assert.doesNotMatch(helper, /endsWith: "@gmail\.com"/);
-    assert.match(
-      migration,
-      /CREATE INDEX CONCURRENTLY "User_active_email_suppression_key_idx"/,
-    );
-    assert.equal(
-      (migration.match(/CREATE(?: UNIQUE)? INDEX CONCURRENTLY/g) ?? []).length,
-      1,
-    );
-    assert.doesNotMatch(migration, /^\s*DROP INDEX/m);
-    assert.match(migration, canonicalExpression);
-    assert.match(migration, /WHERE "deletedAt" IS NULL/);
+    assert.match(query.sql, /grainline_user_email_fallback_addresses\(\)/);
+    assert.deepEqual(query.values, []);
   });
 
   it("stores conservative user-owned history without inferring from email-only tables", () => {

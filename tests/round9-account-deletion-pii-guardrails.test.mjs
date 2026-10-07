@@ -249,9 +249,7 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(deletion, /const accountEmailState = await userAccountEmailAddressState\(tx, \{/);
-    assert.match(deletion, /const accountEmails = await accountEmailFallbackEmailsForUser\(tx, \{/);
-    assert.match(deletion, /emails: accountEmailState\.emails/);
+    assert.match(deletion, /const accountEmails = await accountEmailFallbackEmailsForUser\(tx\)/);
     assert.match(deletion, /\.\.\.accountEmails/);
     assert.match(deletion, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
     assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);

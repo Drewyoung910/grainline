@@ -318,6 +318,25 @@ jobs:
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
+      - name: Isolate User block-email package until its predecessor passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-block-email"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261007030000_prepare_user_block_email_authorities \
+            "$holding/migration"
+          for test_file in \
+            tests/account-export-privacy.test.mjs \
+            tests/block-filter-guardrails.test.mjs \
+            tests/notification-block-race-guardrails.test.mjs \
+            tests/query-param-state.test.mjs \
+            tests/user-block-email-authorities-source.test.mjs \
+            tests/user-block-email-authorities-postgres.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Isolate User email-delivery authority until historical release guards pass
         shell: bash
         run: |
@@ -4435,6 +4454,109 @@ jobs:
             --set=migration_role=ci \
             --file=scripts/provision-order-staff-read-role.sql
       - name: Audit runtime grants after accumulated User access
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User block-email source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-block-email"
+          mv \
+            "$holding/migration" \
+            prisma/migrations/20261007030000_prepare_user_block_email_authorities
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Re-verify User block-email source package
+        run: >-
+          node --test
+          tests/account-export-privacy.test.mjs
+          tests/block-filter-guardrails.test.mjs
+          tests/notification-block-race-guardrails.test.mjs
+          tests/query-param-state.test.mjs
+          tests/round9-account-deletion-pii-guardrails.test.mjs
+          tests/user-authority-catalog.test.mjs
+          tests/user-block-email-authorities-source.test.mjs
+          tests/user-block-email-authorities-postgres.test.mjs
+          tests/user-email-address-history.test.mjs
+      - name: Apply User block-email authorities in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261007030000_prepare_user_block_email_authorities/migration.sql
+      - name: Verify User block-email authority catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_user_block_email_authorities$
+          DECLARE
+            functions_are_exact boolean;
+            rls_posture_is_unchanged boolean;
+          BEGIN
+            SELECT
+              pg_catalog.count(*) = 4
+              AND pg_catalog.bool_and(procedure.prosecdef)
+              AND pg_catalog.bool_and(
+                procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+              )
+              AND pg_catalog.bool_and(
+                pg_catalog.has_function_privilege(
+                  'grainline_app_runtime', procedure.oid, 'EXECUTE'
+                )
+              )
+              AND NOT pg_catalog.bool_or(
+                EXISTS (
+                  SELECT 1
+                    FROM pg_catalog.aclexplode(
+                      COALESCE(
+                        procedure.proacl,
+                        pg_catalog.acldefault('f', procedure.proowner)
+                      )
+                    ) AS privilege
+                   WHERE privilege.grantee = 0
+                     AND privilege.privilege_type = 'EXECUTE'
+                )
+              )
+              INTO functions_are_exact
+              FROM pg_catalog.pg_proc AS procedure
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'public'
+               AND procedure.oid = ANY(ARRAY[
+                 'public.grainline_user_block_targets()'::pg_catalog.regprocedure,
+                 'public.grainline_user_blocked_account_page()'::pg_catalog.regprocedure,
+                 'public.grainline_user_block_pair_lock(text)'::pg_catalog.regprocedure,
+                 'public.grainline_user_email_fallback_addresses()'::pg_catalog.regprocedure
+               ]::pg_catalog.oid[]);
+
+            SELECT
+              pg_catalog.count(*) = 3
+              AND pg_catalog.bool_and(
+                CASE table_state.relname
+                  WHEN 'UserEmailAddress'
+                    THEN table_state.relrowsecurity AND table_state.relforcerowsecurity
+                  ELSE NOT table_state.relrowsecurity AND NOT table_state.relforcerowsecurity
+                END
+              )
+              INTO rls_posture_is_unchanged
+              FROM pg_catalog.pg_class AS table_state
+              INNER JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = table_state.relnamespace
+             WHERE namespace.nspname = 'public'
+               AND table_state.relname = ANY(ARRAY[
+                 'User',
+                 'Block',
+                 'UserEmailAddress'
+               ]::text[]);
+
+            IF functions_are_exact IS DISTINCT FROM true
+               OR rls_posture_is_unchanged IS DISTINCT FROM true THEN
+              RAISE EXCEPTION 'User block-email authority catalog drifted';
+            END IF;
+          END
+          $verify_user_block_email_authorities$;
+          SQL
+      - name: Audit runtime grants after User block-email authorities
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

@@ -12,7 +12,6 @@ import {
   accountEmailFallbackEmailsForUser,
   accountEmailSuppressionKeysForEmails,
   deleteCurrentUserEmailAddressHistory,
-  userAccountEmailAddressState,
 } from "@/lib/userEmailAddresses";
 import { supportRequestAccountExportWhere, supportRequestSlaDueAt } from "@/lib/supportRequest";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
@@ -1138,13 +1137,7 @@ export async function anonymizeUserAccount(
       );
     }
     const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
-    const accountEmailState = await userAccountEmailAddressState(tx, {
-      currentEmail: user.email,
-    });
-    const accountEmails = await accountEmailFallbackEmailsForUser(tx, {
-      userId: user.id,
-      emails: accountEmailState.emails,
-    });
+    const accountEmails = await accountEmailFallbackEmailsForUser(tx);
     const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails(accountEmails);
     const suppressionEmailMatches = accountEmailSuppressionKeys;
     const accountSensitiveValues = normalizedSensitiveValues([

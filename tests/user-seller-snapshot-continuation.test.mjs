@@ -41,13 +41,13 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   );
 });
 
-test("seller, blog, and review snapshot continuations reduce the User relation frontier", () => {
+test("seller, blog, review, and block-email continuations reduce the User relation frontier", () => {
   const report = auditUserIndirectAccess(process.cwd());
   assert.equal(report.directCount, 0);
-  assert.equal(report.relationCount, 28);
-  assert.equal(report.relationFiles, 13);
-  assert.equal(report.rawSqlCount, 3);
-  assert.equal(report.rawSqlFiles, 3);
+  assert.equal(report.relationCount, 23);
+  assert.equal(report.relationFiles, 11);
+  assert.equal(report.rawSqlCount, 1);
+  assert.equal(report.rawSqlFiles, 1);
   assert.equal(report.factoryRelations.length, 0);
 
   const removedFiles = new Set([

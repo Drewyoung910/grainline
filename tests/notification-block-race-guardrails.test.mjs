@@ -11,25 +11,30 @@ describe("Notification reciprocal-block serialization", () => {
     "docs/rls-drafts/notification-service-authority.sql",
     "utf8",
   );
+  const userBlockSql = fs.readFileSync(
+    "prisma/migrations/20261007030000_prepare_user_block_email_authorities/migration.sql",
+    "utf8",
+  );
 
   it("serializes ordinary block and unblock mutations on a sorted user pair", () => {
-    assert.match(blockAccess, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.equal((blockAccess.match(/withDbUserContext\(blockerId, async \(tx\) =>/g) ?? []).length, 2);
     assert.equal(
       (blockAccess.match(/isolationLevel: Prisma\.TransactionIsolationLevel\.ReadCommitted/g) ?? []).length,
       2,
     );
-    assert.match(blockAccess, /WHERE block_user\.id IN \(\$\{blockerId\}, \$\{blockedId\}\)/);
-    assert.match(blockAccess, /ORDER BY block_user\.id\s+FOR UPDATE/);
-    assert.match(blockAccess, /await lockBlockUserPair\(tx, blockerId, blockedId\)/);
+    assert.match(blockAccess, /grainline_user_block_pair_lock\(\$\{blockedId\}::text\)/);
+    assert.match(userBlockSql, /current_setting\('transaction_isolation'\) <> 'read committed'/);
+    assert.match(userBlockSql, /ORDER BY account_user\.id\s+FOR UPDATE/);
+    assert.equal((blockAccess.match(/await lockBlockUserPair\(tx, blockedId\)/g) ?? []).length, 2);
     assert.match(blockAccess, /await tx\.block\.upsert/);
     assert.match(blockAccess, /await tx\.block\.deleteMany/);
     assert.ok(
-      blockAccess.indexOf("await lockBlockUserPair(tx, blockerId, blockedId)") <
+      blockAccess.indexOf("await lockBlockUserPair(tx, blockedId)") <
         blockAccess.indexOf("await tx.block.upsert"),
       "block creation must lock the pair before inserting",
     );
     assert.ok(
-      blockAccess.lastIndexOf("await lockBlockUserPair(tx, blockerId, blockedId)") <
+      blockAccess.lastIndexOf("await lockBlockUserPair(tx, blockedId)") <
         blockAccess.indexOf("await tx.block.deleteMany"),
       "unblock must lock the pair before deleting",
     );

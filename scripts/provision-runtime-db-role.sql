@@ -3204,7 +3204,11 @@ WITH user_relationship_runtime(function_signature) AS (
     ('public."grainline_user_relationship_target_state"(text, text)'),
     ('public."grainline_user_conversation_participants"(text, text)'),
     ('public."grainline_user_custom_order_seller_state"(text, text)'),
-    ('public."grainline_user_owner_notification_preferences"(text)')
+    ('public."grainline_user_owner_notification_preferences"(text)'),
+    ('public."grainline_user_block_targets"()'),
+    ('public."grainline_user_blocked_account_page"()'),
+    ('public."grainline_user_block_pair_lock"(text)'),
+    ('public."grainline_user_email_fallback_addresses"()')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
@@ -3220,7 +3224,11 @@ WITH user_relationship_runtime(function_signature) AS (
     ('public."grainline_user_relationship_target_state"(text, text)'),
     ('public."grainline_user_conversation_participants"(text, text)'),
     ('public."grainline_user_custom_order_seller_state"(text, text)'),
-    ('public."grainline_user_owner_notification_preferences"(text)')
+    ('public."grainline_user_owner_notification_preferences"(text)'),
+    ('public."grainline_user_block_targets"()'),
+    ('public."grainline_user_blocked_account_page"()'),
+    ('public."grainline_user_block_pair_lock"(text)'),
+    ('public."grainline_user_email_fallback_addresses"()')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

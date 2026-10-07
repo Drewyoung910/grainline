@@ -68,8 +68,8 @@ ENABLE, and FORCE until those inventories and service-ledger dependencies
 close.
 
 The indirect-access successor also closes the inherited source grant-inventory
-debt: an explicit 37-function User catalog and canonical provisioning preserve
-27 runtime operations versus ten private operations, including all eight isolated
+debt: an explicit 41-function User catalog and canonical provisioning preserve
+31 runtime operations versus ten private operations, including all eight isolated
 staff functions. Disposable execution of the actual provisioning CTEs converges
 twice, and the grant-inventory suite passes 28 tests with one intentional skip.
 This is source readiness only; inspect the installed catalog after the remaining
@@ -103,9 +103,9 @@ and identity synchronization, tamper resistance and PUBLIC privilege denial.
 Follow `docs/user-public-blog-projection-pre-rls-audit.md`. This remains local
 source preparation stacked on unpublished seller commit `971d42d3`; it does not
 authorize publication, migration, deployment, User grants, ENABLE or FORCE.
-The next cohesive source family is public review/commission identity and
-lifecycle state, followed by block/email service paths, staff projections and
-the installed catalog/service-ledger reconciliation.
+The continuation order is public review/commission identity and lifecycle
+state, then block/email service paths, staff projections, and the installed
+catalog/service-ledger reconciliation.
 
 The public review/commission successor is now implemented locally on top of the
 public-blog package. It adds artifact-bound reviewer and commission-buyer
@@ -122,6 +122,23 @@ tamper/rebind/privilege proof pass. Follow
 `docs/user-public-review-commission-pre-rls-audit.md`. This remains unpublished
 source preparation; block/email services, staff projections, installed catalog
 comparison, service ledgers, and final grant/policy design still block User RLS.
+
+The block/email successor is now implemented locally on top of the public
+review/commission package. Four owner/context-bound runtime operations replace
+reciprocal block-target relations, the blocked-account page relation, the raw
+sorted User pair lock, and the raw email-collision query. The lock retains the
+existing `READ COMMITTED` sorted `FOR UPDATE` protocol used to serialize block
+mutations against notification creation. The email operation takes no target
+identity or candidate addresses and derives the current/history set from
+transaction context. The exact scanner frontier is now zero direct delegates,
+23 relation edges in 11 files, and one raw User SQL call in
+`src/lib/quality-score.ts`. The focused source and disposable PostgreSQL proofs
+pass, and CI stages this package after review/commission and accumulated access
+with an exact catalog, unchanged-RLS, and grant audit. Follow
+`docs/user-block-email-pre-rls-audit.md`. Publication, Production SQL,
+deployment, grants, ENABLE, and FORCE remain unapproved; staff/provider/follower
+projections, installed catalog comparison, and service-ledger closure still
+block User activation.
 
 ### Finish the bounded Order release (2026-09-07)
 

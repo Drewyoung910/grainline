@@ -1,5 +1,8 @@
 import { withDbUserContext } from "@/lib/dbUserContext";
-import { userAccountEmailAddressState } from "@/lib/userEmailAddresses";
+import {
+  accountEmailFallbackEmailsForUser,
+  userAccountEmailAddressState,
+} from "@/lib/userEmailAddresses";
 
 export function ownerUserAccountEmailAddressState(
   userId: string,
@@ -8,5 +11,12 @@ export function ownerUserAccountEmailAddressState(
   return withDbUserContext(
     userId,
     (tx) => userAccountEmailAddressState(tx, { currentEmail }),
+  );
+}
+
+export function ownerAccountEmailFallbackEmails(userId: string) {
+  return withDbUserContext(
+    userId,
+    (tx) => accountEmailFallbackEmailsForUser(tx),
   );
 }
