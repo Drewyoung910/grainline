@@ -9,7 +9,9 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   USER_COMPLETE_AUTHORITY_MIGRATIONS,
   USER_INSTALLED_CATALOG_INSPECTION_CONFIRMATION,
+  UserInstalledCatalogVerificationError,
   assertUserInstalledCatalogInspectionGitState,
+  buildUserInstalledCatalogFailureEvidence,
   buildUserInstalledCatalogExpectation,
   parseUserInstalledCatalogInspectionConfig,
   readUserInstalledCatalog,
@@ -266,6 +268,59 @@ test("requires a clean exact checkout and writes private sanitized evidence", ()
       path.join(root, "secret.json"),
       { connection: DIRECT_URL },
     ), /private data/u);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("retains only sanitized catalog metadata when verification rejects Production", () => {
+  const expectation = buildUserInstalledCatalogExpectation();
+  const catalog = acceptedCatalog(expectation);
+  catalog.table.runtime_select = false;
+  let cause;
+  try {
+    verifyUserInstalledCatalog(catalog, expectation);
+  } catch (error) {
+    cause = error;
+  }
+  assert.ok(cause instanceof Error);
+  const failure = new UserInstalledCatalogVerificationError(cause, catalog);
+  const config = {
+    mode: "production-owner-catalog-read-only",
+    releaseCommit: COMMIT,
+    directUrlSha256: createHash("sha256").update(DIRECT_URL).digest("hex"),
+  };
+  const evidence = buildUserInstalledCatalogFailureEvidence(
+    config,
+    { head: COMMIT, clean: true },
+    failure,
+  );
+  assert.equal(evidence.status, "failed");
+  assert.equal(evidence.failure.code, "CATALOG_VERIFICATION_REJECTED");
+  assert.equal(evidence.catalog.table.runtime_select, false);
+  assert.deepEqual(evidence.transaction, {
+    isolation: "repeatable read",
+    readOnly: true,
+    rolledBack: true,
+  });
+  assert.deepEqual(evidence.retained, {
+    catalogMetadataOnly: true,
+    rowData: false,
+    identifiers: false,
+    credentials: false,
+    functionBodies: false,
+  });
+  assert.equal(evidence.productionChanged, false);
+  assert.equal(JSON.stringify(evidence).includes(DIRECT_URL), false);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "user-installed-catalog-failure-"));
+  try {
+    const evidencePath = path.join(root, "failure.json");
+    writeUserInstalledCatalogInspectionEvidence(evidencePath, evidence);
+    assert.equal(fs.statSync(evidencePath).mode & 0o077, 0);
+    const retained = JSON.parse(fs.readFileSync(evidencePath, "utf8"));
+    assert.equal(retained.status, "failed");
+    assert.equal(JSON.stringify(retained).includes(DIRECT_URL), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
