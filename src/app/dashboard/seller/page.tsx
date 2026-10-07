@@ -32,6 +32,7 @@ import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { latestSellerPayoutFailure } from "@/lib/sellerPayoutEventAuthority";
+import { userOwnerNotificationPreferences } from "@/lib/userRelationshipAccess";
 
 const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
 const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
@@ -218,7 +219,7 @@ export default async function SellerSettingsPage({
     prisma.sellerProfile.findUnique({ where: { id: seller.id } }),
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
     prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
-    prisma.user.findUnique({ where: { id: me.id }, select: { notificationPreferences: true } }),
+    userOwnerNotificationPreferences(prisma, me.id),
     latestSellerPayoutFailure(me.id),
   ]);
 
@@ -245,7 +246,7 @@ export default async function SellerSettingsPage({
     }
   }
 
-  const prefs = normalizeNotificationPreferences(userRow?.notificationPreferences);
+  const prefs = normalizeNotificationPreferences(userRow);
   const SELLER_DEFAULT_OFF: NotificationPreferenceKey[] = ["NEW_FAVORITE", "NEW_BLOG_COMMENT", "BLOG_COMMENT_REPLY"];
   function isEnabled(type: NotificationPreferenceKey) {
     if (SELLER_DEFAULT_OFF.includes(type)) return prefs[type] === true;

@@ -3033,6 +3033,188 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- User ban consumers accept only short-lived capabilities minted through the
+-- separately authenticated staff role. The shared runtime receives neither
+-- staff reads nor capability minting authority.
+WITH user_isolated_staff_private(function_signature) AS (
+  VALUES
+    ('public."grainline_user_staff_directory_count"(text, text)'),
+    ('public."grainline_user_staff_directory_page"(text, text, integer)'),
+    ('public."grainline_user_staff_exact_email_target"(text, text)'),
+    ('public."grainline_user_staff_report_labels"(text, text[])'),
+    ('public."grainline_user_staff_email_recipient"(text, text, text)'),
+    ('public."grainline_user_staff_ban_target"(text, text)'),
+    ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),
+    ('public."grainline_user_ban_repair_target"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_isolated_staff_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_staff_ban_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_staff_ban_apply"(text, text, timestamp without time zone, text)'),
+    ('public."grainline_user_staff_unban_apply"(text, text, timestamp without time zone)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_staff_ban_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_staff_ban_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_staff_ban_apply"(text, text, timestamp without time zone, text)'),
+    ('public."grainline_user_staff_unban_apply"(text, text, timestamp without time zone)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_staff_ban_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Previously accepted Clerk, owner, delivery and public User operations must
+-- converge too. These explicit signatures grant no User table visibility.
+WITH user_identity_owner_delivery_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_clerk_account"(text)'),
+    ('public."grainline_user_clerk_gate"(text)'),
+    ('public."grainline_user_clerk_identity_ensure"(text, text, text, boolean, text, boolean, text, boolean)'),
+    ('public."grainline_user_clerk_actor"(text)'),
+    ('public."grainline_user_clerk_commission_context"(text)'),
+    ('public."grainline_user_clerk_lifecycle_state"(text)'),
+    ('public."grainline_user_clerk_welcome_reserve"(text, text)'),
+    ('public."grainline_user_owner_shipping_address_update"(text, text, text, text, text, text, text, text)'),
+    ('public."grainline_user_owner_legal_acceptance"(text, text)'),
+    ('public."grainline_user_owner_notification_preference_update"(text, text, boolean)'),
+    ('public."grainline_user_unsubscribe_token_superseded"(text[], timestamp without time zone)'),
+    ('public."grainline_user_unsubscribe_preferences_disable"(text[])'),
+    ('public."grainline_user_email_recipient"(text, text)'),
+    ('public."grainline_user_email_recipient_batch"(text[], text)'),
+    ('public."grainline_user_email_account_state_by_id"(text, text)'),
+    ('public."grainline_user_email_account_state_by_email"(text)'),
+    ('public."grainline_user_public_active_member_count"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_identity_owner_delivery_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_identity_owner_delivery_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_clerk_account"(text)'),
+    ('public."grainline_user_clerk_gate"(text)'),
+    ('public."grainline_user_clerk_identity_ensure"(text, text, text, boolean, text, boolean, text, boolean)'),
+    ('public."grainline_user_clerk_actor"(text)'),
+    ('public."grainline_user_clerk_commission_context"(text)'),
+    ('public."grainline_user_clerk_lifecycle_state"(text)'),
+    ('public."grainline_user_clerk_welcome_reserve"(text, text)'),
+    ('public."grainline_user_owner_shipping_address_update"(text, text, text, text, text, text, text, text)'),
+    ('public."grainline_user_owner_legal_acceptance"(text, text)'),
+    ('public."grainline_user_owner_notification_preference_update"(text, text, boolean)'),
+    ('public."grainline_user_unsubscribe_token_superseded"(text[], timestamp without time zone)'),
+    ('public."grainline_user_unsubscribe_preferences_disable"(text[])'),
+    ('public."grainline_user_email_recipient"(text, text)'),
+    ('public."grainline_user_email_recipient_batch"(text[], text)'),
+    ('public."grainline_user_email_account_state_by_id"(text, text)'),
+    ('public."grainline_user_email_account_state_by_email"(text)'),
+    ('public."grainline_user_public_active_member_count"()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_identity_owner_delivery_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Account deletion must keep its source-bound User authorities executable after
+-- role convergence. These functions derive the affected User from either the
+-- signed-provider Clerk identity or the exact durable LOCAL_ANONYMIZE effect;
+-- ordinary runtime receives EXECUTE only.
+WITH user_account_deletion_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_provider_deleted_defer"(text)'),
+    ('public."grainline_user_account_deletion_preflight"(text)'),
+    ('public."grainline_user_account_deletion_snapshot"(text)'),
+    ('public."grainline_user_account_deletion_finalize"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_account_deletion_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_account_deletion_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_provider_deleted_defer"(text)'),
+    ('public."grainline_user_account_deletion_preflight"(text)'),
+    ('public."grainline_user_account_deletion_snapshot"(text)'),
+    ('public."grainline_user_account_deletion_finalize"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_account_deletion_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Remaining relationship-facing User reads use purpose-bound projections.
+-- Preserve those exact operations across role convergence without restoring
+-- direct User table access.
+WITH user_relationship_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_relationship_target_state"(text, text)'),
+    ('public."grainline_user_conversation_participants"(text, text)'),
+    ('public."grainline_user_custom_order_seller_state"(text, text)'),
+    ('public."grainline_user_owner_notification_preferences"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_relationship_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_relationship_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_relationship_target_state"(text, text)'),
+    ('public."grainline_user_conversation_participants"(text, text)'),
+    ('public."grainline_user_custom_order_seller_state"(text, text)'),
+    ('public."grainline_user_owner_notification_preferences"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_relationship_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- UserEmailAddress authority is prepared before its policyless RLS activation.
 -- Converge the exact source-bound runtime operations whenever that preparation
 -- exists; helpers used only by account-deletion flows remain governed by their

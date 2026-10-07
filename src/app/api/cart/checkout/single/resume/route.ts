@@ -63,7 +63,7 @@ export async function GET(req: Request) {
             chargesEnabled: true,
             vacationMode: true,
             acceptingNewOrders: true,
-            user: { select: { banned: true, deletedAt: true } },
+            ownerAccountActive: true,
           },
         },
       },

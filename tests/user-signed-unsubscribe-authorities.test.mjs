@@ -85,16 +85,7 @@ describe("User signed-unsubscribe authorities", () => {
       ["scripts/audit-user-direct-calls.mjs", "--json"],
       { encoding: "utf8" },
     ));
-    assert.equal(report.count, 29);
-    assert.equal(report.files, 14);
-    assert.deepEqual(report.byMethod, {
-      count: 1,
-      findFirst: 1,
-      findMany: 3,
-      findUnique: 19,
-      update: 2,
-      updateMany: 3,
-    });
+    assert.deepEqual(report, { count: 0, files: 0, byMethod: {}, calls: [] });
   });
 
   it("isolates the additive migration before historical guards and restores it after its predecessor", () => {

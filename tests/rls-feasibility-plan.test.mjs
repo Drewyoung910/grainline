@@ -666,13 +666,13 @@ describe("RLS feasibility plan guardrails", () => {
     assert.doesNotMatch(accountDeletion, /setDbUserContext/);
     const deletionTransactionStart = accountDeletion.indexOf("const result = await withDbUserContext(userId, async (tx) => {");
     const deletionContextSet = deletionTransactionStart;
-    const deletionUserRead = accountDeletion.indexOf("const user = await tx.user.findUnique", deletionTransactionStart);
+    const deletionUserRead = accountDeletion.indexOf("getUserAccountDeletionSnapshot(", deletionTransactionStart);
     assert.notEqual(deletionTransactionStart, -1);
     assert.notEqual(deletionContextSet, -1);
     assert.notEqual(deletionUserRead, -1);
     assert.ok(
       deletionContextSet < deletionUserRead,
-      "account deletion must set target-user context before any transaction query",
+      "account deletion must set target-user context before its locked User snapshot",
     );
   });
 

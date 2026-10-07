@@ -4,7 +4,7 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Complete the `User` identity/account design audit (2026-10-03)
+### Complete the `User` identity/account design audit (updated 2026-10-06)
 
 `UserEmailAddress` is complete in Production through policyless FORCE from
 exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and
@@ -26,14 +26,54 @@ unchanged. The outbound email-delivery source package is merged at exact main
 `d8a6d1c4`; its additive migration is accepted in Production through guarded
 run `37215932608`, while caller deployment remains a separate decision.
 
-The next bounded family is public and relationship identity. Follow
-`docs/user-public-identity-pre-rls-audit.md`: unify the active-member count,
-remove public Clerk-id dependencies, and replace public raw/nested User access
-with domain-bound operations that preserve database-side visibility, block
-filters, ranking, counts, and pagination. Do not create a generic active-user
-directory: an active buyer without a public artifact is not public identity.
-This authorizes isolated preparation only; User activation remains blocked on
-every remaining direct, raw-SQL, relation and installed-function family.
+The public and relationship application package is now live from exact source
+`66746f47e87a73a6efce2ee6833542be5a86cc57`, CI `37376845782`, and candidate
+`dpl_BSDP31g6krQTVe1xG1V7igrFnM1w` on all five canonical Production aliases.
+The seven prerequisite authority proofs remain separately accepted. This
+release changed application callers and additive operations; it did not enable
+User RLS or revoke predecessor table authority.
+
+The staff/ban family is complete as local commit `8668c53c`; follow
+`docs/user-staff-ban-pre-rls-audit.md`. Its 17 direct calls are removed through
+isolated staff-session reads/mints and two one-use shared-runtime capability
+consumers. Publication, merge, migration, and deployment remain separate
+decisions.
+
+The account-deletion family is complete as local commit `80b4955b`; follow
+`docs/user-account-deletion-pre-rls-audit.md`. Its isolated candidate removes
+five direct User calls and the raw User lock, binds preflight/snapshot/finalize
+to the exact retained `LOCAL_ANONYMIZE` side effect, derives provider-blocked
+deferral from Clerk id, and releases the Redis deletion lock if durable enqueue
+fails. The direct scanner is now seven read calls in six files with zero
+ordinary application User writes. Do not overstate this as arbitrary-runtime
+resistance: `AccountDeletionSideEffect` and `ClerkWebhookEvent` are still
+separate service-ledger hardening groups.
+
+The stacked relationship family is complete as local commit `ae5f0cb5`; follow
+`docs/user-relationship-pre-rls-audit.md`. Four purpose-bound operations remove
+the final seven ordinary direct User reads. The direct scanner is now exactly
+zero calls across zero files. This does not mean the User table is ready:
+the schema-aware indirect inventory supersedes the preliminary 22-file search.
+It found 93 visible User relation edges across 48 caller files. Compatible owner
+reuse and cart/quote/checkout preflight conversion remove 16 edges, leaving 77
+in 37 files, two typed User filter definitions, and 10 raw User SQL calls across
+nine files. `docs/user-indirect-access-pre-rls-audit.md` records the product,
+authority and concurrency review; `docs/user-indirect-source-inventory.md` pins
+the caller roster and scanner limits. The 222 opaque caller shapes and 14 opaque
+factory-return shapes still need bounded review; they are not 236 security
+findings. Convert the private
+identity/lifecycle paths or prove their compatible boundary, then inspect the
+installed function/grant catalog. User remains blocked for grants, policies,
+ENABLE, and FORCE until those inventories and service-ledger dependencies
+close.
+
+The indirect-access successor also closes the inherited source grant-inventory
+debt: an explicit 37-function User catalog and canonical provisioning preserve
+27 runtime operations versus ten private operations, including all eight isolated
+staff functions. Disposable execution of the actual provisioning CTEs converges
+twice, and the grant-inventory suite passes 28 tests with one intentional skip.
+This is source readiness only; inspect the installed catalog after the remaining
+access families close.
 
 ### Finish the bounded Order release (2026-09-07)
 

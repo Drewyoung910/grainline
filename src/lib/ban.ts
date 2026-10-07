@@ -17,6 +17,13 @@ import {
 import { getOrderStaffReadClient } from './orderStaffReadDb'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { sanitizeAdminAuditReason } from './audit'
+import { repairBanUserExternalSideEffects } from './banSideEffectRepair'
+import {
+  mintUserStaffCapability,
+  userStaffBanApply,
+  userStaffBanTarget,
+  userStaffUnbanApply,
+} from './userStaffAccess'
 import * as Sentry from '@sentry/nextjs'
 
 const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
@@ -38,13 +45,31 @@ export class BanUserExternalSyncError extends BanUserPolicyError {
   }
 }
 
+function throwBanAuthorityPolicyError(error: unknown): never {
+  const message = error instanceof Error ? error.message : ''
+  if (message.includes('User not found')) {
+    throw new BanUserPolicyError('User not found', 404)
+  }
+  if (message.includes('Cannot ban admin accounts')) {
+    throw new BanUserPolicyError('Cannot ban admin accounts')
+  }
+  if (message.includes('Cannot unban admin accounts')) {
+    throw new BanUserPolicyError('Cannot unban admin accounts')
+  }
+  if (message.includes('User ban state changed')) {
+    throw new BanUserPolicyError('User ban state changed. Refresh and try again.', 409)
+  }
+  throw error
+}
+
 async function requireBanReviewTarget(
+  adminId: string,
   userId: string,
   operation: 'ban' | 'unban',
 ) {
-  const target = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true, deletedAt: true, banned: true, clerkId: true },
+  const target = await userStaffBanTarget(getOrderStaffReadClient(), {
+    actorId: adminId,
+    targetId: userId,
   })
   if (!target || target.deletedAt) {
     throw new BanUserPolicyError('User not found', 404)
@@ -56,6 +81,80 @@ async function requireBanReviewTarget(
   // capability mint and consumer repeat target validation and remain the
   // source-validating authority boundary across concurrent state changes.
   return target
+}
+
+async function convergeAlreadyBannedExternalSideEffects({
+  userId,
+  adminId,
+  clerkId,
+  bannedAt,
+}: {
+  userId: string
+  adminId: string
+  clerkId: string
+  bannedAt: Date | null
+}) {
+  const recentBanLogs = await prisma.adminAuditLog.findMany({
+    where: {
+      action: 'BAN_USER',
+      targetType: 'USER',
+      targetId: userId,
+      undone: false,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 25,
+    select: { id: true, metadata: true },
+  })
+  const matchingBanLog = recentBanLogs.find((log) => {
+    const metadata = readBanAuditMetadata(log.metadata)
+    return metadata.externalSyncVersion === 1
+      && metadata.appliedBannedAt === bannedAt?.toISOString()
+  })
+
+  if (matchingBanLog) {
+    const result = await repairBanUserExternalSideEffects({
+      originalActionId: matchingBanLog.id,
+      adminId,
+      targetId: userId,
+    })
+    if (result.status === 'failed') {
+      throw new BanUserExternalSyncError('User remains banned locally, but external ban side effects could not be repaired. Try again or contact support.')
+    }
+    return
+  }
+
+  await invalidateAccountStateCache(clerkId, 'ban_user_account_state_cache_invalidate')
+  try {
+    const result = await banClerkUserAndRevokeSessions(clerkId)
+    await logClerkSyncResult({
+      adminId,
+      action: 'BAN_USER_CLERK_SYNC',
+      targetId: userId,
+      metadata: {
+        clerkUserId: clerkId,
+        revokedSessionCount: result.revokedSessionCount,
+        idempotentConvergence: true,
+        unmatchedHistoricalBan: true,
+      },
+    })
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: 'ban_user_clerk_sync' },
+      extra: { userId, adminId, clerkUserId: clerkId, idempotentConvergence: true },
+    })
+    await logClerkSyncResult({
+      adminId,
+      action: 'BAN_USER_CLERK_SYNC_FAILED',
+      targetId: userId,
+      metadata: {
+        clerkUserId: clerkId,
+        idempotentConvergence: true,
+        unmatchedHistoricalBan: true,
+        error: sanitizeEmailOutboxError(error),
+      },
+    })
+    throw new BanUserExternalSyncError('User remains banned locally, but Clerk still could not be updated. Try again or contact support.')
+  }
 }
 
 async function logClerkSyncResult({
@@ -182,22 +281,43 @@ function revalidateAccountStateSearchCaches(source: string, userId: string) {
 export async function banUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
-  await requireBanReviewTarget(userId, 'ban')
+  const reviewedTarget = await requireBanReviewTarget(adminId, userId, 'ban')
+  if (reviewedTarget.banned) {
+    await convergeAlreadyBannedExternalSideEffects({
+      userId,
+      adminId,
+      clerkId: reviewedTarget.clerkId,
+      bannedAt: reviewedTarget.bannedAt,
+    })
+    return
+  }
+  const staffClient = getOrderStaffReadClient()
+  const userBanCapability = await mintUserStaffCapability(staffClient, {
+    actorId: adminId,
+    targetId: userId,
+    operation: 'USER_BAN',
+    expectedBannedAt: null,
+  })
   const banReviewCapability = await mintBanReviewCapability(
     adminId,
     userId,
     'BAN_REVIEW_FLAG',
     null,
-    getOrderStaffReadClient(),
+    staffClient,
   )
   const clerkSync = await prisma.$transaction(async (tx) => {
-    const target = await tx.user.findUnique({
-      where: { id: userId },
-      select: { role: true, clerkId: true },
-    });
-    if (!target) throw new BanUserPolicyError("User not found", 404);
-    if (target.role === "ADMIN") throw new BanUserPolicyError("Cannot ban admin accounts");
-
+    const bannedAt = new Date()
+    let target: Awaited<ReturnType<typeof userStaffBanApply>>
+    try {
+      target = await userStaffBanApply(tx, {
+        capabilityId: userBanCapability,
+        targetId: userId,
+        bannedAt,
+        reason,
+      })
+    } catch (error) {
+      throwBanAuthorityPolicyError(error)
+    }
     const [sellerProfile, commissionRequests] = await Promise.all([
       tx.sellerProfile.findUnique({
         where: { userId },
@@ -208,12 +328,6 @@ export async function banUser({ userId, adminId, reason }: {
         select: { id: true, status: true },
       }),
     ])
-    const bannedAt = new Date()
-    const banResult = await tx.user.updateMany({
-      where: { id: userId, role: { not: "ADMIN" } },
-      data: { banned: true, bannedAt, banReason: reason, bannedBy: adminId }
-    })
-    if (banResult.count !== 1) throw new BanUserPolicyError("Cannot ban admin accounts");
     await tx.sellerProfile.updateMany({
       where: { userId },
       data: { chargesEnabled: false, vacationMode: true }
@@ -330,7 +444,7 @@ export async function banUser({ userId, adminId, reason }: {
 export async function unbanUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
-  const target = await requireBanReviewTarget(userId, 'unban')
+  const target = await requireBanReviewTarget(adminId, userId, 'unban')
   if (!target.banned) {
     await convergeAlreadyUnbannedClerkTarget({
       userId,
@@ -369,40 +483,40 @@ export async function unbanUser({ userId, adminId, reason }: {
     select: { metadata: true },
   })
   const capabilityBanMetadata = readBanAuditMetadata(latestBanForCapability?.metadata)
+  const staffClient = getOrderStaffReadClient()
+  const userUnbanCapability = await mintUserStaffCapability(staffClient, {
+    actorId: adminId,
+    targetId: userId,
+    operation: 'USER_UNBAN',
+    expectedBannedAt: target.bannedAt,
+  })
   const banReviewCapability = await mintBanReviewCapability(
     adminId,
     userId,
     'BAN_REVIEW_RESTORE',
     capabilityBanMetadata.flaggedOpenOrders,
-    getOrderStaffReadClient(),
+    staffClient,
   )
   const clerkSync = await prisma.$transaction(async (tx) => {
-    const [previousUser, previousSellerProfile, latestBanLog] = await Promise.all([
-      tx.user.findUnique({
-        where: { id: userId },
-        select: { clerkId: true, banned: true, bannedAt: true, banReason: true, bannedBy: true },
-      }),
-      tx.sellerProfile.findUnique({
-        where: { userId },
-        select: { id: true, chargesEnabled: true, vacationMode: true },
-      }),
-      tx.adminAuditLog.findFirst({
-        where: { action: 'BAN_USER', targetType: 'USER', targetId: userId },
-        orderBy: { createdAt: 'desc' },
-        select: { metadata: true },
-      }),
-    ])
-    if (!previousUser) throw new BanUserPolicyError("User not found", 404)
-    const banMetadata = readBanAuditMetadata(latestBanLog?.metadata)
     const restoredFlaggedOrderReviews = await restoreBannedSellerOrderReviews(
       banReviewCapability,
       userId,
-      banMetadata.flaggedOpenOrders,
+      capabilityBanMetadata.flaggedOpenOrders,
       tx,
     )
-    await tx.user.update({
-      where: { id: userId },
-      data: { banned: false, bannedAt: null, banReason: null, bannedBy: null }
+    let previousUser: Awaited<ReturnType<typeof userStaffUnbanApply>>
+    try {
+      previousUser = await userStaffUnbanApply(tx, {
+        capabilityId: userUnbanCapability,
+        targetId: userId,
+        expectedBannedAt: target.bannedAt,
+      })
+    } catch (error) {
+      throwBanAuthorityPolicyError(error)
+    }
+    const previousSellerProfile = await tx.sellerProfile.findUnique({
+      where: { userId },
+      select: { id: true, chargesEnabled: true, vacationMode: true },
     })
     if (sellerRestore) {
       await tx.sellerProfile.update({

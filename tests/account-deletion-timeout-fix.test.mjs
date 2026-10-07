@@ -190,23 +190,26 @@ describe("account deletion timeout and terminal UX guardrails", () => {
         route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)"),
       "account deletion route must not enqueue local anonymization until Clerk deletion succeeds",
     );
-    assert.match(route, /anonymizeUserAccount\(me\.id, \{ lock: deletionLock \}\)/);
+    assert.match(route, /anonymizeUserAccount\(me\.id, \{\s*lock: deletionLock,\s*sideEffectId,/s);
     assert.match(route, /"inProgress" in anonymized && anonymized\.inProgress/);
     assert.match(route, /status: HTTP_STATUS\.CONFLICT/);
   });
 
   it("locks the deleting User before message redaction so sends cannot race the scan", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
+    const authority = source(
+      "prisma/migrations/20261006020000_prepare_user_account_deletion_authorities/migration.sql",
+    );
     const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
-    const userLock = accountDeletion.indexOf('FROM "User" AS deletion_user', transactionStart);
+    const userLock = accountDeletion.indexOf("getUserAccountDeletionSnapshot(", transactionStart);
     const messageRedaction = accountDeletion.indexOf(
       "await redactActorMessagesForAccountDeletion(user.id, tx)",
       transactionStart,
     );
-    const finalUserUpdate = accountDeletion.indexOf("await tx.user.update", transactionStart);
+    const finalUserUpdate = accountDeletion.indexOf("await finalizeUserAccountDeletion", transactionStart);
 
     assert.ok(userLock > transactionStart, "deletion must lock the local User inside its DB transaction");
-    assert.match(accountDeletion.slice(userLock - 180, userLock + 220), /FOR UPDATE/);
+    assert.match(authority, /FROM public\."User" AS account_user[\s\S]*WHERE account_user\.id = discovered_user_id[\s\S]*FOR UPDATE/);
     assert.ok(userLock < messageRedaction, "the User lock must precede all message redaction scans");
     assert.ok(userLock < finalUserUpdate, "the lifecycle lock must not be deferred to the final User update");
     assert.ok(messageRedaction < finalUserUpdate, "message redaction must finish before the User is anonymized");

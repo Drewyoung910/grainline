@@ -34,7 +34,7 @@ describe("admin query and email guardrails", () => {
     const reviews = source("src/app/admin/reviews/page.tsx");
     const support = source("src/app/admin/support/page.tsx");
 
-    assert.match(users, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(users, /userStaffDirectoryPage\(staffClient, \{ actorId: staff\.id, query: q, page \}\)/);
     assert.match(audit, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(broadcasts, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(reviews, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);

@@ -10,8 +10,9 @@ describe("server action hardening guardrails", () => {
   it("keeps onboarding actions current-seller scoped and first-party media constrained", () => {
     const actions = source("src/app/dashboard/onboarding/actions.ts");
 
-    assert.match(actions, /where: \{ user: \{ clerkId: userId \} \}/);
-    assert.match(actions, /banned: true, deletedAt: true/);
+    assert.match(actions, /userAccountByClerkId\(prisma, userId\)/);
+    assert.match(actions, /where: \{ userId: me\.id \}/);
+    assert.match(actions, /if \(me\.banned \|\| me\.deletedAt\) throw/);
     assert.match(actions, /verifyFirstPartyMediaUrlForPersistence\(\{/);
     assert.match(actions, /allowedEndpoints: \["galleryImage"\]/);
     assert.match(actions, /clerkUserId: seller\.clerkUserId/);

@@ -1,12 +1,17 @@
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
-import { prisma } from "@/lib/db";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { BanUserButton } from "@/components/BanUserButton";
 import { AdminEmailForm } from "@/components/admin/AdminEmailForm";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { truncateText } from "@/lib/sanitize";
+import {
+  userStaffDirectoryCount,
+  userStaffDirectoryPage,
+  userStaffExactEmailTarget,
+} from "@/lib/userStaffAccess";
 
 export const metadata: Metadata = { title: "Users — Admin" };
 
@@ -21,39 +26,15 @@ export default async function AdminUsersPage({
   const { q: qParam, page: pageStr, email: emailParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);
   const q = truncateText((qParam ?? "").trim(), 200);
-  const email = truncateText((emailParam ?? "").trim(), 320);
+  const email = truncateText((emailParam ?? "").trim(), 254);
   const perPage = 30;
+  const staffClient = getOrderStaffReadClient();
 
-  const where = q?.trim()
-    ? {
-        OR: [
-          { email: { contains: q.trim(), mode: "insensitive" as const } },
-          { name: { contains: q.trim(), mode: "insensitive" as const } },
-        ],
-      }
-    : {};
-
-  const total = await prisma.user.count({ where });
+  const total = await userStaffDirectoryCount(staffClient, { actorId: staff.id, query: q });
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const page = Math.min(requestedPage, totalPages);
 
-  const users = await prisma.user.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * perPage,
-    take: perPage,
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      banned: true,
-      bannedAt: true,
-      banReason: true,
-      createdAt: true,
-      sellerProfile: { select: { displayName: true } },
-    },
-  });
+  const users = await userStaffDirectoryPage(staffClient, { actorId: staff.id, query: q, page });
 
   function pageHref(nextPage: number) {
     const params = new URLSearchParams();
@@ -66,11 +47,10 @@ export default async function AdminUsersPage({
   // If ?email= is present, look up user for standalone email form
   let emailTarget: { id: string; name: string | null; email: string } | null = null;
   if (email) {
-    const found = await prisma.user.findFirst({
-      where: { email },
-      select: { id: true, name: true, email: true },
+    emailTarget = await userStaffExactEmailTarget(staffClient, {
+      actorId: staff.id,
+      email: email.toLowerCase(),
     });
-    emailTarget = found;
   }
 
   return (
@@ -142,8 +122,8 @@ export default async function AdminUsersPage({
                 <td className="px-4 py-3">
                   <div className="font-medium">{u.name ?? "—"}</div>
                   <div className="text-neutral-500 text-xs">{u.email}</div>
-                  {u.sellerProfile && (
-                    <div className="text-xs text-neutral-500">Shop: {u.sellerProfile.displayName}</div>
+                  {u.sellerDisplayName && (
+                    <div className="text-xs text-neutral-500">Shop: {u.sellerDisplayName}</div>
                   )}
                 </td>
                 <td className="px-4 py-3">

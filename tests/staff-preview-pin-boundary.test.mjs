@@ -22,7 +22,7 @@ test("reported-thread page checks the PIN before querying users or messages", ()
   const conversation = page.indexOf("const conversation = await getActorConversation(me.id, id)");
   const pin = page.indexOf("canStaffReviewThread = isActiveStaff && await verifyAdminPinCookieValue(");
   const rejection = page.indexOf("if (!canStaffReviewThread) return notFound();");
-  const users = page.indexOf("const conversationUsers = await prisma.user.findMany");
+  const users = page.indexOf("const conversationUsers = await userConversationParticipants(prisma, {");
   const messages = page.indexOf("const messageRows = await listLatestActorMessages");
 
   assert.ok(conversation >= 0);
@@ -30,6 +30,8 @@ test("reported-thread page checks the PIN before querying users or messages", ()
   assert.ok(rejection > pin);
   assert.ok(users > rejection);
   assert.ok(messages > rejection);
+  assert.match(page, /userConversationParticipants\(prisma, \{\s*actorId: me\.id,\s*conversationId: conversation\.id,/s);
+  assert.doesNotMatch(page, /prisma\.user\./);
   assert.doesNotMatch(page, /prisma\.userReport\.findFirst/);
 });
 

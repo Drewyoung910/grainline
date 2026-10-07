@@ -11,6 +11,7 @@ import {
 } from "@/lib/conversationStartState";
 import { startConversationForUser } from "@/lib/conversationStartAccess";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
+import { userRelationshipTargetState } from "@/lib/userRelationshipAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -31,9 +32,9 @@ export default async function NewConversationPage({
   if (!me || me.banned || me.deletedAt || !to) redirect("/messages");
   const targetUserId = to;
 
-  const other = await prisma.user.findUnique({
-    where: { id: targetUserId },
-    select: { id: true, name: true, banned: true, deletedAt: true },
+  const other = await userRelationshipTargetState(prisma, {
+    actorId: me.id,
+    targetId: targetUserId,
   });
   if (!other) redirect("/messages");
 

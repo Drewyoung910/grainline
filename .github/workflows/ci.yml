@@ -82,6 +82,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Security audit
+        run: npm run audit:dependencies
+      - name: Verify CI resource and dependency guards
+        run: >-
+          node --test
+          tests/test-runner-resource-boundary.test.mjs
+          tests/dependency-hygiene.test.mjs
       - run: npx prisma generate
       - name: Verify User Clerk identity authority source package
         run: >-
@@ -172,6 +179,61 @@ jobs:
           tests/user-email-address-force-release.test.mjs
           tests/user-email-address-force-postgres-proof.test.mjs
           tests/user-email-address-force-production-workflow.test.mjs
+      - name: Verify accumulated User access source package
+        run: >-
+          node --test
+          tests/user-staff-ban-authorities.test.mjs
+          tests/user-account-deletion-authorities.test.mjs
+          tests/user-relationship-authorities.test.mjs
+          tests/user-authority-catalog.test.mjs
+          tests/user-accumulated-access-ci.test.mjs
+          tests/user-indirect-access-inventory.test.mjs
+          tests/user-owner-relation-removal.test.mjs
+          tests/order-ban-review-authority.test.mjs
+          tests/staff-preview-pin-boundary.test.mjs
+          tests/admin-action-guardrails.test.mjs
+          tests/admin-page-pin-boundary.test.mjs
+          tests/order-staff-read-role-provision.test.mjs
+          tests/order-staff-read-role-catalog-postgres.test.mjs
+          tests/account-deletion-blocker-refund-state.test.mjs
+          tests/account-deletion-timeout-fix.test.mjs
+          tests/round9-account-deletion-pii-guardrails.test.mjs
+          tests/conversation-message-pre-rls-audit.test.mjs
+      - name: Isolate accumulated User access until its predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-accumulated-access"
+          mkdir "$holding"
+          historical=66746f47e87a73a6efce2ee6833542be5a86cc57
+          git cat-file -e "$historical^{commit}"
+          git merge-base --is-ancestor "$historical" HEAD
+          mv scripts/provision-order-staff-read-role.sql "$holding/provision-order-staff-read-role.sql"
+          git show "$historical:scripts/provision-order-staff-read-role.sql" > scripts/provision-order-staff-read-role.sql
+          test "$(git hash-object scripts/provision-order-staff-read-role.sql)" = "46fd8e1bfa086cb097adf194eb193389122ee9d9"
+          for migration in \
+            20261006010000_prepare_user_staff_ban_authorities \
+            20261006020000_prepare_user_account_deletion_authorities \
+            20261006030000_prepare_user_relationship_authorities
+          do
+            mv "prisma/migrations/$migration" "$holding/$migration"
+          done
+          for test_file in \
+            tests/user-staff-ban-authorities.test.mjs \
+            tests/user-account-deletion-authorities.test.mjs \
+            tests/user-relationship-authorities.test.mjs \
+            tests/user-authority-catalog.test.mjs \
+            tests/user-accumulated-access-ci.test.mjs \
+            tests/order-ban-review-authority.test.mjs \
+            tests/order-staff-read-role-provision.test.mjs \
+            tests/order-staff-read-role-catalog-postgres.test.mjs \
+            tests/account-deletion-blocker-refund-state.test.mjs \
+            tests/account-deletion-timeout-fix.test.mjs \
+            tests/round9-account-deletion-pii-guardrails.test.mjs \
+            tests/conversation-message-pre-rls-audit.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Isolate User public-identity first package until historical release guards pass
         shell: bash
         run: |
@@ -2317,8 +2379,6 @@ jobs:
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
-      - name: Security audit
-        run: npm run audit:dependencies
       - name: Restore and prove the reviewed successors
         shell: bash
         run: |
@@ -3967,6 +4027,47 @@ jobs:
           $verify_user_public_seller_state$;
           SQL
       - name: Audit runtime grants after User public seller-state snapshot
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore accumulated User access source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-accumulated-access"
+          mv "$holding/provision-order-staff-read-role.sql" scripts/provision-order-staff-read-role.sql
+          for migration in \
+            20261006010000_prepare_user_staff_ban_authorities \
+            20261006020000_prepare_user_account_deletion_authorities \
+            20261006030000_prepare_user_relationship_authorities
+          do
+            mv "$holding/$migration" "prisma/migrations/$migration"
+          done
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding"
+      - name: Apply accumulated User access in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in \
+            20261006010000_prepare_user_staff_ban_authorities \
+            20261006020000_prepare_user_account_deletion_authorities \
+            20261006030000_prepare_user_relationship_authorities
+          do
+            psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+              --file="prisma/migrations/$migration/migration.sql"
+          done
+      - name: Converge accumulated User and Order isolated staff grants
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=staff_role=grainline_staff_read_runtime \
+            --set=runtime_role=grainline_app_runtime \
+            --set=migration_role=ci \
+            --file=scripts/provision-order-staff-read-role.sql
+      - name: Audit runtime grants after accumulated User access
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

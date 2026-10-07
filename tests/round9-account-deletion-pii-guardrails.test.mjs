@@ -221,9 +221,7 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("uses seller contact, address, and profile URLs as deletion redaction needles", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const userSelectStart = deletion.indexOf("const user = await tx.user.findUnique");
-    const userSelectEnd = deletion.indexOf("if (!user) return", userSelectStart);
-    const userSelect = deletion.slice(userSelectStart, userSelectEnd);
+    const access = source("src/lib/userAccountDeletionAccess.ts");
     const sensitiveStart = deletion.indexOf("const accountSensitiveValues = normalizedSensitiveValues");
     const sensitiveEnd = deletion.indexOf("]);", sensitiveStart);
     const sensitiveBlock = deletion.slice(sensitiveStart, sensitiveEnd);
@@ -242,7 +240,8 @@ describe("Round 9 account deletion PII guardrails", () => {
       "tiktokUrl",
       "websiteUrl",
     ]) {
-      assert.match(userSelect, new RegExp(`${field}: true`), `seller profile select must include ${field}`);
+      const accessField = `seller${field[0].toUpperCase()}${field.slice(1)}`;
+      assert.match(access, new RegExp(`${accessField}: string \\| null`), `deletion snapshot must include ${field}`);
       assert.match(sensitiveBlock, new RegExp(`user\\.sellerProfile\\?\\.${field}`), `sensitive values must include ${field}`);
     }
   });
@@ -376,14 +375,16 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("resets retained deleted-account role while keeping deleted accounts blocked", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source(
+      "prisma/migrations/20261006020000_prepare_user_account_deletion_authorities/migration.sql",
+    );
 
-    const userUpdateStart = deletion.indexOf("await tx.user.update({");
-    const userUpdate = deletion.slice(userUpdateStart, deletion.indexOf("return {", userUpdateStart));
+    const userUpdateStart = deletion.indexOf("await finalizeUserAccountDeletion");
 
     assert.ok(userUpdateStart > -1, "account deletion must anonymize the retained user row");
-    assert.match(userUpdate, /role: "USER"/);
-    assert.match(userUpdate, /banned: true/);
-    assert.match(userUpdate, /deletedAt: now/);
+    assert.match(authority, /role = 'USER'::public\."Role"/);
+    assert.match(authority, /banned = true/);
+    assert.match(authority, /"deletedAt" = changed_at/);
   });
 
   it("allocates collision-safe deleted-account blog archive slugs", () => {

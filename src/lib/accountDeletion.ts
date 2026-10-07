@@ -61,6 +61,12 @@ import {
   getOrderAccountDeletionBlockerCounts,
   scrubOrderDataForAccountDeletion,
 } from "@/lib/orderAccountDeletionAuthority";
+import {
+  deferProviderDeletedUserAccount,
+  finalizeUserAccountDeletion,
+  getUserAccountDeletionPreflight,
+  getUserAccountDeletionSnapshot,
+} from "@/lib/userAccountDeletionAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -950,19 +956,9 @@ async function deferProviderDeletedAccountAnonymization(input: {
   });
 
   await prisma.$transaction(async (tx) => {
-    const user = await tx.user.findUnique({
-      where: { id: input.userId },
-      select: { email: true, name: true },
-    });
-
-    await tx.user.updateMany({
-      where: { id: input.userId, deletedAt: null },
-      data: {
-        banned: true,
-        bannedAt: now,
-        banReason: "Clerk account deleted before Grainline deletion blockers cleared; support review required",
-        bannedBy: "system",
-      },
+    const user = await deferProviderDeletedUserAccount(tx, {
+      clerkId: input.clerkId,
+      expectedUserId: input.userId,
     });
     await tx.sellerProfile.updateMany({
       where: { userId: input.userId },
@@ -1018,7 +1014,7 @@ async function deferProviderDeletedAccountAnonymization(input: {
 
 export async function anonymizeUserAccount(
   userId: string,
-  options: { lock?: AccountDeletionLock } = {},
+  options: { lock?: AccountDeletionLock; sideEffectId?: string } = {},
 ) {
   if (options.lock && options.lock.userId !== userId) {
     throw new Error("Account deletion lock does not belong to the requested user");
@@ -1027,30 +1023,28 @@ export async function anonymizeUserAccount(
   if (!lock) return { ok: false, alreadyDeleted: false, inProgress: true };
 
   try {
-  const account = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      clerkId: true,
-      deletedAt: true,
-      sellerProfile: {
-        select: {
-          id: true,
-          stripeAccountId: true,
-          stripeAccountVersion: true,
-          stripeControllerType: true,
-        },
-      },
-    },
-  });
-
-  if (!account) return { ok: true, alreadyDeleted: true };
-  if (account.deletedAt) return { ok: true, alreadyDeleted: true };
   const localAnonymizeSideEffectId =
-    await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, userId);
+    options.sideEffectId
+    ?? await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, userId);
+  const account = await getUserAccountDeletionPreflight(
+    prisma,
+    localAnonymizeSideEffectId,
+  );
+  if (account.userId !== userId) {
+    throw new Error("Account deletion side effect does not belong to the requested user");
+  }
+  if (account.deletedAt) {
+    await markAccountDeletionLocalAnonymizeDone(
+      prisma,
+      localAnonymizeSideEffectId,
+      userId,
+    );
+    return { ok: true, alreadyDeleted: true };
+  }
 
-  const stripeAccountId = account.sellerProfile?.stripeAccountId ?? null;
-  const stripeAccountVersion = account.sellerProfile?.stripeAccountVersion ?? null;
-  const stripeControllerType = account.sellerProfile?.stripeControllerType ?? null;
+  const stripeAccountId = account.stripeAccountId;
+  const stripeAccountVersion = account.stripeAccountVersion;
+  const stripeControllerType = account.stripeControllerType;
   const stripeRejectSucceeded = stripeAccountId
     ? await runAccountDeletionStripeRejectSideEffect({
         userId,
@@ -1069,12 +1063,12 @@ export async function anonymizeUserAccount(
   }
   await cleanupAccountCheckoutStockReservationsForDeletion({
     userId,
-    sellerProfileId: account.sellerProfile?.id ?? null,
+    sellerProfileId: account.sellerProfileId,
   }).catch((error) => {
     Sentry.captureException(error, {
       level: "warning",
       tags: { source: "account_delete_checkout_reservation_cleanup" },
-      extra: { userId, sellerProfileId: account.sellerProfile?.id ?? null },
+      extra: { userId, sellerProfileId: account.sellerProfileId },
     });
   });
 
@@ -1085,47 +1079,50 @@ export async function anonymizeUserAccount(
     // either the send commits first and is included in redaction, or it waits
     // and observes deleted account state. The external Redis lock prevents two
     // deletion workers; this row lock coordinates with other DB transactions.
-    const lockedUsers = await tx.$queryRaw<Array<{ id: string }>>`
-      SELECT deletion_user.id
-        FROM "User" AS deletion_user
-       WHERE deletion_user.id = ${userId}
-       FOR UPDATE
-    `;
-    if (lockedUsers.length === 0) {
-      return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
+    const snapshot = await getUserAccountDeletionSnapshot(
+      tx,
+      localAnonymizeSideEffectId,
+    );
+    if (snapshot.userId !== userId) {
+      throw new Error("Account deletion snapshot does not belong to the requested user");
     }
+    const user = {
+      id: snapshot.userId,
+      clerkId: snapshot.clerkId,
+      email: snapshot.email,
+      name: snapshot.name,
+      deletedAt: snapshot.deletedAt,
+      shippingName: snapshot.shippingName,
+      shippingLine1: snapshot.shippingLine1,
+      shippingLine2: snapshot.shippingLine2,
+      shippingCity: snapshot.shippingCity,
+      shippingState: snapshot.shippingState,
+      shippingPostalCode: snapshot.shippingPostalCode,
+      shippingPhone: snapshot.shippingPhone,
+      sellerProfile: snapshot.sellerProfileId ? {
+        id: snapshot.sellerProfileId,
+        displayName: snapshot.sellerDisplayName,
+        city: snapshot.sellerCity,
+        state: snapshot.sellerState,
+        shipFromName: snapshot.sellerShipFromName,
+        shipFromLine1: snapshot.sellerShipFromLine1,
+        shipFromLine2: snapshot.sellerShipFromLine2,
+        shipFromCity: snapshot.sellerShipFromCity,
+        shipFromState: snapshot.sellerShipFromState,
+        shipFromPostal: snapshot.sellerShipFromPostal,
+        shipFromPhone: snapshot.sellerShipFromPhone,
+        tagline: snapshot.sellerTagline,
+        bannerImageUrl: snapshot.sellerBannerImageUrl,
+        avatarImageUrl: snapshot.sellerAvatarImageUrl,
+        workshopImageUrl: snapshot.sellerWorkshopImageUrl,
+        instagramUrl: snapshot.sellerInstagramUrl,
+        facebookUrl: snapshot.sellerFacebookUrl,
+        pinterestUrl: snapshot.sellerPinterestUrl,
+        tiktokUrl: snapshot.sellerTiktokUrl,
+        websiteUrl: snapshot.sellerWebsiteUrl,
+      } : null,
+    };
 
-    const user = await tx.user.findUnique({
-      where: { id: userId },
-      include: {
-        sellerProfile: {
-          select: {
-            id: true,
-            displayName: true,
-            city: true,
-            state: true,
-            shipFromName: true,
-            shipFromLine1: true,
-            shipFromLine2: true,
-            shipFromCity: true,
-            shipFromState: true,
-            shipFromPostal: true,
-            shipFromPhone: true,
-            tagline: true,
-            bannerImageUrl: true,
-            avatarImageUrl: true,
-            workshopImageUrl: true,
-            instagramUrl: true,
-            facebookUrl: true,
-            pinterestUrl: true,
-            tiktokUrl: true,
-            websiteUrl: true,
-          },
-        },
-      },
-    });
-
-    if (!user) return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
     if (user.deletedAt) return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
 
     const now = new Date();
@@ -1140,8 +1137,6 @@ export async function anonymizeUserAccount(
           .join(",")}`,
       );
     }
-    const deletedEmail = `deleted+${user.id}@deleted.thegrainline.local`;
-    const deletedClerkId = `deleted:${user.id}:${now.getTime()}`;
     const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
     const accountEmailState = await userAccountEmailAddressState(tx, {
       currentEmail: user.email,
@@ -1523,28 +1518,9 @@ export async function anonymizeUserAccount(
 
     await deleteCurrentUserEmailAddressHistory(tx);
 
-    await tx.user.update({
-      where: { id: user.id },
-      data: {
-        clerkId: deletedClerkId,
-        email: deletedEmail,
-        name: null,
-        imageUrl: null,
-        shippingName: null,
-        shippingLine1: null,
-        shippingLine2: null,
-        shippingCity: null,
-        shippingState: null,
-        shippingPostalCode: null,
-        shippingPhone: null,
-        notificationPreferences: {},
-        role: "USER",
-        banned: true,
-        bannedAt: now,
-        banReason: "Account deleted at user's request",
-        bannedBy: "system",
-        deletedAt: now,
-      },
+    await finalizeUserAccountDeletion(tx, {
+      sideEffectId: localAnonymizeSideEffectId,
+      expectedUserId: user.id,
     });
 
     return {
@@ -1568,7 +1544,11 @@ export async function anonymizeUserAccount(
     throw error;
   });
 
-  await markAccountDeletionLocalAnonymizeDone(prisma, userId);
+  await markAccountDeletionLocalAnonymizeDone(
+    prisma,
+    localAnonymizeSideEffectId,
+    userId,
+  );
 
   if (!result.alreadyDeleted) {
     await invalidateAccountStateCache(account.clerkId, "account_delete_account_state_cache_invalidate");

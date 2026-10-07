@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ResolveReportButton } from "@/components/admin/ResolveReportButton";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { userStaffReportLabels } from "@/lib/userStaffAccess";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 export const metadata: Metadata = { title: "Reports — Admin" };
 
@@ -117,9 +119,9 @@ export default async function AdminReportsPage() {
     take: 5,
   });
   const reporterUsers = topReporters.length > 0
-    ? await prisma.user.findMany({
-        where: { id: { in: topReporters.map((r) => r.reporterId) } },
-        select: { id: true, name: true, email: true, deletedAt: true },
+    ? await userStaffReportLabels(getOrderStaffReadClient(), {
+        actorId: staff.id,
+        userIds: topReporters.map((r) => r.reporterId),
       })
     : [];
   const reporterMap = new Map(reporterUsers.map((u) => [u.id, u]));

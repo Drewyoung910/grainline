@@ -19,6 +19,7 @@ import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { createCustomOrderRequestMessage } from "@/lib/customOrderRequestAccess";
 import { userClerkActor } from "@/lib/userIdentityAccess";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
+import { userCustomOrderSellerState } from "@/lib/userRelationshipAccess";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
 
@@ -86,35 +87,24 @@ export async function POST(req: Request) {
     return privateJson({ error: "Unable to send request." }, { status: 403 });
   }
 
-  const seller = await prisma.user.findUnique({
-    where: { id: sellerUserId },
-    select: {
-      id: true,
-      banned: true,
-      deletedAt: true,
-      sellerProfile: {
-        select: {
-          id: true,
-          acceptsCustomOrders: true,
-          acceptingNewOrders: true,
-          stripeAccountId: true,
-          stripeAccountVersion: true,
-          chargesEnabled: true,
-          vacationMode: true,
-          displayName: true,
-        },
-      },
-    },
+  const seller = await userCustomOrderSellerState(prisma, {
+    buyerId: me.id,
+    sellerUserId,
   });
   if (!seller) return privateJson({ error: "Seller not found" }, { status: 404 });
   if (seller.banned || seller.deletedAt) return privateJson({ error: "Seller not found" }, { status: 404 });
-  if (!seller.sellerProfile) return privateJson({ error: "This user is not a seller." }, { status: 400 });
-  if (!seller.sellerProfile.acceptsCustomOrders) return privateJson({ error: "This seller is not accepting custom orders." }, { status: 400 });
-  const sellerBlockReason = sellerOrderBlockReason({ ...seller.sellerProfile, user: seller });
+  if (!seller.sellerProfileId) return privateJson({ error: "This user is not a seller." }, { status: 400 });
+  if (!seller.acceptsCustomOrders) return privateJson({ error: "This seller is not accepting custom orders." }, { status: 400 });
+  const sellerBlockReason = sellerOrderBlockReason({
+    acceptingNewOrders: seller.acceptingNewOrders,
+    stripeAccountVersion: seller.stripeAccountVersion,
+    vacationMode: seller.vacationMode,
+    user: seller,
+  });
   if (sellerBlockReason) {
     return privateJson({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
   }
-  if (!seller.sellerProfile.chargesEnabled || !seller.sellerProfile.stripeAccountId) {
+  if (!seller.chargesEnabled || !seller.stripeAccountId) {
     return privateJson({ error: "This seller is not accepting new orders right now." }, { status: 400 });
   }
 
@@ -122,7 +112,7 @@ export async function POST(req: Request) {
     const listing = await prisma.listing.findFirst({
       where: {
         id: listingId,
-        sellerId: seller.sellerProfile.id,
+        sellerId: seller.sellerProfileId,
         status: "ACTIVE",
         isPrivate: false,
       },
@@ -181,7 +171,7 @@ export async function POST(req: Request) {
     if (sellerRecipient) {
       await sendCustomOrderRequest({
         seller: {
-          displayName: seller.sellerProfile.displayName ?? sellerRecipient.name,
+          displayName: seller.displayName ?? sellerRecipient.name,
           email: sellerRecipient.email,
         },
         buyerName: me.name,

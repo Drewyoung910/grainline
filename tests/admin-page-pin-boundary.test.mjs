@@ -86,7 +86,7 @@ const pages = [
   ["broadcasts/page.tsx", "prisma.sellerBroadcast.count("],
   ["verification/page.tsx", "prisma.makerVerification.findMany("],
   ["audit/page.tsx", "prisma.adminAuditLog.count("],
-  ["users/page.tsx", "prisma.user.count("],
+  ["users/page.tsx", "userStaffDirectoryCount("],
   ["reviews/page.tsx", "prisma.review.count("],
   ["review/page.tsx", "prisma.listing.count("],
   ["reports/page.tsx", "prisma.userReport.findMany("],

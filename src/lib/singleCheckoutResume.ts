@@ -42,6 +42,9 @@ export function singleCheckoutResumeSourceIsAvailable(
 ): boolean {
   const seller = listing?.seller;
   const sellerUser = seller?.user;
+  const localAccountActive = seller && "ownerAccountActive" in seller
+    ? seller.ownerAccountActive === true
+    : sellerUser?.banned === false && sellerUser.deletedAt === null;
   return Boolean(listing
     && seller
     && buyerId.length > 0
@@ -59,8 +62,7 @@ export function singleCheckoutResumeSourceIsAvailable(
     && seller.vacationMode === false
     && seller.acceptingNewOrders === true
     && (seller.stripeAccountVersion === null || seller.stripeAccountVersion === "v2")
-    && sellerUser?.banned === false
-    && sellerUser.deletedAt === null
+    && localAccountActive
     && !sellerOrderBlockReason(seller));
 }
 

@@ -389,11 +389,11 @@ describe("seller operational route hardening", () => {
 
     assert.match(onboarding, /SELLER_PROFILE_RATE_LIMITED/);
     assert.match(onboarding, /Too many profile updates\. Try again shortly\./);
-    assert.ok(
-      onboarding.indexOf("safeRateLimit(sellerProfileRatelimit, userId)") <
-        onboarding.indexOf("prisma.sellerProfile.findFirst"),
-      "onboarding step actions should rate-limit before seller lookup",
-    );
+    const limit = onboarding.indexOf("safeRateLimit(sellerProfileRatelimit, userId)");
+    const actor = onboarding.indexOf("userAccountByClerkId(prisma, userId)");
+    const seller = onboarding.indexOf("prisma.sellerProfile.findUnique");
+    assert.ok(limit >= 0 && actor > limit && seller > actor,
+      "onboarding step actions should rate-limit before actor and owned seller lookup");
 
     assert.match(notifications, /markReadRatelimit/);
     assert.ok(

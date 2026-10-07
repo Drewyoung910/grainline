@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
+import { USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES } from "./user-authority-catalog.mjs";
 import {
   assertDeterministicPostgresEnvironment,
   assertExplicitPostgresConnectionAuthority,
@@ -266,6 +267,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_message_maintain_thread_state",
   "grainline_seller_owner_public_state_bind",
   "grainline_user_public_seller_state_sync",
+  ...USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES,
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",
   "grainline_order_seller_key_assert",
@@ -1376,9 +1378,11 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
   );
   const publicRevokes = sortedUnique(
     sqlStatements(migrationSql)
+      .map((statement) => statement.replace(/^(?:\s|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*/u, ""))
       .filter(
         (statement) =>
-          /\bREVOKE\b/i.test(statement) && /\bFROM\s+PUBLIC\b/i.test(statement),
+          /^(?:REVOKE\b|ALTER\s+DEFAULT\s+PRIVILEGES\b[\s\S]*\bREVOKE\b)/i.test(statement)
+          && /\bFROM\s+PUBLIC\b/i.test(statement),
       )
       .map((statement) => statement
         .replace(/\s+/g, " ")

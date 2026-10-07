@@ -27,14 +27,18 @@ describe("account deletion blocker refund state", () => {
 
   it("defers provider-deleted anonymization when Grainline blockers remain", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source(
+      "prisma/migrations/20261006020000_prepare_user_account_deletion_authorities/migration.sql",
+    );
     const webhook = source("src/app/api/clerk/webhook/route.ts");
     const deferStart = deletion.indexOf("async function deferProviderDeletedAccountAnonymization");
     const byClerkStart = deletion.indexOf("export async function anonymizeUserAccountByClerkId");
     const byClerk = deletion.slice(byClerkStart);
 
     assert.notEqual(deferStart, -1);
-    assert.match(deletion.slice(deferStart, byClerkStart), /banned: true/);
-    assert.match(deletion.slice(deferStart, byClerkStart), /banReason: "Clerk account deleted before Grainline deletion blockers cleared; support review required"/);
+    assert.match(deletion.slice(deferStart, byClerkStart), /deferProviderDeletedUserAccount\(tx/);
+    assert.match(authority, /SET banned = true/);
+    assert.match(authority, /"banReason" = 'Clerk account deleted before Grainline deletion blockers cleared; support review required'/);
     assert.match(deletion.slice(deferStart, byClerkStart), /data: \{ chargesEnabled: false, vacationMode: true \}/);
     assert.match(deletion.slice(deferStart, byClerkStart), /tx\.supportRequest\.findFirst\(\{/);
     assert.match(deletion.slice(deferStart, byClerkStart), /kind: "DATA_REQUEST"/);

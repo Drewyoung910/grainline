@@ -21,6 +21,7 @@ import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { isActorMessageReportTarget } from "@/lib/conversationMessageAuthority";
 import { canReportOrderTarget } from "@/lib/orderEligibilityAuthority";
+import { userRelationshipTargetState } from "@/lib/userRelationshipAccess";
 
 const Schema = z.object({
   reason: z.enum(["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"]),
@@ -69,9 +70,9 @@ export async function POST(
   const { id: reportedId } = await params;
   if (reportedId === me.id) return privateJson({ error: "Cannot report yourself" }, { status: 400 });
 
-  const reportedUser = await prisma.user.findUnique({
-    where: { id: reportedId },
-    select: { id: true, deletedAt: true },
+  const reportedUser = await userRelationshipTargetState(prisma, {
+    actorId: me.id,
+    targetId: reportedId,
   });
   if (!reportedUser || reportedUser.deletedAt) {
     return privateJson({ error: "User not found" }, { status: 404 });

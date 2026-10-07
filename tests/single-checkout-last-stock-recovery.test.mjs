@@ -141,6 +141,20 @@ describe("single-checkout last-stock recovery", () => {
     assert.equal(singleCheckoutResumeSourceIsAvailable({ ...sourceListing, stockQuantity: 0 }, expected.buyerId), true);
   });
 
+  it("resumes with the owner snapshot and denies incomplete or contradictory activity", () => {
+    const projected = { ...sourceListing, seller: { ...sourceListing.seller, user: undefined, ownerAccountActive: true } };
+    assert.equal(singleCheckoutResumeSourceIsAvailable(projected, expected.buyerId), true);
+    for (const ownerAccountActive of [false, null, undefined, "true", 1]) {
+      assert.equal(singleCheckoutResumeSourceIsAvailable({ ...projected, seller: { ...projected.seller, ownerAccountActive } }, expected.buyerId), false);
+    }
+    assert.equal(singleCheckoutResumeSourceIsAvailable({ ...projected, seller: { ...projected.seller, ownerAccountActive: undefined } }, expected.buyerId), false);
+    assert.equal(singleCheckoutResumeSourceIsAvailable({ ...projected, seller: { ...projected.seller, user: { banned: true, deletedAt: null } } }, expected.buyerId), false);
+    assert.equal(singleCheckoutResumeSourceIsAvailable({ ...projected, seller: { ...projected.seller, user: { banned: false, deletedAt: new Date() } } }, expected.buyerId), false);
+    const { ownerAccountActive: removed, ...missingSnapshot } = projected.seller;
+    assert.equal(removed, true);
+    assert.equal(singleCheckoutResumeSourceIsAvailable({ ...projected, seller: missingSnapshot }, expected.buyerId), false);
+  });
+
   it("checks an exact ready lock before rejecting newly unavailable stock", () => {
     const route = source("src/app/api/cart/checkout/single/route.ts");
     const readyLock = route.indexOf("const existingCheckoutLock = await getCheckoutLock(checkoutLockKeyValue)");

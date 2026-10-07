@@ -32,6 +32,7 @@ import {
 } from "@/lib/conversationMessageAuthority";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
+import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -371,10 +372,11 @@ export default async function CustomListingPage({
   }
 
   // Fetch buyer info for display
-  const buyer = await prisma.user.findUnique({
-    where: { id: buyerId },
-    select: { name: true, deletedAt: true },
+  const participants = await userConversationParticipants(prisma, {
+    actorId: me.id,
+    conversationId,
   });
+  const buyer = participants.find((participant) => participant.id === buyerId);
 
   return (
     <main className="mx-auto max-w-2xl p-8">

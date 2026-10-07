@@ -101,7 +101,8 @@ describe("account-state residue hardening", () => {
     assert.match(reportsPage, /if \(!user \|\| user\.deletedAt\) return ""/);
     assert.match(reportsPage, /reporter: \{ select: \{ name: true, email: true, deletedAt: true \} \}/);
     assert.match(reportsPage, /reported: \{ select: \{ name: true, email: true, deletedAt: true \} \}/);
-    assert.match(reportsPage, /select: \{ id: true, name: true, email: true, deletedAt: true \}/);
+    assert.match(reportsPage, /userStaffReportLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: topReporters\.map\(\(r\) => r\.reporterId\),/s);
+    assert.match(source("src/lib/userStaffAccess.ts"), /UserStaffReportLabel = UserStaffEmailTarget & \{\s*deletedAt: Date \| null;/s);
     assert.match(reportsPage, /reportUserLabel\(r\.reporter\)/);
     assert.match(reportsPage, /reportUserLabel\(r\.reported\)/);
     assert.doesNotMatch(reportsPage, /r\.reported\.email \?\? r\.reported\.name/);

@@ -57,6 +57,7 @@
     "migrate:deploy:guarded": "node scripts/guard-saved-search-rls-deploy.mjs && prisma migrate deploy && npm run audit:db-grants -- --require-direct-url",
     "verify:rls-release-artifact": "node scripts/verify-saved-search-rls-release-artifact.mjs",
     "audit:db-grants": "node scripts/audit-runtime-db-grants.mjs",
+    "audit:user-indirect-access": "node scripts/audit-user-indirect-access.mjs",
     "audit:rls-context": "node scripts/rls-context-acceptance-gate.mjs",
     "audit:rls-saved-search": "node scripts/saved-search-rls-acceptance-gate.mjs",
     "audit:rls-saved-search-force": "node scripts/saved-search-force-maintenance-proof.mjs",
@@ -331,7 +332,7 @@
     "eslint-config-next": "^16.3.6",
     "postcss": "8.5.23",
     "prisma": "^7.9.0",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
@@ -344,6 +345,7 @@
     "postcss": "8.5.23",
     "sharp": "$sharp",
     "svix": "$svix",
-    "valibot": "1.4.2"
+    "valibot": "1.4.2",
+    "source-map-js": "1.2.2"
   }
 }

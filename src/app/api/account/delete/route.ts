@@ -106,8 +106,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id);
-    const anonymized = await anonymizeUserAccount(me.id, { lock: deletionLock });
+    const sideEffectId = await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id);
+    const anonymized = await anonymizeUserAccount(me.id, {
+      lock: deletionLock,
+      sideEffectId,
+    });
     if ("inProgress" in anonymized && anonymized.inProgress) {
       return privateJson({
         error: "Account deletion is already in progress. Please wait a moment.",
@@ -115,6 +118,12 @@ export async function POST(req: Request) {
       }, { status: HTTP_STATUS.CONFLICT });
     }
   } catch (error) {
+    await releaseAccountDeletionLock(deletionLock).catch((releaseError) => {
+      Sentry.captureException(releaseError, {
+        tags: { source: "account_delete_lock_release" },
+        extra: { dbUserId: me.id },
+      });
+    });
     Sentry.captureException(error, { tags: { source: "account_delete_anonymize" }, extra: { dbUserId: me.id } });
     return privateJson({
       error: "Your sign-in was deleted, but account data anonymization needs manual support follow-up.",

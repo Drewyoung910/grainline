@@ -18,6 +18,11 @@ import {
   revalidateListingSearchCaches,
   revalidatePublicSellerVisibilityCaches,
 } from './searchCache'
+import {
+  mintUserStaffCapability,
+  userStaffBanTarget,
+  userStaffUnbanApply,
+} from './userStaffAccess'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -83,9 +88,9 @@ async function retryUndoBanClerkSyncIfPending(log: {
     return false
   }
 
-  const clerkUnbanTarget = await prisma.user.findUnique({
-    where: { id: log.targetId },
-    select: { clerkId: true, banned: true, deletedAt: true },
+  const clerkUnbanTarget = await userStaffBanTarget(getOrderStaffReadClient(), {
+    actorId: adminId,
+    targetId: log.targetId,
   })
   if (!clerkUnbanTarget) throw new Error('Undo target user not found')
   if (clerkUnbanTarget.deletedAt) throw new Error('Undo target account has been deleted')
@@ -296,10 +301,11 @@ export async function undoAdminAction({
       }
     }
   }
+  const staffClient = getOrderStaffReadClient()
   const clerkUnbanTarget = log.action === 'BAN_USER'
-    ? await prisma.user.findUnique({
-        where: { id: log.targetId },
-        select: { clerkId: true },
+    ? await userStaffBanTarget(staffClient, {
+        actorId: adminId,
+        targetId: log.targetId,
       })
     : null
   const banReviewCapability = log.action === 'BAN_USER'
@@ -308,8 +314,16 @@ export async function undoAdminAction({
         log.targetId,
         'BAN_REVIEW_RESTORE',
         banMetadata?.flaggedOpenOrders ?? [],
-        getOrderStaffReadClient(),
+        staffClient,
       )
+    : null
+  const userUnbanCapability = log.action === 'BAN_USER'
+    ? await mintUserStaffCapability(staffClient, {
+        actorId: adminId,
+        targetId: log.targetId,
+        operation: 'USER_UNBAN',
+        expectedBannedAt: appliedBannedAt,
+      })
     : null
 
   await prisma.$transaction(async (tx) => {
@@ -323,8 +337,8 @@ export async function undoAdminAction({
 
     switch (log.action) {
       case 'BAN_USER': {
-        if (!banReviewCapability) {
-          throw new Error('Ban review authorization capability is missing')
+        if (!banReviewCapability || !userUnbanCapability) {
+          throw new Error('Ban undo authorization capability is missing')
         }
         await restoreBannedSellerOrderReviews(
           banReviewCapability,
@@ -332,16 +346,18 @@ export async function undoAdminAction({
           banMetadata?.flaggedOpenOrders ?? [],
           tx,
         )
-        const unbanned = await tx.user.updateMany({
-          where: {
-            id: log.targetId,
-            banned: true,
-            deletedAt: null,
-            ...(appliedBannedAt ? { bannedAt: appliedBannedAt } : {}),
-          },
-          data: { banned: false, bannedAt: null, banReason: null, bannedBy: null }
-        })
-        if (unbanned.count !== 1) throw new Error('User ban state changed before undo could be applied')
+        try {
+          await userStaffUnbanApply(tx, {
+            capabilityId: userUnbanCapability,
+            targetId: log.targetId,
+            expectedBannedAt: appliedBannedAt,
+          })
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('User ban state changed')) {
+            throw new Error('User ban state changed before undo could be applied')
+          }
+          throw error
+        }
         if (sellerRestore) {
           await tx.sellerProfile.updateMany({
             where: { id: sellerRestore.id, userId: log.targetId },

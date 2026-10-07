@@ -53,8 +53,6 @@ export async function POST(
   }
   const { reason } = body
   if (id === admin.id) return privateJson({ error: 'Cannot ban yourself' }, { status: HTTP_STATUS.BAD_REQUEST })
-  const target = await prisma.user.findUnique({ where: { id }, select: { role: true } })
-  if (target?.role === 'ADMIN') return privateJson({ error: 'Cannot ban admin accounts' }, { status: HTTP_STATUS.BAD_REQUEST })
   try {
     await banUser({ userId: id, adminId: admin.id, reason })
   } catch (error) {
