@@ -30,6 +30,7 @@ test("installed-catalog inspection is exact-main, exact-CI, manual, and read-onl
   assert.match(workflow, /user-installed-catalog-production-inspect\.mjs/u);
   assert.match(workflow, /PRODUCTION_MIGRATION_DIRECT_URL/u);
   assert.match(workflow, /retention-days: 30/u);
+  assert.match(workflow, /name: Preserve sanitized catalog evidence\n\s+if: always\(\)/u);
   assert.doesNotMatch(workflow, /prisma migrate deploy|psql |vercel|gh workflow run|git push/iu);
 });
 

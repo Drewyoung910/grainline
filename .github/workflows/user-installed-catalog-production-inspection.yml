@@ -100,6 +100,7 @@ jobs:
           USER_INSTALLED_CATALOG_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ inputs.release_commit }}.json
         run: node scripts/user-installed-catalog-production-inspect.mjs
       - name: Preserve sanitized catalog evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: user-installed-catalog-production-inspection-${{ github.run_id }}

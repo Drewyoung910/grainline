@@ -68,6 +68,21 @@ const USER_INSTALLED_PREFIX_MODES = Object.freeze({
   complete: Object.freeze([USER_COMPLETE_AUTHORITY_MIGRATIONS.length]),
 });
 
+export class UserInstalledCatalogVerificationError extends Error {
+  constructor(cause, catalog) {
+    super("Production User catalog did not match the reviewed source contract");
+    this.name = "UserInstalledCatalogVerificationError";
+    this.catalog = catalog;
+    this.failure = Object.freeze({
+      code: "CATALOG_VERIFICATION_REJECTED",
+      name: cause instanceof Error ? cause.name : "Error",
+      message: cause instanceof Error
+        ? String(cause.message).slice(0, 8_000)
+        : "Unknown catalog verification failure",
+    });
+  }
+}
+
 function required(env, name) {
   const value = env?.[name];
   if (typeof value !== "string" || value === "" || value !== value.trim()) {
@@ -541,11 +556,18 @@ export async function runUserInstalledCatalogInspection(config, expectation) {
     await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
     transactionOpen = true;
     const catalog = await readUserInstalledCatalog(client, expectation);
-    const result = verifyUserInstalledCatalog(
-      catalog,
-      expectation,
-      config.acceptedAppliedCounts,
-    );
+    let result;
+    try {
+      result = verifyUserInstalledCatalog(
+        catalog,
+        expectation,
+        config.acceptedAppliedCounts,
+      );
+    } catch (error) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      throw new UserInstalledCatalogVerificationError(error, catalog);
+    }
     await client.query("ROLLBACK");
     transactionOpen = false;
     return Object.freeze({
@@ -564,6 +586,26 @@ export async function runUserInstalledCatalogInspection(config, expectation) {
   } finally {
     await client.end();
   }
+}
+
+export function buildUserInstalledCatalogFailureEvidence(config, git, error) {
+  assert.ok(
+    error instanceof UserInstalledCatalogVerificationError,
+    "Only catalog verification failures may retain inspection metadata",
+  );
+  return Object.freeze({
+    generatedAt: new Date().toISOString(),
+    status: "failed",
+    git,
+    mode: config.mode,
+    releaseCommit: config.releaseCommit,
+    directUrlSha256: config.directUrlSha256,
+    failure: error.failure,
+    catalog: error.catalog,
+    transaction: Object.freeze({ isolation: "repeatable read", readOnly: true, rolledBack: true }),
+    retained: Object.freeze({ catalogMetadataOnly: true, rowData: false, identifiers: false, credentials: false, functionBodies: false }),
+    productionChanged: false,
+  });
 }
 
 export function writeUserInstalledCatalogInspectionEvidence(filePath, evidence) {
@@ -586,9 +628,11 @@ export function writeUserInstalledCatalogInspectionEvidence(filePath, evidence) 
 }
 
 async function main() {
+  let config;
+  let git;
   try {
-    const config = parseUserInstalledCatalogInspectionConfig(process.env);
-    const git = assertUserInstalledCatalogInspectionGitState(
+    config = parseUserInstalledCatalogInspectionConfig(process.env);
+    git = assertUserInstalledCatalogInspectionGitState(
       readUserInstalledCatalogInspectionGitState(),
       config.releaseCommit,
     );
@@ -610,8 +654,22 @@ async function main() {
       productionChanged: evidence.productionChanged,
       evidenceWritten: true,
     })}\n`);
-  } catch {
-    process.stderr.write("User installed-catalog production inspection failed closed.\n");
+  } catch (error) {
+    if (config && git && error instanceof UserInstalledCatalogVerificationError) {
+      try {
+        writeUserInstalledCatalogInspectionEvidence(
+          config.evidencePath,
+          buildUserInstalledCatalogFailureEvidence(config, git, error),
+        );
+        process.stderr.write(
+          "User installed-catalog production inspection failed closed with sanitized catalog evidence.\n",
+        );
+      } catch {
+        process.stderr.write("User installed-catalog production inspection failed closed.\n");
+      }
+    } else {
+      process.stderr.write("User installed-catalog production inspection failed closed.\n");
+    }
     process.exitCode = 1;
   }
 }
