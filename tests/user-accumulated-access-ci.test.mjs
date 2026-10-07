@@ -21,7 +21,12 @@ const heldTests = [
   "user-authority-catalog.test.mjs",
   "user-accumulated-access-ci.test.mjs",
   "order-ban-review-authority.test.mjs",
+  "order-staff-read-role-provision.test.mjs",
+  "order-staff-read-role-catalog-postgres.test.mjs",
 ];
+const staffScript = "scripts/provision-order-staff-read-role.sql";
+const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
+const historicalStaffBlob = "46fd8e1bfa086cb097adf194eb193389122ee9d9";
 
 function step(name) {
   const start = workflow.indexOf(`      - name: ${name}\n`);
@@ -40,11 +45,14 @@ test("new User families are proved then isolated until historical prerequisites 
   const restore = "Restore accumulated User access source package";
   const apply = "Apply accumulated User access in disposable PostgreSQL";
   const audit = "Audit runtime grants after accumulated User access";
+  const converge = "Converge accumulated User and Order isolated staff grants";
   assert.ok(workflow.indexOf(verify) < workflow.indexOf(isolate));
   assert.ok(workflow.indexOf(isolate) < workflow.indexOf("Isolate User public-identity first package"));
   assert.ok(workflow.indexOf(restore) > workflow.indexOf("Audit runtime grants after User public seller-state snapshot"));
   assert.ok(workflow.indexOf(restore) < workflow.indexOf(apply));
   assert.ok(workflow.indexOf(apply) < workflow.indexOf(audit));
+  assert.ok(workflow.indexOf(apply) < workflow.indexOf(converge));
+  assert.ok(workflow.indexOf(converge) < workflow.indexOf(audit));
   assert.ok(workflow.indexOf(audit) < workflow.indexOf("Production build"));
   for (const migration of migrations) {
     for (const name of [isolate, restore, apply]) assert.ok(step(name).includes(migration), `${name}: ${migration}`);
@@ -56,6 +64,13 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.match(step(apply), /psql "\$DIRECT_URL" --set=ON_ERROR_STOP=on/);
   assert.match(step(apply), /--file="prisma\/migrations\/\$migration\/migration\.sql"/);
   assert.doesNotMatch(step(apply), /gh |vercel|workflow_dispatch|environment: Production/);
+  assert.ok(step(isolate).includes(historicalBase));
+  assert.ok(step(isolate).includes(historicalStaffBlob));
+  assert.ok(step(isolate).includes(staffScript));
+  assert.ok(step(restore).includes(staffScript));
+  assert.match(step(converge), /--set=staff_role=grainline_staff_read_runtime/);
+  assert.match(step(converge), /--set=migration_role=ci/);
+  assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
 });
 
 test("actual isolation and restoration scripts preserve all source bytes in a disposable filesystem", () => {
@@ -63,21 +78,28 @@ test("actual isolation and restoration scripts preserve all source bytes in a di
   const root = path.join(temporary, "checkout");
   const holding = path.join(temporary, "runner");
   try {
-    mkdirSync(root);
+    execFileSync("git", ["clone", "--quiet", "--shared", "--no-checkout", process.cwd(), root], { env: { PATH: process.env.PATH } });
     mkdirSync(holding);
     mkdirSync(path.join(root, "tests"));
+    mkdirSync(path.join(root, "scripts"));
+    cpSync(staffScript, path.join(root, staffScript));
     cpSync("prisma", path.join(root, "prisma"), { recursive: true });
     for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
-    const trackedPaths = [...migrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
+    const heldPaths = [...migrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
+    const trackedPaths = [...heldPaths, staffScript];
     const hash = (relative) => createHash("sha256").update(readFileSync(path.join(root, relative))).digest("hex");
     const original = trackedPaths.map(hash);
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
-    assert.ok(trackedPaths.every((relative) => !existsSync(path.join(root, relative))));
+    assert.ok(heldPaths.every((relative) => !existsSync(path.join(root, relative))));
+    const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
+    assert.doesNotMatch(historicalStaff, /grainline_user_staff_/);
+    assert.equal(execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(), historicalStaffBlob);
     const heldFunctions = USER_AUTHORITY_GROUPS.filter(({ migration }) => migrations.includes(migration)).flatMap(({ functions }) => functions.map(({ name }) => name));
     const historical = deriveGrantInventory(root);
     assert.ok(heldFunctions.every((name) => !historical.functions.includes(name)));
     execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
     assert.deepEqual(trackedPaths.map(hash), original);
+    assert.match(readFileSync(path.join(root, staffScript), "utf8"), /grainline_user_staff_directory_page/);
     const restored = deriveGrantInventory(root);
     assert.ok(heldFunctions.every((name) => restored.functions.includes(name)));
   } finally {

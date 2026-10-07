@@ -70,3 +70,36 @@ Mark ready and merge only with all four green on that head and unchanged main.
 Compatible source merge still does not install SQL in Production or activate User
 RLS; the remaining relation, raw SQL, service-ledger and installed-catalog gates
 remain as recorded in the indirect-access audit.
+
+## Staff-script replay correction after the second CI failure
+
+Approved correction `7219cd3d` was published to #525. Its three independent
+checks passed, but CI `37538629478` stopped at the real staff-login convergence
+proof: the current provisioning script requires fourteen functions while that
+historical database has only the six accepted Order operations. The eight newer
+User staff operations are intentionally held until their User predecessors pass.
+The refusal at the required-operation catalog is correct; no merge was taken.
+
+During historical replay, CI now preserves the current staff provisioning bytes
+and uses the exact six-operation script from main predecessor
+`66746f47e87a73a6efce2ee6833542be5a86cc57`, additionally pinned to Git blob
+`46fd8e1bfa086cb097adf194eb193389122ee9d9`. The two newer fourteen-operation
+source/catalog tests are verified before isolation and held with their User
+family. The current script and all held tests/migrations are restored byte-for-byte
+after the public seller-state predecessor. After the three new User preparations,
+CI executes the current full staff convergence script against its local service,
+then audits ordinary runtime grants.
+
+The production provisioning script and all migration SQL remain unchanged.
+The filesystem regression executes the real shell bodies using a local Git
+object clone, proves the historical script has no new User operations, and
+checks every original byte hash after restoration. A focused PostgreSQL fixture
+executes both actual required-operation catalog queries: the newer script
+refuses the six-operation prefix, while the historical script accepts it.
+
+Six focused checks passed for staging, full staff source and catalog isolation;
+the newly added prefix reproduction passed separately. Targeted lint,
+diff checks and workflow YAML parsing pass. No full historical database replay
+or application test batch was repeated locally. Public publication and
+conditional merge require a new exact source-head decision because the
+`7219cd3d` gate failed.
