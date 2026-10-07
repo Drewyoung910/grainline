@@ -502,23 +502,23 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(fullMapCall, /\bcompact\b/);
   });
 
-  it("prefers shop avatars over Clerk photos on homepage blog cards", () => {
+  it("prefers live shop avatars over stored public blog identity snapshots", () => {
     const homepage = source("src/app/page.tsx");
 
     assert.match(
       homepage,
-      /author:\s*\{\s*select:\s*\{\s*name:\s*true,\s*imageUrl:\s*true,\s*sellerProfile:\s*\{\s*select:\s*\{\s*displayName:\s*true,\s*avatarImageUrl:\s*true\s*\},?\s*\},?\s*\},?\s*\}/,
-      "homepage blog queries should load the author's shop identity",
+      /authorName:\s*true,[\s\S]*authorImageUrl:\s*true,[\s\S]*authorSellerName:\s*true,[\s\S]*authorSellerAvatarUrl:\s*true,[\s\S]*sellerProfile:\s*\{\s*select:\s*\{\s*displayName:\s*true,\s*avatarImageUrl:\s*true\s*\},?\s*\}/,
+      "homepage blog queries should load stored public identity plus the post-linked shop",
     );
     assert.match(
       homepage,
-      /const authorProfile = p\.sellerProfile \?\? p\.author\?\.sellerProfile;/,
-      "a post-linked shop should take precedence over the author's shop",
+      /const authorName = p\.sellerProfile\?\.displayName[\s\S]*\?\? p\.authorSellerName[\s\S]*\?\? p\.authorName[\s\S]*\?\? "Former author";/,
+      "the post-linked shop name should take precedence over stored identity snapshots",
     );
     assert.match(
       homepage,
-      /const authorAvatar = authorProfile\?\.avatarImageUrl \?\? p\.author\?\.imageUrl \?\? null;/,
-      "the Clerk photo should remain only the final avatar fallback",
+      /const authorAvatar = p\.sellerProfile\?\.avatarImageUrl[\s\S]*\?\? p\.authorSellerAvatarUrl[\s\S]*\?\? p\.authorImageUrl[\s\S]*\?\? null;/,
+      "the stored public author image should remain only the final avatar fallback",
     );
   });
 
@@ -570,7 +570,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
     assert.match(homepage, /hover:underline[\s\S]*Visit shop →/);
     assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfile/);
-    assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.author\?\.id === meId/);
+    assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.authorId === meId/);
     assert.match(blogPost, /!viewerIsAuthor && \(/);
     assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfile\.id\}[\s\S]*initialCount=\{authorFollowerCount\}/);
     assert.match(blogPost, /<NewsletterSignup \/>/);

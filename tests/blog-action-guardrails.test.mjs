@@ -126,7 +126,7 @@ describe("blog dashboard action guardrails", () => {
     const editPage = source("src/app/dashboard/blog/[id]/edit/page.tsx");
     const publicPage = source("src/app/blog/[slug]/page.tsx");
 
-    assert.match(schema, /materialDisclosure String\?\s+@db\.VarChar\(500\)/);
+    assert.match(schema, /materialDisclosure\s+String\?\s+@db\.VarChar\(500\)/);
     assert.match(migration, /ADD COLUMN "materialDisclosure" VARCHAR\(500\)/);
     assert.match(form, /name="materialDisclosure"/);
     assert.match(form, /maxLength=\{500\}/);
