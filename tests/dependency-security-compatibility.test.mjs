@@ -62,7 +62,9 @@ describe("dependency security compatibility", () => {
   });
 
   it("loads the patched native image decoder and preserves accepted image formats", async () => {
-    assert.equal(sharp.versions.sharp, "0.35.4");
+    assert.equal(sharp.versions.sharp, "0.35.5");
+    const rsvg = sharp.versions.rsvg?.split(".").map(Number);
+    assert.ok(rsvg && (rsvg[0] > 2 || (rsvg[0] === 2 && (rsvg[1] > 63 || (rsvg[1] === 63 && rsvg[2] >= 2)))));
     const heif = sharp.versions.heif?.split(".").map(Number);
     assert.ok(heif && (heif[0] > 1 || (heif[0] === 1 && (heif[1] > 23 || (heif[1] === 23 && heif[2] >= 2)))));
     for (const format of ["jpeg", "png", "webp"]) {
@@ -75,6 +77,28 @@ describe("dependency security compatibility", () => {
       assert.equal(metadata.width, 8);
       assert.equal(metadata.height, 8);
     }
+  });
+
+  it("bounds indexed source-map offsets and exhausted-code traversal", () => {
+    // The child deadline bounds a synchronous parser regression. All input is
+    // synthetic; this is a correctness/hang guard, not a performance benchmark.
+    execFileSync(process.execPath, ["-e", `
+      const assert = require("node:assert/strict");
+      const {SourceMapConsumer, SourceNode} = require("source-map-js");
+      const basic = {version: 3, sources: ["input.js"], names: [],
+        mappings: "AAAA", sourcesContent: ["x"]};
+      const indexed = (line, column = 0, map = basic) =>
+        ({version: 3, sections: [{offset: {line, column}, map}]});
+      for (const line of [-1, 0.5, Infinity, NaN, "1", 500_000_000]) {
+        assert.throws(() => new SourceMapConsumer(indexed(line)), /Section offset/);
+      }
+      assert.throws(() => new SourceMapConsumer(indexed(
+        8_000_000, 0, indexed(8_000_000))), /including offsets of nested sections/);
+      assert.equal(SourceNode.fromStringWithSourceMap(
+        "x", new SourceMapConsumer(indexed(0))).toString(), "x");
+      assert.equal(SourceNode.fromStringWithSourceMap(
+        "x", new SourceMapConsumer(indexed(1_000_000))).toString(), "x");
+    `], { timeout: 5000, stdio: "pipe" });
   });
 
   it("stages byte-identical versioned worker modules from the locked package", () => {

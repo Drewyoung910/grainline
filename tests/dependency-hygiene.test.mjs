@@ -92,6 +92,9 @@ describe("dependency hygiene guardrails", () => {
 
     assert.equal(pkg.scripts?.["audit:dependencies"], "node scripts/audit-dependencies.mjs");
     assert.match(workflow, /npm run audit:dependencies/);
+    assert.ok(workflow.indexOf("name: Security audit") > workflow.indexOf("run: npm ci --ignore-scripts"));
+    assert.ok(workflow.indexOf("name: Security audit") < workflow.indexOf("name: Verify accumulated User access source package"));
+    assert.ok(workflow.indexOf("name: Security audit") < workflow.indexOf("name: Tests"));
     assert.match(auditScript, /runAudit\(\["--omit=dev"\]\)/);
     assert.match(auditScript, /Full dependency audit failed/);
     assert.match(auditScript, /GHSA-vfj7-8cjw-p6xm/);
@@ -189,10 +192,24 @@ describe("dependency hygiene guardrails", () => {
       .filter(([path]) => path === "node_modules/sharp" || path.endsWith("/node_modules/sharp"))
       .map(([path, entry]) => [path, entry.version]);
 
-    assert.equal(pkg.devDependencies?.sharp, "^0.35.4");
+    assert.equal(pkg.devDependencies?.sharp, "^0.35.5");
     assert.equal(pkg.overrides?.sharp, "$sharp");
-    assert.equal(lock.packages?.[""]?.devDependencies?.sharp, "^0.35.4");
-    assert.deepEqual(sharpInstalls, [["node_modules/sharp", "0.35.4"]]);
+    assert.equal(lock.packages?.[""]?.devDependencies?.sharp, "^0.35.5");
+    assert.deepEqual(sharpInstalls, [["node_modules/sharp", "0.35.5"]]);
+    for (const [path, entry] of Object.entries(lock.packages ?? {})) {
+      if (path.includes("node_modules/@img/sharp-libvips-")) assert.equal(entry.version, "1.3.4", path);
+      else if (path.includes("node_modules/@img/sharp-")) assert.equal(entry.version, "0.35.5", path);
+    }
+  });
+
+  it("resolves every source-map-js consumer to the reviewed denial-of-service patch", () => {
+    const pkg = json("package.json");
+    const lock = json("package-lock.json");
+    assert.equal(pkg.overrides?.["source-map-js"], "1.2.2");
+    const installs = Object.entries(lock.packages ?? {})
+      .filter(([path]) => path === "node_modules/source-map-js" || path.endsWith("/node_modules/source-map-js"))
+      .map(([path, entry]) => [path, entry.version]);
+    assert.deepEqual(installs, [["node_modules/source-map-js", "1.2.2"]]);
   });
 
   it("does not reintroduce stale marked ambient types", () => {

@@ -82,6 +82,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Security audit
+        run: npm run audit:dependencies
       - run: npx prisma generate
       - name: Verify User Clerk identity authority source package
         run: >-
@@ -2372,8 +2374,6 @@ jobs:
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
-      - name: Security audit
-        run: npm run audit:dependencies
       - name: Restore and prove the reviewed successors
         shell: bash
         run: |
