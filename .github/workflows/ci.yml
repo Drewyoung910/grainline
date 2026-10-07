@@ -84,6 +84,11 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Security audit
         run: npm run audit:dependencies
+      - name: Verify CI resource and dependency guards
+        run: >-
+          node --test
+          tests/test-runner-resource-boundary.test.mjs
+          tests/dependency-hygiene.test.mjs
       - run: npx prisma generate
       - name: Verify User Clerk identity authority source package
         run: >-

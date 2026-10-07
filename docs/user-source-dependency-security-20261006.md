@@ -61,3 +61,23 @@ No successful User/Order database proof or full application batch was rerun
 locally. A new exact-head four-check public gate is required before the
 conditional source merge; compatible SQL installation, deployment and User RLS
 activation remain separate decisions.
+
+## CI resource guard correction
+
+Published dependency head `5da4caa6` passed the early strict security audit and
+the three independent Order checks. CI `37566212996` reached full Tests and
+reported 4,963 passes, nine skips and one failure: the resource-boundary guard
+still used the later Security audit heading as the end of the Tests step.
+Moving the audit earlier invalidated that assumption; the full-suite command
+and its single-file concurrency bound had not changed.
+
+The guard now parses YAML and selects the single Tests step by name. It keeps
+the exact all-files test command, concurrency bound and resource diagnostics
+assertions. Resource and dependency guards also run immediately after install
+and audit, before Prisma generation and historical replay. They remain in the
+full suite; no case is excluded and no audit threshold is weakened.
+
+Only the resource test, CI workflow and this record change. A focused run of
+both early guard files, targeted lint and diff checks validates this correction;
+the full suite and database proofs are not repeated locally. The changed head
+requires a new exact publication decision before any conditional merge.
