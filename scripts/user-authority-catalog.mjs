@@ -66,6 +66,11 @@ const groups = [
     ["grainline_user_block_pair_lock(text)", true],
     ["grainline_user_email_fallback_addresses()", true],
   ]],
+  ["20261007040000_prepare_user_follower_authorities", [
+    ["grainline_user_follower_notification_page(text, text, integer)", true],
+    ["grainline_user_owner_broadcast_follower_page(text, text, integer, boolean)", true],
+    ["grainline_user_public_listing_favorite_counts(text[])", true],
+  ]],
 ];
 
 export const USER_AUTHORITY_GROUPS = Object.freeze(groups.map(([migration, entries]) => Object.freeze({

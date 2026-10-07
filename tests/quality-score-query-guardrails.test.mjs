@@ -9,13 +9,18 @@ function source(path) {
 describe("quality score query guardrails", () => {
   it("does not let blocked, banned, or deleted favorite users boost listings", () => {
     const qualityScore = source("src/lib/quality-score.ts");
+    const authority = source(
+      "prisma/migrations/20261007040000_prepare_user_follower_authorities/migration.sql",
+    );
 
-    assert.match(qualityScore, /JOIN "User" fu ON fu\.id = f\."userId"/);
-    assert.match(qualityScore, /fu\.banned = false/);
-    assert.match(qualityScore, /fu\."deletedAt" IS NULL/);
-    assert.match(qualityScore, /FROM "Block" b/);
-    assert.match(qualityScore, /b\."blockerId" = fu\.id AND b\."blockedId" = sp\."userId"/);
-    assert.match(qualityScore, /b\."blockerId" = sp\."userId" AND b\."blockedId" = fu\.id/);
+    assert.match(qualityScore, /userPublicListingFavoriteCounts\(prisma, listingIds\)/);
+    assert.doesNotMatch(qualityScore, /JOIN "User"|FROM "User"/);
+    assert.match(authority, /JOIN public\."User" AS favoriter/);
+    assert.match(authority, /favoriter\.banned = false/);
+    assert.match(authority, /favoriter\."deletedAt" IS NULL/);
+    assert.match(authority, /FROM public\."Block" AS blocked_pair/);
+    assert.match(authority, /blocked_pair\."blockerId" = favoriter\.id/);
+    assert.match(authority, /blocked_pair\."blockedId" = seller\."userId"/);
   });
 
   it("excludes open, lost, and unknown Stripe disputes through the fixed Order projection", () => {

@@ -91,7 +91,8 @@ describe("User public seller-state source boundary", () => {
     assert.doesNotMatch(commission, /JOIN "User" iu ON iu\.id = isp\."userId"/);
 
     const quality = read("src/lib/quality-score.ts");
-    assert.match(quality, /JOIN "User" fu ON fu\.id = f\."userId"/);
+    assert.match(quality, /userPublicListingFavoriteCounts\(prisma, listingIds\)/);
+    assert.doesNotMatch(quality, /JOIN "User" fu ON fu\.id = f\."userId"/);
     assert.doesNotMatch(quality, /JOIN "User"[^\n]+sp\."userId"/);
   });
 

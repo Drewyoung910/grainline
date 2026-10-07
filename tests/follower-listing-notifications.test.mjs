@@ -15,23 +15,24 @@ describe("follower listing notification guardrails", () => {
     assert.match(fanout, /where: publicListingWhere\(\{ id: listing\.id, sellerId: sellerProfileId \}\)/);
     assert.match(fanout, /if \(!publicListing\) return/);
     assert.match(fanout, /const sellerUserId = publicListing\.seller\.userId/);
-    assert.match(fanout, /followerId: \{ not: sellerUserId \}/);
-    assert.match(fanout, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
-    assert.match(fanout, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
+    assert.match(fanout, /userFollowerNotificationPage\(prisma, \{/);
+    assert.match(fanout, /afterFollowId: cursor/);
+    assert.match(fanout, /limit: FOLLOWER_FANOUT_PAGE_SIZE/);
+    assert.doesNotMatch(fanout, /prisma\.follow\.findMany/);
     assert.ok(
       fanout.indexOf("where: publicListingWhere({ id: listing.id, sellerId: sellerProfileId })") <
-        fanout.indexOf("const followers = await prisma.follow.findMany"),
+        fanout.indexOf("const followers = await userFollowerNotificationPage"),
       "public listing state must be rechecked before follower lookup",
     );
     assert.ok(
-      fanout.indexOf("blocks: { none: { blockedId: sellerUserId } }") <
+      fanout.indexOf("const followers = await userFollowerNotificationPage") <
         fanout.indexOf("await mapWithConcurrency(followers, 10"),
-      "block filtering must happen before in-app notification fanout",
+      "fixed reciprocal-block follower filtering must happen before in-app notification fanout",
     );
     assert.ok(
-      fanout.indexOf("blockedBy: { none: { blockerId: sellerUserId } }") <
+      fanout.indexOf("const followers = await userFollowerNotificationPage") <
         fanout.indexOf("userEmailDeliveryRecipients(prisma, {"),
-      "block filtering must happen before email fanout",
+      "fixed reciprocal-block follower filtering must happen before email fanout",
     );
     assert.match(fanout, /preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING"/);
     assert.match(fanout, /await mapWithConcurrency\(emailRecipients, 5/);
@@ -57,41 +58,40 @@ describe("follower listing notification guardrails", () => {
     assert.match(blogFanout, /where: publicBlogPostWhere\(\{ id: postId, sellerProfileId \}\)/);
     assert.match(blogFanout, /if \(!publicPost\?\.sellerProfile\?\.userId\) return/);
     assert.match(blogFanout, /const sellerUserId = publicPost\.sellerProfile\.userId/);
-    assert.match(blogFanout, /followerId: \{ not: sellerUserId \}/);
-    assert.match(blogFanout, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
-    assert.match(blogFanout, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
-    assert.match(blogFanout, /orderBy: \{ id: "asc" \}/);
-    assert.match(blogFanout, /\.\.\.\(cursor \? \{ cursor: \{ id: cursor \}, skip: 1 \} : \{\}\)/);
-    assert.match(blogFanout, /take: BLOG_FOLLOWER_FANOUT_PAGE_SIZE/);
+    assert.match(blogFanout, /userFollowerNotificationPage\(prisma, \{/);
+    assert.match(blogFanout, /afterFollowId: cursor/);
+    assert.match(blogFanout, /limit: BLOG_FOLLOWER_FANOUT_PAGE_SIZE/);
+    assert.doesNotMatch(blogFanout, /prisma\.follow\.findMany/);
     assert.match(blogFanout, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOWED_MAKER_NEW_BLOG/);
     assert.match(blogFanout, /sourceId: publicPost\.id/);
     assert.ok(
       blogFanout.indexOf("where: publicBlogPostWhere({ id: postId, sellerProfileId })") <
-        blogFanout.indexOf("const followers = await prisma.follow.findMany"),
+        blogFanout.indexOf("const followers = await userFollowerNotificationPage"),
       "public blog state must be rechecked before follower lookup",
     );
     assert.ok(
-      blogFanout.indexOf("blocks: { none: { blockedId: sellerUserId } }") <
+      blogFanout.indexOf("const followers = await userFollowerNotificationPage") <
         blogFanout.indexOf("await mapWithConcurrency(followers, 10"),
-      "block filtering must happen before blog notification fanout",
+      "fixed reciprocal-block follower filtering must happen before blog notification fanout",
     );
   });
 
   it("filters seller broadcast follower recipients before notifications and email outbox jobs", () => {
     const broadcastRoute = source("src/app/api/seller/broadcast/route.ts");
 
-    assert.match(broadcastRoute, /followerId: \{ not: me\.id \}/);
-    assert.match(broadcastRoute, /blocks: \{ none: \{ blockedId: me\.id \} \}/);
-    assert.match(broadcastRoute, /blockedBy: \{ none: \{ blockerId: me\.id \} \}/);
+    assert.match(broadcastRoute, /userOwnerBroadcastFollowers\(me\.id, \{/);
+    assert.match(broadcastRoute, /sellerProfileId: seller\.id/);
+    assert.match(broadcastRoute, /sellersOnly/);
+    assert.doesNotMatch(broadcastRoute, /prisma\.follow\.findMany/);
     assert.ok(
-      broadcastRoute.indexOf("blocks: { none: { blockedId: me.id } }") <
+      broadcastRoute.indexOf("userOwnerBroadcastFollowers(me.id, {") <
         broadcastRoute.indexOf("const notificationFollowers = followers.filter"),
-      "broadcast block filtering must happen before in-app recipient filtering",
+      "owner-bound reciprocal-block filtering must happen before in-app recipient filtering",
     );
     assert.ok(
-      broadcastRoute.indexOf("blockedBy: { none: { blockerId: me.id } }") <
+      broadcastRoute.indexOf("userOwnerBroadcastFollowers(me.id, {") <
         broadcastRoute.indexOf("const emailFollowers = (await Promise.all("),
-      "broadcast block filtering must happen before email recipient filtering",
+      "owner-bound reciprocal-block filtering must happen before email recipient filtering",
     );
     assert.match(broadcastRoute, /userEmailDeliveryRecipients\(prisma, \{[\s\S]*preferenceKey: "EMAIL_SELLER_BROADCAST"/);
   });

@@ -10,9 +10,9 @@ import { deriveGrantInventory, RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audi
 const functions = USER_AUTHORITY_GROUPS.flatMap((group) => group.functions);
 
 test("the explicit User catalog matches exact migration signatures and private partition", () => {
-  assert.equal(functions.length, 41);
-  assert.equal(new Set(functions.map(({ identity }) => identity)).size, 41);
-  assert.equal(functions.filter(({ runtimeExecute }) => runtimeExecute).length, 31);
+  assert.equal(functions.length, 44);
+  assert.equal(new Set(functions.map(({ identity }) => identity)).size, 44);
+  assert.equal(functions.filter(({ runtimeExecute }) => runtimeExecute).length, 34);
   assert.equal(USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES.length, 8);
   for (const group of USER_AUTHORITY_GROUPS) {
     const sql = readFileSync(`prisma/migrations/${group.migration}/migration.sql`, "utf8");
@@ -51,7 +51,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLI
   }
 });
 
-test("actual User provisioning SQL converges all 41 function grants and retains staff isolation", async () => {
+test("actual User provisioning SQL converges all 44 function grants and retains staff isolation", async () => {
   const database = new PGlite();
   try {
     await database.exec("CREATE ROLE grainline_app_runtime; CREATE ROLE grainline_staff_read_runtime;");
