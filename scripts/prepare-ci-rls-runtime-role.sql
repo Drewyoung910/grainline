@@ -2,7 +2,7 @@
 --
 -- Production and staging runtime roles are provisioned separately with
 -- externally managed credentials. This script intentionally creates a
--- passwordless LOGIN policy target only inside the ephemeral Grainline CI
+-- passwordless LOGIN policy targets only inside the ephemeral Grainline CI
 -- database so every fail-closed RLS migration sees the production role
 -- attributes from a blank database. CI still runs the production provisioning
 -- script after migration to converge grants before the final catalog audit.
@@ -56,6 +56,25 @@ BEGIN
 END
 $grainline_ci_direct_upload_cleanup_role$;
 
+DO $grainline_ci_staff_read_role$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_roles
+     WHERE rolname = 'grainline_staff_read_runtime'
+  ) THEN
+    CREATE ROLE grainline_staff_read_runtime
+      LOGIN
+      NOSUPERUSER
+      NOCREATEDB
+      NOCREATEROLE
+      NOINHERIT
+      NOREPLICATION
+      NOBYPASSRLS;
+  END IF;
+END
+$grainline_ci_staff_read_role$;
+
 -- Make reruns converge to the reviewed least-privilege policy-role shape.
 ALTER ROLE grainline_app_runtime
   LOGIN
@@ -67,6 +86,15 @@ ALTER ROLE grainline_app_runtime
   NOBYPASSRLS;
 
 ALTER ROLE grainline_direct_upload_cleanup_v2
+  LOGIN
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  NOINHERIT
+  NOREPLICATION
+  NOBYPASSRLS;
+
+ALTER ROLE grainline_staff_read_runtime
   LOGIN
   NOSUPERUSER
   NOCREATEDB
@@ -113,12 +141,34 @@ BEGIN
 END
 $grainline_ci_cleanup_memberships$;
 
+DO $grainline_ci_staff_memberships$
+DECLARE
+  parent_role text;
+BEGIN
+  FOR parent_role IN
+    SELECT parent.rolname
+      FROM pg_auth_members membership
+      JOIN pg_roles child ON child.oid = membership.member
+      JOIN pg_roles parent ON parent.oid = membership.roleid
+     WHERE child.rolname = 'grainline_staff_read_runtime'
+  LOOP
+    EXECUTE format(
+      'REVOKE %I FROM grainline_staff_read_runtime',
+      parent_role
+    );
+  END LOOP;
+END
+$grainline_ci_staff_memberships$;
+
 GRANT USAGE ON SCHEMA public TO grainline_app_runtime;
 REVOKE CREATE ON SCHEMA public FROM grainline_app_runtime;
 REVOKE CREATE ON DATABASE grainline_ci FROM grainline_app_runtime;
 GRANT USAGE ON SCHEMA public TO grainline_direct_upload_cleanup_v2;
 REVOKE CREATE ON SCHEMA public FROM grainline_direct_upload_cleanup_v2;
 REVOKE CREATE ON DATABASE grainline_ci FROM grainline_direct_upload_cleanup_v2;
+GRANT USAGE ON SCHEMA public TO grainline_staff_read_runtime;
+REVOKE CREATE ON SCHEMA public FROM grainline_staff_read_runtime;
+REVOKE CREATE ON DATABASE grainline_ci FROM grainline_staff_read_runtime;
 
 -- Prisma migrations in CI run as the current `ci` owner. Set its defaults
 -- before the first table is created so SavedSearch has the grants required by
