@@ -342,13 +342,10 @@ export default async function HomePage() {
       take: 3,
       select: {
         id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, type: true, readingTimeMinutes: true, publishedAt: true,
-        author: {
-          select: {
-            name: true,
-            imageUrl: true,
-            sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
-          },
-        },
+        authorName: true,
+        authorImageUrl: true,
+        authorSellerName: true,
+        authorSellerAvatarUrl: true,
         sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
       },
     }),
@@ -1082,9 +1079,14 @@ export default async function HomePage() {
             </div>
             <ul className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {recentBlogPosts.map((p) => {
-                const authorProfile = p.sellerProfile ?? p.author?.sellerProfile;
-                const authorName = authorProfile?.displayName ?? p.author?.name ?? "Former author";
-                const authorAvatar = authorProfile?.avatarImageUrl ?? p.author?.imageUrl ?? null;
+                const authorName = p.sellerProfile?.displayName
+                  ?? p.authorSellerName
+                  ?? p.authorName
+                  ?? "Former author";
+                const authorAvatar = p.sellerProfile?.avatarImageUrl
+                  ?? p.authorSellerAvatarUrl
+                  ?? p.authorImageUrl
+                  ?? null;
                 return (
                   <li key={p.slug} className="relative card-listing">
                     <div className="absolute top-2 right-2 z-10">

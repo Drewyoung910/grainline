@@ -22,7 +22,8 @@ const POST_SELECT = {
   tags: true,
   publishedAt: true,
   readingTimeMinutes: true,
-  author: { select: { name: true, imageUrl: true } },
+  authorName: true,
+  authorImageUrl: true,
   sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
 } as const;
 
@@ -36,9 +37,15 @@ type PostRow = {
   tags: string[];
   publishedAt: Date | null;
   readingTimeMinutes: number | null;
-  author: { name: string | null; imageUrl: string | null };
+  authorName: string | null;
+  authorImageUrl: string | null;
   sellerProfile: { displayName: string; avatarImageUrl: string | null } | null;
 };
+
+function publicBlogSearchResult(row: PostRow) {
+  const { authorName, authorImageUrl, ...post } = row;
+  return { ...post, author: { name: authorName, imageUrl: authorImageUrl } };
+}
 
 export async function GET(req: NextRequest) {
   const rl = await safeRateLimit(searchRatelimit, getIP(req));
@@ -90,13 +97,11 @@ export async function GET(req: NextRequest) {
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT bp.id
       FROM "BlogPost" bp
-      JOIN "User" author_user ON author_user.id = bp."authorId"
       LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
         AND bp."publishedAt" <= NOW()
-        AND author_user.banned = false
-        AND author_user."deletedAt" IS NULL
+        AND bp."authorAccountActive" = true
         AND (
           bp."sellerProfileId" IS NULL
           OR (
@@ -152,7 +157,7 @@ export async function GET(req: NextRequest) {
     const totalPages = Math.ceil(total / limit);
     const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
     const skip = (clampedPage - 1) * limit;
-    const posts = ordered.slice(skip, skip + limit);
+    const posts = ordered.slice(skip, skip + limit).map(publicBlogSearchResult);
 
     return NextResponse.json({ posts, total, page: clampedPage, totalPages, relatedTags: [] });
   }
@@ -182,7 +187,8 @@ export async function GET(req: NextRequest) {
   const totalPages = Math.ceil(total / limit);
   const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
   const skip = (clampedPage - 1) * limit;
-  const posts = await prisma.blogPost.findMany({ where, orderBy, skip, take: limit, select: POST_SELECT });
+  const rows = await prisma.blogPost.findMany({ where, orderBy, skip, take: limit, select: POST_SELECT });
+  const posts = rows.map((row) => publicBlogSearchResult(row as PostRow));
 
   return NextResponse.json({ posts, total, page: clampedPage, totalPages, relatedTags: [] });
 }

@@ -42,7 +42,7 @@ describe("public visibility follow-ups", () => {
       ["blog comments API", commentsRoute],
     ]) {
       assert.match(source, /function visibleBlogCommentWhere\(blockedUserIds: string\[\]\)/, `${path} must share comment visibility filters`);
-      assert.match(source, /author: \{ banned: false, deletedAt: null \}/, `${path} must filter inactive comment authors`);
+      assert.match(source, /authorAccountActive: true/, `${path} must filter inactive comment authors`);
       assert.match(source, /authorId: \{ notIn: blockedUserIds \}/, `${path} must filter blocked comment authors`);
       assert.match(source, /where: \{ \.\.\.commentVisibilityWhere,/, `${path} must apply comment visibility to top-level reads`);
       assert.match(source, /where: commentVisibilityWhere/, `${path} must apply comment visibility to reply reads`);

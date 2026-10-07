@@ -7,24 +7,20 @@ interface Level3Reply {
   id: string;
   body: string;
   createdAt: Date | string;
-  author: {
-    id: string;
-    name: string | null;
-    imageUrl: string | null;
-    sellerProfile?: { avatarImageUrl: string | null } | null;
-  };
+  authorId: string;
+  authorName: string | null;
+  authorImageUrl: string | null;
+  authorSellerAvatarUrl: string | null;
 }
 
 interface Reply {
   id: string;
   body: string;
   createdAt: Date | string;
-  author: {
-    id: string;
-    name: string | null;
-    imageUrl: string | null;
-    sellerProfile?: { avatarImageUrl: string | null } | null;
-  };
+  authorId: string;
+  authorName: string | null;
+  authorImageUrl: string | null;
+  authorSellerAvatarUrl: string | null;
   replies?: Level3Reply[];
 }
 
@@ -52,7 +48,7 @@ export default function BlogReplyToggle({
     <div className="pl-8 border-l border-neutral-300 mt-3 space-y-3">
       {/* Level-2 replies */}
       {replies.map((r) => {
-        const rAvatarUrl = r.author.sellerProfile?.avatarImageUrl ?? r.author.imageUrl;
+        const rAvatarUrl = r.authorSellerAvatarUrl ?? r.authorImageUrl;
         return (
           <div key={r.id} className="space-y-2">
             {/* Level-2 reply content */}
@@ -61,7 +57,7 @@ export default function BlogReplyToggle({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={rAvatarUrl}
-                  alt={r.author.name ?? ""}
+                  alt={r.authorName ?? ""}
                   className="h-7 w-7 rounded-full object-cover shrink-0 mt-0.5"
                 />
               ) : (
@@ -69,7 +65,7 @@ export default function BlogReplyToggle({
               )}
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{r.author.name ?? "User"}</span>
+                  <span className="text-sm font-medium">{r.authorName ?? "User"}</span>
                   <span className="text-xs text-neutral-500">
                     {new Date(r.createdAt).toLocaleDateString("en-US", {
                       month: "short",
@@ -77,11 +73,11 @@ export default function BlogReplyToggle({
                       year: "numeric",
                     })}
                   </span>
-                  {meId && meId !== r.author.id && (
+                  {meId && meId !== r.authorId && (
                     <span className="ml-auto">
                       <BlockReportButton
-                        targetUserId={r.author.id}
-                        targetName={r.author.name ?? "this user"}
+                        targetUserId={r.authorId}
+                        targetName={r.authorName ?? "this user"}
                         targetType="BLOG_COMMENT"
                         targetId={r.id}
                       />
@@ -96,14 +92,14 @@ export default function BlogReplyToggle({
             {r.replies && r.replies.length > 0 && (
               <div className="pl-10 border-l border-neutral-300 space-y-2">
                 {r.replies.map((r3) => {
-                  const r3AvatarUrl = r3.author.sellerProfile?.avatarImageUrl ?? r3.author.imageUrl;
+                  const r3AvatarUrl = r3.authorSellerAvatarUrl ?? r3.authorImageUrl;
                   return (
                     <div key={r3.id} className="flex gap-3">
                       {r3AvatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={r3AvatarUrl}
-                          alt={r3.author.name ?? ""}
+                          alt={r3.authorName ?? ""}
                           className="h-6 w-6 rounded-full object-cover shrink-0 mt-0.5"
                         />
                       ) : (
@@ -111,7 +107,7 @@ export default function BlogReplyToggle({
                       )}
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{r3.author.name ?? "User"}</span>
+                          <span className="text-sm font-medium">{r3.authorName ?? "User"}</span>
                           <span className="text-xs text-neutral-500">
                             {new Date(r3.createdAt).toLocaleDateString("en-US", {
                               month: "short",
@@ -119,11 +115,11 @@ export default function BlogReplyToggle({
                               year: "numeric",
                             })}
                           </span>
-                          {meId && meId !== r3.author.id && (
+                          {meId && meId !== r3.authorId && (
                             <span className="ml-auto">
                               <BlockReportButton
-                                targetUserId={r3.author.id}
-                                targetName={r3.author.name ?? "this user"}
+                                targetUserId={r3.authorId}
+                                targetName={r3.authorName ?? "this user"}
                                 targetType="BLOG_COMMENT"
                                 targetId={r3.id}
                               />

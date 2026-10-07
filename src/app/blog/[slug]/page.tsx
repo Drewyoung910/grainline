@@ -35,7 +35,7 @@ import { formatCurrencyCents } from "@/lib/money";
 function visibleBlogCommentWhere(blockedUserIds: string[]) {
   return {
     approved: true,
-    author: { banned: false, deletedAt: null },
+    authorAccountActive: true,
     ...(blockedUserIds.length > 0 ? { authorId: { notIn: blockedUserIds } } : {}),
   };
 }
@@ -109,7 +109,6 @@ export default async function BlogPostPage({
   const post = await prisma.blogPost.findFirst({
     where: viewerBlogPostWhere({ slug }),
     include: {
-      author: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
       sellerProfile: { select: { id: true, userId: true, displayName: true, avatarImageUrl: true } },
       comments: {
         where: { ...commentVisibilityWhere, parentId: null },
@@ -119,7 +118,10 @@ export default async function BlogPostPage({
           id: true,
           body: true,
           createdAt: true,
-          author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
+          authorId: true,
+          authorName: true,
+          authorImageUrl: true,
+          authorSellerAvatarUrl: true,
           replies: {
             where: commentVisibilityWhere,
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -128,7 +130,10 @@ export default async function BlogPostPage({
               id: true,
               body: true,
               createdAt: true,
-              author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
+              authorId: true,
+              authorName: true,
+              authorImageUrl: true,
+              authorSellerAvatarUrl: true,
               replies: {
                 where: commentVisibilityWhere,
                 orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -137,7 +142,10 @@ export default async function BlogPostPage({
                   id: true,
                   body: true,
                   createdAt: true,
-                  author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
+                  authorId: true,
+                  authorName: true,
+                  authorImageUrl: true,
+                  authorSellerAvatarUrl: true,
                 },
               },
             },
@@ -150,7 +158,7 @@ export default async function BlogPostPage({
 
   let isSaved = false;
   if (meId) {
-    if (post.author && blockedUserIdSet.has(post.author.id)) return notFound();
+    if (post.authorId && blockedUserIdSet.has(post.authorId)) return notFound();
     const savedRow = await findOwnerSavedBlogPost(meId, post.id);
     isSaved = !!savedRow;
   }
@@ -159,7 +167,7 @@ export default async function BlogPostPage({
   // newsletter — following is the mechanism that actually delivers this
   // maker's future stories (feed + optional email).
   const isMakerPost = post.authorType === "MAKER" && !!post.sellerProfile;
-  const viewerIsAuthor = !!meId && post.author?.id === meId;
+  const viewerIsAuthor = !!meId && post.authorId === meId;
   let authorFollowerCount = 0;
   let isFollowingAuthor = false;
   if (isMakerPost && post.sellerProfile && !viewerIsAuthor) {
@@ -225,14 +233,23 @@ export default async function BlogPostPage({
     select: {
       slug: true, title: true, coverImageUrl: true, type: true,
       readingTimeMinutes: true, publishedAt: true,
-      author: { select: { name: true, imageUrl: true } },
+      authorName: true,
+      authorImageUrl: true,
+      authorSellerName: true,
+      authorSellerAvatarUrl: true,
       sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
     },
   });
 
   const video = post.videoUrl ? extractBlogVideoEmbed(post.videoUrl) : null;
-  const authorName = post.author?.sellerProfile?.displayName ?? post.author?.name ?? "Former author";
-  const authorAvatar = post.author?.sellerProfile?.avatarImageUrl ?? post.author?.imageUrl ?? null;
+  const authorName = post.sellerProfile?.displayName
+    ?? post.authorSellerName
+    ?? post.authorName
+    ?? "Former author";
+  const authorAvatar = post.sellerProfile?.avatarImageUrl
+    ?? post.authorSellerAvatarUrl
+    ?? post.authorImageUrl
+    ?? null;
   const authorPageHref = post.authorType === "MAKER" && post.sellerProfile
     ? publicBlogAuthorPath(post.sellerProfile.id, authorName)
     : null;
@@ -470,27 +487,27 @@ export default async function BlogPostPage({
         {post.comments.length > 0 && (
           <ul className="space-y-4 mb-6">
             {post.comments.map((c) => {
-              const cAvatarUrl = c.author.sellerProfile?.avatarImageUrl ?? c.author.imageUrl;
+              const cAvatarUrl = c.authorSellerAvatarUrl ?? c.authorImageUrl;
               return (
               <li key={c.id} id={`comment-${c.id}`} className="scroll-mt-24 flex flex-col gap-0">
                 <div className="flex gap-3">
                   {cAvatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cAvatarUrl} alt={c.author.name ?? ""} className="h-8 w-8 rounded-full object-cover shrink-0 mt-0.5" />
+                    <img src={cAvatarUrl} alt={c.authorName ?? ""} className="h-8 w-8 rounded-full object-cover shrink-0 mt-0.5" />
                   ) : (
                     <div className="h-8 w-8 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
                   )}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{c.author.name ?? "User"}</span>
+                      <span className="text-sm font-medium">{c.authorName ?? "User"}</span>
                       <span className="text-xs text-neutral-500">
                         {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </span>
-                      {meId && meId !== c.author.id && (
+                      {meId && meId !== c.authorId && (
                         <span className="ml-auto">
                           <BlockReportButton
-                            targetUserId={c.author.id}
-                            targetName={c.author.name ?? "this user"}
+                            targetUserId={c.authorId}
+                            targetName={c.authorName ?? "this user"}
                             targetType="BLOG_COMMENT"
                             targetId={c.id}
                           />
@@ -528,8 +545,13 @@ export default async function BlogPostPage({
           <h2 className="text-lg font-semibold mb-4">More from the Workshop</h2>
           <ul className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {related.map((r) => {
-              const rName = r.sellerProfile?.displayName ?? r.author?.name ?? "Former author";
-              const rAvatar = r.sellerProfile?.avatarImageUrl ?? r.author?.imageUrl;
+              const rName = r.sellerProfile?.displayName
+                ?? r.authorSellerName
+                ?? r.authorName
+                ?? "Former author";
+              const rAvatar = r.sellerProfile?.avatarImageUrl
+                ?? r.authorSellerAvatarUrl
+                ?? r.authorImageUrl;
               return (
                 <li key={r.slug} className="card-listing">
                   <Link href={`/blog/${r.slug}`} className="block">

@@ -12,14 +12,12 @@ export const getPopularBlogTagRows = unstable_cache(
     const tags = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
       SELECT tag, COUNT(*) as count
       FROM "BlogPost" bp
-      INNER JOIN "User" u ON u.id = bp."authorId"
       LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
       CROSS JOIN LATERAL unnest(bp.tags) AS tag
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
         AND bp."publishedAt" <= NOW()
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
+        AND bp."authorAccountActive" = true
         AND (
           bp."sellerProfileId" IS NULL
           OR (

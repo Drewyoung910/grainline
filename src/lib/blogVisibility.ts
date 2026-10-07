@@ -18,7 +18,7 @@ export function publicBlogPostWhere(extra: Prisma.BlogPostWhereInput = {}): Pris
       {
         status: BlogPostStatus.PUBLISHED,
         publishedAt: { not: null, lte: new Date() },
-        author: { banned: false, deletedAt: null },
+        authorAccountActive: true,
         OR: [
           { sellerProfileId: null },
           {
