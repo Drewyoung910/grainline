@@ -61,7 +61,7 @@ export default async function MyCommissionsPage() {
               id: true,
               displayName: true,
               avatarImageUrl: true,
-              user: { select: { imageUrl: true } },
+              ownerImageUrl: true,
             },
           },
         },
@@ -143,7 +143,7 @@ export default async function MyCommissionsPage() {
                   <div className="flex -space-x-1.5">
                     {r.interests.map((interest) => {
                       const sp = interest.sellerProfile;
-                      const avatar = sp?.avatarImageUrl ?? sp?.user?.imageUrl;
+                      const avatar = sp?.avatarImageUrl ?? sp?.ownerImageUrl;
                       return avatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img

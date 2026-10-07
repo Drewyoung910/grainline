@@ -12,6 +12,7 @@ import {
 } from "@/lib/requestBody";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 
 const ReplySchema = z.object({
   text: z.string().min(1).max(2000),
@@ -25,6 +26,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const { success, reset } = await safeRateLimit(reviewRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many review replies."));
+
+  const me = await userClerkGate(prisma, userId);
+  if (!me) return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+  if (me.banned || me.deletedAt) {
+    return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
+  }
 
   let replyParsed;
   try {
@@ -66,7 +73,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         select: {
           seller: {
             select: {
-              user: { select: { clerkId: true, banned: true, deletedAt: true } },
+              userId: true,
+              ownerAccountActive: true,
             },
           },
         },
@@ -75,11 +83,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   });
   if (!review) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
-  const sellerUserId = review.listing.seller.user.clerkId;
-  if (sellerUserId !== userId) {
+  if (review.listing.seller.userId !== me.id) {
     return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }
-  if (review.listing.seller.user.banned || review.listing.seller.user.deletedAt) {
+  if (review.listing.seller.ownerAccountActive !== true) {
     return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
@@ -88,10 +95,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return privateJson({ error: "Reply already posted" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
-  await prisma.review.update({
-    where: { id },
+  // Recheck current ownership/activity and the one-reply condition in the
+  // write itself. Concurrent submits cannot overwrite a reply already saved.
+  const result = await prisma.review.updateMany({
+    where: {
+      id,
+      sellerReply: null,
+      listing: { seller: { userId: me.id, ownerAccountActive: true } },
+    },
     data: { sellerReply: body, sellerReplyAt: new Date() },
   });
+  if (result.count !== 1) {
+    return privateJson({ error: "Review reply is no longer available." }, { status: HTTP_STATUS.CONFLICT });
+  }
 
   return privateJson({ ok: true });
 }

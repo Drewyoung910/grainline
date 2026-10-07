@@ -417,7 +417,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
               displayName: true,
               avatarImageUrl: true,
               guildLevel: true,
-              user: { select: { imageUrl: true } },
+              ownerImageUrl: true,
             },
           },
         },
@@ -557,7 +557,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
             {request.interests.map((interest) => {
               const sp = interest.sellerProfile;
               if (!sp) return null;
-              const avatar = sp.avatarImageUrl ?? sp.user?.imageUrl;
+              const avatar = sp.avatarImageUrl ?? sp.ownerImageUrl;
               return (
                 <Link
                   key={interest.id}

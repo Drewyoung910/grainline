@@ -36,6 +36,7 @@ import { randomUUID } from "node:crypto";
 import InventoryQuantityControl from "@/components/InventoryQuantityControl";
 import { lockListingStock, prepareListingStockMutation, recordListingStockMutation, StockMutationConflict } from "@/lib/listingStockMutation";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -182,6 +183,10 @@ async function updateListing(
   if (!userId) return { ok: false, error: "Not signed in" };
   const { success: rlOk } = await safeRateLimit(listingMutationRatelimit, userId);
   if (!rlOk) return { ok: false, error: "Too many listing updates. Try again shortly." };
+  const actor = await userClerkGate(prisma, userId);
+  if (!actor || actor.banned || actor.deletedAt) {
+    return { ok: false, error: "Your account is not available." };
+  }
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
   const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
@@ -294,7 +299,7 @@ async function updateListing(
 
   // Guard ownership
   const listing = await prisma.listing.findFirst({
-    where: { id: listingId, seller: { user: { clerkId: userId } } },
+    where: { id: listingId, seller: { userId: actor.id } },
     include: {
       seller: { select: { userId: true } },
       photos: { orderBy: { sortOrder: "asc" } },
@@ -676,9 +681,11 @@ export default async function EditListingPage(props: {
 
   const { userId } = await auth();
   if (!userId) return notFound();
+  const actor = await userClerkGate(prisma, userId);
+  if (!actor || actor.banned || actor.deletedAt) return notFound();
 
   const listing = await prisma.listing.findFirst({
-    where: { id, seller: { user: { clerkId: userId } } },
+    where: { id, seller: { userId: actor.id } },
     include: {
       photos: { orderBy: { sortOrder: "asc" } },
       variantGroups: {

@@ -4,7 +4,7 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Complete the `User` identity/account design audit (updated 2026-10-06)
+### Complete the `User` identity/account design audit (updated 2026-10-07)
 
 `UserEmailAddress` is complete in Production through policyless FORCE from
 exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and
@@ -74,6 +74,19 @@ staff functions. Disposable execution of the actual provisioning CTEs converges
 twice, and the grant-inventory suite passes 28 tests with one intentional skip.
 This is source readiness only; inspect the installed catalog after the remaining
 access families close.
+
+The isolated seller-relation successor stack reuses the installed public owner
+image, durable owner id and activity snapshots for seller-bound review,
+commission, conversation, broadcast, listing and Stripe-mirror surfaces. It
+removes thirteen visible User relation edges across nine callers (64 remain in
+30 files) and corrects the review reply's read-then-overwrite race with an
+atomic actor/empty-reply predicate. Follow
+`docs/user-seller-relation-reuse-pre-rls-audit.md` and
+`docs/user-seller-snapshot-continuation-pre-rls-audit.md` for the bounded
+product review and focused validation. This stack is local source preparation;
+publication, integration and deployment are separate. Buyer/reviewer identity,
+public lifecycle filters, raw SQL, service ledgers and installed catalog
+comparison still block User activation.
 
 ### Finish the bounded Order release (2026-09-07)
 
