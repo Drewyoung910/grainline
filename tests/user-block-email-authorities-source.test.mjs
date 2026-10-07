@@ -84,6 +84,33 @@ describe("User block and email authority source boundary", () => {
     assert.match(deletion, /accountEmailFallbackEmailsForUser\(tx\)/);
   });
 
+  it("backs the bounded active-account collision lookup with the matching partial index", () => {
+    const helper = read("src/lib/userEmailAddresses.ts");
+    const authority = read(`prisma/migrations/${migrationName}/migration.sql`);
+    const migration = read(
+      "prisma/migrations/20261002160000_add_user_email_suppression_key_index/migration.sql",
+    );
+    const authorityCanonicalExpression = /WHEN lower\(pg_catalog\.split_part\(pg_catalog\.btrim\(other_user\.email\), '@', 2\)\)[\s\S]*IN \('gmail\.com', 'googlemail\.com'\)[\s\S]*\|\| '@gmail\.com'[\s\S]*ELSE lower\(pg_catalog\.btrim\(other_user\.email\)\)/;
+    const indexCanonicalExpression = /WHEN lower\(split_part\(btrim\("email"\), '@', 2\)\) IN \('gmail\.com', 'googlemail\.com'\)[\s\S]*\|\| '@gmail\.com'[\s\S]*ELSE lower\(btrim\("email"\)\)/;
+
+    assert.match(helper, /grainline_user_email_fallback_addresses/);
+    assert.match(authority, /SELECT DISTINCT/);
+    assert.match(authority, authorityCanonicalExpression);
+    assert.match(authority, /current_setting\('app\.user_id', true\)/);
+    assert.doesNotMatch(helper, /endsWith: "@gmail\.com"/);
+    assert.match(
+      migration,
+      /CREATE INDEX CONCURRENTLY "User_active_email_suppression_key_idx"/,
+    );
+    assert.equal(
+      (migration.match(/CREATE(?: UNIQUE)? INDEX CONCURRENTLY/g) ?? []).length,
+      1,
+    );
+    assert.doesNotMatch(migration, /^\s*DROP INDEX/m);
+    assert.match(migration, indexCanonicalExpression);
+    assert.match(migration, /WHERE "deletedAt" IS NULL/);
+  });
+
   it("stages the package after public review-commission and accumulated access", () => {
     const workflow = read(".github/workflows/ci.yml");
     assert.doesNotThrow(() => yaml.load(workflow, { schema: yaml.JSON_SCHEMA }));
