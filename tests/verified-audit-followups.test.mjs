@@ -80,11 +80,10 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(page, /CATEGORY_VALUES\.includes\(categoryFilter\)/);
     assert.match(page, /const categoryConditionSelect = categoryValid \? `AND cr\.category::text = \$9` : ""/);
     assert.match(page, /const categoryConditionCount = categoryValid \? `AND cr\.category::text = \$5` : ""/);
-    assert.match(page, /JOIN "User" u ON u\.id = cr\."buyerId"/);
-    assert.match(page, /u\.banned = false/);
-    assert.match(page, /u\."deletedAt" IS NULL/);
-    assert.match(page, /NOT \(u\.id = ANY\(\$8::text\[\]\)\)/);
-    assert.match(page, /NOT \(u\.id = ANY\(\$4::text\[\]\)\)/);
+    assert.doesNotMatch(page, /JOIN "User" u ON u\.id = cr\."buyerId"/);
+    assert.match(page, /cr\."buyerAccountActive" = true/);
+    assert.match(page, /NOT \(cr\."buyerId" = ANY\(\$8::text\[\]\)\)/);
+    assert.match(page, /NOT \(cr\."buyerId" = ANY\(\$4::text\[\]\)\)/);
     assert.match(page, /\[viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, \(page - 1\) \* pageSize, \[\.\.\.blockedUserIds\]\]/);
     assert.match(page, /\[viewerLat, viewerLng, radius, \[\.\.\.blockedUserIds\]\]/);
     assert.match(page, /args\.push\(categoryFilter\)/);

@@ -83,7 +83,10 @@ describe("User public seller-state source boundary", () => {
     }
 
     const commission = read("src/app/commission/page.tsx");
-    assert.match(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);
+    assert.doesNotMatch(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);
+    assert.match(commission, /cr\."buyerAccountActive" = true/);
+    assert.match(commission, /cr\."buyerName", cr\."buyerImageUrl"/);
+    assert.match(commission, /buyer: \{ name: r\.buyerName, imageUrl: r\.buyerImageUrl \}/);
     assert.match(commission, /isp\."ownerAccountActive" = true/);
     assert.doesNotMatch(commission, /JOIN "User" iu ON iu\.id = isp\."userId"/);
 
