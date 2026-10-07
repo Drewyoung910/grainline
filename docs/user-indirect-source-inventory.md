@@ -1,8 +1,8 @@
 # User indirect source inventory
 
 Recorded 2026-10-06 on the isolated account-deletion branch and reconciled on
-2026-10-07 through the seller identity, public-blog, and public
-review/commission successors. Regenerate with
+2026-10-07 through the seller identity, public-blog, public
+review/commission, and block/email successors. Regenerate with
 `npm run audit:user-indirect-access -- --json`. Each edge is one statically
 visible relation path per query; shared objects report both definition and
 query locations. These are dependencies, not verified security findings.
@@ -16,14 +16,16 @@ SQL calls across five files, leaving **46 edges in 22 caller files** and five
 raw calls in four files. The review/commission successor removes another
 eighteen relation edges across nine public callers, both remaining public
 commission raw User joins, and the typed buyer lifecycle relation. The exact
-frontier is now **28 edges in 13 caller files** and **three raw calls in three
-files**. Direct delegates remain zero. Opaque caller/factory shapes are listed
+block/email successor removes five more relation edges across two callers and
+two raw User calls across two files. The exact frontier is now **23 edges in 11
+caller files** and **one raw call in one file**. Direct delegates remain zero. Opaque caller/factory shapes are listed
 separately. See
 `user-indirect-access-pre-rls-audit.md`,
 `user-seller-relation-reuse-pre-rls-audit.md` and
 `user-seller-snapshot-continuation-pre-rls-audit.md`, plus
 `user-public-blog-projection-pre-rls-audit.md` and
-`user-public-review-commission-pre-rls-audit.md`, for intended product
+`user-public-review-commission-pre-rls-audit.md` and
+`user-block-email-pre-rls-audit.md`, for intended product
 behavior and authority decisions. This file supersedes the earlier preliminary
 22-file list.
 
@@ -31,7 +33,6 @@ behavior and authority decisions. This file supersedes the earlier preliminary
 
 | File | Statically visible User relation edges |
 | --- | ---: |
-| `src/app/account/blocked/page.tsx` | 1 |
 | `src/app/admin/audit/page.tsx` | 1 |
 | `src/app/admin/blog/page.tsx` | 3 |
 | `src/app/admin/broadcasts/page.tsx` | 1 |
@@ -41,7 +42,6 @@ behavior and authority decisions. This file supersedes the earlier preliminary
 | `src/app/admin/verification/page.tsx` | 6 |
 | `src/app/api/admin/listings/[id]/review/route.ts` | 3 |
 | `src/app/api/seller/broadcast/route.ts` | 2 |
-| `src/lib/blocks.ts` | 4 |
 | `src/lib/followerBlogNotifications.ts` | 1 |
 | `src/lib/followerListingNotifications.ts` | 1 |
 
@@ -54,9 +54,7 @@ arguments; absence from this roster does not prove User independence.
 
 | Caller | Calls | Intended boundary still to prepare |
 | --- | ---: | --- |
-| `src/lib/blockMutationAccess.ts` | 1 | Sorted actor/target lifecycle locks; preserve Notification serialization |
 | `src/lib/quality-score.ts` | 1 | Background score count over eligible followers |
-| `src/lib/userEmailAddresses.ts` | 1 | Privacy-bounded email ownership collision check |
 
 Static SQL fragments are inspected; ordinary bound interpolation values,
 comments and SQL string literals are excluded from table-name matching.
@@ -64,17 +62,15 @@ Arbitrary SQL factories and installed definer bodies require manual inventory.
 
 ## Next cohesive groups
 
-1. Actor-bound block filters and mutations plus owner email fallback: preserve
-   sorted lifecycle locks, reciprocal safety, deletion and alias suppression.
-2. Staff investigation projections and provider/follower jobs: maintain the
+1. Staff investigation projections and provider/follower jobs: maintain the
    PIN/isolation boundary and source-derived targeting.
-3. Reconcile installed functions/grants, ClerkWebhookEvent and
+2. Reconcile installed functions/grants, ClerkWebhookEvent and
    AccountDeletionSideEffect ledgers before
    any User table revocation or activation.
 
 The inherited source grant-inventory expectations are corrected locally in this
-package. The explicit 37-function callable User catalog and canonical
-provisioning preserve the 27 ordinary-runtime versus ten private split. The four
+package. The explicit 41-function callable User catalog and canonical
+provisioning preserve the 31 ordinary-runtime versus ten private split. The four
 blog and four review/commission snapshot trigger functions are additionally
 registered as runtime-private.
 This source/DCL proof does not replace the installed Production catalog inspection.

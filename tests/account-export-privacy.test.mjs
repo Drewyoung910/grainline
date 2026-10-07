@@ -276,12 +276,11 @@ describe("account export privacy coverage", () => {
     const suppressionStart = route.indexOf("prisma.emailSuppression.findMany");
     const suppressionBlock = route.slice(suppressionStart, route.indexOf("prisma.stockNotification.findMany", suppressionStart));
 
-    assert.match(route, /accountEmailFallbackEmailsForUser/);
+    assert.match(route, /ownerAccountEmailFallbackEmails/);
     assert.match(route, /accountEmailSuppressionKeysForEmails/);
     assert.match(route, /ownerUserAccountEmailAddressState/);
     assert.match(route, /const accountEmailState = await ownerUserAccountEmailAddressState\(/);
-    assert.match(route, /const accountEmails = await accountEmailFallbackEmailsForUser\(prisma, \{/);
-    assert.match(route, /emails: accountEmailState\.emails/);
+    assert.match(route, /const accountEmails = await ownerAccountEmailFallbackEmails\(user\.id\)/);
     assert.match(route, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
     assert.match(suppressionBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
     assert.match(suppressionBlock, /id: true/);
@@ -345,8 +344,7 @@ describe("account export privacy coverage", () => {
     assert.match(historyBlock, /user\.id/);
     assert.match(historyBlock, /accountEmail/);
     assert.match(source("src/lib/userEmailAddresses.ts"), /grainline_user_email_address_owner_rows/);
-    assert.match(historyBlock, /accountEmailFallbackEmailsForUser\(prisma/);
-    assert.match(historyBlock, /emails: accountEmailState\.emails/);
+    assert.match(historyBlock, /ownerAccountEmailFallbackEmails\(user\.id\)/);
     assert.match(route, /const accountEmailAddresses = accountEmailState\.rows/);
     assert.match(route, /accountEmailAddresses,/);
     assert.match(payload, /accountEmailAddresses: unknown\[\]/);

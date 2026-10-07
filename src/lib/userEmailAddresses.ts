@@ -3,7 +3,7 @@ import type { DbUserContextTransactionClient } from "./dbUserContext.ts";
 import { emailSuppressionAddressKeys, normalizeEmailAddress } from "./emailAddressNormalization.ts";
 
 type UserEmailAddressClient = Pick<Prisma.TransactionClient, "$queryRaw">;
-type UserEmailOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
+type UserEmailOwnerClient = DbUserContextTransactionClient;
 
 export type UserEmailAddressExportRow = {
   email: string;
@@ -31,39 +31,17 @@ export function accountEmailSuppressionKeysForEmails(emails: Array<string | null
 
 export async function accountEmailFallbackEmailsForUser(
   client: UserEmailOwnerClient,
-  input: { userId: string; emails: Array<string | null | undefined> },
 ) {
-  const emails = uniqueAccountEmailAddresses(input.emails);
-  if (emails.length === 0) return [];
-  const suppressionKeyCandidates = accountEmailSuppressionKeysForEmails(emails);
-  const claimedKeys = await client.$queryRaw<Array<{ suppressionKey: string }>>`
-    SELECT DISTINCT
-      CASE
-        WHEN lower(split_part(btrim("email"), '@', 2)) IN ('gmail.com', 'googlemail.com')
-        THEN replace(
-          split_part(lower(split_part(btrim("email"), '@', 1)), '+', 1),
-          '.',
-          ''
-        ) || '@gmail.com'
-        ELSE lower(btrim("email"))
-      END AS "suppressionKey"
-    FROM "User"
-    WHERE "id" <> ${input.userId}
-      AND "deletedAt" IS NULL
-      AND CASE
-        WHEN lower(split_part(btrim("email"), '@', 2)) IN ('gmail.com', 'googlemail.com')
-        THEN replace(
-          split_part(lower(split_part(btrim("email"), '@', 1)), '+', 1),
-          '.',
-          ''
-        ) || '@gmail.com'
-        ELSE lower(btrim("email"))
-      END = ANY(${suppressionKeyCandidates}::text[])
+  const rows = await client.$queryRaw<Array<{ email: string }>>`
+    SELECT * FROM public.grainline_user_email_fallback_addresses()
   `;
-  const blockedSuppressionKeys = new Set(claimedKeys.map((row) => row.suppressionKey));
-  return emails.filter(
-    (email) => !emailSuppressionAddressKeys(email).some((key) => blockedSuppressionKeys.has(key)),
-  );
+  if (rows.some((row) => (
+    typeof row.email !== "string"
+    || normalizedExactEmail(row.email) !== row.email
+  ))) {
+    throw new Error("User email fallback authority returned an invalid result");
+  }
+  return uniqueAccountEmailAddresses(rows.map((row) => row.email));
 }
 
 function emailAddressSource(source: string | null | undefined) {

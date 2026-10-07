@@ -1,37 +1,51 @@
-import { prisma } from "@/lib/db";
-import { blockedUserIdsFromRows, sellerProfileIdsFromRows } from "./blockFilterState.ts";
+import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
+import { withDbUserContext } from "@/lib/dbUserContext";
+
+type BlockTargetRow = {
+  userId: string;
+  sellerProfileId: string | null;
+};
+
+export type BlockedAccountRow = {
+  blockId: string;
+  blockedId: string;
+  name: string | null;
+  imageUrl: string | null;
+  sellerDisplayName: string | null;
+  sellerAvatarImageUrl: string | null;
+};
+
+function nullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+async function userBlockTargets(client: DbUserContextTransactionClient) {
+  const rows = await client.$queryRaw<BlockTargetRow[]>`
+    SELECT * FROM public.grainline_user_block_targets()
+  `;
+  if (rows.some((row) => (
+    typeof row.userId !== "string"
+    || !nullableString(row.sellerProfileId)
+  ))) {
+    throw new Error("User block target authority returned an invalid result");
+  }
+  return rows;
+}
+
+function ownerBlockTargets(userId: string) {
+  return withDbUserContext(userId, userBlockTargets);
+}
 
 export async function getBlockedUserIdsFor(meId: string | null): Promise<Set<string>> {
   if (!meId) return new Set();
-  const [blockedByMe, blockingMe] = await Promise.all([
-    prisma.block.findMany({
-      where: {
-        blockerId: meId,
-        blocker: { deletedAt: null },
-        blocked: { deletedAt: null },
-      },
-      select: { blockedId: true },
-    }),
-    prisma.block.findMany({
-      where: {
-        blockedId: meId,
-        blocker: { deletedAt: null },
-        blocked: { deletedAt: null },
-      },
-      select: { blockerId: true },
-    }),
-  ]);
-  return blockedUserIdsFromRows({ blockedByMe, blockingMe });
+  return new Set((await ownerBlockTargets(meId)).map((row) => row.userId));
 }
 
 export async function getBlockedSellerProfileIdsFor(meId: string | null): Promise<string[]> {
-  const blockedUserIds = await getBlockedUserIdsFor(meId);
-  if (blockedUserIds.size === 0) return [];
-  const sellers = await prisma.sellerProfile.findMany({
-    where: { userId: { in: [...blockedUserIds] } },
-    select: { id: true },
-  });
-  return sellerProfileIdsFromRows(sellers);
+  if (!meId) return [];
+  return (await ownerBlockTargets(meId)).flatMap((row) => (
+    row.sellerProfileId ? [row.sellerProfileId] : []
+  ));
 }
 
 /**
@@ -43,11 +57,31 @@ export async function getBlockedIdsFor(meId: string | null): Promise<{
   blockedUserIds: Set<string>;
   blockedSellerIds: string[];
 }> {
-  const blockedUserIds = await getBlockedUserIdsFor(meId);
-  if (blockedUserIds.size === 0) return { blockedUserIds, blockedSellerIds: [] };
-  const sellers = await prisma.sellerProfile.findMany({
-    where: { userId: { in: [...blockedUserIds] } },
-    select: { id: true },
+  if (!meId) return { blockedUserIds: new Set(), blockedSellerIds: [] };
+  const rows = await ownerBlockTargets(meId);
+  return {
+    blockedUserIds: new Set(rows.map((row) => row.userId)),
+    blockedSellerIds: rows.flatMap((row) => (
+      row.sellerProfileId ? [row.sellerProfileId] : []
+    )),
+  };
+}
+
+export function getBlockedAccountsFor(userId: string) {
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<BlockedAccountRow[]>`
+      SELECT * FROM public.grainline_user_blocked_account_page()
+    `;
+    if (rows.some((row) => (
+      typeof row.blockId !== "string"
+      || typeof row.blockedId !== "string"
+      || !nullableString(row.name)
+      || !nullableString(row.imageUrl)
+      || !nullableString(row.sellerDisplayName)
+      || !nullableString(row.sellerAvatarImageUrl)
+    ))) {
+      throw new Error("User blocked-account authority returned an invalid result");
+    }
+    return rows;
   });
-  return { blockedUserIds, blockedSellerIds: sellerProfileIdsFromRows(sellers) };
 }

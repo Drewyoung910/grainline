@@ -1,34 +1,16 @@
-import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { unblockUser } from "./actions";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { avatarInitials } from "@/lib/avatarInitials";
+import { getBlockedAccountsFor } from "@/lib/blocks";
 
 export const metadata: Metadata = { title: "Blocked Users", robots: { index: false, follow: false } };
 
 export default async function BlockedUsersPage() {
   const me = await ensureUserForPage("/account/blocked");
 
-  const blocks = await prisma.block.findMany({
-    where: { blockerId: me.id },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: 50,
-    select: {
-      id: true,
-      blockedId: true,
-      blocked: {
-        select: {
-          id: true,
-          name: true,
-          imageUrl: true,
-          sellerProfile: {
-            select: { displayName: true, avatarImageUrl: true },
-          },
-        },
-      },
-    },
-  });
+  const blocks = await getBlockedAccountsFor(me.id);
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
@@ -48,13 +30,12 @@ export default async function BlockedUsersPage() {
       ) : (
         <div className="space-y-4">
           {blocks.map((b) => {
-            const u = b.blocked;
-            const avatar = u.sellerProfile?.avatarImageUrl ?? u.imageUrl;
-            const name = u.sellerProfile?.displayName ?? u.name ?? "User";
+            const avatar = b.sellerAvatarImageUrl ?? b.imageUrl;
+            const name = b.sellerDisplayName ?? b.name ?? "User";
             const initials = avatarInitials(name, "U");
 
             return (
-              <div key={b.id} className="card-section p-4 flex gap-4 items-center">
+              <div key={b.blockId} className="card-section p-4 flex gap-4 items-center">
                 <div className="h-10 w-10 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
                   {avatar ? (
                     // eslint-disable-next-line @next/next/no-img-element

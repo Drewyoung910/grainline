@@ -13,10 +13,12 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
 import {
-  accountEmailFallbackEmailsForUser,
   accountEmailSuppressionKeysForEmails,
 } from "@/lib/userEmailAddresses";
-import { ownerUserAccountEmailAddressState } from "@/lib/userEmailAddressOwnerAccess";
+import {
+  ownerAccountEmailFallbackEmails,
+  ownerUserAccountEmailAddressState,
+} from "@/lib/userEmailAddressOwnerAccess";
 import {
   ACCOUNT_EXPORT_REVERIFICATION,
   hasFreshAccountExportSession,
@@ -54,10 +56,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     user.id,
     accountEmail,
   );
-  const accountEmails = await accountEmailFallbackEmailsForUser(prisma, {
-    userId: user.id,
-    emails: accountEmailState.emails,
-  });
+  const accountEmails = await ownerAccountEmailFallbackEmails(user.id);
   const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails(accountEmails);
   const accountEmailAddresses = accountEmailState.rows;
   const sellerProfile = await prisma.sellerProfile.findUnique({
