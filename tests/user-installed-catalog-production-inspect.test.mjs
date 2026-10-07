@@ -344,13 +344,13 @@ test("catalog queries execute inside a read-only PostgreSQL transaction", async 
       );
       INSERT INTO public._prisma_migrations
       VALUES ('fixture', repeat('a', 64), now(), null, 1);
-      CREATE FUNCTION public.grainline_fixture() RETURNS integer
+      CREATE FUNCTION public.grainline_fixture(p_value text) RETURNS integer
       LANGUAGE sql STABLE PARALLEL SAFE SECURITY DEFINER
       SET search_path = pg_catalog
-      AS $$ SELECT 1 $$;
-      REVOKE ALL ON FUNCTION public.grainline_fixture()
+      AS $$ SELECT pg_catalog.length(p_value) $$;
+      REVOKE ALL ON FUNCTION public.grainline_fixture(text)
         FROM PUBLIC, grainline_app_runtime;
-      GRANT EXECUTE ON FUNCTION public.grainline_fixture()
+      GRANT EXECUTE ON FUNCTION public.grainline_fixture(text)
         TO grainline_app_runtime;
     `);
     await database.exec("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -361,6 +361,7 @@ test("catalog queries execute inside a read-only PostgreSQL transaction", async 
     await database.exec("ROLLBACK");
     assert.equal(catalog.migrations.length, 1);
     assert.equal(catalog.functions.length, 1);
+    assert.equal(catalog.functions[0].identity_arguments, "text");
     assert.equal(catalog.table.table_name, "User");
     assert.equal(catalog.table.rls_enabled, false);
     assert.equal(catalog.functions[0].public_execute, false);
