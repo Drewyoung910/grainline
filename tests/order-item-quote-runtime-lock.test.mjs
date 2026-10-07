@@ -214,6 +214,8 @@ test("CI holds the runtime lock until the seller-email retirement has passed", (
   );
   assert.match(
     ciWorkflow,
-    /Restore disposable staff-read identity for Core Order ENABLE[\s\S]*?SELECT count\(\*\) FROM pg_catalog\.pg_roles WHERE rolname = 'grainline_staff_read_runtime'[\s\S]*?CREATE ROLE grainline_staff_read_runtime LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION[\s\S]*?provision-order-staff-read-role\.sql/u,
+    /Restore disposable staff-read identity for Core Order ENABLE[\s\S]*?JOIN pg_catalog\.pg_authid AS auth ON auth\.oid = role\.oid[\s\S]*?role\.rolname = 'grainline_staff_read_runtime'[\s\S]*?auth\.rolpassword IS NULL[\s\S]*?provision-order-staff-read-role\.sql/u,
   );
+  const staffRestore = ciWorkflow.slice(staffIdentityRestore, coreEnableApply);
+  assert.doesNotMatch(staffRestore, /CREATE ROLE grainline_staff_read_runtime/u);
 });

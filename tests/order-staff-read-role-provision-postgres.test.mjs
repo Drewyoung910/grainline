@@ -22,6 +22,7 @@ test(
     const owner = new pg.Client({ connectionString: safeUrl, connectionTimeoutMillis: 5000 });
     await owner.connect();
     let created = false;
+    let preparedPasswordlessRole = false;
     try {
       const identity = (await owner.query(`
         SELECT current_user AS actor, session_user AS login,
@@ -29,16 +30,36 @@ test(
       `)).rows[0];
       assert.deepEqual(identity, { actor: "ci", login: "ci", database: "grainline_ci" });
       const before = await owner.query(
-        "SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = $1",
+        `SELECT role.rolsuper, role.rolcreatedb, role.rolcreaterole,
+                role.rolinherit, role.rolcanlogin, role.rolreplication,
+                role.rolbypassrls,
+                auth.rolpassword IS NULL AS passwordless
+           FROM pg_catalog.pg_roles AS role
+           JOIN pg_catalog.pg_authid AS auth ON auth.oid = role.oid
+          WHERE role.rolname = $1`,
         [STAFF_ROLE],
       );
-      assert.equal(before.rowCount, 0, "CI staff proof role must start absent");
-      await owner.query(`
-        CREATE ROLE grainline_staff_read_runtime
-          LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE
-          NOREPLICATION PASSWORD 'ci-staff-read-password'
-      `);
-      created = true;
+      if (before.rowCount === 0) {
+        await owner.query(`
+          CREATE ROLE grainline_staff_read_runtime
+            LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE
+            NOREPLICATION PASSWORD 'ci-staff-read-password'
+        `);
+        created = true;
+      } else {
+        assert.deepEqual(before.rows[0], {
+          rolsuper: false,
+          rolcreatedb: false,
+          rolcreaterole: false,
+          rolinherit: false,
+          rolcanlogin: true,
+          rolreplication: false,
+          rolbypassrls: false,
+          passwordless: true,
+        }, "CI-prepared staff proof role must have the exact passwordless posture");
+        preparedPasswordlessRole = true;
+        await owner.query(`ALTER ROLE ${STAFF_ROLE} PASSWORD 'ci-staff-read-password'`);
+      }
 
       const converge = () => spawnSync("psql", [
         "-X", safeUrl,
@@ -210,6 +231,8 @@ test(
       if (created) {
         await owner.query(`DROP OWNED BY ${STAFF_ROLE}`);
         await owner.query(`DROP ROLE ${STAFF_ROLE}`);
+      } else if (preparedPasswordlessRole) {
+        await owner.query(`ALTER ROLE ${STAFF_ROLE} PASSWORD NULL`);
       }
       await owner.end();
     }
