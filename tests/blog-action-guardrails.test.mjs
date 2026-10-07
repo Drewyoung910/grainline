@@ -81,8 +81,11 @@ describe("blog dashboard action guardrails", () => {
     assert.match(editPage, /sellerProfileId: publishedSellerProfileId/);
     assert.match(blogFanout, /where: publicBlogPostWhere\(\{ id: postId, sellerProfileId \}\)/);
     assert.match(blogFanout, /const sellerUserId = publicPost\.sellerProfile\.userId/);
-    assert.match(blogFanout, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
-    assert.match(blogFanout, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
+    assert.match(
+      blogFanout,
+      /userFollowerNotificationPage\(prisma, \{\s*sellerProfileId,\s*afterFollowId: cursor,\s*limit: BLOG_FOLLOWER_FANOUT_PAGE_SIZE,/s,
+    );
+    assert.doesNotMatch(blogFanout, /prisma\.follow\.findMany|blocks:|blockedBy:/);
     assert.doesNotMatch(editPage, /else if \(newStatus !== "PUBLISHED"\) \{\s*publishedAt = null/);
   });
 

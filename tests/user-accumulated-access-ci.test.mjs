@@ -93,7 +93,7 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
 });
 
-test("actual isolation and restoration scripts preserve all source bytes in a disposable filesystem", () => {
+test("actual isolation and restoration scripts preserve source bytes while staging the follower catalog", () => {
   const temporary = mkdtempSync(path.join(tmpdir(), "grainline-user-ci-staging-"));
   const root = path.join(temporary, "checkout");
   const holding = path.join(temporary, "runner");
@@ -109,6 +109,8 @@ test("actual isolation and restoration scripts preserve all source bytes in a di
     const trackedPaths = [...heldPaths, staffScript];
     const hash = (relative) => createHash("sha256").update(readFileSync(path.join(root, relative))).digest("hex");
     const original = trackedPaths.map(hash);
+    const catalogPath = "tests/user-authority-catalog.test.mjs";
+    const catalogIndex = trackedPaths.indexOf(catalogPath);
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
     assert.ok(heldPaths.every((relative) => !existsSync(path.join(root, relative))));
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
@@ -117,8 +119,19 @@ test("actual isolation and restoration scripts preserve all source bytes in a di
     const heldFunctions = USER_AUTHORITY_GROUPS.filter(({ migration }) => migrations.includes(migration)).flatMap(({ functions }) => functions.map(({ name }) => name));
     const historical = deriveGrantInventory(root);
     assert.ok(heldFunctions.every((name) => !historical.functions.includes(name)));
+    mkdirSync(path.join(holding, "user-follower-authority"));
     execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
-    assert.deepEqual(trackedPaths.map(hash), original);
+    for (const [index, relative] of trackedPaths.entries()) {
+      if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
+    }
+    assert.equal(
+      execFileSync("git", ["hash-object", catalogPath], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(),
+      "ac17d95ad53501515550b2bb967eb5a149f094d9",
+    );
+    assert.equal(
+      createHash("sha256").update(readFileSync(path.join(holding, "user-follower-authority", "user-authority-catalog-test"))).digest("hex"),
+      original[catalogIndex],
+    );
     assert.match(readFileSync(path.join(root, staffScript), "utf8"), /grainline_user_staff_directory_page/);
     const restored = deriveGrantInventory(root);
     assert.ok(heldFunctions.every((name) => restored.functions.includes(name)));

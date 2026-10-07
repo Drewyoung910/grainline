@@ -351,6 +351,12 @@ jobs:
           set -euo pipefail
           holding="$RUNNER_TEMP/user-follower-authority"
           mkdir "$holding"
+          historical=4caa8ae4f0398814d614bccb0a5259becb94d50c
+          git cat-file -e "$historical^{commit}"
+          git merge-base --is-ancestor "$historical" HEAD
+          mv scripts/user-authority-catalog.mjs "$holding/user-authority-catalog-script"
+          git show "$historical:scripts/user-authority-catalog.mjs" > scripts/user-authority-catalog.mjs
+          test "$(git hash-object scripts/user-authority-catalog.mjs)" = "aa24e71a6e72b27990af0504721a9cca000d6943"
           mv \
             prisma/migrations/20261007040000_prepare_user_follower_authorities \
             "$holding/migration"
@@ -4456,6 +4462,15 @@ jobs:
           do
             mv "$test_file" "tests/$(basename "$test_file")"
           done
+          follower_holding="$RUNNER_TEMP/user-follower-authority"
+          historical=4caa8ae4f0398814d614bccb0a5259becb94d50c
+          mv \
+            tests/user-authority-catalog.test.mjs \
+            "$follower_holding/user-authority-catalog-test"
+          git show \
+            "$historical:tests/user-authority-catalog.test.mjs" \
+            > tests/user-authority-catalog.test.mjs
+          test "$(git hash-object tests/user-authority-catalog.test.mjs)" = "ac17d95ad53501515550b2bb967eb5a149f094d9"
           rmdir "$holding"
       - name: Apply accumulated User access in disposable PostgreSQL
         shell: bash
@@ -4588,6 +4603,15 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/user-follower-authority"
+          rm \
+            scripts/user-authority-catalog.mjs \
+            tests/user-authority-catalog.test.mjs
+          mv \
+            "$holding/user-authority-catalog-script" \
+            scripts/user-authority-catalog.mjs
+          mv \
+            "$holding/user-authority-catalog-test" \
+            tests/user-authority-catalog.test.mjs
           mv \
             "$holding/migration" \
             prisma/migrations/20261007040000_prepare_user_follower_authorities

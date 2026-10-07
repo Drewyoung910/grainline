@@ -54,8 +54,15 @@ test("all three functions are fixed-path definers closed to PUBLIC", () => {
 test("CI stages the follower authority after block-email and before build", () => {
   const workflow = read(".github/workflows/ci.yml");
   assert.doesNotThrow(() => yaml.load(workflow, { schema: yaml.JSON_SCHEMA }));
+  const step = (name) => {
+    const start = workflow.indexOf(`      - name: ${name}\n`);
+    assert.ok(start >= 0, name);
+    const next = workflow.indexOf("\n      - ", start + 1);
+    return workflow.slice(start, next < 0 ? undefined : next);
+  };
   const verify = workflow.indexOf("name: Verify User follower authority source package");
   const isolate = workflow.indexOf("name: Isolate User follower authority until block-email passes");
+  const accumulatedRestore = workflow.indexOf("name: Restore accumulated User access source package");
   const blockApply = workflow.indexOf("name: Apply User block-email authorities in disposable PostgreSQL");
   const restore = workflow.indexOf("name: Restore User follower authority source package");
   const apply = workflow.indexOf("name: Apply User follower authorities in disposable PostgreSQL");
@@ -63,6 +70,17 @@ test("CI stages the follower authority after block-email and before build", () =
   const build = workflow.indexOf("name: Production build");
   assert.ok(verify >= 0 && verify < isolate);
   assert.ok(isolate < blockApply);
+  assert.ok(isolate < accumulatedRestore && accumulatedRestore < blockApply);
   assert.ok(blockApply < restore);
   assert.ok(restore < apply && apply < catalog && catalog < build);
+
+  const isolateBody = step("Isolate User follower authority until block-email passes");
+  assert.match(isolateBody, /mv scripts\/user-authority-catalog\.mjs "\$holding\/user-authority-catalog-script"/);
+  assert.match(isolateBody, /git show "\$historical:scripts\/user-authority-catalog\.mjs"/);
+  const accumulatedRestoreBody = step("Restore accumulated User access source package");
+  assert.match(accumulatedRestoreBody, /"\$follower_holding\/user-authority-catalog-test"/);
+  assert.match(accumulatedRestoreBody, /git show[\s\S]*tests\/user-authority-catalog\.test\.mjs/);
+  const restoreBody = step("Restore User follower authority source package");
+  assert.match(restoreBody, /"\$holding\/user-authority-catalog-script"/);
+  assert.match(restoreBody, /"\$holding\/user-authority-catalog-test"/);
 });
