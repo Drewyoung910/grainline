@@ -1,0 +1,213 @@
+name: User Authority Successors Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      installed_catalog_inspection_run_id:
+        description: Successful exact-commit User Installed Catalog Production Inspection run
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-user-authority-successors
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed User authority successors
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-user-authority-successors'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind release to exact main, CI, and catalog inspection
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_INSTALLED_CATALOG_INSPECTION_RUN_ID: ${{ inputs.installed_catalog_inspection_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const inspectionValue = process.env.REVIEWED_INSTALLED_CATALOG_INSPECTION_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(inspectionValue ?? '')) {
+              throw new Error('User authority successor release binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const inspectionRunId = Number(inspectionValue);
+            if (!Number.isSafeInteger(ciRunId) || !Number.isSafeInteger(inspectionRunId)) {
+              throw new Error('User authority successor run id is unsafe');
+            }
+            const [{data: main}, {data: ci}, {data: inspection}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: inspectionRunId}),
+            ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.status !== 'completed' ||
+                ci.conclusion !== 'success') {
+              throw new Error('User authority successor main/CI readback drifted');
+            }
+            if (inspection.name !== 'User Installed Catalog Production Inspection' ||
+                inspection.event !== 'workflow_dispatch' ||
+                inspection.head_branch !== 'main' || inspection.head_sha !== sha ||
+                inspection.run_attempt !== 1 || inspection.status !== 'completed' ||
+                inspection.conclusion !== 'success') {
+              throw new Error('User authority successor catalog-inspection readback drifted');
+            }
+      - name: Verify complete User authority source and release contract
+        run: >-
+          node --test
+          tests/user-authority-catalog.test.mjs
+          tests/user-installed-catalog-production-inspect.test.mjs
+          tests/user-installed-catalog-production-workflow.test.mjs
+      - name: Verify exact successor migration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
+            "20261007150000_prepare_user_staff_admin_labels"
+          echo "6c8c38ff90ce800fc3bf0aa2ea429993749c3534dfd9500fce39db03bd8914bd  prisma/migrations/20261006010000_prepare_user_staff_ban_authorities/migration.sql" | sha256sum --check --status
+          echo "8afacbcd26da9a2f843c8780b4e0257efdf28a69677e070516d9e6233c97828f  prisma/migrations/20261006020000_prepare_user_account_deletion_authorities/migration.sql" | sha256sum --check --status
+          echo "eef3833d5bccd93668cc32c5fcbbdda7ece7f6ee786407ea245e760c0c30bdae  prisma/migrations/20261006030000_prepare_user_relationship_authorities/migration.sql" | sha256sum --check --status
+          echo "d9229b3d9405df19e23972f857266cf4308fcbf0ff19d44bf1f0e5ec35299350  prisma/migrations/20261007010000_prepare_user_public_blog_state/migration.sql" | sha256sum --check --status
+          echo "edb6d5f92503ade0d6e4e1f6bf98dbad5ab4b7a5c7e039275847d69ae97f81fb  prisma/migrations/20261007020000_prepare_user_public_review_commission_state/migration.sql" | sha256sum --check --status
+          echo "a9e1697ba9a572d07d0f5311d1a380b55c5883253181962a71ef5383ff7e1c00  prisma/migrations/20261007030000_prepare_user_block_email_authorities/migration.sql" | sha256sum --check --status
+          echo "ed12711d7729a94be0d75f5c3d80ccbfac27280d26f207fcf7ca44ecd733622f  prisma/migrations/20261007040000_prepare_user_follower_authorities/migration.sql" | sha256sum --check --status
+          echo "7657e99e0e809471936e96d4ec0c5f84ad6afefabe5296ae3ffe7a021bfbe5d7  prisma/migrations/20261007150000_prepare_user_staff_admin_labels/migration.sql" | sha256sum --check --status
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe successor prefix before apply
+        id: preflight
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          USER_INSTALLED_CATALOG_EXPECTED_PREFIX: successor-progress
+          USER_INSTALLED_CATALOG_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          USER_INSTALLED_CATALOG_INSPECT_CONFIRM: inspect-reviewed-user-installed-catalog
+          USER_INSTALLED_CATALOG_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ inputs.release_commit }}-successor-progress.json
+        run: |
+          set -euo pipefail
+          result="$(node scripts/user-installed-catalog-production-inspect.mjs)"
+          count="$(node -e 'let value=""; process.stdin.setEncoding("utf8"); process.stdin.on("data", chunk => value += chunk); process.stdin.on("end", () => process.stdout.write(String(JSON.parse(value).result.appliedMigrationCount)));' <<< "$result")"
+          case "$count" in
+            8|9|10|11|12|13|14|15|16) ;;
+            *) exit 1 ;;
+          esac
+          echo "applied_count=$count" >> "$GITHUB_OUTPUT"
+      - name: Require every non-successor migration applied
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          USER_AUTHORITY_APPLIED_COUNT: ${{ steps.preflight.outputs.applied_count }}
+        run: |
+          set -euo pipefail
+          migrations=(
+            20261006010000_prepare_user_staff_ban_authorities
+            20261006020000_prepare_user_account_deletion_authorities
+            20261006030000_prepare_user_relationship_authorities
+            20261007010000_prepare_user_public_blog_state
+            20261007020000_prepare_user_public_review_commission_state
+            20261007030000_prepare_user_block_email_authorities
+            20261007040000_prepare_user_follower_authorities
+            20261007150000_prepare_user_staff_admin_labels
+          )
+          applied="$USER_AUTHORITY_APPLIED_COUNT"
+          pending_start=$((applied - 8))
+          holding="$RUNNER_TEMP/user-authority-pending-successors"
+          mkdir -p "$holding"
+          restore() {
+            for migration in "${migrations[@]}"; do
+              if [[ -d "$holding/$migration" ]]; then
+                mv "$holding/$migration" "prisma/migrations/$migration"
+              fi
+            done
+          }
+          trap restore EXIT
+          for ((index=pending_start; index<${#migrations[@]}; index++)); do
+            migration="${migrations[$index]}"
+            mv "prisma/migrations/$migration" "$holding/$migration"
+          done
+          npx prisma migrate status
+          restore
+          trap - EXIT
+      - name: Apply only reviewed User authority successors through Prisma
+        if: steps.preflight.outputs.applied_count != '16'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Verify complete migration status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate status
+      - name: Audit global grants after successor release
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Inspect complete User authority catalog after apply
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          USER_INSTALLED_CATALOG_EXPECTED_PREFIX: complete
+          USER_INSTALLED_CATALOG_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          USER_INSTALLED_CATALOG_INSPECT_CONFIRM: inspect-reviewed-user-installed-catalog
+          USER_INSTALLED_CATALOG_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ inputs.release_commit }}-complete.json
+        run: node scripts/user-installed-catalog-production-inspect.mjs
+      - name: Preserve sanitized successor evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: user-authority-successors-production-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ github.sha }}-successor-progress.json
+            ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ github.sha }}-complete.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

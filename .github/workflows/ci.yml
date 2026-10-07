@@ -195,6 +195,9 @@ jobs:
           tests/account-state-residue-followups.test.mjs
           tests/admin-action-guardrails.test.mjs
           tests/admin-query-and-email-guardrails.test.mjs
+          tests/user-authority-catalog.test.mjs
+          tests/user-installed-catalog-production-inspect.test.mjs
+          tests/user-installed-catalog-production-workflow.test.mjs
           tests/user-seller-snapshot-continuation.test.mjs
           tests/user-staff-admin-labels.test.mjs
       - name: Verify UserEmailAddress authority source package
@@ -368,9 +371,13 @@ jobs:
           mv \
             prisma/migrations/20261007150000_prepare_user_staff_admin_labels \
             "$holding/migration"
-          mv \
-            tests/user-staff-admin-labels.test.mjs \
-            "$holding/user-staff-admin-labels.test.mjs"
+          for test_file in \
+            tests/user-installed-catalog-production-inspect.test.mjs \
+            tests/user-installed-catalog-production-workflow.test.mjs \
+            tests/user-staff-admin-labels.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Isolate User follower authority until block-email passes
         shell: bash
         run: |
@@ -4758,9 +4765,10 @@ jobs:
           mv \
             "$holding/migration" \
             prisma/migrations/20261007150000_prepare_user_staff_admin_labels
-          mv \
-            "$holding/user-staff-admin-labels.test.mjs" \
-            tests/user-staff-admin-labels.test.mjs
+          for test_file in "$holding"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
           rmdir "$holding"
       - name: Re-verify User staff admin-label source package
         run: >-
@@ -4770,6 +4778,8 @@ jobs:
           tests/admin-query-and-email-guardrails.test.mjs
           tests/user-authority-catalog.test.mjs
           tests/user-indirect-access-inventory.test.mjs
+          tests/user-installed-catalog-production-inspect.test.mjs
+          tests/user-installed-catalog-production-workflow.test.mjs
           tests/user-seller-snapshot-continuation.test.mjs
           tests/user-staff-admin-labels.test.mjs
       - name: Apply User staff admin-label authority in disposable PostgreSQL

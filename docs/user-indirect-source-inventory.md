@@ -73,3 +73,13 @@ runtime-private snapshot trigger functions. The catalog explicitly includes the
 four blog and four review/commission trigger functions that the earlier global
 list omitted.
 This source/DCL proof does not replace the installed Production catalog inspection.
+The exact-main read-only inspection is prepared in
+`docs/user-installed-catalog-production-inspection.md`; it must still merge,
+pass main CI, run successfully, and have its sanitized evidence read back.
+If it confirms the expected eight-migration Production prefix, the remaining
+eight reviewed authority migrations have a guarded, restart-safe source runner
+prepared in `docs/user-authority-successor-production-release.md`. The runner
+still requires publication, exact-main CI, successful inspection and evidence
+readback, then a separate Production dispatch approval. Compatible-app
+promotion and smoke remain before final User grant/policy design and separate
+ENABLE/FORCE activation.
