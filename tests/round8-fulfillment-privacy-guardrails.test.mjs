@@ -87,7 +87,8 @@ describe("Round 8 public profile privacy guardrails", () => {
     const customerPhotos = source("src/app/seller/[id]/customer-photos/page.tsx");
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
 
-    assert.match(listing, /reviewer: \{ banned: false, deletedAt: null \}/);
+    assert.match(listing, /reviewerAccountActive: true/);
+    assert.doesNotMatch(listing, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.match(listing, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
     assert.match(seller, /seller\.publicMapOptIn && !radiusMeters && lat != null && lng != null/);
     assert.match(seller, /allowLocalPickup: true/);
@@ -96,9 +97,13 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.match(listing, /allowLocalPickup: true/);
     assert.match(listing, /const showPickupMap = listing\.seller\.allowLocalPickup && pickupMapPoint != null/);
     assert.match(listing, /\{showPickupMap && pickupMapPoint && \(/);
-    assert.match(seller, /reviewer: \{ banned: false, deletedAt: null \}/);
-    assert.doesNotMatch(seller, /select: \{ listingId: true, reviewerId: true/);
-    assert.match(customerPhotos, /reviewer: \{ banned: false, deletedAt: null \}/);
+    assert.match(seller, /reviewerAccountActive: true/);
+    assert.doesNotMatch(seller, /reviewer: \{ banned: false, deletedAt: null \}/);
+    assert.match(seller, /select: \{ listingId: true, reviewerId: true/);
+    assert.match(seller, /new Set\(customerPhotos\.map\(\(p\) => p\.review\.reviewerId\)\)\.size/);
+    assert.doesNotMatch(seller, /reviewerId:\s*p\.review\.reviewerId/);
+    assert.match(customerPhotos, /reviewerAccountActive: true/);
+    assert.doesNotMatch(customerPhotos, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.match(customerPhotos, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
     assert.doesNotMatch(customerPhotos, /select: \{ listingId: true, reviewerId: true/);
     assert.match(seller, /function safeSellerSocialUrl/);
