@@ -19,6 +19,7 @@ const heldTests = [
   "user-staff-ban-authorities.test.mjs",
   "user-account-deletion-authorities.test.mjs",
   "user-relationship-authorities.test.mjs",
+  "user-cross-domain-authority-convergence.test.mjs",
   "user-authority-catalog.test.mjs",
   "user-accumulated-access-ci.test.mjs",
   "order-ban-review-authority.test.mjs",
