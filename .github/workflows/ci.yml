@@ -332,8 +332,7 @@ jobs:
             tests/block-filter-guardrails.test.mjs \
             tests/notification-block-race-guardrails.test.mjs \
             tests/user-block-email-authorities-source.test.mjs \
-            tests/user-block-email-authorities-postgres.test.mjs \
-            tests/user-email-address-history.test.mjs
+            tests/user-block-email-authorities-postgres.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
