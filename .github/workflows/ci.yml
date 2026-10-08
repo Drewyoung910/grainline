@@ -224,6 +224,7 @@ jobs:
           tests/user-account-deletion-authorities.test.mjs
           tests/user-relationship-authorities.test.mjs
           tests/user-cross-domain-authority-convergence.test.mjs
+          tests/user-cross-domain-convergence-production-workflow.test.mjs
           tests/user-authority-catalog.test.mjs
           tests/user-accumulated-access-ci.test.mjs
           tests/user-indirect-access-inventory.test.mjs
@@ -263,6 +264,7 @@ jobs:
             tests/user-account-deletion-authorities.test.mjs \
             tests/user-relationship-authorities.test.mjs \
             tests/user-cross-domain-authority-convergence.test.mjs \
+            tests/user-cross-domain-convergence-production-workflow.test.mjs \
             tests/user-authority-catalog.test.mjs \
             tests/user-accumulated-access-ci.test.mjs \
             tests/order-ban-review-authority.test.mjs \
