@@ -12,6 +12,11 @@ const migrationPath =
 const migrationSha256 = createHash("sha256")
   .update(readFileSync(migrationPath))
   .digest("hex");
+const enableMigrationPath =
+  "prisma/migrations/20261008010000_enable_user_rls/migration.sql";
+const enableMigrationSha256 = createHash("sha256")
+  .update(readFileSync(enableMigrationPath))
+  .digest("hex");
 
 test("cross-domain convergence is exact-main, CI and predecessor bound", () => {
   assert.match(workflow, /workflow_dispatch:/);
@@ -51,6 +56,13 @@ test("cross-domain convergence applies only its checksum-pinned migration", () =
   assert.ok(workflow.includes(`${migrationSha256}  ${migrationPath}`));
   assert.ok(workflow.includes(`checksum: '${migrationSha256}'`));
   assert.ok(workflow.includes(`const checksum = '${migrationSha256}';`));
+  assert.equal(
+    enableMigrationSha256,
+    "19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff",
+  );
+  assert.ok(
+    workflow.includes(`${enableMigrationSha256}  ${enableMigrationPath}`),
+  );
   assert.match(
     workflow,
     /7657e99e0e809471936e96d4ec0c5f84ad6afefabe5296ae3ffe7a021bfbe5d7[\s\S]*20261007160000_converge_user_cross_domain_authorities/,
@@ -66,6 +78,18 @@ test("cross-domain convergence applies only its checksum-pinned migration", () =
     /name: Require every predecessor applied and no unrelated migration pending/,
   );
   assert.match(workflow, /mv "prisma\/migrations\/\$migration" "\$holding"/);
+  assert.match(workflow, /name: Hold reviewed later User ENABLE migration/);
+  assert.match(workflow, /name: Restore held User ENABLE source/);
+  assert.match(workflow, /test "\$\{#successors\[@\]\}" -eq 1/);
+  assert.match(workflow, /test "\$\{successors\[0\]\}" = "\$enable"/);
+  assert.ok(
+    workflow.indexOf("name: Hold reviewed later User ENABLE migration") <
+      workflow.indexOf("run: npx prisma migrate deploy"),
+  );
+  assert.ok(
+    workflow.indexOf("name: Restore held User ENABLE source") >
+      workflow.indexOf("name: Verify final Prisma migration status"),
+  );
   assert.match(workflow, /steps\.ledger\.outputs\.state == 'pending'/);
   assert.equal((workflow.match(/run: npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.doesNotMatch(workflow, /(?:^|\n)\s+DATABASE_URL:/);

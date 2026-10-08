@@ -28,6 +28,15 @@ test("installed-catalog inspection is exact-main, exact-CI, manual, and read-onl
   assert.match(workflow, /environment: Production/u);
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);
   assert.match(workflow, /user-installed-catalog-production-inspect\.mjs/u);
+  assert.match(workflow, /USER_INSTALLED_CATALOG_EXPECTED_PREFIX: complete/u);
+  assert.match(
+    workflow,
+    /USER_INSTALLED_CATALOG_INSPECT_EVIDENCE_PATH: .*\$\{\{ inputs\.release_commit \}\}-complete\.json/u,
+  );
+  assert.match(
+    workflow,
+    /path: .*\$\{\{ github\.sha \}\}-complete\.json/u,
+  );
   assert.match(workflow, /PRODUCTION_MIGRATION_DIRECT_URL/u);
   assert.match(workflow, /retention-days: 30/u);
   assert.match(workflow, /name: Preserve sanitized catalog evidence\n\s+if: always\(\)/u);

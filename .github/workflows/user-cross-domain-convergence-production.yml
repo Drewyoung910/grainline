@@ -106,13 +106,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort | tail -n 1)"
-          test "$latest" = "20261007160000_converge_user_cross_domain_authorities"
+          convergence="20261007160000_converge_user_cross_domain_authorities"
+          enable="20261008010000_enable_user_rls"
+          mapfile -t successors < <(
+            find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' |
+              LC_ALL=C sort |
+              awk -v convergence="$convergence" '$0 > convergence'
+          )
+          test "${#successors[@]}" -eq 1
+          test "${successors[0]}" = "$enable"
           echo "fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302  prisma/migrations/20261007160000_converge_user_cross_domain_authorities/migration.sql" | sha256sum --check --status
+          echo "19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff  prisma/migrations/20261008010000_enable_user_rls/migration.sql" | sha256sum --check --status
           node --test \
             tests/user-cross-domain-authority-convergence.test.mjs \
             tests/user-cross-domain-convergence-production-inspect.test.mjs \
             tests/user-cross-domain-convergence-production-workflow.test.mjs
+      - name: Hold reviewed later User ENABLE migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration="20261008010000_enable_user_rls"
+          holding="$RUNNER_TEMP/$migration"
+          test -d "prisma/migrations/$migration"
+          test ! -e "$holding"
+          mv "prisma/migrations/$migration" "$holding"
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
         env:
@@ -282,6 +299,18 @@ jobs:
         run: npx prisma migrate status
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Restore held User ENABLE source
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration="20261008010000_enable_user_rls"
+          holding="$RUNNER_TEMP/$migration"
+          if [[ -d "$holding" ]]; then
+            test ! -e "prisma/migrations/$migration"
+            mv "$holding" "prisma/migrations/$migration"
+          fi
+          test -d "prisma/migrations/$migration"
       - name: Preserve sanitized preflight, ledger, and postflight evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
