@@ -6,7 +6,7 @@ const { emailSuppressionLookupForEmails } = await import("../src/lib/emailAddres
 
 const userClerkIdentityMigrationPath =
   process.env.USER_CLERK_IDENTITY_MIGRATION_PATH
-  ?? "prisma/migrations/20261003100000_prepare_user_clerk_identity_authority/migration.sql";
+  ?? "prisma/migrations/20261007155000_correct_user_clerk_identity_placeholder/migration.sql";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -53,7 +53,7 @@ describe("email normalization follow-ups", () => {
     assert.match(ensureUser, /if \(normalizedEmail\) identity\.email = normalizedEmail/);
     assert.match(
       identityAuthority,
-      /placeholder_email := p_clerk_id \|\| '@placeholder\.invalid'/,
+      /placeholder_email := CASE[\s\S]*p_clerk_id = pg_catalog\.lower\(p_clerk_id\)[\s\S]*pg_catalog\.md5\(p_clerk_id\)[\s\S]*'@placeholder\.invalid'/,
     );
     assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);
     assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);

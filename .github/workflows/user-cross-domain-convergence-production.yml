@@ -102,21 +102,25 @@ jobs:
                 predecessor.conclusion !== 'success') {
               throw new Error('User authority successors predecessor drifted');
             }
-      - name: Verify exact User cross-domain convergence source package
+      - name: Verify exact User correction and cross-domain convergence source package
         shell: bash
         run: |
           set -euo pipefail
+          correction="20261007155000_correct_user_clerk_identity_placeholder"
           convergence="20261007160000_converge_user_cross_domain_authorities"
           enable="20261008010000_enable_user_rls"
           mapfile -t successors < <(
             find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' |
               LC_ALL=C sort |
-              awk -v convergence="$convergence" '$0 > convergence'
+              awk '$0 > "20261007150000_prepare_user_staff_admin_labels"'
           )
-          test "${#successors[@]}" -eq 1
-          test "${successors[0]}" = "$enable"
+          test "${#successors[@]}" -eq 3
+          test "${successors[0]}" = "$correction"
+          test "${successors[1]}" = "$convergence"
+          test "${successors[2]}" = "$enable"
+          echo "b1968d60b24e3472c6ea7a780322f23b30a26804a93531ea9fc66b344cc69418  prisma/migrations/20261007155000_correct_user_clerk_identity_placeholder/migration.sql" | sha256sum --check --status
           echo "fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302  prisma/migrations/20261007160000_converge_user_cross_domain_authorities/migration.sql" | sha256sum --check --status
-          echo "19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff  prisma/migrations/20261008010000_enable_user_rls/migration.sql" | sha256sum --check --status
+          echo "628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f  prisma/migrations/20261008010000_enable_user_rls/migration.sql" | sha256sum --check --status
           node --test \
             tests/user-cross-domain-authority-convergence.test.mjs \
             tests/user-cross-domain-convergence-production-inspect.test.mjs \
@@ -134,7 +138,7 @@ jobs:
           test -d "prisma/migrations/$migration"
           test ! -e "$holding"
           mv "prisma/migrations/$migration" "$holding"
-      - name: Read exact predecessor and candidate ledger state
+      - name: Read exact predecessor and reviewed package ledger state
         id: ledger
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
@@ -147,7 +151,11 @@ jobs:
             name: '20261007150000_prepare_user_staff_admin_labels',
             checksum: '7657e99e0e809471936e96d4ec0c5f84ad6afefabe5296ae3ffe7a021bfbe5d7',
           });
-          const candidate = Object.freeze({
+          const correction = Object.freeze({
+            name: '20261007155000_correct_user_clerk_identity_placeholder',
+            checksum: 'b1968d60b24e3472c6ea7a780322f23b30a26804a93531ea9fc66b344cc69418',
+          });
+          const convergence = Object.freeze({
             name: '20261007160000_converge_user_cross_domain_authorities',
             checksum: 'fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302',
           });
@@ -161,7 +169,7 @@ jobs:
                 FROM public._prisma_migrations
                WHERE migration_name = ANY($1::text[])
                ORDER BY started_at, id
-            `, [[predecessor.name, candidate.name]])).rows;
+            `, [[predecessor.name, correction.name, convergence.name]])).rows;
             const accepted = (row, expected) => row?.checksum === expected.checksum &&
               row.finished_at && row.rolled_back_at === null &&
               Number(row.applied_steps_count) === 1;
@@ -169,19 +177,27 @@ jobs:
               row.migration_name === predecessor.name);
             assert.equal(predecessorRows.length, 1);
             assert.equal(accepted(predecessorRows[0], predecessor), true);
-            const candidateRows = rows.filter((row) =>
-              row.migration_name === candidate.name);
-            assert.ok(candidateRows.length === 0 ||
-              (candidateRows.length === 1 && accepted(candidateRows[0], candidate)));
-            assert.equal(rows.length, 1 + candidateRows.length);
+            const correctionRows = rows.filter((row) =>
+              row.migration_name === correction.name);
+            const convergenceRows = rows.filter((row) =>
+              row.migration_name === convergence.name);
+            assert.ok(correctionRows.length === 0 ||
+              (correctionRows.length === 1 && accepted(correctionRows[0], correction)));
+            assert.ok(convergenceRows.length === 0 ||
+              (convergenceRows.length === 1 && accepted(convergenceRows[0], convergence)));
+            assert.equal(rows.length,
+              1 + correctionRows.length + convergenceRows.length);
+            assert.equal(convergenceRows.length <= correctionRows.length, true,
+              'User convergence cannot precede its identity correction');
             const incomplete = await client.query(`
               SELECT count(*)::integer AS count
                 FROM public._prisma_migrations
                WHERE finished_at IS NULL AND rolled_back_at IS NULL
             `);
             assert.equal(incomplete.rows[0].count, 0);
-            appendFileSync(process.env.GITHUB_OUTPUT,
-              `state=${candidateRows.length === 1 ? 'applied' : 'pending'}\n`);
+            const state = convergenceRows.length === 1 ? 'applied' :
+              correctionRows.length === 1 ? 'resume' : 'pending';
+            appendFileSync(process.env.GITHUB_OUTPUT, `state=${state}\n`);
             await client.query('ROLLBACK');
           } finally {
             try { await client.query('ROLLBACK'); } catch {}
@@ -203,13 +219,24 @@ jobs:
           MIGRATION_STATE: ${{ steps.ledger.outputs.state }}
         run: |
           set -euo pipefail
-          migration=20261007160000_converge_user_cross_domain_authorities
+          correction=20261007155000_correct_user_clerk_identity_placeholder
+          convergence=20261007160000_converge_user_cross_domain_authorities
           if [[ "$MIGRATION_STATE" == "pending" ]]; then
-            holding="$RUNNER_TEMP/$migration"
-            mv "prisma/migrations/$migration" "$holding"
-            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            correction_holding="$RUNNER_TEMP/$correction"
+            convergence_holding="$RUNNER_TEMP/$convergence"
+            mv "prisma/migrations/$correction" "$correction_holding"
+            mv "prisma/migrations/$convergence" "$convergence_holding"
+            trap 'if [[ -d "$correction_holding" ]]; then mv "$correction_holding" "prisma/migrations/$correction"; fi; if [[ -d "$convergence_holding" ]]; then mv "$convergence_holding" "prisma/migrations/$convergence"; fi' EXIT
             npx prisma migrate status
-            mv "$holding" "prisma/migrations/$migration"
+            mv "$correction_holding" "prisma/migrations/$correction"
+            mv "$convergence_holding" "prisma/migrations/$convergence"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "resume" ]]; then
+            convergence_holding="$RUNNER_TEMP/$convergence"
+            mv "prisma/migrations/$convergence" "$convergence_holding"
+            trap 'if [[ -d "$convergence_holding" ]]; then mv "$convergence_holding" "prisma/migrations/$convergence"; fi' EXIT
+            npx prisma migrate status
+            mv "$convergence_holding" "prisma/migrations/$convergence"
             trap - EXIT
           elif [[ "$MIGRATION_STATE" == "applied" ]]; then
             npx prisma migrate status
@@ -217,8 +244,8 @@ jobs:
             echo "Unexpected User cross-domain migration state" >&2
             exit 1
           fi
-      - name: Apply only reviewed User cross-domain convergence
-        if: steps.ledger.outputs.state == 'pending'
+      - name: Apply reviewed User correction and cross-domain convergence
+        if: steps.ledger.outputs.state != 'applied'
         run: npx prisma migrate deploy
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
@@ -233,27 +260,40 @@ jobs:
           import assert from 'node:assert/strict';
           import {writeFileSync} from 'node:fs';
           import pg from 'pg';
-          const migration = '20261007160000_converge_user_cross_domain_authorities';
-          const checksum = 'fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302';
+          const expected = Object.freeze([
+            Object.freeze({
+              migration: '20261007155000_correct_user_clerk_identity_placeholder',
+              checksum: 'b1968d60b24e3472c6ea7a780322f23b30a26804a93531ea9fc66b344cc69418',
+            }),
+            Object.freeze({
+              migration: '20261007160000_converge_user_cross_domain_authorities',
+              checksum: 'fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302',
+            }),
+          ]);
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();
             await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
             const rows = (await client.query(`
-              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
                 FROM public._prisma_migrations
-               WHERE migration_name = $1
-            `, [migration])).rows;
-            assert.equal(rows.length, 1);
-            assert.equal(rows[0].checksum, checksum);
-            assert.ok(rows[0].finished_at);
-            assert.equal(rows[0].rolled_back_at, null);
-            assert.equal(Number(rows[0].applied_steps_count), 1);
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY migration_name
+            `, [expected.map(({migration}) => migration)])).rows;
+            assert.equal(rows.length, expected.length);
+            for (const [index, entry] of expected.entries()) {
+              assert.equal(rows[index].migration_name, entry.migration);
+              assert.equal(rows[index].checksum, entry.checksum);
+              assert.ok(rows[index].finished_at);
+              assert.equal(rows[index].rolled_back_at, null);
+              assert.equal(Number(rows[index].applied_steps_count), 1);
+            }
             await client.query('ROLLBACK');
             writeFileSync(
               `${process.env.RUNNER_TEMP}/user-cross-domain-convergence-ledger.json`,
-              `${JSON.stringify({status: 'passed', migration, checksum,
-                appliedStepsCount: 1}, null, 2)}\n`,
+              `${JSON.stringify({status: 'passed', migrations: expected.map((entry) =>
+                ({...entry, appliedStepsCount: 1}))}, null, 2)}\n`,
               {mode: 0o600, flag: 'wx'},
             );
           } finally {
@@ -261,6 +301,14 @@ jobs:
             await client.end();
           }
           NODE
+      - name: Verify corrected Clerk identity catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_USER_CLERK_IDENTITY_STATE: applied
+        run: |
+          umask 077
+          node scripts/user-clerk-identity-production-inspect.mjs \
+            > "$RUNNER_TEMP/user-clerk-identity-correction-post.json"
       - name: Capture and compare read-only convergence postflight catalog
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
@@ -319,6 +367,7 @@ jobs:
             ${{ runner.temp }}/user-cross-domain-convergence-pre.json
             ${{ runner.temp }}/user-cross-domain-convergence-ledger.json
             ${{ runner.temp }}/user-cross-domain-convergence-post.json
+            ${{ runner.temp }}/user-clerk-identity-correction-post.json
           if-no-files-found: error
           retention-days: 30
           include-hidden-files: false

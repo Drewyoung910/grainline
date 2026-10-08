@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import pg from "pg";
-import { USER_AUTHORITY_GROUPS } from "../scripts/user-authority-catalog.mjs";
+import { USER_AUTHORITY_FUNCTIONS, USER_AUTHORITY_GROUPS } from "../scripts/user-authority-catalog.mjs";
 import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
@@ -1835,9 +1835,11 @@ describe("database grant inventory guardrails", () => {
       userEmailAddressAuthorityFunctionNames.every(
         (functionName) => inventory.functions.includes(functionName),
       );
-    const userAuthorityFunctions = USER_AUTHORITY_GROUPS
+    const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
-      .flatMap(({ functions }) => functions);
+      .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
+    const userAuthorityFunctions = USER_AUTHORITY_FUNCTIONS.filter(({ identity }) =>
+      availableUserAuthorityIdentities.has(identity));
     const orderDeauthorizedCaseAccessPrepared =
       ORDER_DEAUTHORIZED_CASE_ACCESS_RUNTIME_FUNCTIONS.every(
         (identity) => inventory.functions.includes(
@@ -3372,7 +3374,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 21);
+    assert.equal(guardResultCount, 22);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -3445,6 +3447,14 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :user_email_address_rls_active\s+REVOKE ALL ON TABLE public\."UserEmailAddress"\s+FROM PUBLIC, :"runtime_role";\s+\\endif/,
+    );
+    assert.match(
+      provision,
+      /User RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :user_rls_active\s+REVOKE ALL ON TABLE public\."User"\s+FROM PUBLIC, :"runtime_role";\s+\\endif/,
     );
     for (const functionName of [
       "grainline_user_email_address_delete_for_current_user",

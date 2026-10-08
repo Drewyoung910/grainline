@@ -12,6 +12,11 @@ const migrationPath =
 const migrationSha256 = createHash("sha256")
   .update(readFileSync(migrationPath))
   .digest("hex");
+const correctionMigrationPath =
+  "prisma/migrations/20261007155000_correct_user_clerk_identity_placeholder/migration.sql";
+const correctionMigrationSha256 = createHash("sha256")
+  .update(readFileSync(correctionMigrationPath))
+  .digest("hex");
 const enableMigrationPath =
   "prisma/migrations/20261008010000_enable_user_rls/migration.sql";
 const enableMigrationSha256 = createHash("sha256")
@@ -48,17 +53,27 @@ test("cross-domain convergence is exact-main, CI and predecessor bound", () => {
   assert.match(workflow, /predecessor\.conclusion !== 'success'/);
 });
 
-test("cross-domain convergence applies only its checksum-pinned migration", () => {
+test("cross-domain convergence applies only its checksum-pinned correction package", () => {
+  assert.equal(
+    correctionMigrationSha256,
+    "b1968d60b24e3472c6ea7a780322f23b30a26804a93531ea9fc66b344cc69418",
+  );
+  assert.ok(
+    workflow.includes(
+      `${correctionMigrationSha256}  ${correctionMigrationPath}`,
+    ),
+  );
+  assert.ok(workflow.includes(`checksum: '${correctionMigrationSha256}'`));
   assert.equal(
     migrationSha256,
     "fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302",
   );
   assert.ok(workflow.includes(`${migrationSha256}  ${migrationPath}`));
   assert.ok(workflow.includes(`checksum: '${migrationSha256}'`));
-  assert.ok(workflow.includes(`const checksum = '${migrationSha256}';`));
+  assert.ok(workflow.includes(`checksum: '${migrationSha256}',`));
   assert.equal(
     enableMigrationSha256,
-    "19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff",
+    "628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f",
   );
   assert.ok(
     workflow.includes(`${enableMigrationSha256}  ${enableMigrationPath}`),
@@ -68,20 +83,24 @@ test("cross-domain convergence applies only its checksum-pinned migration", () =
     /7657e99e0e809471936e96d4ec0c5f84ad6afefabe5296ae3ffe7a021bfbe5d7[\s\S]*20261007160000_converge_user_cross_domain_authorities/,
   );
   assert.match(workflow, /guard-production-migration-runner\.mjs/);
-  assert.match(workflow, /candidateRows\.length === 0/);
+  assert.match(workflow, /correctionRows\.length === 0/);
+  assert.match(workflow, /convergenceRows\.length === 0/);
   assert.match(
     workflow,
-    /state=\$\{candidateRows\.length === 1 \? 'applied' : 'pending'\}/,
+    /convergenceRows\.length === 1 \? 'applied' :[\s\S]*correctionRows\.length === 1 \? 'resume' : 'pending'/,
   );
   assert.match(
     workflow,
     /name: Require every predecessor applied and no unrelated migration pending/,
   );
-  assert.match(workflow, /mv "prisma\/migrations\/\$migration" "\$holding"/);
+  assert.match(workflow, /mv "prisma\/migrations\/\$correction" "\$correction_holding"/);
+  assert.match(workflow, /mv "prisma\/migrations\/\$convergence" "\$convergence_holding"/);
   assert.match(workflow, /name: Hold reviewed later User ENABLE migration/);
   assert.match(workflow, /name: Restore held User ENABLE source/);
-  assert.match(workflow, /test "\$\{#successors\[@\]\}" -eq 1/);
-  assert.match(workflow, /test "\$\{successors\[0\]\}" = "\$enable"/);
+  assert.match(workflow, /test "\$\{#successors\[@\]\}" -eq 3/);
+  assert.match(workflow, /test "\$\{successors\[0\]\}" = "\$correction"/);
+  assert.match(workflow, /test "\$\{successors\[1\]\}" = "\$convergence"/);
+  assert.match(workflow, /test "\$\{successors\[2\]\}" = "\$enable"/);
   assert.ok(
     workflow.indexOf("name: Verify owner connection boundary") <
       workflow.indexOf("name: Hold reviewed later User ENABLE migration"),
@@ -94,7 +113,8 @@ test("cross-domain convergence applies only its checksum-pinned migration", () =
     workflow.indexOf("name: Restore held User ENABLE source") >
       workflow.indexOf("name: Verify final Prisma migration status"),
   );
-  assert.match(workflow, /steps\.ledger\.outputs\.state == 'pending'/);
+  assert.match(workflow, /steps\.ledger\.outputs\.state != 'applied'/);
+  assert.match(workflow, /MIGRATION_STATE" == "resume"/);
   assert.equal((workflow.match(/run: npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.doesNotMatch(workflow, /(?:^|\n)\s+DATABASE_URL:/);
 });
@@ -118,6 +138,8 @@ test("cross-domain convergence preserves exact preflight and postflight evidence
   assert.match(workflow, /post\.result\.productionChanged, false/);
   assert.match(workflow, /post\.result\.rowDataRead, false/);
   assert.match(workflow, /npm run audit:db-grants/);
+  assert.match(workflow, /user-clerk-identity-production-inspect\.mjs/);
+  assert.match(workflow, /EXPECTED_USER_CLERK_IDENTITY_STATE: applied/);
   assert.match(
     workflow,
     /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/,

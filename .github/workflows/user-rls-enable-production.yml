@@ -113,7 +113,7 @@ jobs:
           set -euo pipefail
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
           test "$latest" = "prisma/migrations/20261008010000_enable_user_rls"
-          echo "19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff  prisma/migrations/20261008010000_enable_user_rls/migration.sql" | sha256sum --check --status
+          echo "628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f  prisma/migrations/20261008010000_enable_user_rls/migration.sql" | sha256sum --check --status
           node --test \
             tests/user-cross-domain-authority-convergence.test.mjs \
             tests/user-rls-enable-postgres-proof.test.mjs \
@@ -139,7 +139,7 @@ jobs:
           });
           const candidate = Object.freeze({
             name: '20261008010000_enable_user_rls',
-            checksum: '19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff',
+            checksum: '628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f',
           });
           const accepted = (row, expected) => row?.checksum === expected.checksum &&
             row.finished_at && row.rolled_back_at === null &&
@@ -222,7 +222,7 @@ jobs:
           import {writeFileSync} from 'node:fs';
           import pg from 'pg';
           const migration = '20261008010000_enable_user_rls';
-          const checksum = '19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff';
+          const checksum = '628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f';
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();
@@ -249,6 +249,16 @@ jobs:
             await client.end();
           }
           NODE
+      - name: Re-converge runtime grants after User ENABLE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=neondb_owner
+          --file=scripts/provision-runtime-db-role.sql
       - name: Capture exact read-only policyless zero-direct postflight
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

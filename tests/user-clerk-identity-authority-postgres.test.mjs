@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
@@ -11,6 +12,10 @@ const identityAuthorityMigration = readFileSync(
   "prisma/migrations/20261003100000_prepare_user_clerk_identity_authority/migration.sql",
   "utf8",
 );
+const identityPlaceholderCorrectionPath =
+  process.env.USER_CLERK_IDENTITY_PLACEHOLDER_CORRECTION_MIGRATION_PATH ??
+  "prisma/migrations/20261007155000_correct_user_clerk_identity_placeholder/migration.sql";
+const identityPlaceholderCorrection = readFileSync(identityPlaceholderCorrectionPath, "utf8");
 
 async function createDatabase() {
   const database = new PGlite();
@@ -65,6 +70,7 @@ async function createDatabase() {
   `);
   await database.exec(emailAuthorityMigration);
   await database.exec(identityAuthorityMigration);
+  await database.exec(identityPlaceholderCorrection);
   return database;
 }
 
@@ -205,6 +211,57 @@ test("disposable PostgreSQL proves Clerk identity create, update, collision, and
       id: "user_two",
       email: "user_clerk_two@placeholder.invalid",
       name: "Two",
+    });
+
+    assert.deepEqual(await ensureIdentity(database, {
+      newUserId: "user_mixed_no_email",
+      clerkId: "user_2NNEqMixedNoEmail",
+    }), {
+      user_id: "user_mixed_no_email",
+      email_conflict: false,
+      created: true,
+    });
+    assert.deepEqual((await database.query(`
+      SELECT email
+        FROM public.grainline_user_clerk_account('user_2NNEqMixedNoEmail')
+    `)).rows[0], {
+      email: `user_2nneqmixednoemail-${createHash("md5")
+        .update("user_2NNEqMixedNoEmail")
+        .digest("hex")}@placeholder.invalid`,
+    });
+
+    assert.deepEqual(await ensureIdentity(database, {
+      newUserId: "user_lowercase_counterpart",
+      clerkId: "user_2nneqmixednoemail",
+    }), {
+      user_id: "user_lowercase_counterpart",
+      email_conflict: false,
+      created: true,
+    });
+    assert.deepEqual((await database.query(`
+      SELECT email
+        FROM public.grainline_user_clerk_account('user_2nneqmixednoemail')
+    `)).rows[0], {
+      email: "user_2nneqmixednoemail@placeholder.invalid",
+    });
+
+    assert.deepEqual(await ensureIdentity(database, {
+      newUserId: "user_mixed_conflict",
+      clerkId: "user_2NNEqMixedConflict",
+      email: "one-new@example.com",
+      updateEmail: true,
+    }), {
+      user_id: "user_mixed_conflict",
+      email_conflict: true,
+      created: true,
+    });
+    assert.deepEqual((await database.query(`
+      SELECT email
+        FROM public.grainline_user_clerk_account('user_2NNEqMixedConflict')
+    `)).rows[0], {
+      email: `user_2nneqmixedconflict-${createHash("md5")
+        .update("user_2NNEqMixedConflict")
+        .digest("hex")}@placeholder.invalid`,
     });
 
     assert.deepEqual(await ensureIdentity(database, {

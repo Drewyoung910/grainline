@@ -220,11 +220,13 @@ jobs:
       - name: Verify accumulated User access source package
         run: >-
           node --test
+          tests/db-grant-inventory.test.mjs
           tests/user-staff-ban-authorities.test.mjs
           tests/user-account-deletion-authorities.test.mjs
           tests/user-relationship-authorities.test.mjs
           tests/user-cross-domain-authority-convergence.test.mjs
           tests/user-cross-domain-convergence-production-workflow.test.mjs
+          tests/email-normalization-followups.test.mjs
           tests/user-rls-enable-postgres-proof.test.mjs
           tests/user-rls-enable-production-inspect.test.mjs
           tests/user-rls-enable-production-workflow.test.mjs
@@ -259,17 +261,20 @@ jobs:
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
             20261006030000_prepare_user_relationship_authorities \
+            20261007155000_correct_user_clerk_identity_placeholder \
             20261007160000_converge_user_cross_domain_authorities \
             20261008010000_enable_user_rls
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
           for test_file in \
+            tests/db-grant-inventory.test.mjs \
             tests/user-staff-ban-authorities.test.mjs \
             tests/user-account-deletion-authorities.test.mjs \
             tests/user-relationship-authorities.test.mjs \
             tests/user-cross-domain-authority-convergence.test.mjs \
             tests/user-cross-domain-convergence-production-workflow.test.mjs \
+            tests/email-normalization-followups.test.mjs \
             tests/user-rls-enable-postgres-proof.test.mjs \
             tests/user-rls-enable-production-inspect.test.mjs \
             tests/user-rls-enable-production-workflow.test.mjs \
@@ -3486,6 +3491,8 @@ jobs:
           done
           rmdir "$holding"
       - name: Re-verify User Clerk identity authority source package
+        env:
+          USER_CLERK_IDENTITY_PLACEHOLDER_CORRECTION_MIGRATION_PATH: ${{ runner.temp }}/user-accumulated-access/20261007155000_correct_user_clerk_identity_placeholder/migration.sql
         run: >-
           node --test
           tests/user-clerk-identity-authority.test.mjs
@@ -4502,6 +4509,7 @@ jobs:
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
             20261006030000_prepare_user_relationship_authorities \
+            20261007155000_correct_user_clerk_identity_placeholder \
             20261007160000_converge_user_cross_domain_authorities
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
@@ -4537,6 +4545,7 @@ jobs:
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
             20261006030000_prepare_user_relationship_authorities \
+            20261007155000_correct_user_clerk_identity_placeholder \
             20261007160000_converge_user_cross_domain_authorities
           do
             psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
@@ -4908,7 +4917,7 @@ jobs:
               checksum: USER_RLS_ENABLE_RELEASE.predecessorSha256,
             },
           ];
-          assert.equal(expected.length, 17);
+          assert.equal(expected.length, 18);
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();
@@ -4946,6 +4955,13 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261008010000_enable_user_rls/migration.sql
+      - name: Re-converge runtime grants after User policyless ENABLE
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
       - name: Audit runtime grants after User policyless ENABLE
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"

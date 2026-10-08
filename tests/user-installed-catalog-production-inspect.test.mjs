@@ -47,7 +47,9 @@ function configEnv() {
 
 function acceptedCatalog(expectation, appliedCount = 8) {
   const appliedGroups = expectation.groups.slice(0, appliedCount);
-  const functions = appliedGroups.flatMap(({ functions: entries }) => entries);
+  const functions = [...new Map(appliedGroups
+    .flatMap(({ functions: entries }) => entries)
+    .map((entry) => [entry.identity, entry])).values()];
   return {
     identity: {
       current_user: "neondb_owner",
@@ -115,7 +117,7 @@ function acceptedCatalog(expectation, appliedCount = 8) {
 
 test("builds one complete exact source catalog including all snapshot triggers", () => {
   const expectation = buildUserInstalledCatalogExpectation();
-  assert.equal(expectation.groups.length, 16);
+  assert.equal(expectation.groups.length, 17);
   assert.equal(expectation.functions.length, 53);
   assert.equal(new Set(expectation.functions.map(({ identity }) => identity)).size, 53);
   assert.equal(expectation.functions.filter(({ runtimeExecute }) => runtimeExecute).length, 34);
@@ -134,7 +136,7 @@ test("accepts a checksum-exact installed prefix and exact predecessor User grant
   assert.deepEqual(result, {
     databaseMode: "owner-catalog-read-only",
     appliedMigrationCount: 8,
-    pendingMigrationCount: 8,
+    pendingMigrationCount: 9,
     installedFunctionCount: 19,
     reviewedFunctionCount: 53,
     runtimeFunctionCount: 17,
@@ -149,21 +151,21 @@ test("accepts a checksum-exact installed prefix and exact predecessor User grant
 
 test("accepts only contiguous reviewed successor progress and the complete catalog", () => {
   const expectation = buildUserInstalledCatalogExpectation();
-  const progressCounts = Array.from({ length: 9 }, (_, index) => 8 + index);
+  const progressCounts = Array.from({ length: 10 }, (_, index) => 8 + index);
   const partial = verifyUserInstalledCatalog(
     acceptedCatalog(expectation, 12),
     expectation,
     progressCounts,
   );
   assert.equal(partial.appliedMigrationCount, 12);
-  assert.equal(partial.pendingMigrationCount, 4);
+  assert.equal(partial.pendingMigrationCount, 5);
 
   const complete = verifyUserInstalledCatalog(
-    acceptedCatalog(expectation, 16),
+    acceptedCatalog(expectation, 17),
     expectation,
     [USER_COMPLETE_AUTHORITY_MIGRATIONS.length],
   );
-  assert.equal(complete.appliedMigrationCount, 16);
+  assert.equal(complete.appliedMigrationCount, 17);
   assert.equal(complete.pendingMigrationCount, 0);
   assert.equal(complete.installedFunctionCount, 53);
 
@@ -234,7 +236,10 @@ test("requires an exact first-attempt main dispatch, protected owner URL, and fr
     USER_INSTALLED_CATALOG_INSPECT_EVIDENCE_PATH:
       `${RUNNER_TEMP}/user-installed-catalog-production-inspection-${COMMIT}-successor-progress.json`,
   });
-  assert.deepEqual(progress.acceptedAppliedCounts, [8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  assert.deepEqual(
+    progress.acceptedAppliedCounts,
+    [8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+  );
   assert.equal(progress.prefixMode, "successor-progress");
 
   assert.throws(() => parseUserInstalledCatalogInspectionConfig({

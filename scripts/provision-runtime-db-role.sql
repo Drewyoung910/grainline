@@ -3342,6 +3342,64 @@ REVOKE ALL ON TABLE public."UserEmailAddress"
 \endif
 \unset user_email_address_rls_active
 
+-- User keeps predecessor CRUD only while its policyless activation is off.
+-- Once ENABLE has run, every provisioning replay must re-close the broad
+-- table grant above. Accept the clean predecessor or policyless RLS with or
+-- without FORCE, and refuse policy-bearing or partial postures.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)::integer
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'User'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND policy_count = 0) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'User RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false) AS user_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_user_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_user_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :user_rls_active
+REVOKE ALL ON TABLE public."User"
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset user_rls_active
+
 -- Core Order keeps predecessor CRUD only while its own RLS is off. A later
 -- policyless ENABLE release revokes direct authority; reprovisioning must not
 -- reopen the bulk grant above after that boundary. This guard accepts either
