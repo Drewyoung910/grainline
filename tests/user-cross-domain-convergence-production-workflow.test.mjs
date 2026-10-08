@@ -83,6 +83,10 @@ test("cross-domain convergence applies only its checksum-pinned migration", () =
   assert.match(workflow, /test "\$\{#successors\[@\]\}" -eq 1/);
   assert.match(workflow, /test "\$\{successors\[0\]\}" = "\$enable"/);
   assert.ok(
+    workflow.indexOf("name: Verify owner connection boundary") <
+      workflow.indexOf("name: Hold reviewed later User ENABLE migration"),
+  );
+  assert.ok(
     workflow.indexOf("name: Hold reviewed later User ENABLE migration") <
       workflow.indexOf("run: npx prisma migrate deploy"),
   );
