@@ -209,8 +209,10 @@ export async function readUserRlsEnableCatalog(client) {
 
 export function verifyUserRlsEnableCatalog(catalog, expectedState) {
   assert.ok(
-    expectedState === "predecessor" || expectedState === "enabled",
-    "User RLS expected state must be predecessor or enabled",
+    expectedState === "predecessor"
+      || expectedState === "enabled"
+      || expectedState === "forced",
+    "User RLS expected state must be predecessor, enabled, or forced",
   );
   assert.deepEqual(catalog?.identity, {
     current_user: "neondb_owner",
@@ -236,8 +238,8 @@ export function verifyUserRlsEnableCatalog(catalog, expectedState) {
     true,
     "User convergence ledger was not accepted",
   );
-  assert.equal(enableRows.length, expectedState === "enabled" ? 1 : 0);
-  if (expectedState === "enabled") {
+  assert.equal(enableRows.length, expectedState === "predecessor" ? 0 : 1);
+  if (expectedState !== "predecessor") {
     assert.equal(
       exactApplied(enableRows[0], USER_RLS_ENABLE_MIGRATIONS.enable),
       true,
@@ -247,11 +249,12 @@ export function verifyUserRlsEnableCatalog(catalog, expectedState) {
   assert.equal(catalog.ledger.length, 1 + enableRows.length);
 
   const directEnabled = expectedState === "predecessor";
+  const forceEnabled = expectedState === "forced";
   assert.deepEqual(catalog.table, {
     table_name: "User",
     owner_name: "neondb_owner",
-    rls_enabled: expectedState === "enabled",
-    rls_forced: false,
+    rls_enabled: !directEnabled,
+    rls_forced: forceEnabled,
     policy_count: 0,
     runtime_select: directEnabled,
     runtime_insert: directEnabled,

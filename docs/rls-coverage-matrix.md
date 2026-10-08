@@ -1,19 +1,27 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-09-07
+Last updated: 2026-10-08
 
 ## Purpose And Scope
 
 This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Snapshot scope: 68 Prisma models.
 
-`UserEmailAddress`, `SavedSearch`, `Notification`, `Conversation`, `Message`,
+`User`, `UserEmailAddress`, `SavedSearch`, `Notification`, `Conversation`, `Message`,
 `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
-`OrderRefundReconciliation`, and `OrderPaymentEvent` have complete retained
-FORCE acceptance. These are all fifteen tables in this snapshot with
-completed production RLS acceptance.
+`OrderRefundReconciliation`, and `OrderPaymentEvent` have production RLS.
+The latter fifteen tables have complete retained FORCE acceptance. `User` is
+the sixteenth live table and is at the separately accepted policyless Phase A
+boundary: RLS is enabled, FORCE remains off, and ordinary runtime/PUBLIC direct
+table and column authority is zero.
+`User` Phase A was applied from exact main
+`c9b02dfa530d3ca86b0ea7efd6f2f8e9e3b5233c`, CI `37743008603`, convergence
+run `37747092440`, complete catalog inspection `37747428986`, and guarded
+ENABLE run `37747980060`. The exact catalog readback retained all 150 reviewed
+security-definer readers, zero policies, and zero direct grants. FORCE remains
+a separate unexecuted release boundary.
 `UserEmailAddress` closed its policyless FORCE release from exact main
 `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded
 Production run `37136042748`. The exact ledger and catalog readbacks retain
@@ -36,8 +44,9 @@ from exact main `5d3b402317084d9d2af6b8bdf52300a800eda0d8` after CI
 migration run `33445073482`, and a distinct actual pooled-runtime read-only
 postflight. Retain sanitized mode-`0600` evidence SHA-256
 `d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1`.
-Fifteen tables now have production RLS and all fifteen are FORCE-hardened.
-Every row except those fifteen is **not active RLS** and remains work to
+Sixteen tables now have production RLS; fifteen are FORCE-hardened and `User`
+has accepted policyless Phase A. Every row except those sixteen is **not active
+RLS** and remains work to
 design, prove, and promote.
 The target column is a planning disposition, not a claim that the control is
 implemented. Re-read the production catalog before making any current-state
@@ -229,7 +238,7 @@ completed alternative.
 
 | Prisma model | Target | Activation owner/group | Data and actors | Blocking prerequisite or next proof |
 |---|---|---|---|---|
-| `User` | `COMPATIBLE_PREPARATION_LIVE` | Identity and account core | Account identity, contact and shipping PII; self, public/relationship identity, staff, Clerk lifecycle and deletion jobs | All sixteen reviewed User authority migrations and all 53 functions (34 runtime, nineteen private) are installed in Production. Exact source `5e799402`, CI `37685953534`, catalog inspection `37690559386`, successor run `37690929680`, and candidate `dpl_3ZjFtSMXP5rxMxTpCEfx52xVXym9` are accepted on all five aliases. User RLS/FORCE remain off with zero policies and predecessor runtime CRUD. A final cross-domain audit found the invoker inbox still joined User and a private Case trigger relied implicitly on caller context; source-only migration `20261007160000_converge_user_cross_domain_authorities` keeps the inbox under Conversation/Message FORCE policies while routing labels through the conversation-bound User authority, and makes the byte-identical private trigger explicitly definer-mode. Focused policyless-ENABLE proof and the chronological function-mode guard pass. Remaining gates are merge/apply/readback of that compatibility migration, fresh retained-worker/direct-CRUD inspection, then one cohesive grant-retirement plus ENABLE/NO FORCE package and a later separate FORCE release. `ClerkWebhookEvent` and `AccountDeletionSideEffect` remain separate `ALTERNATIVE_REVIEW` groups. See `docs/user-cross-domain-authority-convergence.md`, `docs/user-indirect-access-pre-rls-audit.md`, `docs/user-service-ledger-separation-decision.md`, and the 2026-10-07 User final frontier checkpoint. |
+| `User` | `RLS_LIVE_PHASE_A` | Identity and account core | Account identity, contact and shipping PII; self, public/relationship identity, staff, Clerk lifecycle and deletion jobs | Policyless Phase A is accepted in Production from exact main `c9b02dfa530d3ca86b0ea7efd6f2f8e9e3b5233c`, CI `37743008603`, convergence `37747092440`, catalog inspection `37747428986`, and guarded ENABLE run `37747980060`. RLS is enabled with `NO FORCE`, zero policies, zero runtime/staff/PUBLIC direct table or column authority, and all 150 reviewed readers retained as security-definer functions. FORCE is a separate pending release; its source package must merge, pass exact-main CI, and receive a distinct guarded Production approval before activation. `ClerkWebhookEvent` and `AccountDeletionSideEffect` remain separate `ALTERNATIVE_REVIEW` groups. See `docs/user-rls-release.md`, `docs/user-cross-domain-authority-convergence.md`, `docs/user-indirect-access-pre-rls-audit.md`, and `docs/user-service-ledger-separation-decision.md`. |
 | `UserEmailAddress` | `RLS_LIVE_FORCE` | Identity and account core | Private email history; account owner, Clerk lifecycle, signed-unsubscribe replay defense, export and deletion | Policyless ENABLE plus FORCE and zero direct runtime/PUBLIC table authority are live from exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded run `37136042748`; six exact fixed operations remain. See `docs/user-email-address-rls-release.md` |
 | `SellerProfile` | `BLOCKED_DESIGN` | Seller public-private split | Public shop profile mixed with Stripe, ship-from address and moderation state; public, seller, staff, Stripe and cron | Split private operational fields or expose reviewed public views before restricting base rows |
 | `SellerFaq` | `BLOCKED_DESIGN` | Seller public-private split | Public shop content with seller-owned writes | Parent-seller write policy and public-read design tied to visible profiles |

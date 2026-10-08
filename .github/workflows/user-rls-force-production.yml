@@ -1,0 +1,292 @@
+name: User RLS FORCE Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      enable_run_id:
+        description: Accepted User RLS ENABLE Production run
+        required: true
+        type: string
+      confirmation:
+        description: Type force-reviewed-user-rls
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  force:
+    name: FORCE-harden policyless User RLS
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'force-reviewed-user-rls'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind FORCE to exact main, CI, and accepted ENABLE
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_ENABLE_RUN_ID: ${{ inputs.enable_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const enableValue = process.env.REVIEWED_ENABLE_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(enableValue ?? '')) {
+              throw new Error('User FORCE binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const enableRunId = Number(enableValue);
+            if (!Number.isSafeInteger(ciRunId) ||
+                !Number.isSafeInteger(enableRunId)) {
+              throw new Error('User FORCE run id is unsafe');
+            }
+            const [{data: main}, {data: ci}, {data: enable}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: enableRunId}),
+            ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.run_attempt !== 1 ||
+                ci.status !== 'completed' || ci.conclusion !== 'success') {
+              throw new Error('User FORCE main/CI readback drifted');
+            }
+            if (enable.name !== 'User RLS ENABLE Production' ||
+                enable.event !== 'workflow_dispatch' ||
+                enable.head_branch !== 'main' || enable.run_attempt !== 1 ||
+                enable.status !== 'completed' ||
+                enable.conclusion !== 'success') {
+              throw new Error('User FORCE ENABLE predecessor drifted');
+            }
+            const {data: comparison} = await github.rest.repos.compareCommitsWithBasehead({
+              ...context.repo,
+              basehead: `${enable.head_sha}...${sha}`,
+            });
+            if (!['ahead', 'identical'].includes(comparison.status) ||
+                comparison.merge_base_commit.sha !== enable.head_sha) {
+              throw new Error('User FORCE release does not descend from ENABLE');
+            }
+      - name: Verify exact policyless User FORCE release
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20261008020000_force_user_rls"
+          echo "d6e9e9afca641f527c4c120806c5af219d6b4f08936def91d16c348cff2480c3  prisma/migrations/20261008020000_force_user_rls/migration.sql" | sha256sum --check --status
+          node --test \
+            tests/user-rls-force-postgres-proof.test.mjs \
+            tests/user-rls-enable-production-inspect.test.mjs \
+            tests/user-rls-force-production-workflow.test.mjs \
+            tests/user-rls-force-release.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read exact ENABLE and FORCE ledger state
+        id: ledger
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync} from 'node:fs';
+          import pg from 'pg';
+          const predecessor = Object.freeze({
+            name: '20261008010000_enable_user_rls',
+            checksum: '628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f',
+          });
+          const candidate = Object.freeze({
+            name: '20261008020000_force_user_rls',
+            checksum: 'd6e9e9afca641f527c4c120806c5af219d6b4f08936def91d16c348cff2480c3',
+          });
+          const accepted = (row, expected) => row?.checksum === expected.checksum &&
+            row.finished_at && row.rolled_back_at === null &&
+            Number(row.applied_steps_count) === 1;
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const rows = (await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY started_at, id
+            `, [[predecessor.name, candidate.name]])).rows;
+            const predecessorRows = rows.filter((row) =>
+              row.migration_name === predecessor.name);
+            const candidateRows = rows.filter((row) =>
+              row.migration_name === candidate.name);
+            assert.equal(predecessorRows.length, 1);
+            assert.equal(accepted(predecessorRows[0], predecessor), true);
+            assert.ok(candidateRows.length === 0 ||
+              (candidateRows.length === 1 && accepted(candidateRows[0], candidate)));
+            assert.equal(rows.length, 1 + candidateRows.length);
+            const incomplete = await client.query(`
+              SELECT count(*)::integer AS count
+                FROM public._prisma_migrations
+               WHERE finished_at IS NULL AND rolled_back_at IS NULL
+            `);
+            assert.equal(incomplete.rows[0].count, 0);
+            const state = candidateRows.length === 1 ? 'forced' : 'enabled';
+            appendFileSync(process.env.GITHUB_OUTPUT, `state=${state}\n`);
+            await client.query('ROLLBACK');
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Capture exact read-only User preflight catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_USER_RLS_STATE: ${{ steps.ledger.outputs.state }}
+        run: |
+          umask 077
+          node scripts/user-rls-enable-production-inspect.mjs \
+            > "$RUNNER_TEMP/user-rls-force-preflight.json"
+      - name: Require every predecessor applied and no unrelated migration pending
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.ledger.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261008020000_force_user_rls
+          if [[ "$MIGRATION_STATE" == "enabled" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "forced" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected User FORCE state" >&2
+            exit 1
+          fi
+      - name: Apply only reviewed User FORCE
+        if: steps.ledger.outputs.state == 'enabled'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact FORCE ledger
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          umask 077
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20261008020000_force_user_rls';
+          const checksum = 'd6e9e9afca641f527c4c120806c5af219d6b4f08936def91d16c348cff2480c3';
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const rows = (await client.query(`
+              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [migration])).rows;
+            assert.equal(rows.length, 1);
+            assert.equal(rows[0].checksum, checksum);
+            assert.ok(rows[0].finished_at);
+            assert.equal(rows[0].rolled_back_at, null);
+            assert.equal(Number(rows[0].applied_steps_count), 1);
+            await client.query('ROLLBACK');
+            writeFileSync(
+              `${process.env.RUNNER_TEMP}/user-rls-force-ledger.json`,
+              `${JSON.stringify({status: 'passed', migration, checksum,
+                appliedStepsCount: 1}, null, 2)}\n`,
+              {mode: 0o600, flag: 'wx'},
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Re-converge runtime grants after User FORCE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=neondb_owner
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Capture exact read-only policyless zero-direct postflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_USER_RLS_STATE: forced
+        run: |
+          umask 077
+          node scripts/user-rls-enable-production-inspect.mjs \
+            > "$RUNNER_TEMP/user-rls-force-postflight.json"
+      - name: Audit runtime grants after User FORCE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=neondb_owner
+          npm run audit:db-grants -- --require-direct-url
+      - name: Verify final Prisma migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Preserve sanitized User FORCE evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: user-rls-force-production-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/user-rls-force-preflight.json
+            ${{ runner.temp }}/user-rls-force-ledger.json
+            ${{ runner.temp }}/user-rls-force-postflight.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

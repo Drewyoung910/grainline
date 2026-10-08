@@ -32,13 +32,13 @@ function catalog(state = "predecessor") {
     },
     ledger: [
       applied(USER_RLS_ENABLE_MIGRATIONS.convergence),
-      ...(state === "enabled" ? [applied(USER_RLS_ENABLE_MIGRATIONS.enable)] : []),
+      ...(state === "predecessor" ? [] : [applied(USER_RLS_ENABLE_MIGRATIONS.enable)]),
     ],
     table: {
       table_name: "User",
       owner_name: "neondb_owner",
       rls_enabled: !direct,
-      rls_forced: false,
+      rls_forced: state === "forced",
       policy_count: 0,
       runtime_select: direct,
       runtime_insert: direct,
@@ -114,6 +114,10 @@ test("accepts exact predecessor and policyless zero-direct ENABLE catalogs", () 
   const enabled = verifyUserRlsEnableCatalog(catalog("enabled"), "enabled");
   assert.equal(enabled.userRlsEnabled, true);
   assert.equal(enabled.runtimeDirectCrud, false);
+  const forced = verifyUserRlsEnableCatalog(catalog("forced"), "forced");
+  assert.equal(forced.userRlsEnabled, true);
+  assert.equal(forced.userRlsForced, true);
+  assert.equal(forced.runtimeDirectCrud, false);
 });
 
 test("rejects ledger, structure, cross-domain, reader-mode, and RLS drift", () => {
