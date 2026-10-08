@@ -13,17 +13,23 @@ import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
 import {
-  resolveClerkWebhookPrimaryEmail,
   shouldReserveClerkWelcomeEmail,
-  type ClerkWebhookEmailAddress,
 } from "@/lib/clerkWebhookEmail";
 import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
-import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
+import {
+  getCurrentClerkUserIdentity,
+  isClerkUserNotFoundError,
+  revokeClerkUserSessions,
+} from "@/lib/clerkUserLifecycle";
+import {
+  markClerkWebhookFailed,
+  markClerkWebhookProcessed,
+  reserveClerkWebhookEvent,
+} from "@/lib/clerkWebhookEvents";
 import { emailSuppressionAddressKeys } from "@/lib/emailSuppression";
-import { sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { sanitizeUserName } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedWebhookText as readBoundedText } from "@/lib/requestBody";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
-import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { prepareClerkSentinelReceipt } from "@/lib/clerkWebhookReceipt.mjs";
 import {
@@ -34,20 +40,11 @@ import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
   id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email_addresses: ClerkWebhookEmailAddress[];
-  primary_email_address_id?: string | null;
-  image_url: string | null;
 }
 
 const CLERK_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
 const CLERK_WEBHOOK_BODY_MAX_BYTES = 512 * 1024;
 const CLERK_WEBHOOK_RETRY_AFTER_SECONDS = Math.ceil(CLERK_WEBHOOK_RETRY_AFTER_MS / 1000);
-
-function isUniqueViolation(err: unknown) {
-  return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
-}
 
 async function enqueueWelcomeFallbackEmail(
   email: QueuedRenderedEmail,
@@ -61,61 +58,6 @@ async function enqueueWelcomeFallbackEmail(
     dedupKey,
     templateName: "welcome",
     userId,
-  });
-}
-
-async function reserveClerkWebhookEvent(svixId: string, type: string): Promise<"process" | "processed" | "in_progress"> {
-  const now = new Date();
-  try {
-    await prisma.clerkWebhookEvent.create({
-      data: { svixId, type, processingStartedAt: now },
-    });
-    return "process";
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-  }
-
-  const existing = await prisma.clerkWebhookEvent.findUnique({
-    where: { svixId },
-    select: { processedAt: true, processingStartedAt: true },
-  });
-  if (existing?.processedAt) return "processed";
-
-  const retryBefore = new Date(now.getTime() - CLERK_WEBHOOK_RETRY_AFTER_MS);
-  const claimed = await prisma.clerkWebhookEvent.updateMany({
-    where: {
-      svixId,
-      processedAt: null,
-      OR: [
-        { lastError: { not: null } },
-        { processingStartedAt: null },
-        { processingStartedAt: { lt: retryBefore } },
-      ],
-    },
-    data: {
-      type,
-      processingStartedAt: now,
-      lastError: null,
-    },
-  });
-
-  return claimed.count === 1 ? "process" : "in_progress";
-}
-
-async function markClerkWebhookProcessed(svixId: string) {
-  await prisma.clerkWebhookEvent.update({
-    where: { svixId },
-    data: { processedAt: new Date(), lastError: null },
-  });
-}
-
-async function markClerkWebhookFailed(svixId: string, err: unknown) {
-  await prisma.clerkWebhookEvent.updateMany({
-    where: { svixId, processedAt: null },
-    data: {
-      processingStartedAt: null,
-      lastError: truncateText(sanitizeEmailOutboxError(err), 2000),
-    },
   });
 }
 
@@ -183,23 +125,24 @@ export async function POST(req: Request) {
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
     );
   }
-  if (reservation === "processed") {
+  if (reservation.action === "processed") {
     const receipt = sentinelReceipt?.("duplicate");
     return NextResponse.json({ ok: true, ...(receipt ? { receipt } : {}) });
   }
-  if (reservation === "in_progress") {
+  if (reservation.action === "in_progress") {
     return NextResponse.json(
-      { ok: false, status: reservation },
+      { ok: false, status: reservation.action },
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
     );
   }
+  const claimGeneration = reservation.claimGeneration;
 
   try {
     if (event.type === "user.deleted") {
       const anonymized = await anonymizeUserAccountByClerkId(event.data.id);
       if ("inProgress" in anonymized && anonymized.inProgress) {
         const retryError = new Error("Clerk user.deleted local anonymization is already in progress");
-        await markClerkWebhookFailed(svixId, retryError).catch((markError) => {
+        await markClerkWebhookFailed(svixId, claimGeneration, retryError).catch((markError) => {
           Sentry.captureException(markError, {
             tags: { source: "clerk_webhook_mark_failed" },
             extra: { svixId, eventType: event.type },
@@ -221,52 +164,54 @@ export async function POST(req: Request) {
           { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
         );
       }
-      await markClerkWebhookProcessed(svixId);
+      await markClerkWebhookProcessed(svixId, claimGeneration);
       const receipt = "userAbsent" in anonymized && anonymized.userAbsent === true ? sentinelReceipt?.("absent-user") : null;
       return NextResponse.json({ ok: true, ...(receipt ? { receipt } : {}) });
     }
 
     if (event.type !== "user.created" && event.type !== "user.updated") {
-      await markClerkWebhookProcessed(svixId);
+      await markClerkWebhookProcessed(svixId, claimGeneration);
       return NextResponse.json({ ok: true });
     }
 
-    const {
-      id,
-      first_name,
-      last_name,
-      email_addresses,
-      primary_email_address_id,
-      image_url,
-    } = event.data;
-
-    const name = sanitizeUserName([first_name, last_name].filter(Boolean).join(" ")) || null;
-    const emailResolution = resolveClerkWebhookPrimaryEmail({
-      emailAddresses: email_addresses,
-      primaryEmailAddressId: primary_email_address_id,
-    });
-    const email = emailResolution.email;
-    if (emailResolution.reason !== "resolved") {
-      Sentry.captureMessage("Clerk webhook primary email unavailable", {
-        level: "warning",
-        tags: {
-          source: "clerk_webhook_primary_email",
-          reason: emailResolution.reason,
-          eventType: event.type,
-        },
-        extra: {
-          svixId,
-          clerkId: id,
-          primaryEmailAddressId: primary_email_address_id ?? null,
-          emailAddressCount: email_addresses?.length ?? 0,
-        },
-      });
-    }
+    const { id } = event.data;
 
     const existingLocalUser = await userClerkLifecycleState(prisma, id);
     if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
-      await markClerkWebhookProcessed(svixId);
+      await markClerkWebhookProcessed(svixId, claimGeneration);
       return NextResponse.json({ ok: true });
+    }
+
+    // Clerk does not guarantee webhook delivery order. Read current provider
+    // state after authenticating the event so an older signed payload cannot
+    // overwrite newer identity data.
+    let currentIdentity: Awaited<ReturnType<typeof getCurrentClerkUserIdentity>>;
+    try {
+      currentIdentity = await getCurrentClerkUserIdentity(id);
+    } catch (error) {
+      // A signed create/update event can arrive after the provider account was
+      // deleted. That is terminal for this event: do not resurrect the user or
+      // retain an unresolvable failed lease forever.
+      if (isClerkUserNotFoundError(error)) {
+        await markClerkWebhookProcessed(svixId, claimGeneration);
+        return NextResponse.json({ ok: true });
+      }
+      throw error;
+    }
+    const name = sanitizeUserName(
+      [currentIdentity.firstName, currentIdentity.lastName].filter(Boolean).join(" "),
+    ) || null;
+    const email = currentIdentity.primaryEmail;
+    if (currentIdentity.emailResolution !== "resolved") {
+      Sentry.captureMessage("Clerk current primary email unavailable", {
+        level: "warning",
+        tags: {
+          source: "clerk_webhook_primary_email",
+          reason: currentIdentity.emailResolution,
+          eventType: event.type,
+        },
+        extra: { svixId, clerkId: id },
+      });
     }
 
     if (event.type === "user.created") {
@@ -302,7 +247,7 @@ export async function POST(req: Request) {
     const user = await ensureUserByClerkId(id, {
       ...(email ? { email } : {}),
       name,
-      imageUrl: image_url ?? null,
+      imageUrl: currentIdentity.imageUrl,
     });
 
     if (
@@ -314,7 +259,7 @@ export async function POST(req: Request) {
     ) {
       const welcomeEmail = email;
       if (!welcomeEmail) {
-        await markClerkWebhookProcessed(svixId);
+        await markClerkWebhookProcessed(svixId, claimGeneration);
         return NextResponse.json({ ok: true });
       }
 
@@ -323,7 +268,7 @@ export async function POST(req: Request) {
         userId: user.id,
       });
       if (!reserved) {
-        await markClerkWebhookProcessed(svixId);
+        await markClerkWebhookProcessed(svixId, claimGeneration);
         return NextResponse.json({ ok: true });
       }
 
@@ -365,10 +310,10 @@ export async function POST(req: Request) {
       }
     }
 
-    await markClerkWebhookProcessed(svixId);
+    await markClerkWebhookProcessed(svixId, claimGeneration);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    await markClerkWebhookFailed(svixId, error).catch((markError) => {
+    await markClerkWebhookFailed(svixId, claimGeneration, error).catch((markError) => {
       Sentry.captureException(markError, {
         tags: { source: "clerk_webhook_mark_failed" },
         extra: { svixId, eventType: event.type },

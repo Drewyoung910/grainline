@@ -553,12 +553,12 @@ describe("account and privacy route observability guardrails", () => {
 
     assert.match(userDeletedBlock, /const anonymized = await anonymizeUserAccountByClerkId\(event\.data\.id\)/);
     assert.match(userDeletedBlock, /"inProgress" in anonymized && anonymized\.inProgress/);
-    assert.match(userDeletedBlock, /markClerkWebhookFailed\(svixId, retryError\)/);
+    assert.match(userDeletedBlock, /markClerkWebhookFailed\(svixId, claimGeneration, retryError\)/);
     assert.match(userDeletedBlock, /source: "clerk_webhook_user_deleted_in_progress"/);
     assert.match(userDeletedBlock, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(userDeletedBlock, /"Retry-After": String\(CLERK_WEBHOOK_RETRY_AFTER_SECONDS\)/);
     assert.ok(
-      userDeletedBlock.indexOf("markClerkWebhookFailed(svixId, retryError)") <
+      userDeletedBlock.indexOf("markClerkWebhookFailed(svixId, claimGeneration, retryError)") <
         userDeletedBlock.indexOf("return NextResponse.json"),
       "in-progress local anonymization should leave the Clerk event retryable before returning 503",
     );

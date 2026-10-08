@@ -1467,6 +1467,7 @@ model ResendWebhookEvent {
 model ClerkWebhookEvent {
   svixId              String    @id @db.VarChar(255)
   type                String    @db.VarChar(100)
+  claimGeneration     BigInt    @default(0)
   processingStartedAt DateTime?
   processedAt         DateTime?
   lastError           String?   @db.VarChar(2000)

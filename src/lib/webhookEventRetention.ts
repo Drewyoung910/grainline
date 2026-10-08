@@ -6,6 +6,7 @@ import {
   webhookEventRetentionCutoff,
 } from "@/lib/webhookEventRetentionState";
 import { pruneStripeWebhookEventServiceBatch } from "@/lib/stripeWebhookMaintenance";
+import { pruneClerkWebhookEventServiceBatch } from "@/lib/clerkWebhookMaintenance";
 
 type PruneResult = { count: number; complete: boolean };
 
@@ -26,7 +27,7 @@ export async function pruneWebhookEventRetention({
   const pruners = [
     () => pruneStripeWebhookEventServiceBatch(effectiveBatchSize),
     () => pruneResendWebhookEvents(cutoff, effectiveBatchSize),
-    () => pruneClerkWebhookEvents(cutoff, effectiveBatchSize),
+    () => pruneClerkWebhookEventServiceBatch(effectiveBatchSize),
   ];
 
   while (Date.now() < deadline) {
@@ -51,20 +52,6 @@ function pruneResendWebhookEvents(cutoff: Date, batchSize: number) {
     WHERE "svixId" IN (
       SELECT "svixId"
       FROM "ResendWebhookEvent"
-      WHERE "processedAt" IS NOT NULL
-        AND "processedAt" < ${cutoff}
-      ORDER BY "processedAt" ASC
-      LIMIT ${batchSize}
-    )
-  `;
-}
-
-function pruneClerkWebhookEvents(cutoff: Date, batchSize: number) {
-  return prisma.$executeRaw<number>`
-    DELETE FROM "ClerkWebhookEvent"
-    WHERE "svixId" IN (
-      SELECT "svixId"
-      FROM "ClerkWebhookEvent"
       WHERE "processedAt" IS NOT NULL
         AND "processedAt" < ${cutoff}
       ORDER BY "processedAt" ASC

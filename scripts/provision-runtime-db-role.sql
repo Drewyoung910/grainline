@@ -1393,6 +1393,56 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Clerk webhook generation-bound lease and maintenance operations are
+-- additive before their later table-RLS boundary. Keep PUBLIC closed, remove
+-- stale direct runtime ACLs, and grant only the exact reviewed signatures.
+WITH clerk_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_clerk_webhook_begin"(text, text)'),
+    ('public."grainline_clerk_webhook_complete"(text, bigint)'),
+    ('public."grainline_clerk_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_clerk_webhook_prune_batch"(integer)'),
+    ('public."grainline_clerk_webhook_health_summary"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM clerk_webhook_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH clerk_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_clerk_webhook_begin"(text, text)'),
+    ('public."grainline_clerk_webhook_complete"(text, bigint)'),
+    ('public."grainline_clerk_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_clerk_webhook_prune_batch"(integer)'),
+    ('public."grainline_clerk_webhook_health_summary"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM clerk_webhook_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH clerk_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_clerk_webhook_begin"(text, text)'),
+    ('public."grainline_clerk_webhook_complete"(text, bigint)'),
+    ('public."grainline_clerk_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_clerk_webhook_prune_batch"(integer)'),
+    ('public."grainline_clerk_webhook_health_summary"()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM clerk_webhook_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Stripe webhook generation-bound lease and maintenance operations are
 -- additive before their later table-RLS boundary. Keep PUBLIC closed, remove
 -- stale direct runtime ACLs, and grant only the exact reviewed signatures.

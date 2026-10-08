@@ -1,3 +1,5 @@
+import { clerkPlaceholderEmail } from "./clerkCurrentUserIdentity.ts";
+
 function normalizeSessionSecurityEmail(email: string | null | undefined): string | null {
   const normalized = email?.trim().toLowerCase();
   return normalized ? normalized : null;
@@ -20,6 +22,6 @@ export function shouldRevokeSessionsForClerkEmailChange({
   const next = normalizeSessionSecurityEmail(nextEmail);
   if (!previous || !next || previous === next) return false;
 
-  const placeholder = `${clerkUserId}@placeholder.invalid`.toLowerCase();
+  const placeholder = clerkPlaceholderEmail(clerkUserId).toLowerCase();
   return previous !== placeholder;
 }

@@ -66,6 +66,13 @@ CRUD with exact fixed operations, then prove direct runtime/PUBLIC denial,
 replay behavior, retention, observability, rollback, and installed catalog
 state. Provider signature verification remains in the application route.
 
+The 2026-10-08 isolated preparation completes the source audit and prepares five
+fixed operations, generation-fenced finalization, current-provider identity
+reads, bounded session revocation, and focused disposable PostgreSQL proof. See
+`docs/clerk-webhook-event-rls-audit.md`. This is compatible source only: the
+additive migration, application deployment, direct-grant retirement, ENABLE,
+and FORCE remain separate release boundaries.
+
 ### `AccountDeletionSideEffect`
 
 Complete a bounded audit of enqueue, claim, retry, completion, retention,

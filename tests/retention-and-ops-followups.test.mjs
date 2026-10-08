@@ -53,9 +53,10 @@ describe("retention and ops-health follow-ups", () => {
       /must be finite/,
     );
     assert.match(source, /pruneStripeWebhookEventServiceBatch\(effectiveBatchSize\)/);
+    assert.match(source, /pruneClerkWebhookEventServiceBatch\(effectiveBatchSize\)/);
     assert.doesNotMatch(source, /FROM "StripeWebhookEvent"/);
     assert.match(source, /FROM "ResendWebhookEvent"/);
-    assert.match(source, /FROM "ClerkWebhookEvent"/);
+    assert.doesNotMatch(source, /FROM "ClerkWebhookEvent"/);
     assert.match(source, /"processedAt" IS NOT NULL/);
     assert.doesNotMatch(source, /lastError/);
     const maintenanceMigration = readFileSync(
@@ -66,6 +67,12 @@ describe("retention and ops-health follow-ups", () => {
       maintenanceMigration,
       /event\.type <> 'checkout\.session\.stock_restored'/,
     );
+    const clerkAuthorityMigration = readFileSync(
+      "prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql",
+      "utf8",
+    );
+    assert.match(clerkAuthorityMigration, /interval '90 days'/);
+    assert.match(clerkAuthorityMigration, /event\."processedAt" IS NOT NULL/);
   });
 
   it("keeps listing-view cleanup time-budgeted inside guild metrics", () => {
