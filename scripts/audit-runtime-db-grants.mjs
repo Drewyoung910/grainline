@@ -82,6 +82,7 @@ export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
 export const CORE_ORDER_TABLE = "Order";
 export const ORDER_ITEM_TABLE = "OrderItem";
 export const ORDER_QUOTE_TABLE = "OrderShippingRateQuote";
+export const USER_TABLE = "User";
 export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
@@ -424,6 +425,17 @@ export function userEmailAddressRlsActivationExpected(inventory) {
     && !policies.has(USER_EMAIL_ADDRESS_TABLE);
 }
 
+export function userRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(USER_TABLE) && !policies.has(USER_TABLE);
+}
+
+export function userRlsForceExpected(inventory) {
+  return userRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(USER_TABLE);
+}
+
 export function userEmailAddressRlsForceExpected(inventory) {
   return userEmailAddressRlsActivationExpected(inventory)
     && (inventory?.rlsForceTables ?? []).includes(USER_EMAIL_ADDRESS_TABLE);
@@ -599,6 +611,7 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(userEmailAddressRlsActivationExpected(inventory)
       ? [USER_EMAIL_ADDRESS_TABLE]
       : []),
+    ...(userRlsActivationExpected(inventory) ? [USER_TABLE] : []),
   ];
 }
 
@@ -1517,6 +1530,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === USER_EMAIL_ADDRESS_TABLE
       && userEmailAddressRlsActivationExpected(inventory)
     )
+    || (
+      tableName === USER_TABLE
+      && userRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -1568,6 +1585,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? orderQuoteRlsForceExpected(inventory)
         : tableName === USER_EMAIL_ADDRESS_TABLE
           ? userEmailAddressRlsForceExpected(inventory)
+        : tableName === USER_TABLE
+          ? userRlsForceExpected(inventory)
         : true;
     if (!row) {
       issues.push(
@@ -2175,6 +2194,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       ORDER BY c.relname`,
     [inventory.tables],
   );
+  const policylessServiceRlsTables = new Set(
+    policylessServiceRlsTableNames(inventory),
+  );
   for (const row of rlsPolicyResult.rows) {
     const hasPolicies = Number(row.policy_count) > 0;
     const policyList = typeof row.policy_names === "string" && row.policy_names.length > 0
@@ -2190,48 +2212,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         `table ${row.table_name} has RLS policies (${policyList}) but ROW LEVEL SECURITY is not enabled`,
       );
     }
-    const policylessServiceTable =
-      POLICYLESS_SERVICE_RLS_TABLE_NAME_SET.has(row.table_name)
-      || (
-        CASE_ACTIVATION_TABLE_NAME_SET.has(row.table_name)
-        && caseRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === "DirectUpload"
-        && directUploadRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === STRIPE_WEBHOOK_EVENT_TABLE
-        && stripeWebhookEventRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === CHECKOUT_STOCK_RESERVATION_TABLE
-        && checkoutStockReservationRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === SELLER_PAYOUT_EVENT_TABLE
-        && sellerPayoutEventRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === ORDER_PAYMENT_EVENT_TABLE
-        && orderPaymentEventRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === CORE_ORDER_TABLE
-        && coreOrderRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === ORDER_ITEM_TABLE
-        && orderItemRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === ORDER_QUOTE_TABLE
-        && orderQuoteRlsActivationExpected(inventory)
-      )
-      || (
-        row.table_name === USER_EMAIL_ADDRESS_TABLE
-        && userEmailAddressRlsActivationExpected(inventory)
-      );
+    const policylessServiceTable = policylessServiceRlsTables.has(
+      row.table_name,
+    );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(
         `table ${row.table_name} has ROW LEVEL SECURITY enabled but zero policies`,

@@ -16,12 +16,18 @@ const migrations = [
   "20261006030000_prepare_user_relationship_authorities",
   "20261007160000_converge_user_cross_domain_authorities",
 ];
+const enableMigration = "20261008010000_enable_user_rls";
+const heldMigrations = [...migrations, enableMigration];
 const heldTests = [
   "user-staff-ban-authorities.test.mjs",
   "user-account-deletion-authorities.test.mjs",
   "user-relationship-authorities.test.mjs",
   "user-cross-domain-authority-convergence.test.mjs",
   "user-cross-domain-convergence-production-workflow.test.mjs",
+  "user-rls-enable-postgres-proof.test.mjs",
+  "user-rls-enable-production-inspect.test.mjs",
+  "user-rls-enable-production-workflow.test.mjs",
+  "user-rls-enable-release.test.mjs",
   "user-authority-catalog.test.mjs",
   "user-accumulated-access-ci.test.mjs",
   "order-ban-review-authority.test.mjs",
@@ -67,6 +73,7 @@ test("new User families are proved then isolated until historical prerequisites 
   const verify = "Verify accumulated User access source package";
   const isolate = "Isolate accumulated User access until its predecessors pass";
   const restore = "Restore accumulated User access source package";
+  const restoreEnable = "Restore User policyless ENABLE source package";
   const apply = "Apply accumulated User access in disposable PostgreSQL";
   const audit = "Audit runtime grants after accumulated User access";
   const converge = "Converge accumulated User and Order isolated staff grants";
@@ -81,6 +88,10 @@ test("new User families are proved then isolated until historical prerequisites 
   for (const migration of migrations) {
     for (const name of [isolate, restore, apply]) assert.ok(step(name).includes(migration), `${name}: ${migration}`);
   }
+  assert.ok(step(isolate).includes(enableMigration));
+  assert.ok(step(restoreEnable).includes(enableMigration));
+  assert.ok(workflow.indexOf(restoreEnable) > workflow.indexOf(restore));
+  assert.ok(workflow.indexOf(restoreEnable) < workflow.indexOf("Re-verify User policyless ENABLE source package"));
   for (const file of heldTests) {
     assert.ok(step(verify).includes(file), file);
     assert.ok(step(isolate).includes(file), file);
@@ -109,7 +120,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     cpSync(staffScript, path.join(root, staffScript));
     cpSync("prisma", path.join(root, "prisma"), { recursive: true });
     for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
-    const heldPaths = [...migrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
+    const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const trackedPaths = [...heldPaths, staffScript];
     const hash = (relative) => createHash("sha256").update(readFileSync(path.join(root, relative))).digest("hex");
     const original = trackedPaths.map(hash);
@@ -126,6 +137,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     mkdirSync(path.join(holding, "user-staff-admin-labels"));
     mkdirSync(path.join(holding, "user-follower-authority"));
     execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
+    assert.equal(existsSync(path.join(root, `prisma/migrations/${enableMigration}`)), false);
+    execFileSync("bash", ["-c", bashBody("Restore User policyless ENABLE source package")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }

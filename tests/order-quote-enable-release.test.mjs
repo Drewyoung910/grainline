@@ -7,6 +7,12 @@ import {
   ORDER_QUOTE_ENABLE_RELEASE,
   buildOrderQuoteRlsCandidate,
 } from "../scripts/build-order-quote-rls-candidate.mjs";
+import {
+  ORDER_QUOTE_TABLE,
+  orderQuoteRlsActivationExpected,
+  orderQuoteRlsForceExpected,
+  policylessServiceRlsTableNames,
+} from "../scripts/audit-runtime-db-grants.mjs";
 
 test("quote ENABLE is one pinned policyless table release", () => {
   const release = buildOrderQuoteRlsCandidate();
@@ -44,14 +50,15 @@ test("quote ENABLE rollback restores RLS-off without grants", () => {
 });
 
 test("global grant audit recognizes quote policyless ENABLE", () => {
-  const audit = fs.readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
-  assert.match(audit, /export const ORDER_QUOTE_TABLE = "OrderShippingRateQuote"/u);
-  assert.match(audit, /export function orderQuoteRlsActivationExpected/u);
-  assert.match(audit, /export function orderQuoteRlsForceExpected/u);
-  assert.match(
-    audit,
-    /row\.table_name === ORDER_QUOTE_TABLE[\s\S]{0,120}orderQuoteRlsActivationExpected\(inventory\)/u,
-  );
+  const inventory = {
+    rlsEnableTables: [ORDER_QUOTE_TABLE],
+    rlsForceTables: [],
+    rlsPolicyTables: [],
+  };
+  assert.equal(ORDER_QUOTE_TABLE, "OrderShippingRateQuote");
+  assert.equal(orderQuoteRlsActivationExpected(inventory), true);
+  assert.equal(orderQuoteRlsForceExpected(inventory), false);
+  assert.equal(policylessServiceRlsTableNames(inventory).includes(ORDER_QUOTE_TABLE), true);
 });
 
 test("CI isolates quote ENABLE and applies it after accepted OrderItem FORCE", () => {
