@@ -121,6 +121,10 @@ jobs:
             tests/user-cross-domain-authority-convergence.test.mjs \
             tests/user-cross-domain-convergence-production-inspect.test.mjs \
             tests/user-cross-domain-convergence-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Hold reviewed later User ENABLE migration
         shell: bash
         run: |
@@ -130,10 +134,6 @@ jobs:
           test -d "prisma/migrations/$migration"
           test ! -e "$holding"
           mv "prisma/migrations/$migration" "$holding"
-      - name: Verify owner connection boundary
-        run: node scripts/guard-production-migration-runner.mjs
-        env:
-          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Read exact predecessor and candidate ledger state
         id: ledger
         env:
