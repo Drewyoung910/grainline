@@ -5034,6 +5034,7 @@ jobs:
         run: node scripts/user-rls-enable-production-inspect.mjs > /dev/null
         env:
           EXPECTED_USER_RLS_STATE: forced
+          USER_RLS_INSPECTION_ALLOW_LOOPBACK_CI: "1"
       - name: Audit runtime grants after User policyless FORCE
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"

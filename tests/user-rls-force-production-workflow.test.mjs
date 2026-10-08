@@ -60,6 +60,11 @@ test("CI isolates User FORCE until the accepted ENABLE proof completes", () => {
   assert.ok(restoreEnable > broad && applyEnable > restoreEnable);
   assert.ok(restoreForce > applyEnable && applyForce > restoreForce);
   assert.ok(forceAudit > applyForce && forceAudit < build);
+  assert.match(
+    ciWorkflow,
+    /Verify User policyless FORCE catalog[\s\S]*USER_RLS_INSPECTION_ALLOW_LOOPBACK_CI: "1"/u,
+  );
+  assert.doesNotMatch(workflow, /USER_RLS_INSPECTION_ALLOW_LOOPBACK_CI/u);
   assert.equal((ciWorkflow.match(/20261008020000_force_user_rls/gu) ?? []).length, 5);
   for (const file of [
     "tests/user-rls-force-postgres-proof.test.mjs",
