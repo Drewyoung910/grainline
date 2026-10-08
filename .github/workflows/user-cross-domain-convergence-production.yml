@@ -1,0 +1,295 @@
+name: User Cross-Domain Convergence Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      authority_successors_run_id:
+        description: Accepted User Authority Successors Production run
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-user-cross-domain-convergence
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed User cross-domain convergence
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-user-cross-domain-convergence'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind convergence to exact main, CI, and authority predecessor
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_AUTHORITY_SUCCESSORS_RUN_ID: ${{ inputs.authority_successors_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const predecessorValue = process.env.REVIEWED_AUTHORITY_SUCCESSORS_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(predecessorValue ?? '')) {
+              throw new Error('User cross-domain convergence binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const predecessorRunId = Number(predecessorValue);
+            if (!Number.isSafeInteger(ciRunId) || !Number.isSafeInteger(predecessorRunId)) {
+              throw new Error('User cross-domain convergence run id is unsafe');
+            }
+            if (predecessorRunId !== 37690929680) {
+              throw new Error('User authority successors run id drifted');
+            }
+            const [{data: main}, {data: ci}, {data: predecessor}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: predecessorRunId}),
+            ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.run_attempt !== 1 ||
+                ci.status !== 'completed' || ci.conclusion !== 'success') {
+              throw new Error('User cross-domain main/CI readback drifted');
+            }
+            if (predecessor.name !== 'User Authority Successors Production' ||
+                predecessor.event !== 'workflow_dispatch' ||
+                predecessor.head_branch !== 'main' ||
+                predecessor.head_sha !== '5e7994028128a24127b9abec22cfe3cb1f5ff320' ||
+                predecessor.run_attempt !== 1 || predecessor.status !== 'completed' ||
+                predecessor.conclusion !== 'success') {
+              throw new Error('User authority successors predecessor drifted');
+            }
+      - name: Verify exact User cross-domain convergence source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "20261007160000_converge_user_cross_domain_authorities"
+          echo "fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302  prisma/migrations/20261007160000_converge_user_cross_domain_authorities/migration.sql" | sha256sum --check --status
+          node --test \
+            tests/user-cross-domain-authority-convergence.test.mjs \
+            tests/user-cross-domain-convergence-production-inspect.test.mjs \
+            tests/user-cross-domain-convergence-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read exact predecessor and candidate ledger state
+        id: ledger
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync} from 'node:fs';
+          import pg from 'pg';
+          const predecessor = Object.freeze({
+            name: '20261007150000_prepare_user_staff_admin_labels',
+            checksum: '7657e99e0e809471936e96d4ec0c5f84ad6afefabe5296ae3ffe7a021bfbe5d7',
+          });
+          const candidate = Object.freeze({
+            name: '20261007160000_converge_user_cross_domain_authorities',
+            checksum: 'fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302',
+          });
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const rows = (await client.query(`
+              SELECT migration_name, checksum, finished_at, rolled_back_at,
+                     applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+               ORDER BY started_at, id
+            `, [[predecessor.name, candidate.name]])).rows;
+            const accepted = (row, expected) => row?.checksum === expected.checksum &&
+              row.finished_at && row.rolled_back_at === null &&
+              Number(row.applied_steps_count) === 1;
+            const predecessorRows = rows.filter((row) =>
+              row.migration_name === predecessor.name);
+            assert.equal(predecessorRows.length, 1);
+            assert.equal(accepted(predecessorRows[0], predecessor), true);
+            const candidateRows = rows.filter((row) =>
+              row.migration_name === candidate.name);
+            assert.ok(candidateRows.length === 0 ||
+              (candidateRows.length === 1 && accepted(candidateRows[0], candidate)));
+            assert.equal(rows.length, 1 + candidateRows.length);
+            const incomplete = await client.query(`
+              SELECT count(*)::integer AS count
+                FROM public._prisma_migrations
+               WHERE finished_at IS NULL AND rolled_back_at IS NULL
+            `);
+            assert.equal(incomplete.rows[0].count, 0);
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${candidateRows.length === 1 ? 'applied' : 'pending'}\n`);
+            await client.query('ROLLBACK');
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Capture read-only convergence preflight catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_USER_CROSS_DOMAIN_STATE: ${{ steps.ledger.outputs.state }}
+        run: |
+          umask 077
+          node scripts/user-cross-domain-convergence-production-inspect.mjs \
+            > "$RUNNER_TEMP/user-cross-domain-convergence-pre.json"
+      - name: Require every predecessor applied and no unrelated migration pending
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.ledger.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261007160000_converge_user_cross_domain_authorities
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            holding="$RUNNER_TEMP/$migration"
+            mv "prisma/migrations/$migration" "$holding"
+            trap 'if [[ -d "$holding" ]]; then mv "$holding" "prisma/migrations/$migration"; fi' EXIT
+            npx prisma migrate status
+            mv "$holding" "prisma/migrations/$migration"
+            trap - EXIT
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            npx prisma migrate status
+          else
+            echo "Unexpected User cross-domain migration state" >&2
+            exit 1
+          fi
+      - name: Apply only reviewed User cross-domain convergence
+        if: steps.ledger.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact applied ledger
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20261007160000_converge_user_cross_domain_authorities';
+          const checksum = 'fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302';
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const rows = (await client.query(`
+              SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [migration])).rows;
+            assert.equal(rows.length, 1);
+            assert.equal(rows[0].checksum, checksum);
+            assert.ok(rows[0].finished_at);
+            assert.equal(rows[0].rolled_back_at, null);
+            assert.equal(Number(rows[0].applied_steps_count), 1);
+            await client.query('ROLLBACK');
+            writeFileSync(
+              `${process.env.RUNNER_TEMP}/user-cross-domain-convergence-ledger.json`,
+              `${JSON.stringify({status: 'passed', migration, checksum,
+                appliedStepsCount: 1}, null, 2)}\n`,
+              {mode: 0o600, flag: 'wx'},
+            );
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Capture and compare read-only convergence postflight catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          EXPECTED_USER_CROSS_DOMAIN_STATE: applied
+        run: |
+          set -euo pipefail
+          umask 077
+          node scripts/user-cross-domain-convergence-production-inspect.mjs \
+            > "$RUNNER_TEMP/user-cross-domain-convergence-post.json"
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const read = (name) => JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/${name}`, 'utf8'));
+          const pre = read('user-cross-domain-convergence-pre.json');
+          const post = read('user-cross-domain-convergence-post.json');
+          assert.deepEqual(post.catalog.identity, pre.catalog.identity);
+          assert.deepEqual(post.catalog.tables, pre.catalog.tables);
+          assert.deepEqual(post.catalog.policies, pre.catalog.policies);
+          assert.deepEqual(post.catalog.triggers, pre.catalog.triggers);
+          const participant = (value) => value.catalog.functions.find((entry) =>
+            entry.function_name === 'grainline_user_conversation_participants');
+          assert.deepEqual(participant(post), participant(pre));
+          assert.equal(post.result.expectedState, 'applied');
+          assert.equal(post.result.functionCount, 3);
+          assert.equal(post.result.tableCount, 4);
+          assert.equal(post.result.triggerCount, 1);
+          assert.equal(post.result.productionChanged, false);
+          assert.equal(post.result.rowDataRead, false);
+          NODE
+      - name: Audit runtime grants after User cross-domain convergence
+        env:
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants
+      - name: Verify final Prisma migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Preserve sanitized preflight, ledger, and postflight evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: user-cross-domain-convergence-production-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/user-cross-domain-convergence-pre.json
+            ${{ runner.temp }}/user-cross-domain-convergence-ledger.json
+            ${{ runner.temp }}/user-cross-domain-convergence-post.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

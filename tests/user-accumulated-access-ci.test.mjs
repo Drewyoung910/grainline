@@ -21,6 +21,7 @@ const heldTests = [
   "user-account-deletion-authorities.test.mjs",
   "user-relationship-authorities.test.mjs",
   "user-cross-domain-authority-convergence.test.mjs",
+  "user-cross-domain-convergence-production-workflow.test.mjs",
   "user-authority-catalog.test.mjs",
   "user-accumulated-access-ci.test.mjs",
   "order-ban-review-authority.test.mjs",
