@@ -11,6 +11,10 @@ const convergencePath =
   "prisma/migrations/20261007160000_converge_user_cross_domain_authorities/migration.sql";
 const claimContinuityPath =
   "prisma/migrations/20261002020000_correct_case_refund_provider_recovery_continuity/migration.sql";
+const historicalProofPaths = [
+  ".github/workflows/conversation-message-force-proof.yml",
+  ".github/workflows/notification-rls-ephemeral-proof.yml",
+];
 
 function functionDefinition(source, name) {
   const declaration = new RegExp(
@@ -258,6 +262,20 @@ test("all remaining cross-domain direct User readers finish as definer authoriti
     modes.get("grainline_conversation_inbox")?.directUserRead,
     false,
   );
+});
+
+test("historical FORCE proofs hold convergence until its prerequisites return", () => {
+  const migration = "20261007160000_converge_user_cross_domain_authorities";
+  const digest = "fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302";
+  for (const workflowPath of historicalProofPaths) {
+    const workflow = readFileSync(workflowPath, "utf8");
+    assert.match(workflow, new RegExp(`${digest} ${migration}`, "u"));
+    assert.equal(
+      (workflow.match(new RegExp(migration, "gu")) ?? []).length,
+      2,
+      `${workflowPath} must isolate and restore the convergence migration`,
+    );
+  }
 });
 
 test("policyless User ENABLE denies direct reads while the actor inbox keeps working", async () => {
