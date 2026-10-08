@@ -126,6 +126,7 @@ const {
   ORDER_QUOTE_TABLE,
   ORDER_PAYMENT_EVENT_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
+  USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
@@ -149,6 +150,8 @@ const {
   orderQuoteRlsForceExpected,
   userEmailAddressRlsActivationExpected,
   userEmailAddressRlsForceExpected,
+  userRlsActivationExpected,
+  userRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -1080,6 +1083,46 @@ describe("database grant inventory guardrails", () => {
     );
   });
 
+  it("accepts User policyless ENABLE and audits FORCE separately", () => {
+    const predecessor = {
+      tables: [USER_TABLE],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const enabled = { ...predecessor, rlsEnableTables: [USER_TABLE] };
+    const forced = { ...enabled, rlsForceTables: [USER_TABLE] };
+    assert.equal(userRlsActivationExpected(predecessor), false);
+    assert.equal(userRlsActivationExpected(enabled), true);
+    assert.equal(userRlsForceExpected(enabled), false);
+    assert.equal(userRlsForceExpected(forced), true);
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(USER_TABLE, predecessor),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(requiredRuntimeTablePrivileges(USER_TABLE, enabled), []);
+    assert.equal(policylessServiceRlsTableNames(predecessor).includes(USER_TABLE), false);
+    assert.equal(policylessServiceRlsTableNames(enabled).includes(USER_TABLE), true);
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues([{
+        table_name: USER_TABLE,
+        rls_enabled: true,
+        rls_forced: false,
+        policy_count: 0,
+      }], enabled),
+      [],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues([{
+        table_name: USER_TABLE,
+        rls_enabled: true,
+        rls_forced: false,
+        policy_count: 0,
+      }], forced),
+      ["service-only table User must have FORCE ROW LEVEL SECURITY enabled"],
+    );
+  });
+
   it("pins policyless service ledgers to ENABLE plus FORCE", () => {
     const inventory = {
       tables: [
@@ -1965,6 +2008,7 @@ describe("database grant inventory guardrails", () => {
         + (partialRefundFulfillmentMigrationPresent ? 1 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
+        + (userRlsActivationExpected(inventory) ? 1 : 0)
         + (userEmailAddressRlsActivationExpected(inventory) ? 1 : 0)
         + (userEmailAddressAuthorityPrepared ? 4 : 0)
         + userAuthorityFunctions.length
@@ -2331,6 +2375,7 @@ describe("database grant inventory guardrails", () => {
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
+        ...(userRlsActivationExpected(inventory) ? [USER_TABLE] : []),
         ...(userEmailAddressRlsActivationExpected(inventory)
           ? ["UserEmailAddress"]
           : []),
@@ -2365,6 +2410,7 @@ describe("database grant inventory guardrails", () => {
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
+        ...(userRlsForceExpected(inventory) ? [USER_TABLE] : []),
         ...(userEmailAddressRlsForceExpected(inventory)
           ? ["UserEmailAddress"]
           : []),

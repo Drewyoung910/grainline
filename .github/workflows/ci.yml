@@ -225,6 +225,10 @@ jobs:
           tests/user-relationship-authorities.test.mjs
           tests/user-cross-domain-authority-convergence.test.mjs
           tests/user-cross-domain-convergence-production-workflow.test.mjs
+          tests/user-rls-enable-postgres-proof.test.mjs
+          tests/user-rls-enable-production-inspect.test.mjs
+          tests/user-rls-enable-production-workflow.test.mjs
+          tests/user-rls-enable-release.test.mjs
           tests/user-authority-catalog.test.mjs
           tests/user-accumulated-access-ci.test.mjs
           tests/user-indirect-access-inventory.test.mjs
@@ -255,7 +259,8 @@ jobs:
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
             20261006030000_prepare_user_relationship_authorities \
-            20261007160000_converge_user_cross_domain_authorities
+            20261007160000_converge_user_cross_domain_authorities \
+            20261008010000_enable_user_rls
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -265,6 +270,10 @@ jobs:
             tests/user-relationship-authorities.test.mjs \
             tests/user-cross-domain-authority-convergence.test.mjs \
             tests/user-cross-domain-convergence-production-workflow.test.mjs \
+            tests/user-rls-enable-postgres-proof.test.mjs \
+            tests/user-rls-enable-production-inspect.test.mjs \
+            tests/user-rls-enable-production-workflow.test.mjs \
+            tests/user-rls-enable-release.test.mjs \
             tests/user-authority-catalog.test.mjs \
             tests/user-accumulated-access-ci.test.mjs \
             tests/order-ban-review-authority.test.mjs \
@@ -4519,7 +4528,7 @@ jobs:
             "$historical:tests/user-authority-catalog.test.mjs" \
             > tests/user-authority-catalog.test.mjs
           test "$(git hash-object tests/user-authority-catalog.test.mjs)" = "ac17d95ad53501515550b2bb967eb5a149f094d9"
-          rmdir "$holding"
+          test -d "$holding/20261008010000_enable_user_rls"
       - name: Apply accumulated User access in disposable PostgreSQL
         shell: bash
         run: |
@@ -4860,5 +4869,23 @@ jobs:
           SQL
       - name: Audit runtime grants after User staff admin-label authority
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore User policyless ENABLE source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-accumulated-access"
+          mv \
+            "$holding/20261008010000_enable_user_rls" \
+            prisma/migrations/20261008010000_enable_user_rls
+          rmdir "$holding"
+      - name: Re-verify User policyless ENABLE source package
+        run: >-
+          node --test
+          tests/db-grant-inventory.test.mjs
+          tests/user-cross-domain-authority-convergence.test.mjs
+          tests/user-rls-enable-postgres-proof.test.mjs
+          tests/user-rls-enable-production-inspect.test.mjs
+          tests/user-rls-enable-production-workflow.test.mjs
+          tests/user-rls-enable-release.test.mjs
       - name: Production build
         run: npm run build

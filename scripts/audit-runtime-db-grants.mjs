@@ -82,6 +82,7 @@ export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
 export const CORE_ORDER_TABLE = "Order";
 export const ORDER_ITEM_TABLE = "OrderItem";
 export const ORDER_QUOTE_TABLE = "OrderShippingRateQuote";
+export const USER_TABLE = "User";
 export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
@@ -424,6 +425,17 @@ export function userEmailAddressRlsActivationExpected(inventory) {
     && !policies.has(USER_EMAIL_ADDRESS_TABLE);
 }
 
+export function userRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(USER_TABLE) && !policies.has(USER_TABLE);
+}
+
+export function userRlsForceExpected(inventory) {
+  return userRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(USER_TABLE);
+}
+
 export function userEmailAddressRlsForceExpected(inventory) {
   return userEmailAddressRlsActivationExpected(inventory)
     && (inventory?.rlsForceTables ?? []).includes(USER_EMAIL_ADDRESS_TABLE);
@@ -599,6 +611,7 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(userEmailAddressRlsActivationExpected(inventory)
       ? [USER_EMAIL_ADDRESS_TABLE]
       : []),
+    ...(userRlsActivationExpected(inventory) ? [USER_TABLE] : []),
   ];
 }
 
@@ -1517,6 +1530,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === USER_EMAIL_ADDRESS_TABLE
       && userEmailAddressRlsActivationExpected(inventory)
     )
+    || (
+      tableName === USER_TABLE
+      && userRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -1568,6 +1585,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? orderQuoteRlsForceExpected(inventory)
         : tableName === USER_EMAIL_ADDRESS_TABLE
           ? userEmailAddressRlsForceExpected(inventory)
+        : tableName === USER_TABLE
+          ? userRlsForceExpected(inventory)
         : true;
     if (!row) {
       issues.push(
