@@ -143,6 +143,7 @@ test("admits the disposable CI identity only on the exact loopback target", () =
   value.identity.current_user = "ci";
   value.identity.session_user = "ci";
   value.identity.database_name = "grainline_ci";
+  value.table.owner_name = "ci";
   const directUrl = "postgresql://ci:secret@localhost:5432/grainline_ci?sslmode=disable";
   const expectedIdentity = resolveUserRlsInspectionIdentity(directUrl, true);
   assert.equal(

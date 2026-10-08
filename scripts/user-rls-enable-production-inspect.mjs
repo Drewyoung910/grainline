@@ -12,6 +12,7 @@ const PRODUCTION_INSPECTION_IDENTITY = Object.freeze({
   current_user: "neondb_owner",
   session_user: "neondb_owner",
   database_name: "neondb",
+  owner_name: "neondb_owner",
 });
 
 export function resolveUserRlsInspectionIdentity(directUrl, allowLoopbackCi = false) {
@@ -43,6 +44,7 @@ export function resolveUserRlsInspectionIdentity(directUrl, allowLoopbackCi = fa
     current_user: "ci",
     session_user: "ci",
     database_name: "grainline_ci",
+    owner_name: "ci",
   });
 }
 
@@ -256,8 +258,9 @@ export function verifyUserRlsEnableCatalog(
       || expectedState === "forced",
     "User RLS expected state must be predecessor, enabled, or forced",
   );
+  const { owner_name: expectedOwnerName, ...expectedConnectionIdentity } = expectedIdentity;
   assert.deepEqual(catalog?.identity, {
-    ...expectedIdentity,
+    ...expectedConnectionIdentity,
     read_only: "on",
     isolation: "repeatable read",
     owner_bypass_rls: true,
@@ -292,7 +295,7 @@ export function verifyUserRlsEnableCatalog(
   const forceEnabled = expectedState === "forced";
   assert.deepEqual(catalog.table, {
     table_name: "User",
-    owner_name: "neondb_owner",
+    owner_name: expectedOwnerName,
     rls_enabled: !directEnabled,
     rls_forced: forceEnabled,
     policy_count: 0,
