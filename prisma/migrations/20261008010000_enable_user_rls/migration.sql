@@ -179,6 +179,7 @@ BEGIN
       ('20261007030000_prepare_user_block_email_authorities', 'a9e1697ba9a572d07d0f5311d1a380b55c5883253181962a71ef5383ff7e1c00'),
       ('20261007040000_prepare_user_follower_authorities', 'ed12711d7729a94be0d75f5c3d80ccbfac27280d26f207fcf7ca44ecd733622f'),
       ('20261007150000_prepare_user_staff_admin_labels', '7657e99e0e809471936e96d4ec0c5f84ad6afefabe5296ae3ffe7a021bfbe5d7'),
+      ('20261007155000_correct_user_clerk_identity_placeholder', 'b1968d60b24e3472c6ea7a780322f23b30a26804a93531ea9fc66b344cc69418'),
       ('20261007160000_converge_user_cross_domain_authorities', 'fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302')
   )
   SELECT pg_catalog.count(*)::integer
@@ -190,7 +191,7 @@ BEGIN
      AND migration.finished_at IS NOT NULL
      AND migration.rolled_back_at IS NULL
      AND migration.applied_steps_count = 1;
-  IF accepted_migration_count <> 17 THEN
+  IF accepted_migration_count <> 18 THEN
     RAISE EXCEPTION 'User ENABLE migration ledger drifted';
   END IF;
 
@@ -205,7 +206,6 @@ BEGIN
     VALUES
       ('public.grainline_user_clerk_account(text)', '82d69a02d7c1add90bf2474a6f6c2ab3', 'plpgsql', 's', 'u', 'grainline_app_runtime'),
       ('public.grainline_user_clerk_gate(text)', '6b9a2c2cf280ef59c0a19d4ef76b39fb', 'plpgsql', 's', 'u', 'grainline_app_runtime'),
-      ('public.grainline_user_clerk_identity_ensure(text, text, text, boolean, text, boolean, text, boolean)', 'ae97ad8f5485f8b8bf10269534e1d493', 'plpgsql', 'v', 'u', 'grainline_app_runtime'),
       ('public.grainline_user_clerk_actor(text)', 'b069f2651f5d6b2913608cc51de00a5e', 'plpgsql', 's', 'u', 'grainline_app_runtime'),
       ('public.grainline_user_clerk_commission_context(text)', '91b15e41c561b38feac917db5ac3d45b', 'plpgsql', 's', 'u', 'grainline_app_runtime'),
       ('public.grainline_user_clerk_lifecycle_state(text)', '31a91940a1c1d5da3aa18adb49f77a86', 'plpgsql', 's', 'u', 'grainline_app_runtime'),
@@ -255,7 +255,8 @@ BEGIN
       ('public.grainline_user_follower_notification_page(text, text, integer)', '471b1caf9907d6d370ec1cb8ea5aa718', 'plpgsql', 's', 'u', 'grainline_app_runtime'),
       ('public.grainline_user_owner_broadcast_follower_page(text, text, integer, boolean)', '0986f9362622c2c1e4caaf27ca083308', 'plpgsql', 's', 'u', 'grainline_app_runtime'),
       ('public.grainline_user_public_listing_favorite_counts(text[])', 'b5eef25129ac0ff0397865758a5e980e', 'plpgsql', 's', 'u', 'grainline_app_runtime'),
-      ('public.grainline_user_staff_admin_labels(text, text[])', '8643a8899833946d6c8019f9da7e7d9b', 'plpgsql', 's', 'u', 'grainline_staff_read_runtime')
+      ('public.grainline_user_staff_admin_labels(text, text[])', '8643a8899833946d6c8019f9da7e7d9b', 'plpgsql', 's', 'u', 'grainline_staff_read_runtime'),
+      ('public.grainline_user_clerk_identity_ensure(text, text, text, boolean, text, boolean, text, boolean)', 'ddbd40600df8fe58f00661a900e44833', 'plpgsql', 'v', 'u', 'grainline_app_runtime')
   )
   SELECT pg_catalog.count(*)::integer
     INTO accepted_function_count
@@ -316,7 +317,6 @@ BEGIN
     VALUES
       ('public.grainline_user_clerk_account(text)'),
       ('public.grainline_user_clerk_gate(text)'),
-      ('public.grainline_user_clerk_identity_ensure(text, text, text, boolean, text, boolean, text, boolean)'),
       ('public.grainline_user_clerk_actor(text)'),
       ('public.grainline_user_clerk_commission_context(text)'),
       ('public.grainline_user_clerk_lifecycle_state(text)'),
@@ -366,7 +366,8 @@ BEGIN
       ('public.grainline_user_follower_notification_page(text, text, integer)'),
       ('public.grainline_user_owner_broadcast_follower_page(text, text, integer, boolean)'),
       ('public.grainline_user_public_listing_favorite_counts(text[])'),
-      ('public.grainline_user_staff_admin_labels(text, text[])')
+      ('public.grainline_user_staff_admin_labels(text, text[])'),
+      ('public.grainline_user_clerk_identity_ensure(text, text, text, boolean, text, boolean, text, boolean)')
   )
   SELECT pg_catalog.count(*)::integer
     INTO actual_reviewed_function_count

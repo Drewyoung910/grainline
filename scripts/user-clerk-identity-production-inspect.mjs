@@ -25,7 +25,7 @@ export const USER_CLERK_IDENTITY_FUNCTIONS = Object.freeze([
     name: "grainline_user_clerk_identity_ensure",
     identityArguments:
       "p_new_user_id text, p_clerk_id text, p_email text, p_update_email boolean, p_name text, p_update_name boolean, p_image_url text, p_update_image boolean",
-    sourceMd5: "ae97ad8f5485f8b8bf10269534e1d493",
+    sourceMd5: "ddbd40600df8fe58f00661a900e44833",
     volatility: "v",
   }),
 ]);

@@ -11,7 +11,7 @@ const {
 
 const userClerkIdentityMigrationPath =
   process.env.USER_CLERK_IDENTITY_MIGRATION_PATH
-  ?? "prisma/migrations/20261003100000_prepare_user_clerk_identity_authority/migration.sql";
+  ?? "prisma/migrations/20261007155000_correct_user_clerk_identity_placeholder/migration.sql";
 
 function source(path) {
   return readFileSync(path, "utf8");

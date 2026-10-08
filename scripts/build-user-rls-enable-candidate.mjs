@@ -227,7 +227,7 @@ ${ledgerRows}
      AND migration.finished_at IS NOT NULL
      AND migration.rolled_back_at IS NULL
      AND migration.applied_steps_count = 1;
-  IF accepted_migration_count <> 17 THEN
+  IF accepted_migration_count <> 18 THEN
     RAISE EXCEPTION 'User ENABLE migration ledger drifted';
   END IF;
 

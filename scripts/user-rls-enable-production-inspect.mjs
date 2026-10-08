@@ -15,7 +15,7 @@ export const USER_RLS_ENABLE_MIGRATIONS = Object.freeze({
   }),
   enable: Object.freeze({
     name: "20261008010000_enable_user_rls",
-    checksum: "19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff",
+    checksum: "628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f",
   }),
 });
 

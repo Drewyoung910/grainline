@@ -1,5 +1,46 @@
 # User identity/account RLS audit
 
+## Release state update — 2026-10-08
+
+The source program has advanced beyond the historical audit state recorded
+below. At base main `c517536b808246f4db43853ed4042390198bb139`, all 53 reviewed
+User authority functions and the policyless zero-direct ENABLE candidate exist,
+but the User convergence migration, ENABLE, and FORCE are not applied in
+Production.
+
+Three pre-activation defects were independently confirmed and corrected in the
+isolated branch `codex/user-pre-enable-findings-20261008`:
+
+- historical Notification and Conversation/Message proof workflows now isolate
+  the complete User successor set, including the User ENABLE migration;
+- runtime-role provisioning now re-closes direct `User` CRUD after policyless
+  ENABLE, and both CI and the Production ENABLE workflow replay provisioning
+  before accepting the postflight; and
+- mixed-case Clerk IDs now receive normalized placeholder emails without
+  collapsing case-distinct identities. The correction preserves the historical
+  placeholder for lowercase IDs and uses a bounded lowercase prefix plus the
+  hash of the original mixed-case ID otherwise.
+
+The corrective migration is
+`20261007155000_correct_user_clerk_identity_placeholder`, SHA-256
+`b1968d60b24e3472c6ea7a780322f23b30a26804a93531ea9fc66b344cc69418`.
+It is packaged with the existing cross-domain convergence workflow, which is
+restart-safe for a fresh run, a correction-only partial run, or an already
+applied package. The regenerated User ENABLE artifact has SHA-256
+`628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f`.
+
+Current decision: **GO for source integration after exact-head CI; NO-GO for
+Production SQL or User RLS activation until that source is merged, merged-main
+CI is green, and a newly bound Production dispatch is explicitly approved.**
+FORCE remains a separate later release boundary.
+
+Two independently confirmed lower-priority findings remain outside this
+activation patch: unsigned Stripe Connect requests can create telemetry noise
+before signature verification, and the provider-deletion authority can
+overwrite an existing staff-ban reason. Neither changes the User RLS database
+access boundary; they remain follow-up fixes rather than hidden activation
+work.
+
 ## Scope and exact source
 
 This audit covers the Prisma `User` model and every application path that can
@@ -13,7 +54,7 @@ main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded
 Production run `37136042748`. It retains zero direct runtime/PUBLIC table CRUD
 and six fixed operations.
 
-## Current decision
+## Historical decision at audit start
 
 `User` remains **NO-GO for RLS migration, grant revocation, deployment, or
 Production activation**. One row combines:

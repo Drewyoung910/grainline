@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { USER_AUTHORITY_GROUPS, USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES } from "../scripts/user-authority-catalog.mjs";
+import { USER_AUTHORITY_FUNCTIONS, USER_AUTHORITY_GROUPS, USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES } from "../scripts/user-authority-catalog.mjs";
 import { deriveGrantInventory, RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
 
-const functions = USER_AUTHORITY_GROUPS.flatMap((group) => group.functions);
+const functions = USER_AUTHORITY_FUNCTIONS;
 
 test("the explicit User catalog matches exact migration signatures and private partition", () => {
   assert.equal(functions.length, 53);

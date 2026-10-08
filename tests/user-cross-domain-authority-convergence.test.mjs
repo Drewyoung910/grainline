@@ -264,17 +264,22 @@ test("all remaining cross-domain direct User readers finish as definer authoriti
   );
 });
 
-test("historical FORCE proofs hold convergence until its prerequisites return", () => {
-  const migration = "20261007160000_converge_user_cross_domain_authorities";
-  const digest = "fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302";
+test("historical FORCE proofs hold all User pre-enable successors together", () => {
+  const held = [
+    ["b1968d60b24e3472c6ea7a780322f23b30a26804a93531ea9fc66b344cc69418", "20261007155000_correct_user_clerk_identity_placeholder"],
+    ["fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302", "20261007160000_converge_user_cross_domain_authorities"],
+    ["628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f", "20261008010000_enable_user_rls"],
+  ];
   for (const workflowPath of historicalProofPaths) {
     const workflow = readFileSync(workflowPath, "utf8");
-    assert.match(workflow, new RegExp(`${digest} ${migration}`, "u"));
-    assert.equal(
-      (workflow.match(new RegExp(migration, "gu")) ?? []).length,
-      2,
-      `${workflowPath} must isolate and restore the convergence migration`,
-    );
+    for (const [digest, migration] of held) {
+      assert.match(workflow, new RegExp(`${digest} ${migration}`, "u"));
+      assert.equal(
+        (workflow.match(new RegExp(migration, "gu")) ?? []).length,
+        2,
+        `${workflowPath} must isolate and restore ${migration}`,
+      );
+    }
   }
 });
 

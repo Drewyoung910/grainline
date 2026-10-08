@@ -23,6 +23,7 @@ import {
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
 import {
+  USER_AUTHORITY_FUNCTIONS,
   USER_AUTHORITY_GROUPS,
   USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES,
 } from "./user-authority-catalog.mjs";
@@ -176,7 +177,11 @@ export function buildUserInstalledCatalogExpectation(root = process.cwd()) {
   });
   return Object.freeze({
     groups: Object.freeze(groups),
-    functions: Object.freeze(groups.flatMap((group) => group.functions)),
+    functions: Object.freeze(USER_AUTHORITY_FUNCTIONS.map((entry) => {
+      const group = [...groups].reverse().find(({ functions }) =>
+        functions.some(({ identity }) => identity === entry.identity));
+      return group.functions.find(({ identity }) => identity === entry.identity);
+    })),
   });
 }
 
@@ -497,8 +502,9 @@ export function verifyUserInstalledCatalog(
     "Production User migration prefix is not contiguous",
   );
 
-  const expectedFunctions = appliedGroups
+  const expectedFunctions = [...new Map(appliedGroups
     .flatMap(({ functions }) => functions)
+    .map((entry) => [entry.identity, entry])).values()]
     .sort((left, right) => left.identity.localeCompare(right.identity));
   const actualFunctions = [...(catalog?.functions ?? [])]
     .sort((left, right) =>

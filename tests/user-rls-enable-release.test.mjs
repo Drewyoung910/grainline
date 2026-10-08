@@ -20,7 +20,7 @@ test("User ENABLE migration is generated exactly from the reviewed authority cat
     migrationPath:
       "prisma/migrations/20261008010000_enable_user_rls/migration.sql",
     migrationSha256:
-      "19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff",
+      "628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f",
     functionCount: 53,
     runtimeFunctionCount: 34,
     staffFunctionCount: 9,
@@ -70,7 +70,7 @@ test("preflight pins all authorities, convergence, roles, ACLs, indexes, trigger
     assert.match(migration, new RegExp(group.migration, "u"));
     assert.match(migration, new RegExp(group.checksum, "u"));
   }
-  assert.match(migration, /accepted_migration_count <> 17/u);
+  assert.match(migration, /accepted_migration_count <> 18/u);
   assert.match(migration, /accepted_function_count <> 53/u);
   assert.match(migration, /unsafe_direct_user_reader_count <> 0/u);
   assert.match(migration, /4b2884765f4ca0db432c4678f98b1bdd/u);

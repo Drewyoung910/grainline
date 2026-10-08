@@ -86,12 +86,25 @@ const groups = [
   ["20261007150000_prepare_user_staff_admin_labels", [
     ["grainline_user_staff_admin_labels(text, text[])", false],
   ]],
+  ["20261007155000_correct_user_clerk_identity_placeholder", [
+    ["grainline_user_clerk_identity_ensure(text, text, text, boolean, text, boolean, text, boolean)", true],
+  ]],
 ];
 
 export const USER_AUTHORITY_GROUPS = Object.freeze(groups.map(([migration, entries]) => Object.freeze({
   migration,
   functions: Object.freeze(entries.map(([identity, runtimeExecute]) => Object.freeze({ identity, name: identity.slice(0, identity.indexOf("(")), runtimeExecute }))),
 })));
+
+// Later corrective migrations may replace an earlier function definition.
+// The installed catalog retains every migration group for ledger verification,
+// while this final-state view keeps the last reviewed contract per identity.
+const reviewedFunctionDefinitions = USER_AUTHORITY_GROUPS
+  .flatMap(({ functions }) => functions);
+export const USER_AUTHORITY_FUNCTIONS = Object.freeze(
+  reviewedFunctionDefinitions.filter((entry, index, entries) =>
+    entries.findLastIndex(({ identity }) => identity === entry.identity) === index),
+);
 
 export const USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES = Object.freeze(
   USER_AUTHORITY_GROUPS

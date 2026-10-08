@@ -14,16 +14,19 @@ const migrations = [
   "20261006010000_prepare_user_staff_ban_authorities",
   "20261006020000_prepare_user_account_deletion_authorities",
   "20261006030000_prepare_user_relationship_authorities",
+  "20261007155000_correct_user_clerk_identity_placeholder",
   "20261007160000_converge_user_cross_domain_authorities",
 ];
 const enableMigration = "20261008010000_enable_user_rls";
 const heldMigrations = [...migrations, enableMigration];
 const heldTests = [
+  "db-grant-inventory.test.mjs",
   "user-staff-ban-authorities.test.mjs",
   "user-account-deletion-authorities.test.mjs",
   "user-relationship-authorities.test.mjs",
   "user-cross-domain-authority-convergence.test.mjs",
   "user-cross-domain-convergence-production-workflow.test.mjs",
+  "email-normalization-followups.test.mjs",
   "user-rls-enable-postgres-proof.test.mjs",
   "user-rls-enable-production-inspect.test.mjs",
   "user-rls-enable-production-workflow.test.mjs",
@@ -38,6 +41,11 @@ const heldTests = [
   "round9-account-deletion-pii-guardrails.test.mjs",
   "conversation-message-pre-rls-audit.test.mjs",
 ];
+const packageOwnedTests = [
+  "user-clerk-identity-authority-postgres.test.mjs",
+  "user-email-address-history.test.mjs",
+];
+const admittedTests = [...heldTests, ...packageOwnedTests];
 const staffScript = "scripts/provision-order-staff-read-role.sql";
 const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
 const historicalStaffBlob = "46fd8e1bfa086cb097adf194eb193389122ee9d9";
@@ -61,7 +69,7 @@ test("every test with a literal held-migration dependency is admitted before rep
     function visit(node) {
       if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
         && migrations.some((migration) => node.text.startsWith("prisma/migrations/" + migration + "/"))
-        && !heldTests.includes(file)) omitted.push(file);
+        && !admittedTests.includes(file)) omitted.push(file);
       ts.forEachChild(node, visit);
     }
     visit(parsed);
@@ -108,6 +116,21 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
 });
 
+test("package-owned tests remain available for their later isolation steps", () => {
+  const accumulated = step("Isolate accumulated User access until its predecessors pass");
+  const clerkIdentity = step("Isolate User Clerk identity authority until historical release guards pass");
+  const clerkIdentityReplay = step("Re-verify User Clerk identity authority source package");
+  const emailAddress = step("Isolate UserEmailAddress authority until historical release guards pass");
+  assert.doesNotMatch(accumulated, /user-clerk-identity-authority-postgres\.test\.mjs/);
+  assert.doesNotMatch(accumulated, /user-email-address-history\.test\.mjs/);
+  assert.match(clerkIdentity, /user-clerk-identity-authority-postgres\.test\.mjs/);
+  assert.match(
+    clerkIdentityReplay,
+    /USER_CLERK_IDENTITY_PLACEHOLDER_CORRECTION_MIGRATION_PATH: \$\{\{ runner\.temp \}\}\/user-accumulated-access\/20261007155000_correct_user_clerk_identity_placeholder\/migration\.sql/,
+  );
+  assert.match(emailAddress, /user-email-address-history\.test\.mjs/);
+});
+
 test("actual isolation and restoration scripts preserve source bytes while staging the follower catalog", () => {
   const temporary = mkdtempSync(path.join(tmpdir(), "grainline-user-ci-staging-"));
   const root = path.join(temporary, "checkout");
@@ -131,7 +154,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
     assert.doesNotMatch(historicalStaff, /grainline_user_staff_/);
     assert.equal(execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(), historicalStaffBlob);
-    const heldFunctions = USER_AUTHORITY_GROUPS.filter(({ migration }) => migrations.includes(migration)).flatMap(({ functions }) => functions.map(({ name }) => name));
+    const heldFunctions = USER_AUTHORITY_GROUPS
+      .filter(({ migration }) => migrations.includes(migration) &&
+        migration !== "20261007155000_correct_user_clerk_identity_placeholder")
+      .flatMap(({ functions }) => functions.map(({ name }) => name));
     const historical = deriveGrantInventory(root);
     assert.ok(heldFunctions.every((name) => !historical.functions.includes(name)));
     mkdirSync(path.join(holding, "user-staff-admin-labels"));

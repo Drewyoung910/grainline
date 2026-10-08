@@ -24,7 +24,7 @@ test("User ENABLE is exact-main, CI-bound, convergence-bound, and restart-safe",
   assert.match(workflow, /comparison\.merge_base_commit\.sha !== convergence\.head_sha/u);
   assert.match(
     workflow,
-    /19b274a225e60da129ed3868a0a5e59e13a4dcd1243f58ecf5cc81abbfafaaff/u,
+    /628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f/u,
   );
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);
   assert.match(workflow, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
@@ -44,10 +44,23 @@ test("User ENABLE inspects before and after its only mutation", () => {
   const preflight = workflow.indexOf("Capture exact read-only User preflight catalog");
   const status = workflow.indexOf("Require every predecessor applied");
   const deploy = workflow.indexOf("Apply only reviewed User ENABLE");
+  const reconverge = workflow.indexOf(
+    "Re-converge runtime grants after User ENABLE",
+  );
   const postflight = workflow.indexOf("Capture exact read-only policyless zero-direct postflight");
   const audit = workflow.indexOf("Audit runtime grants after User ENABLE");
   assert.ok(source >= 0 && source < boundary && boundary < preflight);
-  assert.ok(preflight < status && status < deploy && deploy < postflight && postflight < audit);
+  assert.ok(
+    preflight < status &&
+      status < deploy &&
+      deploy < reconverge &&
+      reconverge < postflight &&
+      postflight < audit,
+  );
+  assert.match(
+    workflow,
+    /--set=runtime_role=grainline_app_runtime[\s\S]*--set=migration_role=neondb_owner[\s\S]*--file=scripts\/provision-runtime-db-role\.sql/u,
+  );
   assert.equal(
     (workflow.match(/node scripts\/user-rls-enable-production-inspect\.mjs/gu) ?? [])
       .length,
@@ -68,6 +81,9 @@ test("CI isolates User ENABLE until all User authorities have replayed", () => {
   const apply = ciWorkflow.indexOf(
     "Apply User policyless ENABLE in disposable PostgreSQL",
   );
+  const reconverge = ciWorkflow.indexOf(
+    "Re-converge runtime grants after User policyless ENABLE",
+  );
   const finalAudit = ciWorkflow.indexOf(
     "Audit runtime grants after User policyless ENABLE",
   );
@@ -78,7 +94,11 @@ test("CI isolates User ENABLE until all User authorities have replayed", () => {
   assert.ok(isolate >= 0 && isolate < broad);
   assert.ok(staffAudit > broad && restore > staffAudit && reverify > restore);
   assert.ok(reverify < stageLedger && stageLedger < apply);
-  assert.ok(apply < finalAudit && finalAudit < build);
+  assert.ok(apply < reconverge && reconverge < finalAudit && finalAudit < build);
+  assert.match(
+    ciWorkflow,
+    /--set=runtime_role=grainline_app_runtime[\s\S]*--set=migration_role=ci[\s\S]*--file=scripts\/provision-runtime-db-role\.sql/u,
+  );
   assert.equal(
     (ciWorkflow.match(/20261008010000_enable_user_rls/gu) ?? []).length,
     5,
