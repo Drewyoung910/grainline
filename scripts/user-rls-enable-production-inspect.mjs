@@ -8,6 +8,46 @@ import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
 
+const PRODUCTION_INSPECTION_IDENTITY = Object.freeze({
+  current_user: "neondb_owner",
+  session_user: "neondb_owner",
+  database_name: "neondb",
+  owner_name: "neondb_owner",
+});
+
+export function resolveUserRlsInspectionIdentity(directUrl, allowLoopbackCi = false) {
+  if (!allowLoopbackCi) return PRODUCTION_INSPECTION_IDENTITY;
+
+  const parsed = new URL(directUrl);
+  const hostname = parsed.hostname.toLowerCase();
+  const username = decodeURIComponent(parsed.username);
+  const databaseName = parsed.pathname.slice(1);
+  const parameters = [...parsed.searchParams.entries()];
+  const loopback = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+  if (
+    !/^postgres(?:ql)?:$/.test(parsed.protocol)
+    || !loopback
+    || parsed.port !== "5432"
+    || username !== "ci"
+    || parsed.password === ""
+    || databaseName !== "grainline_ci"
+    || parsed.hash !== ""
+    || parameters.length !== 1
+    || parameters[0]?.[0] !== "sslmode"
+    || parameters[0]?.[1] !== "disable"
+  ) {
+    throw new Error(
+      "User RLS loopback CI inspection requires ci@localhost/grainline_ci with sslmode=disable",
+    );
+  }
+  return Object.freeze({
+    current_user: "ci",
+    session_user: "ci",
+    database_name: "grainline_ci",
+    owner_name: "ci",
+  });
+}
+
 export const USER_RLS_ENABLE_MIGRATIONS = Object.freeze({
   convergence: Object.freeze({
     name: "20261007160000_converge_user_cross_domain_authorities",
@@ -207,15 +247,20 @@ export async function readUserRlsEnableCatalog(client) {
   });
 }
 
-export function verifyUserRlsEnableCatalog(catalog, expectedState) {
+export function verifyUserRlsEnableCatalog(
+  catalog,
+  expectedState,
+  expectedIdentity = PRODUCTION_INSPECTION_IDENTITY,
+) {
   assert.ok(
-    expectedState === "predecessor" || expectedState === "enabled",
-    "User RLS expected state must be predecessor or enabled",
+    expectedState === "predecessor"
+      || expectedState === "enabled"
+      || expectedState === "forced",
+    "User RLS expected state must be predecessor, enabled, or forced",
   );
+  const { owner_name: expectedOwnerName, ...expectedConnectionIdentity } = expectedIdentity;
   assert.deepEqual(catalog?.identity, {
-    current_user: "neondb_owner",
-    session_user: "neondb_owner",
-    database_name: "neondb",
+    ...expectedConnectionIdentity,
     read_only: "on",
     isolation: "repeatable read",
     owner_bypass_rls: true,
@@ -236,8 +281,8 @@ export function verifyUserRlsEnableCatalog(catalog, expectedState) {
     true,
     "User convergence ledger was not accepted",
   );
-  assert.equal(enableRows.length, expectedState === "enabled" ? 1 : 0);
-  if (expectedState === "enabled") {
+  assert.equal(enableRows.length, expectedState === "predecessor" ? 0 : 1);
+  if (expectedState !== "predecessor") {
     assert.equal(
       exactApplied(enableRows[0], USER_RLS_ENABLE_MIGRATIONS.enable),
       true,
@@ -247,11 +292,12 @@ export function verifyUserRlsEnableCatalog(catalog, expectedState) {
   assert.equal(catalog.ledger.length, 1 + enableRows.length);
 
   const directEnabled = expectedState === "predecessor";
+  const forceEnabled = expectedState === "forced";
   assert.deepEqual(catalog.table, {
     table_name: "User",
-    owner_name: "neondb_owner",
-    rls_enabled: expectedState === "enabled",
-    rls_forced: false,
+    owner_name: expectedOwnerName,
+    rls_enabled: !directEnabled,
+    rls_forced: forceEnabled,
     policy_count: 0,
     runtime_select: directEnabled,
     runtime_insert: directEnabled,
@@ -314,11 +360,13 @@ export function verifyUserRlsEnableCatalog(catalog, expectedState) {
 export async function inspectUserRlsEnableProduction({
   directUrl = process.env.DIRECT_URL,
   expectedState = process.env.EXPECTED_USER_RLS_STATE,
+  allowLoopbackCi = process.env.USER_RLS_INSPECTION_ALLOW_LOOPBACK_CI === "1",
 } = {}) {
   if (typeof directUrl !== "string" || directUrl === "") {
     throw new Error("DIRECT_URL is required");
   }
   const parsed = new URL(directUrl);
+  const expectedIdentity = resolveUserRlsInspectionIdentity(directUrl, allowLoopbackCi);
   const client = new Client({
     connectionString: directUrl,
     connectionTimeoutMillis: 10_000,
@@ -333,7 +381,7 @@ export async function inspectUserRlsEnableProduction({
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     open = true;
     const catalog = await readUserRlsEnableCatalog(client);
-    const result = verifyUserRlsEnableCatalog(catalog, expectedState);
+    const result = verifyUserRlsEnableCatalog(catalog, expectedState, expectedIdentity);
     await client.query("ROLLBACK");
     open = false;
     return Object.freeze({ catalog, result, transaction: Object.freeze({

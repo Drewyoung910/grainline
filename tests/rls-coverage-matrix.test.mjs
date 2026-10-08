@@ -66,6 +66,7 @@ describe("site-wide RLS coverage matrix", () => {
   it("does not overstate current production RLS coverage", () => {
     const liveRows = matrixRows().filter((row) => row.status.startsWith("RLS_LIVE"));
     assert.deepEqual(liveRows.map((row) => row.model), [
+      "User",
       "UserEmailAddress",
       "Conversation",
       "Message",
@@ -85,6 +86,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(
       liveRows.map((row) => [row.model, row.status]),
       [
+        ["User", "RLS_LIVE_PHASE_A"],
         ["UserEmailAddress", "RLS_LIVE_FORCE"],
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
@@ -107,7 +109,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /all fifteen tables in this[\s\S]*snapshot with[\s\S]*completed production RLS acceptance/,
+      /`User` is[\s\S]*the sixteenth live table[\s\S]*policyless Phase A/,
     );
     assert.match(
       matrix,
@@ -119,7 +121,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /UserEmailAddress` closed its policyless FORCE release[\s\S]*37133944427[\s\S]*37136042748[\s\S]*OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*all fifteen are FORCE-hardened[\s\S]*Every row except those fifteen is \*\*not active RLS\*\*/,
+      /User` Phase A was applied[\s\S]*37743008603[\s\S]*37747980060[\s\S]*UserEmailAddress` closed its policyless FORCE release[\s\S]*37133944427[\s\S]*37136042748[\s\S]*OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*Sixteen tables now have production RLS[\s\S]*fifteen are FORCE-hardened[\s\S]*Every row except those sixteen is \*\*not active[\s\S]*RLS\*\*/,
     );
     assert.match(
       matrix,
@@ -129,7 +131,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /Fifteen tables have[\s\S]*production RLS and all fifteen have complete retained[\s\S]*`FORCE ROW LEVEL SECURITY` acceptance[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
+      /Sixteen tables have[\s\S]*production RLS[\s\S]*Fifteen have complete retained `FORCE ROW LEVEL SECURITY`[\s\S]*User` has accepted policyless Phase A[\s\S]*37747980060[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(

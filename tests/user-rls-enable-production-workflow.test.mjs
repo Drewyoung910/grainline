@@ -103,12 +103,12 @@ test("CI isolates User ENABLE until all User authorities have replayed", () => {
     (ciWorkflow.match(/20261008010000_enable_user_rls/gu) ?? []).length,
     5,
   );
-  for (const file of [
-    "tests/user-rls-enable-postgres-proof.test.mjs",
-    "tests/user-rls-enable-production-inspect.test.mjs",
-    "tests/user-rls-enable-production-workflow.test.mjs",
-    "tests/user-rls-enable-release.test.mjs",
+  for (const [file, expectedCount] of [
+    ["tests/user-rls-enable-postgres-proof.test.mjs", 3],
+    ["tests/user-rls-enable-production-inspect.test.mjs", 4],
+    ["tests/user-rls-enable-production-workflow.test.mjs", 3],
+    ["tests/user-rls-enable-release.test.mjs", 3],
   ]) {
-    assert.equal(ciWorkflow.split(file).length - 1, 3, file);
+    assert.equal(ciWorkflow.split(file).length - 1, expectedCount, file);
   }
 });

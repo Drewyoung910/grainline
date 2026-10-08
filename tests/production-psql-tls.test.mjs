@@ -45,6 +45,7 @@ describe("protected production psql TLS roots", () => {
       "order-payment-event-read-authority-production.yml:Converge OrderPaymentEvent read-authority runtime grants",
       "order-payment-event-transition-authority-production.yml:Converge reviewed runtime grants",
       "user-rls-enable-production.yml:Re-converge runtime grants after User ENABLE",
+      "user-rls-force-production.yml:Re-converge runtime grants after User FORCE",
     ]);
   });
 });

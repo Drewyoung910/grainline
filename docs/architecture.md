@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-09-02
+Last updated: 2026-10-08
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -33,13 +33,19 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 
 ## Request Boundaries
 
-Grainline uses database-level Row Level Security for `UserEmailAddress`, `SavedSearch`,
+Grainline uses database-level Row Level Security for `User`, `UserEmailAddress`, `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
-`OrderRefundReconciliation`, and `OrderPaymentEvent`. Fifteen tables have
-production RLS and all fifteen have complete retained
-`FORCE ROW LEVEL SECURITY` acceptance. `UserEmailAddress` FORCE was applied by
+`OrderRefundReconciliation`, and `OrderPaymentEvent`. Sixteen tables have
+production RLS. Fifteen have complete retained `FORCE ROW LEVEL SECURITY`
+acceptance; `User` has accepted policyless Phase A with RLS enabled, FORCE off,
+zero policies, and zero runtime/staff/PUBLIC direct table or column authority.
+The User release is bound to exact main
+`c9b02dfa530d3ca86b0ea7efd6f2f8e9e3b5233c`, CI `37743008603`, convergence
+run `37747092440`, catalog inspection `37747428986`, and guarded ENABLE run
+`37747980060`. User FORCE remains a separate pending release.
+`UserEmailAddress` FORCE was applied by
 guarded run `37136042748` from exact main
 `e689e1ff1d76a65146d132ad25dc545a72b87aac` after CI `37133944427`; its exact
 ledger and policyless zero-direct catalog readbacks passed. Retain sanitized

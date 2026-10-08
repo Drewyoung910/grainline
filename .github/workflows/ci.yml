@@ -231,6 +231,9 @@ jobs:
           tests/user-rls-enable-production-inspect.test.mjs
           tests/user-rls-enable-production-workflow.test.mjs
           tests/user-rls-enable-release.test.mjs
+          tests/user-rls-force-postgres-proof.test.mjs
+          tests/user-rls-force-production-workflow.test.mjs
+          tests/user-rls-force-release.test.mjs
           tests/user-authority-catalog.test.mjs
           tests/user-accumulated-access-ci.test.mjs
           tests/user-indirect-access-inventory.test.mjs
@@ -263,7 +266,8 @@ jobs:
             20261006030000_prepare_user_relationship_authorities \
             20261007155000_correct_user_clerk_identity_placeholder \
             20261007160000_converge_user_cross_domain_authorities \
-            20261008010000_enable_user_rls
+            20261008010000_enable_user_rls \
+            20261008020000_force_user_rls
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -279,6 +283,9 @@ jobs:
             tests/user-rls-enable-production-inspect.test.mjs \
             tests/user-rls-enable-production-workflow.test.mjs \
             tests/user-rls-enable-release.test.mjs \
+            tests/user-rls-force-postgres-proof.test.mjs \
+            tests/user-rls-force-production-workflow.test.mjs \
+            tests/user-rls-force-release.test.mjs \
             tests/user-authority-catalog.test.mjs \
             tests/user-accumulated-access-ci.test.mjs \
             tests/order-ban-review-authority.test.mjs \
@@ -4537,6 +4544,7 @@ jobs:
             > tests/user-authority-catalog.test.mjs
           test "$(git hash-object tests/user-authority-catalog.test.mjs)" = "ac17d95ad53501515550b2bb967eb5a149f094d9"
           test -d "$holding/20261008010000_enable_user_rls"
+          test -d "$holding/20261008020000_force_user_rls"
       - name: Apply accumulated User access in disposable PostgreSQL
         shell: bash
         run: |
@@ -4886,7 +4894,6 @@ jobs:
           mv \
             "$holding/20261008010000_enable_user_rls" \
             prisma/migrations/20261008010000_enable_user_rls
-          rmdir "$holding"
       - name: Re-verify User policyless ENABLE source package
         run: >-
           node --test
@@ -4963,6 +4970,72 @@ jobs:
           --set=migration_role=ci
           --file=scripts/provision-runtime-db-role.sql
       - name: Audit runtime grants after User policyless ENABLE
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants -- --allow-loopback-ci
+      - name: Stage exact User ENABLE ledger for integrated FORCE proof
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          import {
+            USER_RLS_FORCE_RELEASE,
+          } from './scripts/build-user-rls-force-candidate.mjs';
+
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            const existing = await client.query(`
+              SELECT migration_name
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [USER_RLS_FORCE_RELEASE.predecessorMigration]);
+            assert.equal(existing.rows.length, 0);
+            await client.query(`
+              INSERT INTO public._prisma_migrations (
+                id, checksum, finished_at, migration_name, logs,
+                rolled_back_at, started_at, applied_steps_count
+              ) VALUES ($1, $2, clock_timestamp(), $3, NULL,
+                        NULL, clock_timestamp(), 1)
+            `, [
+              'user-force-proof-enable',
+              USER_RLS_FORCE_RELEASE.predecessorSha256,
+              USER_RLS_FORCE_RELEASE.predecessorMigration,
+            ]);
+          } finally {
+            await client.end();
+          }
+          NODE
+      - name: Restore User policyless FORCE source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-accumulated-access"
+          mv \
+            "$holding/20261008020000_force_user_rls" \
+            prisma/migrations/20261008020000_force_user_rls
+          rmdir "$holding"
+      - name: Re-verify User policyless FORCE source package
+        run: >-
+          node --test
+          tests/db-grant-inventory.test.mjs
+          tests/user-rls-enable-production-inspect.test.mjs
+          tests/user-rls-force-postgres-proof.test.mjs
+          tests/user-rls-force-production-workflow.test.mjs
+          tests/user-rls-force-release.test.mjs
+      - name: Apply User policyless FORCE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261008020000_force_user_rls/migration.sql
+      - name: Verify User policyless FORCE catalog
+        run: node scripts/user-rls-enable-production-inspect.mjs > /dev/null
+        env:
+          EXPECTED_USER_RLS_STATE: forced
+          USER_RLS_INSPECTION_ALLOW_LOOPBACK_CI: "1"
+      - name: Audit runtime grants after User policyless FORCE
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime

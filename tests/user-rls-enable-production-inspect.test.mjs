@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  resolveUserRlsInspectionIdentity,
   USER_RLS_ENABLE_MIGRATIONS,
   verifyUserRlsEnableCatalog,
 } from "../scripts/user-rls-enable-production-inspect.mjs";
@@ -32,13 +33,13 @@ function catalog(state = "predecessor") {
     },
     ledger: [
       applied(USER_RLS_ENABLE_MIGRATIONS.convergence),
-      ...(state === "enabled" ? [applied(USER_RLS_ENABLE_MIGRATIONS.enable)] : []),
+      ...(state === "predecessor" ? [] : [applied(USER_RLS_ENABLE_MIGRATIONS.enable)]),
     ],
     table: {
       table_name: "User",
       owner_name: "neondb_owner",
       rls_enabled: !direct,
-      rls_forced: false,
+      rls_forced: state === "forced",
       policy_count: 0,
       runtime_select: direct,
       runtime_insert: direct,
@@ -114,6 +115,10 @@ test("accepts exact predecessor and policyless zero-direct ENABLE catalogs", () 
   const enabled = verifyUserRlsEnableCatalog(catalog("enabled"), "enabled");
   assert.equal(enabled.userRlsEnabled, true);
   assert.equal(enabled.runtimeDirectCrud, false);
+  const forced = verifyUserRlsEnableCatalog(catalog("forced"), "forced");
+  assert.equal(forced.userRlsEnabled, true);
+  assert.equal(forced.userRlsForced, true);
+  assert.equal(forced.runtimeDirectCrud, false);
 });
 
 test("rejects ledger, structure, cross-domain, reader-mode, and RLS drift", () => {
@@ -131,4 +136,39 @@ test("rejects ledger, structure, cross-domain, reader-mode, and RLS drift", () =
     mutate(value);
     assert.throws(() => verifyUserRlsEnableCatalog(value, "predecessor"));
   }
+});
+
+test("admits the disposable CI identity only on the exact loopback target", () => {
+  const value = catalog("forced");
+  value.identity.current_user = "ci";
+  value.identity.session_user = "ci";
+  value.identity.database_name = "grainline_ci";
+  value.table.owner_name = "ci";
+  const directUrl = "postgresql://ci:secret@localhost:5432/grainline_ci?sslmode=disable";
+  const expectedIdentity = resolveUserRlsInspectionIdentity(directUrl, true);
+  assert.equal(
+    verifyUserRlsEnableCatalog(value, "forced", expectedIdentity).userRlsForced,
+    true,
+  );
+  assert.throws(
+    () => resolveUserRlsInspectionIdentity(
+      "postgresql://ci:secret@example.com:5432/grainline_ci?sslmode=disable",
+      true,
+    ),
+    /requires ci@localhost\/grainline_ci/u,
+  );
+  assert.throws(
+    () => resolveUserRlsInspectionIdentity(
+      "postgresql://neondb_owner:secret@localhost:5432/neondb?sslmode=disable",
+      true,
+    ),
+    /requires ci@localhost\/grainline_ci/u,
+  );
+  assert.throws(
+    () => resolveUserRlsInspectionIdentity(
+      `${directUrl}&application_name=unexpected`,
+      true,
+    ),
+    /requires ci@localhost\/grainline_ci/u,
+  );
 });
