@@ -97,14 +97,15 @@ jobs:
           RUNTIME_DB_ROLE: grainline_app_runtime
           USER_INSTALLED_CATALOG_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
           USER_INSTALLED_CATALOG_INSPECT_CONFIRM: ${{ inputs.confirmation }}
-          USER_INSTALLED_CATALOG_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ inputs.release_commit }}.json
+          USER_INSTALLED_CATALOG_EXPECTED_PREFIX: complete
+          USER_INSTALLED_CATALOG_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ inputs.release_commit }}-complete.json
         run: node scripts/user-installed-catalog-production-inspect.mjs
       - name: Preserve sanitized catalog evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: user-installed-catalog-production-inspection-${{ github.run_id }}
-          path: ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ github.sha }}.json
+          path: ${{ runner.temp }}/user-installed-catalog-production-inspection-${{ github.sha }}-complete.json
           if-no-files-found: error
           retention-days: 30
           include-hidden-files: false
