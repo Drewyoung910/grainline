@@ -279,6 +279,7 @@ async function withAuditFixture(options, fn) {
     publicDefaultPrivilegeRevokes: [],
     rlsPolicyTables:
       options.createRlsPolicy && options.trackRlsPolicy !== false ? [tableName] : [],
+    rlsEnableTables: options.enableRls ? [tableName] : [],
     rlsForceTables:
       options.createRlsPolicy && options.expectForce !== false ? [tableName] : [],
   };
@@ -2962,6 +2963,17 @@ describe("database grant inventory guardrails", () => {
       assert.ok(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }))
           .includes(`table ${tableName} has ROW LEVEL SECURITY enabled but zero policies`),
+      );
+    });
+
+    await withAuditFixture({
+      enableRls: true,
+      grantTablePrivileges: false,
+      tableName: USER_TABLE,
+    }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.deepEqual(
+        await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }),
+        [],
       );
     });
 

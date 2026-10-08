@@ -7,6 +7,12 @@ import {
   ORDER_ITEM_ENABLE_RELEASE,
   buildOrderItemRlsCandidate,
 } from "../scripts/build-order-item-rls-candidate.mjs";
+import {
+  ORDER_ITEM_TABLE,
+  orderItemRlsActivationExpected,
+  orderItemRlsForceExpected,
+  policylessServiceRlsTableNames,
+} from "../scripts/audit-runtime-db-grants.mjs";
 
 test("OrderItem ENABLE is one pinned policyless table release", () => {
   const release = buildOrderItemRlsCandidate();
@@ -31,14 +37,15 @@ test("OrderItem ENABLE is one pinned policyless table release", () => {
 });
 
 test("the global grant audit recognizes OrderItem policyless ENABLE", () => {
-  const audit = fs.readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
-  assert.match(audit, /export const ORDER_ITEM_TABLE = "OrderItem"/u);
-  assert.match(audit, /export function orderItemRlsActivationExpected/u);
-  assert.match(audit, /export function orderItemRlsForceExpected/u);
-  assert.match(
-    audit,
-    /row\.table_name === ORDER_ITEM_TABLE[\s\S]{0,120}orderItemRlsActivationExpected\(inventory\)/u,
-  );
+  const inventory = {
+    rlsEnableTables: [ORDER_ITEM_TABLE],
+    rlsForceTables: [],
+    rlsPolicyTables: [],
+  };
+  assert.equal(ORDER_ITEM_TABLE, "OrderItem");
+  assert.equal(orderItemRlsActivationExpected(inventory), true);
+  assert.equal(orderItemRlsForceExpected(inventory), false);
+  assert.equal(policylessServiceRlsTableNames(inventory).includes(ORDER_ITEM_TABLE), true);
 });
 
 test("OrderItem rollback restores the zero-direct RLS-off predecessor", () => {

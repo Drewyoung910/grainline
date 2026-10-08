@@ -4887,5 +4887,70 @@ jobs:
           tests/user-rls-enable-production-inspect.test.mjs
           tests/user-rls-enable-production-workflow.test.mjs
           tests/user-rls-enable-release.test.mjs
+      - name: Stage exact User authority ledger for integrated ENABLE proof
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          import {
+            buildUserInstalledCatalogExpectation,
+          } from './scripts/user-installed-catalog-production-inspect.mjs';
+          import {
+            USER_RLS_ENABLE_RELEASE,
+          } from './scripts/build-user-rls-enable-candidate.mjs';
+
+          const authority = buildUserInstalledCatalogExpectation();
+          const expected = [
+            ...authority.groups.map(({migration, checksum}) =>
+              ({migration, checksum})),
+            {
+              migration: USER_RLS_ENABLE_RELEASE.predecessorMigration,
+              checksum: USER_RLS_ENABLE_RELEASE.predecessorSha256,
+            },
+          ];
+          assert.equal(expected.length, 17);
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN');
+            const names = expected.map(({migration}) => migration);
+            const existing = await client.query(`
+              SELECT migration_name
+                FROM public._prisma_migrations
+               WHERE migration_name = ANY($1::text[])
+            `, [names]);
+            assert.equal(existing.rows.length, 0);
+            for (const [index, entry] of expected.entries()) {
+              await client.query(`
+                INSERT INTO public._prisma_migrations (
+                  id, checksum, finished_at, migration_name, logs,
+                  rolled_back_at, started_at, applied_steps_count
+                ) VALUES ($1, $2, clock_timestamp(), $3, NULL,
+                          NULL, clock_timestamp(), 1)
+              `, [
+                `user-enable-proof-${String(index + 1).padStart(2, '0')}`,
+                entry.checksum,
+                entry.migration,
+              ]);
+            }
+            await client.query('COMMIT');
+          } catch (error) {
+            try { await client.query('ROLLBACK'); } catch {}
+            throw error;
+          } finally {
+            await client.end();
+          }
+          NODE
+      - name: Apply User policyless ENABLE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261008010000_enable_user_rls/migration.sql
+      - name: Audit runtime grants after User policyless ENABLE
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build

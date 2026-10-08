@@ -62,14 +62,26 @@ test("CI isolates User ENABLE until all User authorities have replayed", () => {
   const broad = ciWorkflow.indexOf("      - name: Tests\n");
   const restore = ciWorkflow.indexOf("Restore User policyless ENABLE source package");
   const reverify = ciWorkflow.indexOf("Re-verify User policyless ENABLE source package");
+  const stageLedger = ciWorkflow.indexOf(
+    "Stage exact User authority ledger for integrated ENABLE proof",
+  );
+  const apply = ciWorkflow.indexOf(
+    "Apply User policyless ENABLE in disposable PostgreSQL",
+  );
+  const finalAudit = ciWorkflow.indexOf(
+    "Audit runtime grants after User policyless ENABLE",
+  );
+  const build = ciWorkflow.indexOf("Production build");
   const staffAudit = ciWorkflow.indexOf(
     "Audit runtime grants after User staff admin-label authority",
   );
   assert.ok(isolate >= 0 && isolate < broad);
   assert.ok(staffAudit > broad && restore > staffAudit && reverify > restore);
+  assert.ok(reverify < stageLedger && stageLedger < apply);
+  assert.ok(apply < finalAudit && finalAudit < build);
   assert.equal(
     (ciWorkflow.match(/20261008010000_enable_user_rls/gu) ?? []).length,
-    4,
+    5,
   );
   for (const file of [
     "tests/user-rls-enable-postgres-proof.test.mjs",
