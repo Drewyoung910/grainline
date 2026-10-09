@@ -4,10 +4,19 @@
 
 The audited compatibility source merged through PR #544 at merge commit
 `20815a7b6e6c2d45ed5910f4d9963f09b5948b09`. The source-only Production
-inspection and compatibility-migration runner are prepared on isolated branch
-`codex/clerk-webhook-event-production-wiring-20261009`. Nothing in this record
-claims that the migration, compatible application, grants, RLS, `ENABLE`, or
-`FORCE` are live in Production.
+inspection and compatibility-migration runner merged through PR #546 at merge
+commit `f6f1da07007bde286c9d39e39b83e5011769bfe7`; its exact main CI run
+`37968740301` passed. Nothing in this record claims that the migration,
+compatible application, grants, RLS, `ENABLE`, or `FORCE` are live in
+Production.
+
+The first read-only compatible-state inspection, run `37993617755`, stopped at
+the owner-connection guard before the catalog inspector opened a Production
+connection. The workflow omitted the guard's exact confirmation and release
+commit environment inputs. No Production query or mutation ran. The correction
+passes both reviewed values explicitly at the guard step and adds a focused
+regression assertion; a fresh first-attempt inspection is required after that
+correction merges and its exact main CI succeeds.
 
 The additive compatibility migration is
 `20261008120000_prepare_clerk_webhook_event_authority`. It adds a claim
@@ -129,11 +138,11 @@ The Production wiring adds two separate manual workflows:
   requires the complete catalog postflight. It does not deploy the app or
   enable RLS.
 
-Focused source verification covers both accepted catalog states, checksum,
+Focused source verification covers all accepted catalog states, checksum,
 column, constraint, function body/configuration, ACL, RLS, evidence, exact-main
 binding, step ordering, restart behavior, and scope closure. These workflows
-remain source-only until their branch is reviewed and merged; neither has been
-dispatched against Production.
+are merged source. Inspection run `37993617755` failed before Production access;
+the migration workflow has not been dispatched.
 
 ## Release order and remaining gates
 
