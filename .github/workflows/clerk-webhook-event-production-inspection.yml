@@ -1,0 +1,127 @@
+name: ClerkWebhookEvent Production Inspection
+run-name: ClerkWebhookEvent Production Inspection [${{ inputs.expected_state }}] ${{ inputs.release_commit }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      expected_state:
+        description: Reviewed installed state
+        required: true
+        type: choice
+        default: compatible
+        options:
+          - compatible
+          - pending
+          - complete
+      confirmation:
+        description: Type inspect-reviewed-clerk-webhook-event-authority
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-inspections
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Inspect ClerkWebhookEvent authority catalog
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'inspect-reviewed-clerk-webhook-event-authority'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind inspection to exact main and CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const runValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(runValue ?? '')) {
+              throw new Error('ClerkWebhookEvent inspection release binding drifted');
+            }
+            const runId = Number(runValue);
+            if (!Number.isSafeInteger(runId)) {
+              throw new Error('ClerkWebhookEvent inspection CI run id is unsafe');
+            }
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('ClerkWebhookEvent inspection main/CI readback drifted');
+            }
+      - name: Verify read-only ClerkWebhookEvent inspection source
+        run: >-
+          node --test
+          tests/clerk-webhook-event-authority.test.mjs
+          tests/clerk-webhook-event-production-inspect.test.mjs
+          tests/clerk-webhook-event-production-workflows.test.mjs
+      - name: Verify exact compatibility migration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
+            "20261008120000_prepare_clerk_webhook_event_authority"
+          echo "c5926434597a96db649796a3c61e633827fb575ae3c29e2570efb0460e9ca643  prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql" | sha256sum --check --status
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect ClerkWebhookEvent catalog read-only
+        env:
+          CLERK_WEBHOOK_EVENT_EXPECTED_STATE: ${{ inputs.expected_state }}
+          CLERK_WEBHOOK_EVENT_INSPECT_CONFIRM: inspect-reviewed-clerk-webhook-event-authority
+          CLERK_WEBHOOK_EVENT_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/clerk-webhook-event-production-inspection-${{ inputs.release_commit }}-${{ inputs.expected_state }}.json
+          CLERK_WEBHOOK_EVENT_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: node scripts/clerk-webhook-event-production-inspect.mjs
+      - name: Preserve sanitized ClerkWebhookEvent catalog evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clerk-webhook-event-production-inspection-${{ github.run_id }}
+          path: ${{ runner.temp }}/clerk-webhook-event-production-inspection-${{ github.sha }}-${{ inputs.expected_state }}.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

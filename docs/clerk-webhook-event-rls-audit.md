@@ -2,8 +2,10 @@
 
 ## Status
 
-Source audit and local compatibility preparation are complete on the isolated
-`codex/clerk-webhook-event-rls-audit-20261008` worktree. Nothing in this record
+The audited compatibility source merged through PR #544 at merge commit
+`20815a7b6e6c2d45ed5910f4d9963f09b5948b09`. The source-only Production
+inspection and compatibility-migration runner are prepared on isolated branch
+`codex/clerk-webhook-event-production-wiring-20261009`. Nothing in this record
 claims that the migration, compatible application, grants, RLS, `ENABLE`, or
 `FORCE` are live in Production.
 
@@ -111,12 +113,37 @@ generated-client drift errors across pre-existing SellerProfile, Blog, Review,
 and Commission fields. This package must receive a fresh isolated Prisma client
 in CI; the shared dependency tree was not regenerated or mutated.
 
+The Production wiring adds two separate manual workflows:
+
+- `ClerkWebhookEvent Production Inspection` is a first-attempt, exact-main,
+  successful-CI-bound, engine-read-only catalog inspection. It accepts an
+  explicitly selected `pending`, `complete`, or restart-safe `compatible`
+  state; compares the migration checksum and five installed function-body MD5s
+  to reviewed source; checks ownership, column/default/constraint state, ACLs,
+  predecessor runtime CRUD, and the deliberate no-RLS posture; and writes only
+  mode-0600 sanitized metadata evidence.
+- `ClerkWebhookEvent Authority Production` is separately authorized and bound
+  to a successful exact-commit compatible-state inspection. It proves every
+  predecessor migration is applied, invokes `prisma migrate deploy` at most
+  once and only while the candidate is pending, audits global grants, and
+  requires the complete catalog postflight. It does not deploy the app or
+  enable RLS.
+
+Focused source verification covers both accepted catalog states, checksum,
+column, constraint, function body/configuration, ACL, RLS, evidence, exact-main
+binding, step ordering, restart behavior, and scope closure. These workflows
+remain source-only until their branch is reviewed and merged; neither has been
+dispatched against Production.
+
 ## Release order and remaining gates
 
-1. Review and merge the exact compatibility source.
-2. Apply only `20261008120000_prepare_clerk_webhook_event_authority` to
-   Production and inspect its column, constraint, five function definitions,
-   ownership, search paths, and ACLs.
+1. ~~Review and merge the exact compatibility source.~~ Complete through PR
+   #544.
+2. Merge the exact Production wiring, run the read-only compatible-state
+   inspection, then separately authorize and apply only
+   `20261008120000_prepare_clerk_webhook_event_authority`. Accept the complete
+   postflight only after its column, constraint, five function definitions,
+   ownership, search paths, and ACLs match reviewed source.
 3. Deploy the exact compatible application and prove a correctly signed Clerk
    delivery, duplicate delivery, retention call, and ops-health aggregate.
 4. Inspect and drain failed, released, and stale predecessor rows. Preserve
