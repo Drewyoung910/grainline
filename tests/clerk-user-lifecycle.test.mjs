@@ -7,6 +7,12 @@ function source(path) {
 }
 
 const { shouldRevokeSessionsForClerkEmailChange } = await import("../src/lib/clerkSessionSecurity.ts");
+const {
+  clerkCurrentUserIdentityFromSnapshot,
+  clerkPlaceholderEmail,
+  isClerkUserNotFoundError,
+} = await import("../src/lib/clerkCurrentUserIdentity.ts");
+const { revokeActiveClerkSessions } = await import("../src/lib/clerkSessionRevocation.ts");
 const { normalizeClerkWebhookEmail, resolveClerkWebhookPrimaryEmail, shouldReserveClerkWelcomeEmail } = await import(
   "../src/lib/clerkWebhookEmail.ts"
 );
@@ -55,6 +61,128 @@ describe("Clerk user lifecycle session security", () => {
       }),
       false,
     );
+    assert.equal(
+      shouldRevokeSessionsForClerkEmailChange({
+        eventType: "user.updated",
+        clerkUserId: "user_2NNEqMixed",
+        previousEmail: clerkPlaceholderEmail("user_2NNEqMixed"),
+        nextEmail: "person@example.com",
+      }),
+      false,
+    );
+  });
+});
+
+describe("Clerk current user state", () => {
+  it("derives normalized identity from current provider state", () => {
+    assert.deepEqual(
+      clerkCurrentUserIdentityFromSnapshot({
+        id: "user_123",
+        firstName: "Drew",
+        lastName: "Young",
+        imageUrl: "https://img.example/user.png",
+        primaryEmailAddressId: "email_primary",
+        emailAddresses: [
+          { id: "email_old", emailAddress: "old@example.com" },
+          { id: "email_primary", emailAddress: " Person@Example.COM " },
+        ],
+      }, "user_123"),
+      {
+        clerkId: "user_123",
+        firstName: "Drew",
+        lastName: "Young",
+        imageUrl: "https://img.example/user.png",
+        primaryEmail: "person@example.com",
+        emailResolution: "resolved",
+      },
+    );
+  });
+
+  it("reports a missing current primary email without turning it into an update value", () => {
+    const clerkId = "user_2NNEqMixedNoEmail";
+    const identity = clerkCurrentUserIdentityFromSnapshot({
+      id: clerkId,
+      firstName: null,
+      lastName: null,
+      imageUrl: "",
+      primaryEmailAddressId: null,
+      emailAddresses: [],
+    }, clerkId);
+    assert.equal(identity.primaryEmail, null);
+    assert.equal(identity.emailResolution, "missing_primary_email_id");
+    assert.equal(Object.hasOwn(identity, "emailForPersistence"), false);
+    assert.match(
+      clerkPlaceholderEmail(clerkId),
+      /^user_2nneqmixednoemail-[a-f0-9]{32}@placeholder\.invalid$/,
+    );
+    assert.throws(
+      () => clerkCurrentUserIdentityFromSnapshot({ ...identity, id: "wrong" }, clerkId),
+      /wrong account/,
+    );
+  });
+
+  it("classifies only Clerk API 404 responses as terminal absent users", () => {
+    assert.equal(
+      isClerkUserNotFoundError({ clerkError: true, status: 404 }),
+      true,
+    );
+    assert.equal(
+      isClerkUserNotFoundError({ clerkError: true, status: 503 }),
+      false,
+    );
+    assert.equal(isClerkUserNotFoundError(Object.assign(new Error("not found"), { status: 404 })), false);
+  });
+});
+
+describe("Clerk session revocation bounds", () => {
+  function fakeClerk(sessionCount) {
+    const active = new Set(Array.from({ length: sessionCount }, (_, index) => `sess_${index}`));
+    const calls = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    return {
+      active,
+      calls,
+      get maxInFlight() { return maxInFlight; },
+      client: {
+        sessions: {
+          async getSessionList(input) {
+            calls.push(input);
+            return {
+              data: [...active].slice(input.offset, input.offset + input.limit).map((id) => ({ id })),
+              totalCount: active.size,
+            };
+          },
+          async revokeSession(id) {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await new Promise((resolve) => setImmediate(resolve));
+            active.delete(id);
+            inFlight -= 1;
+          },
+        },
+      },
+    };
+  }
+
+  it("drains active sessions from offset zero with bounded concurrency", async () => {
+    const clerk = fakeClerk(235);
+    assert.deepEqual(
+      await revokeActiveClerkSessions(clerk.client, "user_123"),
+      { revokedSessionCount: 235 },
+    );
+    assert.equal(clerk.active.size, 0);
+    assert.ok(clerk.calls.every((call) => call.offset === 0));
+    assert.ok(clerk.maxInFlight <= 10);
+  });
+
+  it("fails retryably instead of scanning an unbounded account", async () => {
+    const clerk = fakeClerk(501);
+    await assert.rejects(
+      () => revokeActiveClerkSessions(clerk.client, "user_123"),
+      /per-attempt limit/,
+    );
+    assert.equal(clerk.active.size, 1);
   });
 });
 

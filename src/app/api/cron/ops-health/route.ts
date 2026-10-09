@@ -5,6 +5,7 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { prisma } from "@/lib/db";
 import { stripeWebhookHealthSummary } from "@/lib/stripeWebhookMaintenance";
+import { clerkWebhookHealthSummary } from "@/lib/clerkWebhookMaintenance";
 import {
   ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS,
   ACCOUNT_DELETION_SIDE_EFFECT_STATUS,
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
         overdueSupportRequestCount,
         stripeWebhookHealth,
         resendWebhookFailureCount,
-        clerkWebhookFailureCount,
+        clerkWebhookHealth,
         accountDeletionSideEffectFailureCount,
         orderHealth,
         orderDisputeRecoveryHealth,
@@ -113,16 +114,7 @@ export async function GET(request: Request) {
             ],
           },
         }),
-        prisma.clerkWebhookEvent.count({
-          where: {
-            processedAt: null,
-            OR: [
-              { lastError: { not: null } },
-              { processingStartedAt: null },
-              { processingStartedAt: { lt: staleSvixWebhookBefore } },
-            ],
-          },
-        }),
+        clerkWebhookHealthSummary(),
         prisma.accountDeletionSideEffect.count({
           where: {
             OR: [
@@ -180,7 +172,10 @@ export async function GET(request: Request) {
         stripeWebhookReleasedLeaseCount: stripeWebhookHealth.releasedCount,
         stripeWebhookStaleLeaseCount: stripeWebhookHealth.staleCount,
         resendWebhookFailureCount,
-        clerkWebhookFailureCount,
+        clerkWebhookFailureCount: clerkWebhookHealth.issueCount,
+        clerkWebhookFailedLeaseCount: clerkWebhookHealth.failedCount,
+        clerkWebhookReleasedLeaseCount: clerkWebhookHealth.releasedCount,
+        clerkWebhookStaleLeaseCount: clerkWebhookHealth.staleCount,
         accountDeletionSideEffectFailureCount,
         orderOpsHealthIssueCount: orderHealth.issueCount,
         orderAmbiguousRefundCount: orderHealth.ambiguousRefundCount,

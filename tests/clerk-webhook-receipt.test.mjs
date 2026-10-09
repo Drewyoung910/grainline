@@ -22,17 +22,31 @@ function route(controls = {}) {
   const counts = { reserve: 0, mark: 0, anonymize: 0, unexpected: 0 };
   let incomingHeaders;
   const unexpected = () => { counts.unexpected++; throw new Error("Unexpected business side effect"); };
-  const prisma = { clerkWebhookEvent: {
-    async create() { counts.reserve++; if (controls.reservationFailure) throw new Error("database unavailable");
-      if (controls.duplicate || controls.inProgress) throw { code: "P2002" }; },
-    async findUnique() { return { processedAt: controls.duplicate ? new Date() : null, processingStartedAt: new Date() }; },
-    async update() { counts.mark++; if (controls.markFailure) throw new Error("mark unavailable"); },
-    async updateMany() { return { count: 0 }; },
-  } };
+  const prisma = {};
   const dependencies = {
     svix: { Webhook }, "next/headers": { headers: async () => incomingHeaders },
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     "@/lib/db": { prisma }, "@/lib/clerkWebhookReceipt.mjs": receipts,
+    "@/lib/clerkWebhookEvents": {
+      reserveClerkWebhookEvent: async () => {
+        counts.reserve++;
+        if (controls.reservationFailure) throw new Error("database unavailable");
+        return {
+          action: controls.duplicate ? "processed" : controls.inProgress ? "in_progress" : "process",
+          claimGeneration: controls.duplicate || controls.inProgress ? 0n : 1n,
+        };
+      },
+      markClerkWebhookProcessed: async (_svixId, claimGeneration) => {
+        assert.equal(claimGeneration, 1n);
+        counts.mark++;
+        if (controls.markFailure) throw new Error("mark unavailable");
+        return "completed";
+      },
+      markClerkWebhookFailed: async (_svixId, claimGeneration) => {
+        assert.equal(claimGeneration, 1n);
+        return "failed";
+      },
+    },
     "@/lib/accountDeletion": { anonymizeUserAccountByClerkId: async id => {
       counts.anonymize++; assert.equal(id, controls.proofUserId ?? (controls.ordinary ? "user_ordinary" : SENTINEL));
       return controls.anonymized ?? { ok: true, alreadyDeleted: true, userAbsent: true };

@@ -1821,6 +1821,20 @@ describe("database grant inventory guardrails", () => {
     ) && source(partialRefundFulfillmentMigrationPath).includes(
       "CREATE FUNCTION public.grainline_order_refund_blocks_fulfillment(",
     );
+    const clerkWebhookAuthorityMigrationPath =
+      "prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql";
+    const clerkWebhookAuthorityPrepared = existsSync(
+      clerkWebhookAuthorityMigrationPath,
+    ) && source(clerkWebhookAuthorityMigrationPath).includes(
+      "CREATE FUNCTION public.grainline_clerk_webhook_begin(",
+    );
+    const clerkWebhookAuthorityFunctionNames = [
+      "grainline_clerk_webhook_begin",
+      "grainline_clerk_webhook_complete",
+      "grainline_clerk_webhook_fail",
+      "grainline_clerk_webhook_health_summary",
+      "grainline_clerk_webhook_prune_batch",
+    ];
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -1968,6 +1982,9 @@ describe("database grant inventory guardrails", () => {
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
+      ...(clerkWebhookAuthorityPrepared
+        ? clerkWebhookAuthorityFunctionNames
+        : []),
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
       "grainline_stripe_webhook_fail",
@@ -2009,6 +2026,9 @@ describe("database grant inventory guardrails", () => {
         + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
         + (caseRefundProviderRecoveryMigrationPresent ? 5 : 0)
         + (partialRefundFulfillmentMigrationPresent ? 1 : 0)
+        + (clerkWebhookAuthorityPrepared
+          ? clerkWebhookAuthorityFunctionNames.length
+          : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)
@@ -2101,6 +2121,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(partialRefundFulfillmentMigrationPresent
         ? ["grainline_order_refund_blocks_fulfillment"]
+        : []),
+      ...(clerkWebhookAuthorityPrepared
+        ? clerkWebhookAuthorityFunctionNames
         : []),
       "grainline_order_buyer_pii_prune_batch",
     ]) {

@@ -115,11 +115,13 @@ describe("R65 observability guardrails", () => {
 
   it("keeps Clerk pre-authentication rejection local while retaining verified failure telemetry", () => {
     const text = source("src/app/api/clerk/webhook/route.ts");
+    const eventState = source("src/lib/clerkWebhookEventState.ts");
 
     assert.match(text, /import \{ recordWebhookFailureSpike \} from "@\/lib\/webhookFailureSpike"/);
     assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
-    assert.match(text, /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/);
-    assert.match(text, /lastError: truncateText\(sanitizeEmailOutboxError\(err\), 2000\)/);
+    assert.match(eventState, /import \{ sanitizeEmailOutboxError \} from "\.\/emailOutboxSanitize\.ts"/);
+    assert.match(eventState, /sanitizeEmailOutboxError\(error\)/);
+    assert.match(eventState, /CLERK_WEBHOOK_EVENT_LAST_ERROR_MAX_CHARS = 500/);
     assert.doesNotMatch(text, /lastError: truncateText\(errorMessage\(err\), 2000\)/);
 
     const preAuthBlock = text.slice(text.indexOf("if (!webhookSecret)"), text.indexOf("let reservation:"));
@@ -133,12 +135,12 @@ describe("R65 observability guardrails", () => {
     assert.doesNotMatch(preAuthBlock, /throw err/);
 
     const reservationStart = text.indexOf("reservation = await reserveClerkWebhookEvent");
-    const reservationCatch = text.slice(reservationStart, text.indexOf('if (reservation === "processed")', reservationStart));
+    const reservationCatch = text.slice(reservationStart, text.indexOf('if (reservation.action === "processed")', reservationStart));
     assert.match(reservationCatch, /source: "clerk_webhook_reservation"/);
     assert.match(reservationCatch, /recordWebhookFailureSpike/);
     assert.match(reservationCatch, /kind: "reservation"/);
 
-    const finalCatchStart = text.indexOf("await markClerkWebhookFailed(svixId, error)");
+    const finalCatchStart = text.indexOf("await markClerkWebhookFailed(svixId, claimGeneration, error)");
     const processCatch = text.slice(
       finalCatchStart,
       text.indexOf("throw error;", finalCatchStart),
