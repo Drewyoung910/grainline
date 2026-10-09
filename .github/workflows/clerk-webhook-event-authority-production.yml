@@ -1,0 +1,191 @@
+name: ClerkWebhookEvent Authority Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      preflight_inspection_run_id:
+        description: Successful exact-commit compatible-state inspection run
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-clerk-webhook-event-authority
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply ClerkWebhookEvent compatibility authority
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-clerk-webhook-event-authority'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind release to exact main, CI, and preflight inspection
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_PREFLIGHT_INSPECTION_RUN_ID: ${{ inputs.preflight_inspection_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const inspectionValue = process.env.REVIEWED_PREFLIGHT_INSPECTION_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(inspectionValue ?? '')) {
+              throw new Error('ClerkWebhookEvent authority release binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const inspectionRunId = Number(inspectionValue);
+            if (!Number.isSafeInteger(ciRunId) || !Number.isSafeInteger(inspectionRunId)) {
+              throw new Error('ClerkWebhookEvent authority run id is unsafe');
+            }
+            const [{data: main}, {data: ci}, {data: inspection}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: inspectionRunId}),
+            ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.status !== 'completed' ||
+                ci.conclusion !== 'success') {
+              throw new Error('ClerkWebhookEvent authority main/CI readback drifted');
+            }
+            if (inspection.name !== 'ClerkWebhookEvent Production Inspection' ||
+                inspection.display_title !== `ClerkWebhookEvent Production Inspection [compatible] ${sha}` ||
+                inspection.event !== 'workflow_dispatch' ||
+                inspection.head_branch !== 'main' || inspection.head_sha !== sha ||
+                inspection.run_attempt !== 1 || inspection.status !== 'completed' ||
+                inspection.conclusion !== 'success') {
+              throw new Error('ClerkWebhookEvent authority preflight inspection readback drifted');
+            }
+      - name: Verify ClerkWebhookEvent compatibility release source
+        run: >-
+          node --test
+          tests/clerk-webhook-event-authority.test.mjs
+          tests/clerk-webhook-event-production-inspect.test.mjs
+          tests/clerk-webhook-event-production-workflows.test.mjs
+      - name: Verify exact compatibility migration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
+            "20261008120000_prepare_clerk_webhook_event_authority"
+          echo "c5926434597a96db649796a3c61e633827fb575ae3c29e2570efb0460e9ca643  prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql" | sha256sum --check --status
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe ClerkWebhookEvent state before apply
+        id: preflight
+        shell: bash
+        env:
+          CLERK_WEBHOOK_EVENT_EXPECTED_STATE: compatible
+          CLERK_WEBHOOK_EVENT_INSPECT_CONFIRM: inspect-reviewed-clerk-webhook-event-authority
+          CLERK_WEBHOOK_EVENT_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/clerk-webhook-event-production-inspection-${{ inputs.release_commit }}-compatible.json
+          CLERK_WEBHOOK_EVENT_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          result="$(node scripts/clerk-webhook-event-production-inspect.mjs)"
+          state="$(node -e 'let value=""; process.stdin.setEncoding("utf8"); process.stdin.on("data", chunk => value += chunk); process.stdin.on("end", () => process.stdout.write(String(JSON.parse(value).result.state)));' <<< "$result")"
+          case "$state" in
+            pending|complete) ;;
+            *) exit 1 ;;
+          esac
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+      - name: Require every predecessor migration applied
+        if: steps.preflight.outputs.state == 'pending'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          migration="20261008120000_prepare_clerk_webhook_event_authority"
+          holding="$RUNNER_TEMP/clerk-webhook-event-pending-migration"
+          mkdir -p "$holding"
+          restore() {
+            if [[ -d "$holding/$migration" ]]; then
+              mv "$holding/$migration" "prisma/migrations/$migration"
+            fi
+          }
+          trap restore EXIT
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          npx prisma migrate status
+          restore
+          trap - EXIT
+      - name: Apply only reviewed ClerkWebhookEvent compatibility migration
+        if: steps.preflight.outputs.state == 'pending'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Verify complete migration status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate status
+      - name: Audit global grants after ClerkWebhookEvent compatibility release
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Inspect complete ClerkWebhookEvent catalog after apply
+        env:
+          CLERK_WEBHOOK_EVENT_EXPECTED_STATE: complete
+          CLERK_WEBHOOK_EVENT_INSPECT_CONFIRM: inspect-reviewed-clerk-webhook-event-authority
+          CLERK_WEBHOOK_EVENT_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/clerk-webhook-event-production-inspection-${{ inputs.release_commit }}-complete.json
+          CLERK_WEBHOOK_EVENT_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: node scripts/clerk-webhook-event-production-inspect.mjs
+      - name: Preserve sanitized ClerkWebhookEvent release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clerk-webhook-event-authority-production-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/clerk-webhook-event-production-inspection-${{ github.sha }}-compatible.json
+            ${{ runner.temp }}/clerk-webhook-event-production-inspection-${{ github.sha }}-complete.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

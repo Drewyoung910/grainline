@@ -118,6 +118,8 @@ jobs:
           tests/clerk-user-lifecycle.test.mjs
           tests/clerk-webhook-event-authority.test.mjs
           tests/clerk-webhook-event-authority-postgres.test.mjs
+          tests/clerk-webhook-event-production-inspect.test.mjs
+          tests/clerk-webhook-event-production-workflows.test.mjs
           tests/clerk-webhook-receipt.test.mjs
           tests/clerk-webhook-event-state.test.mjs
           tests/retention-and-ops-followups.test.mjs
@@ -270,6 +272,8 @@ jobs:
           for test_file in \
             tests/clerk-webhook-event-authority.test.mjs \
             tests/clerk-webhook-event-authority-postgres.test.mjs \
+            tests/clerk-webhook-event-production-inspect.test.mjs \
+            tests/clerk-webhook-event-production-workflows.test.mjs \
             tests/clerk-webhook-event-state.test.mjs \
             tests/retention-and-ops-followups.test.mjs
           do
@@ -5087,6 +5091,8 @@ jobs:
           tests/clerk-user-lifecycle.test.mjs
           tests/clerk-webhook-event-authority.test.mjs
           tests/clerk-webhook-event-authority-postgres.test.mjs
+          tests/clerk-webhook-event-production-inspect.test.mjs
+          tests/clerk-webhook-event-production-workflows.test.mjs
           tests/clerk-webhook-event-state.test.mjs
           tests/retention-and-ops-followups.test.mjs
           tests/r65-observability-guardrails.test.mjs
