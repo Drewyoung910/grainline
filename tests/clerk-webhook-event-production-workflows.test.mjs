@@ -54,6 +54,22 @@ test("inspection proves exact source and bytes before touching the owner connect
   ]) assert.match(inspection, new RegExp(file.replaceAll(".", "\\."), "u"));
 });
 
+test("inspection owner guard receives the exact reviewed release binding", () => {
+  const guardStart = inspection.indexOf("- name: Verify owner connection boundary");
+  const inspectStart = inspection.indexOf("- name: Inspect ClerkWebhookEvent catalog read-only");
+  assert.ok(guardStart >= 0 && inspectStart > guardStart);
+  const guard = inspection.slice(guardStart, inspectStart);
+  assert.match(
+    guard,
+    /PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main/u,
+  );
+  assert.match(
+    guard,
+    /PRODUCTION_MIGRATION_RELEASE_COMMIT: \$\{\{ inputs\.release_commit \}\}/u,
+  );
+  assert.match(guard, /DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/u);
+});
+
 test("compatibility migration release is inspection-bound, exact-main, scope-closed, and restart-safe", () => {
   assert.match(release, /name: ClerkWebhookEvent Authority Production/u);
   assert.match(release, /inputs\.confirmation == 'apply-reviewed-clerk-webhook-event-authority'/u);

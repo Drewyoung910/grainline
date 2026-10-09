@@ -108,6 +108,8 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+          PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
       - name: Inspect ClerkWebhookEvent catalog read-only
         env:
           CLERK_WEBHOOK_EVENT_EXPECTED_STATE: ${{ inputs.expected_state }}
