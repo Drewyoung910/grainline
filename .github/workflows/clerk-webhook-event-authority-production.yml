@@ -93,7 +93,7 @@ jobs:
                 ci.conclusion !== 'success') {
               throw new Error('ClerkWebhookEvent authority main/CI readback drifted');
             }
-            if (inspection.name !== 'ClerkWebhookEvent Production Inspection' ||
+            if (inspection.path !== '.github/workflows/clerk-webhook-event-production-inspection.yml' ||
                 inspection.display_title !== `ClerkWebhookEvent Production Inspection [compatible] ${sha}` ||
                 inspection.event !== 'workflow_dispatch' ||
                 inspection.head_branch !== 'main' || inspection.head_sha !== sha ||

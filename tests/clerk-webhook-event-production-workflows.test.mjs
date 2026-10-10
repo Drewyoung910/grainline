@@ -77,8 +77,9 @@ test("compatibility migration release is inspection-bound, exact-main, scope-clo
   assert.match(release, /github\.run_attempt == 1/u);
   assert.match(release, /main\.commit\.sha !== sha/u);
   assert.match(release, /ci\.head_sha !== sha/u);
-  assert.match(release, /inspection\.name !== 'ClerkWebhookEvent Production Inspection'/u);
+  assert.match(release, /inspection\.path !== '\.github\/workflows\/clerk-webhook-event-production-inspection\.yml'/u);
   assert.match(release, /inspection\.display_title !== `ClerkWebhookEvent Production Inspection \[compatible\] \$\{sha\}`/u);
+  assert.doesNotMatch(release, /inspection\.name !== 'ClerkWebhookEvent Production Inspection'/u);
   assert.match(release, /inspection\.head_sha !== sha/u);
   assert.match(release, /inspection\.run_attempt !== 1/u);
   assert.match(release, /inspection\.conclusion !== 'success'/u);

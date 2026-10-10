@@ -12,11 +12,15 @@ Production.
 
 The first read-only compatible-state inspection, run `37993617755`, stopped at
 the owner-connection guard before the catalog inspector opened a Production
-connection. The workflow omitted the guard's exact confirmation and release
-commit environment inputs. No Production query or mutation ran. The correction
-passes both reviewed values explicitly at the guard step and adds a focused
-regression assertion; a fresh first-attempt inspection is required after that
-correction merges and its exact main CI succeeds.
+connection. The corrected inspection run `38001588444`, bound to exact main
+`187197077a6b3df282131ef7fb6493880bbf4a76` and CI `37998670858`, succeeded and
+proved the expected `pending` state without changing Production. The first
+authorized migration run, `38033363014`, then stopped at its GitHub metadata
+binding before source verification or any Production access: GitHub returns a dynamic
+`run-name` in the run API's `name` field, while the guard expected the static
+workflow name. The correction binds the inspection to its exact workflow path
+and exact dynamic title instead; a fresh first-attempt inspection and migration
+run remain required on the corrected exact main commit.
 
 The additive compatibility migration is
 `20261008120000_prepare_clerk_webhook_event_authority`. It adds a claim
@@ -141,8 +145,10 @@ The Production wiring adds two separate manual workflows:
 Focused source verification covers all accepted catalog states, checksum,
 column, constraint, function body/configuration, ACL, RLS, evidence, exact-main
 binding, step ordering, restart behavior, and scope closure. These workflows
-are merged source. Inspection run `37993617755` failed before Production access;
-the migration workflow has not been dispatched.
+are merged source. Inspection run `38001588444` accepted the `pending` catalog.
+Migration run `38033363014` was dispatched but stopped at its inspection-run
+metadata guard before checkout, Production access, or SQL; Production remains
+unchanged.
 
 ## Release order and remaining gates
 
