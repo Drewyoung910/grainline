@@ -56,7 +56,7 @@ jobs:
         env:
           ACCOUNT_DELETION_WORKER_BOOTSTRAP_TLS_PROOF: loopback-ci-postgres16
           ACCOUNT_DELETION_WORKER_BOOTSTRAP_TLS_PROOF_CA: ${{ runner.temp }}/account-deletion-bootstrap-ca.pem
-      - name: Stop containers
+      - name: Explicitly stop disposable proof service
         if: always()
         env:
           PROOF_CONTAINER: ${{ job.services.postgres.id }}

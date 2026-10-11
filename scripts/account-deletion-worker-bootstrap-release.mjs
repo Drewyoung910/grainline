@@ -12,7 +12,7 @@ const KEYS = ["releaseCommit", "ciRunId", "deployedSourceCommit", "deploymentId"
   "ownerCredentialEvidenceSha256", "runtimeCredentialEvidenceSha256", "tlsProofRunId", "tlsProofJobId",
   "tlsProofRunAttempt"].sort();
 const REQUIRED_TLS_STEPS = ["Enable TLS only on the disposable proof service",
-  "Prove real TLS channel-bound bootstrap and exact restart", "Stop containers"];
+  "Prove real TLS channel-bound bootstrap and exact restart", "Explicitly stop disposable proof service"];
 
 export function accountDeletionCredentialEpochSha256(value) {
   const owner = value?.ownerCredentialEvidenceSha256;

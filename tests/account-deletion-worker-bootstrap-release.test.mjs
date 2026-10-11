@@ -80,8 +80,10 @@ test("TLS proof must be the exact main push, run attempt and successful unskippe
     value => { value.tlsProofJob.conclusion = "failure"; },
     value => { value.tlsProofJob.steps[1].conclusion = "skipped"; },
     value => { value.tlsProofJob.steps[1].status = "queued"; },
-    value => { value.tlsProofJob.steps.pop(); },
+    value => { value.tlsProofJob.steps = value.tlsProofJob.steps
+      .filter(step => step.name !== "Explicitly stop disposable proof service"); },
     value => { value.tlsProofJob.steps.push(value.tlsProofJob.steps[1]); },
+    value => { value.tlsProofJob.steps.push(value.tlsProofJob.steps[2]); },
   ];
   for (const mutate of mutations) {
     const value = accountDeletionReleaseFixture();
@@ -103,7 +105,7 @@ test("standalone proof is available for every exact main head and refuses an acc
   assert.ok(command.includes('test "$ACCOUNT_DELETION_WORKER_BOOTSTRAP_TLS_PROOF" = loopback-ci-postgres16'));
   assert.ok(command.includes('test -r "$ACCOUNT_DELETION_WORKER_BOOTSTRAP_TLS_PROOF_CA"'));
   assert.ok(command.indexOf("test -r") < command.indexOf("node --test"));
-  const stop = job.steps.find(step => step.name === "Stop containers");
+  const stop = job.steps.find(step => step.name === "Explicitly stop disposable proof service");
   assert.equal(stop.if, "always()");
   assert.equal(stop.env.PROOF_CONTAINER, "${{ job.services.postgres.id }}");
   assert.equal(stop.run, 'docker stop "$PROOF_CONTAINER"');

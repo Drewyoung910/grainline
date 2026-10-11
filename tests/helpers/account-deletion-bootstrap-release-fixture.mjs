@@ -23,7 +23,8 @@ export function accountDeletionReleaseFixture() {
       event: "push", status: "completed", conclusion: "success" },
     tlsProofJob: { id: 101454688066, run_id: 34021451851, run_attempt: 1, head_sha: releaseCommit,
       name: "tls-login", status: "completed", conclusion: "success", steps: [
-        "Enable TLS only on the disposable proof service", "Prove real TLS channel-bound bootstrap and exact restart", "Stop containers",
+        "Enable TLS only on the disposable proof service", "Prove real TLS channel-bound bootstrap and exact restart",
+        "Explicitly stop disposable proof service", "Stop containers",
       ].map(name => ({ name, status: "completed", conclusion: "success" })) },
     deployment: { id: deploymentId, projectId: "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp", teamId: "team_wvQeQHZGwCSwinC1uB7xbpjr",
       target: "production", readyState: "READY", sourceCommit: "c".repeat(40),
