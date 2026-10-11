@@ -21,7 +21,7 @@ test("User-adjacent service ledgers remain scalar and separately classified", ()
   assert.doesNotMatch(clerk, /\bUser\??\b|@relation\b/);
   assert.doesNotMatch(deletion, /\bUser\??\b|@relation\b/);
   assert.match(deletion, /\buserId\s+String\s+@db\.VarChar\(191\)/);
-  assert.match(matrix, /\| `ClerkWebhookEvent` \| `ALTERNATIVE_REVIEW` \|/);
+  assert.match(matrix, /\| `ClerkWebhookEvent` \| `COMPATIBLE_PREPARATION_LIVE` \|/);
   assert.match(matrix, /\| `AccountDeletionSideEffect` \| `ALTERNATIVE_REVIEW` \|/);
 });
 
