@@ -2,7 +2,6 @@ import { auth, clerkClient, reverificationErrorResponse } from "@clerk/nextjs/se
 import * as Sentry from "@sentry/nextjs";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { prisma } from "@/lib/db";
 import {
   acquireAccountDeletionLock,
   anonymizeUserAccount,
@@ -10,6 +9,7 @@ import {
   releaseAccountDeletionLock,
 } from "@/lib/accountDeletion";
 import { enqueueAccountDeletionLocalAnonymizeSideEffect } from "@/lib/accountDeletionSideEffects";
+import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { accountDeletionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -106,7 +106,10 @@ export async function POST(req: Request) {
   }
 
   try {
-    const sideEffectId = await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id);
+    const sideEffectId = await enqueueAccountDeletionLocalAnonymizeSideEffect(
+      getAccountDeletionSideEffectClient(),
+      me.id,
+    );
     const anonymized = await anonymizeUserAccount(me.id, {
       lock: deletionLock,
       sideEffectId,

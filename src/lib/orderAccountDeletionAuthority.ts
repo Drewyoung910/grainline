@@ -64,6 +64,9 @@ export async function scrubOrderDataForAccountDeletion(
   input: {
     actorUserId: string;
     additionalSensitiveValues: string[];
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
   },
   client: OrderAccountDeletionClient,
 ): Promise<OrderAccountDeletionScrubResult> {
@@ -75,7 +78,10 @@ export async function scrubOrderDataForAccountDeletion(
   const rows = await client.$queryRaw<unknown[]>(Prisma.sql`
     SELECT *
       FROM public.grainline_order_account_deletion_scrub(
+        ${input.sideEffectId},
         ${actorUserId},
+        ${input.claimGeneration}::bigint,
+        ${input.claimToken}::uuid,
         ${valuesSql}
       )
   `);

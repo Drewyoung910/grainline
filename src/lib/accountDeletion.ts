@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
@@ -37,6 +38,7 @@ import {
   ACCOUNT_DELETION_SIDE_EFFECT_KIND,
   type AccountDeletionAuditRedactionUpdate,
   enqueueAccountDeletionAuditRedactionSideEffects,
+  claimAccountDeletionSideEffect,
   enqueueAccountDeletionLocalAnonymizeSideEffect,
   enqueueAccountDeletionMediaDeleteSideEffects,
   markAccountDeletionLocalAnonymizeDone,
@@ -1013,7 +1015,12 @@ async function deferProviderDeletedAccountAnonymization(input: {
 
 export async function anonymizeUserAccount(
   userId: string,
-  options: { lock?: AccountDeletionLock; sideEffectId?: string } = {},
+  options: {
+    lock?: AccountDeletionLock;
+    sideEffectId?: string;
+    claimGeneration?: bigint;
+    claimToken?: string;
+  } = {},
 ) {
   if (options.lock && options.lock.userId !== userId) {
     throw new Error("Account deletion lock does not belong to the requested user");
@@ -1024,19 +1031,41 @@ export async function anonymizeUserAccount(
   try {
   const localAnonymizeSideEffectId =
     options.sideEffectId
-    ?? await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, userId);
+    ?? await enqueueAccountDeletionLocalAnonymizeSideEffect(
+      getAccountDeletionSideEffectClient(),
+      userId,
+    );
+  let localClaimGeneration = options.claimGeneration;
+  let localClaimToken = options.claimToken;
+  if (localClaimGeneration === undefined || localClaimToken === undefined) {
+    const claim = await claimAccountDeletionSideEffect(localAnonymizeSideEffectId);
+    if (claim.action === "done") {
+      return { ok: true, alreadyDeleted: true };
+    }
+    if (
+      claim.action !== "process"
+      || claim.effect.userId !== userId
+      || claim.effect.kind !== ACCOUNT_DELETION_SIDE_EFFECT_KIND.LOCAL_ANONYMIZE
+    ) {
+      throw new Error("Account deletion local anonymization could not be claimed");
+    }
+    localClaimGeneration = claim.effect.claimGeneration;
+    localClaimToken = claim.effect.claimToken;
+  }
   const account = await getUserAccountDeletionPreflight(
     prisma,
     localAnonymizeSideEffectId,
+    localClaimGeneration,
+    localClaimToken,
   );
   if (account.userId !== userId) {
     throw new Error("Account deletion side effect does not belong to the requested user");
   }
   if (account.deletedAt) {
     await markAccountDeletionLocalAnonymizeDone(
-      prisma,
       localAnonymizeSideEffectId,
-      userId,
+      localClaimGeneration,
+      localClaimToken,
     );
     return { ok: true, alreadyDeleted: true };
   }
@@ -1081,6 +1110,8 @@ export async function anonymizeUserAccount(
     const snapshot = await getUserAccountDeletionSnapshot(
       tx,
       localAnonymizeSideEffectId,
+      localClaimGeneration,
+      localClaimToken,
     );
     if (snapshot.userId !== userId) {
       throw new Error("Account deletion snapshot does not belong to the requested user");
@@ -1175,7 +1206,15 @@ export async function anonymizeUserAccount(
       user.sellerProfile?.websiteUrl,
     ]);
     const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId);
-    await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls);
+    await enqueueAccountDeletionMediaDeleteSideEffects(
+      tx,
+      {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      },
+      mediaUrls,
+    );
     // Public account media is queued above, then its durable references are
     // released and its lifecycle rows become cleanup-eligible. Private Case
     // evidence remains referenced with the dispute record.
@@ -1210,11 +1249,18 @@ export async function anonymizeUserAccount(
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });
-    await redactActorMessagesForAccountDeletion(user.id, tx);
+    await redactActorMessagesForAccountDeletion({
+      sideEffectId: localAnonymizeSideEffectId,
+      userId: user.id,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
+    }, tx);
     await redactCaseDataForAccountDeletion(
       {
         sideEffectId: localAnonymizeSideEffectId,
         userId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       },
       tx,
     );
@@ -1226,6 +1272,9 @@ export async function anonymizeUserAccount(
       {
         actorUserId: user.id,
         additionalSensitiveValues: accountSensitiveValues,
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       },
       tx,
     );
@@ -1514,6 +1563,8 @@ export async function anonymizeUserAccount(
     await finalizeUserAccountDeletion(tx, {
       sideEffectId: localAnonymizeSideEffectId,
       expectedUserId: user.id,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
     });
 
     return {
@@ -1538,9 +1589,9 @@ export async function anonymizeUserAccount(
   });
 
   await markAccountDeletionLocalAnonymizeDone(
-    prisma,
     localAnonymizeSideEffectId,
-    userId,
+    localClaimGeneration,
+    localClaimToken,
   );
 
   if (!result.alreadyDeleted) {
@@ -1554,7 +1605,11 @@ export async function anonymizeUserAccount(
         targetIds: result.auditTargetIds,
         sensitiveValues: result.accountSensitiveValues,
       });
-      await enqueueAccountDeletionAuditRedactionSideEffects(prisma, userId, redactionUpdates);
+      await enqueueAccountDeletionAuditRedactionSideEffects(
+        getAccountDeletionSideEffectClient(),
+        userId,
+        redactionUpdates,
+      );
       const redactionResult = await processAccountDeletionSideEffectsForUser(userId, [
         ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
       ]);

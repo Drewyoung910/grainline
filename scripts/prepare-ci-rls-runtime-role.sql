@@ -75,6 +75,25 @@ BEGIN
 END
 $grainline_ci_staff_read_role$;
 
+DO $grainline_ci_account_deletion_role$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_roles
+     WHERE rolname = 'grainline_account_deletion_runtime'
+  ) THEN
+    CREATE ROLE grainline_account_deletion_runtime
+      LOGIN
+      NOSUPERUSER
+      NOCREATEDB
+      NOCREATEROLE
+      NOINHERIT
+      NOREPLICATION
+      NOBYPASSRLS;
+  END IF;
+END
+$grainline_ci_account_deletion_role$;
+
 -- Make reruns converge to the reviewed least-privilege policy-role shape.
 ALTER ROLE grainline_app_runtime
   LOGIN
@@ -95,6 +114,15 @@ ALTER ROLE grainline_direct_upload_cleanup_v2
   NOBYPASSRLS;
 
 ALTER ROLE grainline_staff_read_runtime
+  LOGIN
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  NOINHERIT
+  NOREPLICATION
+  NOBYPASSRLS;
+
+ALTER ROLE grainline_account_deletion_runtime
   LOGIN
   NOSUPERUSER
   NOCREATEDB
@@ -160,6 +188,25 @@ BEGIN
 END
 $grainline_ci_staff_memberships$;
 
+DO $grainline_ci_account_deletion_memberships$
+DECLARE
+  parent_role text;
+BEGIN
+  FOR parent_role IN
+    SELECT parent.rolname
+      FROM pg_auth_members membership
+      JOIN pg_roles child ON child.oid = membership.member
+      JOIN pg_roles parent ON parent.oid = membership.roleid
+     WHERE child.rolname = 'grainline_account_deletion_runtime'
+  LOOP
+    EXECUTE format(
+      'REVOKE %I FROM grainline_account_deletion_runtime',
+      parent_role
+    );
+  END LOOP;
+END
+$grainline_ci_account_deletion_memberships$;
+
 GRANT USAGE ON SCHEMA public TO grainline_app_runtime;
 REVOKE CREATE ON SCHEMA public FROM grainline_app_runtime;
 REVOKE CREATE ON DATABASE grainline_ci FROM grainline_app_runtime;
@@ -169,6 +216,9 @@ REVOKE CREATE ON DATABASE grainline_ci FROM grainline_direct_upload_cleanup_v2;
 GRANT USAGE ON SCHEMA public TO grainline_staff_read_runtime;
 REVOKE CREATE ON SCHEMA public FROM grainline_staff_read_runtime;
 REVOKE CREATE ON DATABASE grainline_ci FROM grainline_staff_read_runtime;
+GRANT USAGE ON SCHEMA public TO grainline_account_deletion_runtime;
+REVOKE CREATE ON SCHEMA public FROM grainline_account_deletion_runtime;
+REVOKE CREATE ON DATABASE grainline_ci FROM grainline_account_deletion_runtime;
 
 -- Prisma migrations in CI run as the current `ci` owner. Set its defaults
 -- before the first table is created so SavedSearch has the grants required by

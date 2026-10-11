@@ -68,7 +68,7 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.match(snapshotSql, /FROM public\."User" AS account_user[\s\S]{0,180}FOR UPDATE/);
     const deletionTx = deletion.indexOf("const result = await withDbUserContext");
     const snapshotCall = deletion.indexOf("getUserAccountDeletionSnapshot(", deletionTx);
-    const redactionCall = deletion.indexOf("await redactActorMessagesForAccountDeletion(user.id, tx)", deletionTx);
+    const redactionCall = deletion.indexOf("await redactActorMessagesForAccountDeletion({", deletionTx);
     assert.ok(
       deletionTx >= 0 && snapshotCall > deletionTx && redactionCall > snapshotCall,
       "the locked snapshot must precede message redaction",

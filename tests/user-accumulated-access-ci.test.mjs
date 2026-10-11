@@ -49,6 +49,16 @@ const packageOwnedTests = [
   "user-clerk-identity-authority-postgres.test.mjs",
   "user-email-address-history.test.mjs",
 ];
+const accountDeletionSuccessorTests = [
+  "account-deletion-side-effect-ci.test.mjs",
+  "account-deletion-side-effect-activation-postgres.test.mjs",
+  "account-deletion-side-effect-database-contract.test.mjs",
+  "account-deletion-side-effects.test.mjs",
+];
+const accountDeletionSuccessorMigrations = [
+  "20261011170000_prepare_account_deletion_side_effect_claim_fence",
+  "20261011180000_enable_account_deletion_side_effect_rls",
+];
 const admittedTests = [...heldTests, ...packageOwnedTests];
 const staffScript = "scripts/provision-order-staff-read-role.sql";
 const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
@@ -64,6 +74,30 @@ function step(name) {
 
 function bashBody(name) {
   return step(name).split("        run: |\n")[1].split("\n").map((line) => line.startsWith("          ") ? line.slice(10) : line).join("\n");
+}
+
+function accountDeletionSuccessorTestPath(file) {
+  const livePath = path.join("tests", file);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "account-deletion-side-effect-claim-fence",
+    file,
+  );
+  assert.ok(existsSync(stagedPath), `missing isolated AccountDeletionSideEffect test ${file}`);
+  return stagedPath;
+}
+
+function accountDeletionSuccessorMigrationPath(migration) {
+  const livePath = path.join("prisma", "migrations", migration);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "account-deletion-side-effect-claim-fence",
+    migration,
+  );
+  assert.ok(existsSync(stagedPath), `missing isolated AccountDeletionSideEffect migration ${migration}`);
+  return stagedPath;
 }
 
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
@@ -151,13 +185,23 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     mkdirSync(path.join(root, "scripts"));
     cpSync(staffScript, path.join(root, staffScript));
     cpSync("prisma", path.join(root, "prisma"), { recursive: true });
+    for (const migration of accountDeletionSuccessorMigrations) {
+      const target = path.join(root, "prisma", "migrations", migration);
+      if (!existsSync(target)) {
+        cpSync(accountDeletionSuccessorMigrationPath(migration), target, { recursive: true });
+      }
+    }
     for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
+    for (const file of accountDeletionSuccessorTests) {
+      cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
+    }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const trackedPaths = [...heldPaths, staffScript];
     const hash = (relative) => createHash("sha256").update(readFileSync(path.join(root, relative))).digest("hex");
     const original = trackedPaths.map(hash);
     const catalogPath = "tests/user-authority-catalog.test.mjs";
     const catalogIndex = trackedPaths.indexOf(catalogPath);
+    execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
     assert.ok(heldPaths.every((relative) => !existsSync(path.join(root, relative))));
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");

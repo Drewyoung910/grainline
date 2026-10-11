@@ -41,15 +41,17 @@ behavior and authority decisions. This file supersedes the earlier preliminary
 No statically visible direct delegate, relation edge or raw User SQL caller
 remains.
 
-The scanner reports 222 opaque caller shapes and 14 opaque typed factory-return
+The scanner reports 220 opaque caller shapes and 14 opaque typed factory-return
 shapes. Their helper implementations and arguments have received a bounded
 semantic review: 185 caller rows use reviewed visibility/lifecycle-snapshot or
-scalar-ownership helpers; the other 37 are scalar filters, ordering, mutation
+scalar-ownership helpers; the other 35 are scalar filters, ordering, mutation
 payload and deletion/retention queue construction. No reviewed shape hides a
 User relation, direct delegate or raw User SQL access. Canonical signature
 digests fail on change and require renewed review. See
 `docs/user-opaque-query-review.md`; the scanner alone still does not prove User
-independence.
+independence. The two-shape reduction comes from the AccountDeletionSideEffect
+claim-fence conversion: the media enqueue payload and claimable-row update
+predicate now execute through reviewed claim-bound SQL RPCs.
 
 ## Raw User SQL calls
 

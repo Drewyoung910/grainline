@@ -36,7 +36,12 @@ export async function getCaseAccountDeletionBlockerCount(
 }
 
 export async function redactCaseDataForAccountDeletion(
-  input: { sideEffectId: string; userId: string },
+  input: {
+    sideEffectId: string;
+    userId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
   db: CaseAccountDeletionClient = prisma,
 ): Promise<CaseAccountDeletionRedaction> {
   const sideEffectId = requireBoundedId(
@@ -50,7 +55,9 @@ export async function redactCaseDataForAccountDeletion(
   const rows = await db.$queryRaw<unknown[]>`
     SELECT *
       FROM public.grainline_case_account_deletion_redact(
-        ${sideEffectId}::text
+        ${sideEffectId}::text,
+        ${input.claimGeneration}::bigint,
+        ${input.claimToken}::uuid
       )
   `;
   return validateCaseAccountDeletionRedactionRows(rows, {

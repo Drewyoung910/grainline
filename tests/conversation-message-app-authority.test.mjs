@@ -165,7 +165,7 @@ describe("Conversation and Message application authority conversion", () => {
       "const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId)",
     );
     const redactionCall = deletion.indexOf(
-      "await redactActorMessagesForAccountDeletion(user.id, tx)",
+      "await redactActorMessagesForAccountDeletion({",
     );
 
     assert.match(helper, /listActorSentMessageBodiesForDeletion/);

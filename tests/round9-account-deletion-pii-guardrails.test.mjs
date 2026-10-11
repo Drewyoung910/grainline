@@ -153,7 +153,10 @@ describe("Round 9 account deletion PII guardrails", () => {
       caseDeletionMigration,
       /grainline_account_deletion_redact_text_core\([\s\S]*case_row\.description,[\s\S]*sensitive_values/,
     );
-    assert.match(deletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
+    assert.match(
+      deletion,
+      /redactActorMessagesForAccountDeletion\(\{[\s\S]*userId: user\.id,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*\}, tx\)/,
+    );
     assert.doesNotMatch(deletion, /FROM "Message"|tx\.message\./);
     assert.match(deletion, /redactCaseDataForAccountDeletion\(/);
     assert.doesNotMatch(
@@ -195,7 +198,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     );
 
     assert.doesNotMatch(deletion, /conversation\.deleteMany/);
-    assert.match(deletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
+    assert.match(deletion, /redactActorMessagesForAccountDeletion\(\{/);
     assert.doesNotMatch(threadRenderQuery, /email: true/);
     assert.doesNotMatch(inboxPage, /select: \{[^}]*email: true/s);
     assert.doesNotMatch(inboxPage, /email:\s*\{\s*contains:\s*q/);

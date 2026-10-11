@@ -77,6 +77,7 @@ export const CASE_ACTIVATION_TABLES = Object.freeze([
 ]);
 export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
 export const CLERK_WEBHOOK_EVENT_TABLE = "ClerkWebhookEvent";
+export const ACCOUNT_DELETION_SIDE_EFFECT_TABLE = "AccountDeletionSideEffect";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
@@ -358,6 +359,313 @@ export function clerkWebhookEventRlsActivationExpected(inventory) {
 export function clerkWebhookEventRlsForceExpected(inventory) {
   return clerkWebhookEventRlsActivationExpected(inventory)
     && (inventory?.rlsForceTables ?? []).includes(CLERK_WEBHOOK_EVENT_TABLE);
+}
+
+export function accountDeletionSideEffectRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(ACCOUNT_DELETION_SIDE_EFFECT_TABLE)
+    && policies.has(ACCOUNT_DELETION_SIDE_EFFECT_TABLE);
+}
+
+const ACCOUNT_DELETION_CLAIM_FENCE_MARKER =
+  "grainline_account_deletion_claim_user";
+const ACCOUNT_DELETION_ALWAYS_PRIVATE_FUNCTION_IDENTITIES = new Set([
+  "grainline_account_deletion_claim_user(text,bigint,uuid)",
+]);
+const ACCOUNT_DELETION_LEGACY_FUNCTION_IDENTITIES = new Set([
+  "grainline_user_account_deletion_preflight(text)",
+  "grainline_user_account_deletion_snapshot(text)",
+  "grainline_user_account_deletion_finalize(text)",
+  "grainline_case_account_deletion_redact(text)",
+  "grainline_message_redact_for_account_deletion(text)",
+  "grainline_order_account_deletion_scrub(text,text[])",
+]);
+const ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES = new Set([
+  "grainline_account_deletion_side_effect_claim(text)",
+  "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
+  "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
+]);
+
+export function accountDeletionRuntimeExecuteExpected(row, inventory) {
+  if (!(inventory?.functions ?? []).includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER)) {
+    return null;
+  }
+  const argumentTypes = typeof row?.argument_types === "string"
+    ? row.argument_types.replace(/\s*,\s*/g, ",").trim()
+    : "";
+  const identity = `${row?.function_name ?? ""}(${argumentTypes})`;
+  if (ACCOUNT_DELETION_ALWAYS_PRIVATE_FUNCTION_IDENTITIES.has(identity)) {
+    return false;
+  }
+  if (ACCOUNT_DELETION_LEGACY_FUNCTION_IDENTITIES.has(identity)) {
+    return !accountDeletionSideEffectRlsActivationExpected(inventory);
+  }
+  if (ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
+    return !accountDeletionSideEffectRlsActivationExpected(inventory);
+  }
+  return null;
+}
+
+export function collectAccountDeletionWorkerBoundaryIssues(state, inventory) {
+  if (!(inventory?.functions ?? []).includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER)) {
+    return [];
+  }
+  const issues = [];
+  const active = accountDeletionSideEffectRlsActivationExpected(inventory);
+  if (!state?.role_exists) {
+    return ["account-deletion worker role does not exist"];
+  }
+  for (const attribute of [
+    "role_super",
+    "role_inherit",
+    "role_createdb",
+    "role_createrole",
+    "role_replication",
+    "role_bypassrls",
+  ]) {
+    if (state[attribute]) issues.push(`account-deletion worker has ${attribute}`);
+  }
+  if (!state.role_canlogin) issues.push("account-deletion worker must have LOGIN");
+  if (Number(state.membership_count ?? 0) !== 0) {
+    issues.push("account-deletion worker has unreviewed role membership");
+  }
+  if (state.database_create) issues.push("account-deletion worker has database CREATE");
+  if (!state.schema_usage) issues.push("account-deletion worker lacks public schema USAGE");
+  if (state.schema_create) issues.push("account-deletion worker has public schema CREATE");
+  if (Number(state.owned_public_object_count ?? 0) !== 0) {
+    issues.push("account-deletion worker owns public objects");
+  }
+  const actualTablePrivileges = sortedUnique(
+    (state.table_privileges ?? []).map((value) => String(value).toUpperCase()),
+  );
+  if (actualTablePrivileges.join(",") !== REQUIRED_TABLE_PRIVILEGES.slice().sort().join(",")) {
+    issues.push(
+      `account-deletion worker table privileges drifted: ${actualTablePrivileges.join(",") || "none"}`,
+    );
+  }
+  if (Number(state.column_acl_count ?? 0) !== 0) {
+    issues.push("account-deletion worker has direct column privileges");
+  }
+  if (Number(state.table_grant_option_count ?? 0) !== 0) {
+    issues.push("account-deletion worker has table grant options");
+  }
+  if ((state.unexpected_table_privileges ?? []).length > 0) {
+    issues.push(
+      `account-deletion worker has unrelated table authority: ${state.unexpected_table_privileges.join(", ")}`,
+    );
+  }
+  if ((state.unexpected_type_privileges ?? []).length > 0) {
+    issues.push(
+      `account-deletion worker has unrelated type authority: ${state.unexpected_type_privileges.join(", ")}`,
+    );
+  }
+  if (active) {
+    if (!state.rls_enabled || state.rls_forced) {
+      issues.push("AccountDeletionSideEffect activation posture drifted");
+    }
+    if (Number(state.policy_count ?? 0) !== 1 || Number(state.exact_policy_count ?? 0) !== 1) {
+      issues.push("AccountDeletionSideEffect exact worker policy drifted");
+    }
+  } else if (state.rls_enabled || state.rls_forced || Number(state.policy_count ?? 0) !== 0) {
+    issues.push("AccountDeletionSideEffect predecessor RLS posture drifted");
+  }
+  const actualFunctions = sortedUnique(
+    (state.function_identities ?? []).map((value) => String(value).replace(/\s*,\s*/g, ",")),
+  );
+  const expectedFunctions = [...ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES].sort();
+  if (actualFunctions.join("|") !== expectedFunctions.join("|")) {
+    issues.push(
+      `account-deletion worker function authority drifted: ${actualFunctions.join(", ") || "none"}`,
+    );
+  }
+  if (Number(state.function_grant_option_count ?? 0) !== 0) {
+    issues.push("account-deletion worker has function EXECUTE grant option");
+  }
+  if (Number(state.public_account_deletion_execute_count ?? 0) !== 0) {
+    issues.push("account-deletion functions grant EXECUTE to PUBLIC");
+  }
+  return issues;
+}
+
+export async function readAccountDeletionWorkerBoundaryState(client) {
+  const result = await client.query(`
+    WITH worker AS (
+      SELECT role.*
+        FROM pg_catalog.pg_roles AS role
+       WHERE role.rolname = 'grainline_account_deletion_runtime'
+    ), target AS (
+      SELECT class.*
+        FROM pg_catalog.pg_class AS class
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = class.relnamespace
+       WHERE namespace.nspname = 'public'
+         AND class.relname = 'AccountDeletionSideEffect'
+         AND class.relkind = 'r'
+    )
+    SELECT
+      EXISTS (SELECT 1 FROM worker) AS role_exists,
+      COALESCE((SELECT rolsuper FROM worker), false) AS role_super,
+      COALESCE((SELECT rolinherit FROM worker), false) AS role_inherit,
+      COALESCE((SELECT rolcanlogin FROM worker), false) AS role_canlogin,
+      COALESCE((SELECT rolcreatedb FROM worker), false) AS role_createdb,
+      COALESCE((SELECT rolcreaterole FROM worker), false) AS role_createrole,
+      COALESCE((SELECT rolreplication FROM worker), false) AS role_replication,
+      COALESCE((SELECT rolbypassrls FROM worker), false) AS role_bypassrls,
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_auth_members AS membership
+         JOIN pg_catalog.pg_roles AS member ON member.oid = membership.member
+         JOIN pg_catalog.pg_roles AS granted_role
+           ON granted_role.oid = membership.roleid
+         JOIN pg_catalog.pg_roles AS grantor ON grantor.oid = membership.grantor
+        WHERE (
+          membership.member = (SELECT oid FROM worker)
+          OR membership.roleid = (SELECT oid FROM worker)
+        )
+          AND NOT (
+            granted_role.rolname = 'grainline_account_deletion_runtime'
+            AND member.rolname = 'neondb_owner'
+            AND grantor.rolname = 'cloud_admin'
+            AND membership.admin_option
+            AND NOT membership.inherit_option
+            AND NOT membership.set_option
+          )) AS membership_count,
+      COALESCE(pg_catalog.has_database_privilege(
+        (SELECT oid FROM worker), current_database(), 'CREATE'
+      ), false) AS database_create,
+      COALESCE(pg_catalog.has_schema_privilege(
+        (SELECT oid FROM worker), 'public', 'USAGE'
+      ), false) AS schema_usage,
+      COALESCE(pg_catalog.has_schema_privilege(
+        (SELECT oid FROM worker), 'public', 'CREATE'
+      ), false) AS schema_create,
+      ((SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.pg_class AS class
+          JOIN pg_catalog.pg_namespace AS namespace
+            ON namespace.oid = class.relnamespace
+         WHERE namespace.nspname = 'public'
+           AND class.relowner = (SELECT oid FROM worker))
+       + (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_proc AS procedure
+            JOIN pg_catalog.pg_namespace AS namespace
+              ON namespace.oid = procedure.pronamespace
+           WHERE namespace.nspname = 'public'
+             AND procedure.proowner = (SELECT oid FROM worker))
+       + (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_type AS type
+            JOIN pg_catalog.pg_namespace AS namespace
+              ON namespace.oid = type.typnamespace
+           WHERE namespace.nspname = 'public'
+             AND type.typowner = (SELECT oid FROM worker)))
+        AS owned_public_object_count,
+      COALESCE((SELECT relrowsecurity FROM target), false) AS rls_enabled,
+      COALESCE((SELECT relforcerowsecurity FROM target), false) AS rls_forced,
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = (SELECT oid FROM target)) AS policy_count,
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = (SELECT oid FROM target)
+          AND policy.polname =
+              'AccountDeletionSideEffect_account_deletion_runtime_all'
+          AND policy.polcmd = '*'
+          AND policy.polpermissive
+          AND policy.polroles = ARRAY[(SELECT oid FROM worker)]::oid[]
+          AND pg_catalog.pg_get_expr(policy.polqual, policy.polrelid) = 'true'
+          AND pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) = 'true')
+        AS exact_policy_count,
+      ARRAY(
+        SELECT DISTINCT pg_catalog.upper(acl.privilege_type)
+          FROM target
+          CROSS JOIN LATERAL pg_catalog.aclexplode(
+            COALESCE(target.relacl, pg_catalog.acldefault('r', target.relowner))
+          ) AS acl
+         WHERE acl.grantee = (SELECT oid FROM worker)
+         ORDER BY 1
+      ) AS table_privileges,
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_attribute AS attribute
+         CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+        WHERE attribute.attrelid = (SELECT oid FROM target)
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped
+          AND acl.grantee = (SELECT oid FROM worker)) AS column_acl_count,
+      (SELECT pg_catalog.count(*)::integer
+         FROM target
+         CROSS JOIN LATERAL pg_catalog.aclexplode(
+           COALESCE(target.relacl, pg_catalog.acldefault('r', target.relowner))
+         ) AS acl
+        WHERE acl.grantee = (SELECT oid FROM worker)
+          AND acl.is_grantable) AS table_grant_option_count,
+      ARRAY(
+        SELECT DISTINCT pg_catalog.format('%I.%I:%s', namespace.nspname, class.relname, acl.privilege_type)
+          FROM pg_catalog.pg_class AS class
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
+          CROSS JOIN LATERAL pg_catalog.aclexplode(
+            COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+          ) AS acl
+         WHERE namespace.nspname = 'public'
+           AND class.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+           AND class.relname <> 'AccountDeletionSideEffect'
+           AND acl.grantee = (SELECT oid FROM worker)
+         ORDER BY 1
+      ) AS unexpected_table_privileges,
+      ARRAY(
+        SELECT DISTINCT pg_catalog.format('%I.%I:%s', namespace.nspname, type.typname, acl.privilege_type)
+          FROM pg_catalog.pg_type AS type
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = type.typnamespace
+          CROSS JOIN LATERAL pg_catalog.aclexplode(type.typacl) AS acl
+         WHERE namespace.nspname = 'public'
+           AND acl.grantee = (SELECT oid FROM worker)
+         ORDER BY 1
+      ) AS unexpected_type_privileges,
+      ARRAY(
+        SELECT pg_catalog.format('%s(%s)', procedure.proname, pg_catalog.oidvectortypes(procedure.proargtypes))
+          FROM pg_catalog.pg_proc AS procedure
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+          CROSS JOIN LATERAL pg_catalog.aclexplode(
+            COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
+          ) AS acl
+         WHERE namespace.nspname = 'public'
+           AND acl.grantee = (SELECT oid FROM worker)
+           AND acl.privilege_type = 'EXECUTE'
+         ORDER BY 1
+      ) AS function_identities,
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_proc AS procedure
+         JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+         CROSS JOIN LATERAL pg_catalog.aclexplode(
+           COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
+         ) AS acl
+        WHERE namespace.nspname = 'public'
+          AND acl.grantee = (SELECT oid FROM worker)
+          AND acl.privilege_type = 'EXECUTE'
+          AND acl.is_grantable) AS function_grant_option_count
+      ,(SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.pg_proc AS procedure
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+          CROSS JOIN LATERAL pg_catalog.aclexplode(
+            COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
+          ) AS acl
+         WHERE namespace.nspname = 'public'
+           AND procedure.proname IN (
+             'grainline_account_deletion_side_effect_claim',
+             'grainline_account_deletion_side_effect_complete',
+             'grainline_account_deletion_side_effect_fail',
+             'grainline_account_deletion_media_enqueue_claimed',
+             'grainline_account_deletion_claim_user',
+             'grainline_user_account_deletion_preflight',
+             'grainline_user_account_deletion_snapshot',
+             'grainline_user_account_deletion_finalize',
+             'grainline_case_account_deletion_redact',
+             'grainline_message_redact_for_account_deletion',
+             'grainline_order_account_deletion_scrub'
+           )
+           AND acl.grantee = 0
+           AND acl.privilege_type = 'EXECUTE')
+        AS public_account_deletion_execute_count
+  `);
+  return result.rows[0] ?? {};
 }
 
 export function checkoutStockReservationRlsActivationExpected(inventory) {
@@ -1181,41 +1489,66 @@ export function collectConversationMessageFunctionIssues(
   rows,
   runtimeRole,
   migrationRole,
+  inventory = {},
 ) {
   const issues = [];
   const functionRows = Array.isArray(rows) ? rows : [];
-  const expectedNames = new Set(
-    CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
+  const accountDeletionClaimFencePresent = (inventory?.functions ?? [])
+    .includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER);
+  const accountDeletionActive = accountDeletionSideEffectRlsActivationExpected(
+    inventory,
+  );
+  const expectedFunctions = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.flatMap(
+    (entry) => {
+      if (entry.name !== "grainline_message_redact_for_account_deletion") {
+        return [entry];
+      }
+      const legacy = {
+        ...entry,
+        runtimeExecute: accountDeletionActive ? false : entry.runtimeExecute,
+      };
+      return accountDeletionClaimFencePresent
+        ? [
+            legacy,
+            {
+              ...entry,
+              signature: "text,text,bigint,uuid",
+              runtimeExecute: true,
+            },
+          ]
+        : [legacy];
+    },
+  );
+  const normalizedArgumentTypes = (value) => (
+    typeof value === "string" ? value.replace(/\s*,\s*/g, ",").trim() : value
+  );
+  const expectedIdentities = new Set(
+    expectedFunctions.map(
+      (entry) => `${entry.name}(${normalizedArgumentTypes(entry.signature)})`,
+    ),
   );
 
-  for (const expected of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
-    const namedRows = functionRows.filter(
-      (row) => row.function_name === expected.name,
+  for (const expected of expectedFunctions) {
+    const expectedArgumentTypes = normalizedArgumentTypes(expected.signature);
+    const matchingRows = functionRows.filter(
+      (row) => row.function_name === expected.name
+        && normalizedArgumentTypes(row.argument_types ?? row.args) === expectedArgumentTypes,
     );
-    if (namedRows.length === 0) {
+    if (matchingRows.length === 0) {
       issues.push(
-        `missing expected Conversation/Message RPC ${expected.name}`,
+        `missing expected Conversation/Message RPC ${expected.name}(${expected.signature})`,
       );
       continue;
     }
-    if (namedRows.length !== 1) {
+    if (matchingRows.length !== 1) {
       issues.push(
-        `Conversation/Message RPC ${expected.name} must have exactly one overload`,
+        `Conversation/Message RPC ${expected.name}(${expected.signature}) must have exactly one definition`,
       );
       continue;
     }
 
-    const row = namedRows[0];
+    const row = matchingRows[0];
     const label = `${expected.name}(${row.argument_types ?? row.args ?? "unknown"})`;
-    const actualArgumentTypes = typeof row.argument_types === "string"
-      ? row.argument_types.replace(/\s*,\s*/g, ",")
-      : row.argument_types;
-    const expectedArgumentTypes = expected.signature.replace(/\s*,\s*/g, ",");
-    if (actualArgumentTypes !== expectedArgumentTypes) {
-      issues.push(
-        `${label} has argument types ${row.argument_types ?? "unknown"}, expected ${expected.signature}`,
-      );
-    }
     if (row.owner_name !== migrationRole) {
       issues.push(
         `${label} owned by ${row.owner_name ?? "unknown"}, expected ${migrationRole}`,
@@ -1291,7 +1624,10 @@ export function collectConversationMessageFunctionIssues(
   }
 
   for (const row of functionRows) {
-    if (!expectedNames.has(row.function_name)) {
+    const identity = `${row.function_name}(${normalizedArgumentTypes(
+      row.argument_types ?? row.args,
+    )})`;
+    if (!expectedIdentities.has(identity)) {
       issues.push(
         `unexpected Conversation/Message RPC ${row.function_name}(${row.argument_types ?? row.args ?? "unknown"})`,
       );
@@ -1521,6 +1857,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     || (
       tableName === CLERK_WEBHOOK_EVENT_TABLE
       && clerkWebhookEventRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === ACCOUNT_DELETION_SIDE_EFFECT_TABLE
+      && accountDeletionSideEffectRlsActivationExpected(inventory)
     )
     || (
       tableName === CHECKOUT_STOCK_RESERVATION_TABLE
@@ -2006,6 +2346,17 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   }
   if (!role.rolcanlogin) issues.push(`runtime role ${runtimeRole} must have LOGIN`);
   if (role.rolinherit) issues.push(`runtime role ${runtimeRole} must have NOINHERIT`);
+
+  if ((liveAuthorityInventory.functions ?? []).includes(
+    ACCOUNT_DELETION_CLAIM_FENCE_MARKER,
+  )) {
+    issues.push(
+      ...collectAccountDeletionWorkerBoundaryIssues(
+        await readAccountDeletionWorkerBoundaryState(client),
+        liveAuthorityInventory,
+      ),
+    );
+  }
 
   const membershipResult = await client.query(
     `WITH RECURSIVE memberships AS (
@@ -2505,8 +2856,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     ...functionNames.filter((fn) => !inventory.functions.includes(fn)).map((fn) => `live DB has untracked grainline_* function ${fn}`),
   );
   for (const row of functionResult.rows) {
-    const runtimeExecuteExpected =
-      !runtimePrivateFunctionNameSet.has(row.function_name);
+    const accountDeletionExecuteExpected =
+      accountDeletionRuntimeExecuteExpected(row, liveAuthorityInventory);
+    const runtimeExecuteExpected = accountDeletionExecuteExpected
+      ?? !runtimePrivateFunctionNameSet.has(row.function_name);
     if (runtimeExecuteExpected && !row.execute_priv) {
       issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
     }
@@ -2559,6 +2912,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         ),
         runtimeRole,
         migrationRole,
+        inventory,
       ),
     );
   }

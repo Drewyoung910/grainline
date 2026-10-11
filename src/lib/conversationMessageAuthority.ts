@@ -748,17 +748,25 @@ export async function listActorSentMessageBodiesForDeletion(
 }
 
 export async function redactActorMessagesForAccountDeletion(
-  userId: string,
+  input: {
+    sideEffectId: string;
+    userId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
   db: ConversationMessageAuthorityClient = prisma,
 ): Promise<ActorMessageDeletionRedaction> {
-  const actorId = normalizeDbUserContextUserId(userId);
+  const actorId = normalizeDbUserContextUserId(input.userId);
   const rows = await db.$queryRaw<Array<{
     sentRedacted: CountValue;
     receivedRedacted: CountValue;
   }>>`
     SELECT *
       FROM public.grainline_message_redact_for_account_deletion(
-        ${actorId}::text
+        ${input.sideEffectId}::text,
+        ${actorId}::text,
+        ${input.claimGeneration}::bigint,
+        ${input.claimToken}::uuid
       )
   `;
   if (rows.length !== 1) {

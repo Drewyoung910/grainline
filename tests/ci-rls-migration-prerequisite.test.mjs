@@ -17,11 +17,15 @@ describe("fresh CI database RLS migration prerequisite", () => {
     assert.match(sql, /ALTER ROLE grainline_app_runtime[\s\S]*?LOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
     assert.match(sql, /CREATE ROLE grainline_staff_read_runtime[\s\S]*?LOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
     assert.match(sql, /ALTER ROLE grainline_staff_read_runtime[\s\S]*?LOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
+    assert.match(sql, /CREATE ROLE grainline_account_deletion_runtime[\s\S]*?LOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
+    assert.match(sql, /ALTER ROLE grainline_account_deletion_runtime[\s\S]*?LOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
     assert.match(sql, /FROM pg_auth_members/);
     assert.match(sql, /REVOKE %I FROM grainline_app_runtime/);
     assert.match(sql, /REVOKE %I FROM grainline_staff_read_runtime/);
+    assert.match(sql, /REVOKE %I FROM grainline_account_deletion_runtime/);
     assert.match(sql, /GRANT USAGE ON SCHEMA public TO grainline_app_runtime/);
     assert.match(sql, /GRANT USAGE ON SCHEMA public TO grainline_staff_read_runtime/);
+    assert.match(sql, /GRANT USAGE ON SCHEMA public TO grainline_account_deletion_runtime/);
     assert.match(sql, /ALTER DEFAULT PRIVILEGES IN SCHEMA public[\s\S]*?GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES[\s\S]*?TO grainline_app_runtime/);
     assert.doesNotMatch(executableSql, /\bPASSWORD\b/i);
     assert.doesNotMatch(executableSql, /\bNOLOGIN\b/);
