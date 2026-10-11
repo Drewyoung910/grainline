@@ -229,6 +229,36 @@ jobs:
           tests/user-email-address-force-release.test.mjs
           tests/user-email-address-force-postgres-proof.test.mjs
           tests/user-email-address-force-production-workflow.test.mjs
+      - name: Verify AccountDeletionSideEffect claim-fence source package
+        run: >-
+          node --test
+          tests/account-deletion-side-effect-ci.test.mjs
+          tests/account-deletion-side-effect-activation-postgres.test.mjs
+          tests/account-deletion-side-effect-database-contract.test.mjs
+          tests/account-deletion-side-effects.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/runtime-db-env-isolation.test.mjs
+          tests/ci-rls-migration-prerequisite.test.mjs
+      - name: Isolate AccountDeletionSideEffect claim-fence until its predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/account-deletion-side-effect-claim-fence"
+          mkdir "$holding"
+          for migration in \
+            20261011170000_prepare_account_deletion_side_effect_claim_fence \
+            20261011180000_enable_account_deletion_side_effect_rls
+          do
+            mv "prisma/migrations/$migration" "$holding/$migration"
+          done
+          for test_file in \
+            tests/account-deletion-side-effect-ci.test.mjs \
+            tests/account-deletion-side-effect-activation-postgres.test.mjs \
+            tests/account-deletion-side-effect-database-contract.test.mjs \
+            tests/account-deletion-side-effects.test.mjs
+          do
+            mv "$test_file" "$holding/$(basename "$test_file")"
+          done
       - name: Verify accumulated User access source package
         run: >-
           node --test
@@ -5194,6 +5224,52 @@ jobs:
           $verify_clerk_webhook_event_authority$;
           SQL
       - name: Audit runtime grants after Clerk webhook event authority
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore AccountDeletionSideEffect claim-fence source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/account-deletion-side-effect-claim-fence"
+          for migration in \
+            20261011170000_prepare_account_deletion_side_effect_claim_fence \
+            20261011180000_enable_account_deletion_side_effect_rls
+          do
+            mv "$holding/$migration" "prisma/migrations/$migration"
+          done
+          for test_file in \
+            account-deletion-side-effect-ci.test.mjs \
+            account-deletion-side-effect-activation-postgres.test.mjs \
+            account-deletion-side-effect-database-contract.test.mjs \
+            account-deletion-side-effects.test.mjs
+          do
+            mv "$holding/$test_file" "tests/$test_file"
+          done
+          rmdir "$holding"
+      - name: Re-verify AccountDeletionSideEffect claim-fence source package
+        run: >-
+          node --test
+          tests/account-deletion-side-effect-ci.test.mjs
+          tests/account-deletion-side-effect-activation-postgres.test.mjs
+          tests/account-deletion-side-effect-database-contract.test.mjs
+          tests/account-deletion-side-effects.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/runtime-db-env-isolation.test.mjs
+          tests/ci-rls-migration-prerequisite.test.mjs
+      - name: Apply AccountDeletionSideEffect claim-fence preparation in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql
+      - name: Apply AccountDeletionSideEffect policyless activation in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql
+      - name: Audit runtime grants after AccountDeletionSideEffect activation
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
