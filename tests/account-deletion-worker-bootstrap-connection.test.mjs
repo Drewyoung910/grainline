@@ -60,8 +60,8 @@ function mockTransport(state, injected = {}) {
       this.calls.push(sql);
       if (sql.includes("AS actor")) return { rows: [{ actor: "neondb_owner", login: "neondb_owner",
         database: "neondb", version: 160000, ...injected.identity }] };
-      if (sql.includes("set_config('grainline.account_deletion_bootstrap_verifier'")) {
-        assert.deepEqual(params, [state.verifier]);
+      if (sql.includes("set_config('grainline.account_deletion_bootstrap_password'")) {
+        assert.deepEqual(params, [state.password]);
         if (injected.install) throw new Error(state.password);
         return { rows: [{ installed: injected.installFalse !== true }] };
       }

@@ -117,11 +117,11 @@ export function accountDeletionBootstrapConnectionOperations({ ownerUrl, state: 
         "account deletion bootstrap owner identity or server version is invalid");
         try {
           await client.query("BEGIN");
-          // Bind only the client-generated SCRAM verifier. The plaintext
-          // password never reaches PostgreSQL through this owner session.
+          // Bind the private password without placing it in query text, argv,
+          // evidence or client error output. Only this transaction can read it.
           const installed = await client.query(
-            "SELECT pg_catalog.set_config('grainline.account_deletion_bootstrap_verifier', $1, true) IS NOT NULL AS installed",
-            [state.verifier],
+            "SELECT pg_catalog.set_config('grainline.account_deletion_bootstrap_password', $1, true) IS NOT NULL AS installed",
+            [state.password],
           );
           assert.ok(installed.rows.length === 1 && installed.rows[0].installed === true);
           await client.query(sql);

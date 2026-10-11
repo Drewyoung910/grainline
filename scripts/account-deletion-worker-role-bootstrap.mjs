@@ -114,11 +114,11 @@ export async function readAccountDeletionBootstrapLoginSnapshot(client) {
 
 export function buildAccountDeletionBootstrapSql(state, binding) {
   validateAccountDeletionBootstrapState(state, binding);
-  // The owner adapter binds only the client-generated SCRAM verifier into a
-  // transaction-local setting before this body executes. The plaintext
-  // password never enters SQL text, a server-side dynamic statement or a
-  // server statement log. The verifier also stays out of this static SQL text.
-  return `SET LOCAL lock_timeout = '5s';
+  // The owner adapter binds the password into a transaction-local setting
+  // before this body executes. PostgreSQL hashes it with SCRAM during CREATE
+  // ROLE. Neither the password nor a client-built verifier enters client SQL.
+  return `SET LOCAL password_encryption = 'scram-sha-256';
+SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '15s';
 SELECT pg_catalog.pg_advisory_xact_lock(182735, 61011);
 DO $account_deletion_bootstrap$
@@ -129,19 +129,19 @@ BEGIN
   END IF;
   SELECT * INTO existing_role FROM pg_catalog.pg_roles WHERE rolname = '${ACCOUNT_DELETION_BOOTSTRAP_ROLE}';
   IF existing_role IS NULL THEN
-    IF coalesce(pg_catalog.current_setting('grainline.account_deletion_bootstrap_verifier', true), '')
-      !~ '^SCRAM-SHA-256\\$4096:[A-Za-z0-9+/]{22}==\\$[A-Za-z0-9+/]{43}=:[A-Za-z0-9+/]{43}=$' THEN
-      RAISE EXCEPTION 'account deletion bootstrap transaction-local verifier is invalid';
+    IF coalesce(pg_catalog.current_setting('grainline.account_deletion_bootstrap_password', true), '')
+      !~ '^[0-9a-f]{64}$' THEN
+      RAISE EXCEPTION 'account deletion bootstrap transaction-local password is invalid';
     END IF;
     BEGIN
       EXECUTE pg_catalog.format(
         'CREATE ROLE %I LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L',
         '${ACCOUNT_DELETION_BOOTSTRAP_ROLE}',
-        pg_catalog.current_setting('grainline.account_deletion_bootstrap_verifier', true)
+        pg_catalog.current_setting('grainline.account_deletion_bootstrap_password', true)
       );
     EXCEPTION WHEN OTHERS THEN
       -- Replace the dynamic statement failure before it leaves PL/pgSQL. The
-      -- expanded CREATE ROLE text contains only the one-time SCRAM verifier.
+      -- expanded CREATE ROLE text contains the one-time plaintext password.
       RAISE EXCEPTION 'account deletion bootstrap role creation failed'
         USING ERRCODE = 'P0001';
     END;
