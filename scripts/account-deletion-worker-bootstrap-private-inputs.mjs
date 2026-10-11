@@ -11,7 +11,8 @@ import { accountDeletionBootstrapConnectionConfig } from "./account-deletion-wor
 import { assertVercelRuntimeDatabaseIsolation } from "./guard-runtime-db-env.mjs";
 
 export const ACCOUNT_DELETION_BOOTSTRAP_PRIVATE_ROOT = "/Users/drewyoung/grainline";
-export const ACCOUNT_DELETION_BOOTSTRAP_EPOCH_FILE = "/Users/drewyoung/grainline-rollout-evidence/database-credential-recovery-20260902.json";
+export const ACCOUNT_DELETION_BOOTSTRAP_OWNER_EPOCH_FILE = "/Users/drewyoung/grainline-rollout-evidence/database-credential-recovery-20260902.json";
+export const ACCOUNT_DELETION_BOOTSTRAP_RUNTIME_EPOCH_FILE = "/Users/drewyoung/grainline/recovery-checkpoints/order-zero-direct-authority-20260908/runtime-db-credential-rotation-20260928/private/result.json";
 export const ACCOUNT_DELETION_BOOTSTRAP_AUTHORITY = "create-and-verify-account-deletion-authority-free-login-only";
 const INPUT_DIRECTORY = ".env.account-deletion-worker-bootstrap";
 const MAX_BYTES = 128 * 1024;
@@ -79,7 +80,7 @@ function verifyPrivateLocation(root) {
 
 // Explicit-path seam for disposable filesystem tests. The production wrapper
 // below exposes ONLY the externally approved manifest digest, never path overrides.
-export function accountDeletionBootstrapPrivateInputOperations({ root, evidencePath, manifestSha256 }) {
+export function accountDeletionBootstrapPrivateInputOperations({ root, ownerEvidencePath, runtimeEvidencePath, manifestSha256 }) {
   try {
     assert.ok(typeof manifestSha256 === "string" && DIGEST.test(manifestSha256));
     const directory = verifyPrivateLocation(root);
@@ -100,13 +101,25 @@ export function accountDeletionBootstrapPrivateInputOperations({ root, evidenceP
       catch { throw failed(); }
     };
     const credentialSnapshot = () => {
-      const bytes = readPrivate(evidencePath);
-      assert.equal(sha256(bytes), reviewed.credentialEpochSha256);
-      const evidence = canonicalJson(bytes);
-      assert.ok(evidence.schemaVersion === 1 && evidence.operation === "database-credential-exposure-recovery" &&
-        evidence.status === "passed" && evidence.acceptanceEligible === true && evidence.issueCount === 0 &&
-        evidence.grantAudit?.readOnly === true && evidence.grantAudit.issueCount === 0 &&
-        evidence.providerScopeOutsideRecoveryChanged === false && Array.isArray(evidence.migrationsApplied) && evidence.migrationsApplied.length === 0);
+      const ownerBytes = readPrivate(ownerEvidencePath);
+      assert.equal(sha256(ownerBytes), reviewed.ownerCredentialEvidenceSha256);
+      const ownerEvidence = canonicalJson(ownerBytes);
+      assert.ok(ownerEvidence.schemaVersion === 1 && ownerEvidence.operation === "database-credential-exposure-recovery" &&
+        ownerEvidence.status === "passed" && ownerEvidence.acceptanceEligible === true && ownerEvidence.issueCount === 0 &&
+        ownerEvidence.grantAudit?.readOnly === true && ownerEvidence.grantAudit.issueCount === 0 &&
+        ownerEvidence.providerScopeOutsideRecoveryChanged === false && Array.isArray(ownerEvidence.migrationsApplied) &&
+        ownerEvidence.migrationsApplied.length === 0);
+      const runtimeBytes = readPrivate(runtimeEvidencePath);
+      assert.equal(sha256(runtimeBytes), reviewed.runtimeCredentialEvidenceSha256);
+      const runtimeEvidence = canonicalJson(runtimeBytes);
+      assert.ok(runtimeEvidence.schemaVersion === 1 && runtimeEvidence.operation === "runtime-db-credential-rotation-20260928" &&
+        runtimeEvidence.status === "passed" && runtimeEvidence.credential?.priorRejected === true &&
+        runtimeEvidence.credential.ownerCredentialChanged === false && runtimeEvidence.database?.role === "grainline_app_runtime" &&
+        runtimeEvidence.database.directSelectDenied === true && typeof runtimeEvidence.credential.priorSha256 === "string" &&
+        DIGEST.test(runtimeEvidence.credential.priorSha256) &&
+        typeof runtimeEvidence.credential.replacementSha256 === "string" &&
+        DIGEST.test(runtimeEvidence.credential.replacementSha256) &&
+        runtimeEvidence.credential.priorSha256 !== runtimeEvidence.credential.replacementSha256);
       const ownerSource = readPrivate(path.join(root, ".env.migration-owner.local")).toString("utf8");
       const ownerMatch = /^DIRECT_URL="([^"\r\n]+)"\r?\n?$/u.exec(ownerSource);
       assert.ok(ownerMatch);
@@ -117,12 +130,12 @@ export function accountDeletionBootstrapPrivateInputOperations({ root, evidenceP
       const runtimeUrl = dotenv.parse(runtimeSource).DATABASE_URL;
       assertVercelRuntimeDatabaseIsolation({ VERCEL: "1", VERCEL_ENV: "production",
         RUNTIME_DB_ROLE: "grainline_app_runtime", DATABASE_URL: runtimeUrl });
-      for (const [kind, role, url] of [["owner", "neondb_owner", ownerUrl], ["runtime", "grainline_app_runtime", runtimeUrl]]) {
-        const proof = evidence.credentials?.[kind];
-        assert.ok(proof?.role === role && proof.priorRejected === true && proof.replacementVerified === true &&
-          typeof proof.priorSha256 === "string" && DIGEST.test(proof.priorSha256) &&
-          proof.replacementSha256 === sha256(url) && proof.priorSha256 !== proof.replacementSha256);
-      }
+      const ownerProof = ownerEvidence.credentials?.owner;
+      assert.ok(ownerProof?.role === "neondb_owner" && ownerProof.priorRejected === true &&
+        ownerProof.replacementVerified === true && typeof ownerProof.priorSha256 === "string" &&
+        DIGEST.test(ownerProof.priorSha256) && ownerProof.replacementSha256 === sha256(ownerUrl) &&
+        ownerProof.priorSha256 !== ownerProof.replacementSha256);
+      assert.equal(runtimeEvidence.credential.replacementSha256, sha256(runtimeUrl));
       return { ownerUrl, epochSha256: reviewed.credentialEpochSha256 };
     };
     return Object.freeze({ reviewed, directory, manifestSha256,
@@ -149,6 +162,8 @@ export function createAccountDeletionBootstrapPrivateInputs(options) {
   try {
     exactKeys(options, ["manifestSha256"]);
     return accountDeletionBootstrapPrivateInputOperations({ root: ACCOUNT_DELETION_BOOTSTRAP_PRIVATE_ROOT,
-      evidencePath: ACCOUNT_DELETION_BOOTSTRAP_EPOCH_FILE, manifestSha256: options.manifestSha256 });
+      ownerEvidencePath: ACCOUNT_DELETION_BOOTSTRAP_OWNER_EPOCH_FILE,
+      runtimeEvidencePath: ACCOUNT_DELETION_BOOTSTRAP_RUNTIME_EPOCH_FILE,
+      manifestSha256: options.manifestSha256 });
   } catch { throw failed(); }
 }

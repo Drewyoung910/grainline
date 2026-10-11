@@ -5,16 +5,27 @@ import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { accountDeletionBootstrapPrivateInputOperations, createAccountDeletionBootstrapPrivateInputs } from "../scripts/account-deletion-worker-bootstrap-private-inputs.mjs";
+import { accountDeletionBootstrapPrivateInputOperations, createAccountDeletionBootstrapPrivateInputs,
+  ACCOUNT_DELETION_BOOTSTRAP_OWNER_EPOCH_FILE,
+  ACCOUNT_DELETION_BOOTSTRAP_RUNTIME_EPOCH_FILE } from "../scripts/account-deletion-worker-bootstrap-private-inputs.mjs";
 import { coordinateAccountDeletionBootstrap } from "../scripts/account-deletion-worker-bootstrap-coordinator.mjs";
 import { ACCOUNT_DELETION_BOOTSTRAP_ROLE, accountDeletionBootstrapMarker } from "../scripts/account-deletion-worker-role-bootstrap.mjs";
 import { ACCOUNT_DELETION_JOURNAL_FILES } from "../scripts/account-deletion-worker-bootstrap-journal.mjs";
+import { accountDeletionCredentialEpochSha256 } from "../scripts/account-deletion-worker-bootstrap-release.mjs";
 import { accountDeletionReleaseFixture } from "./helpers/account-deletion-bootstrap-release-fixture.mjs";
 
 const hash = value => createHash("sha256").update(value).digest("hex");
 const json = value => `${JSON.stringify(value, null, 2)}\n`;
 const ownerUrl = "postgresql://neondb_owner:fixture-owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
 const runtimeUrl = "postgresql://grainline_app_runtime:fixture-runtime@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
+
+test("production binds the accepted owner recovery and later runtime rotation records", () => {
+  assert.equal(ACCOUNT_DELETION_BOOTSTRAP_OWNER_EPOCH_FILE,
+    "/Users/drewyoung/grainline-rollout-evidence/database-credential-recovery-20260902.json");
+  assert.equal(ACCOUNT_DELETION_BOOTSTRAP_RUNTIME_EPOCH_FILE,
+    "/Users/drewyoung/grainline/recovery-checkpoints/order-zero-direct-authority-20260908/runtime-db-credential-rotation-20260928/private/result.json");
+});
+
 function fixture(t) {
   const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "grainline-account-deletion-private-test-")));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -24,26 +35,35 @@ function fixture(t) {
     env: { PATH: "/usr/bin:/bin", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" } });
   git(["init", "-q"]);
   fs.writeFileSync(path.join(root, ".gitignore"), ".env*\n");
-  const evidencePath = path.join(base, "epoch.json");
-  const evidence = { schemaVersion: 1, operation: "database-credential-exposure-recovery", status: "passed",
+  const ownerEvidencePath = path.join(base, "owner-epoch.json");
+  const runtimeEvidencePath = path.join(base, "runtime-epoch.json");
+  const ownerEvidence = { schemaVersion: 1, operation: "database-credential-exposure-recovery", status: "passed",
     acceptanceEligible: true, issueCount: 0, grantAudit: { readOnly: true, issueCount: 0 },
     providerScopeOutsideRecoveryChanged: false, migrationsApplied: [], credentials: {
       owner: { role: "neondb_owner", priorSha256: "1".repeat(64), replacementSha256: hash(ownerUrl), priorRejected: true, replacementVerified: true },
-      runtime: { role: "grainline_app_runtime", priorSha256: "2".repeat(64), replacementSha256: hash(runtimeUrl), priorRejected: true, replacementVerified: true },
+      runtime: { role: "grainline_app_runtime", priorSha256: "2".repeat(64), replacementSha256: "3".repeat(64), priorRejected: true, replacementVerified: true },
     } };
+  const runtimeEvidence = { schemaVersion: 1, operation: "runtime-db-credential-rotation-20260928",
+    credential: { priorSha256: "3".repeat(64), replacementSha256: hash(runtimeUrl), priorRejected: true,
+      ownerCredentialChanged: false },
+    database: { role: "grainline_app_runtime", directSelectDenied: true }, status: "passed" };
   const release = accountDeletionReleaseFixture();
-  release.reviewed.credentialEpochSha256 = hash(json(evidence));
+  release.reviewed.ownerCredentialEvidenceSha256 = hash(json(ownerEvidence));
+  release.reviewed.runtimeCredentialEvidenceSha256 = hash(json(runtimeEvidence));
+  release.reviewed.credentialEpochSha256 = accountDeletionCredentialEpochSha256(release.reviewed);
   const manifest = { schemaVersion: 1, operation: "account-deletion-worker-bootstrap",
     authority: "create-and-verify-account-deletion-authority-free-login-only", reviewed: release.reviewed };
   const files = { manifest: path.join(directory, "release.json"), tokens: path.join(directory, "provider-tokens.json"),
-    owner: path.join(root, ".env.migration-owner.local"), runtime: path.join(root, ".env.local"), evidence: evidencePath };
+    owner: path.join(root, ".env.migration-owner.local"), runtime: path.join(root, ".env.local"),
+    ownerEvidence: ownerEvidencePath, runtimeEvidence: runtimeEvidencePath };
   const put = (file, contents) => fs.writeFileSync(file, contents, { mode: 0o600 });
-  put(files.manifest, json(manifest)); put(files.evidence, json(evidence));
+  put(files.manifest, json(manifest)); put(files.ownerEvidence, json(ownerEvidence));
+  put(files.runtimeEvidence, json(runtimeEvidence));
   put(files.tokens, json({ github: "fixture-github-token", vercel: "fixture-vercel-token" }));
   put(files.owner, `DIRECT_URL="${ownerUrl}"\n`);
   put(files.runtime, `# Existing unrelated settings remain private.\nDATABASE_URL="${runtimeUrl}"\nUNRELATED_SECRET=never-return-this\n`);
-  const options = { root, evidencePath, manifestSha256: hash(json(manifest)) };
-  return { base, root, directory, git, evidence, release, manifest, files, put, options,
+  const options = { root, ownerEvidencePath, runtimeEvidencePath, manifestSha256: hash(json(manifest)) };
+  return { base, root, directory, git, ownerEvidence, runtimeEvidence, release, manifest, files, put, options,
     load: () => accountDeletionBootstrapPrivateInputOperations(options) };
 }
 
@@ -128,25 +148,30 @@ test("credential epoch binds actual local owner/runtime URLs and rejects malform
     if (kind === "duplicate") f.put(f.files.runtime, `DATABASE_URL="${runtimeUrl}"\n DATABASE_URL="${runtimeUrl}"\n`);
     if (kind === "export-duplicate") f.put(f.files.runtime, `DATABASE_URL="${runtimeUrl}"\nexport DATABASE_URL="${runtimeUrl}"\n`);
     if (kind === "colon-duplicate") f.put(f.files.runtime, `DATABASE_URL="${runtimeUrl}"\nDATABASE_URL: ${runtimeUrl}\n`);
-    if (kind === "evidence") f.put(f.files.evidence, json({ ...f.evidence, status: "failed" }));
+    if (kind === "evidence") f.put(f.files.runtimeEvidence, json({ ...f.runtimeEvidence, status: "failed" }));
     if (kind === "token-scope") f.put(f.files.tokens, json({ github: "fixture-token", vercel: "fixture-token", stripe: "PRIVATE_SENTINEL" }));
     assert.throws(kind === "token-scope" ? inputs.loadProviderTokens : inputs.observeCredentialEpoch, /private inputs invalid/u);
   }
 });
 
-test("even a pinned epoch needs accepted role/denial evidence and safe endpoint shapes", t => {
-  for (const kind of ["accepted", "role", "prior-rejection", "same-password", "owner-endpoint"]) {
+test("even a pinned composed epoch needs accepted role/denial evidence and safe endpoint shapes", t => {
+  for (const kind of ["accepted", "role", "prior-rejection", "owner-changed", "direct-select", "same-password", "owner-endpoint"]) {
     const f = fixture(t);
-    if (kind === "accepted") f.evidence.acceptanceEligible = false;
-    if (kind === "role") f.evidence.credentials.owner.role = "other";
-    if (kind === "prior-rejection") f.evidence.credentials.runtime.priorRejected = false;
-    if (kind === "same-password") f.evidence.credentials.owner.priorSha256 = hash(ownerUrl);
+    if (kind === "accepted") f.ownerEvidence.acceptanceEligible = false;
+    if (kind === "role") f.ownerEvidence.credentials.owner.role = "other";
+    if (kind === "prior-rejection") f.runtimeEvidence.credential.priorRejected = false;
+    if (kind === "owner-changed") f.runtimeEvidence.credential.ownerCredentialChanged = true;
+    if (kind === "direct-select") f.runtimeEvidence.database.directSelectDenied = false;
+    if (kind === "same-password") f.ownerEvidence.credentials.owner.priorSha256 = hash(ownerUrl);
     if (kind === "owner-endpoint") {
       const wrong = ownerUrl.replace("ep-plain-river-aaqg8gj4", "ep-other");
-      f.put(f.files.owner, `DIRECT_URL="${wrong}"\n`); f.evidence.credentials.owner.replacementSha256 = hash(wrong);
+      f.put(f.files.owner, `DIRECT_URL="${wrong}"\n`); f.ownerEvidence.credentials.owner.replacementSha256 = hash(wrong);
     }
-    f.put(f.files.evidence, json(f.evidence));
-    f.manifest.reviewed.credentialEpochSha256 = hash(json(f.evidence));
+    f.put(f.files.ownerEvidence, json(f.ownerEvidence));
+    f.put(f.files.runtimeEvidence, json(f.runtimeEvidence));
+    f.manifest.reviewed.ownerCredentialEvidenceSha256 = hash(json(f.ownerEvidence));
+    f.manifest.reviewed.runtimeCredentialEvidenceSha256 = hash(json(f.runtimeEvidence));
+    f.manifest.reviewed.credentialEpochSha256 = accountDeletionCredentialEpochSha256(f.manifest.reviewed);
     f.put(f.files.manifest, json(f.manifest)); f.options.manifestSha256 = hash(json(f.manifest));
     assert.throws(f.load().observeCredentialEpoch, /private inputs invalid/u);
   }

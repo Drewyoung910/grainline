@@ -1,5 +1,6 @@
 // Pure release attestation. No observation collection or production entrypoint.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 
 const COMMIT = /^[0-9a-f]{40}$/u;
 const RUN = /^[1-9][0-9]{0,19}$/u;
@@ -8,9 +9,21 @@ const PROJECT = "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp";
 const TEAM = "team_wvQeQHZGwCSwinC1uB7xbpjr";
 const ALIASES = ["grainline-drew-youngs-projects.vercel.app", "grainline.vercel.app", "thegrainline.com", "www.thegrainline.com"].sort();
 const KEYS = ["releaseCommit", "ciRunId", "deployedSourceCommit", "deploymentId", "credentialEpochSha256",
-  "tlsProofRunId", "tlsProofJobId", "tlsProofRunAttempt"].sort();
+  "ownerCredentialEvidenceSha256", "runtimeCredentialEvidenceSha256", "tlsProofRunId", "tlsProofJobId",
+  "tlsProofRunAttempt"].sort();
 const REQUIRED_TLS_STEPS = ["Enable TLS only on the disposable proof service",
   "Prove real TLS channel-bound bootstrap and exact restart", "Stop containers"];
+
+export function accountDeletionCredentialEpochSha256(value) {
+  const owner = value?.ownerCredentialEvidenceSha256;
+  const runtime = value?.runtimeCredentialEvidenceSha256;
+  assert.ok(typeof owner === "string" && DIGEST.test(owner));
+  assert.ok(typeof runtime === "string" && DIGEST.test(runtime));
+  return createHash("sha256").update(`${JSON.stringify({
+    ownerCredentialEvidenceSha256: owner,
+    runtimeCredentialEvidenceSha256: runtime,
+  }, null, 2)}\n`).digest("hex");
+}
 
 export function assertAccountDeletionBootstrapReviewedBinding(value) {
   try {
@@ -19,7 +32,8 @@ export function assertAccountDeletionBootstrapReviewedBinding(value) {
     for (const field of KEYS) assert.ok(typeof reviewed[field] === "string" && reviewed[field] === reviewed[field].trim());
     assert.ok(COMMIT.test(reviewed.releaseCommit) && COMMIT.test(reviewed.deployedSourceCommit) &&
       RUN.test(reviewed.ciRunId) && /^dpl_[A-Za-z0-9]{20,40}$/u.test(reviewed.deploymentId) &&
-      DIGEST.test(reviewed.credentialEpochSha256));
+      DIGEST.test(reviewed.credentialEpochSha256) &&
+      reviewed.credentialEpochSha256 === accountDeletionCredentialEpochSha256(reviewed));
     for (const key of ["tlsProofRunId", "tlsProofJobId", "tlsProofRunAttempt"]) assert.ok(RUN.test(reviewed[key]));
     return Object.freeze(reviewed);
   } catch { throw new Error("account deletion bootstrap reviewed binding is invalid"); }

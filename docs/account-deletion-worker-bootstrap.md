@@ -27,7 +27,9 @@ file must be a regular, single-link, owner-only mode-`0600` file.
 The fixed inputs are:
 
 - `release.json`: canonical JSON binding the reviewed release commit, merged-main
-  CI, TLS proof job, deployment, canonical aliases, and credential epoch;
+  CI, TLS proof job, deployment, canonical aliases, the still-current owner
+  recovery evidence, the later runtime-credential rotation evidence, and their
+  deterministic composite credential epoch;
 - `provider-tokens.json`: canonical JSON containing only the GitHub and Vercel
   provider tokens;
 - `account-deletion-bootstrap.json`: the immutable attempt identity and secret,
@@ -42,6 +44,14 @@ The role marker is
 `grainline:account-deletion-bootstrap:<attemptId>:<releaseCommit>`. An ambiguous
 retry must reuse the exact journaled credential. An existing role without the
 exact marker and posture fails closed.
+
+The credential epoch is deliberately composed from two fixed mode-`0600`
+records. The 2026-09-02 recovery record still proves the current owner
+credential. The 2026-09-28 runtime-rotation result proves the current pooled
+`grainline_app_runtime` credential, the rejection of its predecessor, the
+unchanged owner credential, and denial of direct table reads. The manifest pins
+each file by SHA-256 and pins a deterministic digest of that exact pair. A
+runtime rotation cannot be admitted by reusing the older combined record.
 
 ## Independent admission
 
