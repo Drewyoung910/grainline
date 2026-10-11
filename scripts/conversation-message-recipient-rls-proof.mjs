@@ -635,7 +635,7 @@ async function proveCatalog(owner) {
        )
      ORDER BY procedure.proname
   `);
-  assert.equal(functions.rows.length, 26);
+  assert.equal(functions.rows.length, 25);
   const privateFunctions = new Set([
     "grainline_conversation_lock_pair_core",
     "grainline_conversation_listing_core",
