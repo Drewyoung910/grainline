@@ -1,32 +1,34 @@
-# ClerkWebhookEvent pre-RLS audit and authority preparation
+# ClerkWebhookEvent RLS audit and activation preparation
 
 ## Status
 
-The audited compatibility source merged through PR #544 at merge commit
-`20815a7b6e6c2d45ed5910f4d9963f09b5948b09`. The source-only Production
-inspection and compatibility-migration runner merged through PR #546 at merge
-commit `f6f1da07007bde286c9d39e39b83e5011769bfe7`; its exact main CI run
-`37968740301` passed. Nothing in this record claims that the migration,
-compatible application, grants, RLS, `ENABLE`, or `FORCE` are live in
-Production.
+The audited compatibility source, Production wiring, and metadata-guard
+corrections are merged. Exact source `948945e1a5604232e90116e2d489fc335d458527`
+passed main CI run `38035908667`. Read-only compatible-state inspection run
+`38037206283` accepted the predecessor catalog, and guarded Production run
+`38037409279` applied only
+`20261008120000_prepare_clerk_webhook_event_authority` and accepted its complete
+postflight.
 
-The first read-only compatible-state inspection, run `37993617755`, stopped at
-the owner-connection guard before the catalog inspector opened a Production
-connection. The corrected inspection run `38001588444`, bound to exact main
-`187197077a6b3df282131ef7fb6493880bbf4a76` and CI `37998670858`, succeeded and
-proved the expected `pending` state without changing Production. The first
-authorized migration run, `38033363014`, then stopped at its GitHub metadata
-binding before source verification or any Production access: GitHub returns a dynamic
-`run-name` in the run API's `name` field, while the guard expected the static
-workflow name. The correction binds the inspection to its exact workflow path
-and exact dynamic title instead; a fresh first-attempt inspection and migration
-run remain required on the corrected exact main commit.
+Compatible application deployment `dpl_HRhSLnjmWMF84qoV9mb51dULQ74i` serves all
+five canonical Production aliases. Signed Clerk delivery
+`msg_3KVWlwZx4u7CaXu73TjTZqGmNp9` completed with outcome `absent-user`; its one
+exact retry produced one additional HTTP 200 attempt with outcome `duplicate`.
+The database retained one completed row at claim generation 1. Retention deleted
+zero rows, and the accepted health read reported zero failed, released, stale,
+or total issue rows. These results close the compatible-application and live
+delivery gate without claiming that RLS is enabled.
 
-The additive compatibility migration is
-`20261008120000_prepare_clerk_webhook_event_authority`. It adds a claim
-generation and five fixed service operations. It deliberately leaves the
-predecessor table grants and RLS posture unchanged so it can land before its
-call sites.
+Production is therefore in `COMPATIBLE_PREPARATION_LIVE`: RLS and FORCE remain
+off, zero policies remain installed, the five fixed operations are live, and
+predecessor runtime CRUD is deliberately retained until Phase A activation.
+The separate policyless Phase A source package prepares
+`20261010160000_enable_clerk_webhook_event_rls`. It revokes runtime and PUBLIC
+table and column authority, enables RLS without FORCE, retains only the five
+source-pinned operations, and includes restart-safe inspection, guarded
+Production execution, rollback, grant convergence, and disposable PostgreSQL
+proof. That package is prepared locally; it is not published, merged, applied,
+or live in Production.
 
 ## Intended behavior
 
@@ -54,16 +56,18 @@ effects.
 | Read issue counts | Authenticated ops-health cron | `grainline_clerk_webhook_health_summary()` |
 
 The converted `src/` tree has zero direct `ClerkWebhookEvent` table access.
-`scripts/provision-runtime-db-role.sql` still grants predecessor table CRUD in
-this compatibility phase and now converges the five optional function ACLs. A
-later activation migration must revoke direct table authority and enable RLS.
+`scripts/provision-runtime-db-role.sql` retains predecessor table CRUD while RLS
+is off and converges the five optional function ACLs. The prepared activation
+package changes the provisioner so any RLS-active posture re-closes direct table
+authority after its broad baseline grants and refuses a partial RLS posture.
 
 ## Verified findings and fixes
 
 Codex Security scan `093010aa-d9fb-497e-8b12-17fb3acf6783` completed against
 source `85934f600f46c3e4b08046888d008970eaf8f171` and reported two low-severity,
-high-confidence findings. Both block this ledger's activation even though
-neither established account takeover.
+high-confidence findings. Subsequent focused review added two related identity
+edge cases. All four activation blockers are fixed in the compatible source;
+none established account takeover.
 
 1. `webhook.claim-generation-fencing` — a worker could reclaim an event after
    five minutes while the original worker was still running, and the original
@@ -105,8 +109,9 @@ Classification:
 - missing-primary-email preservation: `FIX_BEFORE_ACTIVATION`, fixed in the
   compatible application source;
 - bounded session revocation: `FIX_BEFORE_ACTIVATION`, fixed in the same source;
-- provider dashboard configuration and live delivery: runtime/vendor evidence,
-  not proven by source and required before activation acceptance.
+- signed live delivery and exact duplicate retry: accepted runtime/vendor
+  evidence; retain the provider dashboard configuration as an operational
+  boundary outside the database authority proof.
 
 ## Focused proof
 
@@ -126,7 +131,7 @@ generated-client drift errors across pre-existing SellerProfile, Blog, Review,
 and Commission fields. This package must receive a fresh isolated Prisma client
 in CI; the shared dependency tree was not regenerated or mutated.
 
-The Production wiring adds two separate manual workflows:
+The compatibility Production wiring added two separate manual workflows:
 
 - `ClerkWebhookEvent Production Inspection` is a first-attempt, exact-main,
   successful-CI-bound, engine-read-only catalog inspection. It accepts an
@@ -144,30 +149,36 @@ The Production wiring adds two separate manual workflows:
 
 Focused source verification covers all accepted catalog states, checksum,
 column, constraint, function body/configuration, ACL, RLS, evidence, exact-main
-binding, step ordering, restart behavior, and scope closure. These workflows
-are merged source. Inspection run `38001588444` accepted the `pending` catalog.
-Migration run `38033363014` was dispatched but stopped at its inspection-run
-metadata guard before checkout, Production access, or SQL; Production remains
-unchanged.
+binding, step ordering, restart behavior, and scope closure. The corrected
+compatibility workflows completed in runs `38037206283` and `38037409279`.
+
+The prepared Phase A package adds a distinct `ClerkWebhookEvent Enable
+Production` workflow. It requires an exact-main, successful-CI-bound,
+`activation-compatible` read-only inspection, admits only the reviewed complete
+or already-enabled catalog states, checks the exact activation migration hash,
+applies at most that one migration, and requires an exact `enabled` postflight
+plus the global grant audit. It cannot enable FORCE. Local focused verification
+has 51 passes, zero failures, and one GitHub-Actions-PostgreSQL-only skip.
 
 ## Release order and remaining gates
 
 1. ~~Review and merge the exact compatibility source.~~ Complete through PR
    #544.
-2. Merge the exact Production wiring, run the read-only compatible-state
-   inspection, then separately authorize and apply only
-   `20261008120000_prepare_clerk_webhook_event_authority`. Accept the complete
-   postflight only after its column, constraint, five function definitions,
-   ownership, search paths, and ACLs match reviewed source.
-3. Deploy the exact compatible application and prove a correctly signed Clerk
-   delivery, duplicate delivery, retention call, and ops-health aggregate.
-4. Inspect and drain failed, released, and stale predecessor rows. Preserve
-   sanitized evidence only.
-5. Prepare a separate activation migration that revokes runtime/PUBLIC direct
-   table privileges, enables policyless RLS without FORCE, and retains only the
-   five fixed operations. Prove rollback and installed state.
-6. After the compatible deployment and Phase A soak are accepted, prepare and
-   separately authorize FORCE.
+2. ~~Merge and apply the compatibility wiring and additive authority migration.~~
+   Complete through exact source `948945e1a5604232e90116e2d489fc335d458527`,
+   inspection `38037206283`, and Production run `38037409279`.
+3. ~~Deploy the exact compatible application and prove a correctly signed Clerk
+   delivery, duplicate delivery, retention call, and ops-health aggregate.~~
+   Complete on deployment `dpl_HRhSLnjmWMF84qoV9mb51dULQ74i`.
+4. ~~Inspect and drain failed, released, and stale predecessor rows.~~ Complete;
+   the accepted health read reported zero issues and retention deleted zero rows.
+5. Review and merge the prepared policyless Phase A package. After exact-main CI,
+   run its read-only `activation-compatible` inspection, then separately
+   authorize only `20261010160000_enable_clerk_webhook_event_rls`. Accept direct
+   runtime/PUBLIC denial, zero policies, five exact operations, and rollback
+   evidence before calling Phase A live.
+6. After Phase A and its soak are accepted, prepare and separately authorize
+   FORCE.
 
 Migration-before-deployment is mandatory: the converted application calls the
 new database functions. Deployment before the additive migration would make

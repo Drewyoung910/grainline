@@ -4,11 +4,10 @@ Last updated: 2026-10-08
 
 ## Current Production State
 
-The `User` table has accepted policyless Phase A in Production. Row Level
-Security is enabled, `FORCE ROW LEVEL SECURITY` is not yet enabled, there are
-zero policies, and the runtime, staff, and `PUBLIC` roles have zero direct
-table or column authority. The application reaches the table only through the
-reviewed fixed-function catalog.
+The `User` table has accepted policyless ENABLE plus FORCE in Production.
+There are zero policies, and the runtime, staff, and `PUBLIC` roles have zero
+direct table or column authority. The application reaches the table only
+through the reviewed fixed-function catalog.
 
 Phase A is bound to:
 
@@ -25,34 +24,37 @@ security-definer functions and confirmed zero runtime/staff/`PUBLIC` direct
 grants. The sanitized ENABLE evidence artifact digest is
 `f2f6f4caba3c3dbec3df2847366c34c21f96f15f4837a42d88728baf6de0a208`.
 
-## FORCE Candidate
+## FORCE Acceptance
 
-The next release is a distinct source and Production boundary. The candidate
-migration is `20261008020000_force_user_rls`, SHA-256
+The distinct FORCE migration is `20261008020000_force_user_rls`, SHA-256
 `d6e9e9afca641f527c4c120806c5af219d6b4f08936def91d16c348cff2480c3`.
 It requires the exact accepted Phase A predecessor and changes only the User
 table's FORCE flag. It creates no policy, mutates no application row, and
 changes no grant.
 
-The candidate carries the complete 53-function authority catalog, the exact
-accepted migration ledger, the 150-reader security mode invariant, User table
-constraints, indexes and triggers, and the accepted cross-domain convergence
-invariant. CI holds the FORCE migration while the historical User chain is
-replayed, proves Phase A first, stages the exact accepted ENABLE ledger, and
-then applies FORCE in disposable PostgreSQL.
+FORCE was accepted from:
 
-The guarded Production workflow requires an exact current-main commit, a
-successful first-attempt main CI run, the accepted successful first-attempt
-ENABLE run, and the typed confirmation `force-reviewed-user-rls`. It supports
-only an exact Phase A predecessor or an exact restart-safe FORCE state. After
-the one allowed migration deploy, it verifies the FORCE ledger, reconverges
-the runtime role, checks the policyless forced catalog, audits global grants,
-and retains sanitized evidence.
+- exact main `85934f600f46c3e4b08046888d008970eaf8f171`;
+- first-attempt merged-main CI `37763700848`;
+- accepted ENABLE predecessor run `37747980060`;
+- guarded Production FORCE run `37766247341`, attempt 1;
+- typed confirmation `force-reviewed-user-rls`.
 
-## Release Boundary
+The Production preflight proved RLS enabled with FORCE off. The migration
+ledger readback matched the exact migration and checksum with one applied
+step. The postflight proved RLS enabled with FORCE on, zero policies, zero
+runtime/staff direct CRUD grants, zero non-owner table or column ACLs, and all
+150 reviewed readers retained as security-definer functions. The inspection
+read no row data and rolled its read-only transaction back.
 
-The FORCE source candidate is not a Production mutation. It must be reviewed,
-merged on an unchanged base, and pass exact-main CI before any FORCE dispatch.
-Production FORCE requires separate explicit approval bound to that exact main
-commit, CI run, and the accepted ENABLE predecessor run. A failed preflight or
-postflight is a release failure and must not be described as accepted FORCE.
+Sanitized evidence is retained with GitHub artifact digest
+`1d46c8032bbfbaf426b1bc49d1cec35ed445fd4729c89275be69da736b4ea284`.
+The downloaded postflight file has SHA-256
+`8c48ef5100464799656df81d549dc94df507e52cd41d60fe0a2aa71d50d4e53c`.
+
+## Completed Boundary
+
+User policyless ENABLE plus FORCE is complete in Production. This acceptance
+does not cover `ClerkWebhookEvent`, `AccountDeletionSideEffect`, or any other
+table. Those remain separate matrix groups with their own audit, source,
+runtime proof, and Production authorization requirements.

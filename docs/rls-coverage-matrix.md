@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-10-08
+Last updated: 2026-10-11
 
 ## Purpose And Scope
 
@@ -12,16 +12,13 @@ database isolation program. Snapshot scope: 68 Prisma models.
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
 `OrderRefundReconciliation`, and `OrderPaymentEvent` have production RLS.
-The latter fifteen tables have complete retained FORCE acceptance. `User` is
-the sixteenth live table and is at the separately accepted policyless Phase A
-boundary: RLS is enabled, FORCE remains off, and ordinary runtime/PUBLIC direct
-table and column authority is zero.
-`User` Phase A was applied from exact main
-`c9b02dfa530d3ca86b0ea7efd6f2f8e9e3b5233c`, CI `37743008603`, convergence
-run `37747092440`, complete catalog inspection `37747428986`, and guarded
-ENABLE run `37747980060`. The exact catalog readback retained all 150 reviewed
-security-definer readers, zero policies, and zero direct grants. FORCE remains
-a separate unexecuted release boundary.
+All sixteen tables have complete retained FORCE acceptance. `User` is
+policyless and FORCE-hardened with zero ordinary runtime/staff/`PUBLIC` direct
+table or column authority. Its Phase-A release was applied by guarded ENABLE
+run `37747980060`. FORCE was accepted from exact main
+`85934f600f46c3e4b08046888d008970eaf8f171`, first-attempt CI `37763700848`,
+and guarded Production run `37766247341`. The postflight retained all 150
+reviewed security-definer readers, zero policies, and zero direct grants.
 `UserEmailAddress` closed its policyless FORCE release from exact main
 `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded
 Production run `37136042748`. The exact ledger and catalog readbacks retain
@@ -44,10 +41,9 @@ from exact main `5d3b402317084d9d2af6b8bdf52300a800eda0d8` after CI
 migration run `33445073482`, and a distinct actual pooled-runtime read-only
 postflight. Retain sanitized mode-`0600` evidence SHA-256
 `d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1`.
-Sixteen tables now have production RLS; fifteen are FORCE-hardened and `User`
-has accepted policyless Phase A. Every row except those sixteen is **not active
-RLS** and remains work to
-design, prove, and promote.
+Sixteen tables now have production RLS and all sixteen are FORCE-hardened.
+Every row except those sixteen is **not active RLS** and remains work to design,
+prove, and promote.
 The target column is a planning disposition, not a claim that the control is
 implemented. Re-read the production catalog before making any current-state
 claim because this document is a dated source snapshot.
@@ -238,7 +234,7 @@ completed alternative.
 
 | Prisma model | Target | Activation owner/group | Data and actors | Blocking prerequisite or next proof |
 |---|---|---|---|---|
-| `User` | `RLS_LIVE_PHASE_A` | Identity and account core | Account identity, contact and shipping PII; self, public/relationship identity, staff, Clerk lifecycle and deletion jobs | Policyless Phase A is accepted in Production from exact main `c9b02dfa530d3ca86b0ea7efd6f2f8e9e3b5233c`, CI `37743008603`, convergence `37747092440`, catalog inspection `37747428986`, and guarded ENABLE run `37747980060`. RLS is enabled with `NO FORCE`, zero policies, zero runtime/staff/PUBLIC direct table or column authority, and all 150 reviewed readers retained as security-definer functions. FORCE is a separate pending release; its source package must merge, pass exact-main CI, and receive a distinct guarded Production approval before activation. `ClerkWebhookEvent` and `AccountDeletionSideEffect` remain separate `ALTERNATIVE_REVIEW` groups. See `docs/user-rls-release.md`, `docs/user-cross-domain-authority-convergence.md`, `docs/user-indirect-access-pre-rls-audit.md`, and `docs/user-service-ledger-separation-decision.md`. |
+| `User` | `RLS_LIVE_FORCE` | Identity and account core | Account identity, contact and shipping PII; self, public/relationship identity, staff, Clerk lifecycle and deletion jobs | Policyless ENABLE plus FORCE is accepted in Production. Phase A is bound to guarded run `37747980060`; FORCE is bound to exact main `85934f600f46c3e4b08046888d008970eaf8f171`, first-attempt CI `37763700848`, and guarded run `37766247341`. The retained postflight proves zero policies, zero runtime/staff/PUBLIC direct table or column authority, and all 150 reviewed readers remain security-definer functions. `ClerkWebhookEvent` is a separate `COMPATIBLE_PREPARATION_LIVE` group and `AccountDeletionSideEffect` remains a separate `ALTERNATIVE_REVIEW` group. See `docs/user-rls-release.md`, `docs/user-cross-domain-authority-convergence.md`, `docs/user-indirect-access-pre-rls-audit.md`, and `docs/user-service-ledger-separation-decision.md`. |
 | `UserEmailAddress` | `RLS_LIVE_FORCE` | Identity and account core | Private email history; account owner, Clerk lifecycle, signed-unsubscribe replay defense, export and deletion | Policyless ENABLE plus FORCE and zero direct runtime/PUBLIC table authority are live from exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded run `37136042748`; six exact fixed operations remain. See `docs/user-email-address-rls-release.md` |
 | `SellerProfile` | `BLOCKED_DESIGN` | Seller public-private split | Public shop profile mixed with Stripe, ship-from address and moderation state; public, seller, staff, Stripe and cron | Split private operational fields or expose reviewed public views before restricting base rows |
 | `SellerFaq` | `BLOCKED_DESIGN` | Seller public-private split | Public shop content with seller-owned writes | Parent-seller write policy and public-read design tied to visible profiles |
@@ -281,7 +277,7 @@ completed alternative.
 | `NewsletterSubscriber` | `ALTERNATIVE_REVIEW` | Newsletter service | Subscriber email and confirmation token state; anonymous signup, email service and staff | Narrow subscribe and confirm RPC or service role; no ordinary broad reads of subscriber rows |
 | `EmailSuppression` | `ALTERNATIVE_REVIEW` | Email service ledgers | Suppressed email addresses and delivery context; Resend webhook, mail sender and staff | Dedicated service access with ordinary user runtime denied and audited support lookup |
 | `ResendWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Webhook idempotency and errors; Resend handler and operations | Service-only grants or narrow RPCs with no ordinary request reads |
-| `ClerkWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Identity webhook idempotency and errors; Clerk handler and operations | The isolated 2026-10-08 compatibility candidate prepares five fixed operations, generation fencing, fixed retention/health reads, current-provider identity convergence, bounded session revocation, and zero direct `src/` table access. Production migration, compatible deployment, direct-grant retirement, ENABLE, and FORCE remain pending separate gates. See `docs/clerk-webhook-event-rls-audit.md`. |
+| `ClerkWebhookEvent` | `COMPATIBLE_PREPARATION_LIVE` | Provider event ledgers | Identity webhook idempotency and errors; Clerk handler and operations | Five generation-fenced fixed operations and the compatible application are live from exact source `948945e1a5604232e90116e2d489fc335d458527`, CI `38035908667`, inspection `38037206283`, authority run `38037409279`, and deployment `dpl_HRhSLnjmWMF84qoV9mb51dULQ74i`. Signed delivery, exact duplicate retry, retention, zero-issue health, and queue drain are accepted. RLS and FORCE remain off and predecessor CRUD is retained. The separate policyless Phase A package for `20261010160000_enable_clerk_webhook_event_rls` is locally prepared but not published, merged, applied, or live; Production ENABLE and later FORCE remain separate gates. See `docs/clerk-webhook-event-rls-audit.md`. |
 | `CronRun` | `ALTERNATIVE_REVIEW` | Cron and operations ledgers | Job status and bounded result metadata; cron workers and operations | Cron service role or narrow job RPCs plus read-only ops visibility |
 | `DirectUpload` | `RLS_LIVE_FORCE` | Direct upload | User-owned upload claim state with cleanup jobs; the compatible private-object schema can also retain non-public Case/Message keys | Policyless ENABLE plus FORCE, zero runtime/cleanup table CRUD, the 35-function partition, exact migration status and owner proof are live in recovery run `30877508811`. Exact-main pooled-runtime and protected cleanup-role postflights passed read-only in run `30924905247` |
 | `DirectUploadReference` | `RLS_LIVE_FORCE` | Direct upload service ledger | Normalized shared-public and exclusive-private durable references; ordinary application SQL has no legitimate table-level access | Policyless ENABLE plus FORCE with zero runtime/PUBLIC/cleanup table grants is live and accepted with DirectUpload. Pooled-runtime and cleanup-role acceptance passed read-only; cleanup scheduling and private Case evidence remain separate releases |

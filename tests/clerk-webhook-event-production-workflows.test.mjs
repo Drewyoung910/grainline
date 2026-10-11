@@ -11,11 +11,20 @@ const release = readFileSync(
   ".github/workflows/clerk-webhook-event-authority-production.yml",
   "utf8",
 );
+const enable = readFileSync(
+  ".github/workflows/clerk-webhook-event-enable-production.yml",
+  "utf8",
+);
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const migrationPath =
   "prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql";
 const migrationDigest = createHash("sha256")
   .update(readFileSync(migrationPath))
+  .digest("hex");
+const activationPath =
+  "prisma/migrations/20261010160000_enable_clerk_webhook_event_rls/migration.sql";
+const activationDigest = createHash("sha256")
+  .update(readFileSync(activationPath))
   .digest("hex");
 
 test("catalog inspection is exact-main, exact-CI, first-attempt, manual, and read-only", () => {
@@ -38,12 +47,54 @@ test("catalog inspection is exact-main, exact-CI, first-attempt, manual, and rea
   assert.match(inspection, /name: Preserve sanitized ClerkWebhookEvent catalog evidence\n\s+if: always\(\)/u);
   assert.match(inspection, /retention-days: 30/u);
   assert.match(inspection, new RegExp(`${migrationDigest}  ${migrationPath.replaceAll(".", "\\.")}`, "u"));
+  assert.match(inspection, new RegExp(`${activationDigest}  ${activationPath.replaceAll(".", "\\.")}`, "u"));
+  assert.match(inspection, /- activation-compatible\n\s+- enabled/u);
   assert.doesNotMatch(inspection, /prisma migrate deploy|ALTER TABLE|vercel|git push/iu);
+});
+
+test("policyless ENABLE is inspection-bound, exact-main, restart-safe, and keeps FORCE separate", () => {
+  assert.match(enable, /name: ClerkWebhookEvent ENABLE Production/u);
+  assert.match(enable, /inputs\.confirmation == 'enable-reviewed-clerk-webhook-event-rls'/u);
+  assert.match(enable, /github\.ref == 'refs\/heads\/main'/u);
+  assert.match(enable, /github\.run_attempt == 1/u);
+  assert.match(enable, /main\.commit\.sha !== sha/u);
+  assert.match(enable, /ci\.head_sha !== sha/u);
+  assert.match(enable, /inspection\.path !== '\.github\/workflows\/clerk-webhook-event-production-inspection\.yml'/u);
+  assert.match(enable, /inspection\.display_title !== `ClerkWebhookEvent Production Inspection \[activation-compatible\] \$\{sha\}`/u);
+  assert.match(enable, /inspection\.head_sha !== sha/u);
+  assert.match(enable, /inspection\.run_attempt !== 1/u);
+  assert.match(enable, /inspection\.conclusion !== 'success'/u);
+  assert.match(enable, /group: production-database-migrations/u);
+  assert.match(enable, /environment: Production/u);
+  assert.match(enable, /guard-production-migration-runner\.mjs/u);
+  assert.match(enable, /CLERK_WEBHOOK_EVENT_EXPECTED_STATE: activation-compatible/u);
+  assert.match(enable, /CLERK_WEBHOOK_EVENT_EXPECTED_STATE: enabled/u);
+  assert.match(enable, /steps\.preflight\.outputs\.state == 'complete'/u);
+  assert.equal((enable.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.equal((enable.match(/npx prisma migrate status/gu) ?? []).length, 2);
+  assert.match(enable, /npm run audit:db-grants -- --require-direct-url/u);
+  assert.match(enable, new RegExp(`${activationDigest}  ${activationPath.replaceAll(".", "\\.")}`, "u"));
+  assert.doesNotMatch(enable, /FORCE ROW LEVEL SECURITY|vercel|git push/iu);
+});
+
+test("ENABLE proves source before owner access and inspect-status-apply-postflight-audit in order", () => {
+  const source = enable.indexOf("Verify ClerkWebhookEvent policyless ENABLE release source");
+  const bytes = enable.indexOf("Verify exact ClerkWebhookEvent ENABLE migration bytes");
+  const boundary = enable.indexOf("Verify owner connection boundary");
+  const preflight = enable.indexOf("Inspect restart-safe ClerkWebhookEvent state before apply");
+  const predecessors = enable.indexOf("Require every predecessor migration applied before ENABLE");
+  const apply = enable.indexOf("Apply only reviewed ClerkWebhookEvent ENABLE migration");
+  const status = enable.indexOf("Verify enabled migration status");
+  const postflight = enable.indexOf("Inspect enabled ClerkWebhookEvent catalog after apply");
+  const audit = enable.indexOf("Audit global grants after ClerkWebhookEvent ENABLE");
+  assert.ok(source >= 0 && source < bytes && bytes < boundary && boundary < preflight);
+  assert.ok(preflight < predecessors && predecessors < apply && apply < status);
+  assert.ok(status < postflight && postflight < audit);
 });
 
 test("inspection proves exact source and bytes before touching the owner connection", () => {
   const source = inspection.indexOf("Verify read-only ClerkWebhookEvent inspection source");
-  const bytes = inspection.indexOf("Verify exact compatibility migration bytes");
+  const bytes = inspection.indexOf("Verify exact ClerkWebhookEvent migration bytes");
   const boundary = inspection.indexOf("Verify owner connection boundary");
   const inspect = inspection.indexOf("Inspect ClerkWebhookEvent catalog read-only");
   assert.ok(source >= 0 && source < bytes && bytes < boundary && boundary < inspect);

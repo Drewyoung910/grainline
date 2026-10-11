@@ -37,14 +37,18 @@ Grainline uses database-level Row Level Security for `User`, `UserEmailAddress`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
-`OrderRefundReconciliation`, and `OrderPaymentEvent`. Sixteen tables have
-production RLS. Fifteen have complete retained `FORCE ROW LEVEL SECURITY`
-acceptance; `User` has accepted policyless Phase A with RLS enabled, FORCE off,
-zero policies, and zero runtime/staff/PUBLIC direct table or column authority.
-The User release is bound to exact main
-`c9b02dfa530d3ca86b0ea7efd6f2f8e9e3b5233c`, CI `37743008603`, convergence
-run `37747092440`, catalog inspection `37747428986`, and guarded ENABLE run
-`37747980060`. User FORCE remains a separate pending release.
+`OrderRefundReconciliation`, and `OrderPaymentEvent`. All sixteen tables have
+complete retained `FORCE ROW LEVEL SECURITY` acceptance. `User` is policyless
+and FORCE-hardened with zero policies and zero runtime/staff/`PUBLIC` direct
+table or column authority. Its Phase-A release is bound to guarded ENABLE run
+`37747980060`; FORCE was accepted from exact main
+`85934f600f46c3e4b08046888d008970eaf8f171`, first-attempt CI `37763700848`,
+and guarded Production run `37766247341`. The postflight retained all 150
+reviewed readers as security-definer functions. Retain the sanitized GitHub
+artifact digest
+`1d46c8032bbfbaf426b1bc49d1cec35ed445fd4729c89275be69da736b4ea284`
+and postflight evidence SHA-256
+`8c48ef5100464799656df81d549dc94df507e52cd41d60fe0a2aa71d50d4e53c`.
 `UserEmailAddress` FORCE was applied by
 guarded run `37136042748` from exact main
 `e689e1ff1d76a65146d132ad25dc545a72b87aac` after CI `37133944427`; its exact

@@ -268,7 +268,10 @@ jobs:
           mkdir "$holding"
           mv \
             prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority \
-            "$holding/migration"
+            "$holding/20261008120000_prepare_clerk_webhook_event_authority"
+          mv \
+            prisma/migrations/20261010160000_enable_clerk_webhook_event_rls \
+            "$holding/20261010160000_enable_clerk_webhook_event_rls"
           for test_file in \
             tests/clerk-webhook-event-authority.test.mjs \
             tests/clerk-webhook-event-authority-postgres.test.mjs \
@@ -5077,9 +5080,10 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/clerk-webhook-event-authority"
-          mv \
-            "$holding/migration" \
-            prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority
+          for migration in "$holding"/2026*
+          do
+            mv "$migration" "prisma/migrations/$(basename "$migration")"
+          done
           for test_file in "$holding"/*.mjs
           do
             mv "$test_file" "tests/$(basename "$test_file")"
@@ -5101,6 +5105,11 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql
+      - name: Apply Clerk webhook event policyless ENABLE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261010160000_enable_clerk_webhook_event_rls/migration.sql
       - name: Verify Clerk webhook event authority catalog
         run: |
           psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
@@ -5160,13 +5169,26 @@ jobs:
               RAISE EXCEPTION 'Clerk webhook event claim generation is missing';
             END IF;
 
-            IF EXISTS (
+            IF NOT EXISTS (
               SELECT 1
                 FROM pg_catalog.pg_class AS relation
                WHERE relation.oid = 'public."ClerkWebhookEvent"'::regclass
-                 AND (relation.relrowsecurity OR relation.relforcerowsecurity)
+                 AND relation.relrowsecurity
+                 AND NOT relation.relforcerowsecurity
+                 AND NOT pg_catalog.has_table_privilege(
+                   'grainline_app_runtime', relation.oid,
+                   'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+                 )
+                 AND NOT pg_catalog.has_any_column_privilege(
+                   'grainline_app_runtime', relation.oid,
+                   'SELECT,INSERT,UPDATE,REFERENCES'
+                 )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM pg_catalog.pg_policy AS policy
+                    WHERE policy.polrelid = relation.oid
+                 )
             ) THEN
-              RAISE EXCEPTION 'Clerk webhook event authority changed table RLS state';
+              RAISE EXCEPTION 'Clerk webhook event policyless ENABLE catalog drifted';
             END IF;
           END
           $verify_clerk_webhook_event_authority$;

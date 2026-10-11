@@ -27,6 +27,8 @@ const { Client } = pg;
 
 export const CLERK_WEBHOOK_EVENT_MIGRATION =
   "20261008120000_prepare_clerk_webhook_event_authority";
+export const CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION =
+  "20261010160000_enable_clerk_webhook_event_rls";
 export const CLERK_WEBHOOK_EVENT_INSPECTION_CONFIRMATION =
   "inspect-reviewed-clerk-webhook-event-authority";
 export const REVIEWED_CLERK_WEBHOOK_EVENT_TARGET = Object.freeze({
@@ -44,6 +46,8 @@ const EXPECTED_STATES = Object.freeze({
   pending: Object.freeze(["pending"]),
   complete: Object.freeze(["complete"]),
   compatible: Object.freeze(["pending", "complete"]),
+  enabled: Object.freeze(["enabled"]),
+  "activation-compatible": Object.freeze(["complete", "enabled"]),
 });
 const FUNCTION_IDENTITIES = Object.freeze([
   "grainline_clerk_webhook_begin(text, text)",
@@ -127,9 +131,21 @@ export function buildClerkWebhookEventCatalogExpectation(root = process.cwd()) {
     "migration.sql",
   );
   const sql = readFileSync(migrationPath, "utf8");
+  const activationPath = path.join(
+    root,
+    "prisma",
+    "migrations",
+    CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+    "migration.sql",
+  );
+  const activationSql = readFileSync(activationPath, "utf8");
   return Object.freeze({
     migration: CLERK_WEBHOOK_EVENT_MIGRATION,
     checksum: createHash("sha256").update(sql, "utf8").digest("hex"),
+    activation: Object.freeze({
+      migration: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+      checksum: createHash("sha256").update(activationSql, "utf8").digest("hex"),
+    }),
     functions: Object.freeze(FUNCTION_IDENTITIES.map((identity) =>
       sourceFunctionContract(sql, identity))),
   });
@@ -246,8 +262,9 @@ export async function readClerkWebhookEventCatalog(client, expectation) {
              rolled_back_at IS NOT NULL AS rolled_back,
              applied_steps_count::text AS applied_steps_count
         FROM public._prisma_migrations
-       WHERE migration_name = $1
-    `, [expectation.migration]),
+       WHERE migration_name = ANY($1::text[])
+       ORDER BY migration_name
+    `, [[expectation.migration, expectation.activation.migration]]),
     client.query(`
       SELECT class.relname::text AS table_name,
              pg_catalog.pg_get_userbyid(class.relowner)::text AS owner_name,
@@ -259,6 +276,12 @@ export async function readClerkWebhookEventCatalog(client, expectation) {
              pg_catalog.has_table_privilege('grainline_app_runtime', class.oid, 'INSERT') AS runtime_insert,
              pg_catalog.has_table_privilege('grainline_app_runtime', class.oid, 'UPDATE') AS runtime_update,
              pg_catalog.has_table_privilege('grainline_app_runtime', class.oid, 'DELETE') AS runtime_delete,
+             pg_catalog.has_table_privilege(
+               'grainline_app_runtime', class.oid, 'TRUNCATE,REFERENCES,TRIGGER'
+             ) AS runtime_other,
+             pg_catalog.has_any_column_privilege(
+               'grainline_app_runtime', class.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+             ) AS runtime_any_column,
              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(
                COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))) AS acl
                WHERE acl.grantee = 0 AND acl.privilege_type = 'SELECT') AS public_select,
@@ -271,6 +294,23 @@ export async function readClerkWebhookEventCatalog(client, expectation) {
              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(
                COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))) AS acl
                WHERE acl.grantee = 0 AND acl.privilege_type = 'DELETE') AS public_delete
+             ,EXISTS (SELECT 1 FROM pg_catalog.aclexplode(
+               COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))) AS acl
+               WHERE acl.grantee = 0 AND acl.privilege_type IN (
+                 'TRUNCATE', 'REFERENCES', 'TRIGGER'
+               )) AS public_other
+             ,EXISTS (
+               SELECT 1
+                 FROM pg_catalog.pg_attribute AS attribute
+                 CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+                WHERE attribute.attrelid = class.oid
+                  AND attribute.attnum > 0
+                  AND NOT attribute.attisdropped
+                  AND acl.grantee = 0
+                  AND acl.privilege_type IN (
+                    'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+                  )
+             ) AS public_any_column
         FROM pg_catalog.pg_class AS class
         JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
        WHERE namespace.nspname = 'public'
@@ -379,27 +419,52 @@ export function verifyClerkWebhookEventCatalog(
     runtime_superuser: false,
     runtime_inherit: false,
   });
+  assert.ok(Array.isArray(catalog?.migrations) && catalog.migrations.length <= 2);
+  const authorityRows = catalog.migrations.filter(
+    ({ migration_name: name }) => name === expectation.migration,
+  );
+  const activationRows = catalog.migrations.filter(
+    ({ migration_name: name }) => name === expectation.activation.migration,
+  );
+  assert.ok(authorityRows.length <= 1 && activationRows.length <= 1);
+  const authorityInstalled = authorityRows.length === 1;
+  const activationInstalled = activationRows.length === 1;
+  assert.equal(
+    activationInstalled && !authorityInstalled,
+    false,
+    "ClerkWebhookEvent activation cannot precede its authority migration",
+  );
+  const state = activationInstalled
+    ? "enabled"
+    : authorityInstalled
+      ? "complete"
+      : "pending";
+  assert.equal(
+    acceptedStates.includes(state),
+    true,
+    "ClerkWebhookEvent state is outside the reviewed release state",
+  );
   assert.deepEqual(catalog?.table, {
     table_name: "ClerkWebhookEvent",
     owner_name: target.ownerRole,
-    rls_enabled: false,
+    rls_enabled: activationInstalled,
     rls_forced: false,
     policy_count: 0,
-    runtime_select: true,
-    runtime_insert: true,
-    runtime_update: true,
-    runtime_delete: true,
+    runtime_select: !activationInstalled,
+    runtime_insert: !activationInstalled,
+    runtime_update: !activationInstalled,
+    runtime_delete: !activationInstalled,
+    runtime_other: false,
+    runtime_any_column: false,
     public_select: false,
     public_insert: false,
     public_update: false,
     public_delete: false,
+    public_other: false,
+    public_any_column: false,
   });
-  assert.ok(Array.isArray(catalog?.migrations) && catalog.migrations.length <= 1);
-  const installed = catalog.migrations.length === 1;
-  const state = installed ? "complete" : "pending";
-  assert.equal(acceptedStates.includes(state), true, "ClerkWebhookEvent state is outside the reviewed release state");
-  if (installed) {
-    assert.deepEqual(catalog.migrations[0], {
+  if (authorityInstalled) {
+    assert.deepEqual(authorityRows[0], {
       migration_name: expectation.migration,
       checksum: expectation.checksum,
       finished: true,
@@ -425,7 +490,16 @@ export function verifyClerkWebhookEventCatalog(
     assert.deepEqual(catalog.columns, []);
     assert.deepEqual(catalog.constraints, []);
   }
-  const expectedFunctions = installed ? expectation.functions : [];
+  if (activationInstalled) {
+    assert.deepEqual(activationRows[0], {
+      migration_name: expectation.activation.migration,
+      checksum: expectation.activation.checksum,
+      finished: true,
+      rolled_back: false,
+      applied_steps_count: "1",
+    });
+  }
+  const expectedFunctions = authorityInstalled ? expectation.functions : [];
   const actualFunctions = [...(catalog?.functions ?? [])].sort((left, right) =>
     `${left.function_name}(${left.identity_arguments})`.localeCompare(
       `${right.function_name}(${right.identity_arguments})`,
@@ -451,12 +525,13 @@ export function verifyClerkWebhookEventCatalog(
   }
   return Object.freeze({
     state,
-    migrationApplied: installed,
+    migrationApplied: authorityInstalled,
+    activationMigrationApplied: activationInstalled,
     installedFunctionCount: actualFunctions.length,
     reviewedFunctionCount: expectation.functions.length,
-    rlsEnabled: false,
+    rlsEnabled: activationInstalled,
     rlsForced: false,
-    predecessorRuntimeCrudRetained: true,
+    predecessorRuntimeCrudRetained: !activationInstalled,
     rowDataRead: false,
     productionChanged: false,
   });

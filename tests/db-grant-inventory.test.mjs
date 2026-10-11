@@ -121,6 +121,7 @@ const {
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   CHECKOUT_STOCK_RESERVATION_TABLE,
+  CLERK_WEBHOOK_EVENT_TABLE,
   CORE_ORDER_TABLE,
   ORDER_ITEM_TABLE,
   ORDER_QUOTE_TABLE,
@@ -140,6 +141,8 @@ const {
   collectTablePrivilegeAllowlistIssues,
   caseRlsActivationExpected,
   caseRlsForceExpected,
+  clerkWebhookEventRlsActivationExpected,
+  clerkWebhookEventRlsForceExpected,
   checkoutStockReservationRlsActivationExpected,
   checkoutStockReservationRlsForceExpected,
   coreOrderRlsActivationExpected,
@@ -1368,6 +1371,30 @@ describe("database grant inventory guardrails", () => {
       true,
     );
 
+    const clerkActivatedInventory = {
+      ...stripeForcedInventory,
+      tables: [...stripeForcedInventory.tables, CLERK_WEBHOOK_EVENT_TABLE],
+      rlsEnableTables: [
+        ...stripeForcedInventory.rlsEnableTables,
+        CLERK_WEBHOOK_EVENT_TABLE,
+      ],
+    };
+    assert.equal(
+      clerkWebhookEventRlsActivationExpected(clerkActivatedInventory),
+      true,
+    );
+    assert.equal(
+      clerkWebhookEventRlsForceExpected(clerkActivatedInventory),
+      false,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        CLERK_WEBHOOK_EVENT_TABLE,
+        clerkActivatedInventory,
+      ),
+      [],
+    );
+
     const reservationActivatedInventory = {
       ...stripeForcedInventory,
       tables: [
@@ -2038,6 +2065,7 @@ describe("database grant inventory guardrails", () => {
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
+        + (clerkWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
         + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
@@ -2383,6 +2411,9 @@ describe("database grant inventory guardrails", () => {
         "CaseSellerRefundApplication",
         "CaseStripeDisputeApplication",
         "CheckoutStockReservation",
+        ...(clerkWebhookEventRlsActivationExpected(inventory)
+          ? [CLERK_WEBHOOK_EVENT_TABLE]
+          : []),
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
@@ -3397,7 +3428,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 22);
+    assert.equal(guardResultCount, 23);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -3442,6 +3473,14 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :stripe_webhook_event_rls_active[\s\S]*REVOKE ALL ON TABLE public\."StripeWebhookEvent"/,
+    );
+    assert.match(
+      provision,
+      /ClerkWebhookEvent RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :clerk_webhook_event_rls_active[\s\S]*REVOKE ALL ON TABLE public\."ClerkWebhookEvent"/,
     );
     assert.match(
       provision,
