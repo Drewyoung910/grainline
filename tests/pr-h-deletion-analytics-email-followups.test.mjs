@@ -16,7 +16,10 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
     const schema = source("prisma/schema.prisma");
 
     assert.doesNotMatch(accountDeletion, /tx\.conversation\.deleteMany/);
-    assert.match(accountDeletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
+    assert.match(
+      accountDeletion,
+      /redactActorMessagesForAccountDeletion\(\{[\s\S]*userId: user\.id,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*\}, tx\)/,
+    );
     assert.doesNotMatch(accountDeletion, /tx\.message\./);
     assert.match(schema, /userA\s+User\s+@relation\("ConvoA".*onDelete: Restrict\)/);
     assert.match(schema, /userB\s+User\s+@relation\("ConvoB".*onDelete: Restrict\)/);

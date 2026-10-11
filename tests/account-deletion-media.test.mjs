@@ -62,7 +62,7 @@ describe("account deletion media cleanup scoping", () => {
     const collectEnd = deletion.indexOf("function revalidateDeletedAccountSearchCaches", collectStart);
     const collect = deletion.slice(collectStart, collectEnd);
     const collectCall = deletion.indexOf("const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId)");
-    const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls)");
+    const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(");
     const releaseRows = deletion.indexOf("await releaseDirectUploadsForAccount({");
 
     assert.match(deletion, /"sellerProfile" \| "reviewPhoto" \| "commissionRequest" \| "blogPost" \| "\$queryRaw"/);
@@ -81,6 +81,10 @@ describe("account deletion media cleanup scoping", () => {
     assert.ok(collectCall >= 0, "account deletion must collect media URLs");
     assert.ok(enqueueCall > collectCall, "media deletion side effects must be enqueued after collection");
     assert.ok(releaseRows > enqueueCall, "public DirectUpload references should be released only after durable media cleanup side effects are queued");
+    assert.match(
+      deletion,
+      /enqueueAccountDeletionMediaDeleteSideEffects\([\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*mediaUrls,/,
+    );
     assert.match(
       deletion,
       /releaseDirectUploadsForAccount\(\{\s*client: tx,\s*userId: user\.id,\s*\}\)/s,
