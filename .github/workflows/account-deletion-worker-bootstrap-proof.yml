@@ -1,0 +1,63 @@
+name: Account Deletion Worker Bootstrap Proof
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Exact-main admission requires a proof for that SHA, including documentation
+# release checkpoints. This short independent job avoids stale-proof exceptions.
+
+permissions:
+  contents: read
+
+jobs:
+  tls-login:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: neondb_owner
+          POSTGRES_PASSWORD: ci-owner
+          POSTGRES_DB: neondb
+          POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U neondb_owner -d neondb"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Enable TLS only on the disposable proof service
+        env:
+          PROOF_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$PROOF_CONTAINER" openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 -subj '/CN=localhost' -addext 'subjectAltName=IP:127.0.0.1,DNS:localhost' -keyout /tmp/account-deletion-proof.key -out /tmp/account-deletion-proof.crt
+          docker exec "$PROOF_CONTAINER" chown postgres:postgres /tmp/account-deletion-proof.key /tmp/account-deletion-proof.crt
+          docker exec "$PROOF_CONTAINER" chmod 600 /tmp/account-deletion-proof.key
+          docker cp "$PROOF_CONTAINER:/tmp/account-deletion-proof.crt" "$RUNNER_TEMP/account-deletion-bootstrap-ca.pem"
+          docker exec "$PROOF_CONTAINER" psql -U neondb_owner -d neondb -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_cert_file = '/tmp/account-deletion-proof.crt'"
+          docker exec "$PROOF_CONTAINER" psql -U neondb_owner -d neondb -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_key_file = '/tmp/account-deletion-proof.key'"
+          docker exec "$PROOF_CONTAINER" psql -U neondb_owner -d neondb -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl = 'on'"
+          docker exec "$PROOF_CONTAINER" psql -U neondb_owner -d neondb -v ON_ERROR_STOP=1 -c 'SELECT pg_reload_conf()'
+      - name: Prove real TLS channel-bound bootstrap and exact restart
+        run: |
+          test "$ACCOUNT_DELETION_WORKER_BOOTSTRAP_TLS_PROOF" = loopback-ci-postgres16
+          test -r "$ACCOUNT_DELETION_WORKER_BOOTSTRAP_TLS_PROOF_CA"
+          node --test tests/account-deletion-worker-bootstrap-tls-postgres.test.mjs
+        env:
+          ACCOUNT_DELETION_WORKER_BOOTSTRAP_TLS_PROOF: loopback-ci-postgres16
+          ACCOUNT_DELETION_WORKER_BOOTSTRAP_TLS_PROOF_CA: ${{ runner.temp }}/account-deletion-bootstrap-ca.pem
+      - name: Stop containers
+        if: always()
+        env:
+          PROOF_CONTAINER: ${{ job.services.postgres.id }}
+        run: docker stop "$PROOF_CONTAINER"
