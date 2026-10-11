@@ -86,7 +86,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(
       liveRows.map((row) => [row.model, row.status]),
       [
-        ["User", "RLS_LIVE_PHASE_A"],
+        ["User", "RLS_LIVE_FORCE"],
         ["UserEmailAddress", "RLS_LIVE_FORCE"],
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
@@ -109,7 +109,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /`User` is[\s\S]*the sixteenth live table[\s\S]*policyless Phase A/,
+      /All sixteen tables have complete retained FORCE acceptance[\s\S]*`User` is[\s\S]*policyless and FORCE-hardened/,
     );
     assert.match(
       matrix,
@@ -121,7 +121,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /User` Phase A was applied[\s\S]*37743008603[\s\S]*37747980060[\s\S]*UserEmailAddress` closed its policyless FORCE release[\s\S]*37133944427[\s\S]*37136042748[\s\S]*OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*Sixteen tables now have production RLS[\s\S]*fifteen are FORCE-hardened[\s\S]*Every row except those sixteen is \*\*not active[\s\S]*RLS\*\*/,
+      /User` is[\s\S]*policyless and FORCE-hardened[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*UserEmailAddress` closed its policyless FORCE release[\s\S]*37133944427[\s\S]*37136042748[\s\S]*OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*Sixteen tables now have production RLS and all sixteen are FORCE-hardened[\s\S]*Every row except those sixteen is \*\*not active[\s\S]*RLS\*\*/,
     );
     assert.match(
       matrix,
@@ -131,7 +131,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /Sixteen tables have[\s\S]*production RLS[\s\S]*Fifteen have complete retained `FORCE ROW LEVEL SECURITY`[\s\S]*User` has accepted policyless Phase A[\s\S]*37747980060[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
+      /All sixteen tables have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*User` is policyless[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(

@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
   CLERK_WEBHOOK_EVENT_INSPECTION_CONFIRMATION,
   CLERK_WEBHOOK_EVENT_MIGRATION,
   ClerkWebhookEventCatalogVerificationError,
@@ -66,7 +67,8 @@ function functionRows(expectation) {
 }
 
 function catalog(expectation, state = "complete") {
-  const complete = state === "complete";
+  const complete = state === "complete" || state === "enabled";
+  const enabled = state === "enabled";
   return {
     identity: {
       current_user: "neondb_owner",
@@ -85,21 +87,31 @@ function catalog(expectation, state = "complete") {
       finished: true,
       rolled_back: false,
       applied_steps_count: "1",
-    }] : [],
+    }, ...(enabled ? [{
+      migration_name: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+      checksum: expectation.activation.checksum,
+      finished: true,
+      rolled_back: false,
+      applied_steps_count: "1",
+    }] : [])] : [],
     table: {
       table_name: "ClerkWebhookEvent",
       owner_name: "neondb_owner",
-      rls_enabled: false,
+      rls_enabled: enabled,
       rls_forced: false,
       policy_count: 0,
-      runtime_select: true,
-      runtime_insert: true,
-      runtime_update: true,
-      runtime_delete: true,
+      runtime_select: !enabled,
+      runtime_insert: !enabled,
+      runtime_update: !enabled,
+      runtime_delete: !enabled,
+      runtime_other: false,
+      runtime_any_column: false,
       public_select: false,
       public_insert: false,
       public_update: false,
       public_delete: false,
+      public_other: false,
+      public_any_column: false,
     },
     columns: complete ? [{
       column_name: "claimGeneration",
@@ -125,6 +137,18 @@ test("expectation is derived from exact reviewed migration bytes and five functi
   );
   assert.equal(expectation.checksum, createHash("sha256").update(sql).digest("hex"));
   assert.equal(expectation.checksum, "c5926434597a96db649796a3c61e633827fb575ae3c29e2570efb0460e9ca643");
+  const activationSql = fs.readFileSync(
+    `prisma/migrations/${CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION}/migration.sql`,
+    "utf8",
+  );
+  assert.equal(
+    expectation.activation.checksum,
+    createHash("sha256").update(activationSql).digest("hex"),
+  );
+  assert.equal(
+    expectation.activation.checksum,
+    "7c5fc7f61280a14695b8a2b2c4e1b3d354aeae40f581f952e529015cf70066d9",
+  );
   assert.equal(expectation.functions.length, 5);
   assert.equal(new Set(expectation.functions.map(({ sourceMd5 }) => sourceMd5)).size, 5);
   for (const entry of expectation.functions) {
@@ -140,6 +164,12 @@ test("config requires an exact first-attempt main dispatch, owner target, digest
   assert.equal(parsed.releaseCommit, COMMIT);
   assert.deepEqual(parsed.acceptedStates, ["pending", "complete"]);
   assert.equal(parsed.identity.isPooler, false);
+  assert.deepEqual(
+    parseClerkWebhookEventInspectionConfig(
+      env(root, "activation-compatible"),
+    ).acceptedStates,
+    ["complete", "enabled"],
+  );
 
   for (const [key, value] of [
     ["GITHUB_RUN_ATTEMPT", "2"],
@@ -174,6 +204,7 @@ test("pending and complete catalogs are accepted only in their allowed states", 
   assert.deepEqual(complete, {
     state: "complete",
     migrationApplied: true,
+    activationMigrationApplied: false,
     installedFunctionCount: 5,
     reviewedFunctionCount: 5,
     rlsEnabled: false,
@@ -182,6 +213,21 @@ test("pending and complete catalogs are accepted only in their allowed states", 
     rowDataRead: false,
     productionChanged: false,
   });
+  assert.deepEqual(
+    verifyClerkWebhookEventCatalog(catalog(expectation, "enabled"), expectation, ["enabled"]),
+    {
+      state: "enabled",
+      migrationApplied: true,
+      activationMigrationApplied: true,
+      installedFunctionCount: 5,
+      reviewedFunctionCount: 5,
+      rlsEnabled: true,
+      rlsForced: false,
+      predecessorRuntimeCrudRetained: false,
+      rowDataRead: false,
+      productionChanged: false,
+    },
+  );
   assert.throws(() => verifyClerkWebhookEventCatalog(catalog(expectation, "pending"), expectation, ["complete"]));
   assert.throws(() => verifyClerkWebhookEventCatalog(catalog(expectation), expectation, ["pending"]));
 });
@@ -201,12 +247,26 @@ test("catalog verification rejects migration, column, constraint, function, gran
     (value) => { value.table.rls_enabled = true; },
     (value) => { value.table.runtime_delete = false; },
     (value) => { value.table.public_select = true; },
+    (value) => { value.migrations.push({
+      migration_name: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+      checksum: expectation.activation.checksum,
+      finished: true,
+      rolled_back: false,
+      applied_steps_count: "1",
+    }); },
   ];
   for (const mutate of mutations) {
     const value = structuredClone(catalog(expectation));
     mutate(value);
     assert.throws(() => verifyClerkWebhookEventCatalog(value, expectation));
   }
+  const enabled = structuredClone(catalog(expectation, "enabled"));
+  enabled.migrations[1].checksum = "b".repeat(64);
+  assert.throws(() => verifyClerkWebhookEventCatalog(
+    enabled,
+    expectation,
+    ["enabled"],
+  ));
 });
 
 test("catalog reader issues only metadata queries and retains no row data", async () => {

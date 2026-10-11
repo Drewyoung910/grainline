@@ -3,13 +3,16 @@
 ## Scope
 
 This decision covers `ClerkWebhookEvent` and
-`AccountDeletionSideEffect` only as dependencies of the pending `User` table
-RLS release. It does not approve either ledger's own grant change, policy,
-ENABLE, FORCE, migration, or Production release.
+`AccountDeletionSideEffect` as dependencies of the `User` table RLS release.
+User policyless ENABLE plus FORCE is live and accepted. This record does not
+approve either service ledger's own grant change, policy, ENABLE, FORCE,
+migration, or Production release.
 
-Both tables remain `ALTERNATIVE_REVIEW` service-ledger groups. Their current
-broad ordinary-runtime CRUD is debt that must be removed in their own product,
-authority, retention, operations, and rollback reviews.
+`AccountDeletionSideEffect` remains an `ALTERNATIVE_REVIEW` service-ledger
+group. `ClerkWebhookEvent` is `COMPATIBLE_PREPARATION_LIVE`: its exact fixed
+operations and compatible app are live, while broad predecessor runtime CRUD
+remains until its own policyless Phase A. That remaining authority must be
+removed through the ledger's separate activation review and release.
 
 ## Verified coupling
 
@@ -66,12 +69,19 @@ CRUD with exact fixed operations, then prove direct runtime/PUBLIC denial,
 replay behavior, retention, observability, rollback, and installed catalog
 state. Provider signature verification remains in the application route.
 
-The 2026-10-08 isolated preparation completes the source audit and prepares five
-fixed operations, generation-fenced finalization, current-provider identity
-reads, bounded session revocation, and focused disposable PostgreSQL proof. See
-`docs/clerk-webhook-event-rls-audit.md`. This is compatible source only: the
-additive migration, application deployment, direct-grant retirement, ENABLE,
-and FORCE remain separate release boundaries.
+The 2026-10-08 preparation completed the source audit and produced five fixed
+operations, generation-fenced finalization, current-provider identity reads,
+bounded session revocation, and focused disposable PostgreSQL proof. Exact
+source `948945e1a5604232e90116e2d489fc335d458527`, its additive authority
+migration, compatible deployment, signed delivery, duplicate retry, retention,
+and zero-issue health proof are accepted in Production. See
+`docs/clerk-webhook-event-rls-audit.md`.
+
+The separate policyless Phase A package is prepared locally. Its reviewed target
+revokes runtime/PUBLIC direct table and column authority, enables RLS without
+FORCE, retains only the five fixed operations, and proves rollback and installed
+state. Publication, merge, Production inspection, ENABLE, and later FORCE remain
+separate release boundaries.
 
 ### `AccountDeletionSideEffect`
 
@@ -83,9 +93,10 @@ runtime/PUBLIC denial, rollback, and installed catalog state.
 
 ## Decision
 
-**GO** to treat the two ledgers as independently scheduled table groups while
-continuing the User installed-catalog gate, guarded source-only authority
-migration rollout, compatible-app promotion, and final grant/policy design.
+**GO** to treat the two ledgers as independently scheduled table groups. User
+policyless ENABLE plus FORCE is accepted independently; ClerkWebhookEvent may
+continue through its own prepared Phase A gate, and AccountDeletionSideEffect
+retains its own audit and closure criteria.
 
 **NO-GO** to describe either ledger as hardened, change its Production state,
 or claim the User boundary authenticates Clerk signatures or resists a stolen

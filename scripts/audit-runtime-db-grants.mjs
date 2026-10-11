@@ -76,6 +76,7 @@ export const CASE_ACTIVATION_TABLES = Object.freeze([
   "CaseMessageAttachment",
 ]);
 export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
+export const CLERK_WEBHOOK_EVENT_TABLE = "ClerkWebhookEvent";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
@@ -347,6 +348,18 @@ export function stripeWebhookEventRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(STRIPE_WEBHOOK_EVENT_TABLE);
 }
 
+export function clerkWebhookEventRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(CLERK_WEBHOOK_EVENT_TABLE)
+    && !policies.has(CLERK_WEBHOOK_EVENT_TABLE);
+}
+
+export function clerkWebhookEventRlsForceExpected(inventory) {
+  return clerkWebhookEventRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(CLERK_WEBHOOK_EVENT_TABLE);
+}
+
 export function checkoutStockReservationRlsActivationExpected(inventory) {
   const enabled = new Set(inventory?.rlsEnableTables ?? []);
   const policies = new Set(inventory?.rlsPolicyTables ?? []);
@@ -589,6 +602,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(caseRlsActivationExpected(inventory) ? CASE_ACTIVATION_TABLES : []),
     ...(stripeWebhookEventRlsActivationExpected(inventory)
       ? [STRIPE_WEBHOOK_EVENT_TABLE]
+      : []),
+    ...(clerkWebhookEventRlsActivationExpected(inventory)
+      ? [CLERK_WEBHOOK_EVENT_TABLE]
       : []),
     ...(checkoutStockReservationRlsActivationExpected(inventory)
       ? [CHECKOUT_STOCK_RESERVATION_TABLE]
@@ -1503,6 +1519,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && stripeWebhookEventRlsActivationExpected(inventory)
     )
     || (
+      tableName === CLERK_WEBHOOK_EVENT_TABLE
+      && clerkWebhookEventRlsActivationExpected(inventory)
+    )
+    || (
       tableName === CHECKOUT_STOCK_RESERVATION_TABLE
       && checkoutStockReservationRlsActivationExpected(inventory)
     )
@@ -1571,6 +1591,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
       ? caseRlsForceExpected(inventory)
       : tableName === STRIPE_WEBHOOK_EVENT_TABLE
         ? stripeWebhookEventRlsForceExpected(inventory)
+        : tableName === CLERK_WEBHOOK_EVENT_TABLE
+          ? clerkWebhookEventRlsForceExpected(inventory)
         : tableName === CHECKOUT_STOCK_RESERVATION_TABLE
           ? checkoutStockReservationRlsForceExpected(inventory)
         : tableName === SELLER_PAYOUT_EVENT_TABLE

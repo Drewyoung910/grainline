@@ -21,6 +21,8 @@ on:
           - compatible
           - pending
           - complete
+          - activation-compatible
+          - enabled
       confirmation:
         description: Type inspect-reviewed-clerk-webhook-event-authority
         required: true
@@ -97,13 +99,14 @@ jobs:
           tests/clerk-webhook-event-authority.test.mjs
           tests/clerk-webhook-event-production-inspect.test.mjs
           tests/clerk-webhook-event-production-workflows.test.mjs
-      - name: Verify exact compatibility migration bytes
+      - name: Verify exact ClerkWebhookEvent migration bytes
         shell: bash
         run: |
           set -euo pipefail
           test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
-            "20261008120000_prepare_clerk_webhook_event_authority"
+            "20261010160000_enable_clerk_webhook_event_rls"
           echo "c5926434597a96db649796a3c61e633827fb575ae3c29e2570efb0460e9ca643  prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql" | sha256sum --check --status
+          echo "7c5fc7f61280a14695b8a2b2c4e1b3d354aeae40f581f952e529015cf70066d9  prisma/migrations/20261010160000_enable_clerk_webhook_event_rls/migration.sql" | sha256sum --check --status
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
         env:
