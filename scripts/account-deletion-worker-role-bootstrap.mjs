@@ -2,14 +2,19 @@
 // The release adapter must validate exact-main/CI/target provenance, hold an
 // exclusive private-journal lock, and persist each state with mode-0600 + fsync.
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { buildScramSha256Verifier } from "./saved-search-phase-b-owner-rotation.mjs";
 
 export const ACCOUNT_DELETION_BOOTSTRAP_ROLE = "grainline_account_deletion_runtime";
-const STAGES = ["prepared", "create-pending", "role-verified"];
-const KEYS = ["version", "attemptId", "releaseCommit", "ciRunId", "role", "stage", "password", "verifier"].sort();
+const STAGES = ["prepared", "create-pending", "role-verified", "credential-installed"];
+const SECRET_KEYS = ["version", "attemptId", "releaseCommit", "ciRunId", "role", "stage", "password", "verifier"].sort();
+const RETIRED_KEYS = ["version", "attemptId", "releaseCommit", "ciRunId", "role", "stage",
+  "passwordSha256", "verifierSha256", "environmentId", "valueSha256"].sort();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const VERIFIER = /^SCRAM-SHA-256\$4096:[A-Za-z0-9+/]{22}==\$[A-Za-z0-9+/]{43}=:[A-Za-z0-9+/]{43}=$/u;
+const DIGEST = /^[0-9a-f]{64}$/u;
+const ENVIRONMENT_ID = /^[A-Za-z0-9_]{8,128}$/u;
+const sha256 = value => createHash("sha256").update(value).digest("hex");
 
 function assertBinding(binding) {
   assert.ok(typeof binding?.releaseCommit === "string" && typeof binding?.ciRunId === "string" &&
@@ -30,10 +35,18 @@ export function newAccountDeletionBootstrapState(binding) {
 export function validateAccountDeletionBootstrapState(state, binding) {
   assertBinding(binding);
   assert.ok(state && typeof state === "object" && !Array.isArray(state) &&
-    JSON.stringify(Object.keys(state).sort()) === JSON.stringify(KEYS) &&
     state.version === 1 && UUID.test(state.attemptId) &&
     state.releaseCommit === binding.releaseCommit && state.ciRunId === binding.ciRunId &&
-    state.role === ACCOUNT_DELETION_BOOTSTRAP_ROLE && STAGES.includes(state.stage) &&
+    state.role === ACCOUNT_DELETION_BOOTSTRAP_ROLE && STAGES.includes(state.stage),
+  "account deletion bootstrap private state is invalid or belongs to another release");
+  if (state.stage === "credential-installed") {
+    assert.ok(JSON.stringify(Object.keys(state).sort()) === JSON.stringify(RETIRED_KEYS) &&
+      DIGEST.test(state.passwordSha256) && DIGEST.test(state.verifierSha256) &&
+      ENVIRONMENT_ID.test(state.environmentId) && DIGEST.test(state.valueSha256),
+    "account deletion bootstrap retired state is invalid or belongs to another release");
+    return Object.freeze({ ...state });
+  }
+  assert.ok(JSON.stringify(Object.keys(state).sort()) === JSON.stringify(SECRET_KEYS) &&
     typeof state.password === "string" && /^[0-9a-f]{64}$/u.test(state.password) &&
     typeof state.verifier === "string" && VERIFIER.test(state.verifier),
   "account deletion bootstrap private state is invalid or belongs to another release");
@@ -41,6 +54,26 @@ export function validateAccountDeletionBootstrapState(state, binding) {
   assert.ok(buildScramSha256Verifier(state.password, salt) === state.verifier,
     "account deletion bootstrap credential and verifier do not agree");
   return Object.freeze({ ...state });
+}
+
+export function retireAccountDeletionBootstrapCredential(rawState, binding, installation) {
+  const state = validateAccountDeletionBootstrapState(rawState, binding);
+  assert.ok(state.stage === "role-verified" && installation?.status === "installed" &&
+    installation.key === "ACCOUNT_DELETION_DATABASE_URL" &&
+    ENVIRONMENT_ID.test(installation.environmentId ?? "") && DIGEST.test(installation.valueSha256 ?? ""),
+  "account deletion bootstrap credential retirement requires the exact installed provider row");
+  return Object.freeze({
+    version: state.version,
+    attemptId: state.attemptId,
+    releaseCommit: state.releaseCommit,
+    ciRunId: state.ciRunId,
+    role: state.role,
+    stage: "credential-installed",
+    passwordSha256: sha256(state.password),
+    verifierSha256: sha256(state.verifier),
+    environmentId: installation.environmentId,
+    valueSha256: installation.valueSha256,
+  });
 }
 
 export function accountDeletionBootstrapMarker(state) {
@@ -174,6 +207,8 @@ export function assertAccountDeletionBootstrapLogin(snapshot, marker) {
 
 export async function runAccountDeletionBootstrapCore({ state: rawState, binding, operations }) {
   let state = validateAccountDeletionBootstrapState(rawState, binding);
+  assert.notEqual(state.stage, "credential-installed",
+    "account deletion bootstrap credential is already installed and retired");
   for (const name of ["persistPrivateState", "executeOwnerTransaction", "proveSeparateLogin"]) {
     assert.equal(typeof operations?.[name], "function", "account deletion bootstrap adapter is incomplete");
   }

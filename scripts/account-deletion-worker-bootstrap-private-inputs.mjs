@@ -138,14 +138,36 @@ export function accountDeletionBootstrapPrivateInputOperations({ root, ownerEvid
       assert.equal(runtimeEvidence.credential.replacementSha256, sha256(runtimeUrl));
       return { ownerUrl, epochSha256: reviewed.credentialEpochSha256 };
     };
+    const providerTokenPath = path.join(directory, "provider-tokens.json");
+    const retireProviderTokens = guard(() => {
+      try {
+        fs.lstatSync(providerTokenPath);
+      } catch (error) {
+        if (error?.code === "ENOENT") return Object.freeze({ status: "retired" });
+        throw error;
+      }
+      const tokens = canonicalJson(readPrivate(providerTokenPath, 16384));
+      exactKeys(tokens, ["github", "vercel"]);
+      assert.ok(Object.values(tokens).every(token =>
+        typeof token === "string" && /^[\x21-\x7e]{8,4096}$/u.test(token)));
+      const directoryFd = fs.openSync(directory,
+        fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+      try {
+        fs.unlinkSync(providerTokenPath);
+        fs.fsyncSync(directoryFd);
+      } finally { fs.closeSync(directoryFd); }
+      assert.ok(!fs.existsSync(providerTokenPath));
+      return Object.freeze({ status: "retired" });
+    });
     return Object.freeze({ reviewed, directory, manifestSha256,
       verifyManifest: guard(() => true),
       loadProviderTokens: guard(() => {
-        const tokens = canonicalJson(readPrivate(path.join(directory, "provider-tokens.json"), 16384));
+        const tokens = canonicalJson(readPrivate(providerTokenPath, 16384));
         exactKeys(tokens, ["github", "vercel"]);
         assert.ok(Object.values(tokens).every(token => typeof token === "string" && /^[\x21-\x7e]{8,4096}$/u.test(token)));
         return Object.freeze({ github: tokens.github, vercel: tokens.vercel });
       }),
+      retireProviderTokens,
       loadOwnerCredential: guard(() => {
         const snapshot = credentialSnapshot();
         return Object.freeze({ url: snapshot.ownerUrl, epochSha256: snapshot.epochSha256 });

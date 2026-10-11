@@ -33,10 +33,14 @@ The fixed inputs are:
   recovery evidence, the later runtime-credential rotation evidence, and their
   deterministic composite credential epoch;
 - `provider-tokens.json`: canonical JSON containing only the GitHub and Vercel
-  provider tokens;
+  provider tokens. The installer durably deletes this local file after the
+  exact sensitive Production row is independently re-read;
 - `account-deletion-bootstrap.json`: the immutable attempt identity and secret,
   whose stage can move only from `prepared` to `create-pending` to
-  `role-verified`;
+  `role-verified`. After the exact Vercel row is independently accepted, one
+  terminal `credential-installed` transition replaces the password and SCRAM
+  verifier with their SHA-256 digests and retains only the environment-row id
+  and value digest needed for restart-safe evidence;
 - `account-deletion-bootstrap.pending`: a durable same-attempt write pending
   atomic rename;
 - `account-deletion-bootstrap.lock`: an exclusive active-run lock. A stale lock
@@ -84,6 +88,13 @@ The separate Vercel installer requires:
 install-account-deletion-production-database-url-only
 ```
 
+When the exact live-bound installer predates the terminal journal format, the
+separate local-only retirement command requires:
+
+```text
+retire-account-deletion-bootstrap-local-secrets-only
+```
+
 The provider step may create only `ACCOUNT_DELETION_DATABASE_URL` as a
 sensitive Production variable in the reviewed Grainline project and team. Its
 value uses the same Production database through the pooled endpoint, the exact
@@ -107,7 +118,14 @@ running application by itself.
    receipt and private journal.
 4. Separately authorize and run the Vercel environment installer. Preserve its
    sanitized receipt and independently re-read the single sensitive Production
-   row.
+   row. The same operator must reach `credential-installed`, remove the local
+   plaintext password/verifier from the journal, and durably delete its local
+   provider-token file before it reports success. A retry from that terminal
+   state completes token-file retirement without reinstalling the value. If
+   rollout ordering requires the older exact-release installer, immediately
+   run the local-only retirement command: it independently reads the exact
+   provider row, performs no provider mutation, and then applies the same local
+   terminal transition and token-file deletion.
 5. Separately authorize and apply only preparation migration
    `20261011170000_prepare_account_deletion_side_effect_claim_fence`.
 6. Deploy and validate the worker while the legacy helpers remain compatible,
@@ -119,4 +137,5 @@ running application by itself.
 
 The receipts contain identity, digests, stage, and status only. They must not
 contain passwords, database URLs, provider tokens, raw provider payloads, or
-owner SQL.
+owner SQL. Provider credentials that exist outside this operation's deleted
+private token file remain subject to their own account-wide rotation policy.

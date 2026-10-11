@@ -120,6 +120,7 @@ const {
   RUNTIME_PRIVATE_TABLES,
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
+  STAFF_READ_FUNCTION_IDENTITIES,
   CHECKOUT_STOCK_RESERVATION_TABLE,
   ACCOUNT_DELETION_SIDE_EFFECT_TABLE,
   CLERK_WEBHOOK_EVENT_TABLE,
@@ -138,6 +139,8 @@ const {
   collectNotificationFunctionIssues,
   collectNotificationPolicyIssues,
   collectPolicylessServiceRlsIssues,
+  collectPublicFunctionExecuteIssues,
+  collectRestrictedRoleEffectiveFunctionIssues,
   collectRuntimeFunctionGrantOptionIssues,
   collectTablePrivilegeAllowlistIssues,
   caseRlsActivationExpected,
@@ -309,6 +312,11 @@ async function withAuditFixture(options, fn) {
       await migrationClient.query(
         `CREATE OR REPLACE FUNCTION ${assertSafeIdentifier(functionName)}() RETURNS boolean LANGUAGE sql AS $$ SELECT true $$`,
       );
+      if (!options.grantPublicFunctionExecute) {
+        await migrationClient.query(
+          `REVOKE EXECUTE ON FUNCTION ${assertSafeIdentifier(functionName)}() FROM PUBLIC`,
+        );
+      }
       if (options.createRlsPolicy) {
         await migrationClient.query(
           `CREATE POLICY ${assertSafeIdentifier(policyName)}
@@ -1026,6 +1034,11 @@ describe("database grant inventory guardrails", () => {
         "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
         "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
       ],
+      effective_function_identities: [
+        "grainline_account_deletion_side_effect_claim(text)",
+        "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
+        "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
+      ],
       function_grant_option_count: 0,
       public_account_deletion_execute_count: 0,
     };
@@ -1060,6 +1073,10 @@ describe("database grant inventory guardrails", () => {
         ...preparedState.function_identities,
         "grainline_user_account_deletion_preflight(text,bigint,uuid)",
       ],
+      effective_function_identities: [
+        ...preparedState.effective_function_identities,
+        "grainline_user_account_deletion_preflight(text,bigint,uuid)",
+      ],
     }, preparedInventory).join("\n");
     assert.match(issues, /role_bypassrls/);
     assert.match(issues, /unreviewed role membership/);
@@ -1067,6 +1084,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(issues, /unrelated table authority/);
     assert.match(issues, /unrelated type authority/);
     assert.match(issues, /function authority drifted/);
+    assert.match(issues, /effective function authority drifted/);
   });
 
   it("accepts OrderItem policyless ENABLE and audits its later FORCE separately", () => {
@@ -1991,6 +2009,132 @@ describe("database grant inventory guardrails", () => {
       [
         "grainline_stripe_webhook_begin(p_event_id text, p_event_type text) runtime EXECUTE must not be grantable",
       ],
+    );
+  });
+
+  it("rejects PUBLIC execution on Grainline functions except the reviewed pure validator", () => {
+    const issues = collectPublicFunctionExecuteIssues([
+      {
+        function_name: "grainline_sensitive_definer",
+        argument_types: "text, bigint",
+        public_execute: true,
+      },
+      {
+        function_name: "grainline_notification_preferences_valid",
+        argument_types: "jsonb",
+        public_execute: true,
+      },
+      {
+        function_name: "grainline_private_helper",
+        argument_types: "text",
+        public_execute: false,
+      },
+    ]);
+    assert.deepEqual(issues, [
+      "grainline_sensitive_definer(text,bigint) must revoke EXECUTE from PUBLIC",
+    ]);
+  });
+
+  it("rejects effective restricted-role function authority not backed by a direct grant", () => {
+    assert.deepEqual(
+      collectRestrictedRoleEffectiveFunctionIssues([
+        {
+          role_name: "grainline_staff_read_runtime",
+          role_exists: true,
+          direct_function_identities: ["grainline_staff_page(text)"],
+          effective_function_identities: [
+            "grainline_notification_preferences_valid(jsonb)",
+            "grainline_staff_page(text)",
+          ],
+        },
+      ]),
+      [],
+    );
+    const issues = collectRestrictedRoleEffectiveFunctionIssues([
+      {
+        role_name: "grainline_staff_read_runtime",
+        role_exists: true,
+        direct_function_identities: ["grainline_staff_page(text)"],
+        effective_function_identities: [
+          "grainline_staff_page(text)",
+          "grainline_unreviewed_definer(text)",
+        ],
+      },
+      {
+        role_name: "grainline_missing_runtime",
+        role_exists: false,
+        direct_function_identities: [],
+        effective_function_identities: [],
+      },
+    ]).join("\n");
+    assert.match(issues, /grainline_staff_read_runtime.*grainline_unreviewed_definer/);
+    assert.match(issues, /restricted role grainline_missing_runtime does not exist/);
+  });
+
+  it("pins staff-read direct and effective authority to the reviewed function catalog", () => {
+    const expectedByRole = {
+      grainline_staff_read_runtime: STAFF_READ_FUNCTION_IDENTITIES,
+    };
+    assert.deepEqual(
+      collectRestrictedRoleEffectiveFunctionIssues(
+        [
+          {
+            role_name: "grainline_staff_read_runtime",
+            role_exists: true,
+            direct_function_identities: [...STAFF_READ_FUNCTION_IDENTITIES].reverse(),
+            effective_function_identities: [
+              "grainline_notification_preferences_valid(jsonb)",
+              ...STAFF_READ_FUNCTION_IDENTITIES,
+            ],
+          },
+        ],
+        expectedByRole,
+      ),
+      [],
+    );
+
+    const unexpected = collectRestrictedRoleEffectiveFunctionIssues(
+      [
+        {
+          role_name: "grainline_staff_read_runtime",
+          role_exists: true,
+          direct_function_identities: [
+            ...STAFF_READ_FUNCTION_IDENTITIES,
+            "grainline_unreviewed_definer(text)",
+          ],
+          effective_function_identities: [
+            ...STAFF_READ_FUNCTION_IDENTITIES,
+            "grainline_unreviewed_definer(text)",
+          ],
+        },
+      ],
+      expectedByRole,
+    ).join("\n");
+    assert.match(unexpected, /direct function authority drifted/u);
+    assert.match(unexpected, /effective function authority drifted/u);
+
+    const missing = collectRestrictedRoleEffectiveFunctionIssues(
+      [
+        {
+          role_name: "grainline_staff_read_runtime",
+          role_exists: true,
+          direct_function_identities: STAFF_READ_FUNCTION_IDENTITIES.slice(1),
+          effective_function_identities: STAFF_READ_FUNCTION_IDENTITIES.slice(1),
+        },
+      ],
+      expectedByRole,
+    ).join("\n");
+    assert.match(missing, /direct function authority drifted/u);
+    assert.match(missing, /effective function authority drifted/u);
+  });
+
+  it("keeps the staff-read audit catalog aligned with role provisioning", () => {
+    const provision = source("scripts/provision-order-staff-read-role.sql");
+    const provisioned = [...provision.matchAll(/\('public\."([^"]+)"\(([^)]*)\)'\)/gu)]
+      .map((match) => `${match[1]}(${match[2].replace(/,\s*/gu, ",").trim()})`);
+    assert.deepEqual(
+      [...new Set(provisioned)].sort((a, b) => a.localeCompare(b)),
+      [...STAFF_READ_FUNCTION_IDENTITIES].sort((a, b) => a.localeCompare(b)),
     );
   });
 

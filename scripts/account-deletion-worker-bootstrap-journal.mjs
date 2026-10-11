@@ -2,15 +2,21 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { validateAccountDeletionBootstrapState } from "./account-deletion-worker-role-bootstrap.mjs";
 
 export const ACCOUNT_DELETION_JOURNAL_FILES = Object.freeze({
   state: "account-deletion-bootstrap.json", pending: "account-deletion-bootstrap.pending", lock: "account-deletion-bootstrap.lock",
 });
-const STAGES = ["prepared", "create-pending", "role-verified"];
+const STAGES = ["prepared", "create-pending", "role-verified", "credential-installed"];
 const fail = () => new Error("account deletion bootstrap private journal stopped; preserve files for exact-attempt recovery");
 const sameFile = (a, b) => a.dev === b.dev && a.ino === b.ino;
+const sha256 = value => createHash("sha256").update(value).digest("hex");
+
+function sameAttempt(a, b) {
+  return ["version", "attemptId", "releaseCommit", "ciRunId", "role"]
+    .every(key => a[key] === b[key]);
+}
 
 function privateFile(stat) {
   assert.ok(stat.isFile() && stat.uid === process.getuid() &&
@@ -101,10 +107,19 @@ export async function withAccountDeletionBootstrapJournal({ directory, binding }
         const current = read();
         assert.ok(JSON.stringify(current) === JSON.stringify(last));
         if (current) {
-          // Identity/secret is immutable; only same-stage or one-step progress.
-          assert.ok(JSON.stringify({ ...current, stage: next.stage }) === JSON.stringify(next));
           const delta = STAGES.indexOf(next.stage) - STAGES.indexOf(current.stage);
           assert.ok(delta === 0 || delta === 1);
+          if (current.stage === "role-verified" && next.stage === "credential-installed") {
+            // The one allowed secret-destroying transition retains only
+            // attempt-bound digests plus the independently read provider row.
+            assert.ok(sameAttempt(current, next));
+            assert.equal(next.passwordSha256, sha256(current.password));
+            assert.equal(next.verifierSha256, sha256(current.verifier));
+          } else {
+            // Before retirement, identity and secret are immutable; after it,
+            // the sanitized terminal receipt is immutable.
+            assert.ok(JSON.stringify({ ...current, stage: next.stage }) === JSON.stringify(next));
+          }
         } else assert.ok(next.stage === "prepared");
         const contents = JSON.stringify(next) + "\n";
         createPrivate(pendingPath, contents);

@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createAccountDeletionBootstrapPrivateInputs } from "./account-deletion-worker-bootstrap-private-inputs.mjs";
 import { collectAccountDeletionBootstrapObservations } from "./account-deletion-worker-bootstrap-observations.mjs";
 import { withAccountDeletionBootstrapJournal } from "./account-deletion-worker-bootstrap-journal.mjs";
+import { retireAccountDeletionBootstrapCredential } from "./account-deletion-worker-role-bootstrap.mjs";
 import { assertAccountDeletionBootstrapReviewedBinding } from "./account-deletion-worker-bootstrap-release.mjs";
 import { installAccountDeletionDatabaseUrl } from "./account-deletion-worker-vercel-env.mjs";
 
@@ -37,6 +38,17 @@ export async function executeAccountDeletionVercelEnvironmentWithInputs(inputs, 
     const binding = Object.freeze({ releaseCommit: reviewed.releaseCommit, ciRunId: reviewed.ciRunId });
     return await withAccountDeletionBootstrapJournal({ directory: inputs.directory, binding }, async journal => {
       const state = journal.read();
+      assert.equal(typeof inputs.retireProviderTokens, "function");
+      if (state?.stage === "credential-installed") {
+        inputs.verifyManifest();
+        inputs.retireProviderTokens();
+        inputs.verifyManifest();
+        return Object.freeze({ status: "installed", key: "ACCOUNT_DELETION_DATABASE_URL",
+          environmentId: state.environmentId, valueSha256: state.valueSha256,
+          releaseCommit: reviewed.releaseCommit, ciRunId: reviewed.ciRunId,
+          attemptId: state.attemptId, manifestSha256: inputs.manifestSha256,
+          localCredentialRetired: true, providerTokensRetired: true });
+      }
       assert.equal(state?.stage, "role-verified");
       const observe = () => collectObservations({ reviewed, directory: sourceDirectory,
         loadProviderTokens: inputs.loadProviderTokens, observeCredentialEpoch: inputs.observeCredentialEpoch,
@@ -49,8 +61,14 @@ export async function executeAccountDeletionVercelEnvironmentWithInputs(inputs, 
       await observe();
       inputs.verifyManifest();
       assert.equal(journal.read().attemptId, state.attemptId);
+      const retired = retireAccountDeletionBootstrapCredential(state, binding, result);
+      journal.persistPrivateState(retired);
+      inputs.retireProviderTokens();
+      inputs.verifyManifest();
+      assert.deepEqual(journal.read(), retired);
       return Object.freeze({ ...result, releaseCommit: reviewed.releaseCommit,
-        ciRunId: reviewed.ciRunId, attemptId: state.attemptId, manifestSha256: inputs.manifestSha256 });
+        ciRunId: reviewed.ciRunId, attemptId: state.attemptId, manifestSha256: inputs.manifestSha256,
+        localCredentialRetired: true, providerTokensRetired: true });
     });
   } catch { throw stopped(); }
 }

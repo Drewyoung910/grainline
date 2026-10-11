@@ -19423,3 +19423,94 @@ Current running tally after Entry 568: verified fixed/reduced 1103, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Tally unchanged
 because this was a UI correction, not an audit allegation closure.
+
+### Entry 569 - Claude session #316/#317 account-deletion release gates
+
+Two later Claude-session allegations were independently verified against exact
+main `2c244f1f192d43c5e1f900cebe50f937cc9423d3`. Their raw record remains in
+`audit_claude_session_20260908.md`; this entry records the source closure
+without deleting or rewriting that evidence.
+
+Verified and fixed:
+
+- **#316 effective function authority audit gap**: the recurring live grant
+  audit collected generic function ACL facts but did not reject PUBLIC EXECUTE
+  globally, and the account-deletion worker comparison covered direct ACLs
+  rather than all effective EXECUTE authority. The audit now rejects PUBLIC
+  EXECUTE on every `grainline_*` signature except the reviewed pure invoker
+  validator `grainline_notification_preferences_valid(jsonb)`. It compares
+  the account-deletion worker's effective function set with its exact three
+  direct grants and compares both direct and effective authority for the
+  restricted staff-read role with the exact reviewed fourteen-function
+  catalog whenever the corresponding staff function families exist. The
+  catalog is mechanically checked against the recurring role-provisioning SQL.
+- **#317 preparation-before-deploy gap**: the production environment guard
+  required the isolated account-deletion URL but did not prove migration
+  `20261011170000` had installed the worker functions and grants. Production
+  builds now run a second read-only gate through that isolated credential. It
+  verifies the exact role/session/database, restricted role attributes, schema
+  USAGE without CREATE, full ledger CRUD, and effective EXECUTE on exactly the
+  three worker functions before Next.js builds. Preview and local builds do
+  not connect. `CLAUDE.md` records the migration-first order and the bounded
+  pre-preparation hotfix path.
+
+Focused verification:
+
+- 402 relevant grant-inventory, runtime-environment, readiness, migration
+  runner, and deployment-guard checks ran in 2.39 seconds: 401 passed, zero
+  failed, and one GitHub-Actions PostgreSQL service test skipped locally.
+- Syntax checks and `git diff --check` passed.
+- No full-suite or build rerun was performed because these focused checks cover
+  the changed contracts and exact CI will run once on the immutable PR head.
+
+Current running tally after Entry 569 remains verified fixed/reduced 1103,
+verified stale/false-positive/current 579, deferred product/design/ops/legal
+87, approximate raw allegations left from current max #1126: 0. The tally is
+unchanged because Claude session #316/#317 were recorded after and outside the
+canonical numbered raw queue.
+
+### Entry 570 - Claude session #312 account-deletion credential retirement
+
+Claude session finding #312 was independently verified while reviewing the
+next AccountDeletionSideEffect RLS boundary. Its raw record remains unchanged
+in `audit_claude_session_20260908.md`; this entry records the source closure.
+
+Verified and fixed:
+
+- The bootstrap journal retained the plaintext worker password and SCRAM
+  verifier after the Vercel credential was installed, and the operation-local
+  `provider-tokens.json` had no retirement path.
+- After the exact sensitive Production row is independently re-read, the
+  provider operator now makes one monotonic `credential-installed` transition.
+  It replaces the password and verifier with SHA-256 digests while retaining
+  only the attempt/release binding, environment-row id, and installed-value
+  digest.
+- Only that reviewed transition may change the journal's immutable secret
+  shape. The journal verifies both replacement digests against the exact
+  in-memory secret before atomically persisting the terminal state.
+- The operator then durably deletes its local provider-token file. A restart
+  from the terminal state can finish token-file retirement without loading
+  tokens, repeating provider admission, reinstalling the credential, or
+  reconstructing the password.
+- The runbook and `CLAUDE.md` now make both retirements part of successful
+  completion. Provider credentials held elsewhere remain governed by their
+  separate account-wide rotation policy.
+
+Focused verification:
+
+- 42 journal, private-input, bootstrap-core, Vercel installer, read-only
+  post-install inspection, local-retirement, and provider
+  composition checks passed with zero failures across the targeted runs.
+- The broader release-gate package remains covered by its separate 402 focused
+  checks. No monolithic repository suite was repeated.
+
+Claude session finding #318 remains preserved rather than being silently
+closed. Its failed-attempt archive/restart requirement was completed before the
+new role was created, but provider-side statement logging is still an external
+configuration fact and is not represented as source-verified.
+
+Current running tally after Entry 570 remains verified fixed/reduced 1103,
+verified stale/false-positive/current 579, deferred product/design/ops/legal
+87, approximate raw allegations left from current max #1126: 0. The tally is
+unchanged because Claude session #312/#318 were recorded after and outside the
+canonical numbered raw queue.

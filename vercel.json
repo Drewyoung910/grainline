@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run guard:runtime-db-env && npm run build",
+  "buildCommand": "npm run guard:runtime-db-env && npm run guard:account-deletion-runtime-ready && npm run build",
   "git": {
     "deploymentEnabled": false
   },
