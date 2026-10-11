@@ -109,7 +109,7 @@ test("completion persistence failure remains recoverable without password replac
   assert.equal(f.getSaved().stage, "create-pending");
 });
 
-test("bootstrap SQL consumes only a bound SCRAM verifier and contains no grants or reset", () => {
+test("bootstrap SQL asks PostgreSQL to hash a bound secret and contains no grants or reset", () => {
   const state = newAccountDeletionBootstrapState(binding);
   const sql = buildAccountDeletionBootstrapSql(state, binding);
   assert.ok(!sql.includes(state.password));
@@ -117,8 +117,8 @@ test("bootstrap SQL consumes only a bound SCRAM verifier and contains no grants 
   assert.doesNotMatch(sql, /\b(?:ALTER ROLE|DROP ROLE|GRANT|REVOKE)\b/u);
   assert.match(sql, /pg_advisory_xact_lock/u);
   assert.ok(!sql.startsWith("BEGIN;") && !sql.endsWith("COMMIT;"));
-  assert.doesNotMatch(sql, /password_encryption/u);
-  assert.match(sql, /current_setting\('grainline.account_deletion_bootstrap_verifier', true\)/u);
+  assert.match(sql, /SET LOCAL password_encryption = 'scram-sha-256'/u);
+  assert.match(sql, /current_setting\('grainline.account_deletion_bootstrap_password', true\)/u);
   assert.match(sql, /EXCEPTION WHEN OTHERS THEN[^]*RAISE EXCEPTION 'account deletion bootstrap role creation failed'\s+USING ERRCODE = 'P0001'/u);
   assert.doesNotMatch(sql, /EXCEPTION WHEN OTHERS THEN[^]*\bRAISE;/u);
   assert.match(sql, /SET LOCAL lock_timeout/u);

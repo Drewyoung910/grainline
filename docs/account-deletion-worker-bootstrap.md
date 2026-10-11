@@ -13,9 +13,11 @@ application, move an alias, or enable or force RLS.
 The exact login is `grainline_account_deletion_runtime`. It must be `LOGIN`,
 `NOINHERIT`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOREPLICATION`, and
 `NOBYPASSRLS`, with zero application authority before the preparation
-migration. The owner SQL receives a client-generated SCRAM verifier, never the
-plaintext password. Dynamic role-creation failures are caught and replaced by
-a generic error so the statement text cannot escape through an uncaught error.
+migration. The owner adapter binds the private password as a transaction-local
+parameter and PostgreSQL hashes it with `password_encryption = 'scram-sha-256'`.
+Neither the password nor a client-built verifier enters client SQL text.
+Dynamic role-creation failures are caught and replaced by a generic error so
+the expanded server-side statement cannot escape through an uncaught error.
 
 ## Private inputs and restart state
 

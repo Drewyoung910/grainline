@@ -18,8 +18,8 @@ test("disposable PostgreSQL proves role bootstrap, replay, and fail-closed rollb
     const execute = async attempt => {
       await db.exec("BEGIN");
       const installed = await db.query(
-        "SELECT pg_catalog.set_config('grainline.account_deletion_bootstrap_verifier', $1, true) IS NOT NULL AS installed",
-        [attempt.verifier],
+        "SELECT pg_catalog.set_config('grainline.account_deletion_bootstrap_password', $1, true) IS NOT NULL AS installed",
+        [attempt.password],
       );
       assert.equal(installed.rows[0].installed, true);
       await db.exec(buildAccountDeletionBootstrapSql(attempt, binding));
