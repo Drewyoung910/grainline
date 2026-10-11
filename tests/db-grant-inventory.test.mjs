@@ -1832,26 +1832,46 @@ describe("database grant inventory guardrails", () => {
   it("pins Conversation/Message authority signatures, modes, owners, and ACLs", () => {
     const runtimeRole = "grainline_app_runtime";
     const migrationRole = "grainline_migration_owner";
+    const functionRow = (entry, overrides = {}) => ({
+      function_name: entry.name,
+      args: entry.signature,
+      argument_types: entry.signature,
+      owner_name: migrationRole,
+      security_definer: entry.securityDefiner,
+      leakproof: false,
+      volatility: entry.volatility,
+      parallel_safety: entry.parallelSafety,
+      function_kind: "f",
+      language_name: entry.language,
+      function_config: ["search_path=pg_catalog"],
+      execute_priv: entry.runtimeExecute,
+      public_execute: false,
+      runtime_direct_execute: entry.runtimeExecute,
+      runtime_execute_grantable: false,
+      other_role_execute: [],
+      ...overrides,
+    });
     const exactRows = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map(
-      (entry) => ({
-        function_name: entry.name,
-        args: entry.signature,
-        argument_types: entry.signature,
-        owner_name: migrationRole,
-        security_definer: entry.securityDefiner,
-        leakproof: false,
-        volatility: entry.volatility,
-        parallel_safety: entry.parallelSafety,
-        function_kind: "f",
-        language_name: entry.language,
-        function_config: ["search_path=pg_catalog"],
-        execute_priv: entry.runtimeExecute,
-        public_execute: false,
-        runtime_direct_execute: entry.runtimeExecute,
-        runtime_execute_grantable: false,
-        other_role_execute: [],
-      }),
+      (entry) => functionRow(entry),
     );
+    const redactionEntry = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.find(
+      (entry) => entry.name === "grainline_message_redact_for_account_deletion",
+    );
+    assert.ok(redactionEntry);
+    const claimedRedactionRow = functionRow(redactionEntry, {
+      args: "text, text, bigint, uuid",
+      argument_types: "text, text, bigint, uuid",
+    });
+    const preparedInventory = {
+      functions: ["grainline_account_deletion_claim_user"],
+      rlsEnableTables: [],
+      rlsPolicyTables: [],
+    };
+    const activeInventory = {
+      ...preparedInventory,
+      rlsEnableTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+      rlsPolicyTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+    };
 
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
@@ -1860,6 +1880,40 @@ describe("database grant inventory guardrails", () => {
         migrationRole,
       ),
       [],
+    );
+    assert.deepEqual(
+      collectConversationMessageFunctionIssues(
+        [...exactRows, claimedRedactionRow],
+        runtimeRole,
+        migrationRole,
+        preparedInventory,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      collectConversationMessageFunctionIssues(
+        [
+          ...exactRows.map((row) => (
+            row.function_name === "grainline_message_redact_for_account_deletion"
+              ? { ...row, execute_priv: false, runtime_direct_execute: false }
+              : row
+          )),
+          claimedRedactionRow,
+        ],
+        runtimeRole,
+        migrationRole,
+        activeInventory,
+      ),
+      [],
+    );
+    assert.match(
+      collectConversationMessageFunctionIssues(
+        exactRows,
+        runtimeRole,
+        migrationRole,
+        preparedInventory,
+      ).join("\n"),
+      /missing expected Conversation\/Message RPC grainline_message_redact_for_account_deletion\(text,text,bigint,uuid\)/,
     );
     const drifted = exactRows.map((row) => (
       row.function_name === "grainline_conversation_lock_pair_core"
@@ -1893,11 +1947,25 @@ describe("database grant inventory guardrails", () => {
     );
     assert.match(
       issues,
-      /grainline_conversation_staff_report_visible must have exactly one overload/,
+      /grainline_conversation_staff_report_visible\(text\) must have exactly one definition/,
     );
     assert.match(
       issues,
       /unexpected Conversation\/Message RPC grainline_conversation_unreviewed/,
+    );
+    const unexpectedOverloadIssues = collectConversationMessageFunctionIssues(
+      [
+        ...exactRows,
+        claimedRedactionRow,
+        { ...claimedRedactionRow, args: "text, text", argument_types: "text, text" },
+      ],
+      runtimeRole,
+      migrationRole,
+      preparedInventory,
+    ).join("\n");
+    assert.match(
+      unexpectedOverloadIssues,
+      /unexpected Conversation\/Message RPC grainline_message_redact_for_account_deletion\(text, text\)/,
     );
   });
 

@@ -1489,41 +1489,66 @@ export function collectConversationMessageFunctionIssues(
   rows,
   runtimeRole,
   migrationRole,
+  inventory = {},
 ) {
   const issues = [];
   const functionRows = Array.isArray(rows) ? rows : [];
-  const expectedNames = new Set(
-    CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
+  const accountDeletionClaimFencePresent = (inventory?.functions ?? [])
+    .includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER);
+  const accountDeletionActive = accountDeletionSideEffectRlsActivationExpected(
+    inventory,
+  );
+  const expectedFunctions = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.flatMap(
+    (entry) => {
+      if (entry.name !== "grainline_message_redact_for_account_deletion") {
+        return [entry];
+      }
+      const legacy = {
+        ...entry,
+        runtimeExecute: accountDeletionActive ? false : entry.runtimeExecute,
+      };
+      return accountDeletionClaimFencePresent
+        ? [
+            legacy,
+            {
+              ...entry,
+              signature: "text,text,bigint,uuid",
+              runtimeExecute: true,
+            },
+          ]
+        : [legacy];
+    },
+  );
+  const normalizedArgumentTypes = (value) => (
+    typeof value === "string" ? value.replace(/\s*,\s*/g, ",").trim() : value
+  );
+  const expectedIdentities = new Set(
+    expectedFunctions.map(
+      (entry) => `${entry.name}(${normalizedArgumentTypes(entry.signature)})`,
+    ),
   );
 
-  for (const expected of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
-    const namedRows = functionRows.filter(
-      (row) => row.function_name === expected.name,
+  for (const expected of expectedFunctions) {
+    const expectedArgumentTypes = normalizedArgumentTypes(expected.signature);
+    const matchingRows = functionRows.filter(
+      (row) => row.function_name === expected.name
+        && normalizedArgumentTypes(row.argument_types ?? row.args) === expectedArgumentTypes,
     );
-    if (namedRows.length === 0) {
+    if (matchingRows.length === 0) {
       issues.push(
-        `missing expected Conversation/Message RPC ${expected.name}`,
+        `missing expected Conversation/Message RPC ${expected.name}(${expected.signature})`,
       );
       continue;
     }
-    if (namedRows.length !== 1) {
+    if (matchingRows.length !== 1) {
       issues.push(
-        `Conversation/Message RPC ${expected.name} must have exactly one overload`,
+        `Conversation/Message RPC ${expected.name}(${expected.signature}) must have exactly one definition`,
       );
       continue;
     }
 
-    const row = namedRows[0];
+    const row = matchingRows[0];
     const label = `${expected.name}(${row.argument_types ?? row.args ?? "unknown"})`;
-    const actualArgumentTypes = typeof row.argument_types === "string"
-      ? row.argument_types.replace(/\s*,\s*/g, ",")
-      : row.argument_types;
-    const expectedArgumentTypes = expected.signature.replace(/\s*,\s*/g, ",");
-    if (actualArgumentTypes !== expectedArgumentTypes) {
-      issues.push(
-        `${label} has argument types ${row.argument_types ?? "unknown"}, expected ${expected.signature}`,
-      );
-    }
     if (row.owner_name !== migrationRole) {
       issues.push(
         `${label} owned by ${row.owner_name ?? "unknown"}, expected ${migrationRole}`,
@@ -1599,7 +1624,10 @@ export function collectConversationMessageFunctionIssues(
   }
 
   for (const row of functionRows) {
-    if (!expectedNames.has(row.function_name)) {
+    const identity = `${row.function_name}(${normalizedArgumentTypes(
+      row.argument_types ?? row.args,
+    )})`;
+    if (!expectedIdentities.has(identity)) {
       issues.push(
         `unexpected Conversation/Message RPC ${row.function_name}(${row.argument_types ?? row.args ?? "unknown"})`,
       );
@@ -2884,6 +2912,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         ),
         runtimeRole,
         migrationRole,
+        inventory,
       ),
     );
   }
