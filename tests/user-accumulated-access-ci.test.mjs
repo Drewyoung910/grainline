@@ -55,6 +55,10 @@ const accountDeletionSuccessorTests = [
   "account-deletion-side-effect-database-contract.test.mjs",
   "account-deletion-side-effects.test.mjs",
 ];
+const accountDeletionSuccessorMigrations = [
+  "20261011170000_prepare_account_deletion_side_effect_claim_fence",
+  "20261011180000_enable_account_deletion_side_effect_rls",
+];
 const admittedTests = [...heldTests, ...packageOwnedTests];
 const staffScript = "scripts/provision-order-staff-read-role.sql";
 const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
@@ -81,6 +85,18 @@ function accountDeletionSuccessorTestPath(file) {
     file,
   );
   assert.ok(existsSync(stagedPath), `missing isolated AccountDeletionSideEffect test ${file}`);
+  return stagedPath;
+}
+
+function accountDeletionSuccessorMigrationPath(migration) {
+  const livePath = path.join("prisma", "migrations", migration);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "account-deletion-side-effect-claim-fence",
+    migration,
+  );
+  assert.ok(existsSync(stagedPath), `missing isolated AccountDeletionSideEffect migration ${migration}`);
   return stagedPath;
 }
 
@@ -169,6 +185,12 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     mkdirSync(path.join(root, "scripts"));
     cpSync(staffScript, path.join(root, staffScript));
     cpSync("prisma", path.join(root, "prisma"), { recursive: true });
+    for (const migration of accountDeletionSuccessorMigrations) {
+      const target = path.join(root, "prisma", "migrations", migration);
+      if (!existsSync(target)) {
+        cpSync(accountDeletionSuccessorMigrationPath(migration), target, { recursive: true });
+      }
+    }
     for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
     for (const file of accountDeletionSuccessorTests) {
       cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
