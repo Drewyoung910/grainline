@@ -33,20 +33,24 @@ describe("account deletion side-effect retries", () => {
   it("records local anonymization only after Clerk deletion and marks it done after the DB transaction", () => {
     const route = source("src/app/api/account/delete/route.ts");
     const deletion = source("src/lib/accountDeletion.ts");
+    const routeEnqueue = route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(");
+    const deletionFunction = deletion.indexOf("export async function anonymizeUserAccount");
+    const deletionEnqueue = deletion.indexOf(
+      "enqueueAccountDeletionLocalAnonymizeSideEffect(",
+      deletionFunction,
+    );
 
     assert.ok(
-      route.indexOf("users.deleteUser(clerkId)") <
-        route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)"),
+      route.indexOf("users.deleteUser(clerkId)") < routeEnqueue,
       "route must not leave a claimable local anonymization job when Clerk deletion fails",
     );
     assert.ok(
-      route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)") <
-        route.indexOf("anonymizeUserAccount(me.id, {"),
+      routeEnqueue < route.indexOf("anonymizeUserAccount(me.id, {"),
       "local recovery row must exist before route-level anonymization begins after Clerk deletion",
     );
     assert.ok(
-      deletion.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, userId)", deletion.indexOf("export async function anonymizeUserAccount")) <
-        deletion.indexOf("runAccountDeletionStripeRejectSideEffect", deletion.indexOf("export async function anonymizeUserAccount")),
+      deletionEnqueue <
+        deletion.indexOf("runAccountDeletionStripeRejectSideEffect", deletionFunction),
       "local recovery row must exist before Stripe rejection",
     );
     const transactionEnd = deletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch");
@@ -64,12 +68,21 @@ describe("account deletion side-effect retries", () => {
   it("queues Stripe, media, and audit redaction work through retryable side effects", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const sideEffects = source("src/lib/accountDeletionSideEffects.ts");
+    const claimFence = source(
+      "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql",
+    );
 
     assert.match(deletion, /runAccountDeletionStripeRejectSideEffect\(\{/);
     assert.match(deletion, /collectAccountDeletionMediaUrls\(tx, user\.id, user\.clerkId\)/);
-    assert.match(deletion, /enqueueAccountDeletionMediaDeleteSideEffects\(tx, user\.id, mediaUrls\)/);
+    assert.match(
+      deletion,
+      /enqueueAccountDeletionMediaDeleteSideEffects\([\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*mediaUrls,/,
+    );
     assert.match(deletion, /collectAdminAuditLogRedactionUpdates\(\{/);
-    assert.match(deletion, /enqueueAccountDeletionAuditRedactionSideEffects\(prisma, userId, redactionUpdates\)/);
+    assert.match(
+      deletion,
+      /enqueueAccountDeletionAuditRedactionSideEffects\(\s*getAccountDeletionSideEffectClient\(\),\s*userId,\s*redactionUpdates,/s,
+    );
     assert.match(deletion, /processAccountDeletionSideEffectsForUser\(userId, \[/);
     assert.doesNotMatch(deletion, /deleteR2ObjectByUrl/);
     assert.doesNotMatch(deletion, /mapWithConcurrency\(mediaUrls/);
@@ -79,26 +92,46 @@ describe("account deletion side-effect retries", () => {
     assert.match(sideEffects, /manualStripeReconciliationNeeded: false/);
     assert.match(sideEffects, /deleteR2ObjectByUrl\(payload\.url\)/);
     assert.match(sideEffects, /prisma\.adminAuditLog\.update/);
-    assert.match(sideEffects, /payload: \{\}/);
+    assert.match(claimFence, /payload = '\{}'::jsonb/);
+    assert.match(claimFence, /grainline_account_deletion_media_enqueue_claimed/);
+    assert.match(claimFence, /pg_catalog\.sha256/);
     assert.match(sideEffects, /sanitizeSideEffectError/);
   });
 
   it("reclaims stale PROCESSING side effects without taking fresh in-flight work", () => {
     const sideEffects = source("src/lib/accountDeletionSideEffects.ts");
+    const claimFence = source(
+      "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql",
+    );
     const opsHealth = source("src/app/api/cron/ops-health/route.ts");
 
     assert.match(sideEffects, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS = 60 \* 60 \* 1000/);
-    assert.match(sideEffects, /function staleProcessingBefore\(now = new Date\(\)\)/);
     assert.match(sideEffects, /function claimableAccountDeletionSideEffectWhere/);
     assert.match(
       sideEffects,
-      /status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PROCESSING,\s*updatedAt: \{ lt: staleProcessingBefore\(now\) \}/s,
+      /status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PROCESSING,[\s\S]*processingStartedAt:[\s\S]*processingStartedAt: null,[\s\S]*updatedAt:/,
     );
     assert.match(
       sideEffects,
       /status: \{\s*in: \[\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PENDING,\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.FAILED,\s*\],\s*\},\s*OR: \[\{ nextAttemptAt: null \}, \{ nextAttemptAt: \{ lte: now \} \}\]/s,
     );
+    assert.match(claimFence, /"claimGeneration" = effect\."claimGeneration" \+ 1/);
+    assert.match(claimFence, /"claimToken" = pg_catalog\.gen_random_uuid\(\)/);
+    assert.match(claimFence, /"processingStartedAt" = source_now/);
+    assert.match(claimFence, /effect\."claimGeneration" = p_claim_generation/g);
+    assert.match(claimFence, /effect\."claimToken" = p_claim_token/g);
+    assert.match(claimFence, /effect\.status = 'PROCESSING'/g);
+    assert.match(claimFence, /AccountDeletionSideEffect_status_processingStartedAt_idx/);
+    assert.match(sideEffects, /grainline_account_deletion_side_effect_claim/);
+    assert.match(sideEffects, /claimToken: row\.claim_token/);
+    assert.match(sideEffects, /grainline_account_deletion_side_effect_complete/);
+    assert.match(sideEffects, /grainline_account_deletion_side_effect_fail/);
+    assert.doesNotMatch(
+      sideEffects,
+      /prisma\.accountDeletionSideEffect\.update\(\{\s*where: \{ id \}/s,
+    );
     assert.match(opsHealth, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS/);
+    assert.match(opsHealth, /processingStartedAt:/);
     assert.doesNotMatch(opsHealth, /const STALE_ACCOUNT_DELETION_SIDE_EFFECT_MS/);
   });
 

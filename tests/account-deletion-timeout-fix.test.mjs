@@ -26,7 +26,10 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const transactionBody = accountDeletion.slice(transactionStart, transactionEnd);
     assert.doesNotMatch(transactionBody, /collectAdminAuditLogRedactionUpdates\(\{/);
     assert.match(accountDeletion.slice(transactionEnd), /collectAdminAuditLogRedactionUpdates\(\{\s*db: prisma/s);
-    assert.match(accountDeletion.slice(transactionEnd), /enqueueAccountDeletionAuditRedactionSideEffects\(prisma, userId, redactionUpdates\)/);
+    assert.match(
+      accountDeletion.slice(transactionEnd),
+      /enqueueAccountDeletionAuditRedactionSideEffects\(\s*getAccountDeletionSideEffectClient\(\),\s*userId,\s*redactionUpdates/s,
+    );
     assert.match(accountDeletion, /source: "account_delete_audit_redaction"/);
     assert.match(accountDeletion, /source: "account_delete_media_cleanup"/);
   });
@@ -184,10 +187,13 @@ describe("account deletion timeout and terminal UX guardrails", () => {
       "account deletion route must acquire the lock before deleting the Clerk user",
     );
     assert.match(route, /releaseAccountDeletionLock\(deletionLock\)/);
-    assert.match(route, /enqueueAccountDeletionLocalAnonymizeSideEffect\(prisma, me\.id\)/);
+    assert.match(
+      route,
+      /enqueueAccountDeletionLocalAnonymizeSideEffect\(\s*getAccountDeletionSideEffectClient\(\),\s*me\.id/s,
+    );
     assert.ok(
       route.indexOf("users.deleteUser(clerkId)") <
-        route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)"),
+        route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect("),
       "account deletion route must not enqueue local anonymization until Clerk deletion succeeds",
     );
     assert.match(route, /anonymizeUserAccount\(me\.id, \{\s*lock: deletionLock,\s*sideEffectId,/s);
@@ -203,7 +209,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
     const userLock = accountDeletion.indexOf("getUserAccountDeletionSnapshot(", transactionStart);
     const messageRedaction = accountDeletion.indexOf(
-      "await redactActorMessagesForAccountDeletion(user.id, tx)",
+      "await redactActorMessagesForAccountDeletion({",
       transactionStart,
     );
     const finalUserUpdate = accountDeletion.indexOf("await finalizeUserAccountDeletion", transactionStart);

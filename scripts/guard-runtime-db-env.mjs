@@ -20,7 +20,13 @@ export const REVIEWED_PRODUCTION_STAFF_READ_IDENTITY = Object.freeze({
   role: "grainline_staff_read_runtime",
 });
 
+export const REVIEWED_PRODUCTION_ACCOUNT_DELETION_IDENTITY = Object.freeze({
+  ...REVIEWED_PRODUCTION_RUNTIME_IDENTITY,
+  role: "grainline_account_deletion_runtime",
+});
+
 export const ORDER_STAFF_READ_DATABASE_ENV = "ORDER_STAFF_READ_DATABASE_URL";
+export const ACCOUNT_DELETION_DATABASE_ENV = "ACCOUNT_DELETION_DATABASE_URL";
 
 const OWNER_ENVIRONMENT_KEY_PATTERNS = Object.freeze([
   /(?:^|_)DIRECT_URL$/,
@@ -41,6 +47,7 @@ export function unreviewedPostgresUrlEnvironmentKeys(env) {
     .filter(([key, value]) => (
       key !== "DATABASE_URL"
       && key !== ORDER_STAFF_READ_DATABASE_ENV
+      && key !== ACCOUNT_DELETION_DATABASE_ENV
       && typeof value === "string"
       && /^postgres(?:ql)?:\/\//i.test(value.trim())
     ))
@@ -69,7 +76,10 @@ export function parseVercelRuntimeDatabaseIdentity(value, label = "DATABASE_URL"
 
 export function assertVercelRuntimeDatabaseIsolation(
   env = process.env,
-  { requireOrderStaffReadDatabase = false } = {},
+  {
+    requireOrderStaffReadDatabase = false,
+    requireAccountDeletionDatabase = false,
+  } = {},
 ) {
   assertDeterministicPostgresEnvironment(env, "Vercel runtime database isolation");
   if (env.VERCEL !== "1") {
@@ -94,10 +104,16 @@ export function assertVercelRuntimeDatabaseIsolation(
 
   const databaseUrl = env.DATABASE_URL;
   const staffReadDatabaseUrl = env[ORDER_STAFF_READ_DATABASE_ENV];
+  const accountDeletionDatabaseUrl = env[ACCOUNT_DELETION_DATABASE_ENV];
   if (env.VERCEL_ENV !== "production" && !databaseUrl) {
     if (staffReadDatabaseUrl) {
       throw new Error(
         `Vercel ${ORDER_STAFF_READ_DATABASE_ENV} must be absent when DATABASE_URL is absent`,
+      );
+    }
+    if (accountDeletionDatabaseUrl) {
+      throw new Error(
+        `Vercel ${ACCOUNT_DELETION_DATABASE_ENV} must be absent when DATABASE_URL is absent`,
       );
     }
     return Object.freeze({
@@ -140,6 +156,31 @@ export function assertVercelRuntimeDatabaseIsolation(
     }
   }
 
+  let accountDeletionIdentity = null;
+  if (accountDeletionDatabaseUrl) {
+    accountDeletionIdentity = parseVercelRuntimeDatabaseIdentity(
+      accountDeletionDatabaseUrl,
+      ACCOUNT_DELETION_DATABASE_ENV,
+    );
+    if (!accountDeletionIdentity.isPooler) {
+      throw new Error(`Vercel ${ACCOUNT_DELETION_DATABASE_ENV} must use a pooled Neon endpoint`);
+    }
+    if (accountDeletionIdentity.username !== REVIEWED_PRODUCTION_ACCOUNT_DELETION_IDENTITY.role) {
+      throw new Error(
+        `Vercel ${ACCOUNT_DELETION_DATABASE_ENV} must authenticate as the reviewed account-deletion role`,
+      );
+    }
+    if (
+      accountDeletionIdentity.endpointId !== identity.endpointId
+      || accountDeletionIdentity.region !== identity.region
+      || accountDeletionIdentity.databaseName !== identity.databaseName
+    ) {
+      throw new Error(
+        `Vercel ${ACCOUNT_DELETION_DATABASE_ENV} must identify the same reviewed database as DATABASE_URL`,
+      );
+    }
+  }
+
   if (env.VERCEL_ENV === "production") {
     const reviewed = REVIEWED_PRODUCTION_RUNTIME_IDENTITY;
     if (
@@ -156,6 +197,11 @@ export function assertVercelRuntimeDatabaseIsolation(
         `production Vercel ${ORDER_STAFF_READ_DATABASE_ENV} is required for staff Order reads`,
       );
     }
+    if (requireAccountDeletionDatabase && !accountDeletionIdentity) {
+      throw new Error(
+        `production Vercel ${ACCOUNT_DELETION_DATABASE_ENV} is required for account-deletion work`,
+      );
+    }
     const reviewedStaff = REVIEWED_PRODUCTION_STAFF_READ_IDENTITY;
     if (
       staffReadIdentity
@@ -170,6 +216,20 @@ export function assertVercelRuntimeDatabaseIsolation(
         `production Vercel ${ORDER_STAFF_READ_DATABASE_ENV} does not match the reviewed staff read identity`,
       );
     }
+    const reviewedAccountDeletion = REVIEWED_PRODUCTION_ACCOUNT_DELETION_IDENTITY;
+    if (
+      accountDeletionIdentity
+      && (
+        accountDeletionIdentity.username !== reviewedAccountDeletion.role
+        || accountDeletionIdentity.endpointId !== reviewedAccountDeletion.endpointId
+        || accountDeletionIdentity.region !== reviewedAccountDeletion.region
+        || accountDeletionIdentity.databaseName !== reviewedAccountDeletion.databaseName
+      )
+    ) {
+      throw new Error(
+        `production Vercel ${ACCOUNT_DELETION_DATABASE_ENV} does not match the reviewed account-deletion identity`,
+      );
+    }
   }
 
   return Object.freeze({
@@ -182,6 +242,7 @@ export function assertVercelRuntimeDatabaseIsolation(
     region: identity.region,
     runtimeRole: identity.username,
     staffReadRole: staffReadIdentity?.username ?? null,
+    accountDeletionRole: accountDeletionIdentity?.username ?? null,
   });
 }
 
@@ -196,6 +257,9 @@ export function runtimeDatabaseIsolationFailureCode(error) {
     [/ORDER_STAFF_READ_DATABASE_URL.*non-empty PostgreSQL URL|ORDER_STAFF_READ_DATABASE_URL.*valid PostgreSQL URL|ORDER_STAFF_READ_DATABASE_URL.*postgres\/postgresql protocol|ORDER_STAFF_READ_DATABASE_URL.*explicit database host|ORDER_STAFF_READ_DATABASE_URL.*explicit port|ORDER_STAFF_READ_DATABASE_URL.*database path segment|ORDER_STAFF_READ_DATABASE_URL.*invalid URL encoding/, "STAFF_DATABASE_URL_SHAPE"],
     [/ORDER_STAFF_READ_DATABASE_URL.*pooled Neon endpoint/, "STAFF_DATABASE_URL_NOT_POOLED"],
     [/ORDER_STAFF_READ_DATABASE_URL.*reviewed staff read role|ORDER_STAFF_READ_DATABASE_URL.*reviewed database|ORDER_STAFF_READ_DATABASE_URL.*reviewed staff read identity|ORDER_STAFF_READ_DATABASE_URL.*required for staff Order reads|ORDER_STAFF_READ_DATABASE_URL.*absent when DATABASE_URL is absent/, "STAFF_DATABASE_IDENTITY"],
+    [/ACCOUNT_DELETION_DATABASE_URL.*non-empty PostgreSQL URL|ACCOUNT_DELETION_DATABASE_URL.*valid PostgreSQL URL|ACCOUNT_DELETION_DATABASE_URL.*postgres\/postgresql protocol|ACCOUNT_DELETION_DATABASE_URL.*explicit database host|ACCOUNT_DELETION_DATABASE_URL.*explicit port|ACCOUNT_DELETION_DATABASE_URL.*database path segment|ACCOUNT_DELETION_DATABASE_URL.*invalid URL encoding/, "ACCOUNT_DELETION_DATABASE_URL_SHAPE"],
+    [/ACCOUNT_DELETION_DATABASE_URL.*pooled Neon endpoint/, "ACCOUNT_DELETION_DATABASE_URL_NOT_POOLED"],
+    [/ACCOUNT_DELETION_DATABASE_URL.*reviewed account-deletion role|ACCOUNT_DELETION_DATABASE_URL.*reviewed database|ACCOUNT_DELETION_DATABASE_URL.*reviewed account-deletion identity|ACCOUNT_DELETION_DATABASE_URL.*required for account-deletion work|ACCOUNT_DELETION_DATABASE_URL.*absent when DATABASE_URL is absent/, "ACCOUNT_DELETION_DATABASE_IDENTITY"],
     [/connection parameters|sslmode=verify-full|channel_binding/, "DATABASE_URL_PARAMETERS"],
     [/non-empty PostgreSQL URL|valid PostgreSQL URL|postgres\/postgresql protocol|explicit database host|explicit port|database path segment|invalid URL encoding/, "DATABASE_URL_SHAPE"],
     [/pooled Neon endpoint/, "DATABASE_URL_NOT_POOLED"],
@@ -219,6 +283,7 @@ function main() {
   try {
     const result = assertVercelRuntimeDatabaseIsolation(process.env, {
       requireOrderStaffReadDatabase: true,
+      requireAccountDeletionDatabase: true,
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {

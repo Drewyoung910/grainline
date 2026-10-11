@@ -539,6 +539,144 @@ REVOKE ALL ON TABLE public."ClerkWebhookEvent"
   FROM PUBLIC, :"runtime_role";
 \endif
 
+-- AccountDeletionSideEffect keeps predecessor CRUD only while RLS is off.
+-- Its Phase A activation has one exact all-commands policy for the separately
+-- authenticated deletion worker and zero ordinary-runtime table authority.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)::integer
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count,
+    (SELECT pg_catalog.count(*)::integer
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid
+        AND policy.polname =
+            'AccountDeletionSideEffect_account_deletion_runtime_all'
+        AND policy.polcmd = '*'
+        AND policy.polpermissive
+        AND policy.polroles = ARRAY[
+          (SELECT role.oid
+             FROM pg_catalog.pg_roles AS role
+            WHERE role.rolname = 'grainline_account_deletion_runtime')
+        ]::oid[]
+        AND pg_catalog.pg_get_expr(policy.polqual, policy.polrelid) = 'true'
+        AND pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) = 'true'
+    ) AS exact_policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'AccountDeletionSideEffect'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(
+        relrowsecurity
+        AND policy_count = 1
+        AND exact_policy_count = 1
+      ) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'AccountDeletionSideEffect RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS account_deletion_side_effect_rls_active,
+  pg_catalog.to_regprocedure(
+    'public."grainline_account_deletion_claim_user"(text,bigint,uuid)'
+  ) IS NOT NULL AS account_deletion_claim_fence_prepared;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_account_deletion_side_effect_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_account_deletion_side_effect_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :account_deletion_claim_fence_prepared
+DO $grainline_account_deletion_worker_role_guard$
+DECLARE
+  worker record;
+BEGIN
+  SELECT role.rolsuper, role.rolinherit, role.rolcanlogin,
+         role.rolcreatedb, role.rolcreaterole, role.rolreplication,
+         role.rolbypassrls
+    INTO worker
+    FROM pg_catalog.pg_roles AS role
+   WHERE role.rolname = 'grainline_account_deletion_runtime';
+  IF NOT FOUND
+     OR worker.rolsuper
+     OR worker.rolinherit
+     OR NOT worker.rolcanlogin
+     OR worker.rolcreatedb
+     OR worker.rolcreaterole
+     OR worker.rolreplication
+     OR worker.rolbypassrls THEN
+    RAISE EXCEPTION
+      'grainline_account_deletion_runtime role posture drifted';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_auth_members AS membership
+      JOIN pg_catalog.pg_roles AS member ON member.oid = membership.member
+      JOIN pg_catalog.pg_roles AS granted_role
+        ON granted_role.oid = membership.roleid
+      JOIN pg_catalog.pg_roles AS grantor ON grantor.oid = membership.grantor
+     WHERE (
+       member.rolname = 'grainline_account_deletion_runtime'
+       OR granted_role.rolname = 'grainline_account_deletion_runtime'
+     )
+       AND NOT (
+         granted_role.rolname = 'grainline_account_deletion_runtime'
+         AND member.rolname = 'neondb_owner'
+         AND grantor.rolname = 'cloud_admin'
+         AND membership.admin_option
+         AND NOT membership.inherit_option
+         AND NOT membership.set_option
+       )
+  ) THEN
+    RAISE EXCEPTION
+      'grainline_account_deletion_runtime membership drifted';
+  END IF;
+END
+$grainline_account_deletion_worker_role_guard$;
+
+ALTER ROLE grainline_account_deletion_runtime LOGIN NOINHERIT;
+GRANT USAGE ON SCHEMA public TO grainline_account_deletion_runtime;
+REVOKE CREATE ON SCHEMA public FROM grainline_account_deletion_runtime;
+REVOKE ALL ON TABLE public."AccountDeletionSideEffect"
+  FROM PUBLIC, grainline_account_deletion_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON TABLE public."AccountDeletionSideEffect"
+  TO grainline_account_deletion_runtime;
+\endif
+
+\if :account_deletion_side_effect_rls_active
+REVOKE ALL ON TABLE public."AccountDeletionSideEffect"
+  FROM PUBLIC, :"runtime_role";
+\endif
+
 -- SellerPayoutEvent begins as a compatible CRUD table. Its separate
 -- policyless service-ledger activation enables RLS with zero policies and
 -- removes all direct runtime/PUBLIC authority. FORCE may be off initially or
@@ -3286,8 +3424,366 @@ SELECT format(
   :'runtime_role'
 )
   FROM user_account_deletion_runtime
- WHERE to_regprocedure(function_signature) IS NOT NULL;
+ WHERE to_regprocedure(function_signature) IS NOT NULL
+   AND (
+     function_signature =
+       'public."grainline_user_provider_deleted_defer"(text)'
+     OR pg_catalog.to_regprocedure(
+       'public."grainline_account_deletion_claim_user"(text,bigint,uuid)'
+     ) IS NULL
+   );
 \gexec
+
+-- During the prepared mixed-version window, old instances retain the legacy
+-- helpers and new instances use the dedicated worker. Activation retires the
+-- old helpers together with ordinary table and claim-lifecycle authority.
+WITH account_deletion_retired_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_account_deletion_preflight"(text)'),
+    ('public."grainline_user_account_deletion_snapshot"(text)'),
+    ('public."grainline_user_account_deletion_finalize"(text)'),
+    ('public."grainline_case_account_deletion_redact"(text)'),
+    ('public."grainline_message_redact_for_account_deletion"(text)'),
+    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  'grainline_account_deletion_runtime'
+)
+  FROM account_deletion_retired_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
+   AND pg_catalog.to_regprocedure(
+     'public."grainline_account_deletion_claim_user"(text,bigint,uuid)'
+   ) IS NOT NULL;
+\gexec
+
+\if :account_deletion_side_effect_rls_active
+WITH account_deletion_retired_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_account_deletion_preflight"(text)'),
+    ('public."grainline_user_account_deletion_snapshot"(text)'),
+    ('public."grainline_user_account_deletion_finalize"(text)'),
+    ('public."grainline_case_account_deletion_redact"(text)'),
+    ('public."grainline_message_redact_for_account_deletion"(text)'),
+    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM account_deletion_retired_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+\else
+WITH account_deletion_retired_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_account_deletion_preflight"(text)'),
+    ('public."grainline_user_account_deletion_snapshot"(text)'),
+    ('public."grainline_user_account_deletion_finalize"(text)'),
+    ('public."grainline_case_account_deletion_redact"(text)'),
+    ('public."grainline_message_redact_for_account_deletion"(text)'),
+    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM account_deletion_retired_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+\endif
+
+WITH account_deletion_claimed_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_account_deletion_media_enqueue_claimed"(text, bigint, uuid, text[])'),
+    ('public."grainline_user_account_deletion_preflight"(text, bigint, uuid)'),
+    ('public."grainline_user_account_deletion_snapshot"(text, bigint, uuid)'),
+    ('public."grainline_user_account_deletion_finalize"(text, bigint, uuid)'),
+    ('public."grainline_case_account_deletion_redact"(text, bigint, uuid)'),
+    ('public."grainline_message_redact_for_account_deletion"(text, text, bigint, uuid)'),
+    ('public."grainline_order_account_deletion_scrub"(text, text, bigint, uuid, text[])')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I, %I',
+  function_signature,
+  :'runtime_role',
+  'grainline_account_deletion_runtime'
+)
+  FROM account_deletion_claimed_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH account_deletion_claimed_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_account_deletion_media_enqueue_claimed"(text, bigint, uuid, text[])'),
+    ('public."grainline_user_account_deletion_preflight"(text, bigint, uuid)'),
+    ('public."grainline_user_account_deletion_snapshot"(text, bigint, uuid)'),
+    ('public."grainline_user_account_deletion_finalize"(text, bigint, uuid)'),
+    ('public."grainline_case_account_deletion_redact"(text, bigint, uuid)'),
+    ('public."grainline_message_redact_for_account_deletion"(text, text, bigint, uuid)'),
+    ('public."grainline_order_account_deletion_scrub"(text, text, bigint, uuid, text[])')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM account_deletion_claimed_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH account_deletion_claim_lifecycle(function_signature) AS (
+  VALUES
+    ('public."grainline_account_deletion_side_effect_claim"(text)'),
+    ('public."grainline_account_deletion_side_effect_complete"(text, bigint, uuid)'),
+    ('public."grainline_account_deletion_side_effect_fail"(text, bigint, uuid, text)')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I, %I',
+  function_signature,
+  :'runtime_role',
+  'grainline_account_deletion_runtime'
+)
+  FROM account_deletion_claim_lifecycle
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH account_deletion_claim_lifecycle(function_signature) AS (
+  VALUES
+    ('public."grainline_account_deletion_side_effect_claim"(text)'),
+    ('public."grainline_account_deletion_side_effect_complete"(text, bigint, uuid)'),
+    ('public."grainline_account_deletion_side_effect_fail"(text, bigint, uuid, text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  'grainline_account_deletion_runtime'
+)
+  FROM account_deletion_claim_lifecycle
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I, %I',
+  'public."grainline_account_deletion_claim_user"(text,bigint,uuid)',
+  :'runtime_role',
+  'grainline_account_deletion_runtime'
+)
+WHERE pg_catalog.to_regprocedure(
+  'public."grainline_account_deletion_claim_user"(text,bigint,uuid)'
+) IS NOT NULL;
+\gexec
+
+\if :account_deletion_side_effect_rls_active
+-- Dedicated-role activation owns claim lifecycle execution.
+\else
+WITH account_deletion_claim_lifecycle(function_signature) AS (
+  VALUES
+    ('public."grainline_account_deletion_side_effect_claim"(text)'),
+    ('public."grainline_account_deletion_side_effect_complete"(text, bigint, uuid)'),
+    ('public."grainline_account_deletion_side_effect_fail"(text, bigint, uuid, text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM account_deletion_claim_lifecycle
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+\endif
+\if :account_deletion_claim_fence_prepared
+DO $grainline_account_deletion_worker_postflight$
+DECLARE
+  worker_oid oid := (
+    SELECT role.oid
+      FROM pg_catalog.pg_roles AS role
+     WHERE role.rolname = 'grainline_account_deletion_runtime'
+  );
+  worker_table_privileges text[];
+  worker_function_identities text[];
+BEGIN
+  IF pg_catalog.has_database_privilege(
+       worker_oid, pg_catalog.current_database(), 'CREATE'
+     )
+     OR NOT pg_catalog.has_schema_privilege(worker_oid, 'public', 'USAGE')
+     OR pg_catalog.has_schema_privilege(worker_oid, 'public', 'CREATE') THEN
+    RAISE EXCEPTION
+      'grainline_account_deletion_runtime database/schema posture drifted';
+  END IF;
+
+  SELECT pg_catalog.array_agg(privilege ORDER BY privilege)
+    INTO worker_table_privileges
+    FROM (
+      SELECT DISTINCT pg_catalog.upper(acl.privilege_type) AS privilege
+        FROM pg_catalog.pg_class AS class
+        CROSS JOIN LATERAL pg_catalog.aclexplode(
+          COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+        ) AS acl
+       WHERE class.oid =
+             'public."AccountDeletionSideEffect"'::pg_catalog.regclass
+         AND acl.grantee = worker_oid
+    ) AS privileges;
+  IF worker_table_privileges IS DISTINCT FROM
+       ARRAY['DELETE', 'INSERT', 'SELECT', 'UPDATE']::text[] OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_class AS class
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+      ) AS acl
+     WHERE class.oid =
+           'public."AccountDeletionSideEffect"'::pg_catalog.regclass
+       AND acl.grantee = worker_oid
+       AND acl.is_grantable
+  ) THEN
+    RAISE EXCEPTION
+      'grainline_account_deletion_runtime table authority drifted';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_attribute AS attribute
+      CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+     WHERE attribute.attrelid =
+           'public."AccountDeletionSideEffect"'::pg_catalog.regclass
+       AND attribute.attnum > 0
+       AND NOT attribute.attisdropped
+       AND acl.grantee = worker_oid
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+      ) AS acl
+     WHERE namespace.nspname = 'public'
+       AND class.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+       AND class.relname <> 'AccountDeletionSideEffect'
+       AND acl.grantee = worker_oid
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_type AS type
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = type.typnamespace
+      CROSS JOIN LATERAL pg_catalog.aclexplode(type.typacl) AS acl
+     WHERE namespace.nspname = 'public'
+       AND acl.grantee = worker_oid
+  ) THEN
+    RAISE EXCEPTION
+      'grainline_account_deletion_runtime has unrelated object authority';
+  END IF;
+
+  SELECT pg_catalog.array_agg(identity ORDER BY identity)
+    INTO worker_function_identities
+    FROM (
+      SELECT DISTINCT pg_catalog.format(
+        '%s(%s)',
+        procedure.proname,
+        pg_catalog.replace(
+          pg_catalog.oidvectortypes(procedure.proargtypes),
+          ', ',
+          ','
+        )
+      ) AS identity
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = procedure.pronamespace
+        CROSS JOIN LATERAL pg_catalog.aclexplode(
+          COALESCE(
+            procedure.proacl,
+            pg_catalog.acldefault('f', procedure.proowner)
+          )
+        ) AS acl
+       WHERE namespace.nspname = 'public'
+         AND acl.grantee = worker_oid
+         AND acl.privilege_type = 'EXECUTE'
+         AND NOT acl.is_grantable
+    ) AS identities;
+  IF worker_function_identities IS DISTINCT FROM ARRAY[
+       'grainline_account_deletion_side_effect_claim(text)',
+       'grainline_account_deletion_side_effect_complete(text,bigint,uuid)',
+       'grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)'
+     ]::text[] OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        COALESCE(
+          procedure.proacl,
+          pg_catalog.acldefault('f', procedure.proowner)
+        )
+      ) AS acl
+     WHERE namespace.nspname = 'public'
+       AND acl.grantee = worker_oid
+       AND acl.privilege_type = 'EXECUTE'
+       AND acl.is_grantable
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        COALESCE(
+          procedure.proacl,
+          pg_catalog.acldefault('f', procedure.proowner)
+        )
+      ) AS acl
+     WHERE namespace.nspname = 'public'
+       AND procedure.proname IN (
+         'grainline_account_deletion_side_effect_claim',
+         'grainline_account_deletion_side_effect_complete',
+         'grainline_account_deletion_side_effect_fail',
+         'grainline_account_deletion_media_enqueue_claimed',
+         'grainline_account_deletion_claim_user',
+         'grainline_user_account_deletion_preflight',
+         'grainline_user_account_deletion_snapshot',
+         'grainline_user_account_deletion_finalize',
+         'grainline_case_account_deletion_redact',
+         'grainline_message_redact_for_account_deletion',
+         'grainline_order_account_deletion_scrub'
+       )
+       AND acl.grantee = 0
+       AND acl.privilege_type = 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION
+      'grainline_account_deletion_runtime function authority drifted';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relowner = worker_oid
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public'
+       AND procedure.proowner = worker_oid
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_type AS type
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = type.typnamespace
+     WHERE namespace.nspname = 'public'
+       AND type.typowner = worker_oid
+  ) THEN
+    RAISE EXCEPTION
+      'grainline_account_deletion_runtime owns public objects';
+  END IF;
+END
+$grainline_account_deletion_worker_postflight$;
+\endif
+\unset account_deletion_side_effect_rls_active
+\unset account_deletion_claim_fence_prepared
 
 WITH user_account_deletion_runtime(function_signature) AS (
   VALUES
@@ -3302,7 +3798,14 @@ SELECT format(
   :'runtime_role'
 )
   FROM user_account_deletion_runtime
- WHERE to_regprocedure(function_signature) IS NOT NULL;
+ WHERE to_regprocedure(function_signature) IS NOT NULL
+   AND (
+     function_signature =
+       'public."grainline_user_provider_deleted_defer"(text)'
+     OR pg_catalog.to_regprocedure(
+       'public."grainline_account_deletion_claim_user"(text,bigint,uuid)'
+     ) IS NULL
+   );
 \gexec
 
 -- Remaining relationship-facing User reads use purpose-bound projections.

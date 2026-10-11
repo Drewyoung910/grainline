@@ -13,6 +13,10 @@ const STAFF_READ_URL = RUNTIME_URL.replace(
   "grainline_app_runtime:runtime-password",
   "grainline_staff_read_runtime:staff-password",
 );
+const ACCOUNT_DELETION_URL = RUNTIME_URL.replace(
+  "grainline_app_runtime:runtime-password",
+  "grainline_account_deletion_runtime:account-deletion-password",
+);
 
 function productionEnv(overrides = {}) {
   return {
@@ -20,6 +24,7 @@ function productionEnv(overrides = {}) {
     VERCEL_ENV: "production",
     DATABASE_URL: RUNTIME_URL,
     ORDER_STAFF_READ_DATABASE_URL: STAFF_READ_URL,
+    ACCOUNT_DELETION_DATABASE_URL: ACCOUNT_DELETION_URL,
     RUNTIME_DB_ROLE: "grainline_app_runtime",
     ...overrides,
   };
@@ -37,6 +42,7 @@ describe("Vercel runtime database environment isolation", () => {
       region: "westus3.azure",
       runtimeRole: "grainline_app_runtime",
       staffReadRole: "grainline_staff_read_runtime",
+      accountDeletionRole: "grainline_account_deletion_runtime",
     });
   });
 
@@ -77,6 +83,7 @@ describe("Vercel runtime database environment isolation", () => {
       unreviewedPostgresUrlEnvironmentKeys({
         DATABASE_URL: RUNTIME_URL,
         ORDER_STAFF_READ_DATABASE_URL: STAFF_READ_URL,
+        ACCOUNT_DELETION_DATABASE_URL: ACCOUNT_DELETION_URL,
       }),
       [],
     );
@@ -93,6 +100,39 @@ describe("Vercel runtime database environment isolation", () => {
         ),
       );
     }
+  });
+
+  it("accepts only the separately authenticated account-deletion URL on the same pooler", () => {
+    assert.deepEqual(
+      unreviewedPostgresUrlEnvironmentKeys({
+        DATABASE_URL: RUNTIME_URL,
+        ACCOUNT_DELETION_DATABASE_URL: ACCOUNT_DELETION_URL,
+      }),
+      [],
+    );
+    const invalid = [
+      RUNTIME_URL,
+      ACCOUNT_DELETION_URL.replace("-pooler", ""),
+      ACCOUNT_DELETION_URL.replace("ep-plain-river-aaqg8gj4", "ep-other-endpoint"),
+      ACCOUNT_DELETION_URL.replace("/neondb?", "/otherdb?"),
+    ];
+    for (const ACCOUNT_DELETION_DATABASE_URL of invalid) {
+      assert.throws(
+        () => assertVercelRuntimeDatabaseIsolation(
+          productionEnv({ ACCOUNT_DELETION_DATABASE_URL }),
+        ),
+      );
+    }
+  });
+
+  it("requires the reviewed account-deletion credential in production", () => {
+    assert.throws(
+      () => assertVercelRuntimeDatabaseIsolation(
+        productionEnv({ ACCOUNT_DELETION_DATABASE_URL: undefined }),
+        { requireAccountDeletionDatabase: true },
+      ),
+      /required for account-deletion work/,
+    );
   });
 
   it("requires the reviewed staff read credential in production", () => {
@@ -143,6 +183,14 @@ describe("Vercel runtime database environment isolation", () => {
         VERCEL: "1",
         VERCEL_ENV: "preview",
         ORDER_STAFF_READ_DATABASE_URL: STAFF_READ_URL,
+      }),
+      /must be absent when DATABASE_URL is absent/,
+    );
+    assert.throws(
+      () => assertVercelRuntimeDatabaseIsolation({
+        VERCEL: "1",
+        VERCEL_ENV: "preview",
+        ACCOUNT_DELETION_DATABASE_URL: ACCOUNT_DELETION_URL,
       }),
       /must be absent when DATABASE_URL is absent/,
     );

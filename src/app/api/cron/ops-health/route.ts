@@ -10,6 +10,7 @@ import {
   ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS,
   ACCOUNT_DELETION_SIDE_EFFECT_STATUS,
 } from "@/lib/accountDeletionSideEffects";
+import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { cronRunPartialIssueSummary } from "@/lib/cronRunPartialIssues";
 import { inspectOwnerSavedSearchCanary } from "@/lib/savedSearchOwnerAccess";
@@ -115,7 +116,7 @@ export async function GET(request: Request) {
           },
         }),
         clerkWebhookHealthSummary(),
-        prisma.accountDeletionSideEffect.count({
+        getAccountDeletionSideEffectClient().accountDeletionSideEffect.count({
           where: {
             OR: [
               {
@@ -123,13 +124,22 @@ export async function GET(request: Request) {
                 lastError: { not: null },
               },
               {
-                status: {
-                  in: [
-                    ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PENDING,
-                    ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PROCESSING,
-                  ],
-                },
+                status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PENDING,
                 updatedAt: { lt: staleAccountDeletionSideEffectBefore },
+              },
+              {
+                status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PROCESSING,
+                OR: [
+                  {
+                    processingStartedAt: {
+                      lt: staleAccountDeletionSideEffectBefore,
+                    },
+                  },
+                  {
+                    processingStartedAt: null,
+                    updatedAt: { lt: staleAccountDeletionSideEffectBefore },
+                  },
+                ],
               },
             ],
           },

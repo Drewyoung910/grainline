@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { runBoundedDeletionBatches } from "@/lib/cronBatchState";
+import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import {
   ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_BATCH_SIZE,
   ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_TIME_BUDGET_MS,
@@ -29,7 +30,24 @@ export const ACCOUNT_DELETION_SIDE_EFFECT_KIND = {
 type AccountDeletionSideEffectKind =
   (typeof ACCOUNT_DELETION_SIDE_EFFECT_KIND)[keyof typeof ACCOUNT_DELETION_SIDE_EFFECT_KIND];
 
-type AccountDeletionSideEffectDb = Pick<Prisma.TransactionClient, "accountDeletionSideEffect">;
+type AccountDeletionSideEffectDb = Pick<
+  Prisma.TransactionClient,
+  "accountDeletionSideEffect" | "$queryRaw"
+>;
+
+type AccountDeletionSideEffectClaim = {
+  id: string;
+  userId: string;
+  kind: string;
+  payload: Prisma.JsonValue;
+  attempts: number;
+  claimGeneration: bigint;
+  claimToken: string;
+};
+
+type AccountDeletionSideEffectClaimResult =
+  | { action: "process"; effect: AccountDeletionSideEffectClaim }
+  | { action: "done" | "missing" | "unavailable" };
 
 export type AccountDeletionAuditRedactionUpdate = {
   logId: string;
@@ -50,15 +68,6 @@ function sanitizeSideEffectError(error: unknown) {
     .slice(0, 1000);
 }
 
-function nextAttemptAt(attempts: number, now = new Date()) {
-  const minutes = Math.min(60, Math.max(5, 2 ** Math.min(attempts, 5)));
-  return new Date(now.getTime() + minutes * 60 * 1000);
-}
-
-function staleProcessingBefore(now = new Date()) {
-  return new Date(now.getTime() - ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS);
-}
-
 function claimableAccountDeletionSideEffectWhere(now = new Date()): Prisma.AccountDeletionSideEffectWhereInput {
   return {
     OR: [
@@ -73,10 +82,129 @@ function claimableAccountDeletionSideEffectWhere(now = new Date()): Prisma.Accou
       },
       {
         status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PROCESSING,
-        updatedAt: { lt: staleProcessingBefore(now) },
+        OR: [
+          {
+            processingStartedAt: {
+              lt: new Date(now.getTime() - ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS),
+            },
+          },
+          {
+            processingStartedAt: null,
+            updatedAt: {
+              lt: new Date(now.getTime() - ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS),
+            },
+          },
+        ],
       },
     ],
   };
+}
+
+export async function claimAccountDeletionSideEffect(
+  id: string,
+  client: AccountDeletionSideEffectDb = getAccountDeletionSideEffectClient(),
+): Promise<AccountDeletionSideEffectClaimResult> {
+  const rows = await client.$queryRaw<Array<{
+    action: unknown;
+    side_effect_id: unknown;
+    user_id: unknown;
+    effect_kind: unknown;
+    effect_payload: unknown;
+    attempt_count: unknown;
+    claim_generation: unknown;
+    claim_token: unknown;
+  }>>`
+    SELECT
+      action,
+      side_effect_id,
+      user_id,
+      effect_kind,
+      effect_payload,
+      attempt_count,
+      claim_generation,
+      claim_token
+    FROM public.grainline_account_deletion_side_effect_claim(${id})
+  `;
+  const row = rows[0];
+  if (rows.length !== 1 || !row || typeof row.action !== "string") {
+    throw new Error("Account deletion side-effect claim returned an invalid result");
+  }
+  const action = row.action;
+  if (action !== "process") {
+    if (!["done", "missing", "unavailable"].includes(action)) {
+      throw new Error("Account deletion side-effect claim returned an unknown action");
+    }
+    return {
+      action: action as "done" | "missing" | "unavailable",
+    };
+  }
+  if (
+    typeof row.side_effect_id !== "string"
+    || typeof row.user_id !== "string"
+    || typeof row.effect_kind !== "string"
+    || typeof row.attempt_count !== "number"
+    || typeof row.claim_generation !== "bigint"
+    || typeof row.claim_token !== "string"
+  ) {
+    throw new Error("Account deletion side-effect claim returned an invalid payload");
+  }
+  return {
+    action: "process" as const,
+    effect: {
+      id: row.side_effect_id,
+      userId: row.user_id,
+      kind: row.effect_kind,
+      payload: row.effect_payload as Prisma.JsonValue,
+      attempts: row.attempt_count,
+      claimGeneration: row.claim_generation,
+      claimToken: row.claim_token,
+    } satisfies AccountDeletionSideEffectClaim,
+  };
+}
+
+async function completeAccountDeletionSideEffect(
+  id: string,
+  claimGeneration: bigint,
+  claimToken: string,
+  client: AccountDeletionSideEffectDb = getAccountDeletionSideEffectClient(),
+) {
+  const rows = await client.$queryRaw<Array<{ result: unknown }>>`
+    SELECT public.grainline_account_deletion_side_effect_complete(
+      ${id},
+      ${claimGeneration},
+      ${claimToken}::uuid
+    ) AS result
+  `;
+  const result = rows[0]?.result;
+  if (
+    rows.length !== 1
+    || !["completed", "already_completed", "superseded", "missing"].includes(String(result))
+  ) {
+    throw new Error("Account deletion side-effect completion returned an invalid result");
+  }
+  return String(result);
+}
+
+async function failAccountDeletionSideEffect(
+  id: string,
+  claimGeneration: bigint,
+  claimToken: string,
+  lastError: string,
+  client: AccountDeletionSideEffectDb = getAccountDeletionSideEffectClient(),
+) {
+  const rows = await client.$queryRaw<Array<{ result: unknown }>>`
+    SELECT public.grainline_account_deletion_side_effect_fail(
+      ${id},
+      ${claimGeneration},
+      ${claimToken}::uuid,
+      ${lastError}
+    ) AS result
+  `;
+  const result = rows[0]?.result;
+  if (rows.length !== 1 || !["failed", "superseded"].includes(String(result))) {
+    throw new Error("Account deletion side-effect failure returned an invalid result");
+  }
+  return String(result);
 }
 
 function isUniqueConstraintError(error: unknown) {
@@ -145,42 +273,38 @@ export async function enqueueAccountDeletionLocalAnonymizeSideEffect(
 }
 
 export async function markAccountDeletionLocalAnonymizeDone(
-  db: AccountDeletionSideEffectDb,
   sideEffectId: string,
-  userId: string,
+  claimGeneration: bigint,
+  claimToken: string,
 ) {
-  await db.accountDeletionSideEffect.updateMany({
-    where: {
-      id: sideEffectId,
-      userId,
-      kind: ACCOUNT_DELETION_SIDE_EFFECT_KIND.LOCAL_ANONYMIZE,
-      dedupKey: accountDeletionLocalAnonymizeDedupKey(userId),
-    },
-    data: {
-      status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.DONE,
-      processedAt: new Date(),
-      nextAttemptAt: null,
-      lastError: null,
-      payload: {},
-    },
-  });
+  const result = await completeAccountDeletionSideEffect(
+    sideEffectId,
+    claimGeneration,
+    claimToken,
+  );
+  if (result !== "completed" && result !== "already_completed") {
+    throw new Error("Account deletion local anonymization claim was superseded");
+  }
 }
 
 export async function enqueueAccountDeletionMediaDeleteSideEffects(
   db: AccountDeletionSideEffectDb,
-  userId: string,
+  claim: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
   urls: string[],
 ) {
   if (urls.length === 0) return;
-  await db.accountDeletionSideEffect.createMany({
-    data: urls.map((url) => ({
-      userId,
-      kind: ACCOUNT_DELETION_SIDE_EFFECT_KIND.MEDIA_DELETE,
-      dedupKey: accountDeletionMediaDeleteDedupKey(userId, url),
-      payload: { url },
-    })),
-    skipDuplicates: true,
-  });
+  await db.$queryRaw<Array<{ grainline_account_deletion_media_enqueue_claimed: bigint }>>`
+    SELECT public.grainline_account_deletion_media_enqueue_claimed(
+      ${claim.sideEffectId},
+      ${claim.claimGeneration},
+      ${claim.claimToken}::uuid,
+      ${urls}::text[]
+    )
+  `;
 }
 
 export async function enqueueAccountDeletionAuditRedactionSideEffects(
@@ -210,8 +334,9 @@ export async function runAccountDeletionStripeRejectSideEffect(input: {
   stripeAccountVersion: string | null;
   stripeControllerType: string | null;
 }) {
+  const accountDeletionClient = getAccountDeletionSideEffectClient();
   const dedupKey = accountDeletionStripeRejectDedupKey(input.userId, input.stripeAccountId);
-  await enqueueAccountDeletionSideEffect(prisma, {
+  await enqueueAccountDeletionSideEffect(accountDeletionClient, {
     userId: input.userId,
     kind: ACCOUNT_DELETION_SIDE_EFFECT_KIND.STRIPE_REJECT,
     dedupKey,
@@ -235,6 +360,8 @@ async function performAccountDeletionSideEffect(effect: {
   userId: string;
   kind: string;
   payload: Prisma.JsonValue;
+  claimGeneration: bigint;
+  claimToken: string;
 }) {
   const payload = payloadObject(effect.payload);
 
@@ -242,6 +369,8 @@ async function performAccountDeletionSideEffect(effect: {
     const { anonymizeUserAccount } = await import("@/lib/accountDeletion");
     const result = await anonymizeUserAccount(effect.userId, {
       sideEffectId: effect.id,
+      claimGeneration: effect.claimGeneration,
+      claimToken: effect.claimToken,
     });
     if ("inProgress" in result && result.inProgress) {
       throw new Error("Account deletion anonymization is already in progress");
@@ -297,7 +426,7 @@ async function performAccountDeletionSideEffect(effect: {
 }
 
 export async function processAccountDeletionSideEffectByDedupKey(dedupKey: string) {
-  const effect = await prisma.accountDeletionSideEffect.findUnique({
+  const effect = await getAccountDeletionSideEffectClient().accountDeletionSideEffect.findUnique({
     where: { dedupKey },
     select: { id: true },
   });
@@ -306,55 +435,26 @@ export async function processAccountDeletionSideEffectByDedupKey(dedupKey: strin
 }
 
 export async function processAccountDeletionSideEffect(id: string) {
-  const now = new Date();
-  const claimed = await prisma.accountDeletionSideEffect.updateMany({
-    where: {
-      id,
-      ...claimableAccountDeletionSideEffectWhere(now),
-    },
-    data: {
-      status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PROCESSING,
-      attempts: { increment: 1 },
-      lastError: null,
-    },
-  });
-
-  if (claimed.count !== 1) {
-    const current = await prisma.accountDeletionSideEffect.findUnique({
-      where: { id },
-      select: { status: true },
-    });
-    return current?.status === ACCOUNT_DELETION_SIDE_EFFECT_STATUS.DONE;
-  }
-
-  const effect = await prisma.accountDeletionSideEffect.findUniqueOrThrow({
-    where: { id },
-    select: { id: true, userId: true, kind: true, payload: true, attempts: true },
-  });
+  const claim = await claimAccountDeletionSideEffect(id);
+  if (claim.action !== "process") return claim.action === "done";
+  const effect = claim.effect;
 
   try {
     await performAccountDeletionSideEffect(effect);
-    await prisma.accountDeletionSideEffect.update({
-      where: { id },
-      data: {
-        status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.DONE,
-        processedAt: new Date(),
-        nextAttemptAt: null,
-        lastError: null,
-        payload: {},
-      },
-    });
-    return true;
+    const completion = await completeAccountDeletionSideEffect(
+      effect.id,
+      effect.claimGeneration,
+      effect.claimToken,
+    );
+    return completion === "completed" || completion === "already_completed";
   } catch (error) {
     const lastError = sanitizeSideEffectError(error);
-    await prisma.accountDeletionSideEffect.update({
-      where: { id },
-      data: {
-        status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.FAILED,
-        nextAttemptAt: nextAttemptAt(effect.attempts),
-        lastError,
-      },
-    });
+    await failAccountDeletionSideEffect(
+      effect.id,
+      effect.claimGeneration,
+      effect.claimToken,
+      lastError,
+    );
     Sentry.captureException(error, {
       tags: { source: "account_delete_side_effect", kind: effect.kind },
       extra: { userId: effect.userId, sideEffectId: effect.id },
@@ -367,7 +467,7 @@ export async function processAccountDeletionSideEffectsForUser(
   userId: string,
   kinds: AccountDeletionSideEffectKind[],
 ) {
-  const effects = await prisma.accountDeletionSideEffect.findMany({
+  const effects = await getAccountDeletionSideEffectClient().accountDeletionSideEffect.findMany({
     where: {
       userId,
       kind: { in: kinds },
@@ -388,7 +488,7 @@ export async function processAccountDeletionSideEffectsForUser(
 }
 
 export async function processAccountDeletionSideEffectBatch({ take = 20 } = {}) {
-  const effects = await prisma.accountDeletionSideEffect.findMany({
+  const effects = await getAccountDeletionSideEffectClient().accountDeletionSideEffect.findMany({
     where: {
       ...claimableAccountDeletionSideEffectWhere(new Date()),
     },
@@ -420,7 +520,7 @@ export async function pruneCompletedAccountDeletionSideEffects({
   return runBoundedDeletionBatches({
     batchSize,
     timeBudgetMs,
-    deleteBatch: async () => prisma.$executeRaw<number>`
+    deleteBatch: async () => getAccountDeletionSideEffectClient().$executeRaw<number>`
       DELETE FROM "AccountDeletionSideEffect"
       WHERE id IN (
         SELECT id

@@ -145,10 +145,14 @@ export async function deferProviderDeletedUserAccount(
 export async function getUserAccountDeletionPreflight(
   client: UserAccountDeletionClient,
   sideEffectId: string,
+  claimGeneration: bigint,
+  claimToken: string,
 ) {
   const rows = await client.$queryRaw<UserAccountDeletionPreflight[]>`
     SELECT * FROM public.grainline_user_account_deletion_preflight(
-      ${sideEffectId}::text
+      ${sideEffectId}::text,
+      ${claimGeneration}::bigint,
+      ${claimToken}::uuid
     )
   `;
   const row = rows[0];
@@ -161,10 +165,14 @@ export async function getUserAccountDeletionPreflight(
 export async function getUserAccountDeletionSnapshot(
   client: UserAccountDeletionClient,
   sideEffectId: string,
+  claimGeneration: bigint,
+  claimToken: string,
 ) {
   const rows = await client.$queryRaw<UserAccountDeletionSnapshot[]>`
     SELECT * FROM public.grainline_user_account_deletion_snapshot(
-      ${sideEffectId}::text
+      ${sideEffectId}::text,
+      ${claimGeneration}::bigint,
+      ${claimToken}::uuid
     )
   `;
   const row = rows[0];
@@ -176,11 +184,18 @@ export async function getUserAccountDeletionSnapshot(
 
 export async function finalizeUserAccountDeletion(
   client: UserAccountDeletionClient,
-  input: { sideEffectId: string; expectedUserId: string },
+  input: {
+    sideEffectId: string;
+    expectedUserId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ) {
   const rows = await client.$queryRaw<UserAccountDeletionFinalized[]>`
     SELECT * FROM public.grainline_user_account_deletion_finalize(
-      ${input.sideEffectId}::text
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
     )
   `;
   const row = rows[0];

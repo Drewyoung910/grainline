@@ -121,6 +121,7 @@ const {
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   CHECKOUT_STOCK_RESERVATION_TABLE,
+  ACCOUNT_DELETION_SIDE_EFFECT_TABLE,
   CLERK_WEBHOOK_EVENT_TABLE,
   CORE_ORDER_TABLE,
   ORDER_ITEM_TABLE,
@@ -141,6 +142,9 @@ const {
   collectTablePrivilegeAllowlistIssues,
   caseRlsActivationExpected,
   caseRlsForceExpected,
+  accountDeletionSideEffectRlsActivationExpected,
+  accountDeletionRuntimeExecuteExpected,
+  collectAccountDeletionWorkerBoundaryIssues,
   clerkWebhookEventRlsActivationExpected,
   clerkWebhookEventRlsForceExpected,
   checkoutStockReservationRlsActivationExpected,
@@ -916,6 +920,153 @@ describe("database grant inventory guardrails", () => {
     ["service-only table Order must have FORCE ROW LEVEL SECURITY enabled"]);
     assert.equal(coreOrderRlsActivationExpected({ ...enabled,
       rlsPolicyTables: [CORE_ORDER_TABLE] }), false);
+  });
+
+  it("removes ordinary runtime table privileges after dedicated account-deletion RLS activation", () => {
+    const predecessor = {
+      tables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+      rlsEnableTables: [],
+      rlsPolicyTables: [],
+    };
+    const enabled = {
+      ...predecessor,
+      rlsEnableTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+      rlsPolicyTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+    };
+
+    assert.equal(accountDeletionSideEffectRlsActivationExpected(predecessor), false);
+    assert.equal(accountDeletionSideEffectRlsActivationExpected(enabled), true);
+    assert.equal(accountDeletionSideEffectRlsActivationExpected({
+      ...enabled,
+      rlsPolicyTables: [],
+    }), false);
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(ACCOUNT_DELETION_SIDE_EFFECT_TABLE, predecessor),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(ACCOUNT_DELETION_SIDE_EFFECT_TABLE, enabled),
+      [],
+    );
+  });
+
+  it("audits mixed account-deletion overload ACLs by exact identity", () => {
+    const prepared = {
+      functions: ["grainline_account_deletion_claim_user"],
+      rlsEnableTables: [],
+      rlsPolicyTables: [],
+    };
+    const active = {
+      ...prepared,
+      rlsEnableTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+      rlsPolicyTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+    };
+    const expectation = (functionName, argumentTypes, inventory = prepared) =>
+      accountDeletionRuntimeExecuteExpected({
+        function_name: functionName,
+        argument_types: argumentTypes,
+      }, inventory);
+
+    assert.equal(expectation("grainline_user_account_deletion_preflight", "text"), true);
+    assert.equal(
+      expectation("grainline_user_account_deletion_preflight", "text", active),
+      false,
+    );
+    assert.equal(
+      expectation("grainline_user_account_deletion_preflight", "text, bigint, uuid"),
+      null,
+    );
+    assert.equal(expectation("grainline_account_deletion_claim_user", "text,bigint,uuid"), false);
+    assert.equal(expectation("grainline_account_deletion_side_effect_claim", "text"), true);
+    assert.equal(
+      expectation("grainline_account_deletion_side_effect_claim", "text", active),
+      false,
+    );
+    assert.equal(expectation("grainline_account_deletion_media_enqueue_claimed", "text,bigint,uuid,text[]"), null);
+    assert.equal(
+      accountDeletionRuntimeExecuteExpected({
+        function_name: "grainline_user_account_deletion_preflight",
+        argument_types: "text",
+      }, { functions: [] }),
+      null,
+    );
+  });
+
+  it("audits the exact account-deletion worker boundary before and after activation", () => {
+    const preparedInventory = {
+      functions: ["grainline_account_deletion_claim_user"],
+      rlsEnableTables: [],
+      rlsPolicyTables: [],
+    };
+    const preparedState = {
+      role_exists: true,
+      role_super: false,
+      role_inherit: false,
+      role_canlogin: true,
+      role_createdb: false,
+      role_createrole: false,
+      role_replication: false,
+      role_bypassrls: false,
+      membership_count: 0,
+      database_create: false,
+      schema_usage: true,
+      schema_create: false,
+      owned_public_object_count: 0,
+      rls_enabled: false,
+      rls_forced: false,
+      policy_count: 0,
+      exact_policy_count: 0,
+      table_privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+      column_acl_count: 0,
+      table_grant_option_count: 0,
+      unexpected_table_privileges: [],
+      unexpected_type_privileges: [],
+      function_identities: [
+        "grainline_account_deletion_side_effect_claim(text)",
+        "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
+        "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
+      ],
+      function_grant_option_count: 0,
+      public_account_deletion_execute_count: 0,
+    };
+    assert.deepEqual(
+      collectAccountDeletionWorkerBoundaryIssues(preparedState, preparedInventory),
+      [],
+    );
+
+    const activeInventory = {
+      ...preparedInventory,
+      rlsEnableTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+      rlsPolicyTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+    };
+    assert.deepEqual(
+      collectAccountDeletionWorkerBoundaryIssues({
+        ...preparedState,
+        rls_enabled: true,
+        policy_count: 1,
+        exact_policy_count: 1,
+      }, activeInventory),
+      [],
+    );
+
+    const issues = collectAccountDeletionWorkerBoundaryIssues({
+      ...preparedState,
+      role_bypassrls: true,
+      membership_count: 1,
+      table_privileges: ["SELECT"],
+      unexpected_table_privileges: ["public.User:SELECT"],
+      unexpected_type_privileges: ["public.UserRole:USAGE"],
+      function_identities: [
+        ...preparedState.function_identities,
+        "grainline_user_account_deletion_preflight(text,bigint,uuid)",
+      ],
+    }, preparedInventory).join("\n");
+    assert.match(issues, /role_bypassrls/);
+    assert.match(issues, /unreviewed role membership/);
+    assert.match(issues, /table privileges drifted/);
+    assert.match(issues, /unrelated table authority/);
+    assert.match(issues, /unrelated type authority/);
+    assert.match(issues, /function authority drifted/);
   });
 
   it("accepts OrderItem policyless ENABLE and audits its later FORCE separately", () => {
@@ -1862,6 +2013,21 @@ describe("database grant inventory guardrails", () => {
       "grainline_clerk_webhook_health_summary",
       "grainline_clerk_webhook_prune_batch",
     ];
+    const accountDeletionClaimFenceMigrationPath =
+      "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql";
+    const accountDeletionClaimFenceFunctionNames = [
+      "grainline_account_deletion_claim_user",
+      "grainline_account_deletion_media_enqueue_claimed",
+      "grainline_account_deletion_side_effect_claim",
+      "grainline_account_deletion_side_effect_complete",
+      "grainline_account_deletion_side_effect_fail",
+    ];
+    const accountDeletionClaimFencePrepared = existsSync(
+      accountDeletionClaimFenceMigrationPath,
+    ) && accountDeletionClaimFenceFunctionNames.every((functionName) =>
+      source(accountDeletionClaimFenceMigrationPath).includes(
+        `CREATE FUNCTION public.${functionName}(`,
+      ));
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -1891,6 +2057,9 @@ describe("database grant inventory guardrails", () => {
     assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 68 : 67);
     assert.equal(inventory.enums.length, disputeRecoveryMigrationPresent ? 23 : 22);
     assert.deepEqual(inventory.functions, [
+      ...(accountDeletionClaimFencePrepared
+        ? accountDeletionClaimFenceFunctionNames
+        : []),
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
       "grainline_case_account_deletion_blockers",
@@ -2056,6 +2225,8 @@ describe("database grant inventory guardrails", () => {
         + (clerkWebhookAuthorityPrepared
           ? clerkWebhookAuthorityFunctionNames.length
           : 0)
+        + (accountDeletionClaimFencePrepared ? 12 : 0)
+        + (accountDeletionSideEffectRlsActivationExpected(inventory) ? 6 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)
@@ -2398,11 +2569,22 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, []);
     assert.deepEqual(
       inventory.rlsPolicyTables,
-      ["Conversation", "Message", "Notification", "SavedSearch"],
+      [
+        ...(accountDeletionSideEffectRlsActivationExpected(inventory)
+          ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
+          : []),
+        "Conversation",
+        "Message",
+        "Notification",
+        "SavedSearch",
+      ],
     );
     assert.deepEqual(
       inventory.rlsEnableTables,
       [
+        ...(accountDeletionSideEffectRlsActivationExpected(inventory)
+          ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
+          : []),
         "Case",
         "CaseMessage",
         "CaseMessageAttachment",
@@ -3428,7 +3610,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 23);
+    assert.equal(guardResultCount, 24);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -3481,6 +3663,26 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :clerk_webhook_event_rls_active[\s\S]*REVOKE ALL ON TABLE public\."ClerkWebhookEvent"/,
+    );
+    assert.match(
+      provision,
+      /AccountDeletionSideEffect RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :account_deletion_side_effect_rls_active[\s\S]*REVOKE ALL ON TABLE public\."AccountDeletionSideEffect"/,
+    );
+    assert.match(
+      provision,
+      /grainline_account_deletion_worker_role_guard[\s\S]*grainline_account_deletion_runtime role posture drifted/,
+    );
+    assert.match(
+      provision,
+      /REVOKE ALL ON TABLE public\."AccountDeletionSideEffect"[\s\S]*FROM PUBLIC, grainline_account_deletion_runtime;[\s\S]*GRANT SELECT, INSERT, UPDATE, DELETE[\s\S]*TO grainline_account_deletion_runtime/,
+    );
+    assert.match(
+      provision,
+      /grainline_account_deletion_worker_postflight[\s\S]*grainline_account_deletion_runtime has unrelated object authority[\s\S]*grainline_account_deletion_runtime function authority drifted/,
     );
     assert.match(
       provision,
