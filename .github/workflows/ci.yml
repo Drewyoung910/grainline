@@ -2417,7 +2417,13 @@ jobs:
           --set=migration_role=ci
           --file=scripts/provision-runtime-db-role.sql
       - name: Audit Order participant grants and retained Order posture
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants --
+          --allow-loopback-ci
+          --staff-read-stage=order-zero-direct-private
       - name: Prove Order/payment/shipping legacy inspection SQL after label claim preparation
         run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
         env:
@@ -4638,7 +4644,7 @@ jobs:
             --set=migration_role=ci \
             --file=scripts/provision-order-staff-read-role.sql
       - name: Audit runtime grants after accumulated User access
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User block-email source package
         shell: bash
         run: |
@@ -4741,7 +4747,7 @@ jobs:
           $verify_user_block_email_authorities$;
           SQL
       - name: Audit runtime grants after User block-email authorities
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User follower authority source package
         shell: bash
         run: |
@@ -4849,7 +4855,7 @@ jobs:
           $verify_user_follower_authorities$;
           SQL
       - name: Audit runtime grants after User follower authorities
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User staff admin-label source package
         shell: bash
         run: |
@@ -4954,7 +4960,7 @@ jobs:
           $verify_user_staff_admin_labels$;
           SQL
       - name: Audit runtime grants after User staff admin-label authority
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User policyless ENABLE source package
         shell: bash
         run: |
@@ -5043,7 +5049,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
-          npm run audit:db-grants -- --allow-loopback-ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Stage exact User ENABLE ledger for integrated FORCE proof
         run: |
           node --input-type=module - <<'NODE'
@@ -5109,7 +5115,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
-          npm run audit:db-grants -- --allow-loopback-ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore Clerk webhook event authority source package
         shell: bash
         run: |
@@ -5145,6 +5151,40 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261010160000_enable_clerk_webhook_event_rls/migration.sql
+      - name: Stage exact Clerk webhook event activation ledger for integrated proof
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          import {
+            CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+            CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
+          } from './scripts/audit-runtime-db-grants.mjs';
+
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            const existing = await client.query(`
+              SELECT migration_name
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION]);
+            assert.equal(existing.rows.length, 0);
+            await client.query(`
+              INSERT INTO public._prisma_migrations (
+                id, checksum, finished_at, migration_name, logs,
+                rolled_back_at, started_at, applied_steps_count
+              ) VALUES ($1, $2, clock_timestamp(), $3, NULL,
+                        NULL, clock_timestamp(), 1)
+            `, [
+              'clerk-webhook-event-activation-proof',
+              CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
+              CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+            ]);
+          } finally {
+            await client.end();
+          }
+          NODE
       - name: Verify Clerk webhook event authority catalog
         run: |
           psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
@@ -5233,7 +5273,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
-          npm run audit:db-grants -- --allow-loopback-ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore AccountDeletionSideEffect claim-fence source package
         shell: bash
         run: |
@@ -5284,11 +5324,45 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql
+      - name: Stage exact AccountDeletionSideEffect activation ledger for integrated proof
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          import {
+            ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
+            ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
+          } from './scripts/audit-runtime-db-grants.mjs';
+
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            const existing = await client.query(`
+              SELECT migration_name
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION]);
+            assert.equal(existing.rows.length, 0);
+            await client.query(`
+              INSERT INTO public._prisma_migrations (
+                id, checksum, finished_at, migration_name, logs,
+                rolled_back_at, started_at, applied_steps_count
+              ) VALUES ($1, $2, clock_timestamp(), $3, NULL,
+                        NULL, clock_timestamp(), 1)
+            `, [
+              'account-deletion-rls-proof',
+              ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
+              ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
+            ]);
+          } finally {
+            await client.end();
+          }
+          NODE
       - name: Audit runtime grants after AccountDeletionSideEffect activation
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
-          npm run audit:db-grants -- --allow-loopback-ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Production build
         run: npm run build

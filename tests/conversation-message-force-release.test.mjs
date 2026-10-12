@@ -258,6 +258,26 @@ describe("Conversation and Message FORCE release artifact", () => {
         "68bc032ecf38a63bd4ab9a219e315b69d8fa505bc3b99b6abf20e7d435812402",
         "20261003030000_force_user_email_address_rls",
       ],
+      [
+        "c5926434597a96db649796a3c61e633827fb575ae3c29e2570efb0460e9ca643",
+        "20261008120000_prepare_clerk_webhook_event_authority",
+      ],
+      [
+        "7c5fc7f61280a14695b8a2b2c4e1b3d354aeae40f581f952e529015cf70066d9",
+        "20261010160000_enable_clerk_webhook_event_rls",
+      ],
+      [
+        "2b79282ad52c8f4f5c417eebeb1593b157bd66b8fd66d792185865383e1f5924",
+        "20261011170000_prepare_account_deletion_side_effect_claim_fence",
+      ],
+      [
+        "d132a70f9673815f8e789151761ed2da1031c5d58c8313c6dc25fe7c430a0ba9",
+        "20261011173000_prepare_account_deletion_media_key_fence",
+      ],
+      [
+        "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b",
+        "20261011180000_enable_account_deletion_side_effect_rls",
+      ],
     ]) {
       assert.match(workflow, new RegExp(`${digest} ${migration}`));
       assert.ok(workflow.indexOf(`${digest} ${migration}`) > successorFence);
@@ -286,6 +306,11 @@ describe("Conversation and Message FORCE release artifact", () => {
       "20261003010000_repair_user_email_address_current_history",
       "20261003020000_enable_user_email_address_rls",
       "20261003030000_force_user_email_address_rls",
+      "20261008120000_prepare_clerk_webhook_event_authority",
+      "20261010160000_enable_clerk_webhook_event_rls",
+      "20261011170000_prepare_account_deletion_side_effect_claim_fence",
+      "20261011173000_prepare_account_deletion_media_key_fence",
+      "20261011180000_enable_account_deletion_side_effect_rls",
     ]) {
       assert.match(restoreBlock, new RegExp(migration, "u"));
     }

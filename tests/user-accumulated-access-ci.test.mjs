@@ -160,6 +160,22 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.match(step(converge), /--set=staff_role=grainline_staff_read_runtime/);
   assert.match(step(converge), /--set=migration_role=ci/);
   assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
+  for (const auditStep of [
+    audit,
+    "Audit runtime grants after User block-email authorities",
+    "Audit runtime grants after User follower authorities",
+    "Audit runtime grants after User staff admin-label authority",
+    "Audit runtime grants after User policyless ENABLE",
+    "Audit runtime grants after User policyless FORCE",
+    "Audit runtime grants after Clerk webhook event authority",
+    "Audit runtime grants after AccountDeletionSideEffect activation",
+  ]) {
+    assert.match(
+      step(auditStep),
+      /--allow-loopback-ci --staff-read-stage=order-user-combined/u,
+      auditStep,
+    );
+  }
 });
 
 test("package-owned tests remain available for their later isolation steps", () => {

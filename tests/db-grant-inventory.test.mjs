@@ -104,6 +104,8 @@ const BLOCKED_CHECKOUT_TRANSFER_BINDING_FUNCTION_NAMES = [
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
+  ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
+  ORDER_USER_COMBINED_STAFF_READ_STAGE,
   REQUIRED_FUNCTION_PRIVILEGES,
   REQUIRE_DIRECT_URL_FLAG,
   REQUIRED_SEQUENCE_PRIVILEGES,
@@ -121,9 +123,17 @@ const {
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   STAFF_READ_FUNCTION_IDENTITIES,
+  MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
+  MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES,
+  STAFF_READ_BOOTSTRAP_MARKER_PATTERN,
+  STAFF_READ_STAGE_FLAG_PREFIX,
   CHECKOUT_STOCK_RESERVATION_TABLE,
   ACCOUNT_DELETION_SIDE_EFFECT_TABLE,
+  ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
+  ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
   CLERK_WEBHOOK_EVENT_TABLE,
+  CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+  CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
   CORE_ORDER_TABLE,
   ORDER_ITEM_TABLE,
   ORDER_QUOTE_TABLE,
@@ -141,6 +151,7 @@ const {
   collectPolicylessServiceRlsIssues,
   collectPublicFunctionExecuteIssues,
   collectRestrictedRoleEffectiveFunctionIssues,
+  collectStaffReadRoleMarkerIssues,
   collectRuntimeFunctionGrantOptionIssues,
   collectTablePrivilegeAllowlistIssues,
   caseRlsActivationExpected,
@@ -169,6 +180,7 @@ const {
   requiredRuntimeColumnPrivileges,
   requiredRuntimeTablePrivileges,
   runtimePrivateFunctionNames,
+  staffReadFunctionIdentitiesForInventory,
   orderPaymentEventRlsActivationExpected,
   orderPaymentEventRlsForceExpected,
   sellerPayoutEventRlsActivationExpected,
@@ -178,8 +190,11 @@ const {
   normalizeSavedSearchCatalogState,
   parseGrantAuditDatabaseIdentity,
   readCheckoutStockReservationSourceCutoverState,
+  readAccountDeletionSideEffectActivationState,
+  readClerkWebhookEventActivationState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
+  resolveStaffReadAuditStage,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
 const { Client } = pg;
@@ -2095,16 +2110,18 @@ describe("database grant inventory guardrails", () => {
     const expectedByRole = {
       grainline_staff_read_runtime: STAFF_READ_FUNCTION_IDENTITIES,
     };
+    const postgresIdentities = STAFF_READ_FUNCTION_IDENTITIES
+      .map((identity) => identity.replaceAll(",", ", "));
     assert.deepEqual(
       collectRestrictedRoleEffectiveFunctionIssues(
         [
           {
             role_name: "grainline_staff_read_runtime",
             role_exists: true,
-            direct_function_identities: [...STAFF_READ_FUNCTION_IDENTITIES].reverse(),
+            direct_function_identities: [...postgresIdentities].reverse(),
             effective_function_identities: [
               "grainline_notification_preferences_valid(jsonb)",
-              ...STAFF_READ_FUNCTION_IDENTITIES,
+              ...postgresIdentities,
             ],
           },
         ],
@@ -2156,6 +2173,145 @@ describe("database grant inventory guardrails", () => {
       [...new Set(provisioned)].sort((a, b) => a.localeCompare(b)),
       [...STAFF_READ_FUNCTION_IDENTITIES].sort((a, b) => a.localeCompare(b)),
     );
+  });
+
+  it("derives exact migration and provisioned staff-read catalogs", () => {
+    const migrationIdentity = MIGRATION_STAFF_READ_FUNCTION_IDENTITIES[0];
+    const migrationName = migrationIdentity.slice(0, migrationIdentity.indexOf("("));
+    const orderIdentity = STAFF_READ_FUNCTION_IDENTITIES[0];
+    const orderName = orderIdentity.slice(0, orderIdentity.indexOf("("));
+    const marker = "grainline:staff-read-bootstrap:123e4567-e89b-42d3-a456-426614174000:66746f47e87a73a6efce2ee6833542be5a86cc57";
+    assert.match(marker, STAFF_READ_BOOTSTRAP_MARKER_PATTERN);
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory({ functions: [] }),
+      [],
+    );
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory({ functions: [migrationName] }),
+      [migrationIdentity],
+    );
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory({ functions: [orderName] }),
+      [orderIdentity],
+    );
+    const historicalOrderFunctions = STAFF_READ_FUNCTION_IDENTITIES.slice(0, 6);
+    assert.deepEqual(
+      historicalOrderFunctions,
+      [...MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES],
+    );
+    const historicalOrderInventory = {
+      functions: historicalOrderFunctions.map((identity) =>
+        identity.slice(0, identity.indexOf("("))),
+    };
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory(historicalOrderInventory),
+      historicalOrderFunctions,
+    );
+    const historicalUserInventory = {
+      functions: MIGRATION_STAFF_READ_FUNCTION_IDENTITIES.map((identity) =>
+        identity.slice(0, identity.indexOf("("))),
+    };
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory(historicalUserInventory),
+      [...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES],
+    );
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory(deriveGrantInventory()),
+      [...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES],
+    );
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory(deriveGrantInventory(), marker),
+      [...new Set([
+        ...STAFF_READ_FUNCTION_IDENTITIES,
+        ...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
+      ])],
+    );
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory(
+        deriveGrantInventory(),
+        null,
+        ORDER_USER_COMBINED_STAFF_READ_STAGE,
+      ),
+      [...new Set([
+        ...STAFF_READ_FUNCTION_IDENTITIES,
+        ...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
+      ])],
+    );
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory(
+        {
+          ...deriveGrantInventory(),
+          functions: deriveGrantInventory().functions.filter(
+            (name) => name !== "grainline_user_staff_admin_labels",
+          ),
+        },
+        null,
+        ORDER_USER_COMBINED_STAFF_READ_STAGE,
+      ),
+      [...STAFF_READ_FUNCTION_IDENTITIES],
+    );
+    assert.deepEqual(
+      staffReadFunctionIdentitiesForInventory(
+        deriveGrantInventory(),
+        null,
+        ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
+      ),
+      [],
+    );
+    assert.throws(
+      () => staffReadFunctionIdentitiesForInventory(
+        deriveGrantInventory(),
+        marker,
+        ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
+      ),
+      /requires an unmarked role/u,
+    );
+    assert.throws(
+      () => staffReadFunctionIdentitiesForInventory(
+        deriveGrantInventory(),
+        marker,
+        ORDER_USER_COMBINED_STAFF_READ_STAGE,
+      ),
+      /requires an unmarked role/u,
+    );
+    assert.throws(
+      () => staffReadFunctionIdentitiesForInventory(
+        deriveGrantInventory(),
+        null,
+        "unknown",
+      ),
+      /unknown staff-read audit stage/u,
+    );
+    const unmarkedFunctions = staffReadFunctionIdentitiesForInventory(
+      deriveGrantInventory(),
+    );
+    assert.deepEqual(collectRestrictedRoleEffectiveFunctionIssues([{
+      role_name: "grainline_staff_read_runtime",
+      role_exists: true,
+      role_marker: null,
+      direct_function_identities: unmarkedFunctions
+        .map((identity) => identity.replaceAll(",", ", ")),
+      effective_function_identities: unmarkedFunctions
+        .map((identity) => identity.replaceAll(",", ", ")),
+    }], {
+      grainline_staff_read_runtime: unmarkedFunctions,
+    }), []);
+    assert.deepEqual(collectStaffReadRoleMarkerIssues([{
+      role_name: "grainline_staff_read_runtime",
+      role_exists: true,
+      role_marker: null,
+    }, {
+      role_name: "grainline_staff_read_runtime",
+      role_exists: true,
+      role_marker: marker,
+    }]), []);
+    assert.deepEqual(collectStaffReadRoleMarkerIssues([{
+      role_name: "grainline_staff_read_runtime",
+      role_exists: true,
+      role_marker: "grainline:staff-read-bootstrap:invalid",
+    }]), [
+      "restricted role grainline_staff_read_runtime bootstrap marker is invalid",
+    ]);
   });
 
   it("derives the current runtime grant surface from schema and migrations", () => {
@@ -3072,6 +3228,41 @@ describe("database grant inventory guardrails", () => {
       ),
       /unknown command-line argument/,
     );
+    const staffReadStageFlag =
+      `${STAFF_READ_STAGE_FLAG_PREFIX}${ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE}`;
+    const combinedStaffReadStageFlag =
+      `${STAFF_READ_STAGE_FLAG_PREFIX}${ORDER_USER_COMBINED_STAFF_READ_STAGE}`;
+    assert.equal(resolveStaffReadAuditStage([]), null);
+    assert.equal(
+      resolveStaffReadAuditStage([ALLOW_LOOPBACK_CI_FLAG, staffReadStageFlag]),
+      ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
+    );
+    assert.equal(
+      resolveStaffReadAuditStage([
+        ALLOW_LOOPBACK_CI_FLAG,
+        combinedStaffReadStageFlag,
+      ]),
+      ORDER_USER_COMBINED_STAFF_READ_STAGE,
+    );
+    assert.throws(
+      () => resolveStaffReadAuditStage([staffReadStageFlag]),
+      /only with loopback CI/u,
+    );
+    assert.throws(
+      () => resolveStaffReadAuditStage([
+        ALLOW_LOOPBACK_CI_FLAG,
+        staffReadStageFlag,
+        staffReadStageFlag,
+      ]),
+      /at most one/u,
+    );
+    assert.throws(
+      () => resolveStaffReadAuditStage([
+        ALLOW_LOOPBACK_CI_FLAG,
+        `${STAFF_READ_STAGE_FLAG_PREFIX}unknown`,
+      ]),
+      /unknown staff-read audit stage/u,
+    );
     for (const env of [
       { DIRECT_URL: directUrl, NODE_TLS_REJECT_UNAUTHORIZED: "0" },
       { DIRECT_URL: directUrl, PGOPTIONS: "-c role=other" },
@@ -3245,6 +3436,51 @@ describe("database grant inventory guardrails", () => {
         "CheckoutStockReservation source-cutover migration ledger is partial or drifted",
       ],
     });
+  });
+
+  it("derives pending User service-ledger activation posture from exact live ledgers", async () => {
+    const exactClient = (expectedMigration, expectedChecksum) => ({
+      queryCount: 0,
+      async query(sql, parameters) {
+        this.queryCount += 1;
+        if (this.queryCount === 1) {
+          return { rows: [{ migration_table: "_prisma_migrations" }] };
+        }
+        assert.match(sql, /FROM public\._prisma_migrations/u);
+        assert.deepEqual(parameters, [expectedMigration]);
+        return {
+          rows: [{
+            checksum: expectedChecksum,
+            finished_at: new Date("2026-10-12T00:00:00Z"),
+            rolled_back_at: null,
+            applied_steps_count: "1",
+          }],
+        };
+      },
+    });
+    assert.deepEqual(
+      await readClerkWebhookEventActivationState(exactClient(
+        CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+        CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readAccountDeletionSideEffectActivationState(exactClient(
+        ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
+        ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.equal(clerkWebhookEventRlsActivationExpected({
+      rlsEnableTables: [CLERK_WEBHOOK_EVENT_TABLE],
+      clerkWebhookEventRlsActivationApplied: false,
+    }), false);
+    assert.equal(accountDeletionSideEffectRlsActivationExpected({
+      rlsEnableTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+      rlsPolicyTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+      accountDeletionSideEffectRlsActivationApplied: false,
+    }), false);
   });
 
   it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {

@@ -1427,7 +1427,21 @@ RLS staging context proof:
 2. Check `/api/cron/*` logs in Vercel for route-level failures.
 3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
 4. Check Sentry for cron route exceptions and failed cron check-ins.
-5. Before the compatible cleanup-retirement deployment, abandoned-upload
+5. Before `AccountDeletionSideEffect` activation, use the read-only production
+   inspection to enumerate unfinished legacy `MEDIA_DELETE` rows whose payload
+   has a URL but no canonical object key. Never disable the activation check or
+   mass-mark these rows complete. For each exact row, retain only a sanitized
+   row-id hash, status, attempt count, payload digest, and timestamp. Verify the
+   row still belongs to the active deletion claim and independently derive the
+   first-party object key and deleted-user ownership. If ownership is proven,
+   use reviewed R2 deletion tooling and a separately reviewed one-row database
+   repair bound to the exact row id, prior status, payload digest, and timestamp;
+   the repair may mark the row complete only after object absence is confirmed.
+   If ownership cannot be proven, preserve the object and escalate the privacy
+   case for manual resolution. Re-run the read-only inspection afterward;
+   activation requires zero unfinished URL-only jobs. A permanently failed row
+   is still unfinished and must be resolved rather than ignored.
+6. Before the compatible cleanup-retirement deployment, abandoned-upload
    cleanup remains owned by `/api/cron/direct-upload-cleanup`; inspect lifecycle
    rows by `status`, `cleanupAfter`, `attempts`, `endpoint`, and `lastError`, and
    investigate repeated `DELETE_FAILED` results in `CronRun`. The compatible
@@ -1441,8 +1455,8 @@ RLS staging context proof:
    the exact lease is marked `DELETE_FAILED`. Never copy object keys, database
    URLs or R2 credentials into tickets. Manual workflow dispatch requires exact
    confirmation `run-reviewed-direct-upload-cleanup`.
-6. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, `dedupKey`, and `lastError`. Retryable provider sends use `dedupKey` as the Resend idempotency key, so check the Resend dashboard before manually resending a stuck `PROCESSING` row. `SENT`, `SKIPPED`, and `DEAD` rows are pruned after 30 days by the daily notification-prune cron.
-7. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
+7. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, `dedupKey`, and `lastError`. Retryable provider sends use `dedupKey` as the Resend idempotency key, so check the Resend dashboard before manually resending a stuck `PROCESSING` row. `SENT`, `SKIPPED`, and `DEAD` rows are pruned after 30 days by the daily notification-prune cron.
+8. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
 
 ## Support and Legal Requests
 

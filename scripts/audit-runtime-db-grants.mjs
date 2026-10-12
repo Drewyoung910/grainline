@@ -78,6 +78,14 @@ export const CASE_ACTIVATION_TABLES = Object.freeze([
 export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
 export const CLERK_WEBHOOK_EVENT_TABLE = "ClerkWebhookEvent";
 export const ACCOUNT_DELETION_SIDE_EFFECT_TABLE = "AccountDeletionSideEffect";
+export const CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION =
+  "20261010160000_enable_clerk_webhook_event_rls";
+export const CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256 =
+  "7c5fc7f61280a14695b8a2b2c4e1b3d354aeae40f581f952e529015cf70066d9";
+export const ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION =
+  "20261011180000_enable_account_deletion_side_effect_rls";
+export const ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256 =
+  "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
@@ -155,6 +163,24 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_user_staff_capability_mint(text,text,text,timestamp without time zone)",
   "grainline_user_ban_repair_target(text,text)",
 ]);
+export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
+  [
+    "grainline_user_staff_directory_count(text,text)",
+    "grainline_user_staff_directory_page(text,text,integer)",
+    "grainline_user_staff_exact_email_target(text,text)",
+    "grainline_user_staff_report_labels(text,text[])",
+    "grainline_user_staff_email_recipient(text,text,text)",
+    "grainline_user_staff_ban_target(text,text)",
+    "grainline_user_staff_capability_mint(text,text,text,timestamp without time zone)",
+    "grainline_user_ban_repair_target(text,text)",
+    "grainline_user_staff_admin_labels(text,text[])",
+  ],
+);
+export const MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
+  STAFF_READ_FUNCTION_IDENTITIES.slice(0, 6),
+);
+export const STAFF_READ_BOOTSTRAP_MARKER_PATTERN =
+  /^grainline:staff-read-bootstrap:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:[0-9a-f]{40}$/u;
 const AUDIT_CONNECTION_TIMEOUT_MS = 10_000;
 const AUDIT_STATEMENT_TIMEOUT_MS = 30_000;
 const AUDIT_QUERY_TIMEOUT_MS = 35_000;
@@ -162,6 +188,11 @@ export const SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX =
   "SAVED_SEARCH_CATALOG_STATE=";
 export const REQUIRE_DIRECT_URL_FLAG = "--require-direct-url";
 export const ALLOW_LOOPBACK_CI_FLAG = "--allow-loopback-ci";
+export const ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE =
+  "order-zero-direct-private";
+export const ORDER_USER_COMBINED_STAFF_READ_STAGE =
+  "order-user-combined";
+export const STAFF_READ_STAGE_FLAG_PREFIX = "--staff-read-stage=";
 
 const OBJECT_TYPE_TABLE = "r";
 const OBJECT_TYPE_SEQUENCE = "S";
@@ -369,6 +400,9 @@ export function stripeWebhookEventRlsForceExpected(inventory) {
 }
 
 export function clerkWebhookEventRlsActivationExpected(inventory) {
+  if (typeof inventory?.clerkWebhookEventRlsActivationApplied === "boolean") {
+    return inventory.clerkWebhookEventRlsActivationApplied;
+  }
   const enabled = new Set(inventory?.rlsEnableTables ?? []);
   const policies = new Set(inventory?.rlsPolicyTables ?? []);
   return enabled.has(CLERK_WEBHOOK_EVENT_TABLE)
@@ -381,6 +415,9 @@ export function clerkWebhookEventRlsForceExpected(inventory) {
 }
 
 export function accountDeletionSideEffectRlsActivationExpected(inventory) {
+  if (typeof inventory?.accountDeletionSideEffectRlsActivationApplied === "boolean") {
+    return inventory.accountDeletionSideEffectRlsActivationApplied;
+  }
   const enabled = new Set(inventory?.rlsEnableTables ?? []);
   const policies = new Set(inventory?.rlsPolicyTables ?? []);
   return enabled.has(ACCOUNT_DELETION_SIDE_EFFECT_TABLE)
@@ -433,14 +470,16 @@ export function collectRestrictedRoleEffectiveFunctionIssues(rows, expectedByRol
       issues.push(`restricted role ${role} does not exist`);
       continue;
     }
-    const directValues = sortedUnique((row.direct_function_identities ?? []).map(String));
+    const directValues = sortedUnique((row.direct_function_identities ?? [])
+      .map((identity) => String(identity).replace(/\s*,\s*/gu, ",").trim()));
     const direct = new Set(directValues);
     const effectiveValues = sortedUnique((row.effective_function_identities ?? [])
-      .map(String)
+      .map((identity) => String(identity).replace(/\s*,\s*/gu, ",").trim())
       .filter((identity) => !allowed.has(identity)));
     const expected = expectedByRole[role];
     if (Array.isArray(expected)) {
-      const expectedValues = sortedUnique(expected.map(String));
+      const expectedValues = sortedUnique(expected
+        .map((identity) => String(identity).replace(/\s*,\s*/gu, ",").trim()));
       if (directValues.join("|") !== expectedValues.join("|")) {
         issues.push(
           `restricted role ${role} direct function authority drifted: ${directValues.join(", ") || "none"}`,
@@ -461,6 +500,53 @@ export function collectRestrictedRoleEffectiveFunctionIssues(rows, expectedByRol
     }
   }
   return issues;
+}
+
+export function collectStaffReadRoleMarkerIssues(rows) {
+  return (Array.isArray(rows) ? rows : []).flatMap((row) => {
+    if (!row?.role_exists || row.role_marker === null || row.role_marker === undefined) {
+      return [];
+    }
+    return STAFF_READ_BOOTSTRAP_MARKER_PATTERN.test(String(row.role_marker))
+      ? []
+      : [`restricted role ${String(row.role_name ?? "unknown")} bootstrap marker is invalid`];
+  });
+}
+
+export function staffReadFunctionIdentitiesForInventory(
+  inventory,
+  roleMarker = null,
+  staffReadStage = null,
+) {
+  const functionNames = new Set(inventory?.functions ?? []);
+  const combinedIdentities = [
+    ...new Set([
+      ...STAFF_READ_FUNCTION_IDENTITIES,
+      ...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
+    ]),
+  ].filter((identity) =>
+    functionNames.has(identity.slice(0, identity.indexOf("("))));
+  if (staffReadStage !== null) {
+    if (![ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
+      ORDER_USER_COMBINED_STAFF_READ_STAGE].includes(staffReadStage)) {
+      throw new Error("unknown staff-read audit stage");
+    }
+    if (roleMarker !== null && roleMarker !== undefined) {
+      throw new Error("explicit staff-read audit stage requires an unmarked role");
+    }
+    return staffReadStage === ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE
+      ? []
+      : combinedIdentities;
+  }
+  if (STAFF_READ_BOOTSTRAP_MARKER_PATTERN.test(String(roleMarker ?? ""))) {
+    return combinedIdentities;
+  }
+  const userMigrationIdentities = MIGRATION_STAFF_READ_FUNCTION_IDENTITIES
+    .filter((identity) =>
+      functionNames.has(identity.slice(0, identity.indexOf("("))));
+  if (userMigrationIdentities.length > 0) return userMigrationIdentities;
+  return MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES.filter((identity) =>
+    functionNames.has(identity.slice(0, identity.indexOf("("))));
 }
 
 export function accountDeletionRuntimeExecuteExpected(row, inventory) {
@@ -777,6 +863,7 @@ export async function readRestrictedRoleEffectiveFunctionState(client, roleNames
     SELECT
       requested.role_name,
       role.oid IS NOT NULL AS role_exists,
+      pg_catalog.shobj_description(role.oid, 'pg_authid') AS role_marker,
       ARRAY(
         SELECT pg_catalog.format('%s(%s)', procedure.proname, pg_catalog.oidvectortypes(procedure.proargtypes))
           FROM pg_catalog.pg_proc AS procedure
@@ -1041,6 +1128,56 @@ export async function readOrderItemQuoteRuntimeLockState(client) {
   });
 }
 
+async function readExactMigrationAppliedState(
+  client,
+  { migration, checksum, label },
+) {
+  const relation = await client.query(
+    "SELECT pg_catalog.to_regclass('public._prisma_migrations') AS migration_table",
+  );
+  if (relation.rows[0]?.migration_table === null) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+  const result = await client.query(
+    `SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+       FROM public._prisma_migrations
+      WHERE migration_name = $1`,
+    [migration],
+  );
+  if (result.rows.length === 0) {
+    return Object.freeze({ applied: false, issues: Object.freeze([]) });
+  }
+  const row = result.rows[0];
+  const exact = result.rows.length === 1
+    && row.checksum === checksum
+    && row.finished_at !== null
+    && row.finished_at !== undefined
+    && row.rolled_back_at === null
+    && Number(row.applied_steps_count) === 1;
+  return Object.freeze({
+    applied: exact,
+    issues: Object.freeze(exact ? [] : [
+      `${label} migration ledger is partial or drifted`,
+    ]),
+  });
+}
+
+export async function readClerkWebhookEventActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+    checksum: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
+    label: "ClerkWebhookEvent activation",
+  });
+}
+
+export async function readAccountDeletionSideEffectActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
+    checksum: ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
+    label: "AccountDeletionSideEffect activation",
+  });
+}
+
 export function policylessServiceRlsTableNames(inventory) {
   return [
     ...POLICYLESS_SERVICE_RLS_TABLES,
@@ -1247,7 +1384,9 @@ export async function readSavedSearchCatalogState(client) {
 export function resolveGrantAuditConnection(env, argv = []) {
   assertDeterministicPostgresEnvironment(env, "grant audit");
   const unknownArgs = argv.filter(
-    (arg) => arg !== REQUIRE_DIRECT_URL_FLAG && arg !== ALLOW_LOOPBACK_CI_FLAG,
+    (arg) => arg !== REQUIRE_DIRECT_URL_FLAG
+      && arg !== ALLOW_LOOPBACK_CI_FLAG
+      && !arg.startsWith(STAFF_READ_STAGE_FLAG_PREFIX),
   );
   if (unknownArgs.length > 0) {
     throw new Error("grant audit received an unknown command-line argument");
@@ -1287,6 +1426,24 @@ export function resolveGrantAuditConnection(env, argv = []) {
     { allowLoopbackCi },
   );
   return connectionString;
+}
+
+export function resolveStaffReadAuditStage(argv = []) {
+  const stageArguments = argv.filter((arg) =>
+    arg.startsWith(STAFF_READ_STAGE_FLAG_PREFIX));
+  if (stageArguments.length === 0) return null;
+  if (stageArguments.length !== 1) {
+    throw new Error("grant audit accepts at most one staff-read audit stage");
+  }
+  if (!argv.includes(ALLOW_LOOPBACK_CI_FLAG)) {
+    throw new Error("staff-read audit stage is allowed only with loopback CI");
+  }
+  const stage = stageArguments[0].slice(STAFF_READ_STAGE_FLAG_PREFIX.length);
+  if (![ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
+    ORDER_USER_COMBINED_STAFF_READ_STAGE].includes(stage)) {
+    throw new Error("grant audit received an unknown staff-read audit stage");
+  }
+  return stage;
 }
 
 function isLoopbackHostname(hostname) {
@@ -2411,7 +2568,13 @@ export function collectTablePrivilegeAllowlistIssues(
   return issues;
 }
 
-export async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory }) {
+export async function auditLiveDatabase({
+  client,
+  runtimeRole,
+  migrationRole,
+  inventory,
+  staffReadStage = null,
+}) {
   const issues = [];
   const expectedRlsPolicyTables = new Set(inventory.rlsPolicyTables ?? []);
   const expectedRlsForceTables = new Set(inventory.rlsForceTables ?? []);
@@ -2425,6 +2588,12 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   const orderItemQuoteRuntimeLock =
     await readOrderItemQuoteRuntimeLockState(client);
   issues.push(...orderItemQuoteRuntimeLock.issues);
+  const clerkWebhookEventActivation =
+    await readClerkWebhookEventActivationState(client);
+  issues.push(...clerkWebhookEventActivation.issues);
+  const accountDeletionSideEffectActivation =
+    await readAccountDeletionSideEffectActivationState(client);
+  issues.push(...accountDeletionSideEffectActivation.issues);
   const liveAuthorityInventory = {
     ...inventory,
     checkoutStockReservationSourceCutoverApplied:
@@ -2432,6 +2601,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     orderSellerEmailProjectionRetirementApplied:
       sellerEmailProjectionRetirement.applied,
     orderItemQuoteRuntimeLockApplied: orderItemQuoteRuntimeLock.applied,
+    clerkWebhookEventRlsActivationApplied:
+      clerkWebhookEventActivation.applied,
+    accountDeletionSideEffectRlsActivationApplied:
+      accountDeletionSideEffectActivation.applied,
   };
 
   const roleResult = await client.query(
@@ -2706,7 +2879,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     [inventory.tables],
   );
   const policylessServiceRlsTables = new Set(
-    policylessServiceRlsTableNames(inventory),
+    policylessServiceRlsTableNames(liveAuthorityInventory),
   );
   for (const row of rlsPolicyResult.rows) {
     const hasPolicies = Number(row.policy_count) > 0;
@@ -2746,7 +2919,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     }
   }
   issues.push(
-    ...collectPolicylessServiceRlsIssues(rlsPolicyResult.rows, inventory),
+    ...collectPolicylessServiceRlsIssues(
+      rlsPolicyResult.rows,
+      liveAuthorityInventory,
+    ),
   );
 
   if (expectedRlsPolicyTables.has("SavedSearch")) {
@@ -3011,17 +3187,31 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     }
   }
 
-  const staffReadAuthorityExpected = (inventory.functions ?? []).some(
-    (name) => name.startsWith("grainline_order_staff_")
-      || name.startsWith("grainline_user_staff_"),
+  const staffReadAuthorityExpected = (liveAuthorityInventory.functions ?? []).some(
+    (name) => [
+      ...STAFF_READ_FUNCTION_IDENTITIES,
+      ...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
+    ].some(
+      (identity) => identity.startsWith(`${name}(`),
+    ),
   );
   if (staffReadAuthorityExpected) {
+    const staffReadState = await readRestrictedRoleEffectiveFunctionState(
+      client,
+      ["grainline_staff_read_runtime"],
+    );
+    const expectedStaffReadFunctions = staffReadFunctionIdentitiesForInventory(
+      liveAuthorityInventory,
+      staffReadState[0]?.role_marker,
+      staffReadStage,
+    );
+    issues.push(...collectStaffReadRoleMarkerIssues(staffReadState));
     issues.push(
       ...collectRestrictedRoleEffectiveFunctionIssues(
-        await readRestrictedRoleEffectiveFunctionState(
-          client,
-          ["grainline_staff_read_runtime"],
-        ),
+        staffReadState,
+        {
+          grainline_staff_read_runtime: expectedStaffReadFunctions,
+        },
       ),
     );
   }
@@ -3362,8 +3552,10 @@ async function main() {
   const allowLoopbackCi = argv.includes(ALLOW_LOOPBACK_CI_FLAG);
   let connectionString;
   let expectedDatabaseName;
+  let staffReadStage;
   try {
     connectionString = resolveGrantAuditConnection(process.env, argv);
+    staffReadStage = resolveStaffReadAuditStage(argv);
     expectedDatabaseName = parseGrantAuditDatabaseIdentity(
       connectionString,
       requireDirectUrl ? "DIRECT_URL" : "grant audit database URL",
@@ -3400,7 +3592,13 @@ async function main() {
       expectedDatabaseName,
       migrationRole,
     );
-    const issues = await auditLiveDatabase({ client, runtimeRole, migrationRole, inventory });
+    const issues = await auditLiveDatabase({
+      client,
+      runtimeRole,
+      migrationRole,
+      inventory,
+      staffReadStage,
+    });
     if (issues.length > 0) {
       await client.query("ROLLBACK");
       console.error(`Runtime DB grant audit failed for ${runtimeRole}.`);

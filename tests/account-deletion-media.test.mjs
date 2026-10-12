@@ -47,6 +47,19 @@ describe("account deletion media cleanup scoping", () => {
     );
   });
 
+  it("drops keys that the database media fence rejects", () => {
+    const overlong = `https://media.example.com/grain/listingImage/user_123/${"a".repeat(480)}.jpg`;
+    assert.deepEqual(
+      accountDeletionMediaKeysForCleanup([
+        "https://media.example.com/grain/listingImage/user_123/valid.jpg",
+        "https://media.example.com/grain/listingImage/user_123/%0Ahidden.jpg",
+        "https://media.example.com/grain/galleryImage/user_123/",
+        overlong,
+      ], "user_123"),
+      ["listingImage/user_123/valid.jpg"],
+    );
+  });
+
   it("deduplicates URL aliases and batches every media key without truncation", () => {
     assert.deepEqual(
       accountDeletionMediaKeysForCleanup([

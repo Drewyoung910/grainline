@@ -150,7 +150,13 @@ export function firstPartyMediaKey(input: string): string | null {
     } catch {
       return null;
     }
-    if (!key || key.includes("..") || key.split("/").some((part) => part === "." || part === "..")) {
+    if (
+      !key ||
+      Array.from(key).length > 500 ||
+      /[\p{Cc}]/u.test(key) ||
+      key.includes("..") ||
+      key.split("/").some((part) => part === "." || part === "..")
+    ) {
       return null;
     }
     return key;
@@ -168,7 +174,7 @@ export function isFirstPartyMediaUrlForUser(
   if (!key) return false;
 
   const [endpoint, userSegment, ...rest] = key.split("/");
-  if (!endpoint || !userSegment || rest.length === 0) return false;
+  if (!endpoint || !userSegment || !rest[0]) return false;
   if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) return false;
   return userSegment === uploadKeyUserSegmentForValidation(clerkUserId);
 }

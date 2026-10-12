@@ -14,6 +14,9 @@ export const ACCOUNT_DELETION_RUNTIME_FUNCTIONS = Object.freeze([
   "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
   "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
 ]);
+export const ACCOUNT_DELETION_APPLICATION_FUNCTIONS = Object.freeze([
+  "grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])",
+]);
 
 const stopped = () => new Error(
   "account-deletion runtime readiness gate stopped; preparation is absent or authority drifted",
@@ -48,6 +51,30 @@ export function collectAccountDeletionRuntimeReadinessIssues(rows) {
   return [...new Set(issues)];
 }
 
+export function collectAccountDeletionApplicationReadinessIssues(rows) {
+  const issues = [];
+  const values = Array.isArray(rows) ? rows : [];
+  const identities = new Set(values.map((row) => String(row?.function_identity ?? "")));
+  for (const identity of ACCOUNT_DELETION_APPLICATION_FUNCTIONS) {
+    if (!identities.has(identity)) issues.push(`missing required application function ${identity}`);
+  }
+  if (values.length !== ACCOUNT_DELETION_APPLICATION_FUNCTIONS.length) {
+    issues.push("account-deletion application function inventory is not exact");
+  }
+  for (const row of values) {
+    const prefix = String(row?.function_identity ?? "unknown");
+    if (row?.current_user_name !== "grainline_app_runtime"
+      || row?.session_user_name !== "grainline_app_runtime"
+      || row?.database_name !== "neondb") {
+      issues.push("application database identity drifted");
+    }
+    if (row?.read_only !== true) issues.push("application readiness transaction is not read-only");
+    if (row?.function_exists !== true) issues.push(`${prefix} is not installed`);
+    if (row?.function_execute !== true) issues.push(`${prefix} lacks effective EXECUTE`);
+  }
+  return [...new Set(issues)];
+}
+
 export async function verifyAccountDeletionRuntimeReadiness({
   env = process.env,
   ClientImpl = Client,
@@ -59,20 +86,29 @@ export async function verifyAccountDeletionRuntimeReadiness({
     requireOrderStaffReadDatabase: true,
     requireAccountDeletionDatabase: true,
   });
-  const connectionString = env[ACCOUNT_DELETION_DATABASE_ENV];
-  const client = new ClientImpl({
+  const workerConnectionString = env[ACCOUNT_DELETION_DATABASE_ENV];
+  const applicationConnectionString = env.DATABASE_URL;
+  const clientOptions = (connectionString, application_name) => ({
     connectionString,
     ...postgresChannelBindingClientOptions(new URL(connectionString)),
     ssl: { rejectUnauthorized: true },
     connectionTimeoutMillis: 10_000,
     statement_timeout: 15_000,
     query_timeout: 20_000,
-    application_name: "grainline-account-deletion-runtime-readiness",
+    application_name,
   });
+  const workerClient = new ClientImpl(clientOptions(
+    workerConnectionString,
+    "grainline-account-deletion-worker-readiness",
+  ));
+  const applicationClient = new ClientImpl(clientOptions(
+    applicationConnectionString,
+    "grainline-account-deletion-application-readiness",
+  ));
   try {
-    await client.connect();
-    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const result = await client.query(`
+    await workerClient.connect();
+    await workerClient.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const workerResult = await workerClient.query(`
       WITH expected(function_identity) AS (
         SELECT pg_catalog.unnest($1::text[])
       ), candidate AS (
@@ -103,21 +139,50 @@ export async function verifyAccountDeletionRuntimeReadiness({
       CROSS JOIN candidate
       ORDER BY expected.function_identity
     `, [ACCOUNT_DELETION_RUNTIME_FUNCTIONS]);
-    const issues = collectAccountDeletionRuntimeReadinessIssues(result.rows);
-    if (issues.length > 0) throw stopped();
-    await client.query("COMMIT");
+    if (collectAccountDeletionRuntimeReadinessIssues(workerResult.rows).length > 0) {
+      throw stopped();
+    }
+    await applicationClient.connect();
+    await applicationClient.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const applicationResult = await applicationClient.query(`
+      WITH expected(function_identity) AS (
+        SELECT pg_catalog.unnest($1::text[])
+      )
+      SELECT
+        expected.function_identity,
+        current_user::text AS current_user_name,
+        session_user::text AS session_user_name,
+        current_database()::text AS database_name,
+        pg_catalog.current_setting('transaction_read_only') = 'on' AS read_only,
+        pg_catalog.to_regprocedure(expected.function_identity) IS NOT NULL AS function_exists,
+        COALESCE(pg_catalog.has_function_privilege(
+          current_user,
+          pg_catalog.to_regprocedure(expected.function_identity),
+          'EXECUTE'
+        ), false) AS function_execute
+      FROM expected
+      ORDER BY expected.function_identity
+    `, [ACCOUNT_DELETION_APPLICATION_FUNCTIONS]);
+    if (collectAccountDeletionApplicationReadinessIssues(applicationResult.rows).length > 0) {
+      throw stopped();
+    }
+    await applicationClient.query("COMMIT");
+    await workerClient.query("COMMIT");
     return Object.freeze({
       enforced: true,
       environment: "production",
       role: "grainline_account_deletion_runtime",
       preparedFunctionCount: ACCOUNT_DELETION_RUNTIME_FUNCTIONS.length,
+      applicationFunctionCount: ACCOUNT_DELETION_APPLICATION_FUNCTIONS.length,
       readOnly: true,
     });
   } catch {
-    try { await client.query("ROLLBACK"); } catch { /* preserve bounded failure */ }
+    try { await applicationClient.query("ROLLBACK"); } catch { /* preserve bounded failure */ }
+    try { await workerClient.query("ROLLBACK"); } catch { /* preserve bounded failure */ }
     throw stopped();
   } finally {
-    try { await client.end(); } catch { /* connection is already unusable */ }
+    try { await applicationClient.end(); } catch { /* connection is already unusable */ }
+    try { await workerClient.end(); } catch { /* connection is already unusable */ }
   }
 }
 

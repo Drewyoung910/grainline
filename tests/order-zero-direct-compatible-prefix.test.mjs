@@ -166,6 +166,17 @@ describe("Order zero-direct compatible prefix staging", () => {
     assert.ok(restoreIndex > firstDeployIndex);
     assert.ok(restoreIndex < compatibleDeployIndex);
     assert.ok(proofIndex > compatibleDeployIndex);
+    const participantAudit = ciWorkflow.slice(
+      ciWorkflow.indexOf("Audit Order participant grants and retained Order posture"),
+      ciWorkflow.indexOf(
+        "Prove Order/payment/shipping legacy inspection SQL after label claim preparation",
+      ),
+    );
+    assert.match(participantAudit, /--allow-loopback-ci/u);
+    assert.match(
+      participantAudit,
+      /--staff-read-stage=order-zero-direct-private/u,
+    );
     for (const migration of ORDER_ZERO_DIRECT_COMPATIBLE_SUCCESSOR_MIGRATIONS) {
       assert.equal(
         (ciWorkflow.match(new RegExp(migration, "gu")) ?? []).length,

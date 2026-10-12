@@ -30,6 +30,7 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
   const applyPreparation = "Apply AccountDeletionSideEffect claim-fence preparation in disposable PostgreSQL";
   const applyMediaKey = "Apply AccountDeletionSideEffect media-key fence in disposable PostgreSQL";
   const applyActivation = "Apply AccountDeletionSideEffect policyless activation in disposable PostgreSQL";
+  const stageActivationLedger = "Stage exact AccountDeletionSideEffect activation ledger for integrated proof";
   const audit = "Audit runtime grants after AccountDeletionSideEffect activation";
 
   assert.ok(workflow.indexOf(verify) < workflow.indexOf(isolate));
@@ -39,7 +40,8 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
   assert.ok(workflow.indexOf(reverify) < workflow.indexOf(applyPreparation));
   assert.ok(workflow.indexOf(applyPreparation) < workflow.indexOf(applyMediaKey));
   assert.ok(workflow.indexOf(applyMediaKey) < workflow.indexOf(applyActivation));
-  assert.ok(workflow.indexOf(applyActivation) < workflow.indexOf(audit));
+  assert.ok(workflow.indexOf(applyActivation) < workflow.indexOf(stageActivationLedger));
+  assert.ok(workflow.indexOf(stageActivationLedger) < workflow.indexOf(audit));
   assert.ok(workflow.indexOf(audit) < workflow.indexOf("Production build"));
 
   for (const migration of [preparation, mediaKey, activation]) {
@@ -70,4 +72,15 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
     assert.match(step(name), /--set=ON_ERROR_STOP=on/);
     assert.doesNotMatch(step(name), /gh |vercel|workflow_dispatch|environment: Production/);
   }
+  assert.match(
+    step(stageActivationLedger),
+    /ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256/,
+  );
+  assert.match(step(stageActivationLedger), /INSERT INTO public\._prisma_migrations/);
+  assert.match(step(stageActivationLedger), /'account-deletion-rls-proof'/);
+  assert.ok("account-deletion-rls-proof".length <= 36);
+  assert.doesNotMatch(
+    step(stageActivationLedger),
+    /gh |vercel|workflow_dispatch|environment: Production/,
+  );
 });

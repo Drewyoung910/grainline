@@ -107,12 +107,11 @@ jobs:
           tests/clerk-webhook-event-authority.test.mjs
           tests/clerk-webhook-event-production-inspect.test.mjs
           tests/clerk-webhook-event-production-workflows.test.mjs
+          tests/reviewed-pending-migrations.test.mjs
       - name: Verify exact ClerkWebhookEvent ENABLE migration bytes
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
-            "20261010160000_enable_clerk_webhook_event_rls"
           echo "7c5fc7f61280a14695b8a2b2c4e1b3d354aeae40f581f952e529015cf70066d9  prisma/migrations/20261010160000_enable_clerk_webhook_event_rls/migration.sql" | sha256sum --check --status
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
@@ -136,7 +135,7 @@ jobs:
             *) exit 1 ;;
           esac
           echo "state=$state" >> "$GITHUB_OUTPUT"
-      - name: Require every predecessor migration applied before ENABLE
+      - name: Apply only reviewed ClerkWebhookEvent ENABLE migration
         if: steps.preflight.outputs.state == 'complete'
         shell: bash
         env:
@@ -144,27 +143,32 @@ jobs:
         run: |
           set -euo pipefail
           migration="20261010160000_enable_clerk_webhook_event_rls"
-          holding="$RUNNER_TEMP/clerk-webhook-event-enable-migration"
-          mkdir -p "$holding"
+          holding="$(mktemp -d "$RUNNER_TEMP/clerk-webhook-event-enable.XXXXXX")"
           restore() {
-            if [[ -d "$holding/$migration" ]]; then
-              mv "$holding/$migration" "prisma/migrations/$migration"
-            fi
+            shopt -s nullglob
+            for path in "$holding"/*; do
+              mv "$path" "prisma/migrations/$(basename "$path")"
+            done
+            rmdir "$holding"
           }
           trap restore EXIT
+          shopt -s nullglob
+          for path in prisma/migrations/*/; do
+            candidate="$(basename "$path")"
+            if [[ "$candidate" > "$migration" ]]; then
+              mv "$path" "$holding/$candidate"
+            fi
+          done
           mv "prisma/migrations/$migration" "$holding/$migration"
+          npx prisma migrate status
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = "$migration"
+          REVIEWED_PENDING_MIGRATIONS="$migration" node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate deploy
+          REVIEWED_PENDING_MIGRATIONS="" node scripts/assert-reviewed-pending-migrations.mjs
           npx prisma migrate status
           restore
           trap - EXIT
-      - name: Apply only reviewed ClerkWebhookEvent ENABLE migration
-        if: steps.preflight.outputs.state == 'complete'
-        env:
-          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-        run: npx prisma migrate deploy
-      - name: Verify enabled migration status
-        env:
-          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-        run: npx prisma migrate status
       - name: Inspect enabled ClerkWebhookEvent catalog after apply
         env:
           CLERK_WEBHOOK_EVENT_EXPECTED_STATE: enabled
