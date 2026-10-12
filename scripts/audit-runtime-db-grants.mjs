@@ -86,6 +86,14 @@ export const ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION =
   "20261011180000_enable_account_deletion_side_effect_rls";
 export const ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256 =
   "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b";
+export const ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION =
+  "20261011170000_prepare_account_deletion_side_effect_claim_fence";
+export const ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256 =
+  "2b79282ad52c8f4f5c417eebeb1593b157bd66b8fd66d792185865383e1f5924";
+export const ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION =
+  "20261011173000_prepare_account_deletion_media_key_fence";
+export const ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256 =
+  "d132a70f9673815f8e789151761ed2da1031c5d58c8313c6dc25fe7c430a0ba9";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
@@ -426,6 +434,16 @@ export function accountDeletionSideEffectRlsActivationExpected(inventory) {
 
 const ACCOUNT_DELETION_CLAIM_FENCE_MARKER =
   "grainline_account_deletion_claim_user";
+const ACCOUNT_DELETION_CLAIM_FENCE_FUNCTION_NAMES = new Set([
+  ACCOUNT_DELETION_CLAIM_FENCE_MARKER,
+  "grainline_account_deletion_media_enqueue_claimed",
+  "grainline_account_deletion_side_effect_claim",
+  "grainline_account_deletion_side_effect_complete",
+  "grainline_account_deletion_side_effect_fail",
+]);
+const ACCOUNT_DELETION_MEDIA_KEY_FUNCTION_NAMES = new Set([
+  "grainline_account_deletion_media_key_enqueue_claimed",
+]);
 const ACCOUNT_DELETION_ALWAYS_PRIVATE_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_claim_user(text,bigint,uuid)",
 ]);
@@ -452,6 +470,43 @@ function normalizedFunctionIdentity(row) {
     ? row.argument_types.replace(/\s*,\s*/g, ",").trim()
     : "";
   return `${row?.function_name ?? ""}(${argumentTypes})`;
+}
+
+export function accountDeletionClaimFencePreparationExpected(inventory) {
+  if (typeof inventory?.accountDeletionClaimFencePreparationApplied === "boolean") {
+    return inventory.accountDeletionClaimFencePreparationApplied;
+  }
+  return (inventory?.functions ?? []).includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER);
+}
+
+export function accountDeletionMediaKeyPreparationExpected(inventory) {
+  if (typeof inventory?.accountDeletionMediaKeyPreparationApplied === "boolean") {
+    return inventory.accountDeletionMediaKeyPreparationApplied;
+  }
+  return (inventory?.functions ?? []).includes(
+    "grainline_account_deletion_media_key_enqueue_claimed",
+  );
+}
+
+export function withAppliedAccountDeletionAuthority(
+  inventory,
+  { claimFenceApplied, mediaKeyApplied },
+) {
+  const functions = (inventory?.functions ?? []).filter((name) => {
+    if (ACCOUNT_DELETION_CLAIM_FENCE_FUNCTION_NAMES.has(name)) {
+      return claimFenceApplied;
+    }
+    if (ACCOUNT_DELETION_MEDIA_KEY_FUNCTION_NAMES.has(name)) {
+      return mediaKeyApplied;
+    }
+    return true;
+  });
+  return {
+    ...inventory,
+    functions,
+    accountDeletionClaimFencePreparationApplied: claimFenceApplied,
+    accountDeletionMediaKeyPreparationApplied: mediaKeyApplied,
+  };
 }
 
 export function collectPublicFunctionExecuteIssues(rows) {
@@ -550,7 +605,7 @@ export function staffReadFunctionIdentitiesForInventory(
 }
 
 export function accountDeletionRuntimeExecuteExpected(row, inventory) {
-  if (!(inventory?.functions ?? []).includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER)) {
+  if (!accountDeletionClaimFencePreparationExpected(inventory)) {
     return null;
   }
   const argumentTypes = typeof row?.argument_types === "string"
@@ -573,7 +628,7 @@ export function accountDeletionRuntimeExecuteExpected(row, inventory) {
 }
 
 export function collectAccountDeletionWorkerBoundaryIssues(state, inventory) {
-  if (!(inventory?.functions ?? []).includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER)) {
+  if (!accountDeletionClaimFencePreparationExpected(inventory)) {
     return [];
   }
   const issues = [];
@@ -1176,6 +1231,41 @@ export async function readAccountDeletionSideEffectActivationState(client) {
     checksum: ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
     label: "AccountDeletionSideEffect activation",
   });
+}
+
+export async function readAccountDeletionClaimFencePreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION,
+    checksum: ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256,
+    label: "AccountDeletionSideEffect claim-fence preparation",
+  });
+}
+
+export async function readAccountDeletionMediaKeyPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION,
+    checksum: ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256,
+    label: "AccountDeletionSideEffect media-key preparation",
+  });
+}
+
+export function collectAccountDeletionMigrationOrderIssues({
+  claimFenceApplied,
+  mediaKeyApplied,
+  activationApplied,
+}) {
+  const issues = [];
+  if (mediaKeyApplied && !claimFenceApplied) {
+    issues.push(
+      "AccountDeletionSideEffect media-key preparation is applied without its claim-fence prerequisite",
+    );
+  }
+  if (activationApplied && (!claimFenceApplied || !mediaKeyApplied)) {
+    issues.push(
+      "AccountDeletionSideEffect activation is applied without both exact preparation migrations",
+    );
+  }
+  return issues;
 }
 
 export function policylessServiceRlsTableNames(inventory) {
@@ -1788,8 +1878,8 @@ export function collectConversationMessageFunctionIssues(
 ) {
   const issues = [];
   const functionRows = Array.isArray(rows) ? rows : [];
-  const accountDeletionClaimFencePresent = (inventory?.functions ?? [])
-    .includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER);
+  const accountDeletionClaimFencePresent =
+    accountDeletionClaimFencePreparationExpected(inventory);
   const accountDeletionActive = accountDeletionSideEffectRlsActivationExpected(
     inventory,
   );
@@ -2591,11 +2681,25 @@ export async function auditLiveDatabase({
   const clerkWebhookEventActivation =
     await readClerkWebhookEventActivationState(client);
   issues.push(...clerkWebhookEventActivation.issues);
+  const accountDeletionClaimFencePreparation =
+    await readAccountDeletionClaimFencePreparationState(client);
+  issues.push(...accountDeletionClaimFencePreparation.issues);
+  const accountDeletionMediaKeyPreparation =
+    await readAccountDeletionMediaKeyPreparationState(client);
+  issues.push(...accountDeletionMediaKeyPreparation.issues);
   const accountDeletionSideEffectActivation =
     await readAccountDeletionSideEffectActivationState(client);
   issues.push(...accountDeletionSideEffectActivation.issues);
+  issues.push(...collectAccountDeletionMigrationOrderIssues({
+    claimFenceApplied: accountDeletionClaimFencePreparation.applied,
+    mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
+    activationApplied: accountDeletionSideEffectActivation.applied,
+  }));
   const liveAuthorityInventory = {
-    ...inventory,
+    ...withAppliedAccountDeletionAuthority(inventory, {
+      claimFenceApplied: accountDeletionClaimFencePreparation.applied,
+      mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
+    }),
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,
     orderSellerEmailProjectionRetirementApplied:
@@ -2658,9 +2762,7 @@ export async function auditLiveDatabase({
   if (!role.rolcanlogin) issues.push(`runtime role ${runtimeRole} must have LOGIN`);
   if (role.rolinherit) issues.push(`runtime role ${runtimeRole} must have NOINHERIT`);
 
-  if ((liveAuthorityInventory.functions ?? []).includes(
-    ACCOUNT_DELETION_CLAIM_FENCE_MARKER,
-  )) {
+  if (accountDeletionClaimFencePreparationExpected(liveAuthorityInventory)) {
     issues.push(
       ...collectAccountDeletionWorkerBoundaryIssues(
         await readAccountDeletionWorkerBoundaryState(client),
@@ -3165,10 +3267,12 @@ export async function auditLiveDatabase({
   issues.push(...collectRuntimeFunctionGrantOptionIssues(functionResult.rows));
   issues.push(...collectPublicFunctionExecuteIssues(functionResult.rows));
   issues.push(
-    ...missingItems(inventory.functions, functionNames).map((fn) => `missing expected function ${fn}`),
+    ...missingItems(liveAuthorityInventory.functions, functionNames)
+      .map((fn) => `missing expected function ${fn}`),
   );
   issues.push(
-    ...functionNames.filter((fn) => !inventory.functions.includes(fn)).map((fn) => `live DB has untracked grainline_* function ${fn}`),
+    ...functionNames.filter((fn) => !liveAuthorityInventory.functions.includes(fn))
+      .map((fn) => `live DB has untracked grainline_* function ${fn}`),
   );
   for (const row of functionResult.rows) {
     const accountDeletionExecuteExpected =
@@ -3256,7 +3360,7 @@ export async function auditLiveDatabase({
         ),
         runtimeRole,
         migrationRole,
-        inventory,
+        liveAuthorityInventory,
       ),
     );
   }
