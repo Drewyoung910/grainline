@@ -92,6 +92,9 @@ test("CI proves the Clerk webhook package, isolates it from historical guards, a
   const apply = workflow.indexOf(
     "name: Apply Clerk webhook event authority in disposable PostgreSQL",
   );
+  const stageActivationLedger = workflow.indexOf(
+    "name: Stage exact Clerk webhook event activation ledger for integrated proof",
+  );
   const catalog = workflow.indexOf(
     "name: Verify Clerk webhook event authority catalog",
   );
@@ -104,7 +107,8 @@ test("CI proves the Clerk webhook package, isolates it from historical guards, a
   assert.ok(isolate < historical && historical < tests);
   assert.ok(tests < forceAudit && forceAudit < restore);
   assert.ok(restore < reverify && reverify < apply);
-  assert.ok(apply < catalog && catalog < audit && audit < build);
+  assert.ok(apply < stageActivationLedger);
+  assert.ok(stageActivationLedger < catalog && catalog < audit && audit < build);
   assert.match(
     workflow.slice(verify, isolate),
     /tests\/clerk-webhook-receipt\.test\.mjs/,
@@ -136,6 +140,14 @@ test("CI proves the Clerk webhook package, isolates it from historical guards, a
   assert.match(
     replay,
     /--file=prisma\/migrations\/20261010160000_enable_clerk_webhook_event_rls\/migration\.sql/,
+  );
+  assert.match(
+    replay,
+    /CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256/,
+  );
+  assert.match(
+    replay,
+    /INSERT INTO public\._prisma_migrations/,
   );
   assert.match(replay, /pg_catalog\.count\(\*\) = 5/);
   assert.match(replay, /claimGeneration/);

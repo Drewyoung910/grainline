@@ -1,7 +1,12 @@
 // Dormant, read-only composition. No credentials, provider calls or mutations.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { auditLiveDatabase, deriveGrantInventory, runtimePrivateFunctionNames } from "./audit-runtime-db-grants.mjs";
+import {
+  auditLiveDatabase,
+  deriveGrantInventory,
+  ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
+  runtimePrivateFunctionNames,
+} from "./audit-runtime-db-grants.mjs";
 import { DIRECT_UPLOAD_CLEANUP_ROLE } from "./direct-upload-activation-catalog.mjs";
 
 const PRIVATE_INTRODUCTIONS = [["OrderStaffCapability", 10], ["SellerDeauthorizationApplication", 12]];
@@ -67,7 +72,8 @@ export async function auditZeroDirectAuthority(client, inventoryState, owner) {
   const configuration = await readZeroDirectConfiguration(client, owner);
   assertZeroDirectConfiguration(configuration);
   const issues = await auditLiveDatabase({ client, runtimeRole: "grainline_app_runtime",
-    migrationRole: owner, inventory: inventoryState.inventory });
+    migrationRole: owner, inventory: inventoryState.inventory,
+    staffReadStage: ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE });
   // No raw audit diagnostics or database identifiers enter portable evidence.
   assert.ok(Array.isArray(issues) && issues.length === 0, "global authority audit rejected the exact prefix");
   return { prefixLength: inventoryState.prefixLength, inventorySha256: inventoryState.sha256,

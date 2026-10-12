@@ -72,6 +72,10 @@ test("policyless ENABLE is inspection-bound, exact-main, restart-safe, and keeps
   assert.match(enable, /steps\.preflight\.outputs\.state == 'complete'/u);
   assert.equal((enable.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.equal((enable.match(/npx prisma migrate status/gu) ?? []).length, 2);
+  assert.equal((enable.match(/assert-reviewed-pending-migrations\.mjs/gu) ?? []).length, 2);
+  assert.match(enable, /for path in prisma\/migrations\/\*\/; do[\s\S]*if \[\[ "\$candidate" > "\$migration" \]\]/u);
+  assert.match(enable, /mv "prisma\/migrations\/\$migration" "\$holding\/\$migration"[\s\S]*npx prisma migrate status[\s\S]*mv "\$holding\/\$migration" "prisma\/migrations\/\$migration"[\s\S]*npx prisma migrate deploy/u);
+  assert.match(enable, /trap restore EXIT/u);
   assert.match(enable, /npm run audit:db-grants -- --require-direct-url/u);
   assert.match(enable, new RegExp(`${activationDigest}  ${activationPath.replaceAll(".", "\\.")}`, "u"));
   assert.doesNotMatch(enable, /FORCE ROW LEVEL SECURITY|vercel|git push/iu);
@@ -82,14 +86,11 @@ test("ENABLE proves source before owner access and inspect-status-apply-postflig
   const bytes = enable.indexOf("Verify exact ClerkWebhookEvent ENABLE migration bytes");
   const boundary = enable.indexOf("Verify owner connection boundary");
   const preflight = enable.indexOf("Inspect restart-safe ClerkWebhookEvent state before apply");
-  const predecessors = enable.indexOf("Require every predecessor migration applied before ENABLE");
   const apply = enable.indexOf("Apply only reviewed ClerkWebhookEvent ENABLE migration");
-  const status = enable.indexOf("Verify enabled migration status");
   const postflight = enable.indexOf("Inspect enabled ClerkWebhookEvent catalog after apply");
   const audit = enable.indexOf("Audit global grants after ClerkWebhookEvent ENABLE");
   assert.ok(source >= 0 && source < bytes && bytes < boundary && boundary < preflight);
-  assert.ok(preflight < predecessors && predecessors < apply && apply < status);
-  assert.ok(status < postflight && postflight < audit);
+  assert.ok(preflight < apply && apply < postflight && postflight < audit);
 });
 
 test("inspection proves exact source and bytes before touching the owner connection", () => {
@@ -142,6 +143,10 @@ test("compatibility migration release is inspection-bound, exact-main, scope-clo
   assert.match(release, /steps\.preflight\.outputs\.state == 'pending'/u);
   assert.equal((release.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.equal((release.match(/npx prisma migrate status/gu) ?? []).length, 2);
+  assert.equal((release.match(/assert-reviewed-pending-migrations\.mjs/gu) ?? []).length, 2);
+  assert.match(release, /for path in prisma\/migrations\/\*\/; do[\s\S]*if \[\[ "\$candidate" > "\$migration" \]\]/u);
+  assert.match(release, /mv "prisma\/migrations\/\$migration" "\$holding\/\$migration"[\s\S]*npx prisma migrate status[\s\S]*mv "\$holding\/\$migration" "prisma\/migrations\/\$migration"[\s\S]*npx prisma migrate deploy/u);
+  assert.match(release, /trap restore EXIT/u);
   assert.match(release, /npm run audit:db-grants -- --require-direct-url/u);
   assert.match(release, /name: Preserve sanitized ClerkWebhookEvent release evidence\n\s+if: always\(\)/u);
   assert.match(release, new RegExp(`${migrationDigest}  ${migrationPath.replaceAll(".", "\\.")}`, "u"));
@@ -153,14 +158,20 @@ test("release performs source proof before owner access and inspect-status-apply
   const bytes = release.indexOf("Verify exact compatibility migration bytes");
   const boundary = release.indexOf("Verify owner connection boundary");
   const preflight = release.indexOf("Inspect restart-safe ClerkWebhookEvent state before apply");
-  const predecessors = release.indexOf("Require every predecessor migration applied");
   const apply = release.indexOf("Apply only reviewed ClerkWebhookEvent compatibility migration");
-  const status = release.indexOf("Verify complete migration status");
   const audit = release.indexOf("Audit global grants after ClerkWebhookEvent compatibility release");
   const postflight = release.indexOf("Inspect complete ClerkWebhookEvent catalog after apply");
   assert.ok(source >= 0 && source < bytes && bytes < boundary && boundary < preflight);
-  assert.ok(preflight < predecessors && predecessors < apply && apply < status);
-  assert.ok(status < audit && audit < postflight);
+  assert.ok(preflight < apply && apply < audit && audit < postflight);
+});
+
+test("current-main Clerk workflows do not require their migration to be newest", () => {
+  for (const workflow of [inspection, release, enable]) {
+    const bytesStart = workflow.indexOf("Verify exact");
+    const boundary = workflow.indexOf("Verify owner connection boundary");
+    assert.ok(bytesStart >= 0 && boundary > bytesStart);
+    assert.doesNotMatch(workflow.slice(bytesStart, boundary), /tail -n 1/u);
+  }
 });
 
 test("historical CI isolates the production wiring tests with their Clerk migration and replays them after restore", () => {

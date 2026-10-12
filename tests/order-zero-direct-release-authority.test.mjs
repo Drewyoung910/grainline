@@ -70,7 +70,8 @@ test("configuration drift fails before the global audit and never includes raw s
     assert.throws(() => assertZeroDirectConfiguration(row));
   const source = readFileSync("scripts/order-zero-direct-release-authority.mjs", "utf8");
   assert.doesNotMatch(source, /new (?:pg\.)?Client|process\.env|writeFile|execFile|ALTER ROLE|ALTER DATABASE/u);
-  assert.match(source, /auditLiveDatabase\(\{ client, runtimeRole: "grainline_app_runtime"/u);
+  assert.match(source, /ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE/u);
+  assert.match(source, /auditLiveDatabase\(\{ client, runtimeRole: "grainline_app_runtime",[\s\S]*staffReadStage: ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE/u);
   // This component reads cardinality only, not any GUC value or password.
   assert.doesNotMatch(source, /unnest\(s\.setconfig\)|rolpassword|pg_authid/u);
 });

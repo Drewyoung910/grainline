@@ -1,6 +1,6 @@
 # Account deletion worker bootstrap
 
-Last updated: 2026-10-11
+Last updated: 2026-10-12
 
 ## Scope
 
@@ -50,6 +50,11 @@ The role marker is
 `grainline:account-deletion-bootstrap:<attemptId>:<releaseCommit>`. An ambiguous
 retry must reuse the exact journaled credential. An existing role without the
 exact marker and posture fails closed.
+
+Failed-attempt journals remain private evidence until a read-only catalog check
+proves that no live login carries their attempt marker. Archive them mode
+`0600`; do not retry an unused password from a failed attempt and do not infer
+role absence from a failed client response alone.
 
 The credential epoch is deliberately composed from two fixed mode-`0600`
 records. The 2026-09-02 recovery record still proves the current owner
@@ -126,16 +131,30 @@ running application by itself.
    run the local-only retirement command: it independently reads the exact
    provider row, performs no provider mutation, and then applies the same local
    terminal transition and token-file deletion.
-5. Separately authorize and apply only preparation migration
-   `20261011170000_prepare_account_deletion_side_effect_claim_fence`.
-6. Deploy and validate the worker while the legacy helpers remain compatible,
-   then drain predecessor work.
-7. Separately authorize and apply activation migration
+5. Finish the independent `ClerkWebhookEvent` authority and policyless ENABLE
+   releases first. The AccountDeletionSideEffect preparation must prove every
+   predecessor migration is applied and must never use an unrestricted
+   `prisma migrate deploy` while another reviewed migration is pending.
+6. Separately authorize and apply only preparation migrations
+   `20261011170000_prepare_account_deletion_side_effect_claim_fence` and
+   `20261011173000_prepare_account_deletion_media_key_fence` through the
+   migration-isolating workflow.
+7. Deploy and validate the worker and compatible application while the legacy
+   helpers remain available, then drain predecessor work.
+8. Resolve every unfinished legacy `MEDIA_DELETE` row that lacks a canonical
+   object key using the bounded manual process in `docs/runbook.md`. Do not
+   bypass the activation preflight or mass-mark rows complete.
+9. Separately authorize and apply activation migration
    `20261011180000_enable_account_deletion_side_effect_rls`.
-8. Treat FORCE RLS as a later release boundary with its own inspection and
+10. Treat FORCE RLS as a later release boundary with its own inspection and
    authorization.
 
 The receipts contain identity, digests, stage, and status only. They must not
 contain passwords, database URLs, provider tokens, raw provider payloads, or
 owner SQL. Provider credentials that exist outside this operation's deleted
 private token file remain subject to their own account-wide rotation policy.
+Deleting `provider-tokens.json` is not provider-side revocation. After the
+installed value and terminal journal are accepted, inventory and revoke the
+exact GitHub and Vercel bootstrap tokens at their providers, retain only token
+identifiers or digests plus revocation timestamps, and account for copies in
+local snapshots or backups under the host retention policy.

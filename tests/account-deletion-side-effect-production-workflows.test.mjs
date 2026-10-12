@@ -173,7 +173,7 @@ test("preparation is inspection-bound, exact-main, scope-closed, restart-safe, a
   );
   assert.match(
     preparation,
-    /if \[\[ "\$ACCOUNT_DELETION_PREFLIGHT_STATE" == "preparation_only" \]\][\s\S]*elif \[\[ "\$ACCOUNT_DELETION_PREFLIGHT_STATE" != "pending" \]\]/u,
+    /if \[\[ "\$ACCOUNT_DELETION_PREFLIGHT_STATE" == "pending" \]\][\s\S]*elif \[\[ "\$ACCOUNT_DELETION_PREFLIGHT_STATE" != "preparation_only" \]\]/u,
   );
   assert.equal(
     (preparation.match(/npx prisma migrate deploy/gu) ?? []).length,
@@ -183,9 +183,17 @@ test("preparation is inspection-bound, exact-main, scope-closed, restart-safe, a
     (preparation.match(/npx prisma migrate status/gu) ?? []).length,
     2,
   );
+  assert.equal(
+    (preparation.match(/assert-reviewed-pending-migrations\.mjs/gu) ?? []).length,
+    3,
+  );
   assert.match(
     preparation,
-    /mv "prisma\/migrations\/\$activation" "\$holding\/\$activation"/u,
+    /for path in prisma\/migrations\/\*\/; do[\s\S]*if \[\[ "\$candidate" > "\$media_key" \]\]/u,
+  );
+  assert.match(
+    preparation,
+    /mv "prisma\/migrations\/\$media_key" "\$holding\/\$media_key"[\s\S]*npx prisma migrate status[\s\S]*mv "\$holding\/\$media_key" "prisma\/migrations\/\$media_key"[\s\S]*npx prisma migrate deploy/u,
   );
   assert.match(preparation, /trap restore EXIT/u);
   assert.match(preparation, /npm run audit:db-grants -- --require-direct-url/u);
