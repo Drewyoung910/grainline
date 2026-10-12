@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   ACCOUNT_DELETION_ACTIVATION_MIGRATION,
+  ACCOUNT_DELETION_FORCE_MIGRATION,
   ACCOUNT_DELETION_INSPECTION_CONFIRMATION,
   ACCOUNT_DELETION_MEDIA_KEY_MIGRATION,
   ACCOUNT_DELETION_PREPARATION_MIGRATION,
@@ -100,8 +101,9 @@ function functionRows(expectation, enabled = false) {
 
 function catalog(expectation, state = "prepared") {
   const preparationApplied = state !== "pending";
-  const mediaKeyApplied = state === "prepared" || state === "enabled";
-  const activationApplied = state === "enabled";
+  const mediaKeyApplied = ["prepared", "enabled", "forced"].includes(state);
+  const activationApplied = ["enabled", "forced"].includes(state);
+  const forceApplied = state === "forced";
   return {
     identity: {
       current_user: "neondb_owner",
@@ -152,13 +154,24 @@ function catalog(expectation, state = "prepared") {
                 },
               ]
             : []),
+          ...(forceApplied
+            ? [
+                {
+                  migration_name: ACCOUNT_DELETION_FORCE_MIGRATION,
+                  checksum: expectation.force.checksum,
+                  finished: true,
+                  rolled_back: false,
+                  applied_steps_count: "1",
+                },
+              ]
+            : []),
         ]
       : [],
     table: {
       table_name: "AccountDeletionSideEffect",
       owner_name: "neondb_owner",
       rls_enabled: activationApplied,
-      rls_forced: false,
+      rls_forced: forceApplied,
       policy_count: activationApplied ? 1 : 0,
       runtime_select: !activationApplied,
       runtime_insert: !activationApplied,
@@ -268,7 +281,7 @@ function catalog(expectation, state = "prepared") {
   };
 }
 
-test("expectation is derived from exact preparation, activation, and function bytes", () => {
+test("expectation is derived from exact preparation, activation, FORCE, and function bytes", () => {
   const expectation = buildAccountDeletionPreparationExpectation();
   const preparation = fs.readFileSync(
     `prisma/migrations/${ACCOUNT_DELETION_PREPARATION_MIGRATION}/migration.sql`,
@@ -278,6 +291,9 @@ test("expectation is derived from exact preparation, activation, and function by
   );
   const mediaKey = fs.readFileSync(
     `prisma/migrations/${ACCOUNT_DELETION_MEDIA_KEY_MIGRATION}/migration.sql`,
+  );
+  const force = fs.readFileSync(
+    `prisma/migrations/${ACCOUNT_DELETION_FORCE_MIGRATION}/migration.sql`,
   );
   assert.equal(
     expectation.checksum,
@@ -302,6 +318,10 @@ test("expectation is derived from exact preparation, activation, and function by
   assert.equal(
     expectation.activation.checksum,
     "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b",
+  );
+  assert.equal(
+    expectation.force.checksum,
+    createHash("sha256").update(force).digest("hex"),
   );
   assert.equal(expectation.functions.length, 12);
   assert.equal(expectation.preparationFunctions.length, 11);
@@ -345,6 +365,15 @@ test("config requires exact first-attempt main, owner target, digest, state, and
   assert.deepEqual(
     parseAccountDeletionInspectionConfig(env(root, "enabled")).acceptedStates,
     ["enabled"],
+  );
+  assert.deepEqual(
+    parseAccountDeletionInspectionConfig(env(root, "force-compatible"))
+      .acceptedStates,
+    ["enabled", "forced"],
+  );
+  assert.deepEqual(
+    parseAccountDeletionInspectionConfig(env(root, "forced")).acceptedStates,
+    ["forced"],
   );
   for (const [key, value] of [
     ["GITHUB_RUN_ATTEMPT", "2"],
@@ -410,6 +439,7 @@ test("pending, partial, and prepared catalogs are accepted only in their reviewe
       preparationApplied: true,
       mediaKeyApplied: true,
       activationApplied: false,
+      forceApplied: false,
       installedFunctionCount: 12,
       reviewedFunctionCount: 12,
       activationBlockerCount: null,
@@ -430,6 +460,7 @@ test("pending, partial, and prepared catalogs are accepted only in their reviewe
       preparationApplied: true,
       mediaKeyApplied: false,
       activationApplied: false,
+      forceApplied: false,
       installedFunctionCount: 11,
       reviewedFunctionCount: 11,
       activationBlockerCount: null,
@@ -453,6 +484,29 @@ test("pending, partial, and prepared catalogs are accepted only in their reviewe
       true,
     ).state,
     "enabled",
+  );
+  assert.deepEqual(
+    verifyAccountDeletionCatalog(
+      catalog(expectation, "forced"),
+      expectation,
+      ["forced"],
+      true,
+    ),
+    {
+      state: "forced",
+      preparationApplied: true,
+      mediaKeyApplied: true,
+      activationApplied: true,
+      forceApplied: true,
+      installedFunctionCount: 12,
+      reviewedFunctionCount: 12,
+      activationBlockerCount: 0,
+      rlsEnabled: true,
+      rlsForced: true,
+      rowDataRead: true,
+      sanitizedActivationBlockers: true,
+      productionChanged: false,
+    },
   );
   const reversedPartial = structuredClone(catalog(expectation));
   reversedPartial.migrations = reversedPartial.migrations.filter(

@@ -135,6 +135,8 @@ const {
   ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256,
   ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
   ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
+  ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION,
+  ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION_SHA256,
   CLERK_WEBHOOK_EVENT_TABLE,
   CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
   CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
@@ -161,6 +163,7 @@ const {
   caseRlsActivationExpected,
   caseRlsForceExpected,
   accountDeletionSideEffectRlsActivationExpected,
+  accountDeletionSideEffectRlsForceExpected,
   accountDeletionClaimFencePreparationExpected,
   accountDeletionMediaKeyPreparationExpected,
   accountDeletionRuntimeExecuteExpected,
@@ -200,6 +203,7 @@ const {
   readAccountDeletionClaimFencePreparationState,
   readAccountDeletionMediaKeyPreparationState,
   readAccountDeletionSideEffectActivationState,
+  readAccountDeletionSideEffectForceState,
   readClerkWebhookEventActivationState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
@@ -1038,6 +1042,7 @@ describe("database grant inventory guardrails", () => {
       claimFenceApplied: true,
       mediaKeyApplied: true,
       activationApplied: true,
+      forceApplied: true,
     }), []);
     assert.deepEqual(collectAccountDeletionMigrationOrderIssues({
       claimFenceApplied: false,
@@ -1052,6 +1057,14 @@ describe("database grant inventory guardrails", () => {
       activationApplied: true,
     }), [
       "AccountDeletionSideEffect activation is applied without both exact preparation migrations",
+    ]);
+    assert.deepEqual(collectAccountDeletionMigrationOrderIssues({
+      claimFenceApplied: true,
+      mediaKeyApplied: true,
+      activationApplied: false,
+      forceApplied: true,
+    }), [
+      "AccountDeletionSideEffect FORCE is applied without its exact activation prerequisite",
     ]);
   });
 
@@ -1165,6 +1178,23 @@ describe("database grant inventory guardrails", () => {
         policy_count: 1,
         exact_policy_count: 1,
       }, activeInventory),
+      [],
+    );
+
+    const forcedInventory = {
+      ...activeInventory,
+      rlsForceTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
+    };
+    assert.equal(accountDeletionSideEffectRlsForceExpected(activeInventory), false);
+    assert.equal(accountDeletionSideEffectRlsForceExpected(forcedInventory), true);
+    assert.deepEqual(
+      collectAccountDeletionWorkerBoundaryIssues({
+        ...preparedState,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 1,
+        exact_policy_count: 1,
+      }, forcedInventory),
       [],
     );
 
@@ -3113,6 +3143,9 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       inventory.rlsForceTables,
       [
+        ...(accountDeletionSideEffectRlsForceExpected(inventory)
+          ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
+          : []),
         "Case",
         "CaseMessage",
         "CaseMessageAttachment",
@@ -3581,6 +3614,13 @@ describe("database grant inventory guardrails", () => {
       await readAccountDeletionSideEffectActivationState(exactClient(
         ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
         ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readAccountDeletionSideEffectForceState(exactClient(
+        ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION,
+        ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION_SHA256,
       )),
       { applied: true, issues: [] },
     );

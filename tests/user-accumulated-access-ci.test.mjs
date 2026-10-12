@@ -61,6 +61,7 @@ const accountDeletionSuccessorMigrations = [
   "20261011170000_prepare_account_deletion_side_effect_claim_fence",
   "20261011173000_prepare_account_deletion_media_key_fence",
   "20261011180000_enable_account_deletion_side_effect_rls",
+  "20261012120000_force_account_deletion_side_effect_rls",
 ];
 const admittedTests = [...heldTests, ...packageOwnedTests];
 const staffScript = "scripts/provision-order-staff-read-role.sql";
@@ -168,7 +169,7 @@ test("new User families are proved then isolated until historical prerequisites 
     "Audit runtime grants after User policyless ENABLE",
     "Audit runtime grants after User policyless FORCE",
     "Audit runtime grants after Clerk webhook event authority",
-    "Audit runtime grants after AccountDeletionSideEffect activation",
+    "Audit runtime grants after AccountDeletionSideEffect FORCE",
   ]) {
     assert.match(
       step(auditStep),

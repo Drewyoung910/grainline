@@ -31,6 +31,8 @@ export const ACCOUNT_DELETION_MEDIA_KEY_MIGRATION =
   "20261011173000_prepare_account_deletion_media_key_fence";
 export const ACCOUNT_DELETION_ACTIVATION_MIGRATION =
   "20261011180000_enable_account_deletion_side_effect_rls";
+export const ACCOUNT_DELETION_FORCE_MIGRATION =
+  "20261012120000_force_account_deletion_side_effect_rls";
 export const ACCOUNT_DELETION_INSPECTION_CONFIRMATION =
   "inspect-reviewed-account-deletion-side-effect-preparation";
 export const REVIEWED_ACCOUNT_DELETION_TARGET = Object.freeze({
@@ -50,6 +52,8 @@ const EXPECTED_STATES = Object.freeze({
   prepared: Object.freeze(["prepared"]),
   "activation-compatible": Object.freeze(["prepared", "enabled"]),
   enabled: Object.freeze(["enabled"]),
+  "force-compatible": Object.freeze(["enabled", "forced"]),
+  forced: Object.freeze(["forced"]),
   compatible: Object.freeze(["pending", "preparation_only", "prepared"]),
 });
 
@@ -256,9 +260,17 @@ export function buildAccountDeletionPreparationExpectation(
     ACCOUNT_DELETION_MEDIA_KEY_MIGRATION,
     "migration.sql",
   );
+  const forcePath = path.join(
+    root,
+    "prisma",
+    "migrations",
+    ACCOUNT_DELETION_FORCE_MIGRATION,
+    "migration.sql",
+  );
   const preparationSql = readFileSync(preparationPath, "utf8");
   const mediaKeySql = readFileSync(mediaKeyPath, "utf8");
   const activationSql = readFileSync(activationPath, "utf8");
+  const forceSql = readFileSync(forcePath, "utf8");
   const preparationFunctionIdentities = [...FUNCTION_GRANTS.keys()].filter(
     (identity) =>
       identity !==
@@ -285,6 +297,10 @@ export function buildAccountDeletionPreparationExpectation(
       checksum: createHash("sha256")
         .update(activationSql, "utf8")
         .digest("hex"),
+    }),
+    force: Object.freeze({
+      migration: ACCOUNT_DELETION_FORCE_MIGRATION,
+      checksum: createHash("sha256").update(forceSql, "utf8").digest("hex"),
     }),
     preparationFunctions,
     functions: Object.freeze([...preparationFunctions, mediaKeyFunction]),
@@ -372,7 +388,10 @@ export function parseAccountDeletionInspectionConfig(env = process.env) {
     expectedState,
     identity,
     requireActivationReady:
-      expectedState === "activation-compatible" || expectedState === "enabled",
+      expectedState === "activation-compatible" ||
+      expectedState === "enabled" ||
+      expectedState === "force-compatible" ||
+      expectedState === "forced",
     releaseCommit,
   });
 }
@@ -451,6 +470,7 @@ export async function readAccountDeletionCatalog(
         expectation.migration,
         expectation.mediaKey.migration,
         expectation.activation.migration,
+        expectation.force.migration,
       ],
     ],
   );
@@ -734,10 +754,14 @@ export function verifyAccountDeletionCatalog(
   const mediaKeyRows = catalog.migrations.filter(
     (row) => row.migration_name === expectation.mediaKey.migration,
   );
+  const forceRows = catalog.migrations.filter(
+    (row) => row.migration_name === expectation.force.migration,
+  );
   assert.ok(
     preparationRows.length <= 1 &&
       mediaKeyRows.length <= 1 &&
-      activationRows.length <= 1,
+      activationRows.length <= 1 &&
+      forceRows.length <= 1,
   );
   assert.ok(
     preparationRows.length === 1 || mediaKeyRows.length === 0,
@@ -747,10 +771,17 @@ export function verifyAccountDeletionCatalog(
     mediaKeyRows.length === 1 || activationRows.length === 0,
     "AccountDeletionSideEffect activation requires both preparation predecessors",
   );
+  assert.ok(
+    activationRows.length === 1 || forceRows.length === 0,
+    "AccountDeletionSideEffect FORCE requires its activation predecessor",
+  );
   const preparationApplied = preparationRows.length === 1;
   const mediaKeyApplied = mediaKeyRows.length === 1;
   const activationApplied = activationRows.length === 1;
-  const state = activationApplied
+  const forceApplied = forceRows.length === 1;
+  const state = forceApplied
+    ? "forced"
+    : activationApplied
     ? "enabled"
     : mediaKeyApplied
     ? "prepared"
@@ -807,12 +838,21 @@ export function verifyAccountDeletionCatalog(
         applied_steps_count: "1",
       });
     }
+    if (forceApplied) {
+      assert.deepEqual(forceRows[0], {
+        migration_name: expectation.force.migration,
+        checksum: expectation.force.checksum,
+        finished: true,
+        rolled_back: false,
+        applied_steps_count: "1",
+      });
+    }
   }
   assert.deepEqual(catalog.table, {
     table_name: "AccountDeletionSideEffect",
     owner_name: target.ownerRole,
     rls_enabled: activationApplied,
-    rls_forced: false,
+    rls_forced: forceApplied,
     policy_count: activationApplied ? 1 : 0,
     runtime_select: !activationApplied,
     runtime_insert: !activationApplied,
@@ -1013,13 +1053,14 @@ export function verifyAccountDeletionCatalog(
     preparationApplied,
     mediaKeyApplied,
     activationApplied,
+    forceApplied,
     installedFunctionCount: actualFunctions.length,
     reviewedFunctionCount: expectedFunctions.length,
     activationBlockerCount: requireActivationReady
       ? catalog.activationBlockerCount
       : null,
     rlsEnabled: activationApplied,
-    rlsForced: false,
+    rlsForced: forceApplied,
     rowDataRead: requireActivationReady,
     sanitizedActivationBlockers: requireActivationReady,
     productionChanged: false,

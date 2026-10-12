@@ -250,7 +250,8 @@ jobs:
           for migration in \
             20261011170000_prepare_account_deletion_side_effect_claim_fence \
             20261011173000_prepare_account_deletion_media_key_fence \
-            20261011180000_enable_account_deletion_side_effect_rls
+            20261011180000_enable_account_deletion_side_effect_rls \
+            20261012120000_force_account_deletion_side_effect_rls
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -5282,7 +5283,8 @@ jobs:
           for migration in \
             20261011170000_prepare_account_deletion_side_effect_claim_fence \
             20261011173000_prepare_account_deletion_media_key_fence \
-            20261011180000_enable_account_deletion_side_effect_rls
+            20261011180000_enable_account_deletion_side_effect_rls \
+            20261012120000_force_account_deletion_side_effect_rls
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -5324,7 +5326,7 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql
-      - name: Stage exact AccountDeletionSideEffect ledgers for integrated proof
+      - name: Stage exact AccountDeletionSideEffect predecessor ledgers for FORCE proof
         run: |
           node --input-type=module - <<'NODE'
           import assert from 'node:assert/strict';
@@ -5377,7 +5379,46 @@ jobs:
             await client.end();
           }
           NODE
-      - name: Audit runtime grants after AccountDeletionSideEffect activation
+      - name: Apply AccountDeletionSideEffect FORCE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261012120000_force_account_deletion_side_effect_rls/migration.sql
+      - name: Stage exact AccountDeletionSideEffect FORCE ledger for integrated proof
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          import {
+            ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION,
+            ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION_SHA256,
+          } from './scripts/audit-runtime-db-grants.mjs';
+
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            const existing = await client.query(`
+              SELECT migration_name
+                FROM public._prisma_migrations
+               WHERE migration_name = $1
+            `, [ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION]);
+            assert.equal(existing.rows.length, 0);
+            await client.query(`
+              INSERT INTO public._prisma_migrations (
+                id, checksum, finished_at, migration_name, logs,
+                rolled_back_at, started_at, applied_steps_count
+              ) VALUES ($1, $2, clock_timestamp(), $3, NULL,
+                        NULL, clock_timestamp(), 1)
+            `, [
+              'account-deletion-force-proof',
+              ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION_SHA256,
+              ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION,
+            ]);
+          } finally {
+            await client.end();
+          }
+          NODE
+      - name: Audit runtime grants after AccountDeletionSideEffect FORCE
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime

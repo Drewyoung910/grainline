@@ -131,9 +131,9 @@ running application by itself.
    run the local-only retirement command: it independently reads the exact
    provider row, performs no provider mutation, and then applies the same local
    terminal transition and token-file deletion.
-5. Finish the independent `ClerkWebhookEvent` authority and policyless ENABLE
-   releases first. The AccountDeletionSideEffect preparation must prove every
-   predecessor migration is applied and must never use an unrestricted
+5. Retain the accepted independent `ClerkWebhookEvent` policyless ENABLE
+   closure (`38271942650`). AccountDeletionSideEffect preparation must prove
+   every predecessor migration is applied and must never use an unrestricted
    `prisma migrate deploy` while another reviewed migration is pending.
 6. Separately authorize and apply only preparation migrations
    `20261011170000_prepare_account_deletion_side_effect_claim_fence` and
@@ -155,16 +155,22 @@ running application by itself.
    already-live compatible application deployment, the one reviewed migration,
    and an enabled postflight inspection. It is restart-safe and never enables
    FORCE RLS.
-10. After ENABLE, run the strengthened Production runtime-readiness guard under
-    both real pooled identities. It must exercise a read through the exact
-    worker policy without retaining row data, prove the ordinary application
-    role receives PostgreSQL permission denial on a direct table read, and
-    retain only the sanitized booleans. A new unaliased Vercel candidate can
-    perform this check inside Vercel without exporting Production environment
-    values to a local file.
-11. Treat FORCE RLS as a later release boundary with its own inspection and
-    authorization. FORCE design starts only after the actual worker/application
-    postflight above passes.
+10. ~~After ENABLE, run the strengthened Production runtime-readiness guard
+    under both real pooled identities.~~ Complete on unaliased Production-target
+    candidate `dpl_6RtXJxDhNtAqmeSn1YYH2CzRHaJd` from exact source
+    `976844c99a3e2107a5dcfcc2775eb46ba1b379a0`. Its build exercised a read
+    through the exact worker policy without retaining row data and proved the
+    ordinary application role received PostgreSQL permission denial on a direct
+    table read. The sanitized result reports RLS enabled, FORCE disabled,
+    `workerPolicyExercised=true`, `applicationDirectReadDenied=true`, and
+    `readOnly=true`. All five canonical aliases remained on predecessor
+    `dpl_4fkg6pj9L7pNa3jY5wcufqPF4ef9`.
+11. The posture-only FORCE successor
+    `20261012120000_force_account_deletion_side_effect_rls`, its exact catalog
+    inspection states, focused disposable-PostgreSQL proof, and guarded
+    Production workflow are source-prepared. Do not apply it until the actual
+    worker/application proof above passes, the source is merged with accepted
+    exact-head CI, and the FORCE run is separately authorized.
 
 The receipts contain identity, digests, stage, and status only. They must not
 contain passwords, database URLs, provider tokens, raw provider payloads, or

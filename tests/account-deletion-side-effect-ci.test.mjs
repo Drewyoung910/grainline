@@ -6,6 +6,7 @@ const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const preparation = "20261011170000_prepare_account_deletion_side_effect_claim_fence";
 const mediaKey = "20261011173000_prepare_account_deletion_media_key_fence";
 const activation = "20261011180000_enable_account_deletion_side_effect_rls";
+const force = "20261012120000_force_account_deletion_side_effect_rls";
 const packageTests = [
   "account-deletion-side-effect-ci.test.mjs",
   "account-deletion-side-effect-activation-postgres.test.mjs",
@@ -30,8 +31,10 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
   const applyPreparation = "Apply AccountDeletionSideEffect claim-fence preparation in disposable PostgreSQL";
   const applyMediaKey = "Apply AccountDeletionSideEffect media-key fence in disposable PostgreSQL";
   const applyActivation = "Apply AccountDeletionSideEffect policyless activation in disposable PostgreSQL";
-  const stageActivationLedger = "Stage exact AccountDeletionSideEffect ledgers for integrated proof";
-  const audit = "Audit runtime grants after AccountDeletionSideEffect activation";
+  const stagePredecessorLedgers = "Stage exact AccountDeletionSideEffect predecessor ledgers for FORCE proof";
+  const applyForce = "Apply AccountDeletionSideEffect FORCE in disposable PostgreSQL";
+  const stageForceLedger = "Stage exact AccountDeletionSideEffect FORCE ledger for integrated proof";
+  const audit = "Audit runtime grants after AccountDeletionSideEffect FORCE";
 
   assert.ok(workflow.indexOf(verify) < workflow.indexOf(isolate));
   assert.ok(workflow.indexOf(isolate) < workflow.indexOf("Verify accumulated User access source package"));
@@ -40,11 +43,13 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
   assert.ok(workflow.indexOf(reverify) < workflow.indexOf(applyPreparation));
   assert.ok(workflow.indexOf(applyPreparation) < workflow.indexOf(applyMediaKey));
   assert.ok(workflow.indexOf(applyMediaKey) < workflow.indexOf(applyActivation));
-  assert.ok(workflow.indexOf(applyActivation) < workflow.indexOf(stageActivationLedger));
-  assert.ok(workflow.indexOf(stageActivationLedger) < workflow.indexOf(audit));
+  assert.ok(workflow.indexOf(applyActivation) < workflow.indexOf(stagePredecessorLedgers));
+  assert.ok(workflow.indexOf(stagePredecessorLedgers) < workflow.indexOf(applyForce));
+  assert.ok(workflow.indexOf(applyForce) < workflow.indexOf(stageForceLedger));
+  assert.ok(workflow.indexOf(stageForceLedger) < workflow.indexOf(audit));
   assert.ok(workflow.indexOf(audit) < workflow.indexOf("Production build"));
 
-  for (const migration of [preparation, mediaKey, activation]) {
+  for (const migration of [preparation, mediaKey, activation, force]) {
     assert.ok(step(isolate).includes(migration), `${isolate}: ${migration}`);
     assert.ok(step(restore).includes(migration), `${restore}: ${migration}`);
   }
@@ -67,32 +72,40 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
     step(applyMediaKey),
     new RegExp(`--file=prisma/migrations/${mediaKey}/migration\\.sql`),
   );
-  for (const name of [applyPreparation, applyMediaKey, applyActivation]) {
+  assert.match(
+    step(applyForce),
+    new RegExp(`--file=prisma/migrations/${force}/migration\\.sql`),
+  );
+  for (const name of [applyPreparation, applyMediaKey, applyActivation, applyForce]) {
     assert.match(step(name), /psql "\$DIRECT_URL"/);
     assert.match(step(name), /--set=ON_ERROR_STOP=on/);
     assert.doesNotMatch(step(name), /gh |vercel|workflow_dispatch|environment: Production/);
   }
   assert.match(
-    step(stageActivationLedger),
+    step(stagePredecessorLedgers),
     /ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256/,
   );
   assert.match(
-    step(stageActivationLedger),
+    step(stagePredecessorLedgers),
     /ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256/,
   );
   assert.match(
-    step(stageActivationLedger),
+    step(stagePredecessorLedgers),
     /ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256/,
   );
-  assert.match(step(stageActivationLedger), /INSERT INTO public\._prisma_migrations/);
-  assert.match(step(stageActivationLedger), /'account-deletion-claim-fence-proof'/);
-  assert.match(step(stageActivationLedger), /'account-deletion-media-key-proof'/);
-  assert.match(step(stageActivationLedger), /'account-deletion-rls-proof'/);
+  assert.match(step(stagePredecessorLedgers), /INSERT INTO public\._prisma_migrations/);
+  assert.match(step(stagePredecessorLedgers), /'account-deletion-claim-fence-proof'/);
+  assert.match(step(stagePredecessorLedgers), /'account-deletion-media-key-proof'/);
+  assert.match(step(stagePredecessorLedgers), /'account-deletion-rls-proof'/);
+  assert.match(step(stageForceLedger), /ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION_SHA256/);
+  assert.match(step(stageForceLedger), /INSERT INTO public\._prisma_migrations/);
+  assert.match(step(stageForceLedger), /'account-deletion-force-proof'/);
   assert.ok("account-deletion-claim-fence-proof".length <= 36);
   assert.ok("account-deletion-media-key-proof".length <= 36);
   assert.ok("account-deletion-rls-proof".length <= 36);
+  assert.ok("account-deletion-force-proof".length <= 36);
   assert.doesNotMatch(
-    step(stageActivationLedger),
+    `${step(stagePredecessorLedgers)}\n${step(stageForceLedger)}`,
     /gh |vercel|workflow_dispatch|environment: Production/,
   );
 });

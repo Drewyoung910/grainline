@@ -1,0 +1,239 @@
+name: AccountDeletionSideEffect FORCE Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      preflight_inspection_run_id:
+        description: Successful exact-commit force-compatible inspection run
+        required: true
+        type: string
+      confirmation:
+        description: Type force-reviewed-account-deletion-side-effect-rls
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  force:
+    name: FORCE-harden AccountDeletionSideEffect RLS
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'force-reviewed-account-deletion-side-effect-rls'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind FORCE to exact main, CI, preflight, and live compatible application
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_PREFLIGHT_INSPECTION_RUN_ID: ${{ inputs.preflight_inspection_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const inspectionValue = process.env.REVIEWED_PREFLIGHT_INSPECTION_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(inspectionValue ?? '')) {
+              throw new Error('AccountDeletionSideEffect FORCE release binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const inspectionRunId = Number(inspectionValue);
+            if (!Number.isSafeInteger(ciRunId) || !Number.isSafeInteger(inspectionRunId)) {
+              throw new Error('AccountDeletionSideEffect FORCE run id is unsafe');
+            }
+            const [{data: main}, {data: ci}, {data: inspection}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: inspectionRunId}),
+            ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.status !== 'completed' ||
+                ci.conclusion !== 'success') {
+              throw new Error('AccountDeletionSideEffect FORCE main/CI readback drifted');
+            }
+            if (inspection.path !== '.github/workflows/account-deletion-side-effect-production-inspection.yml' ||
+                inspection.display_title !== `AccountDeletionSideEffect Production Inspection [force-compatible] ${sha}` ||
+                inspection.event !== 'workflow_dispatch' ||
+                inspection.head_branch !== 'main' || inspection.head_sha !== sha ||
+                inspection.run_attempt !== 1 || inspection.status !== 'completed' ||
+                inspection.conclusion !== 'success') {
+              throw new Error('AccountDeletionSideEffect FORCE preflight inspection readback drifted');
+            }
+      - name: Verify live compatible application boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          application_source="19f321f20d33949edd6d28f87a826aaff2b1c292"
+          application_deployment="dpl_4fkg6pj9L7pNa3jY5wcufqPF4ef9"
+          git merge-base --is-ancestor "$application_source" "${{ inputs.release_commit }}"
+          git diff --quiet "$application_source" "${{ inputs.release_commit }}" -- \
+            src package.json package-lock.json next.config.ts vercel.json prisma/schema.prisma
+          health="$(curl --fail-with-body --silent --show-error --retry 2 --max-time 20 https://thegrainline.com/api/health)"
+          node -e 'const value=JSON.parse(process.argv[1]); if(value.ok !== true) process.exit(1)' "$health"
+          for alias in \
+            thegrainline.com \
+            grainline.vercel.app
+          do
+            page="$(curl --fail-with-body --silent --show-error --retry 2 --max-time 20 "https://$alias/")"
+            grep -Fq "dpl=$application_deployment" <<< "$page"
+          done
+          headers="$(mktemp "$RUNNER_TEMP/account-deletion-side-effect-www-alias.XXXXXX")"
+          status="$(curl --silent --show-error --retry 2 --max-time 20 \
+            --dump-header "$headers" --output /dev/null --write-out '%{http_code}' \
+            https://www.thegrainline.com/)"
+          test "$status" = "308"
+          grep -Fqi "server: Vercel" "$headers"
+          grep -Fqi "location: https://thegrainline.com/" "$headers"
+          rm "$headers"
+          for alias in \
+            grainline-drew-youngs-projects.vercel.app \
+            grainline-git-main-drew-youngs-projects.vercel.app
+          do
+            headers="$(mktemp "$RUNNER_TEMP/account-deletion-side-effect-protected-alias.XXXXXX")"
+            status="$(curl --silent --show-error --retry 2 --max-time 20 \
+              --dump-header "$headers" --output /dev/null --write-out '%{http_code}' \
+              "https://$alias/")"
+            test "$status" = "302"
+            grep -Fqi "server: Vercel" "$headers"
+            grep -Fqi "location: https://vercel.com/sso-api?url=https%3A%2F%2F$alias%2F&nonce=" "$headers"
+            rm "$headers"
+          done
+      - name: Verify AccountDeletionSideEffect FORCE release source
+        run: >-
+          node --test
+          tests/account-deletion-side-effect-production-inspect.test.mjs
+          tests/account-deletion-side-effect-production-workflows.test.mjs
+          tests/account-deletion-side-effect-activation-postgres.test.mjs
+          tests/account-deletion-side-effect-ci.test.mjs
+          tests/account-deletion-side-effect-database-contract.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/reviewed-pending-migrations.test.mjs
+      - name: Verify exact AccountDeletionSideEffect FORCE migration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
+            "20261012120000_force_account_deletion_side_effect_rls"
+          echo "7bcb3ecfeab41ec457a58845e380b8837b21e75ac077ef0c045674ff1a4ce7ec  prisma/migrations/20261012120000_force_account_deletion_side_effect_rls/migration.sql" | sha256sum --check --status
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe AccountDeletionSideEffect state before apply
+        id: preflight
+        env:
+          ACCOUNT_DELETION_EXPECTED_STATE: force-compatible
+          ACCOUNT_DELETION_INSPECT_CONFIRM: inspect-reviewed-account-deletion-side-effect-preparation
+          ACCOUNT_DELETION_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/account-deletion-side-effect-production-inspection-${{ inputs.release_commit }}-force-compatible.json
+          ACCOUNT_DELETION_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(node scripts/account-deletion-side-effect-production-inspect.mjs)"
+          state="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(String(value.result.state))' "$result")"
+          case "$state" in
+            enabled|forced) ;;
+            *) exit 1 ;;
+          esac
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+      - name: Apply only reviewed AccountDeletionSideEffect FORCE migration
+        if: steps.preflight.outputs.state == 'enabled'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          migration="20261012120000_force_account_deletion_side_effect_rls"
+          holding="$(mktemp -d "$RUNNER_TEMP/account-deletion-side-effect-force.XXXXXX")"
+          restore() {
+            shopt -s nullglob
+            for path in "$holding"/*; do
+              mv "$path" "prisma/migrations/$(basename "$path")"
+            done
+            rmdir "$holding"
+          }
+          trap restore EXIT
+          shopt -s nullglob
+          for path in prisma/migrations/*/; do
+            candidate="$(basename "$path")"
+            if [[ "$candidate" > "$migration" ]]; then
+              mv "$path" "$holding/$candidate"
+            fi
+          done
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          npx prisma migrate status
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = "$migration"
+          REVIEWED_PENDING_MIGRATIONS="$migration" node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate deploy
+          REVIEWED_PENDING_MIGRATIONS="" node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate status
+          restore
+          trap - EXIT
+      - name: Inspect forced AccountDeletionSideEffect catalog after apply
+        env:
+          ACCOUNT_DELETION_EXPECTED_STATE: forced
+          ACCOUNT_DELETION_INSPECT_CONFIRM: inspect-reviewed-account-deletion-side-effect-preparation
+          ACCOUNT_DELETION_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/account-deletion-side-effect-production-inspection-${{ inputs.release_commit }}-forced.json
+          ACCOUNT_DELETION_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: node scripts/account-deletion-side-effect-production-inspect.mjs
+      - name: Audit global grants after AccountDeletionSideEffect FORCE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized AccountDeletionSideEffect release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: account-deletion-side-effect-force-production-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/account-deletion-side-effect-production-inspection-${{ github.sha }}-force-compatible.json
+            ${{ runner.temp }}/account-deletion-side-effect-production-inspection-${{ github.sha }}-forced.json
+          if-no-files-found: warn
+          retention-days: 30
+          include-hidden-files: false
