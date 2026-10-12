@@ -143,9 +143,18 @@ running application by itself.
    helpers remain available, then drain predecessor work.
 8. Resolve every unfinished legacy `MEDIA_DELETE` row that lacks a canonical
    object key using the bounded manual process in `docs/runbook.md`. Do not
-   bypass the activation preflight or mass-mark rows complete.
+   bypass the activation preflight or mass-mark rows complete. Dispatch the
+   `AccountDeletionSideEffect Production Inspection` workflow with expected
+   state `activation-compatible`; its read-only, repeatable-read inventory must
+   report zero rows rejected by the activation migration's complete invariant
+   predicate.
 9. Separately authorize and apply activation migration
-   `20261011180000_enable_account_deletion_side_effect_rls`.
+   `20261011180000_enable_account_deletion_side_effect_rls` through the
+   `AccountDeletionSideEffect ENABLE Production` workflow. The workflow binds
+   exact main and CI, the successful activation-compatible inspection, the
+   already-live compatible application deployment, the one reviewed migration,
+   and an enabled postflight inspection. It is restart-safe and never enables
+   FORCE RLS.
 10. Treat FORCE RLS as a later release boundary with its own inspection and
    authorization.
 
