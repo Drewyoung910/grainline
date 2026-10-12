@@ -30,7 +30,7 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
   const applyPreparation = "Apply AccountDeletionSideEffect claim-fence preparation in disposable PostgreSQL";
   const applyMediaKey = "Apply AccountDeletionSideEffect media-key fence in disposable PostgreSQL";
   const applyActivation = "Apply AccountDeletionSideEffect policyless activation in disposable PostgreSQL";
-  const stageActivationLedger = "Stage exact AccountDeletionSideEffect activation ledger for integrated proof";
+  const stageActivationLedger = "Stage exact AccountDeletionSideEffect ledgers for integrated proof";
   const audit = "Audit runtime grants after AccountDeletionSideEffect activation";
 
   assert.ok(workflow.indexOf(verify) < workflow.indexOf(isolate));
@@ -76,8 +76,20 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
     step(stageActivationLedger),
     /ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256/,
   );
+  assert.match(
+    step(stageActivationLedger),
+    /ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256/,
+  );
+  assert.match(
+    step(stageActivationLedger),
+    /ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256/,
+  );
   assert.match(step(stageActivationLedger), /INSERT INTO public\._prisma_migrations/);
+  assert.match(step(stageActivationLedger), /'account-deletion-claim-fence-proof'/);
+  assert.match(step(stageActivationLedger), /'account-deletion-media-key-proof'/);
   assert.match(step(stageActivationLedger), /'account-deletion-rls-proof'/);
+  assert.ok("account-deletion-claim-fence-proof".length <= 36);
+  assert.ok("account-deletion-media-key-proof".length <= 36);
   assert.ok("account-deletion-rls-proof".length <= 36);
   assert.doesNotMatch(
     step(stageActivationLedger),

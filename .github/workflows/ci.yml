@@ -5324,36 +5324,55 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql
-      - name: Stage exact AccountDeletionSideEffect activation ledger for integrated proof
+      - name: Stage exact AccountDeletionSideEffect ledgers for integrated proof
         run: |
           node --input-type=module - <<'NODE'
           import assert from 'node:assert/strict';
           import pg from 'pg';
           import {
+            ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION,
+            ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256,
+            ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION,
+            ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256,
             ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
             ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
           } from './scripts/audit-runtime-db-grants.mjs';
 
+          const reviewedMigrations = [
+            [
+              'account-deletion-claim-fence-proof',
+              ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256,
+              ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION,
+            ],
+            [
+              'account-deletion-media-key-proof',
+              ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256,
+              ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION,
+            ],
+            [
+              'account-deletion-rls-proof',
+              ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
+              ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
+            ],
+          ];
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
           try {
             await client.connect();
             const existing = await client.query(`
               SELECT migration_name
                 FROM public._prisma_migrations
-               WHERE migration_name = $1
-            `, [ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION]);
+               WHERE migration_name = ANY($1::text[])
+            `, [reviewedMigrations.map(([, , migration]) => migration)]);
             assert.equal(existing.rows.length, 0);
-            await client.query(`
-              INSERT INTO public._prisma_migrations (
-                id, checksum, finished_at, migration_name, logs,
-                rolled_back_at, started_at, applied_steps_count
-              ) VALUES ($1, $2, clock_timestamp(), $3, NULL,
-                        NULL, clock_timestamp(), 1)
-            `, [
-              'account-deletion-rls-proof',
-              ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
-              ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
-            ]);
+            for (const migration of reviewedMigrations) {
+              await client.query(`
+                INSERT INTO public._prisma_migrations (
+                  id, checksum, finished_at, migration_name, logs,
+                  rolled_back_at, started_at, applied_steps_count
+                ) VALUES ($1, $2, clock_timestamp(), $3, NULL,
+                          NULL, clock_timestamp(), 1)
+              `, migration);
+            }
           } finally {
             await client.end();
           }

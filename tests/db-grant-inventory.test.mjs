@@ -129,6 +129,10 @@ const {
   STAFF_READ_STAGE_FLAG_PREFIX,
   CHECKOUT_STOCK_RESERVATION_TABLE,
   ACCOUNT_DELETION_SIDE_EFFECT_TABLE,
+  ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION,
+  ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256,
+  ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION,
+  ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256,
   ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION,
   ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256,
   CLERK_WEBHOOK_EVENT_TABLE,
@@ -157,7 +161,10 @@ const {
   caseRlsActivationExpected,
   caseRlsForceExpected,
   accountDeletionSideEffectRlsActivationExpected,
+  accountDeletionClaimFencePreparationExpected,
+  accountDeletionMediaKeyPreparationExpected,
   accountDeletionRuntimeExecuteExpected,
+  collectAccountDeletionMigrationOrderIssues,
   collectAccountDeletionWorkerBoundaryIssues,
   clerkWebhookEventRlsActivationExpected,
   clerkWebhookEventRlsForceExpected,
@@ -190,11 +197,14 @@ const {
   normalizeSavedSearchCatalogState,
   parseGrantAuditDatabaseIdentity,
   readCheckoutStockReservationSourceCutoverState,
+  readAccountDeletionClaimFencePreparationState,
+  readAccountDeletionMediaKeyPreparationState,
   readAccountDeletionSideEffectActivationState,
   readClerkWebhookEventActivationState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
   resolveStaffReadAuditStage,
+  withAppliedAccountDeletionAuthority,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
 const { Client } = pg;
@@ -971,6 +981,78 @@ describe("database grant inventory guardrails", () => {
       requiredRuntimeTablePrivileges(ACCOUNT_DELETION_SIDE_EFFECT_TABLE, enabled),
       [],
     );
+  });
+
+  it("derives account-deletion function expectations from exact applied preparation state", () => {
+    const sourceInventory = {
+      functions: [
+        "grainline_existing_function",
+        "grainline_account_deletion_claim_user",
+        "grainline_account_deletion_media_enqueue_claimed",
+        "grainline_account_deletion_media_key_enqueue_claimed",
+        "grainline_account_deletion_side_effect_claim",
+        "grainline_account_deletion_side_effect_complete",
+        "grainline_account_deletion_side_effect_fail",
+        "grainline_message_redact_for_account_deletion",
+      ],
+    };
+    const predecessor = withAppliedAccountDeletionAuthority(sourceInventory, {
+      claimFenceApplied: false,
+      mediaKeyApplied: false,
+    });
+    assert.deepEqual(predecessor.functions, [
+      "grainline_existing_function",
+      "grainline_message_redact_for_account_deletion",
+    ]);
+    assert.equal(accountDeletionClaimFencePreparationExpected(predecessor), false);
+    assert.equal(accountDeletionMediaKeyPreparationExpected(predecessor), false);
+
+    const claimFenceOnly = withAppliedAccountDeletionAuthority(sourceInventory, {
+      claimFenceApplied: true,
+      mediaKeyApplied: false,
+    });
+    assert.equal(accountDeletionClaimFencePreparationExpected(claimFenceOnly), true);
+    assert.equal(accountDeletionMediaKeyPreparationExpected(claimFenceOnly), false);
+    assert.equal(
+      claimFenceOnly.functions.includes(
+        "grainline_account_deletion_media_key_enqueue_claimed",
+      ),
+      false,
+    );
+
+    const fullyPrepared = withAppliedAccountDeletionAuthority(sourceInventory, {
+      claimFenceApplied: true,
+      mediaKeyApplied: true,
+    });
+    assert.deepEqual(fullyPrepared.functions, sourceInventory.functions);
+    assert.equal(accountDeletionMediaKeyPreparationExpected(fullyPrepared), true);
+  });
+
+  it("fails closed when account-deletion migration ledger order is impossible", () => {
+    assert.deepEqual(collectAccountDeletionMigrationOrderIssues({
+      claimFenceApplied: false,
+      mediaKeyApplied: false,
+      activationApplied: false,
+    }), []);
+    assert.deepEqual(collectAccountDeletionMigrationOrderIssues({
+      claimFenceApplied: true,
+      mediaKeyApplied: true,
+      activationApplied: true,
+    }), []);
+    assert.deepEqual(collectAccountDeletionMigrationOrderIssues({
+      claimFenceApplied: false,
+      mediaKeyApplied: true,
+      activationApplied: false,
+    }), [
+      "AccountDeletionSideEffect media-key preparation is applied without its claim-fence prerequisite",
+    ]);
+    assert.deepEqual(collectAccountDeletionMigrationOrderIssues({
+      claimFenceApplied: true,
+      mediaKeyApplied: false,
+      activationApplied: true,
+    }), [
+      "AccountDeletionSideEffect activation is applied without both exact preparation migrations",
+    ]);
   });
 
   it("audits mixed account-deletion overload ACLs by exact identity", () => {
@@ -1914,6 +1996,12 @@ describe("database grant inventory guardrails", () => {
       rlsEnableTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
       rlsPolicyTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
     };
+    const livePredecessorInventory = {
+      ...preparedInventory,
+      accountDeletionClaimFencePreparationApplied: false,
+      accountDeletionMediaKeyPreparationApplied: false,
+      accountDeletionSideEffectRlsActivationApplied: false,
+    };
 
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
@@ -1922,6 +2010,16 @@ describe("database grant inventory guardrails", () => {
         migrationRole,
       ),
       [],
+    );
+    assert.deepEqual(
+      collectConversationMessageFunctionIssues(
+        exactRows,
+        runtimeRole,
+        migrationRole,
+        livePredecessorInventory,
+      ),
+      [],
+      "source-only preparation files must not change live predecessor expectations",
     );
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
@@ -3462,6 +3560,20 @@ describe("database grant inventory guardrails", () => {
       await readClerkWebhookEventActivationState(exactClient(
         CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
         CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readAccountDeletionClaimFencePreparationState(exactClient(
+        ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION,
+        ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readAccountDeletionMediaKeyPreparationState(exactClient(
+        ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION,
+        ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256,
       )),
       { applied: true, issues: [] },
     );
