@@ -75,6 +75,17 @@ export function collectAccountDeletionApplicationReadinessIssues(rows) {
   return [...new Set(issues)];
 }
 
+export function collectAccountDeletionActivationReadinessIssues(row) {
+  const issues = [];
+  if (row?.rls_enabled !== true) {
+    issues.push("AccountDeletionSideEffect RLS is not enabled");
+  }
+  if (row?.worker_policy_exact !== true) {
+    issues.push("AccountDeletionSideEffect worker policy drifted");
+  }
+  return issues;
+}
+
 export async function verifyAccountDeletionRuntimeReadiness({
   env = process.env,
   ClientImpl = Client,
@@ -142,6 +153,43 @@ export async function verifyAccountDeletionRuntimeReadiness({
     if (collectAccountDeletionRuntimeReadinessIssues(workerResult.rows).length > 0) {
       throw stopped();
     }
+    const activationResult = await workerClient.query(`
+      SELECT
+        class.relrowsecurity AS rls_enabled,
+        class.relforcerowsecurity AS rls_forced,
+        (
+          SELECT pg_catalog.count(*) = 1
+             AND pg_catalog.bool_and(policy.polpermissive)
+             AND pg_catalog.bool_and(policy.polcmd = '*')
+             AND pg_catalog.bool_and(policy.polroles = ARRAY[candidate.oid]::oid[])
+             AND pg_catalog.bool_and(
+               pg_catalog.pg_get_expr(policy.polqual, policy.polrelid) = 'true'
+             )
+             AND pg_catalog.bool_and(
+               pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) = 'true'
+             )
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid
+        ) AS worker_policy_exact
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+      CROSS JOIN pg_catalog.pg_roles AS candidate
+      WHERE namespace.nspname = 'public'
+        AND class.relname = 'AccountDeletionSideEffect'
+        AND class.relkind = 'r'
+        AND candidate.rolname = 'grainline_account_deletion_runtime'
+    `);
+    if (activationResult.rows.length !== 1
+      || collectAccountDeletionActivationReadinessIssues(
+        activationResult.rows[0],
+      ).length > 0) {
+      throw stopped();
+    }
+    // Exercise the real worker policy without retaining row data or counts.
+    await workerClient.query(
+      'SELECT 1 FROM public."AccountDeletionSideEffect" LIMIT 1',
+    );
     await applicationClient.connect();
     await applicationClient.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const applicationResult = await applicationClient.query(`
@@ -166,6 +214,21 @@ export async function verifyAccountDeletionRuntimeReadiness({
     if (collectAccountDeletionApplicationReadinessIssues(applicationResult.rows).length > 0) {
       throw stopped();
     }
+    await applicationClient.query("SAVEPOINT account_deletion_direct_denial");
+    try {
+      await applicationClient.query(
+        'SELECT 1 FROM public."AccountDeletionSideEffect" LIMIT 1',
+      );
+      throw stopped();
+    } catch (error) {
+      if (error?.code !== "42501") throw error;
+      await applicationClient.query(
+        "ROLLBACK TO SAVEPOINT account_deletion_direct_denial",
+      );
+      await applicationClient.query(
+        "RELEASE SAVEPOINT account_deletion_direct_denial",
+      );
+    }
     await applicationClient.query("COMMIT");
     await workerClient.query("COMMIT");
     return Object.freeze({
@@ -174,6 +237,10 @@ export async function verifyAccountDeletionRuntimeReadiness({
       role: "grainline_account_deletion_runtime",
       preparedFunctionCount: ACCOUNT_DELETION_RUNTIME_FUNCTIONS.length,
       applicationFunctionCount: ACCOUNT_DELETION_APPLICATION_FUNCTIONS.length,
+      rlsEnabled: true,
+      rlsForced: activationResult.rows[0].rls_forced === true,
+      workerPolicyExercised: true,
+      applicationDirectReadDenied: true,
       readOnly: true,
     });
   } catch {
