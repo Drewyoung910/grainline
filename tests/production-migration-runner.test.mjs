@@ -46,11 +46,18 @@ function ownerRole() {
     rolreplication: true,
     rolbypassrls: true,
     memberships: [
+      "grainline_account_deletion_runtime",
       "grainline_app_runtime",
       "grainline_direct_upload_cleanup_v2",
       "neon_superuser",
     ],
     membership_options: [
+      {
+        role: "grainline_account_deletion_runtime",
+        adminOption: true,
+        inheritOption: false,
+        setOption: false,
+      },
       {
         role: "grainline_app_runtime",
         adminOption: true,
@@ -70,6 +77,21 @@ function ownerRole() {
         setOption: true,
       },
     ],
+  };
+}
+
+function accountDeletionRole() {
+  return {
+    rolname: "grainline_account_deletion_runtime",
+    rolsuper: false,
+    rolcreatedb: false,
+    rolcreaterole: false,
+    rolinherit: false,
+    rolcanlogin: true,
+    rolreplication: false,
+    rolbypassrls: false,
+    memberships: [],
+    membership_options: [],
   };
 }
 
@@ -112,6 +134,7 @@ function databaseState() {
     },
     ownerRole: ownerRole(),
     runtimeRole: runtimeRole(),
+    accountDeletionRole: accountDeletionRole(),
     savedSearch: {
       rls_enabled: true,
       rls_forced: true,
@@ -153,6 +176,7 @@ describe("isolated production migration runner", () => {
       ownerRole: "neondb_owner",
       runtimeRole: "grainline_app_runtime",
       staffReadRolePresent: false,
+      accountDeletionRolePresent: true,
       savedSearchRlsEnabled: true,
       savedSearchRlsForced: true,
       savedSearchPolicyCount: 3,
@@ -163,7 +187,9 @@ describe("isolated production migration runner", () => {
       (state) => { state.savedSearch.rls_forced = false; },
       (state) => { state.incompleteMigrationCount = 1; },
       (state) => { state.ownerRole.membership_options[0].setOption = true; },
-      (state) => { state.ownerRole.membership_options[1].inheritOption = true; },
+      (state) => { state.ownerRole.membership_options[2].inheritOption = true; },
+      (state) => { state.accountDeletionRole.rolinherit = true; },
+      (state) => { state.accountDeletionRole.memberships = ["grainline_app_runtime"]; },
       (state) => { state.runtimeRole.rolbypassrls = true; },
     ]) {
       const drifted = databaseState();
@@ -176,11 +202,11 @@ describe("isolated production migration runner", () => {
     const withStaff = databaseState();
     withStaff.staffReadRole = staffReadRole();
     withStaff.ownerRole.memberships.splice(
-      2,
+      3,
       0,
       "grainline_staff_read_runtime",
     );
-    withStaff.ownerRole.membership_options.splice(2, 0, {
+    withStaff.ownerRole.membership_options.splice(3, 0, {
       role: "grainline_staff_read_runtime",
       adminOption: true,
       inheritOption: false,
@@ -194,11 +220,43 @@ describe("isolated production migration runner", () => {
     for (const mutate of [
       (state) => { state.staffReadRole.rolinherit = true; },
       (state) => { state.staffReadRole.memberships = ["grainline_app_runtime"]; },
-      (state) => { state.ownerRole.membership_options[2].setOption = true; },
-      (state) => { state.ownerRole.memberships.splice(2, 1); },
+      (state) => { state.ownerRole.membership_options[3].setOption = true; },
+      (state) => { state.ownerRole.memberships.splice(3, 1); },
       (state) => { delete state.staffReadRole; },
     ]) {
       const drifted = structuredClone(withStaff);
+      mutate(drifted);
+      assert.throws(
+        () => assertProductionMigrationDatabaseState(drifted),
+        /drifted/,
+      );
+    }
+  });
+
+  it("accepts the absent or exact account-deletion bootstrap role only", () => {
+    const withoutAccountDeletion = databaseState();
+    delete withoutAccountDeletion.accountDeletionRole;
+    withoutAccountDeletion.ownerRole.memberships.shift();
+    withoutAccountDeletion.ownerRole.membership_options.shift();
+    assert.equal(
+      assertProductionMigrationDatabaseState(withoutAccountDeletion)
+        .accountDeletionRolePresent,
+      false,
+    );
+
+    for (const mutate of [
+      (state) => { state.accountDeletionRole.rolbypassrls = true; },
+      (state) => { state.accountDeletionRole.membership_options = [{
+        role: "grainline_app_runtime",
+        adminOption: false,
+        inheritOption: true,
+        setOption: true,
+      }]; },
+      (state) => { state.ownerRole.membership_options[0].adminOption = false; },
+      (state) => { state.ownerRole.memberships.shift(); },
+      (state) => { delete state.accountDeletionRole; },
+    ]) {
+      const drifted = databaseState();
       mutate(drifted);
       assert.throws(
         () => assertProductionMigrationDatabaseState(drifted),

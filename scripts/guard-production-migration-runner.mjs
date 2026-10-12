@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 import {
   parseVercelRuntimeDatabaseIdentity,
+  REVIEWED_PRODUCTION_ACCOUNT_DELETION_IDENTITY,
   REVIEWED_PRODUCTION_RUNTIME_IDENTITY,
   REVIEWED_PRODUCTION_STAFF_READ_IDENTITY,
 } from "./guard-runtime-db-env.mjs";
@@ -27,6 +28,12 @@ const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 const REVIEWED_OWNER_MEMBERSHIP_OPTIONS = Object.freeze([
+  Object.freeze({
+    role: REVIEWED_PRODUCTION_ACCOUNT_DELETION_IDENTITY.role,
+    adminOption: true,
+    inheritOption: false,
+    setOption: false,
+  }),
   Object.freeze({
     role: REVIEWED_RUNTIME_ROLE,
     adminOption: true,
@@ -53,11 +60,19 @@ const REVIEWED_OWNER_MEMBERSHIP_OPTIONS = Object.freeze([
   }),
 ]);
 
-function reviewedOwnerMembershipOptions(staffReadRolePresent) {
-  return REVIEWED_OWNER_MEMBERSHIP_OPTIONS.filter((entry) =>
-    staffReadRolePresent
-    || entry.role !== REVIEWED_PRODUCTION_STAFF_READ_IDENTITY.role
-  );
+function reviewedOwnerMembershipOptions(
+  staffReadRolePresent,
+  accountDeletionRolePresent,
+) {
+  return REVIEWED_OWNER_MEMBERSHIP_OPTIONS.filter((entry) => {
+    if (entry.role === REVIEWED_PRODUCTION_STAFF_READ_IDENTITY.role) {
+      return staffReadRolePresent;
+    }
+    if (entry.role === REVIEWED_PRODUCTION_ACCOUNT_DELETION_IDENTITY.role) {
+      return accountDeletionRolePresent;
+    }
+    return true;
+  });
 }
 
 function required(env, key) {
@@ -154,10 +169,13 @@ export function assertProductionMigrationDatabaseState(state) {
   const owner = state?.ownerRole;
   const runtime = state?.runtimeRole;
   const staffRead = state?.staffReadRole ?? null;
+  const accountDeletion = state?.accountDeletionRole ?? null;
   const savedSearch = state?.savedSearch;
   const staffReadRolePresent = staffRead !== null;
+  const accountDeletionRolePresent = accountDeletion !== null;
   const expectedOwnerMemberships = reviewedOwnerMembershipOptions(
     staffReadRolePresent,
+    accountDeletionRolePresent,
   );
   if (
     state?.identity?.database_name !== REVIEWED_PRODUCTION_RUNTIME_IDENTITY.databaseName
@@ -198,6 +216,20 @@ export function assertProductionMigrationDatabaseState(state) {
       || !Array.isArray(staffRead.membership_options)
       || staffRead.membership_options.length !== 0
     ))
+    || (accountDeletionRolePresent && (
+      accountDeletion.rolname
+        !== REVIEWED_PRODUCTION_ACCOUNT_DELETION_IDENTITY.role
+      || accountDeletion.rolsuper !== false
+      || accountDeletion.rolcreatedb !== false
+      || accountDeletion.rolcreaterole !== false
+      || accountDeletion.rolinherit !== false
+      || accountDeletion.rolcanlogin !== true
+      || accountDeletion.rolreplication !== false
+      || accountDeletion.rolbypassrls !== false
+      || sortedMemberships(accountDeletion).length !== 0
+      || !Array.isArray(accountDeletion.membership_options)
+      || accountDeletion.membership_options.length !== 0
+    ))
     || savedSearch?.rls_enabled !== true
     || savedSearch.rls_forced !== true
     || savedSearch.owner_name !== REVIEWED_MIGRATION_ROLE
@@ -211,6 +243,7 @@ export function assertProductionMigrationDatabaseState(state) {
     ownerRole: owner.rolname,
     runtimeRole: runtime.rolname,
     staffReadRolePresent,
+    accountDeletionRolePresent,
     savedSearchRlsEnabled: savedSearch.rls_enabled,
     savedSearchRlsForced: savedSearch.rls_forced,
     savedSearchPolicyCount: Number(savedSearch.policy_count),
@@ -288,6 +321,10 @@ export async function readProductionMigrationDatabaseState(connectionString) {
       client,
       REVIEWED_PRODUCTION_STAFF_READ_IDENTITY.role,
     );
+    const accountDeletionRole = await readRole(
+      client,
+      REVIEWED_PRODUCTION_ACCOUNT_DELETION_IDENTITY.role,
+    );
     const savedSearch = (await client.query(`
       SELECT c.relrowsecurity AS rls_enabled,
              c.relforcerowsecurity AS rls_forced,
@@ -310,6 +347,7 @@ export async function readProductionMigrationDatabaseState(connectionString) {
       ownerRole,
       runtimeRole,
       staffReadRole,
+      accountDeletionRole,
       savedSearch,
       incompleteMigrationCount,
     };
