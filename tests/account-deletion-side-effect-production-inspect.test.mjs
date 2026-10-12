@@ -50,31 +50,58 @@ function env(root, state = "compatible") {
   };
 }
 
-function functionRows(expectation) {
-  return expectation.functions.map((entry) => ({
-    function_name: entry.name,
-    identity_arguments: entry.identityArguments,
-    owner_name: "neondb_owner",
-    language_name: "plpgsql",
-    function_kind: "f",
-    security_definer: true,
-    leakproof: false,
-    volatility: entry.volatility,
-    parallel_safety: entry.parallelSafety,
-    function_config: ["search_path=pg_catalog"],
-    source_md5: entry.sourceMd5,
-    runtime_execute: entry.grantees.includes("grainline_app_runtime"),
-    worker_execute: entry.grantees.includes(
-      "grainline_account_deletion_runtime",
-    ),
-    public_execute: false,
-    nonowner_acl: entry.grantees.map((role) => `${role}:EXECUTE:false`).sort(),
-  }));
+function enabledGrantees(identity) {
+  if (
+    [
+      "grainline_account_deletion_side_effect_claim(text)",
+      "grainline_account_deletion_side_effect_complete(text, bigint, uuid)",
+      "grainline_account_deletion_side_effect_fail(text, bigint, uuid, text)",
+    ].includes(identity)
+  )
+    return ["grainline_account_deletion_runtime"];
+  if (
+    [
+      "grainline_account_deletion_media_enqueue_claimed(text, bigint, uuid, text[])",
+      "grainline_account_deletion_claim_user(text, bigint, uuid)",
+    ].includes(identity)
+  )
+    return [];
+  return ["grainline_app_runtime"];
+}
+
+function functionRows(expectation, enabled = false) {
+  return expectation.functions.map((entry) => {
+    const grantees = enabled
+      ? enabledGrantees(entry.identity)
+      : entry.grantees;
+    return {
+      function_name: entry.name,
+      identity_arguments: entry.identityArguments,
+      owner_name: "neondb_owner",
+      language_name: "plpgsql",
+      function_kind: "f",
+      security_definer: true,
+      leakproof: false,
+      volatility: entry.volatility,
+      parallel_safety: entry.parallelSafety,
+      function_config: ["search_path=pg_catalog"],
+      source_md5: entry.sourceMd5,
+      runtime_execute: grantees.includes("grainline_app_runtime"),
+      worker_execute: grantees.includes(
+        "grainline_account_deletion_runtime",
+      ),
+      public_execute: false,
+      nonowner_acl: grantees
+        .map((role) => `${role}:EXECUTE:false`)
+        .sort(),
+    };
+  });
 }
 
 function catalog(expectation, state = "prepared") {
   const preparationApplied = state !== "pending";
-  const mediaKeyApplied = state === "prepared";
+  const mediaKeyApplied = state === "prepared" || state === "enabled";
+  const activationApplied = state === "enabled";
   return {
     identity: {
       current_user: "neondb_owner",
@@ -114,18 +141,29 @@ function catalog(expectation, state = "prepared") {
                 applied_steps_count: "1",
               }]
             : []),
+          ...(activationApplied
+            ? [
+                {
+                  migration_name: ACCOUNT_DELETION_ACTIVATION_MIGRATION,
+                  checksum: expectation.activation.checksum,
+                  finished: true,
+                  rolled_back: false,
+                  applied_steps_count: "1",
+                },
+              ]
+            : []),
         ]
       : [],
     table: {
       table_name: "AccountDeletionSideEffect",
       owner_name: "neondb_owner",
-      rls_enabled: false,
+      rls_enabled: activationApplied,
       rls_forced: false,
-      policy_count: 0,
-      runtime_select: true,
-      runtime_insert: true,
-      runtime_update: true,
-      runtime_delete: true,
+      policy_count: activationApplied ? 1 : 0,
+      runtime_select: !activationApplied,
+      runtime_insert: !activationApplied,
+      runtime_update: !activationApplied,
+      runtime_delete: !activationApplied,
       runtime_other: false,
       worker_select: preparationApplied,
       worker_insert: preparationApplied,
@@ -187,12 +225,46 @@ function catalog(expectation, state = "prepared") {
         ]
       : [],
     functions: preparationApplied
-      ? functionRows({
-          functions: mediaKeyApplied
-            ? expectation.functions
-            : expectation.preparationFunctions,
-        })
+      ? functionRows(
+          {
+            functions: mediaKeyApplied
+              ? expectation.functions
+              : expectation.preparationFunctions,
+          },
+          activationApplied,
+        )
       : [],
+    policies: activationApplied
+      ? [
+          {
+            policy_name:
+              "AccountDeletionSideEffect_account_deletion_runtime_all",
+            command: "*",
+            permissive: true,
+            roles: ["grainline_account_deletion_runtime"],
+            using_expression: "true",
+            check_expression: "true",
+          },
+        ]
+      : [],
+    retiredFunctions: activationApplied
+      ? [
+          "grainline_case_account_deletion_redact(text)",
+          "grainline_message_redact_for_account_deletion(text)",
+          "grainline_order_account_deletion_scrub(text, text[])",
+          "grainline_user_account_deletion_finalize(text)",
+          "grainline_user_account_deletion_preflight(text)",
+          "grainline_user_account_deletion_snapshot(text)",
+        ].map((functionIdentity) => ({
+          function_identity: functionIdentity,
+          function_exists: true,
+          runtime_execute: false,
+          worker_execute: false,
+          public_execute: false,
+        }))
+      : [],
+    activationBlockerCount: 0,
+    activationBlockers: [],
   };
 }
 
@@ -260,12 +332,26 @@ test("config requires exact first-attempt main, owner target, digest, state, and
     parseAccountDeletionInspectionConfig(env(root, "prepared")).acceptedStates,
     ["prepared"],
   );
+  assert.equal(
+    parseAccountDeletionInspectionConfig(env(root, "activation-compatible"))
+      .requireActivationReady,
+    true,
+  );
+  assert.deepEqual(
+    parseAccountDeletionInspectionConfig(env(root, "activation-compatible"))
+      .acceptedStates,
+    ["prepared", "enabled"],
+  );
+  assert.deepEqual(
+    parseAccountDeletionInspectionConfig(env(root, "enabled")).acceptedStates,
+    ["enabled"],
+  );
   for (const [key, value] of [
     ["GITHUB_RUN_ATTEMPT", "2"],
     ["GITHUB_REF", "refs/heads/other"],
     ["GITHUB_SHA", "b".repeat(40)],
     ["ACCOUNT_DELETION_INSPECT_CONFIRM", "wrong"],
-    ["ACCOUNT_DELETION_EXPECTED_STATE", "enabled"],
+    ["ACCOUNT_DELETION_EXPECTED_STATE", "invalid"],
     ["MIGRATION_DB_ROLE", "wrong"],
     ["PRODUCTION_MIGRATION_DIRECT_URL_SHA256", "b".repeat(64)],
   ])
@@ -326,9 +412,11 @@ test("pending, partial, and prepared catalogs are accepted only in their reviewe
       activationApplied: false,
       installedFunctionCount: 12,
       reviewedFunctionCount: 12,
+      activationBlockerCount: null,
       rlsEnabled: false,
       rlsForced: false,
       rowDataRead: false,
+      sanitizedActivationBlockers: false,
       productionChanged: false,
     },
   );
@@ -344,9 +432,11 @@ test("pending, partial, and prepared catalogs are accepted only in their reviewe
       activationApplied: false,
       installedFunctionCount: 11,
       reviewedFunctionCount: 11,
+      activationBlockerCount: null,
       rlsEnabled: false,
       rlsForced: false,
       rowDataRead: false,
+      sanitizedActivationBlockers: false,
       productionChanged: false,
     },
   );
@@ -355,15 +445,15 @@ test("pending, partial, and prepared catalogs are accepted only in their reviewe
       "pending",
     ]),
   );
-  const activated = structuredClone(catalog(expectation));
-  activated.migrations.push({
-    migration_name: ACCOUNT_DELETION_ACTIVATION_MIGRATION,
-    checksum: expectation.activation.checksum,
-    finished: true,
-    rolled_back: false,
-    applied_steps_count: "1",
-  });
-  assert.throws(() => verifyAccountDeletionCatalog(activated, expectation));
+  assert.equal(
+    verifyAccountDeletionCatalog(
+      catalog(expectation, "enabled"),
+      expectation,
+      ["enabled"],
+      true,
+    ).state,
+    "enabled",
+  );
   const reversedPartial = structuredClone(catalog(expectation));
   reversedPartial.migrations = reversedPartial.migrations.filter(
     ({ migration_name }) =>
@@ -371,6 +461,45 @@ test("pending, partial, and prepared catalogs are accepted only in their reviewe
   );
   assert.throws(() =>
     verifyAccountDeletionCatalog(reversedPartial, expectation),
+  );
+});
+
+test("activation-compatible inspection rejects every sanitized invalid-row blocker", () => {
+  const expectation = buildAccountDeletionPreparationExpectation();
+  assert.equal(
+    verifyAccountDeletionCatalog(
+      catalog(expectation),
+      expectation,
+      ["prepared"],
+      true,
+    ).activationBlockerCount,
+    0,
+  );
+  const blocked = structuredClone(catalog(expectation));
+  blocked.activationBlockerCount = 1;
+  blocked.activationBlockers = [
+    {
+      row_id_sha256: "a".repeat(64),
+      kind: "MEDIA_DELETE",
+      status: "PENDING",
+      attempts: 0,
+      claim_generation: "0",
+      claim_token_present: false,
+      processing_started_at_present: false,
+      processed_at_present: false,
+      payload_sha256: "b".repeat(64),
+      created_at: "2026-10-01T00:00:00.000Z",
+      updated_at: "2026-10-01T00:00:00.000Z",
+      legacy_url_only: true,
+    },
+  ];
+  assert.throws(() =>
+    verifyAccountDeletionCatalog(
+      blocked,
+      expectation,
+      ["prepared"],
+      true,
+    ),
   );
 });
 
@@ -474,6 +603,61 @@ test("catalog reader issues metadata-only queries and retains no table rows", as
   );
 });
 
+test("activation-ready reader retains only a bounded sanitized blocker inventory", async () => {
+  const expectation = buildAccountDeletionPreparationExpectation();
+  const value = catalog(expectation);
+  const blocker = {
+    row_id_sha256: "a".repeat(64),
+    kind: "MEDIA_DELETE",
+    status: "PENDING",
+    attempts: 0,
+    claim_generation: "0",
+    claim_token_present: false,
+    processing_started_at_present: false,
+    processed_at_present: false,
+    payload_sha256: "b".repeat(64),
+    created_at: "2026-10-01T00:00:00.000Z",
+    updated_at: "2026-10-01T00:00:00.000Z",
+    legacy_url_only: true,
+    total_count: 1,
+  };
+  const results = [
+    value.identity,
+    value.migrations,
+    value.table,
+    value.columns,
+    value.constraints,
+    value.indexes,
+    value.functions,
+    value.policies,
+    value.retiredFunctions,
+    [blocker],
+  ];
+  const calls = [];
+  const client = {
+    query: async (sql, parameters) => {
+      calls.push({ sql, parameters });
+      const result = results.shift();
+      return { rows: Array.isArray(result) ? result : [result] };
+    },
+  };
+  const actual = await readAccountDeletionCatalog(client, expectation, {
+    inspectActivationBlockers: true,
+  });
+  assert.equal(calls.length, 10);
+  assert.equal(actual.activationBlockerCount, 1);
+  assert.deepEqual(actual.activationBlockers, [
+    Object.fromEntries(
+      Object.entries(blocker).filter(([key]) => key !== "total_count"),
+    ),
+  ]);
+  const blockerQuery = calls.at(-1).sql;
+  assert.match(blockerQuery, /effect\.kind NOT IN/u);
+  assert.match(blockerQuery, /effect\."dedupKey"/u);
+  assert.match(blockerQuery, /LIMIT 500/u);
+  assert.doesNotMatch(blockerQuery, /AS user_id|AS payload\b|AS url\b/iu);
+});
+
 test("failure evidence is sanitized and written once as a private regular file", () => {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "account-deletion-evidence-"),
@@ -485,7 +669,11 @@ test("failure evidence is sanitized and written once as a private regular file",
     catalog(expectation, "pending"),
   );
   const evidence = buildAccountDeletionFailureEvidence(
-    { releaseCommit: COMMIT, directUrlSha256: "c".repeat(64) },
+    {
+      releaseCommit: COMMIT,
+      directUrlSha256: "c".repeat(64),
+      requireActivationReady: false,
+    },
     { head: COMMIT, clean: true },
     error,
   );

@@ -48,13 +48,15 @@ const EXPECTED_STATES = Object.freeze({
   pending: Object.freeze(["pending"]),
   preparation_only: Object.freeze(["preparation_only"]),
   prepared: Object.freeze(["prepared"]),
+  "activation-compatible": Object.freeze(["prepared", "enabled"]),
+  enabled: Object.freeze(["enabled"]),
   compatible: Object.freeze(["pending", "preparation_only", "prepared"]),
 });
 
 export class AccountDeletionCatalogVerificationError extends Error {
   constructor(cause, catalog) {
     super(
-      "Production AccountDeletionSideEffect catalog did not match the reviewed preparation contract",
+      "Production AccountDeletionSideEffect catalog did not match the reviewed release contract",
     );
     this.name = "AccountDeletionCatalogVerificationError";
     this.catalog = catalog;
@@ -117,6 +119,63 @@ const FUNCTION_GRANTS = Object.freeze(
     ],
   ]),
 );
+const ENABLED_FUNCTION_GRANTS = Object.freeze(
+  new Map([
+    [
+      "grainline_account_deletion_side_effect_claim(text)",
+      ["grainline_account_deletion_runtime"],
+    ],
+    [
+      "grainline_account_deletion_side_effect_complete(text, bigint, uuid)",
+      ["grainline_account_deletion_runtime"],
+    ],
+    [
+      "grainline_account_deletion_side_effect_fail(text, bigint, uuid, text)",
+      ["grainline_account_deletion_runtime"],
+    ],
+    [
+      "grainline_account_deletion_media_enqueue_claimed(text, bigint, uuid, text[])",
+      [],
+    ],
+    [
+      "grainline_account_deletion_media_key_enqueue_claimed(text, bigint, uuid, text[])",
+      ["grainline_app_runtime"],
+    ],
+    ["grainline_account_deletion_claim_user(text, bigint, uuid)", []],
+    [
+      "grainline_user_account_deletion_preflight(text, bigint, uuid)",
+      ["grainline_app_runtime"],
+    ],
+    [
+      "grainline_user_account_deletion_snapshot(text, bigint, uuid)",
+      ["grainline_app_runtime"],
+    ],
+    [
+      "grainline_user_account_deletion_finalize(text, bigint, uuid)",
+      ["grainline_app_runtime"],
+    ],
+    [
+      "grainline_case_account_deletion_redact(text, bigint, uuid)",
+      ["grainline_app_runtime"],
+    ],
+    [
+      "grainline_message_redact_for_account_deletion(text, text, bigint, uuid)",
+      ["grainline_app_runtime"],
+    ],
+    [
+      "grainline_order_account_deletion_scrub(text, text, bigint, uuid, text[])",
+      ["grainline_app_runtime"],
+    ],
+  ]),
+);
+const RETIRED_LEGACY_FUNCTIONS = Object.freeze([
+  "grainline_user_account_deletion_preflight(text)",
+  "grainline_user_account_deletion_snapshot(text)",
+  "grainline_user_account_deletion_finalize(text)",
+  "grainline_case_account_deletion_redact(text)",
+  "grainline_message_redact_for_account_deletion(text)",
+  "grainline_order_account_deletion_scrub(text, text[])",
+]);
 
 function required(env, name) {
   const value = env?.[name];
@@ -312,6 +371,8 @@ export function parseAccountDeletionInspectionConfig(env = process.env) {
     evidencePath,
     expectedState,
     identity,
+    requireActivationReady:
+      expectedState === "activation-compatible" || expectedState === "enabled",
     releaseCommit,
   });
 }
@@ -337,7 +398,11 @@ export function assertAccountDeletionInspectionGitState(state, releaseCommit) {
   return Object.freeze({ head: state.head, clean: true });
 }
 
-export async function readAccountDeletionCatalog(client, expectation) {
+export async function readAccountDeletionCatalog(
+  client,
+  expectation,
+  { inspectActivationBlockers = false } = {},
+) {
   const identity = await client.query(`
     SELECT CURRENT_USER::text AS current_user, SESSION_USER::text AS session_user,
       pg_catalog.current_database()::text AS database_name,
@@ -487,6 +552,130 @@ export async function readAccountDeletionCatalog(client, expectation) {
   `,
     [functionNames],
   );
+  let policies = { rows: [] };
+  let retiredFunctions = { rows: [] };
+  let activationBlockers = { rows: [] };
+  if (inspectActivationBlockers) {
+    policies = await client.query(`
+      SELECT policy.polname::text AS policy_name,
+        policy.polcmd::text AS command,
+        policy.polpermissive AS permissive,
+        ARRAY(
+          SELECT role.rolname::text
+          FROM pg_catalog.unnest(policy.polroles) AS policy_role(role_oid)
+          JOIN pg_catalog.pg_roles AS role ON role.oid = policy_role.role_oid
+          ORDER BY role.rolname
+        ) AS roles,
+        pg_catalog.pg_get_expr(policy.polqual, policy.polrelid)::text AS using_expression,
+        pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid)::text AS check_expression
+      FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = 'public."AccountDeletionSideEffect"'::pg_catalog.regclass
+      ORDER BY policy.polname
+    `);
+    retiredFunctions = await client.query(
+      `
+      SELECT expected.function_identity,
+        pg_catalog.to_regprocedure(
+          'public.' || expected.function_identity
+        ) IS NOT NULL AS function_exists,
+        COALESCE(pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          pg_catalog.to_regprocedure('public.' || expected.function_identity),
+          'EXECUTE'
+        ), false) AS runtime_execute,
+        COALESCE(pg_catalog.has_function_privilege(
+          'grainline_account_deletion_runtime',
+          pg_catalog.to_regprocedure('public.' || expected.function_identity),
+          'EXECUTE'
+        ), false) AS worker_execute,
+        EXISTS (
+          SELECT 1
+          FROM pg_catalog.pg_proc AS procedure
+          CROSS JOIN LATERAL pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+          WHERE procedure.oid =
+            pg_catalog.to_regprocedure('public.' || expected.function_identity)
+            AND acl.grantee = 0
+            AND acl.privilege_type = 'EXECUTE'
+        ) AS public_execute
+      FROM pg_catalog.unnest($1::text[]) AS expected(function_identity)
+      ORDER BY expected.function_identity
+    `,
+      [RETIRED_LEGACY_FUNCTIONS],
+    );
+    activationBlockers = await client.query(`
+      SELECT
+        pg_catalog.encode(
+          pg_catalog.sha256(pg_catalog.convert_to(effect.id, 'UTF8')),
+          'hex'
+        ) AS row_id_sha256,
+        effect.kind::text AS kind,
+        effect.status::text AS status,
+        effect.attempts,
+        effect."claimGeneration"::text AS claim_generation,
+        effect."claimToken" IS NOT NULL AS claim_token_present,
+        effect."processingStartedAt" IS NOT NULL AS processing_started_at_present,
+        effect."processedAt" IS NOT NULL AS processed_at_present,
+        pg_catalog.encode(
+          pg_catalog.sha256(
+            pg_catalog.convert_to(effect.payload::text, 'UTF8')
+          ),
+          'hex'
+        ) AS payload_sha256,
+        pg_catalog.to_char(
+          effect."createdAt",
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+        ) AS created_at,
+        pg_catalog.to_char(
+          effect."updatedAt",
+          'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+        ) AS updated_at,
+        (
+          pg_catalog.jsonb_typeof(effect.payload -> 'url') = 'string'
+          AND pg_catalog.btrim(effect.payload ->> 'url') <> ''
+        ) AS legacy_url_only,
+        pg_catalog.count(*) OVER ()::integer AS total_count
+      FROM public."AccountDeletionSideEffect" AS effect
+      WHERE effect.kind NOT IN (
+          'LOCAL_ANONYMIZE', 'STRIPE_REJECT', 'MEDIA_DELETE', 'AUDIT_REDACT'
+        )
+        OR effect.status NOT IN ('PENDING', 'PROCESSING', 'DONE', 'FAILED')
+        OR effect.attempts < 0
+        OR effect."claimGeneration" < 0
+        OR (
+          effect.status = 'PROCESSING'
+          AND (
+            effect."claimGeneration" < 1
+            OR effect."claimToken" IS NULL
+            OR effect."processingStartedAt" IS NULL
+          )
+        )
+        OR (effect.status = 'DONE' AND effect."processedAt" IS NULL)
+        OR (
+          effect.kind = 'LOCAL_ANONYMIZE'
+          AND (
+            effect."dedupKey" <> 'account-delete:local:' || effect."userId"
+            OR effect.payload <> '{}'::jsonb
+          )
+        )
+        OR (
+          effect.kind = 'MEDIA_DELETE'
+          AND effect.status <> 'DONE'
+          AND (
+            pg_catalog.jsonb_typeof(effect.payload) IS DISTINCT FROM 'object'
+            OR pg_catalog.jsonb_typeof(effect.payload -> 'key')
+                 IS DISTINCT FROM 'string'
+            OR pg_catalog.btrim(effect.payload ->> 'key') = ''
+          )
+        )
+      ORDER BY effect."createdAt", effect.id
+      LIMIT 500
+    `);
+  }
   assert.ok(
     identity.rows.length === 1 && table.rows.length === 1,
     "Production roles or table are missing or ambiguous",
@@ -509,6 +698,23 @@ export async function readAccountDeletionCatalog(client, expectation) {
         }),
       ),
     ),
+    policies: Object.freeze(
+      policies.rows.map((row) =>
+        Object.freeze({ ...row, roles: Object.freeze([...(row.roles ?? [])]) }),
+      ),
+    ),
+    retiredFunctions: Object.freeze(
+      retiredFunctions.rows.map((row) => Object.freeze(row)),
+    ),
+    activationBlockerCount:
+      activationBlockers.rows.length === 0
+        ? 0
+        : Number(activationBlockers.rows[0].total_count),
+    activationBlockers: Object.freeze(
+      activationBlockers.rows.map(({ total_count: _totalCount, ...row }) =>
+        Object.freeze(row),
+      ),
+    ),
   });
 }
 
@@ -516,6 +722,7 @@ export function verifyAccountDeletionCatalog(
   catalog,
   expectation,
   acceptedStates = EXPECTED_STATES.compatible,
+  requireActivationReady = false,
 ) {
   const target = REVIEWED_ACCOUNT_DELETION_TARGET;
   const preparationRows = catalog.migrations.filter(
@@ -532,18 +739,20 @@ export function verifyAccountDeletionCatalog(
       mediaKeyRows.length <= 1 &&
       activationRows.length <= 1,
   );
-  assert.equal(
-    activationRows.length,
-    0,
-    "Activation migration must remain unapplied at the preparation boundary",
-  );
   assert.ok(
     preparationRows.length === 1 || mediaKeyRows.length === 0,
     "AccountDeletionSideEffect media-key migration requires its preparation predecessor",
   );
+  assert.ok(
+    mediaKeyRows.length === 1 || activationRows.length === 0,
+    "AccountDeletionSideEffect activation requires both preparation predecessors",
+  );
   const preparationApplied = preparationRows.length === 1;
   const mediaKeyApplied = mediaKeyRows.length === 1;
-  const state = mediaKeyApplied
+  const activationApplied = activationRows.length === 1;
+  const state = activationApplied
+    ? "enabled"
+    : mediaKeyApplied
     ? "prepared"
     : preparationApplied
       ? "preparation_only"
@@ -589,17 +798,26 @@ export function verifyAccountDeletionCatalog(
         applied_steps_count: "1",
       });
     }
+    if (activationApplied) {
+      assert.deepEqual(activationRows[0], {
+        migration_name: expectation.activation.migration,
+        checksum: expectation.activation.checksum,
+        finished: true,
+        rolled_back: false,
+        applied_steps_count: "1",
+      });
+    }
   }
   assert.deepEqual(catalog.table, {
     table_name: "AccountDeletionSideEffect",
     owner_name: target.ownerRole,
-    rls_enabled: false,
+    rls_enabled: activationApplied,
     rls_forced: false,
-    policy_count: 0,
-    runtime_select: true,
-    runtime_insert: true,
-    runtime_update: true,
-    runtime_delete: true,
+    policy_count: activationApplied ? 1 : 0,
+    runtime_select: !activationApplied,
+    runtime_insert: !activationApplied,
+    runtime_update: !activationApplied,
+    runtime_delete: !activationApplied,
     runtime_other: false,
     worker_select: preparationApplied,
     worker_insert: preparationApplied,
@@ -610,6 +828,46 @@ export function verifyAccountDeletionCatalog(
     public_column_authority: false,
     public_table_authority: false,
   });
+  if (activationApplied) {
+    assert.equal(
+      requireActivationReady,
+      true,
+      "Enabled inspection requires the activation-ready row and policy inventory",
+    );
+    assert.deepEqual(catalog.policies, [
+      {
+        policy_name:
+          "AccountDeletionSideEffect_account_deletion_runtime_all",
+        command: "*",
+        permissive: true,
+        roles: [target.workerRole],
+        using_expression: "true",
+        check_expression: "true",
+      },
+    ]);
+    assert.deepEqual(
+      catalog.retiredFunctions,
+      [...RETIRED_LEGACY_FUNCTIONS]
+        .sort((left, right) => left.localeCompare(right))
+        .map((functionIdentity) => ({
+          function_identity: functionIdentity,
+          function_exists: true,
+          runtime_execute: false,
+          worker_execute: false,
+          public_execute: false,
+        })),
+    );
+  } else if (requireActivationReady) {
+    assert.deepEqual(catalog.policies, []);
+  }
+  if (requireActivationReady) {
+    assert.equal(
+      catalog.activationBlockerCount,
+      0,
+      "AccountDeletionSideEffect activation requires zero rows rejected by its activation invariants",
+    );
+    assert.deepEqual(catalog.activationBlockers, []);
+  }
   if (preparationApplied) {
     assert.deepEqual(catalog.columns, [
       {
@@ -729,30 +987,41 @@ export function verifyAccountDeletionCatalog(
     assert.equal(actual.parallel_safety, expected.parallelSafety);
     assert.deepEqual(actual.function_config, ["search_path=pg_catalog"]);
     assert.equal(actual.source_md5, expected.sourceMd5);
+    const expectedGrantees = activationApplied
+      ? ENABLED_FUNCTION_GRANTS.get(expected.identity)
+      : expected.grantees;
+    assert.ok(
+      expectedGrantees,
+      `Missing function grants for ${expected.identity}`,
+    );
     assert.equal(
       actual.runtime_execute,
-      expected.grantees.includes(target.runtimeRole),
+      expectedGrantees.includes(target.runtimeRole),
     );
     assert.equal(
       actual.worker_execute,
-      expected.grantees.includes(target.workerRole),
+      expectedGrantees.includes(target.workerRole),
     );
     assert.equal(actual.public_execute, false);
     assert.deepEqual(
       actual.nonowner_acl,
-      expected.grantees.map((role) => `${role}:EXECUTE:false`).sort(),
+      expectedGrantees.map((role) => `${role}:EXECUTE:false`).sort(),
     );
   }
   return Object.freeze({
     state,
     preparationApplied,
     mediaKeyApplied,
-    activationApplied: false,
+    activationApplied,
     installedFunctionCount: actualFunctions.length,
     reviewedFunctionCount: expectedFunctions.length,
-    rlsEnabled: false,
+    activationBlockerCount: requireActivationReady
+      ? catalog.activationBlockerCount
+      : null,
+    rlsEnabled: activationApplied,
     rlsForced: false,
-    rowDataRead: false,
+    rowDataRead: requireActivationReady,
+    sanitizedActivationBlockers: requireActivationReady,
     productionChanged: false,
   });
 }
@@ -764,7 +1033,7 @@ export async function runAccountDeletionInspection(config, expectation) {
     statement_timeout: 30_000,
     query_timeout: 35_000,
     application_name:
-      "grainline-account-deletion-side-effect-production-inspection",
+      "grainline-account-deletion-side-effect-release-inspection",
     ...postgresChannelBindingClientOptions(new URL(config.directUrl)),
   });
   await client.connect();
@@ -774,13 +1043,16 @@ export async function runAccountDeletionInspection(config, expectation) {
       "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
     );
     open = true;
-    const catalog = await readAccountDeletionCatalog(client, expectation);
+    const catalog = await readAccountDeletionCatalog(client, expectation, {
+      inspectActivationBlockers: config.requireActivationReady,
+    });
     let result;
     try {
       result = verifyAccountDeletionCatalog(
         catalog,
         expectation,
         config.acceptedStates,
+        config.requireActivationReady,
       );
     } catch (error) {
       await client.query("ROLLBACK");
@@ -802,8 +1074,10 @@ export async function runAccountDeletionInspection(config, expectation) {
         rolledBack: true,
       },
       retained: {
-        catalogMetadataOnly: true,
-        rowData: false,
+        catalogMetadataOnly: !config.requireActivationReady,
+        rowData: config.requireActivationReady,
+        sanitizedActivationBlockers: config.requireActivationReady,
+        identifiers: false,
         credentials: false,
         functionBodies: false,
       },
@@ -832,8 +1106,9 @@ export function buildAccountDeletionFailureEvidence(config, git, error) {
       rolledBack: true,
     }),
     retained: Object.freeze({
-      catalogMetadataOnly: true,
-      rowData: false,
+      catalogMetadataOnly: !config.requireActivationReady,
+      rowData: config.requireActivationReady,
+      sanitizedActivationBlockers: config.requireActivationReady,
       identifiers: false,
       credentials: false,
       functionBodies: false,

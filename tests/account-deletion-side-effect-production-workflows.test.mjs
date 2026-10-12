@@ -11,6 +11,10 @@ const preparation = readFileSync(
   ".github/workflows/account-deletion-side-effect-preparation-production.yml",
   "utf8",
 );
+const enable = readFileSync(
+  ".github/workflows/account-deletion-side-effect-enable-production.yml",
+  "utf8",
+);
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const preparationPath =
   "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql";
@@ -59,6 +63,8 @@ test("inspection is exact-main, exact-CI, first-attempt, manual, and read-only",
     inspection,
     /ACCOUNT_DELETION_EXPECTED_STATE: \$\{\{ inputs\.expected_state \}\}/u,
   );
+  assert.match(inspection, /- activation-compatible/u);
+  assert.match(inspection, /- enabled/u);
   assert.match(
     inspection,
     /name: Preserve sanitized AccountDeletionSideEffect catalog evidence\n\s+if: always\(\)/u,
@@ -90,6 +96,107 @@ test("inspection is exact-main, exact-CI, first-attempt, manual, and read-only",
   );
 });
 
+test("ENABLE is exact-main, exact-CI, preflight-bound, application-bound, restart-safe, and scope-closed", () => {
+  assert.match(enable, /name: AccountDeletionSideEffect ENABLE Production/u);
+  assert.match(
+    enable,
+    /inputs\.confirmation == 'enable-reviewed-account-deletion-side-effect-rls'/u,
+  );
+  assert.match(enable, /github\.ref == 'refs\/heads\/main'/u);
+  assert.match(enable, /github\.run_attempt == 1/u);
+  assert.match(enable, /main\.commit\.sha !== sha/u);
+  assert.match(enable, /ci\.head_sha !== sha/u);
+  assert.match(
+    enable,
+    /inspection\.path !== '\.github\/workflows\/account-deletion-side-effect-production-inspection\.yml'/u,
+  );
+  assert.match(
+    enable,
+    /inspection\.display_title !== `AccountDeletionSideEffect Production Inspection \[activation-compatible\] \$\{sha\}`/u,
+  );
+  assert.match(enable, /inspection\.head_sha !== sha/u);
+  assert.match(enable, /inspection\.run_attempt !== 1/u);
+  assert.match(enable, /inspection\.conclusion !== 'success'/u);
+  assert.match(enable, /group: production-database-migrations/u);
+  assert.match(enable, /environment: Production/u);
+  assert.match(enable, /19f321f20d33949edd6d28f87a826aaff2b1c292/u);
+  assert.match(enable, /dpl_4fkg6pj9L7pNa3jY5wcufqPF4ef9/u);
+  assert.match(enable, /git merge-base --is-ancestor/u);
+  assert.match(enable, /git diff --quiet/u);
+  assert.match(enable, /https:\/\/thegrainline\.com\/api\/health/u);
+  for (const alias of [
+    "thegrainline.com",
+    "grainline.vercel.app",
+    "www.thegrainline.com",
+    "grainline-drew-youngs-projects.vercel.app",
+    "grainline-git-main-drew-youngs-projects.vercel.app",
+  ])
+    assert.match(enable, new RegExp(alias.replaceAll(".", "\\."), "u"));
+  assert.match(enable, /dpl=\$application_deployment/u);
+  assert.match(enable, /ACCOUNT_DELETION_EXPECTED_STATE: activation-compatible/u);
+  assert.match(enable, /ACCOUNT_DELETION_EXPECTED_STATE: enabled/u);
+  assert.match(enable, /prepared\|enabled/u);
+  assert.match(enable, /steps\.preflight\.outputs\.state == 'prepared'/u);
+  assert.equal((enable.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.equal((enable.match(/npx prisma migrate status/gu) ?? []).length, 2);
+  assert.equal(
+    (enable.match(/assert-reviewed-pending-migrations\.mjs/gu) ?? []).length,
+    2,
+  );
+  assert.match(
+    enable,
+    /for path in prisma\/migrations\/\*\/; do[\s\S]*if \[\[ "\$candidate" > "\$migration" \]\]/u,
+  );
+  assert.match(enable, /trap restore EXIT/u);
+  assert.match(enable, /npm run audit:db-grants -- --require-direct-url/u);
+  assert.match(
+    enable,
+    new RegExp(
+      `${activationDigest}  ${activationPath.replaceAll(".", "\\.")}`,
+      "u",
+    ),
+  );
+  assert.doesNotMatch(
+    enable,
+    /ALTER TABLE|FORCE ROW LEVEL SECURITY|npx vercel|vercel deploy|git push/iu,
+  );
+});
+
+test("ENABLE proves source before owner access and inspects before and after its one migration", () => {
+  const bind = enable.indexOf(
+    "Bind ENABLE to exact main, CI, preflight, and live compatible application",
+  );
+  const live = enable.indexOf("Verify live compatible application boundary");
+  const source = enable.indexOf(
+    "Verify AccountDeletionSideEffect ENABLE release source",
+  );
+  const bytes = enable.indexOf(
+    "Verify exact AccountDeletionSideEffect ENABLE migration bytes",
+  );
+  const boundary = enable.indexOf("Verify owner connection boundary");
+  const preflight = enable.indexOf(
+    "Inspect restart-safe AccountDeletionSideEffect state before apply",
+  );
+  const apply = enable.indexOf(
+    "Apply only reviewed AccountDeletionSideEffect ENABLE migration",
+  );
+  const postflight = enable.indexOf(
+    "Inspect enabled AccountDeletionSideEffect catalog after apply",
+  );
+  const audit = enable.indexOf(
+    "Audit global grants after AccountDeletionSideEffect ENABLE",
+  );
+  assert.ok(
+    bind >= 0 &&
+      bind < live &&
+      live < source &&
+      source < bytes &&
+      bytes < boundary &&
+      boundary < preflight,
+  );
+  assert.ok(preflight < apply && apply < postflight && postflight < audit);
+});
+
 test("inspection proves source and bytes before owner access", () => {
   const source = inspection.indexOf(
     "Verify read-only AccountDeletionSideEffect inspection source",
@@ -99,7 +206,7 @@ test("inspection proves source and bytes before owner access", () => {
   );
   const boundary = inspection.indexOf("Verify owner connection boundary");
   const inspect = inspection.indexOf(
-    "Inspect AccountDeletionSideEffect preparation catalog read-only",
+    "Inspect AccountDeletionSideEffect catalog read-only",
   );
   assert.ok(
     source >= 0 && source < bytes && bytes < boundary && boundary < inspect,
@@ -116,7 +223,7 @@ test("inspection owner guard receives the exact reviewed release binding", () =>
   const guard = inspection.slice(
     inspection.indexOf("- name: Verify owner connection boundary"),
     inspection.indexOf(
-      "- name: Inspect AccountDeletionSideEffect preparation catalog read-only",
+      "- name: Inspect AccountDeletionSideEffect catalog read-only",
     ),
   );
   assert.match(
