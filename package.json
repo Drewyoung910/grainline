@@ -11,6 +11,7 @@
     "build": "prisma generate && node scripts/prepare-maplibre-assets.mjs && next build",
     "guard:local-disk-space": "node scripts/guard-local-disk-headroom.mjs",
     "guard:runtime-db-env": "node scripts/guard-runtime-db-env.mjs",
+    "guard:account-deletion-runtime-ready": "node scripts/account-deletion-runtime-readiness.mjs",
     "ops:separate-db-credential": "node scripts/runtime-db-credential-separation-operator.mjs",
     "ops:recover-exposed-db-credentials": "node scripts/database-credential-exposure-recovery.mjs",
     "ops:recover-exposed-cron-secret": "node scripts/cron-secret-credential-exposure-recovery.mjs",

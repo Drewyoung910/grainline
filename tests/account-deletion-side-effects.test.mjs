@@ -71,12 +71,15 @@ describe("account deletion side-effect retries", () => {
     const claimFence = source(
       "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql",
     );
+    const mediaKeyFence = source(
+      "prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql",
+    );
 
     assert.match(deletion, /runAccountDeletionStripeRejectSideEffect\(\{/);
-    assert.match(deletion, /collectAccountDeletionMediaUrls\(tx, user\.id, user\.clerkId\)/);
+    assert.match(deletion, /collectAccountDeletionMediaKeys\(tx, user\.id, user\.clerkId\)/);
     assert.match(
       deletion,
-      /enqueueAccountDeletionMediaDeleteSideEffects\([\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*mediaUrls,/,
+      /enqueueAccountDeletionMediaDeleteSideEffects\([\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*mediaKeys,/,
     );
     assert.match(deletion, /collectAdminAuditLogRedactionUpdates\(\{/);
     assert.match(
@@ -85,16 +88,26 @@ describe("account deletion side-effect retries", () => {
     );
     assert.match(deletion, /processAccountDeletionSideEffectsForUser\(userId, \[/);
     assert.doesNotMatch(deletion, /deleteR2ObjectByUrl/);
-    assert.doesNotMatch(deletion, /mapWithConcurrency\(mediaUrls/);
+    assert.doesNotMatch(deletion, /mapWithConcurrency\(mediaKeys/);
 
     assert.match(sideEffects, /stripe\.accounts\.reject\(payload\.stripeAccountId/);
     assert.match(sideEffects, /manualStripeReconciliationNote: \{\s*startsWith: "Account deletion could not reject Stripe Connect account"/s);
     assert.match(sideEffects, /manualStripeReconciliationNeeded: false/);
+    assert.match(sideEffects, /deleteR2ObjectByKey\(payload\.key\)/);
+    assert.match(
+      sideEffects,
+      /for \(const batch of accountDeletionMediaKeyBatches\(keys\)\)/,
+    );
     assert.match(sideEffects, /deleteR2ObjectByUrl\(payload\.url\)/);
+    assert.match(
+      sideEffects,
+      /activation refuses[\s\S]*no unfinished URL-form media row remains/,
+    );
     assert.match(sideEffects, /prisma\.adminAuditLog\.update/);
     assert.match(claimFence, /payload = '\{}'::jsonb/);
-    assert.match(claimFence, /grainline_account_deletion_media_enqueue_claimed/);
-    assert.match(claimFence, /pg_catalog\.sha256/);
+    assert.match(mediaKeyFence, /grainline_account_deletion_media_key_enqueue_claimed/);
+    assert.match(mediaKeyFence, /source_actor_segment/);
+    assert.match(mediaKeyFence, /pg_catalog\.sha256/);
     assert.match(sideEffects, /sanitizeSideEffectError/);
   });
 

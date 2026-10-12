@@ -162,7 +162,7 @@ describe("Conversation and Message application authority conversion", () => {
     const helper = source("src/lib/conversationMessageAuthority.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const collectCall = deletion.indexOf(
-      "const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId)",
+      "const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId)",
     );
     const redactionCall = deletion.indexOf(
       "await redactActorMessagesForAccountDeletion({",
@@ -176,8 +176,8 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(helper, /requireSafeCount\(\s*rows\[0\]\.sentRedacted/s);
     assert.match(helper, /requireSafeCount\(\s*rows\[0\]\.receivedRedacted/s);
     assert.match(deletion, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
-    assert.ok(collectCall >= 0, "deletion must collect attachment URLs");
-    assert.ok(redactionCall > collectCall, "message attachments must be collected before body redaction");
+    assert.ok(collectCall >= 0, "deletion must collect canonical attachment keys");
+    assert.ok(redactionCall > collectCall, "message attachment keys must be collected before body redaction");
     assert.doesNotMatch(deletion, /(?:tx|db)\.message\.|FROM "Message"/);
   });
 

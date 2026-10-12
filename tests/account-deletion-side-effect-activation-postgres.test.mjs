@@ -11,6 +11,10 @@ const preparation = readFileSync(
   "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql",
   "utf8",
 );
+const mediaKeyFence = readFileSync(
+  "prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql",
+  "utf8",
+);
 
 const legacyFunctions = [
   ["grainline_user_account_deletion_preflight", "text"],
@@ -28,6 +32,10 @@ async function predecessorFixture() {
       LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
     CREATE ROLE grainline_account_deletion_runtime
       LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+    CREATE TABLE public."User" (
+      id varchar(191) PRIMARY KEY,
+      "clerkId" varchar(191) NOT NULL UNIQUE
+    );
     CREATE TABLE public."AccountDeletionSideEffect" (
       id text PRIMARY KEY,
       "userId" varchar(191) NOT NULL,
@@ -70,6 +78,7 @@ test("preparation preserves old callers while making the dedicated worker deploy
   const database = await predecessorFixture();
   try {
     await database.exec(preparation);
+    await database.exec(mediaKeyFence);
     const posture = (await database.query(`
       SELECT
         pg_catalog.has_table_privilege(
@@ -100,7 +109,17 @@ test("preparation preserves old callers while making the dedicated worker deploy
           'grainline_account_deletion_runtime',
           'public.grainline_account_deletion_side_effect_claim(text)',
           'EXECUTE'
-        ) AS "workerClaimExecute"
+        ) AS "workerClaimExecute",
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_account_deletion_media_enqueue_claimed(text,bigint,uuid,text[])',
+          'EXECUTE'
+        ) AS "legacyMediaRuntimeExecute",
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])',
+          'EXECUTE'
+        ) AS "keyMediaRuntimeExecute"
     `)).rows[0];
     assert.deepEqual(posture, {
       runtimeCrud: true,
@@ -109,6 +128,8 @@ test("preparation preserves old callers while making the dedicated worker deploy
       legacyWorkerExecute: false,
       runtimeClaimExecute: true,
       workerClaimExecute: true,
+      legacyMediaRuntimeExecute: true,
+      keyMediaRuntimeExecute: true,
     });
   } finally {
     await database.close();
@@ -119,6 +140,7 @@ test("Phase A activation denies forged ordinary-runtime rows and preserves worke
   const database = await predecessorFixture();
   try {
     await database.exec(preparation);
+    await database.exec(mediaKeyFence);
     const prepared = (await database.query(`
       SELECT
         pg_catalog.has_table_privilege(
@@ -221,8 +243,120 @@ test("Phase A activation denies forged ordinary-runtime rows and preserves worke
         workerExecute: false,
       });
     }
+    const mediaPosture = (await database.query(`
+      SELECT
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_account_deletion_media_enqueue_claimed(text,bigint,uuid,text[])',
+          'EXECUTE'
+        ) AS "legacyRuntimeExecute",
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])',
+          'EXECUTE'
+        ) AS "keyRuntimeExecute"
+    `)).rows[0];
+    assert.deepEqual(mediaPosture, {
+      legacyRuntimeExecute: false,
+      keyRuntimeExecute: true,
+    });
   } finally {
     await database.exec("RESET SESSION AUTHORIZATION").catch(() => {});
+    await database.close();
+  }
+});
+
+test("media-key enqueue accepts only canonical keys scoped to the claimed Clerk user", async () => {
+  const database = await predecessorFixture();
+  const claimToken = "11111111-1111-4111-8111-111111111111";
+  try {
+    await database.exec(preparation);
+    await database.exec(mediaKeyFence);
+    await database.exec(`
+      INSERT INTO public."User" (id, "clerkId") VALUES ('user-1', 'user_123');
+      INSERT INTO public."AccountDeletionSideEffect" (
+        id, "userId", kind, "dedupKey", payload, status,
+        "claimGeneration", "claimToken", "processingStartedAt"
+      ) VALUES (
+        'local-1', 'user-1', 'LOCAL_ANONYMIZE',
+        'account-delete:local:user-1', '{}'::jsonb, 'PROCESSING',
+        3, '${claimToken}'::uuid, now()
+      );
+    `);
+    await database.exec("SET SESSION AUTHORIZATION grainline_app_runtime");
+    const accepted = await database.query(`
+      SELECT public.grainline_account_deletion_media_key_enqueue_claimed(
+        'local-1', 3, '${claimToken}'::uuid,
+        ARRAY['listingImage/user_123/owned.jpg']::text[]
+      ) AS count
+    `);
+    assert.equal(String(accepted.rows[0].count), "1");
+    for (const key of [
+      "listingImage/user_456/victim.jpg",
+      "unknown/user_123/file.jpg",
+      "listingImage/user_123/../victim.jpg",
+      "listingImage/user_123/",
+      "listingImage/user_123/control\n.jpg",
+    ]) {
+      await assert.rejects(
+        database.query(
+          `SELECT public.grainline_account_deletion_media_key_enqueue_claimed($1, $2, $3::uuid, ARRAY[$4]::text[])`,
+          ["local-1", 3, claimToken, key],
+        ),
+        (error) => error?.code === "42501",
+      );
+    }
+    await assert.rejects(
+      database.query(
+        `SELECT public.grainline_account_deletion_media_key_enqueue_claimed($1, $2, $3::uuid, ARRAY[$4]::text[])`,
+        ["local-1", 4, claimToken, "listingImage/user_123/owned.jpg"],
+      ),
+      (error) => error?.code === "42501",
+    );
+  } finally {
+    await database.exec("RESET SESSION AUTHORIZATION").catch(() => {});
+    await database.close();
+  }
+});
+
+test("activation waits for every unfinished legacy URL media row to drain", async () => {
+  const database = await predecessorFixture();
+  try {
+    await database.exec(preparation);
+    await database.exec(mediaKeyFence);
+    await database.exec(`
+      INSERT INTO public."AccountDeletionSideEffect" (
+        id, "userId", kind, "dedupKey", payload, status
+      ) VALUES (
+        'legacy-media-1', 'user-1', 'MEDIA_DELETE',
+        'account-delete:media:user-1:legacy',
+        '{"url":"https://cdn.thegrainline.com/listingImage/user_123/owned.jpg"}'::jsonb,
+        'PENDING'
+      );
+    `);
+
+    await assert.rejects(
+      database.exec(activation),
+      /AccountDeletionSideEffect activation found invalid rows/u,
+    );
+    await database.exec("ROLLBACK");
+
+    await database.exec(`
+      UPDATE public."AccountDeletionSideEffect"
+         SET status = 'DONE', "processedAt" = now()
+       WHERE id = 'legacy-media-1'
+    `);
+    await database.exec(activation);
+    const posture = (await database.query(`
+      SELECT
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_account_deletion_media_enqueue_claimed(text,bigint,uuid,text[])',
+          'EXECUTE'
+        ) AS "legacyRuntimeExecute"
+    `)).rows[0];
+    assert.deepEqual(posture, { legacyRuntimeExecute: false });
+  } finally {
     await database.close();
   }
 });

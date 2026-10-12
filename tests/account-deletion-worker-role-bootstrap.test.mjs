@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   newAccountDeletionBootstrapState, validateAccountDeletionBootstrapState, buildAccountDeletionBootstrapSql,
   runAccountDeletionBootstrapCore, ACCOUNT_DELETION_BOOTSTRAP_ROLE, accountDeletionBootstrapMarker,
-  readAccountDeletionBootstrapLoginSnapshot,
+  readAccountDeletionBootstrapLoginSnapshot, retireAccountDeletionBootstrapCredential,
 } from "../scripts/account-deletion-worker-role-bootstrap.mjs";
 
 const binding = { releaseCommit: "a".repeat(40), ciRunId: "34010014880" };
@@ -42,6 +42,23 @@ test("account deletion bootstrap binds exact private state and refuses drift", (
     { releaseCommit: "b".repeat(40) }, { ciRunId: "1" }, { extra: true },
   ]) assert.throws(() => validateAccountDeletionBootstrapState({ ...state, ...patch }, binding));
   assert.throws(() => newAccountDeletionBootstrapState({ ...binding, ciRunId: 123 }));
+});
+
+test("credential retirement retains only exact attempt-bound provider evidence", async () => {
+  const state = { ...newAccountDeletionBootstrapState(binding), stage: "role-verified" };
+  const retired = retireAccountDeletionBootstrapCredential(state, binding, {
+    status: "installed", key: "ACCOUNT_DELETION_DATABASE_URL",
+    environmentId: "env_fixture_1", valueSha256: "c".repeat(64),
+  });
+  assert.equal(validateAccountDeletionBootstrapState(retired, binding).stage, "credential-installed");
+  assert.equal(retired.password, undefined);
+  assert.equal(retired.verifier, undefined);
+  for (const patch of [
+    { passwordSha256: "0" }, { verifierSha256: "0" },
+    { environmentId: "unsafe-id" }, { valueSha256: "0" }, { extra: true },
+  ]) assert.throws(() => validateAccountDeletionBootstrapState({ ...retired, ...patch }, binding));
+  await assert.rejects(runAccountDeletionBootstrapCore({ state: retired, binding, operations: {} }),
+    /already installed and retired/u);
 });
 
 test("bootstrap persists intent before SQL and authenticates before completion", async () => {

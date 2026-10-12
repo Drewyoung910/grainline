@@ -5,7 +5,7 @@ import { withDbUserContext } from "@/lib/dbUserContext";
 import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
-import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
+import { accountDeletionMediaKeysForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
@@ -673,7 +673,7 @@ function markdownImageUrls(markdown: string) {
   return [...urls];
 }
 
-async function collectAccountDeletionMediaUrls(
+async function collectAccountDeletionMediaKeys(
   db: AccountDeletionMediaDb,
   userId: string,
   clerkUserId: string,
@@ -747,7 +747,7 @@ async function collectAccountDeletionMediaUrls(
     if (upload.publicUrl) urls.add(upload.publicUrl);
   });
 
-  return accountDeletionMediaUrlsForCleanup(urls, clerkUserId);
+  return accountDeletionMediaKeysForCleanup(urls, clerkUserId);
 }
 
 function revalidateDeletedAccountSearchCaches(userId: string) {
@@ -1205,7 +1205,7 @@ export async function anonymizeUserAccount(
       user.sellerProfile?.tiktokUrl,
       user.sellerProfile?.websiteUrl,
     ]);
-    const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId);
+    const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId);
     await enqueueAccountDeletionMediaDeleteSideEffects(
       tx,
       {
@@ -1213,7 +1213,7 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       },
-      mediaUrls,
+      mediaKeys,
     );
     // Public account media is queued above, then its durable references are
     // released and its lifecycle rows become cleanup-eligible. Private Case

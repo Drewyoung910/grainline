@@ -280,6 +280,16 @@ BEGIN
           effect."dedupKey" <> 'account-delete:local:' || effect."userId"
           OR effect.payload <> '{}'::jsonb
         )
+      )
+      OR (
+        effect.kind = 'MEDIA_DELETE'
+        AND effect.status <> 'DONE'
+        AND (
+          pg_catalog.jsonb_typeof(effect.payload) IS DISTINCT FROM 'object'
+          OR pg_catalog.jsonb_typeof(effect.payload -> 'key')
+               IS DISTINCT FROM 'string'
+          OR pg_catalog.btrim(effect.payload ->> 'key') = ''
+        )
       );
   IF invalid_row_count <> 0 THEN
     RAISE EXCEPTION
@@ -293,6 +303,7 @@ BEGIN
       ('public."grainline_account_deletion_side_effect_complete"(text,bigint,uuid)'),
       ('public."grainline_account_deletion_side_effect_fail"(text,bigint,uuid,text)'),
       ('public."grainline_account_deletion_media_enqueue_claimed"(text,bigint,uuid,text[])'),
+      ('public."grainline_account_deletion_media_key_enqueue_claimed"(text,bigint,uuid,text[])'),
       ('public."grainline_account_deletion_claim_user"(text,bigint,uuid)'),
       ('public."grainline_user_account_deletion_preflight"(text,bigint,uuid)'),
       ('public."grainline_user_account_deletion_snapshot"(text,bigint,uuid)'),
@@ -314,7 +325,7 @@ BEGIN
      AND procedure.proconfig IS NOT DISTINCT FROM
          ARRAY['search_path=pg_catalog']::text[]
      AND procedure.proowner = table_owner;
-  IF required_function_count <> 11 THEN
+  IF required_function_count <> 12 THEN
     RAISE EXCEPTION
       'AccountDeletionSideEffect fixed-function catalog drifted: %',
       required_function_count;
@@ -377,6 +388,18 @@ GRANT EXECUTE ON FUNCTION
 GRANT EXECUTE ON FUNCTION
   public.grainline_account_deletion_side_effect_fail(text, bigint, uuid, text)
   TO grainline_account_deletion_runtime;
+
+-- Old instances used the URL RPC. They are drained before activation. Keep
+-- only the key-scoped replacement executable by ordinary runtime afterward.
+REVOKE ALL ON FUNCTION
+  public.grainline_account_deletion_media_enqueue_claimed(text, bigint, uuid, text[])
+  FROM PUBLIC, grainline_app_runtime, grainline_account_deletion_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_account_deletion_media_key_enqueue_claimed(text, bigint, uuid, text[])
+  FROM PUBLIC, grainline_app_runtime, grainline_account_deletion_runtime;
+GRANT EXECUTE ON FUNCTION
+  public.grainline_account_deletion_media_key_enqueue_claimed(text, bigint, uuid, text[])
+  TO grainline_app_runtime;
 
 -- Old application instances are drained before this migration. Retire every
 -- unbound destructive helper at the same boundary that removes ordinary table
@@ -458,7 +481,8 @@ BEGIN
       ('public."grainline_account_deletion_side_effect_claim"(text)', false, true),
       ('public."grainline_account_deletion_side_effect_complete"(text,bigint,uuid)', false, true),
       ('public."grainline_account_deletion_side_effect_fail"(text,bigint,uuid,text)', false, true),
-      ('public."grainline_account_deletion_media_enqueue_claimed"(text,bigint,uuid,text[])', true, false),
+      ('public."grainline_account_deletion_media_enqueue_claimed"(text,bigint,uuid,text[])', false, false),
+      ('public."grainline_account_deletion_media_key_enqueue_claimed"(text,bigint,uuid,text[])', true, false),
       ('public."grainline_account_deletion_claim_user"(text,bigint,uuid)', false, false),
       ('public."grainline_user_account_deletion_preflight"(text,bigint,uuid)', true, false),
       ('public."grainline_user_account_deletion_snapshot"(text,bigint,uuid)', true, false),
@@ -500,7 +524,7 @@ BEGIN
           AND acl.grantee = 0
           AND acl.privilege_type = 'EXECUTE'
      );
-  IF accepted_function_count <> 17 THEN
+  IF accepted_function_count <> 18 THEN
     RAISE EXCEPTION
       'AccountDeletionSideEffect activation did not establish exact function posture: %',
       accepted_function_count;

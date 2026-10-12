@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { newAccountDeletionBootstrapState } from "../scripts/account-deletion-worker-role-bootstrap.mjs";
 import {
   buildAccountDeletionDatabaseUrl,
+  inspectAccountDeletionDatabaseUrl,
   installAccountDeletionDatabaseUrl,
 } from "../scripts/account-deletion-worker-vercel-env.mjs";
 
@@ -65,6 +66,31 @@ test("installer creates only the sensitive Production row and returns sanitized 
   assert.equal(calls.length, 3);
   assert.ok(calls.every(call => call.url.includes("teamId=team_wvQeQHZGwCSwinC1uB7xbpjr")));
   assert.ok(calls.every(call => call.options.redirect === "error"));
+});
+
+test("retirement inspection is read-only and accepts only the exact installed row", async () => {
+  const state = verified();
+  let calls = 0;
+  const result = await inspectAccountDeletionDatabaseUrl({
+    state,
+    binding,
+    vercelToken: token,
+    fetchImpl: async (url, options) => {
+      calls++;
+      assert.equal(options.method, "GET");
+      assert.equal(options.body, undefined);
+      return response({ envs: [exactRow(state)] }, url.toString());
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.environmentId, id);
+  assert.ok(!JSON.stringify(result).includes(state.password));
+  await assert.rejects(inspectAccountDeletionDatabaseUrl({
+    state,
+    binding,
+    vercelToken: token,
+    fetchImpl: async (url) => response({ envs: [] }, url.toString()),
+  }), /installation stopped/u);
 });
 
 test("exact retry and ambiguous create response converge without credential rotation", async () => {

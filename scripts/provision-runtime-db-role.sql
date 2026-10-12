@@ -3444,7 +3444,8 @@ WITH account_deletion_retired_runtime(function_signature) AS (
     ('public."grainline_user_account_deletion_finalize"(text)'),
     ('public."grainline_case_account_deletion_redact"(text)'),
     ('public."grainline_message_redact_for_account_deletion"(text)'),
-    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+    ('public."grainline_order_account_deletion_scrub"(text, text[])'),
+    ('public."grainline_account_deletion_media_enqueue_claimed"(text, bigint, uuid, text[])')
 )
 SELECT pg_catalog.format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
@@ -3466,7 +3467,8 @@ WITH account_deletion_retired_runtime(function_signature) AS (
     ('public."grainline_user_account_deletion_finalize"(text)'),
     ('public."grainline_case_account_deletion_redact"(text)'),
     ('public."grainline_message_redact_for_account_deletion"(text)'),
-    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+    ('public."grainline_order_account_deletion_scrub"(text, text[])'),
+    ('public."grainline_account_deletion_media_enqueue_claimed"(text, bigint, uuid, text[])')
 )
 SELECT pg_catalog.format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -3484,7 +3486,8 @@ WITH account_deletion_retired_runtime(function_signature) AS (
     ('public."grainline_user_account_deletion_finalize"(text)'),
     ('public."grainline_case_account_deletion_redact"(text)'),
     ('public."grainline_message_redact_for_account_deletion"(text)'),
-    ('public."grainline_order_account_deletion_scrub"(text, text[])')
+    ('public."grainline_order_account_deletion_scrub"(text, text[])'),
+    ('public."grainline_account_deletion_media_enqueue_claimed"(text, bigint, uuid, text[])')
 )
 SELECT pg_catalog.format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
@@ -3498,7 +3501,7 @@ SELECT pg_catalog.format(
 
 WITH account_deletion_claimed_runtime(function_signature) AS (
   VALUES
-    ('public."grainline_account_deletion_media_enqueue_claimed"(text, bigint, uuid, text[])'),
+    ('public."grainline_account_deletion_media_key_enqueue_claimed"(text, bigint, uuid, text[])'),
     ('public."grainline_user_account_deletion_preflight"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_snapshot"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_finalize"(text, bigint, uuid)'),
@@ -3518,7 +3521,7 @@ SELECT pg_catalog.format(
 
 WITH account_deletion_claimed_runtime(function_signature) AS (
   VALUES
-    ('public."grainline_account_deletion_media_enqueue_claimed"(text, bigint, uuid, text[])'),
+    ('public."grainline_account_deletion_media_key_enqueue_claimed"(text, bigint, uuid, text[])'),
     ('public."grainline_user_account_deletion_preflight"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_snapshot"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_finalize"(text, bigint, uuid)'),
@@ -3739,6 +3742,7 @@ BEGIN
          'grainline_account_deletion_side_effect_complete',
          'grainline_account_deletion_side_effect_fail',
          'grainline_account_deletion_media_enqueue_claimed',
+         'grainline_account_deletion_media_key_enqueue_claimed',
          'grainline_account_deletion_claim_user',
          'grainline_user_account_deletion_preflight',
          'grainline_user_account_deletion_snapshot',

@@ -88,6 +88,26 @@ async function inventory(token, fetchImpl) {
   return payload.envs.filter(row => row?.key === KEY);
 }
 
+function acceptedEvidence(state, valueSha256, rows) {
+  const comment = expectedComment(state, valueSha256);
+  assert.ok(rows.length === 1 && exactEntry(rows[0], comment));
+  return Object.freeze({ status: "installed", key: KEY, environmentId: rows[0].id,
+    projectId: PROJECT_ID, teamId: TEAM_ID, target: "production", valueSha256 });
+}
+
+// Read-only confirmation for local secret retirement after an older admitted
+// installer has written the exact row. It never creates, updates or deletes a
+// provider resource.
+export async function inspectAccountDeletionDatabaseUrl({ state: rawState, binding,
+  vercelToken, fetchImpl = fetch }) {
+  try {
+    const state = validateAccountDeletionBootstrapState(rawState, binding);
+    assert.equal(state.stage, "role-verified");
+    const valueSha256 = sha256(buildAccountDeletionDatabaseUrl(state, binding));
+    return acceptedEvidence(state, valueSha256, await inventory(vercelToken, fetchImpl));
+  } catch { throw stopped(); }
+}
+
 // This creates only one sensitive Production variable. Existing conflicting
 // rows fail closed. An exact attempt-bound row is accepted on retry, including
 // after an ambiguous POST response, without rotating the private credential.
@@ -110,8 +130,6 @@ export async function installAccountDeletionDatabaseUrl({ state: rawState, bindi
       }
       rows = await inventory(vercelToken, fetchImpl);
     }
-    assert.ok(rows.length === 1 && exactEntry(rows[0], comment));
-    return Object.freeze({ status: "installed", key: KEY, environmentId: rows[0].id,
-      projectId: PROJECT_ID, teamId: TEAM_ID, target: "production", valueSha256 });
+    return acceptedEvidence(state, valueSha256, rows);
   } catch { throw stopped(); }
 }

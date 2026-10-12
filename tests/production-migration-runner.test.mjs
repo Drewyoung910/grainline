@@ -253,7 +253,10 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /order-handoff-client\.mjs/);
     assert.match(workflow, /order-handoff-evidence\.mjs/);
     assert.doesNotMatch(workflow, /npx prisma|psql |SAVED_SEARCH_RLS_DEPLOY_PHASE/);
-    assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
+    assert.equal(
+      vercel.buildCommand,
+      "npm run guard:runtime-db-env && npm run guard:account-deletion-runtime-ready && npm run build",
+    );
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);
     assert.match(runtimeSource, /requiredProductionEnv\("DATABASE_URL"\)/);
     assert.doesNotMatch(runtimeSource, /DIRECT_URL|MIGRATION_DB_ROLE/);

@@ -81,6 +81,19 @@ test("fixed private loaders read reviewed files without writes, exposing only na
   assert.deepEqual(Object.values(f.files).map(file => fs.readFileSync(file)), before);
 });
 
+test("provider-token retirement durably removes only the reviewed local token file", t => {
+  const f = fixture(t);
+  const inputs = f.load();
+  const preserved = [f.files.manifest, f.files.owner, f.files.runtime,
+    f.files.ownerEvidence, f.files.runtimeEvidence]
+    .map(file => [file, fs.readFileSync(file)]);
+  assert.deepEqual(inputs.retireProviderTokens(), { status: "retired" });
+  assert.equal(fs.existsSync(f.files.tokens), false);
+  assert.deepEqual(inputs.retireProviderTokens(), { status: "retired" });
+  for (const [file, contents] of preserved) assert.deepEqual(fs.readFileSync(file), contents);
+  assert.throws(inputs.loadProviderTokens, /private inputs invalid/u);
+});
+
 test("manifest digest, schema, scope, duplicate keys and path overrides fail closed", t => {
   for (const kind of ["digest", "scope", "key", "duplicate", "format"]) {
     const f = fixture(t);
@@ -134,7 +147,8 @@ test("every later read revalidates the manifest and ignored location", t => {
     if (kind === "manifest") f.put(f.files.manifest, "PRIVATE_SENTINEL");
     if (kind === "gitignore") fs.writeFileSync(path.join(f.root, ".gitignore"), "");
     if (kind === "directory") fs.chmodSync(f.directory, 0o755);
-    for (const read of [inputs.verifyManifest, inputs.loadProviderTokens, inputs.loadOwnerCredential, inputs.observeCredentialEpoch]) {
+    for (const read of [inputs.verifyManifest, inputs.loadProviderTokens, inputs.retireProviderTokens,
+      inputs.loadOwnerCredential, inputs.observeCredentialEpoch]) {
       assert.throws(read, error => error.message === "account deletion bootstrap private inputs invalid or changed; preserve private files" && !error.cause);
     }
   }

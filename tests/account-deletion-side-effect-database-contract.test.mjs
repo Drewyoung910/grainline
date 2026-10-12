@@ -15,6 +15,10 @@ const activation = readFileSync(
   "prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql",
   "utf8",
 );
+const mediaKeyFence = readFileSync(
+  "prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql",
+  "utf8",
+);
 const userAccess = readFileSync("src/lib/userAccountDeletionAccess.ts", "utf8");
 const caseAccess = readFileSync("src/lib/caseAccountDeletionAuthority.ts", "utf8");
 const messageAccess = readFileSync("src/lib/conversationMessageAuthority.ts", "utf8");
@@ -84,6 +88,19 @@ describe("account-deletion database credential boundary", () => {
     }
     assert.match(accountDeletion, /claimGeneration: localClaimGeneration/);
     assert.match(accountDeletion, /claimToken: localClaimToken/);
+    assert.match(
+      mediaKeyFence,
+      /CREATE FUNCTION public\.grainline_account_deletion_media_key_enqueue_claimed\([\s\S]*effect\.status = 'PROCESSING'[\s\S]*effect\."claimGeneration" = p_claim_generation[\s\S]*effect\."claimToken" = p_claim_token/,
+    );
+    assert.match(mediaKeyFence, /split_part\(supplied\.key, '\/', 2\)[\s\S]*source_actor_segment/);
+    assert.match(
+      activation,
+      /REVOKE ALL ON FUNCTION\s+public\.grainline_account_deletion_media_enqueue_claimed\(text, bigint, uuid, text\[\]\)[\s\S]*FROM PUBLIC, grainline_app_runtime, grainline_account_deletion_runtime/,
+    );
+    assert.match(
+      activation,
+      /GRANT EXECUTE ON FUNCTION\s+public\.grainline_account_deletion_media_key_enqueue_claimed\(text, bigint, uuid, text\[\]\)[\s\S]*TO grainline_app_runtime/,
+    );
   });
 
   it("moves ledger trust from ordinary runtime to the dedicated role", () => {

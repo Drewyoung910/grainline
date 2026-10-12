@@ -218,8 +218,29 @@ const ACCOUNT_DELETION_MEDIA_ENDPOINTS = [
   "reviewPhoto",
   "blogImage",
 ] as const;
+export const ACCOUNT_DELETION_MEDIA_KEY_BATCH_SIZE = 500;
 
 export function accountDeletionMediaUrlsForCleanup(urls: Iterable<string>, clerkUserId: string): string[] {
   return [...new Set(urls)]
     .filter((url) => isFirstPartyMediaUrlForUser(url, clerkUserId, ACCOUNT_DELETION_MEDIA_ENDPOINTS));
+}
+
+export function accountDeletionMediaKeysForCleanup(
+  urls: Iterable<string>,
+  clerkUserId: string,
+): string[] {
+  return [...new Set(
+    accountDeletionMediaUrlsForCleanup(urls, clerkUserId)
+      .map((url) => firstPartyMediaKey(url))
+      .filter((key): key is string => key !== null),
+  )];
+}
+
+export function accountDeletionMediaKeyBatches(keys: Iterable<string>): string[][] {
+  const uniqueKeys = [...new Set(keys)];
+  const batches: string[][] = [];
+  for (let offset = 0; offset < uniqueKeys.length; offset += ACCOUNT_DELETION_MEDIA_KEY_BATCH_SIZE) {
+    batches.push(uniqueKeys.slice(offset, offset + ACCOUNT_DELETION_MEDIA_KEY_BATCH_SIZE));
+  }
+  return batches;
 }

@@ -136,6 +136,25 @@ export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
 export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
+export const PUBLIC_EXECUTE_FUNCTION_ALLOWLIST = Object.freeze([
+  "grainline_notification_preferences_valid(jsonb)",
+]);
+export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
+  "grainline_order_staff_page_v2(text,text,integer,integer)",
+  "grainline_order_staff_detail_v2(text,text)",
+  "grainline_order_staff_mark_reviewed(text,text)",
+  "grainline_order_staff_record_label_voided(text,text)",
+  "grainline_order_staff_append_note(text,text,text)",
+  "grainline_order_staff_capability_mint(text,text,text,jsonb)",
+  "grainline_user_staff_directory_count(text,text)",
+  "grainline_user_staff_directory_page(text,text,integer)",
+  "grainline_user_staff_exact_email_target(text,text)",
+  "grainline_user_staff_report_labels(text,text[])",
+  "grainline_user_staff_email_recipient(text,text,text)",
+  "grainline_user_staff_ban_target(text,text)",
+  "grainline_user_staff_capability_mint(text,text,text,timestamp without time zone)",
+  "grainline_user_ban_repair_target(text,text)",
+]);
 const AUDIT_CONNECTION_TIMEOUT_MS = 10_000;
 const AUDIT_STATEMENT_TIMEOUT_MS = 30_000;
 const AUDIT_QUERY_TIMEOUT_MS = 35_000;
@@ -374,6 +393,7 @@ const ACCOUNT_DELETION_ALWAYS_PRIVATE_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_claim_user(text,bigint,uuid)",
 ]);
 const ACCOUNT_DELETION_LEGACY_FUNCTION_IDENTITIES = new Set([
+  "grainline_account_deletion_media_enqueue_claimed(text,bigint,uuid,text[])",
   "grainline_user_account_deletion_preflight(text)",
   "grainline_user_account_deletion_snapshot(text)",
   "grainline_user_account_deletion_finalize(text)",
@@ -386,6 +406,62 @@ const ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
   "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
 ]);
+const ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES = new Set([
+  "grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])",
+]);
+
+function normalizedFunctionIdentity(row) {
+  const argumentTypes = typeof row?.argument_types === "string"
+    ? row.argument_types.replace(/\s*,\s*/g, ",").trim()
+    : "";
+  return `${row?.function_name ?? ""}(${argumentTypes})`;
+}
+
+export function collectPublicFunctionExecuteIssues(rows) {
+  const allowed = new Set(PUBLIC_EXECUTE_FUNCTION_ALLOWLIST);
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => row.public_execute && !allowed.has(normalizedFunctionIdentity(row)))
+    .map((row) => `${normalizedFunctionIdentity(row)} must revoke EXECUTE from PUBLIC`);
+}
+
+export function collectRestrictedRoleEffectiveFunctionIssues(rows, expectedByRole = {}) {
+  const allowed = new Set(PUBLIC_EXECUTE_FUNCTION_ALLOWLIST);
+  const issues = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const role = String(row?.role_name ?? "unknown");
+    if (!row?.role_exists) {
+      issues.push(`restricted role ${role} does not exist`);
+      continue;
+    }
+    const directValues = sortedUnique((row.direct_function_identities ?? []).map(String));
+    const direct = new Set(directValues);
+    const effectiveValues = sortedUnique((row.effective_function_identities ?? [])
+      .map(String)
+      .filter((identity) => !allowed.has(identity)));
+    const expected = expectedByRole[role];
+    if (Array.isArray(expected)) {
+      const expectedValues = sortedUnique(expected.map(String));
+      if (directValues.join("|") !== expectedValues.join("|")) {
+        issues.push(
+          `restricted role ${role} direct function authority drifted: ${directValues.join(", ") || "none"}`,
+        );
+      }
+      if (effectiveValues.join("|") !== expectedValues.join("|")) {
+        issues.push(
+          `restricted role ${role} effective function authority drifted: ${effectiveValues.join(", ") || "none"}`,
+        );
+      }
+      continue;
+    }
+    const unexpected = effectiveValues.filter((identity) => !direct.has(identity));
+    if (unexpected.length > 0) {
+      issues.push(
+        `restricted role ${role} has non-direct effective function authority: ${unexpected.join(", ")}`,
+      );
+    }
+  }
+  return issues;
+}
 
 export function accountDeletionRuntimeExecuteExpected(row, inventory) {
   if (!(inventory?.functions ?? []).includes(ACCOUNT_DELETION_CLAIM_FENCE_MARKER)) {
@@ -403,6 +479,9 @@ export function accountDeletionRuntimeExecuteExpected(row, inventory) {
   }
   if (ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
     return !accountDeletionSideEffectRlsActivationExpected(inventory);
+  }
+  if (ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES.has(identity)) {
+    return true;
   }
   return null;
 }
@@ -473,10 +552,18 @@ export function collectAccountDeletionWorkerBoundaryIssues(state, inventory) {
   const actualFunctions = sortedUnique(
     (state.function_identities ?? []).map((value) => String(value).replace(/\s*,\s*/g, ",")),
   );
+  const effectiveFunctions = sortedUnique(
+    (state.effective_function_identities ?? []).map((value) => String(value).replace(/\s*,\s*/g, ",")),
+  );
   const expectedFunctions = [...ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES].sort();
   if (actualFunctions.join("|") !== expectedFunctions.join("|")) {
     issues.push(
       `account-deletion worker function authority drifted: ${actualFunctions.join(", ") || "none"}`,
+    );
+  }
+  if (effectiveFunctions.join("|") !== expectedFunctions.join("|")) {
+    issues.push(
+      `account-deletion worker effective function authority drifted: ${effectiveFunctions.join(", ") || "none"}`,
     );
   }
   if (Number(state.function_grant_option_count ?? 0) !== 0) {
@@ -631,6 +718,19 @@ export async function readAccountDeletionWorkerBoundaryState(client) {
            AND acl.privilege_type = 'EXECUTE'
          ORDER BY 1
       ) AS function_identities,
+      ARRAY(
+        SELECT pg_catalog.format('%s(%s)', procedure.proname, pg_catalog.oidvectortypes(procedure.proargtypes))
+          FROM pg_catalog.pg_proc AS procedure
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'public'
+           AND procedure.proname LIKE 'grainline\\_%' ESCAPE '\\'
+           AND pg_catalog.has_function_privilege(
+             (SELECT oid FROM worker), procedure.oid, 'EXECUTE'
+           )
+           AND pg_catalog.format('%s(%s)', procedure.proname, pg_catalog.oidvectortypes(procedure.proargtypes))
+             <> 'grainline_notification_preferences_valid(jsonb)'
+         ORDER BY 1
+      ) AS effective_function_identities,
       (SELECT pg_catalog.count(*)::integer
          FROM pg_catalog.pg_proc AS procedure
          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
@@ -653,6 +753,7 @@ export async function readAccountDeletionWorkerBoundaryState(client) {
              'grainline_account_deletion_side_effect_complete',
              'grainline_account_deletion_side_effect_fail',
              'grainline_account_deletion_media_enqueue_claimed',
+             'grainline_account_deletion_media_key_enqueue_claimed',
              'grainline_account_deletion_claim_user',
              'grainline_user_account_deletion_preflight',
              'grainline_user_account_deletion_snapshot',
@@ -666,6 +767,43 @@ export async function readAccountDeletionWorkerBoundaryState(client) {
         AS public_account_deletion_execute_count
   `);
   return result.rows[0] ?? {};
+}
+
+export async function readRestrictedRoleEffectiveFunctionState(client, roleNames) {
+  const result = await client.query(`
+    WITH requested(role_name) AS (
+      SELECT pg_catalog.unnest($1::text[])
+    )
+    SELECT
+      requested.role_name,
+      role.oid IS NOT NULL AS role_exists,
+      ARRAY(
+        SELECT pg_catalog.format('%s(%s)', procedure.proname, pg_catalog.oidvectortypes(procedure.proargtypes))
+          FROM pg_catalog.pg_proc AS procedure
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+          CROSS JOIN LATERAL pg_catalog.aclexplode(
+            COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
+          ) AS acl
+         WHERE namespace.nspname = 'public'
+           AND procedure.proname LIKE 'grainline\\_%' ESCAPE '\\'
+           AND acl.grantee = role.oid
+           AND acl.privilege_type = 'EXECUTE'
+         ORDER BY 1
+      ) AS direct_function_identities,
+      ARRAY(
+        SELECT pg_catalog.format('%s(%s)', procedure.proname, pg_catalog.oidvectortypes(procedure.proargtypes))
+          FROM pg_catalog.pg_proc AS procedure
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'public'
+           AND procedure.proname LIKE 'grainline\\_%' ESCAPE '\\'
+           AND pg_catalog.has_function_privilege(role.oid, procedure.oid, 'EXECUTE')
+         ORDER BY 1
+      ) AS effective_function_identities
+      FROM requested
+      LEFT JOIN pg_catalog.pg_roles AS role ON role.rolname = requested.role_name
+     ORDER BY requested.role_name
+  `, [roleNames]);
+  return result.rows;
 }
 
 export function checkoutStockReservationRlsActivationExpected(inventory) {
@@ -2849,6 +2987,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     runtimePrivateFunctionNames(liveAuthorityInventory),
   );
   issues.push(...collectRuntimeFunctionGrantOptionIssues(functionResult.rows));
+  issues.push(...collectPublicFunctionExecuteIssues(functionResult.rows));
   issues.push(
     ...missingItems(inventory.functions, functionNames).map((fn) => `missing expected function ${fn}`),
   );
@@ -2870,6 +3009,21 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     if (row.owner_name !== migrationRole) {
       issues.push(`function ${row.function_name}(${row.args}) owned by ${row.owner_name}, expected ${migrationRole}`);
     }
+  }
+
+  const staffReadAuthorityExpected = (inventory.functions ?? []).some(
+    (name) => name.startsWith("grainline_order_staff_")
+      || name.startsWith("grainline_user_staff_"),
+  );
+  if (staffReadAuthorityExpected) {
+    issues.push(
+      ...collectRestrictedRoleEffectiveFunctionIssues(
+        await readRestrictedRoleEffectiveFunctionState(
+          client,
+          ["grainline_staff_read_runtime"],
+        ),
+      ),
+    );
   }
 
   const savedSearchOwnerRpcNames = Object.keys(SAVED_SEARCH_OWNER_RPC_FUNCTIONS);
