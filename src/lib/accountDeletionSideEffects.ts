@@ -3,9 +3,10 @@ import * as Sentry from "@sentry/nextjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { deleteR2ObjectByUrl } from "@/lib/r2";
+import { deleteR2ObjectByKey, deleteR2ObjectByUrl } from "@/lib/r2";
 import { runBoundedDeletionBatches } from "@/lib/cronBatchState";
 import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
+import { accountDeletionMediaKeyBatches } from "@/lib/urlValidation";
 import {
   ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_BATCH_SIZE,
   ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_TIME_BUDGET_MS,
@@ -242,8 +243,8 @@ export function accountDeletionStripeRejectDedupKey(userId: string, stripeAccoun
   return `account-delete:stripe:${userId}:${hashDedupPart(stripeAccountId)}`;
 }
 
-export function accountDeletionMediaDeleteDedupKey(userId: string, url: string) {
-  return `account-delete:media:${userId}:${hashDedupPart(url)}`;
+export function accountDeletionMediaDeleteDedupKey(userId: string, key: string) {
+  return `account-delete:media:${userId}:${hashDedupPart(key)}`;
 }
 
 export function accountDeletionAuditRedactDedupKey(userId: string, logId: string) {
@@ -294,17 +295,18 @@ export async function enqueueAccountDeletionMediaDeleteSideEffects(
     claimGeneration: bigint;
     claimToken: string;
   },
-  urls: string[],
+  keys: string[],
 ) {
-  if (urls.length === 0) return;
-  await db.$queryRaw<Array<{ grainline_account_deletion_media_enqueue_claimed: bigint }>>`
-    SELECT public.grainline_account_deletion_media_enqueue_claimed(
-      ${claim.sideEffectId},
-      ${claim.claimGeneration},
-      ${claim.claimToken}::uuid,
-      ${urls}::text[]
-    )
-  `;
+  for (const batch of accountDeletionMediaKeyBatches(keys)) {
+    await db.$queryRaw<Array<{ grainline_account_deletion_media_key_enqueue_claimed: bigint }>>`
+      SELECT public.grainline_account_deletion_media_key_enqueue_claimed(
+        ${claim.sideEffectId},
+        ${claim.claimGeneration},
+        ${claim.claimToken}::uuid,
+        ${batch}::text[]
+      )
+    `;
+  }
 }
 
 export async function enqueueAccountDeletionAuditRedactionSideEffects(
@@ -401,12 +403,19 @@ async function performAccountDeletionSideEffect(effect: {
   }
 
   if (effect.kind === ACCOUNT_DELETION_SIDE_EFFECT_KIND.MEDIA_DELETE) {
-    if (typeof payload.url !== "string") {
-      throw new Error("Missing media URL for account deletion side effect");
+    if (typeof payload.key === "string") {
+      await deleteR2ObjectByKey(payload.key);
+      return;
     }
-    const deleted = await deleteR2ObjectByUrl(payload.url);
-    if (!deleted) throw new Error("Account deletion media URL was not deleted");
-    return;
+    // Preparation keeps the predecessor URL enqueue RPC available while old
+    // instances drain. Process rows they already created; activation refuses
+    // to retire that RPC until no unfinished URL-form media row remains.
+    if (typeof payload.url === "string") {
+      const deleted = await deleteR2ObjectByUrl(payload.url);
+      if (!deleted) throw new Error("Account deletion media URL was not deleted");
+      return;
+    }
+    throw new Error("Missing media key for account deletion side effect");
   }
 
   if (effect.kind === ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT) {

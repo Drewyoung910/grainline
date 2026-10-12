@@ -16,11 +16,16 @@ const preparationPath =
   "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql";
 const activationPath =
   "prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql";
+const mediaKeyPath =
+  "prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql";
 const preparationDigest = createHash("sha256")
   .update(readFileSync(preparationPath))
   .digest("hex");
 const activationDigest = createHash("sha256")
   .update(readFileSync(activationPath))
+  .digest("hex");
+const mediaKeyDigest = createHash("sha256")
+  .update(readFileSync(mediaKeyPath))
   .digest("hex");
 
 test("inspection is exact-main, exact-CI, first-attempt, manual, and read-only", () => {
@@ -62,6 +67,13 @@ test("inspection is exact-main, exact-CI, first-attempt, manual, and read-only",
     inspection,
     new RegExp(
       `${preparationDigest}  ${preparationPath.replaceAll(".", "\\.")}`,
+      "u",
+    ),
+  );
+  assert.match(
+    inspection,
+    new RegExp(
+      `${mediaKeyDigest}  ${mediaKeyPath.replaceAll(".", "\\.")}`,
       "u",
     ),
   );
@@ -149,7 +161,20 @@ test("preparation is inspection-bound, exact-main, scope-closed, restart-safe, a
   assert.match(preparation, /environment: Production/u);
   assert.match(preparation, /ACCOUNT_DELETION_EXPECTED_STATE: compatible/u);
   assert.match(preparation, /ACCOUNT_DELETION_EXPECTED_STATE: prepared/u);
-  assert.match(preparation, /steps\.preflight\.outputs\.state == 'pending'/u);
+  assert.match(preparation, /steps\.preflight\.outputs\.state != 'prepared'/u);
+  assert.match(preparation, /pending\|preparation_only\|prepared/u);
+  assert.match(
+    preparation,
+    /ACCOUNT_DELETION_PREFLIGHT_STATE: \$\{\{ steps\.preflight\.outputs\.state \}\}/u,
+  );
+  assert.match(
+    preparation,
+    /if \[\[ "\$ACCOUNT_DELETION_PREFLIGHT_STATE" == "pending" \]\]/u,
+  );
+  assert.match(
+    preparation,
+    /if \[\[ "\$ACCOUNT_DELETION_PREFLIGHT_STATE" == "preparation_only" \]\][\s\S]*elif \[\[ "\$ACCOUNT_DELETION_PREFLIGHT_STATE" != "pending" \]\]/u,
+  );
   assert.equal(
     (preparation.match(/npx prisma migrate deploy/gu) ?? []).length,
     1,
@@ -168,6 +193,13 @@ test("preparation is inspection-bound, exact-main, scope-closed, restart-safe, a
     preparation,
     new RegExp(
       `${preparationDigest}  ${preparationPath.replaceAll(".", "\\.")}`,
+      "u",
+    ),
+  );
+  assert.match(
+    preparation,
+    new RegExp(
+      `${mediaKeyDigest}  ${mediaKeyPath.replaceAll(".", "\\.")}`,
       "u",
     ),
   );

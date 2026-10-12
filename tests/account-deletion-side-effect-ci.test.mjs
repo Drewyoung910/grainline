@@ -4,6 +4,7 @@ import test from "node:test";
 
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const preparation = "20261011170000_prepare_account_deletion_side_effect_claim_fence";
+const mediaKey = "20261011173000_prepare_account_deletion_media_key_fence";
 const activation = "20261011180000_enable_account_deletion_side_effect_rls";
 const packageTests = [
   "account-deletion-side-effect-ci.test.mjs",
@@ -27,6 +28,7 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
   const restore = "Restore AccountDeletionSideEffect claim-fence source package";
   const reverify = "Re-verify AccountDeletionSideEffect claim-fence source package";
   const applyPreparation = "Apply AccountDeletionSideEffect claim-fence preparation in disposable PostgreSQL";
+  const applyMediaKey = "Apply AccountDeletionSideEffect media-key fence in disposable PostgreSQL";
   const applyActivation = "Apply AccountDeletionSideEffect policyless activation in disposable PostgreSQL";
   const audit = "Audit runtime grants after AccountDeletionSideEffect activation";
 
@@ -35,11 +37,12 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
   assert.ok(workflow.indexOf(restore) > workflow.indexOf("Audit runtime grants after Clerk webhook event authority"));
   assert.ok(workflow.indexOf(restore) < workflow.indexOf(reverify));
   assert.ok(workflow.indexOf(reverify) < workflow.indexOf(applyPreparation));
-  assert.ok(workflow.indexOf(applyPreparation) < workflow.indexOf(applyActivation));
+  assert.ok(workflow.indexOf(applyPreparation) < workflow.indexOf(applyMediaKey));
+  assert.ok(workflow.indexOf(applyMediaKey) < workflow.indexOf(applyActivation));
   assert.ok(workflow.indexOf(applyActivation) < workflow.indexOf(audit));
   assert.ok(workflow.indexOf(audit) < workflow.indexOf("Production build"));
 
-  for (const migration of [preparation, activation]) {
+  for (const migration of [preparation, mediaKey, activation]) {
     assert.ok(step(isolate).includes(migration), `${isolate}: ${migration}`);
     assert.ok(step(restore).includes(migration), `${restore}: ${migration}`);
   }
@@ -58,7 +61,11 @@ test("AccountDeletionSideEffect claim-fence is isolated until every predecessor 
     step(applyActivation),
     new RegExp(`--file=prisma/migrations/${activation}/migration\\.sql`),
   );
-  for (const name of [applyPreparation, applyActivation]) {
+  assert.match(
+    step(applyMediaKey),
+    new RegExp(`--file=prisma/migrations/${mediaKey}/migration\\.sql`),
+  );
+  for (const name of [applyPreparation, applyMediaKey, applyActivation]) {
     assert.match(step(name), /psql "\$DIRECT_URL"/);
     assert.match(step(name), /--set=ON_ERROR_STOP=on/);
     assert.doesNotMatch(step(name), /gh |vercel|workflow_dispatch|environment: Production/);

@@ -114,7 +114,8 @@ jobs:
           test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
             "20261011180000_enable_account_deletion_side_effect_rls"
           echo "2b79282ad52c8f4f5c417eebeb1593b157bd66b8fd66d792185865383e1f5924  prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql" | sha256sum --check --status
-          echo "2aa2f45bb9c2464651a828755a03adb99c6e88633eb31578aaeeeb585a0a3048  prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql" | sha256sum --check --status
+          echo "d132a70f9673815f8e789151761ed2da1031c5d58c8313c6dc25fe7c430a0ba9  prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql" | sha256sum --check --status
+          echo "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b  prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql" | sha256sum --check --status
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
         env:
@@ -133,23 +134,25 @@ jobs:
           result="$(node scripts/account-deletion-side-effect-production-inspect.mjs)"
           state="$(node -e 'let value=""; process.stdin.setEncoding("utf8"); process.stdin.on("data", chunk => value += chunk); process.stdin.on("end", () => process.stdout.write(String(JSON.parse(value).result.state)));' <<< "$result")"
           case "$state" in
-            pending|prepared) ;;
+            pending|preparation_only|prepared) ;;
             *) exit 1 ;;
           esac
           echo "state=$state" >> "$GITHUB_OUTPUT"
       - name: Apply only reviewed AccountDeletionSideEffect preparation migration
-        if: steps.preflight.outputs.state == 'pending'
+        if: steps.preflight.outputs.state != 'prepared'
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          ACCOUNT_DELETION_PREFLIGHT_STATE: ${{ steps.preflight.outputs.state }}
         run: |
           set -euo pipefail
           preparation="20261011170000_prepare_account_deletion_side_effect_claim_fence"
+          media_key="20261011173000_prepare_account_deletion_media_key_fence"
           activation="20261011180000_enable_account_deletion_side_effect_rls"
           holding="$RUNNER_TEMP/account-deletion-side-effect-production-apply"
           mkdir "$holding"
           restore() {
-            for migration in "$preparation" "$activation"; do
+            for migration in "$preparation" "$media_key" "$activation"; do
               if [[ -d "$holding/$migration" ]]; then
                 mv "$holding/$migration" "prisma/migrations/$migration"
               fi
@@ -157,10 +160,19 @@ jobs:
           }
           trap restore EXIT
           mv "prisma/migrations/$preparation" "$holding/$preparation"
+          mv "prisma/migrations/$media_key" "$holding/$media_key"
           mv "prisma/migrations/$activation" "$holding/$activation"
+          if [[ "$ACCOUNT_DELETION_PREFLIGHT_STATE" == "preparation_only" ]]; then
+            mv "$holding/$preparation" "prisma/migrations/$preparation"
+          elif [[ "$ACCOUNT_DELETION_PREFLIGHT_STATE" != "pending" ]]; then
+            exit 1
+          fi
           npx prisma migrate status
-          mv "$holding/$preparation" "prisma/migrations/$preparation"
-          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = "$preparation"
+          if [[ "$ACCOUNT_DELETION_PREFLIGHT_STATE" == "pending" ]]; then
+            mv "$holding/$preparation" "prisma/migrations/$preparation"
+          fi
+          mv "$holding/$media_key" "prisma/migrations/$media_key"
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = "$media_key"
           npx prisma migrate deploy
           npx prisma migrate status
           restore

@@ -990,7 +990,16 @@ describe("database grant inventory guardrails", () => {
       expectation("grainline_account_deletion_side_effect_claim", "text", active),
       false,
     );
-    assert.equal(expectation("grainline_account_deletion_media_enqueue_claimed", "text,bigint,uuid,text[]"), null);
+    assert.equal(expectation("grainline_account_deletion_media_enqueue_claimed", "text,bigint,uuid,text[]"), true);
+    assert.equal(
+      expectation("grainline_account_deletion_media_enqueue_claimed", "text,bigint,uuid,text[]", active),
+      false,
+    );
+    assert.equal(expectation("grainline_account_deletion_media_key_enqueue_claimed", "text,bigint,uuid,text[]"), true);
+    assert.equal(
+      expectation("grainline_account_deletion_media_key_enqueue_claimed", "text,bigint,uuid,text[]", active),
+      true,
+    );
     assert.equal(
       accountDeletionRuntimeExecuteExpected({
         function_name: "grainline_user_account_deletion_preflight",
@@ -2227,19 +2236,23 @@ describe("database grant inventory guardrails", () => {
     ];
     const accountDeletionClaimFenceMigrationPath =
       "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql";
+    const accountDeletionMediaKeyFenceMigrationPath =
+      "prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql";
     const accountDeletionClaimFenceFunctionNames = [
       "grainline_account_deletion_claim_user",
       "grainline_account_deletion_media_enqueue_claimed",
+      "grainline_account_deletion_media_key_enqueue_claimed",
       "grainline_account_deletion_side_effect_claim",
       "grainline_account_deletion_side_effect_complete",
       "grainline_account_deletion_side_effect_fail",
     ];
     const accountDeletionClaimFencePrepared = existsSync(
       accountDeletionClaimFenceMigrationPath,
-    ) && accountDeletionClaimFenceFunctionNames.every((functionName) =>
-      source(accountDeletionClaimFenceMigrationPath).includes(
-        `CREATE FUNCTION public.${functionName}(`,
-      ));
+    ) && existsSync(accountDeletionMediaKeyFenceMigrationPath) &&
+      accountDeletionClaimFenceFunctionNames.every((functionName) =>
+        `${source(accountDeletionClaimFenceMigrationPath)}\n${source(accountDeletionMediaKeyFenceMigrationPath)}`.includes(
+          `CREATE FUNCTION public.${functionName}(`,
+        ));
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -2437,7 +2450,7 @@ describe("database grant inventory guardrails", () => {
         + (clerkWebhookAuthorityPrepared
           ? clerkWebhookAuthorityFunctionNames.length
           : 0)
-        + (accountDeletionClaimFencePrepared ? 12 : 0)
+        + (accountDeletionClaimFencePrepared ? 13 : 0)
         + (accountDeletionSideEffectRlsActivationExpected(inventory) ? 6 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)

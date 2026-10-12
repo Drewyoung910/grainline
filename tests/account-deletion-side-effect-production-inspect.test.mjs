@@ -8,6 +8,7 @@ import test from "node:test";
 import {
   ACCOUNT_DELETION_ACTIVATION_MIGRATION,
   ACCOUNT_DELETION_INSPECTION_CONFIRMATION,
+  ACCOUNT_DELETION_MEDIA_KEY_MIGRATION,
   ACCOUNT_DELETION_PREPARATION_MIGRATION,
   AccountDeletionCatalogVerificationError,
   assertAccountDeletionInspectionGitState,
@@ -72,7 +73,8 @@ function functionRows(expectation) {
 }
 
 function catalog(expectation, state = "prepared") {
-  const prepared = state === "prepared";
+  const preparationApplied = state !== "pending";
+  const mediaKeyApplied = state === "prepared";
   return {
     identity: {
       current_user: "neondb_owner",
@@ -91,10 +93,10 @@ function catalog(expectation, state = "prepared") {
       worker_createrole: false,
       worker_replication: false,
       worker_bypass_rls: false,
-      worker_schema_acl: prepared ? ["USAGE:false"] : [],
+      worker_schema_acl: preparationApplied ? ["USAGE:false"] : [],
       worker_unreviewed_membership: false,
     },
-    migrations: prepared
+    migrations: preparationApplied
       ? [
           {
             migration_name: ACCOUNT_DELETION_PREPARATION_MIGRATION,
@@ -103,6 +105,15 @@ function catalog(expectation, state = "prepared") {
             rolled_back: false,
             applied_steps_count: "1",
           },
+          ...(mediaKeyApplied
+            ? [{
+                migration_name: ACCOUNT_DELETION_MEDIA_KEY_MIGRATION,
+                checksum: expectation.mediaKey.checksum,
+                finished: true,
+                rolled_back: false,
+                applied_steps_count: "1",
+              }]
+            : []),
         ]
       : [],
     table: {
@@ -116,16 +127,16 @@ function catalog(expectation, state = "prepared") {
       runtime_update: true,
       runtime_delete: true,
       runtime_other: false,
-      worker_select: prepared,
-      worker_insert: prepared,
-      worker_update: prepared,
-      worker_delete: prepared,
+      worker_select: preparationApplied,
+      worker_insert: preparationApplied,
+      worker_update: preparationApplied,
+      worker_delete: preparationApplied,
       worker_other: false,
       worker_explicit_column_authority: false,
       public_column_authority: false,
       public_table_authority: false,
     },
-    columns: prepared
+    columns: preparationApplied
       ? [
           {
             column_name: "claimGeneration",
@@ -147,7 +158,7 @@ function catalog(expectation, state = "prepared") {
           },
         ]
       : [],
-    constraints: prepared
+    constraints: preparationApplied
       ? [
           {
             constraint_name: "AccountDeletionSideEffect_attempts_check",
@@ -163,7 +174,7 @@ function catalog(expectation, state = "prepared") {
           },
         ]
       : [],
-    indexes: prepared
+    indexes: preparationApplied
       ? [
           {
             index_name:
@@ -175,7 +186,13 @@ function catalog(expectation, state = "prepared") {
           },
         ]
       : [],
-    functions: prepared ? functionRows(expectation) : [],
+    functions: preparationApplied
+      ? functionRows({
+          functions: mediaKeyApplied
+            ? expectation.functions
+            : expectation.preparationFunctions,
+        })
+      : [],
   };
 }
 
@@ -187,6 +204,9 @@ test("expectation is derived from exact preparation, activation, and function by
   const activation = fs.readFileSync(
     `prisma/migrations/${ACCOUNT_DELETION_ACTIVATION_MIGRATION}/migration.sql`,
   );
+  const mediaKey = fs.readFileSync(
+    `prisma/migrations/${ACCOUNT_DELETION_MEDIA_KEY_MIGRATION}/migration.sql`,
+  );
   assert.equal(
     expectation.checksum,
     createHash("sha256").update(preparation).digest("hex"),
@@ -196,14 +216,23 @@ test("expectation is derived from exact preparation, activation, and function by
     "2b79282ad52c8f4f5c417eebeb1593b157bd66b8fd66d792185865383e1f5924",
   );
   assert.equal(
+    expectation.mediaKey.checksum,
+    createHash("sha256").update(mediaKey).digest("hex"),
+  );
+  assert.equal(
+    expectation.mediaKey.checksum,
+    "d132a70f9673815f8e789151761ed2da1031c5d58c8313c6dc25fe7c430a0ba9",
+  );
+  assert.equal(
     expectation.activation.checksum,
     createHash("sha256").update(activation).digest("hex"),
   );
   assert.equal(
     expectation.activation.checksum,
-    "2aa2f45bb9c2464651a828755a03adb99c6e88633eb31578aaeeeb585a0a3048",
+    "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b",
   );
-  assert.equal(expectation.functions.length, 11);
+  assert.equal(expectation.functions.length, 12);
+  assert.equal(expectation.preparationFunctions.length, 11);
   for (const entry of expectation.functions) {
     assert.equal(entry.volatility, "v");
     assert.equal(entry.parallelSafety, "u");
@@ -225,7 +254,7 @@ test("config requires exact first-attempt main, owner target, digest, state, and
   );
   assert.deepEqual(
     parseAccountDeletionInspectionConfig(env(root)).acceptedStates,
-    ["pending", "prepared"],
+    ["pending", "preparation_only", "prepared"],
   );
   assert.deepEqual(
     parseAccountDeletionInspectionConfig(env(root, "prepared")).acceptedStates,
@@ -281,7 +310,7 @@ test("git state must be exact and clean", () => {
   );
 });
 
-test("pending and prepared catalogs are accepted only in their reviewed states", () => {
+test("pending, partial, and prepared catalogs are accepted only in their reviewed states", () => {
   const expectation = buildAccountDeletionPreparationExpectation();
   assert.equal(
     verifyAccountDeletionCatalog(catalog(expectation, "pending"), expectation)
@@ -293,6 +322,25 @@ test("pending and prepared catalogs are accepted only in their reviewed states",
     {
       state: "prepared",
       preparationApplied: true,
+      mediaKeyApplied: true,
+      activationApplied: false,
+      installedFunctionCount: 12,
+      reviewedFunctionCount: 12,
+      rlsEnabled: false,
+      rlsForced: false,
+      rowDataRead: false,
+      productionChanged: false,
+    },
+  );
+  assert.deepEqual(
+    verifyAccountDeletionCatalog(
+      catalog(expectation, "preparation_only"),
+      expectation,
+    ),
+    {
+      state: "preparation_only",
+      preparationApplied: true,
+      mediaKeyApplied: false,
       activationApplied: false,
       installedFunctionCount: 11,
       reviewedFunctionCount: 11,
@@ -316,6 +364,14 @@ test("pending and prepared catalogs are accepted only in their reviewed states",
     applied_steps_count: "1",
   });
   assert.throws(() => verifyAccountDeletionCatalog(activated, expectation));
+  const reversedPartial = structuredClone(catalog(expectation));
+  reversedPartial.migrations = reversedPartial.migrations.filter(
+    ({ migration_name }) =>
+      migration_name !== ACCOUNT_DELETION_PREPARATION_MIGRATION,
+  );
+  assert.throws(() =>
+    verifyAccountDeletionCatalog(reversedPartial, expectation),
+  );
 });
 
 test("catalog verification rejects role, schema, migration, table, column, constraint, index, function, grant, and RLS drift", () => {
@@ -399,7 +455,7 @@ test("catalog reader issues metadata-only queries and retains no table rows", as
     },
   };
   const actual = await readAccountDeletionCatalog(client, expectation);
-  assert.equal(actual.functions.length, 11);
+  assert.equal(actual.functions.length, 12);
   assert.equal(calls.length, 7);
   const combined = calls.map(({ sql }) => sql).join("\n");
   assert.match(combined, /pg_catalog\.pg_proc/u);

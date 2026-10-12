@@ -393,6 +393,7 @@ const ACCOUNT_DELETION_ALWAYS_PRIVATE_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_claim_user(text,bigint,uuid)",
 ]);
 const ACCOUNT_DELETION_LEGACY_FUNCTION_IDENTITIES = new Set([
+  "grainline_account_deletion_media_enqueue_claimed(text,bigint,uuid,text[])",
   "grainline_user_account_deletion_preflight(text)",
   "grainline_user_account_deletion_snapshot(text)",
   "grainline_user_account_deletion_finalize(text)",
@@ -404,6 +405,9 @@ const ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_side_effect_claim(text)",
   "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
   "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
+]);
+const ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES = new Set([
+  "grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])",
 ]);
 
 function normalizedFunctionIdentity(row) {
@@ -475,6 +479,9 @@ export function accountDeletionRuntimeExecuteExpected(row, inventory) {
   }
   if (ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
     return !accountDeletionSideEffectRlsActivationExpected(inventory);
+  }
+  if (ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES.has(identity)) {
+    return true;
   }
   return null;
 }
@@ -746,6 +753,7 @@ export async function readAccountDeletionWorkerBoundaryState(client) {
              'grainline_account_deletion_side_effect_complete',
              'grainline_account_deletion_side_effect_fail',
              'grainline_account_deletion_media_enqueue_claimed',
+             'grainline_account_deletion_media_key_enqueue_claimed',
              'grainline_account_deletion_claim_user',
              'grainline_user_account_deletion_preflight',
              'grainline_user_account_deletion_snapshot',

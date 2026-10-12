@@ -249,6 +249,7 @@ jobs:
           mkdir "$holding"
           for migration in \
             20261011170000_prepare_account_deletion_side_effect_claim_fence \
+            20261011173000_prepare_account_deletion_media_key_fence \
             20261011180000_enable_account_deletion_side_effect_rls
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
@@ -5240,6 +5241,7 @@ jobs:
           holding="$RUNNER_TEMP/account-deletion-side-effect-claim-fence"
           for migration in \
             20261011170000_prepare_account_deletion_side_effect_claim_fence \
+            20261011173000_prepare_account_deletion_media_key_fence \
             20261011180000_enable_account_deletion_side_effect_rls
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
@@ -5272,6 +5274,11 @@ jobs:
           psql "$DIRECT_URL"
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql
+      - name: Apply AccountDeletionSideEffect media-key fence in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql
       - name: Apply AccountDeletionSideEffect policyless activation in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"

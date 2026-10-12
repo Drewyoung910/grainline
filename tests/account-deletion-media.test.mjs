@@ -5,7 +5,12 @@ import { describe, it } from "node:test";
 process.env.CLOUDFLARE_R2_PUBLIC_URL = "https://media.example.com/grain";
 process.env.CLOUDFLARE_R2_PUBLIC_URLS = "https://assets.example.com/base";
 
-const { accountDeletionMediaUrlsForCleanup } = await import("../src/lib/urlValidation.ts");
+const {
+  ACCOUNT_DELETION_MEDIA_KEY_BATCH_SIZE,
+  accountDeletionMediaKeyBatches,
+  accountDeletionMediaKeysForCleanup,
+  accountDeletionMediaUrlsForCleanup,
+} = await import("../src/lib/urlValidation.ts");
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -31,6 +36,37 @@ describe("account deletion media cleanup scoping", () => {
     );
   });
 
+  it("canonicalizes accepted media URLs to scoped public object keys", () => {
+    assert.deepEqual(
+      accountDeletionMediaKeysForCleanup([
+        "https://media.example.com/grain/listingImage/user_123/a.jpg?download=1#preview",
+        "https://assets.example.com/base/galleryImage/user_123/c.webp",
+        "https://media.example.com/grain/listingImage/user_456/b.jpg",
+      ], "user_123"),
+      ["listingImage/user_123/a.jpg", "galleryImage/user_123/c.webp"],
+    );
+  });
+
+  it("deduplicates URL aliases and batches every media key without truncation", () => {
+    assert.deepEqual(
+      accountDeletionMediaKeysForCleanup([
+        "https://media.example.com/grain/listingImage/user_123/a.jpg?download=1",
+        "https://assets.example.com/base/listingImage/user_123/a.jpg#preview",
+      ], "user_123"),
+      ["listingImage/user_123/a.jpg"],
+    );
+    const keys = Array.from(
+      { length: ACCOUNT_DELETION_MEDIA_KEY_BATCH_SIZE * 2 + 1 },
+      (_, index) => `listingImage/user_123/${index}.jpg`,
+    );
+    const batches = accountDeletionMediaKeyBatches([
+      ...keys,
+      keys[0],
+    ]);
+    assert.deepEqual(batches.map((batch) => batch.length), [500, 500, 1]);
+    assert.deepEqual(batches.flat(), keys);
+  });
+
   it("does not let markdown cleanup delete another user's uploaded image", () => {
     assert.deepEqual(
       accountDeletionMediaUrlsForCleanup([
@@ -42,7 +78,7 @@ describe("account deletion media cleanup scoping", () => {
 
   it("collects listing photo originals for deleted-account media cleanup", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const collectStart = deletion.indexOf("async function collectAccountDeletionMediaUrls");
+    const collectStart = deletion.indexOf("async function collectAccountDeletionMediaKeys");
     const collectEnd = deletion.indexOf("function revalidateDeletedAccountSearchCaches", collectStart);
     const collect = deletion.slice(collectStart, collectEnd);
 
@@ -51,17 +87,17 @@ describe("account deletion media cleanup scoping", () => {
     assert.match(collect, /if \(photo\.originalUrl\) urls\.add\(photo\.originalUrl\)/);
     assert.ok(
       collect.indexOf("photos: { select: { url: true, originalUrl: true } }") <
-        collect.indexOf("accountDeletionMediaUrlsForCleanup(urls, clerkUserId)"),
+        collect.indexOf("accountDeletionMediaKeysForCleanup(urls, clerkUserId)"),
       "listing photo originals must be ownership-filtered before deletion",
     );
   });
 
   it("collects direct-upload URLs before releasing account-owned lifecycle references", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const collectStart = deletion.indexOf("async function collectAccountDeletionMediaUrls");
+    const collectStart = deletion.indexOf("async function collectAccountDeletionMediaKeys");
     const collectEnd = deletion.indexOf("function revalidateDeletedAccountSearchCaches", collectStart);
     const collect = deletion.slice(collectStart, collectEnd);
-    const collectCall = deletion.indexOf("const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId)");
+    const collectCall = deletion.indexOf("const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId)");
     const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(");
     const releaseRows = deletion.indexOf("await releaseDirectUploadsForAccount({");
 
@@ -78,12 +114,12 @@ describe("account deletion media cleanup scoping", () => {
       /deletePrivateR2ObjectByKey|deleteR2ObjectByStorageClass/,
       "private dispute evidence must be retained with the order/case record",
     );
-    assert.ok(collectCall >= 0, "account deletion must collect media URLs");
+    assert.ok(collectCall >= 0, "account deletion must collect canonical media keys");
     assert.ok(enqueueCall > collectCall, "media deletion side effects must be enqueued after collection");
     assert.ok(releaseRows > enqueueCall, "public DirectUpload references should be released only after durable media cleanup side effects are queued");
     assert.match(
       deletion,
-      /enqueueAccountDeletionMediaDeleteSideEffects\([\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*mediaUrls,/,
+      /enqueueAccountDeletionMediaDeleteSideEffects\([\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*mediaKeys,/,
     );
     assert.match(
       deletion,

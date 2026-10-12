@@ -27,6 +27,8 @@ const { Client } = pg;
 
 export const ACCOUNT_DELETION_PREPARATION_MIGRATION =
   "20261011170000_prepare_account_deletion_side_effect_claim_fence";
+export const ACCOUNT_DELETION_MEDIA_KEY_MIGRATION =
+  "20261011173000_prepare_account_deletion_media_key_fence";
 export const ACCOUNT_DELETION_ACTIVATION_MIGRATION =
   "20261011180000_enable_account_deletion_side_effect_rls";
 export const ACCOUNT_DELETION_INSPECTION_CONFIRMATION =
@@ -44,8 +46,9 @@ const COMMIT = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const EXPECTED_STATES = Object.freeze({
   pending: Object.freeze(["pending"]),
+  preparation_only: Object.freeze(["preparation_only"]),
   prepared: Object.freeze(["prepared"]),
-  compatible: Object.freeze(["pending", "prepared"]),
+  compatible: Object.freeze(["pending", "preparation_only", "prepared"]),
 });
 
 export class AccountDeletionCatalogVerificationError extends Error {
@@ -81,6 +84,10 @@ const FUNCTION_GRANTS = Object.freeze(
     ],
     [
       "grainline_account_deletion_media_enqueue_claimed(text, bigint, uuid, text[])",
+      ["grainline_app_runtime"],
+    ],
+    [
+      "grainline_account_deletion_media_key_enqueue_claimed(text, bigint, uuid, text[])",
       ["grainline_app_runtime"],
     ],
     ["grainline_account_deletion_claim_user(text, bigint, uuid)", []],
@@ -183,22 +190,45 @@ export function buildAccountDeletionPreparationExpectation(
     ACCOUNT_DELETION_ACTIVATION_MIGRATION,
     "migration.sql",
   );
+  const mediaKeyPath = path.join(
+    root,
+    "prisma",
+    "migrations",
+    ACCOUNT_DELETION_MEDIA_KEY_MIGRATION,
+    "migration.sql",
+  );
   const preparationSql = readFileSync(preparationPath, "utf8");
+  const mediaKeySql = readFileSync(mediaKeyPath, "utf8");
   const activationSql = readFileSync(activationPath, "utf8");
+  const preparationFunctionIdentities = [...FUNCTION_GRANTS.keys()].filter(
+    (identity) =>
+      identity !==
+      "grainline_account_deletion_media_key_enqueue_claimed(text, bigint, uuid, text[])",
+  );
+  const preparationFunctions = Object.freeze(
+    preparationFunctionIdentities.map((identity) =>
+      sourceFunctionContract(preparationSql, identity),
+    ),
+  );
+  const mediaKeyFunction = sourceFunctionContract(
+    mediaKeySql,
+    "grainline_account_deletion_media_key_enqueue_claimed(text, bigint, uuid, text[])",
+  );
   return Object.freeze({
     migration: ACCOUNT_DELETION_PREPARATION_MIGRATION,
     checksum: createHash("sha256").update(preparationSql, "utf8").digest("hex"),
+    mediaKey: Object.freeze({
+      migration: ACCOUNT_DELETION_MEDIA_KEY_MIGRATION,
+      checksum: createHash("sha256").update(mediaKeySql, "utf8").digest("hex"),
+    }),
     activation: Object.freeze({
       migration: ACCOUNT_DELETION_ACTIVATION_MIGRATION,
       checksum: createHash("sha256")
         .update(activationSql, "utf8")
         .digest("hex"),
     }),
-    functions: Object.freeze(
-      [...FUNCTION_GRANTS.keys()].map((identity) =>
-        sourceFunctionContract(preparationSql, identity),
-      ),
-    ),
+    preparationFunctions,
+    functions: Object.freeze([...preparationFunctions, mediaKeyFunction]),
   });
 }
 
@@ -351,7 +381,13 @@ export async function readAccountDeletionCatalog(client, expectation) {
     WHERE migration_name = ANY($1::text[])
     ORDER BY migration_name
   `,
-    [[expectation.migration, expectation.activation.migration]],
+    [
+      [
+        expectation.migration,
+        expectation.mediaKey.migration,
+        expectation.activation.migration,
+      ],
+    ],
   );
   const table = await client.query(`
     SELECT class.relname::text AS table_name, pg_catalog.pg_get_userbyid(class.relowner)::text AS owner_name,
@@ -488,13 +524,30 @@ export function verifyAccountDeletionCatalog(
   const activationRows = catalog.migrations.filter(
     (row) => row.migration_name === expectation.activation.migration,
   );
-  assert.ok(preparationRows.length <= 1 && activationRows.length <= 1);
+  const mediaKeyRows = catalog.migrations.filter(
+    (row) => row.migration_name === expectation.mediaKey.migration,
+  );
+  assert.ok(
+    preparationRows.length <= 1 &&
+      mediaKeyRows.length <= 1 &&
+      activationRows.length <= 1,
+  );
   assert.equal(
     activationRows.length,
     0,
     "Activation migration must remain unapplied at the preparation boundary",
   );
-  const prepared = preparationRows.length === 1;
+  assert.ok(
+    preparationRows.length === 1 || mediaKeyRows.length === 0,
+    "AccountDeletionSideEffect media-key migration requires its preparation predecessor",
+  );
+  const preparationApplied = preparationRows.length === 1;
+  const mediaKeyApplied = mediaKeyRows.length === 1;
+  const state = mediaKeyApplied
+    ? "prepared"
+    : preparationApplied
+      ? "preparation_only"
+      : "pending";
   assert.deepEqual(catalog.identity, {
     current_user: target.ownerRole,
     session_user: target.ownerRole,
@@ -512,15 +565,14 @@ export function verifyAccountDeletionCatalog(
     worker_createrole: false,
     worker_replication: false,
     worker_bypass_rls: false,
-    worker_schema_acl: prepared ? ["USAGE:false"] : [],
+    worker_schema_acl: preparationApplied ? ["USAGE:false"] : [],
     worker_unreviewed_membership: false,
   });
-  const state = prepared ? "prepared" : "pending";
   assert.ok(
     acceptedStates.includes(state),
     "Installed state is outside the reviewed boundary",
   );
-  if (prepared)
+  if (preparationApplied) {
     assert.deepEqual(preparationRows[0], {
       migration_name: expectation.migration,
       checksum: expectation.checksum,
@@ -528,6 +580,16 @@ export function verifyAccountDeletionCatalog(
       rolled_back: false,
       applied_steps_count: "1",
     });
+    if (mediaKeyApplied) {
+      assert.deepEqual(mediaKeyRows[0], {
+        migration_name: expectation.mediaKey.migration,
+        checksum: expectation.mediaKey.checksum,
+        finished: true,
+        rolled_back: false,
+        applied_steps_count: "1",
+      });
+    }
+  }
   assert.deepEqual(catalog.table, {
     table_name: "AccountDeletionSideEffect",
     owner_name: target.ownerRole,
@@ -539,16 +601,16 @@ export function verifyAccountDeletionCatalog(
     runtime_update: true,
     runtime_delete: true,
     runtime_other: false,
-    worker_select: prepared,
-    worker_insert: prepared,
-    worker_update: prepared,
-    worker_delete: prepared,
+    worker_select: preparationApplied,
+    worker_insert: preparationApplied,
+    worker_update: preparationApplied,
+    worker_delete: preparationApplied,
     worker_other: false,
     worker_explicit_column_authority: false,
     public_column_authority: false,
     public_table_authority: false,
   });
-  if (prepared) {
+  if (preparationApplied) {
     assert.deepEqual(catalog.columns, [
       {
         column_name: "claimGeneration",
@@ -633,8 +695,8 @@ export function verifyAccountDeletionCatalog(
     assert.deepEqual(catalog.constraints, []);
     assert.deepEqual(catalog.indexes, []);
   }
-  const expectedFunctions = prepared
-    ? [...expectation.functions].sort((a, b) =>
+  const expectedFunctions = preparationApplied
+    ? [...(mediaKeyApplied ? expectation.functions : expectation.preparationFunctions)].sort((a, b) =>
         a.identity.localeCompare(b.identity),
       )
     : [];
@@ -683,10 +745,11 @@ export function verifyAccountDeletionCatalog(
   }
   return Object.freeze({
     state,
-    preparationApplied: prepared,
+    preparationApplied,
+    mediaKeyApplied,
     activationApplied: false,
     installedFunctionCount: actualFunctions.length,
-    reviewedFunctionCount: expectation.functions.length,
+    reviewedFunctionCount: expectedFunctions.length,
     rlsEnabled: false,
     rlsForced: false,
     rowDataRead: false,
