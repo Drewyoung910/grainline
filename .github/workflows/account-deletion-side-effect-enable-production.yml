@@ -114,12 +114,19 @@ jobs:
           node -e 'const value=JSON.parse(process.argv[1]); if(value.ok !== true) process.exit(1)' "$health"
           for alias in \
             thegrainline.com \
-            grainline.vercel.app \
-            www.thegrainline.com
+            grainline.vercel.app
           do
             page="$(curl --fail-with-body --silent --show-error --retry 2 --max-time 20 "https://$alias/")"
             grep -Fq "dpl=$application_deployment" <<< "$page"
           done
+          headers="$(mktemp "$RUNNER_TEMP/account-deletion-side-effect-www-alias.XXXXXX")"
+          status="$(curl --silent --show-error --retry 2 --max-time 20 \
+            --dump-header "$headers" --output /dev/null --write-out '%{http_code}' \
+            https://www.thegrainline.com/)"
+          test "$status" = "308"
+          grep -Fqi "server: Vercel" "$headers"
+          grep -Fqi "location: https://thegrainline.com/" "$headers"
+          rm "$headers"
           for alias in \
             grainline-drew-youngs-projects.vercel.app \
             grainline-git-main-drew-youngs-projects.vercel.app
