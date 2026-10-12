@@ -2050,6 +2050,17 @@ describe("database grant inventory guardrails", () => {
         {
           role_name: "grainline_staff_read_runtime",
           role_exists: true,
+          direct_function_identities: [],
+          effective_function_identities: [],
+        },
+      ]),
+      [],
+    );
+    assert.deepEqual(
+      collectRestrictedRoleEffectiveFunctionIssues([
+        {
+          role_name: "grainline_staff_read_runtime",
+          role_exists: true,
           direct_function_identities: ["grainline_staff_page(text)"],
           effective_function_identities: [
             "grainline_notification_preferences_valid(jsonb)",

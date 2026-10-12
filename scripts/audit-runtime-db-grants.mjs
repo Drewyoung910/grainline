@@ -3022,9 +3022,6 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
           client,
           ["grainline_staff_read_runtime"],
         ),
-        {
-          grainline_staff_read_runtime: STAFF_READ_FUNCTION_IDENTITIES,
-        },
       ),
     );
   }
