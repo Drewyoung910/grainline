@@ -459,6 +459,14 @@ test("catalog reader issues metadata-only queries and retains no table rows", as
   assert.equal(calls.length, 7);
   const combined = calls.map(({ sql }) => sql).join("\n");
   assert.match(combined, /pg_catalog\.pg_proc/u);
+  assert.match(
+    combined,
+    /pg_catalog\.oidvectortypes\(procedure\.proargtypes\)::text AS identity_arguments/u,
+  );
+  assert.doesNotMatch(
+    combined,
+    /pg_catalog\.pg_get_function_identity_arguments\(procedure\.oid\)::text AS identity_arguments/u,
+  );
   assert.match(combined, /public\._prisma_migrations/u);
   assert.doesNotMatch(
     combined,
