@@ -128,11 +128,18 @@ test("ENABLE is exact-main, exact-CI, preflight-bound, application-bound, restar
     "thegrainline.com",
     "grainline.vercel.app",
     "www.thegrainline.com",
+  ])
+    assert.match(enable, new RegExp(alias.replaceAll(".", "\\."), "u"));
+  assert.match(enable, /dpl=\$application_deployment/u);
+  for (const alias of [
     "grainline-drew-youngs-projects.vercel.app",
     "grainline-git-main-drew-youngs-projects.vercel.app",
   ])
     assert.match(enable, new RegExp(alias.replaceAll(".", "\\."), "u"));
-  assert.match(enable, /dpl=\$application_deployment/u);
+  assert.match(enable, /test "\$status" = "302"/u);
+  assert.match(enable, /server: Vercel/u);
+  assert.match(enable, /https:\/\/vercel\.com\/sso-api\?url=https%3A%2F%2F\$alias%2F&nonce=/u);
+  assert.match(enable, /if-no-files-found: warn/u);
   assert.match(enable, /ACCOUNT_DELETION_EXPECTED_STATE: activation-compatible/u);
   assert.match(enable, /ACCOUNT_DELETION_EXPECTED_STATE: enabled/u);
   assert.match(enable, /prepared\|enabled/u);

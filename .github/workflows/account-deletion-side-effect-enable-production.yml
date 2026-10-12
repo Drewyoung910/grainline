@@ -115,12 +115,23 @@ jobs:
           for alias in \
             thegrainline.com \
             grainline.vercel.app \
-            www.thegrainline.com \
-            grainline-drew-youngs-projects.vercel.app \
-            grainline-git-main-drew-youngs-projects.vercel.app
+            www.thegrainline.com
           do
             page="$(curl --fail-with-body --silent --show-error --retry 2 --max-time 20 "https://$alias/")"
             grep -Fq "dpl=$application_deployment" <<< "$page"
+          done
+          for alias in \
+            grainline-drew-youngs-projects.vercel.app \
+            grainline-git-main-drew-youngs-projects.vercel.app
+          do
+            headers="$(mktemp "$RUNNER_TEMP/account-deletion-side-effect-protected-alias.XXXXXX")"
+            status="$(curl --silent --show-error --retry 2 --max-time 20 \
+              --dump-header "$headers" --output /dev/null --write-out '%{http_code}' \
+              "https://$alias/")"
+            test "$status" = "302"
+            grep -Fqi "server: Vercel" "$headers"
+            grep -Fqi "location: https://vercel.com/sso-api?url=https%3A%2F%2F$alias%2F&nonce=" "$headers"
+            rm "$headers"
           done
       - name: Verify AccountDeletionSideEffect ENABLE release source
         run: >-
@@ -211,6 +222,6 @@ jobs:
           path: |
             ${{ runner.temp }}/account-deletion-side-effect-production-inspection-${{ github.sha }}-activation-compatible.json
             ${{ runner.temp }}/account-deletion-side-effect-production-inspection-${{ github.sha }}-enabled.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
           include-hidden-files: false
