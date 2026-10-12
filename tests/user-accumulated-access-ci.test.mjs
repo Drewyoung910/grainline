@@ -53,10 +53,13 @@ const accountDeletionSuccessorTests = [
   "account-deletion-side-effect-ci.test.mjs",
   "account-deletion-side-effect-activation-postgres.test.mjs",
   "account-deletion-side-effect-database-contract.test.mjs",
+  "account-deletion-side-effect-production-inspect.test.mjs",
+  "account-deletion-side-effect-production-workflows.test.mjs",
   "account-deletion-side-effects.test.mjs",
 ];
 const accountDeletionSuccessorMigrations = [
   "20261011170000_prepare_account_deletion_side_effect_claim_fence",
+  "20261011173000_prepare_account_deletion_media_key_fence",
   "20261011180000_enable_account_deletion_side_effect_rls",
 ];
 const admittedTests = [...heldTests, ...packageOwnedTests];
