@@ -127,10 +127,21 @@ test("ENABLE is exact-main, exact-CI, preflight-bound, application-bound, restar
   for (const alias of [
     "thegrainline.com",
     "grainline.vercel.app",
-    "www.thegrainline.com",
   ])
     assert.match(enable, new RegExp(alias.replaceAll(".", "\\."), "u"));
   assert.match(enable, /dpl=\$application_deployment/u);
+  assert.match(enable, /https:\/\/www\.thegrainline\.com\//u);
+  assert.match(enable, /test "\$status" = "308"/u);
+  assert.match(enable, /location: https:\/\/thegrainline\.com\//u);
+  const liveFence = enable.slice(
+    enable.indexOf("- name: Verify live compatible application boundary"),
+    enable.indexOf("- name: Verify AccountDeletionSideEffect ENABLE release source"),
+  );
+  const publicMarkerLoop = liveFence.slice(
+    liveFence.indexOf("for alias in"),
+    liveFence.indexOf('headers="$(mktemp'),
+  );
+  assert.doesNotMatch(publicMarkerLoop, /www\.thegrainline\.com/u);
   for (const alias of [
     "grainline-drew-youngs-projects.vercel.app",
     "grainline-git-main-drew-youngs-projects.vercel.app",
