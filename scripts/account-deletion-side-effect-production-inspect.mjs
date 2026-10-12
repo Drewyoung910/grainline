@@ -83,10 +83,7 @@ const FUNCTION_GRANTS = Object.freeze(
       "grainline_account_deletion_media_enqueue_claimed(text, bigint, uuid, text[])",
       ["grainline_app_runtime"],
     ],
-    [
-      "grainline_account_deletion_claim_user(text, bigint, uuid)",
-      ["grainline_app_runtime"],
-    ],
+    ["grainline_account_deletion_claim_user(text, bigint, uuid)", []],
     [
       "grainline_user_account_deletion_preflight(text, bigint, uuid)",
       ["grainline_app_runtime"],

@@ -209,6 +209,14 @@ test("expectation is derived from exact preparation, activation, and function by
     assert.equal(entry.parallelSafety, "u");
     assert.match(entry.sourceMd5, /^[0-9a-f]{32}$/u);
   }
+  assert.deepEqual(
+    expectation.functions.find(
+      ({ identity }) =>
+        identity ===
+        "grainline_account_deletion_claim_user(text, bigint, uuid)",
+    )?.grantees,
+    [],
+  );
 });
 
 test("config requires exact first-attempt main, owner target, digest, state, and fresh path", () => {
