@@ -235,6 +235,8 @@ jobs:
           tests/account-deletion-side-effect-ci.test.mjs
           tests/account-deletion-side-effect-activation-postgres.test.mjs
           tests/account-deletion-side-effect-database-contract.test.mjs
+          tests/account-deletion-side-effect-production-inspect.test.mjs
+          tests/account-deletion-side-effect-production-workflows.test.mjs
           tests/account-deletion-side-effects.test.mjs
           tests/db-grant-inventory.test.mjs
           tests/runtime-db-env-isolation.test.mjs
@@ -255,6 +257,8 @@ jobs:
             tests/account-deletion-side-effect-ci.test.mjs \
             tests/account-deletion-side-effect-activation-postgres.test.mjs \
             tests/account-deletion-side-effect-database-contract.test.mjs \
+            tests/account-deletion-side-effect-production-inspect.test.mjs \
+            tests/account-deletion-side-effect-production-workflows.test.mjs \
             tests/account-deletion-side-effects.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
@@ -5244,6 +5248,8 @@ jobs:
             account-deletion-side-effect-ci.test.mjs \
             account-deletion-side-effect-activation-postgres.test.mjs \
             account-deletion-side-effect-database-contract.test.mjs \
+            account-deletion-side-effect-production-inspect.test.mjs \
+            account-deletion-side-effect-production-workflows.test.mjs \
             account-deletion-side-effects.test.mjs
           do
             mv "$holding/$test_file" "tests/$test_file"
@@ -5255,6 +5261,8 @@ jobs:
           tests/account-deletion-side-effect-ci.test.mjs
           tests/account-deletion-side-effect-activation-postgres.test.mjs
           tests/account-deletion-side-effect-database-contract.test.mjs
+          tests/account-deletion-side-effect-production-inspect.test.mjs
+          tests/account-deletion-side-effect-production-workflows.test.mjs
           tests/account-deletion-side-effects.test.mjs
           tests/db-grant-inventory.test.mjs
           tests/runtime-db-env-isolation.test.mjs

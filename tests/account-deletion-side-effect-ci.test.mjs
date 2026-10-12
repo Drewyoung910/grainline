@@ -9,6 +9,8 @@ const packageTests = [
   "account-deletion-side-effect-ci.test.mjs",
   "account-deletion-side-effect-activation-postgres.test.mjs",
   "account-deletion-side-effect-database-contract.test.mjs",
+  "account-deletion-side-effect-production-inspect.test.mjs",
+  "account-deletion-side-effect-production-workflows.test.mjs",
   "account-deletion-side-effects.test.mjs",
 ];
 
