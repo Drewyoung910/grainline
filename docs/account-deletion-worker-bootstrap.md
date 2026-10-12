@@ -155,8 +155,16 @@ running application by itself.
    already-live compatible application deployment, the one reviewed migration,
    and an enabled postflight inspection. It is restart-safe and never enables
    FORCE RLS.
-10. Treat FORCE RLS as a later release boundary with its own inspection and
-   authorization.
+10. After ENABLE, run the strengthened Production runtime-readiness guard under
+    both real pooled identities. It must exercise a read through the exact
+    worker policy without retaining row data, prove the ordinary application
+    role receives PostgreSQL permission denial on a direct table read, and
+    retain only the sanitized booleans. A new unaliased Vercel candidate can
+    perform this check inside Vercel without exporting Production environment
+    values to a local file.
+11. Treat FORCE RLS as a later release boundary with its own inspection and
+    authorization. FORCE design starts only after the actual worker/application
+    postflight above passes.
 
 The receipts contain identity, digests, stage, and status only. They must not
 contain passwords, database URLs, provider tokens, raw provider payloads, or

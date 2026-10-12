@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   ACCOUNT_DELETION_APPLICATION_FUNCTIONS,
   ACCOUNT_DELETION_RUNTIME_FUNCTIONS,
+  collectAccountDeletionActivationReadinessIssues,
   collectAccountDeletionApplicationReadinessIssues,
   collectAccountDeletionRuntimeReadinessIssues,
   verifyAccountDeletionRuntimeReadiness,
@@ -54,6 +55,12 @@ function readyApplicationRows(overrides = {}) {
   }));
 }
 
+const readyActivationRow = Object.freeze({
+  rls_enabled: true,
+  rls_forced: false,
+  worker_policy_exact: true,
+});
+
 test("readiness validator requires exact prepared worker authority", () => {
   assert.deepEqual(collectAccountDeletionRuntimeReadinessIssues(readyRows()), []);
   const issues = collectAccountDeletionRuntimeReadinessIssues([
@@ -76,6 +83,21 @@ test("readiness validator requires the regular-runtime media enqueue authority",
   assert.match(
     collectAccountDeletionApplicationReadinessIssues([]).join("\n"),
     /missing required application function/u,
+  );
+});
+
+test("readiness validator requires enabled RLS and the exact worker policy", () => {
+  assert.deepEqual(
+    collectAccountDeletionActivationReadinessIssues(readyActivationRow),
+    [],
+  );
+  assert.match(
+    collectAccountDeletionActivationReadinessIssues({
+      ...readyActivationRow,
+      rls_enabled: false,
+      worker_policy_exact: false,
+    }).join("\n"),
+    /RLS is not enabled[\s\S]*worker policy drifted/u,
   );
 });
 
@@ -115,6 +137,15 @@ test("production readiness checks worker and application authority read-only", a
         assert.doesNotMatch(sql, /FROM public\."AccountDeletionSideEffect"/u);
         return { rows: readyRows() };
       }
+      if (/class\.relrowsecurity AS rls_enabled/u.test(sql)) {
+        return { rows: [readyActivationRow] };
+      }
+      if (this.application
+        && /SELECT 1 FROM public\."AccountDeletionSideEffect" LIMIT 1/u.test(sql)) {
+        const error = new Error("permission denied");
+        error.code = "42501";
+        throw error;
+      }
       return { rows: [] };
     }
     async end() { calls.push(this.application ? "application-end" : "worker-end"); }
@@ -129,10 +160,17 @@ test("production readiness checks worker and application authority read-only", a
     role: "grainline_account_deletion_runtime",
     preparedFunctionCount: 3,
     applicationFunctionCount: 1,
+    rlsEnabled: true,
+    rlsForced: false,
+    workerPolicyExercised: true,
+    applicationDirectReadDenied: true,
     readOnly: true,
   });
   assert.ok(calls.some((call) => /worker:BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/u.test(call)));
   assert.ok(calls.some((call) => /application:BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/u.test(call)));
+  assert.ok(calls.some((call) => /worker:SELECT 1 FROM public\."AccountDeletionSideEffect" LIMIT 1/u.test(call)));
+  assert.ok(calls.some((call) => /application:SELECT 1 FROM public\."AccountDeletionSideEffect" LIMIT 1/u.test(call)));
+  assert.ok(calls.some((call) => /application:ROLLBACK TO SAVEPOINT account_deletion_direct_denial/u.test(call)));
   assert.deepEqual(calls.slice(-2), ["application-end", "worker-end"]);
 });
 
@@ -143,6 +181,9 @@ test("production readiness fails closed without exposing provider detail", async
     async query(sql) {
       if (/WITH expected/u.test(sql)) {
         return { rows: this.application ? readyApplicationRows() : readyRows({ table_crud: false }) };
+      }
+      if (/class\.relrowsecurity AS rls_enabled/u.test(sql)) {
+        return { rows: [readyActivationRow] };
       }
       return { rows: [] };
     }
@@ -161,6 +202,9 @@ test("production readiness fails closed when the media enqueue RPC is absent", a
     async query(sql) {
       if (/WITH expected/u.test(sql)) {
         return { rows: this.application ? [] : readyRows() };
+      }
+      if (/class\.relrowsecurity AS rls_enabled/u.test(sql)) {
+        return { rows: [readyActivationRow] };
       }
       return { rows: [] };
     }
