@@ -279,8 +279,19 @@ export async function readClerkWebhookEventCatalog(client, expectation) {
              pg_catalog.has_table_privilege(
                'grainline_app_runtime', class.oid, 'TRUNCATE,REFERENCES,TRIGGER'
              ) AS runtime_other,
-             pg_catalog.has_any_column_privilege(
-               'grainline_app_runtime', class.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+             EXISTS (
+               SELECT 1
+                 FROM pg_catalog.pg_attribute AS attribute
+                 CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+                 JOIN pg_catalog.pg_roles AS grantee
+                   ON grantee.oid = acl.grantee
+                WHERE attribute.attrelid = class.oid
+                  AND attribute.attnum > 0
+                  AND NOT attribute.attisdropped
+                  AND grantee.rolname = 'grainline_app_runtime'
+                  AND acl.privilege_type IN (
+                    'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+                  )
              ) AS runtime_any_column,
              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(
                COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))) AS acl

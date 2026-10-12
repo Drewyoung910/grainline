@@ -246,6 +246,7 @@ test("catalog verification rejects migration, column, constraint, function, gran
     (value) => { value.functions[0].function_config = []; },
     (value) => { value.table.rls_enabled = true; },
     (value) => { value.table.runtime_delete = false; },
+    (value) => { value.table.runtime_any_column = true; },
     (value) => { value.table.public_select = true; },
     (value) => { value.migrations.push({
       migration_name: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
@@ -287,6 +288,14 @@ test("catalog reader issues only metadata queries and retains no row data", asyn
   const combined = calls.map(({ sql }) => sql).join("\n");
   assert.match(combined, /pg_catalog\.pg_proc/u);
   assert.match(combined, /public\._prisma_migrations/u);
+  assert.match(
+    combined,
+    /pg_catalog\.aclexplode\(attribute\.attacl\)[\s\S]*grantee\.rolname = 'grainline_app_runtime'/u,
+  );
+  assert.doesNotMatch(
+    combined,
+    /has_any_column_privilege\(\s*'grainline_app_runtime'/u,
+  );
   assert.doesNotMatch(combined, /SELECT\s+\*\s+FROM\s+public\."ClerkWebhookEvent"/iu);
 });
 
