@@ -1481,19 +1481,10 @@ jobs:
           mv
           prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
           "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
-      - name: Restore SellerProfile private-boundary migration after historical release guards
-        run: >-
-          mv
-          "$RUNNER_TEMP/seller-profile-private-boundary/20261013120000_prepare_seller_profile_private_boundary"
-          prisma/migrations/20261013120000_prepare_seller_profile_private_boundary
       - name: Apply compatible migrations to CI Postgres
         run: npx prisma migrate deploy
       - name: Converge pre-activation production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
-      - name: Prove SellerProfile private boundary in ephemeral PostgreSQL
-        run: npm run audit:seller-profile-private-boundary-postgres
-        env:
-          SELLER_PROFILE_PRIVATE_BOUNDARY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Converge pre-activation DirectUpload cleanup-worker grants
         run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Prove DirectUpload legacy repair in ephemeral PostgreSQL
@@ -5591,6 +5582,50 @@ jobs:
           RESET ROLE;
           SQL
       - name: Audit runtime grants after seller listing Hide/Delete migration
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+      - name: Restore SellerProfile private-boundary migration after all predecessors
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-profile-private-boundary/20261013120000_prepare_seller_profile_private_boundary"
+          prisma/migrations/20261013120000_prepare_seller_profile_private_boundary
+      - name: Apply SellerProfile private-boundary migration in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql
+      - name: Stage exact SellerProfile private-boundary migration ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261013120000_prepare_seller_profile_private_boundary
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'seller-profile-private-boundary-ci', :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Converge runtime grants after SellerProfile private boundary
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Prove SellerProfile private boundary in ephemeral PostgreSQL
+        run: npm run audit:seller-profile-private-boundary-postgres
+        env:
+          SELLER_PROFILE_PRIVATE_BOUNDARY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Audit runtime grants after SellerProfile private boundary
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime

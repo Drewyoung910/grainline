@@ -147,15 +147,21 @@ describe("SellerProfile private-boundary additive preparation", () => {
     const verify = ci.indexOf("Verify SellerProfile private-boundary source package");
     const isolate = ci.indexOf("Isolate SellerProfile private-boundary migration from historical release guards");
     const historical = ci.indexOf("Verify compatible Order checkout receipt authority release");
-    const restore = ci.indexOf("Restore SellerProfile private-boundary migration after historical release guards");
-    const deploy = ci.indexOf("Apply compatible migrations to CI Postgres");
+    const finalPredecessor = ci.indexOf("Audit runtime grants after seller listing Hide/Delete migration");
+    const restore = ci.indexOf("Restore SellerProfile private-boundary migration after all predecessors");
+    const deploy = ci.indexOf("Apply SellerProfile private-boundary migration in disposable PostgreSQL");
+    const ledger = ci.indexOf("Stage exact SellerProfile private-boundary migration ledger");
     const postgresProof = ci.indexOf("Prove SellerProfile private boundary in ephemeral PostgreSQL");
 
     assert.ok(verify >= 0);
     assert.ok(verify < isolate);
     assert.ok(isolate < historical);
+    assert.ok(historical < finalPredecessor);
+    assert.ok(finalPredecessor < restore);
     assert.ok(historical < restore);
     assert.ok(restore < deploy);
+    assert.ok(deploy < ledger);
+    assert.ok(ledger < postgresProof);
     assert.ok(deploy < postgresProof);
     assert.match(
       ci,
@@ -163,7 +169,11 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       ci,
-      /Restore SellerProfile private-boundary migration[\s\S]*prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary/,
+      /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary/,
+    );
+    assert.match(
+      ci,
+      /Apply SellerProfile private-boundary migration in disposable PostgreSQL[\s\S]*--file=prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary\/migration\.sql/,
     );
   });
 });
