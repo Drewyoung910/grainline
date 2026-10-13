@@ -15,6 +15,10 @@ const compositionCorrection = readFileSync(
   "docs/rls-drafts/order-authority-composition-correction.sql",
   "utf8",
 );
+const sellerPrivateReconciliationMigration = readFileSync(
+  "prisma/migrations/20261013190000_move_reconciliation_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 
 function correctedFunction(name) {
   const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
@@ -41,6 +45,12 @@ async function createDatabase() {
     CREATE TABLE public."SellerProfile" (
       id text PRIMARY KEY,
       "userId" text NOT NULL UNIQUE REFERENCES public."User"(id),
+      "manualStripeReconciliationNeeded" boolean NOT NULL DEFAULT false,
+      "manualStripeReconciliationNote" text,
+      "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE public."SellerProfilePrivate" (
+      "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
       "manualStripeReconciliationNeeded" boolean NOT NULL DEFAULT false,
       "manualStripeReconciliationNote" text,
       "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -159,12 +169,17 @@ async function createDatabase() {
   await database.exec(recordMigration);
   await database.exec(correctedFunction("grainline_blocked_checkout_refund_claim"));
   await database.exec(correctedFunction("grainline_blocked_checkout_refund_record_core"));
+  await database.exec("SET check_function_bodies = off");
+  await database.exec(sellerPrivateReconciliationMigration);
+  await database.exec("SET check_function_bodies = on");
   await database.exec(`
     INSERT INTO public."User" (id) VALUES
       ('seller-user'),
       ('buyer-user');
     INSERT INTO public."SellerProfile" (id, "userId")
       VALUES ('seller-profile', 'seller-user');
+    INSERT INTO public."SellerProfilePrivate" ("sellerProfileId")
+      VALUES ('seller-profile');
   `);
   return database;
 }
@@ -359,6 +374,25 @@ test("blocked-checkout claim hands off to a later signed lease and records once"
     `, [resumedClaim.claimId, resumedClaim.claimGeneration])).rows[0].result;
     assert.equal(recorded.action, "recorded");
     assert.equal(recorded.restoredActiveListingCount, 1);
+    const reconciliation = (await database.query(`
+      SELECT
+        seller."manualStripeReconciliationNeeded" AS public_needed,
+        seller."manualStripeReconciliationNote" AS public_note,
+        seller_private."manualStripeReconciliationNeeded" AS private_needed,
+        seller_private."manualStripeReconciliationNote" AS private_note
+      FROM public."SellerProfile" AS seller
+      JOIN public."SellerProfilePrivate" AS seller_private
+        ON seller_private."sellerProfileId" = seller.id
+      WHERE seller.id = 'seller-profile'
+    `)).rows[0];
+    assert.deepEqual(reconciliation, {
+      public_needed: true,
+      public_note:
+        "Blocked-checkout refund used a platform-only Stripe refund; staff must reconcile the seller transfer manually.",
+      private_needed: true,
+      private_note:
+        "Blocked-checkout refund used a platform-only Stripe refund; staff must reconcile the seller transfer manually.",
+    });
     await database.exec(`
       UPDATE public."StripeWebhookEvent"
          SET "processedAt" = CURRENT_TIMESTAMP
@@ -377,6 +411,53 @@ test("blocked-checkout claim hands off to a later signed lease and records once"
         FROM public."Listing" WHERE id = $1
       `, [listingId])).rows[0],
       { stockQuantity: 2, status: "ACTIVE" },
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("reconciliation bridge resolves Case seller identity and stays runtime-inaccessible", async () => {
+  const database = await createDatabase();
+  try {
+    await database.exec(`
+      SELECT public.grainline_seller_profile_reconciliation_required_compat(
+        NULL::text,
+        'seller-user',
+        'Staff case refund used a platform-only Stripe refund; staff must reconcile the seller transfer manually.',
+        pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+      )
+    `);
+    assert.deepEqual(
+      (await database.query(`
+        SELECT
+          seller."manualStripeReconciliationNeeded" AS public_needed,
+          seller."manualStripeReconciliationNote" AS public_note,
+          seller_private."manualStripeReconciliationNeeded" AS private_needed,
+          seller_private."manualStripeReconciliationNote" AS private_note
+        FROM public."SellerProfile" AS seller
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId" = seller.id
+        WHERE seller.id = 'seller-profile'
+      `)).rows[0],
+      {
+        public_needed: true,
+        public_note:
+          "Staff case refund used a platform-only Stripe refund; staff must reconcile the seller transfer manually.",
+        private_needed: true,
+        private_note:
+          "Staff case refund used a platform-only Stripe refund; staff must reconcile the seller transfer manually.",
+      },
+    );
+    assert.equal(
+      (await database.query(`
+        SELECT pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_seller_profile_reconciliation_required_compat(text,text,text,timestamp without time zone)',
+          'EXECUTE'
+        ) AS allowed
+      `)).rows[0].allowed,
+      false,
     );
   } finally {
     await database.close();

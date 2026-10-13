@@ -424,6 +424,19 @@ deployments drain, before the predecessor column is dropped. Fourteen focused
 PostgreSQL checks pass. Seven effective functions, including that compatibility
 writer, remain to convert or retire.
 
+The twenty-second isolated slice moves the four refund and Case-refund writers
+that set manual Stripe reconciliation state behind one runtime-inaccessible
+compatibility writer. Migration
+`20261013190000_move_reconciliation_seller_private_sql_callers` preserves the
+four public entrypoint signatures and grants, locks the public/private seller
+pair, and writes the private source plus the predecessor representation in one
+transaction. Focused PostgreSQL proof covers both seller-profile-id and
+seller-user-id resolution, deliberately verifies the restricted runtime cannot
+execute the bridge, and retains refund replay and rollback behavior. Four
+effective functions remain: the checkout-order and notification cores plus the
+two transition-only compatibility writers, all of which must be converted or
+retired after predecessor deployment drain.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
 direct authority on the companion. Phase 1 remains incomplete: currently

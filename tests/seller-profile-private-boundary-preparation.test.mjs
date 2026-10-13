@@ -49,6 +49,10 @@ const providerIdentityCallerMigration = readFileSync(
   "prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql",
   "utf8",
 );
+const reconciliationCallerMigration = readFileSync(
+  "prisma/migrations/20261013190000_move_reconciliation_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
@@ -150,7 +154,9 @@ const PRIVATE_FIELDS = Object.freeze([
 ]);
 
 function functionDefinition(source, name) {
-  const start = source.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const start = source.search(
+    new RegExp(`CREATE OR REPLACE FUNCTION\\s+public\\.${name}\\(`, "u"),
+  );
   assert.notEqual(start, -1, `${name} definition is missing`);
   const endMarker = `\n$${name}$;`;
   const end = source.indexOf(endMarker, start);
@@ -403,6 +409,44 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.doesNotMatch(
       providerIdentityCallerMigration,
       /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i,
+    );
+  });
+
+  it("moves refund reconciliation writers behind one private compatibility boundary", () => {
+    const callers = [
+      "grainline_blocked_checkout_refund_record_core",
+      "grainline_seller_refund_record",
+      "grainline_case_staff_resolution_provider_record",
+      "grainline_case_staff_resolution_provider_recovery_record",
+    ];
+    for (const caller of callers) {
+      const definition = functionDefinition(reconciliationCallerMigration, caller);
+      assert.match(
+        definition,
+        /public\.grainline_seller_profile_reconciliation_required_compat\(/,
+      );
+      assert.doesNotMatch(
+        definition,
+        /UPDATE public\."SellerProfile"[\s\S]{0,240}"manualStripeReconciliationNeeded"/,
+      );
+    }
+
+    const bridge = functionDefinition(
+      reconciliationCallerMigration,
+      "grainline_seller_profile_reconciliation_required_compat",
+    );
+    assert.match(bridge, /FOR UPDATE OF seller, seller_private/);
+    assert.match(bridge, /UPDATE public\."SellerProfile"/);
+    assert.match(bridge, /UPDATE public\."SellerProfilePrivate"/);
+    assert.match(
+      reconciliationCallerMigration,
+      /REVOKE ALL ON FUNCTION[\s\S]*grainline_seller_profile_reconciliation_required_compat\([\s\S]*timestamp without time zone[\s\S]*FROM PUBLIC, grainline_app_runtime/,
+    );
+    assert.doesNotMatch(reconciliationCallerMigration, /\nGRANT\s/iu);
+    assert.match(reconciliationCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(
+      reconciliationCallerMigration,
+      /DROP\s+(?:COLUMN|TABLE|FUNCTION)/iu,
     );
   });
 
