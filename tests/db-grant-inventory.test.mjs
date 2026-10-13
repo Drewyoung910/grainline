@@ -223,6 +223,9 @@ const {
 describe("temporary SellerProfilePrivate CI isolation", () => {
   it("is absent by default and accepted only for exact loopback GitHub CI", () => {
     assert.deepEqual(resolveTemporarilyAbsentCiTables({}), []);
+    assert.deepEqual(resolveTemporarilyAbsentCiTables({
+      SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "",
+    }), []);
     assert.deepEqual(
       resolveTemporarilyAbsentCiTables({
         GITHUB_ACTIONS: "true",

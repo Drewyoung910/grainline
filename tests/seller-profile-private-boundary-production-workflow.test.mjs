@@ -8,7 +8,7 @@ const workflow = readFileSync(
 );
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const migration = "20261013120000_prepare_seller_profile_private_boundary";
-const checksum = "4c492de6cf7a8f7b1df6cfda1339906e0ae196e30a097aef1609ae96bb0ec219";
+const checksum = "0fc8c89afe3b8256694cb1d16e2dece5790262e4631d382cda93a514d2d2fd2e";
 
 test("SellerProfile private-boundary release is exact-main, exact-CI, and Production-reviewed", () => {
   assert.match(workflow, /name: SellerProfile Private Boundary Production/u);
@@ -32,6 +32,11 @@ test("SellerProfile private-boundary release is exact-main, exact-CI, and Produc
 });
 
 test("release admits and applies exactly the one reviewed migration", () => {
+  const sql = readFileSync(
+    `prisma/migrations/${migration}/migration.sql`,
+    "utf8",
+  );
+  assert.match(sql, /\bBEGIN;[\s\S]*\bCOMMIT;\s*$/u);
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.equal((workflow.match(/npx prisma migrate status/gu) ?? []).length, 3);
   assert.equal(

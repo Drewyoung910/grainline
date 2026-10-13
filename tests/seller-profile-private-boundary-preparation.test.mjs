@@ -163,6 +163,8 @@ describe("SellerProfile private-boundary additive preparation", () => {
       migration,
       "seller_profile_private_proof_0123456789abcdef0123456789abcdef",
     );
+    assert.doesNotMatch(qualified, /\nBEGIN;\n/u);
+    assert.doesNotMatch(qualified, /\nCOMMIT;\s*$/u);
     assert.doesNotMatch(qualified, /public\."SellerProfilePrivate"/);
     assert.match(
       qualified,

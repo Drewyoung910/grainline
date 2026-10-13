@@ -231,7 +231,7 @@ export function resolveTemporarilyAbsentCiTables(
   { allowLoopbackCi = false } = {},
 ) {
   const value = env[SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV];
-  if (value === undefined) return Object.freeze([]);
+  if (value === undefined || value === "") return Object.freeze([]);
   if (
     value !== "true"
     || !allowLoopbackCi

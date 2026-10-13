@@ -44,7 +44,15 @@ export function qualifySellerProfilePrivateBoundaryMigration(sql, schema) {
   assert.match(schema, /^seller_profile_private_proof_[a-f0-9]{32}$/);
   assert.match(sql, /CREATE TABLE public\."SellerProfilePrivate"/);
   assert.doesNotMatch(sql, new RegExp(`"${schema}"`, "u"));
-  return sql.replaceAll("public.", `"${schema}".`);
+  assert.match(sql, /\nBEGIN;\n/u);
+  assert.match(sql, /\nCOMMIT;\s*$/u);
+  const qualifiedSql = sql.replaceAll("public.", `"${schema}".`);
+  // The proof owns a larger rollback-only transaction containing its schema,
+  // role and fixture setup. Remove only the migration's outer wrapper so its
+  // exact statements remain inside that proof transaction.
+  return qualifiedSql
+    .replace(/\nBEGIN;\n/u, "\n")
+    .replace(/\nCOMMIT;\s*$/u, "\n");
 }
 
 async function expectSqlState(client, sql, code) {
