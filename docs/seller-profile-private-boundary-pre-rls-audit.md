@@ -399,6 +399,17 @@ draft so hosted CI exercises the effective function bodies rather than silently
 restoring predecessors. Focused boundary, relationship and conversation suites
 pass. Eleven effective functions remain to convert.
 
+The nineteenth and twentieth slices move the Case Guild unresolved guard and
+the seller label preflight onto the companion. The Guild guard keeps public
+`guildLevel` as the current state while reading the private prior-approval
+timestamp from `SellerProfilePrivate`. The label preflight keeps public seller
+identity/display state while sourcing ship-from contact and default package
+dimensions from the companion. Its PostgreSQL suite deliberately poisons the
+predecessor public address and proves the returned label sender still comes
+from the private row; all 35 label checks pass, including partial-refund,
+deauthorization, claim-fencing, ambiguous-provider and rollback paths. Nine
+effective functions remain to convert.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
 direct authority on the companion. Phase 1 remains incomplete: currently

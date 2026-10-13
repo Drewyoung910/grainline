@@ -37,6 +37,14 @@ const customOrderCallerMigration = readFileSync(
   "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql",
   "utf8",
 );
+const caseGuildCallerMigration = readFileSync(
+  "prisma/migrations/20261013160000_move_case_guild_seller_private_sql_caller/migration.sql",
+  "utf8",
+);
+const orderLabelCallerMigration = readFileSync(
+  "prisma/migrations/20261013170000_move_order_label_seller_private_sql_caller/migration.sql",
+  "utf8",
+);
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
@@ -307,6 +315,51 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(customOrderCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
     assert.doesNotMatch(customOrderCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
     assert.doesNotMatch(customOrderCallerMigration, /GRANT\s|REVOKE\s/i);
+  });
+
+  it("moves the Case Guild guard onto the private companion", () => {
+    assert.match(
+      caseGuildCallerMigration,
+      /CREATE OR REPLACE FUNCTION public\.grainline_case_guild_unresolved_guard\(/,
+    );
+    assert.match(caseGuildCallerMigration, /public\."SellerProfilePrivate"/);
+    assert.match(
+      caseGuildCallerMigration,
+      /seller_private\."guildMemberApprovedAt" IS NOT NULL/,
+    );
+    assert.doesNotMatch(
+      caseGuildCallerMigration,
+      /seller\."guildMemberApprovedAt"/,
+    );
+    assert.match(caseGuildCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(caseGuildCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
+    assert.doesNotMatch(caseGuildCallerMigration, /GRANT\s|REVOKE\s/i);
+  });
+
+  it("moves the order label preflight onto the private companion", () => {
+    assert.match(
+      orderLabelCallerMigration,
+      /CREATE OR REPLACE FUNCTION public\.grainline_order_seller_label_preflight\(/,
+    );
+    assert.match(orderLabelCallerMigration, /public\."SellerProfilePrivate"/);
+    for (const field of [
+      "shipFromLine1",
+      "shipFromPhone",
+      "defaultPkgWeightGrams",
+      "defaultPkgHeightCm",
+    ]) {
+      assert.match(
+        orderLabelCallerMigration,
+        new RegExp(`seller_private\\."${field}"`),
+      );
+      assert.doesNotMatch(
+        orderLabelCallerMigration,
+        new RegExp(`seller\\."${field}"`),
+      );
+    }
+    assert.match(orderLabelCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(orderLabelCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
+    assert.doesNotMatch(orderLabelCallerMigration, /GRANT\s|REVOKE\s/i);
   });
 
   it("keeps the companion inaccessible to ordinary runtime and PUBLIC", () => {
