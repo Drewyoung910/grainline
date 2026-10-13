@@ -2243,7 +2243,8 @@ FROM (
     ('CaseOpenApplication'),
     ('DirectUploadReference'),
     ('OrderDisputeRecovery'),
-    ('OrderRefundReconciliation')
+    ('OrderRefundReconciliation'),
+    ('SellerProfilePrivate')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec

@@ -23,6 +23,12 @@ revoke grants or enable SellerProfile RLS until the converted application is
 live, predecessor deployments are drained, installed function/grant state is
 inspected, and rollback is proved. Keep CommissionRequest as a separate release.
 
+The Phase 0 source candidate is now prepared and has passed focused source
+checks, Prisma validation and an exact-migration rollback-only PostgreSQL 16
+proof. The next release action is review/merge and guarded additive migration;
+Phase 1 caller conversion may proceed in isolated source but cannot deploy
+before the companion is installed.
+
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 
 `UserEmailAddress` is complete in Production through policyless FORCE from

@@ -145,6 +145,7 @@ export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "OrderRefundReconciliation",
   "OrderStaffCapability",
   "SellerDeauthorizationApplication",
+  "SellerProfilePrivate",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseResolutionClaim",

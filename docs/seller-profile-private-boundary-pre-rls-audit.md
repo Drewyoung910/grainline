@@ -100,7 +100,8 @@ private or all coordinates are public.
 - package/provider preferences: every `defaultPkg*` field,
   `preferredCarriers`, and `useCalculatedShipping`;
 - seller workflow state: `onboardingStep`, `onboardingComplete`;
-- staff/cron state: `guildMasterReviewNotes`,
+- staff/cron state: `guildMemberApprovedAt`, `guildMasterApprovedAt`,
+  `guildMasterAppliedAt`, `guildMasterReviewNotes`,
   `consecutiveMetricFailures`, `lastMetricCheckAt`, `metricWarningSentAt`,
   `listingsBelowThresholdSince`; and
 - private analytics: `profileViews`.
@@ -243,12 +244,29 @@ temporary synchronization and a public-safe availability snapshot. It must not
 drop predecessor columns, revoke predecessor grants, enable RLS, change live
 provider behavior or require the new application before it is deployed.
 
-### Phase 1: compatible application conversion — **NO-GO until Phase 0 proof**
+The isolated Phase 0 candidate now implements that exact boundary in
+`20261013120000_prepare_seller_profile_private_boundary`. `SellerProfile`
+remains authoritative, and one-way triggers maintain the private companion and
+the derived `stripeAccountSupported` snapshot. The migration gives neither
+`PUBLIC` nor `grainline_app_runtime` direct companion-table or trigger-function
+authority.
 
-Convert callers only after disposable PostgreSQL proof shows creation,
-backfill, update/delete synchronization, account-deletion reset, uniqueness and
-rollback behavior. Use focused tests during conversion; batch full test/lint/
-build at the cohesive merge/deploy boundary.
+Focused source tests pass, Prisma schema validation passes, and
+`scripts/seller-profile-private-boundary-postgres-proof.mjs` executed the exact
+migration bytes on disposable PostgreSQL 16. The rollback-only proof covered
+three-row backfill, supported/legacy/unlinked provider states, insert and update
+mirroring, non-private-update isolation, check-constraint enforcement, actual
+runtime-role direct-read denial, function EXECUTE denial, delete cascade and
+catalog cleanup after rollback. This proves the candidate's additive SQL
+semantics; it is not evidence that the migration is installed in Production.
+
+### Phase 1: compatible application conversion — **GO for isolated source work**
+
+The disposable PostgreSQL prerequisite is satisfied. Isolated source work may
+now convert callers, but the converted application must not be deployed until
+Phase 0 is accepted in Production. Prove account-deletion reset and each caller
+family as it moves; use focused tests during conversion and batch full test,
+lint and build at the cohesive merge/deploy boundary.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 
@@ -257,4 +275,3 @@ items close, predecessor deployments are drained, effective SQL functions are
 redefined and inspected, converted runtime smoke passes, and the exact rollback
 order is reviewed. RLS activation remains a separate decision after the split
 is accepted in Production.
-

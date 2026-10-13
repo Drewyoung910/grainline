@@ -5,11 +5,14 @@ Last updated: 2026-10-13
 ## Purpose And Scope
 
 This is the schema-complete disposition ledger for Grainline's site-wide
-database isolation program. Snapshot scope: 68 Prisma models.
+database isolation program. Candidate-source snapshot scope: 69 Prisma models.
 
-Current source contains 68 Prisma models. Twenty-eight have committed ENABLE
-plus FORCE migrations and forty have no committed RLS activation. Retained
-Production evidence is at twenty-eight FORCE and forty without RLS. The
+Current candidate source contains 69 Prisma models. Twenty-eight have committed
+ENABLE plus FORCE migrations and forty-one have no committed RLS activation.
+The additional `SellerProfilePrivate` companion is an additive, zero-direct-
+runtime preparation table and is not yet a Production table. Retained
+Production evidence remains at 68 models: twenty-eight FORCE and forty without
+RLS. The
 twenty-eight FORCE models are listed in
 `docs/remaining-rls-table-prioritization-audit-20261012.md`.
 
@@ -239,6 +242,7 @@ completed alternative.
 | `User` | `RLS_LIVE_FORCE` | Identity and account core | Account identity, contact and shipping PII; self, public/relationship identity, staff, Clerk lifecycle and deletion jobs | Policyless ENABLE plus FORCE is accepted in Production. Phase A is bound to guarded run `37747980060`; FORCE is bound to exact main `85934f600f46c3e4b08046888d008970eaf8f171`, first-attempt CI `37763700848`, and guarded run `37766247341`. The retained postflight proves zero policies, zero runtime/staff/PUBLIC direct table or column authority, and all 150 reviewed readers remain security-definer functions. The separately tracked `AccountDeletionSideEffect` and `ClerkWebhookEvent` service ledgers are also FORCE-hardened. See `docs/user-rls-release.md`, `docs/user-cross-domain-authority-convergence.md`, `docs/user-indirect-access-pre-rls-audit.md`, and `docs/user-service-ledger-separation-decision.md`. |
 | `UserEmailAddress` | `RLS_LIVE_FORCE` | Identity and account core | Private email history; account owner, Clerk lifecycle, signed-unsubscribe replay defense, export and deletion | Policyless ENABLE plus FORCE and zero direct runtime/PUBLIC table authority are live from exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded run `37136042748`; six exact fixed operations remain. See `docs/user-email-address-rls-release.md` |
 | `SellerProfile` | `BLOCKED_DESIGN` | Seller public-private split | Public shop profile mixed with Stripe, ship-from address, conditional exact coordinates, analytics and moderation state; public, buyer, seller, staff, Stripe, checkout/shipping, cron, export and deletion | Follow `docs/seller-profile-private-boundary-pre-rls-audit.md`: additive one-to-one private companion and compatibility sync first; convert application/effective SQL-function callers; drain; retire predecessor columns; only then design RLS/grants |
+| `SellerProfilePrivate` | `ALTERNATIVE_REVIEW` | Seller public-private split | Candidate-only private provider, ship-from, package, workflow, staff/cron and analytics companion; predecessor SellerProfile trigger during compatibility | Phase 0 keeps zero ordinary-runtime/PUBLIC direct authority and one-way predecessor mirroring. After application/function conversion and predecessor drain, choose policyless FORCE or a dedicated service-role boundary before retiring old columns. See `docs/seller-profile-private-boundary-pre-rls-audit.md` |
 | `SellerFaq` | `BLOCKED_DESIGN` | Seller public-private split | Public shop content with seller-owned writes | Parent-seller write policy and public-read design tied to visible profiles |
 | `FoundingMakerGrant` | `ALTERNATIVE_REVIEW` | Service and allocation ledgers | System allocation and badge state; allocation job, staff and public badge consumers | Revoke ordinary writes and choose service-only mutation plus minimal read projection |
 | `Listing` | `BLOCKED_DESIGN` | Catalog public-private split | Public inventory mixed with drafts, private reservations and review state; public, seller, reserved buyer, staff and cron | Model visibility states, participant access and private moderation fields before base-table RLS |

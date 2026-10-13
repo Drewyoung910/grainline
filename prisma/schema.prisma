@@ -181,6 +181,7 @@ model SellerProfile {
   stripeAccountId                  String? @unique @db.VarChar(255)
   chargesEnabled                   Boolean @default(false)
   stripeAccountVersion             String? @db.VarChar(20)
+  stripeAccountSupported           Boolean @default(true)
   stripeControllerType             String? @db.VarChar(100)
   manualStripeReconciliationNeeded Boolean @default(false)
   manualStripeReconciliationNote   String? @db.VarChar(1000)
@@ -291,12 +292,58 @@ model SellerProfile {
   payoutEvents        SellerPayoutEvent[]
   ordersBySeller      Order[]                  @relation("OrdersBySeller")
   orderItemsBySeller  OrderItem[]              @relation("OrderItemsBySeller")
+  privateData         SellerProfilePrivate?
 
   @@index([featuredUntil])
   @@index([guildLevel, chargesEnabled, vacationMode])
   @@index([displayNameNormalized])
   @@index([metroId])
   @@index([cityMetroId])
+}
+
+// Additive compatibility boundary for seller-only provider, fulfillment,
+// workflow and operational state. SellerProfile remains authoritative until
+// the compatible application conversion and predecessor drain are complete.
+model SellerProfilePrivate {
+  sellerProfileId String        @id
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  stripeAccountId                  String? @unique @db.VarChar(255)
+  stripeAccountVersion             String? @db.VarChar(20)
+  stripeControllerType             String? @db.VarChar(100)
+  manualStripeReconciliationNeeded Boolean @default(false)
+  manualStripeReconciliationNote   String? @db.VarChar(1000)
+
+  shipFromName    String? @db.VarChar(100)
+  shipFromLine1   String? @db.VarChar(200)
+  shipFromLine2   String? @db.VarChar(200)
+  shipFromCity    String? @db.VarChar(100)
+  shipFromState   String? @db.VarChar(50)
+  shipFromPostal  String? @db.VarChar(20)
+  shipFromCountry String? @default("US") @db.VarChar(2)
+  shipFromPhone   String? @db.VarChar(30)
+
+  defaultPkgWeightGrams Int?
+  defaultPkgLengthCm    Float?
+  defaultPkgWidthCm     Float?
+  defaultPkgHeightCm    Float?
+  useCalculatedShipping Boolean  @default(false)
+  preferredCarriers     String[] @default([])
+
+  onboardingStep     Int     @default(0)
+  onboardingComplete Boolean @default(false)
+
+  guildMemberApprovedAt DateTime?
+  guildMasterApprovedAt DateTime?
+  guildMasterAppliedAt  DateTime?
+  guildMasterReviewNotes      String?   @db.VarChar(2000)
+  consecutiveMetricFailures   Int       @default(0)
+  lastMetricCheckAt           DateTime?
+  metricWarningSentAt         DateTime?
+  listingsBelowThresholdSince DateTime?
+
+  profileViews Int      @default(0)
+  updatedAt    DateTime @updatedAt
 }
 
 model SellerFaq {

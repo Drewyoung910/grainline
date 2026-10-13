@@ -30,8 +30,8 @@ describe("site-wide RLS coverage matrix", () => {
     const rows = matrixRows();
     const documentedModels = rows.map((row) => row.model).sort();
 
-    assert.equal(models.length, 68, "review the snapshot count when the schema changes");
-    assert.match(matrix, /Snapshot scope: 68 Prisma models\./);
+    assert.equal(models.length, 69, "review the snapshot count when the schema changes");
+    assert.match(matrix, /Candidate-source snapshot scope: 69 Prisma models\./);
     assert.equal(rows.length, models.length, "matrix must have exactly one row per model");
     assert.deepEqual(documentedModels, models);
     assert.equal(new Set(documentedModels).size, documentedModels.length);
@@ -104,7 +104,7 @@ describe("site-wide RLS coverage matrix", () => {
         ["CaseMessage", "RLS_LIVE_FORCE"],
         ["CaseMessageAttachment", "RLS_LIVE_FORCE"],
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
-        ["ClerkWebhookEvent", "RLS_LIVE_PHASE_A_FORCE_PREPARED"],
+        ["ClerkWebhookEvent", "RLS_LIVE_FORCE"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
         ["AccountDeletionSideEffect", "RLS_LIVE_FORCE"],
@@ -114,7 +114,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /Candidate source contains 68 Prisma models\. Twenty-eight have committed ENABLE[\s\S]*Production[\s\S]*twenty-seven FORCE, one ENABLE-only service ledger[\s\S]*`ClerkWebhookEvent`/,
+      /Current candidate source contains 69 Prisma models\. Twenty-eight have committed[\s\S]*forty-one have no committed RLS activation[\s\S]*Production evidence remains at 68 models: twenty-eight FORCE and forty without\s+RLS/,
     );
     assert.match(
       matrix,

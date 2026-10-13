@@ -24,11 +24,13 @@ Each conclusion below was checked against five questions:
 ## Corrected inventory
 
 The supplied `24 forced / 2 staged / 42 without RLS` count is stale for this
-source. Exact-main parsing finds 68 Prisma models:
+source. Exact main contains 68 Prisma models. The isolated SellerProfile Phase
+0 candidate adds one zero-direct-runtime companion, so candidate parsing finds
+69 Prisma models:
 
 - 28 have committed `ENABLE ROW LEVEL SECURITY` and
   `FORCE ROW LEVEL SECURITY` migrations; and
-- 40 have no committed RLS enable migration.
+- 41 have no committed RLS enable migration.
 
 The 28 source and retained-Production FORCE models are:
 
@@ -46,9 +48,9 @@ The two Case application tables described in the supplied assessment as
 no-RLS tables with revoked grants are therefore not exceptions: both already
 have committed ENABLE and FORCE migrations.
 
-The 40 no-RLS models are:
+The 41 candidate-source no-RLS models are:
 
-`SellerProfile`, `SellerFaq`, `FoundingMakerGrant`, `Listing`, `Photo`,
+`SellerProfile`, `SellerProfilePrivate`, `SellerFaq`, `FoundingMakerGrant`, `Listing`, `Photo`,
 `Favorite`, `Review`, `ReviewPhoto`, `ReviewVote`, `Cart`, `CartItem`,
 `ListingVariantGroup`, `ListingVariantOption`, `SiteConfig`,
 `StockNotification`, `MakerVerification`, `BlogPost`, `BlogComment`,
@@ -59,7 +61,9 @@ The 40 no-RLS models are:
 `SellerBroadcast`, `CommissionRequest`, `CommissionInterest`, `Metro`,
 `AdminAuditLog`, `Block`, and `UserReport`.
 
-Production claims remain tied to retained run and catalog evidence.
+The candidate-only `SellerProfilePrivate` table is not included in the
+Production count until its additive migration is accepted. Production claims
+remain tied to retained run and catalog evidence.
 `AccountDeletionSideEffect` FORCE is accepted from exact main
 `7510a371adfb02a82727f4acb00ee36d8ce11386`, CI `38334674654`, read-only
 preflight `38337628141`, and guarded Production run `38338019810`.
