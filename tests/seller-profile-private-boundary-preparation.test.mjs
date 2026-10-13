@@ -25,6 +25,10 @@ const migration = readFileSync(
     : "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql",
   "utf8",
 );
+const supportedCallerMigration = readFileSync(
+  "prisma/migrations/20261013130000_move_seller_supported_snapshot_sql_callers/migration.sql",
+  "utf8",
+);
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
@@ -210,6 +214,35 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(migration, /NEW\."stripeAccountSupported" := \([\s\S]*NEW\."stripeAccountVersion" IS NULL[\s\S]*NEW\."stripeAccountVersion" = 'v2'/);
     assert.match(migration, /SellerProfile_stripeAccountSupported_check/);
     assert.match(migration, /BEFORE INSERT OR UPDATE OF "stripeAccountVersion", "stripeAccountSupported"/);
+  });
+
+  it("moves public SQL eligibility callers off the private provider version", () => {
+    const callers = [
+      "grainline_conversation_listing_core",
+      "grainline_notification_claim_back_in_stock",
+      "grainline_order_buyer_detail_v2",
+      "grainline_order_public_listing_counts",
+      "grainline_order_public_marketplace_listing_metrics",
+      "grainline_order_public_seller_stats",
+      "grainline_order_seller_detail_v2",
+      "grainline_user_public_listing_favorite_counts",
+    ];
+
+    for (const caller of callers) {
+      assert.match(
+        supportedCallerMigration,
+        new RegExp(`CREATE OR REPLACE FUNCTION public\\.${caller}\\(`),
+      );
+    }
+    assert.equal(
+      supportedCallerMigration.match(/CREATE OR REPLACE FUNCTION public\./g)?.length,
+      callers.length,
+    );
+    assert.doesNotMatch(supportedCallerMigration, /"stripeAccountVersion"/);
+    assert.match(supportedCallerMigration, /"stripeAccountSupported"/);
+    assert.match(supportedCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(supportedCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
+    assert.doesNotMatch(supportedCallerMigration, /GRANT\s|REVOKE\s/i);
   });
 
   it("keeps the companion inaccessible to ordinary runtime and PUBLIC", () => {

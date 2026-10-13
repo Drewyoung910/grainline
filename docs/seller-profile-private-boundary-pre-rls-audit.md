@@ -362,6 +362,19 @@ version, payout destination, package defaults and orderability snapshots used
 by the installed reservation-source witnesses, while the route-level buyer,
 listing, block, rate, price and reservation checks remain unchanged.
 
+The sixteenth isolated slice inventories the latest source definition of every
+database function and moves eight public-eligibility functions off the private
+`stripeAccountVersion` field. Migration
+`20261013130000_move_seller_supported_snapshot_sql_callers` preserves their
+signatures, security attributes and grants while using the transactionally
+maintained `stripeAccountSupported` snapshot. The exact migration applied in a
+transaction to disposable PostgreSQL 16; catalog readback found all eight
+functions using the snapshot and zero references to `stripeAccountVersion`.
+Seventeen effective functions still directly depend on fields in the private
+inventory. The large notification core remains in that count so its provider
+and metric dependencies can be converted together rather than replacing its
+definition twice.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
 direct authority on the companion. Phase 1 remains incomplete: currently
