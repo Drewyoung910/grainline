@@ -5,9 +5,9 @@ Date: 2026-10-12 (America/Chicago)
 ## Scope and evidence boundary
 
 This is a source and retained-release-evidence audit updated after the accepted
-AccountDeletionSideEffect FORCE release and in the ClerkWebhookEvent FORCE
-candidate rebased onto exact public main
-`9c1029303f44fd8d8c594d9ef4204a85b8eaecdd`. It validates the proposed
+AccountDeletionSideEffect and ClerkWebhookEvent FORCE releases, with the next
+SellerProfile boundary audited on exact public main
+`311fc18835ccdfac87b64b5c60584b2de3f85b49`. It validates the proposed
 remaining-table plan; it does not activate RLS, change grants, or claim a fresh
 whole-database Production catalog read.
 
@@ -30,7 +30,7 @@ source. Exact-main parsing finds 68 Prisma models:
   `FORCE ROW LEVEL SECURITY` migrations; and
 - 40 have no committed RLS enable migration.
 
-The 28 candidate-source FORCE models are:
+The 28 source and retained-Production FORCE models are:
 
 `User`, `UserEmailAddress`, `Conversation`, `Message`, `Order`,
 `OrderShippingRateQuote`, `OrderPaymentEvent`, `OrderDisputeRecovery`,
@@ -59,14 +59,15 @@ The 40 no-RLS models are:
 `SellerBroadcast`, `CommissionRequest`, `CommissionInterest`, `Metro`,
 `AdminAuditLog`, `Block`, and `UserReport`.
 
-This is a candidate-source inventory. Production claims remain tied to retained
-run and catalog evidence. `ClerkWebhookEvent` ENABLE is accepted from closure
-run `38271942650`. `AccountDeletionSideEffect` FORCE is accepted from exact
-main `7510a371adfb02a82727f4acb00ee36d8ce11386`, CI `38334674654`, read-only
-preflight `38337628141`, and guarded Production run `38338019810`. Production
-is therefore at 27 FORCE, 1 ENABLE-only (`ClerkWebhookEvent`), and 40 without
-RLS. Clerk FORCE is prepared in candidate source but remains disabled in
-Production.
+Production claims remain tied to retained run and catalog evidence.
+`AccountDeletionSideEffect` FORCE is accepted from exact main
+`7510a371adfb02a82727f4acb00ee36d8ce11386`, CI `38334674654`, read-only
+preflight `38337628141`, and guarded Production run `38338019810`.
+`ClerkWebhookEvent` FORCE is accepted from exact main
+`311fc18835ccdfac87b64b5c60584b2de3f85b49`, exact-head CI `38379489904`,
+merged-main CI `38383903381`, read-only inspection `38387534568`, and guarded
+Production run `38387919313`. Production is therefore at 28 FORCE and 40
+without RLS.
 
 ## Runtime exposure
 
@@ -148,12 +149,14 @@ permanent broad-CRUD exception.
 
 ## Recommended sequence
 
-1. Complete the final already-designed User-adjacent ledger: review, merge,
-   inspect, and separately apply ClerkWebhookEvent FORCE.
-   AccountDeletionSideEffect FORCE is accepted; Clerk Phase-A ENABLE is live.
-2. Remove the highest-impact mixed-row leak: split SellerProfile private
-   shipping/payment/moderation columns. Pair it with the CommissionRequest
-   private-location projection if the schemas can share a release safely.
+1. Remove the highest-impact mixed-row exposure: follow
+   `docs/seller-profile-private-boundary-pre-rls-audit.md` to add a compatible
+   one-to-one private operational row, convert application and effective SQL
+   function callers, drain predecessors, then retire old private columns.
+   Keep CommissionRequest separate because its principals and lifecycle differ.
+2. Close the recursive SellerProfile projection guard while converting callers;
+   the current narrow public projections do not substitute for a class-wide
+   future-change guard.
 3. Isolate service ledgers in two small groups: email delivery/provider tables,
    then SystemAuditLog/AdminAuditLog. Preserve only fixed producer, worker,
    undo, redaction, and reviewed-read operations.
@@ -172,8 +175,9 @@ or a separate multi-week workflow for every individual table.
 
 ## Immediate next boundary
 
-AccountDeletionSideEffect FORCE is accepted in Production. The next concrete
-User-family boundary is publishing and merging the posture-only
-ClerkWebhookEvent FORCE source, then running its fresh `force-compatible`
-inspection and separately authorized guarded release. No new broad table group
-should be activated before that FORCE boundary is accepted.
+The User family and both separately tracked service-ledger FORCE releases are
+accepted in Production. The next boundary is SellerProfile Phase 0 additive
+preparation. Its audit permits a compatible private companion, backfill,
+temporary synchronization and public-safe availability snapshot only. It does
+not permit predecessor column removal, grant revocation, RLS activation or a
+combined CommissionRequest release.
