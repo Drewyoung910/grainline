@@ -7,8 +7,22 @@ import {
 } from "../scripts/seller-profile-private-boundary-postgres-proof.mjs";
 
 const schema = readFileSync("prisma/schema.prisma", "utf8");
+const migrationIsolation = process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED;
+assert.ok(
+  migrationIsolation === undefined || migrationIsolation === "true",
+  "SellerProfile private-boundary migration isolation must be absent or exactly true",
+);
+const migrationIsolated = migrationIsolation === "true";
+const isolatedMigrationPath = process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH;
+assert.equal(
+  migrationIsolated,
+  typeof isolatedMigrationPath === "string" && isolatedMigrationPath.length > 0,
+  "SellerProfile private-boundary isolation and held migration path must be set together",
+);
 const migration = readFileSync(
-  "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql",
+  migrationIsolated
+    ? isolatedMigrationPath
+    : "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql",
   "utf8",
 );
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
@@ -16,6 +30,22 @@ const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const proof = readFileSync(
   "scripts/seller-profile-private-boundary-postgres-proof.mjs",
+  "utf8",
+);
+const zeroDirectProof = readFileSync(
+  "scripts/order-zero-direct-release-scope-postgres-proof.mjs",
+  "utf8",
+);
+const zeroDirectStructureProof = readFileSync(
+  "scripts/order-zero-direct-release-structure-postgres-proof.mjs",
+  "utf8",
+);
+const zeroDirectScope = readFileSync(
+  "scripts/order-zero-direct-release-scope.mjs",
+  "utf8",
+);
+const zeroDirectAuthority = readFileSync(
+  "scripts/order-zero-direct-release-authority.mjs",
   "utf8",
 );
 const PRIVATE_FIELDS = Object.freeze([
@@ -173,11 +203,43 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       ci,
+      /Isolate SellerProfile private-boundary migration[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=\$holding\/20261013120000_prepare_seller_profile_private_boundary\/migration\.sql/,
+    );
+    assert.match(
+      ci,
       /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=/,
     );
     assert.match(
       ci,
+      /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=/,
+    );
+    assert.match(
+      ci,
       /Apply SellerProfile private-boundary migration in disposable PostgreSQL[\s\S]*--file=prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary\/migration\.sql/,
+    );
+    assert.match(
+      zeroDirectProof,
+      /resolveTemporarilyAbsentCiTables\(env,[\s\S]*allowLoopbackCi: true/,
+    );
+    assert.match(
+      zeroDirectProof,
+      /proveZeroDirectReleaseScope\(client, zeroDirectScopeCiAuditOptions\(env\)\)/,
+    );
+    assert.match(
+      zeroDirectStructureProof,
+      /const auditOptions = zeroDirectScopeCiAuditOptions\(env\);[\s\S]*proveZeroDirectReleaseScope\(client, auditOptions\)/,
+    );
+    assert.match(
+      zeroDirectStructureProof,
+      /auditLiveDatabase\([\s\S]*temporarilyAbsentTables: auditOptions\.temporarilyAbsentTables/,
+    );
+    assert.match(
+      zeroDirectScope,
+      /auditZeroDirectAuthority\([\s\S]*expected\.owner,[\s\S]*auditOptions/,
+    );
+    assert.match(
+      zeroDirectAuthority,
+      /auditLiveDatabase\([\s\S]*temporarilyAbsentTables/,
     );
   });
 });

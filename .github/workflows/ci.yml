@@ -1074,6 +1074,7 @@ jobs:
             prisma/migrations/20261013120000_prepare_seller_profile_private_boundary \
             "$holding/20261013120000_prepare_seller_profile_private_boundary"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true" >> "$GITHUB_ENV"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=$holding/20261013120000_prepare_seller_profile_private_boundary/migration.sql" >> "$GITHUB_ENV"
       - name: Verify compatible Order account-deletion authority
         run: >-
           node --test
@@ -5596,6 +5597,7 @@ jobs:
             "$RUNNER_TEMP/seller-profile-private-boundary/20261013120000_prepare_seller_profile_private_boundary" \
             prisma/migrations/20261013120000_prepare_seller_profile_private_boundary
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=" >> "$GITHUB_ENV"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Apply SellerProfile private-boundary migration in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"

@@ -34,6 +34,36 @@ function migrationFiles() {
     });
   }
 
+  const sellerPrivateBoundaryMigrationName =
+    "20261013120000_prepare_seller_profile_private_boundary";
+  const sellerPrivateBoundaryIsolated =
+    process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED;
+  const isolatedSellerPrivateBoundaryPath =
+    process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH;
+  assert.ok(
+    sellerPrivateBoundaryIsolated === undefined
+      || sellerPrivateBoundaryIsolated === "true",
+    "SellerProfile private-boundary migration isolation must be absent or exactly true",
+  );
+  if (sellerPrivateBoundaryIsolated === "true") {
+    assert.ok(
+      isolatedSellerPrivateBoundaryPath
+        && fs.existsSync(isolatedSellerPrivateBoundaryPath),
+      "isolated SellerProfile private-boundary migration path is missing",
+    );
+    if (!migrations.some(({ name }) => name === sellerPrivateBoundaryMigrationName)) {
+      migrations.push({
+        name: sellerPrivateBoundaryMigrationName,
+        sql: fs.readFileSync(isolatedSellerPrivateBoundaryPath, "utf8"),
+      });
+    }
+  } else {
+    assert.ok(
+      !isolatedSellerPrivateBoundaryPath,
+      "SellerProfile private-boundary migration path requires isolation",
+    );
+  }
+
   return migrations.sort((left, right) => left.name.localeCompare(right.name));
 }
 

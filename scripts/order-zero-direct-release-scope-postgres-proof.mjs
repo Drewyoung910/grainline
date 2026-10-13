@@ -8,6 +8,7 @@ import { correctionProofHistoricalLedger } from "./order-correction-release-pack
 import { parseInputDraftProofConfig } from "./order-input-correction-drafts-postgres-proof.mjs";
 import { verifyInputRuntimeIdentity } from "./order-input-correction-runtime-postgres-proof.mjs";
 import { verifyRepairProofRole } from "./checkout-repair-outcome-runtime-postgres-proof.mjs";
+import { resolveTemporarilyAbsentCiTables } from "./audit-runtime-db-grants.mjs";
 
 export function parseZeroDirectScopeProofConfig(env = process.env) {
   return parseInputDraftProofConfig({ ORDER_INPUT_CORRECTION_DRAFTS_PROOF_DATABASE_URL:
@@ -17,7 +18,15 @@ export function parseZeroDirectScopeProofConfig(env = process.env) {
 // Requires a fresh dedicated connection admitted by the CI-only entrypoint.
 // The sole modeled field family is the reviewed production historical ledger
 // exceptions. No production owner mapping, target substitution or ledger writes.
-export async function proveZeroDirectReleaseScope(client) {
+export function zeroDirectScopeCiAuditOptions(env = process.env) {
+  return Object.freeze({
+    temporarilyAbsentTables: resolveTemporarilyAbsentCiTables(env, {
+      allowLoopbackCi: true,
+    }),
+  });
+}
+
+export async function proveZeroDirectReleaseScope(client, auditOptions = {}) {
   const scope = createOrderZeroDirectReleaseScope();
   const correction = createCorrectionReleasePackage();
   let reads = 0;
@@ -27,7 +36,12 @@ export async function proveZeroDirectReleaseScope(client) {
     reads += 1;
     return { ...result, rows: correctionProofHistoricalLedger(result.rows, correction.manifest) };
   } };
-  const snapshot = await scope.readAuditedSnapshot(owner, "after", "disposable");
+  const snapshot = await scope.readAuditedSnapshot(
+    owner,
+    "after",
+    "disposable",
+    auditOptions,
+  );
   assert.equal(reads, 1);
   scope.assertAuditedSnapshot(snapshot, "after", "disposable");
   const plan = scope.plan(snapshot, "disposable");
@@ -53,7 +67,7 @@ export async function runZeroDirectReleaseScopeProof(env = process.env, phase = 
     await verifyInputRuntimeIdentity(client, "grainline_ci", "ci", env.GITHUB_ACTIONS === "true");
     await verifyRepairProofRole(client, true);
     phase("complete-prefix-catalog");
-    return await proveZeroDirectReleaseScope(client);
+    return await proveZeroDirectReleaseScope(client, zeroDirectScopeCiAuditOptions(env));
   } finally { await client.end(); }
 }
 

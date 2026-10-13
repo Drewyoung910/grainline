@@ -180,7 +180,7 @@ export function createOrderZeroDirectReleaseScope() {
       completeProductionScope: false, productionExecutionAuthorized: false });
   }
 
-  async function readScope(client, stage, mode, withGlobalAudit) {
+  async function readScope(client, stage, mode, withGlobalAudit, auditOptions = {}) {
     // The caller owns a dedicated, freshly connected client with no active
     // transaction. This component must not be nested inside a caller's work.
     assert.ok(Object.hasOwn(MODES, mode), "unknown scope identity mode");
@@ -245,7 +245,12 @@ export function createOrderZeroDirectReleaseScope() {
       assertSnapshot(snapshot, stage, mode);
       if (withGlobalAudit) {
         const inventories = createZeroDirectAuthorityInventory(manifest);
-        snapshot.globalAuthority = await auditZeroDirectAuthority(client, inventories[state.prefixLength], expected.owner);
+        snapshot.globalAuthority = await auditZeroDirectAuthority(
+          client,
+          inventories[state.prefixLength],
+          expected.owner,
+          auditOptions,
+        );
       }
       return snapshot;
     } finally { await client.query("ROLLBACK"); }
@@ -255,8 +260,8 @@ export function createOrderZeroDirectReleaseScope() {
     return readScope(client, stage, mode, false);
   }
 
-  function readAuditedSnapshot(client, stage, mode = "production") {
-    return readScope(client, stage, mode, true);
+  function readAuditedSnapshot(client, stage, mode = "production", auditOptions = {}) {
+    return readScope(client, stage, mode, true, auditOptions);
   }
 
   function assertAuditedSnapshot(snapshot, stage, mode = "production") {
