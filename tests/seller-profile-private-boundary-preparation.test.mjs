@@ -601,6 +601,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     const restore = ci.indexOf("Restore SellerProfile private-boundary migration after all predecessors");
     const deploy = ci.indexOf("Apply SellerProfile private-boundary migration in disposable PostgreSQL");
     const ledger = ci.indexOf("Stage exact SellerProfile private-boundary migration ledger");
+    const callerApply = ci.indexOf("Apply SellerProfile private-boundary caller migrations in disposable PostgreSQL");
     const postgresProof = ci.indexOf("Prove SellerProfile private boundary in ephemeral PostgreSQL");
 
     assert.ok(verify >= 0);
@@ -611,12 +612,27 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.ok(historical < restore);
     assert.ok(restore < deploy);
     assert.ok(deploy < ledger);
+    assert.ok(ledger < callerApply);
+    assert.ok(callerApply < postgresProof);
     assert.ok(ledger < postgresProof);
     assert.ok(deploy < postgresProof);
-    assert.match(
-      ci,
-      /Isolate SellerProfile private-boundary migration[\s\S]*mv \\\s+prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary/,
-    );
+    for (const candidate of [
+      "20261013120000_prepare_seller_profile_private_boundary",
+      "20261013130000_move_seller_supported_snapshot_sql_callers",
+      "20261013140000_move_checkout_seller_private_sql_callers",
+      "20261013150000_move_custom_order_seller_private_sql_callers",
+      "20261013160000_move_case_guild_seller_private_sql_caller",
+      "20261013170000_move_order_label_seller_private_sql_caller",
+      "20261013180000_move_provider_identity_seller_private_sql_callers",
+      "20261013190000_move_reconciliation_seller_private_sql_callers",
+      "20261013200000_move_final_seller_private_sql_callers",
+      "20261013210000_move_account_deletion_seller_private_sql_callers",
+    ]) {
+      const occurrences = ci.split(candidate).length - 1;
+      assert.ok(occurrences >= 2, `${candidate} must be isolated and restored/applied`);
+    }
+    assert.match(ci, /mv "prisma\/migrations\/\$migration" "\$holding\/\$migration"/);
+    assert.match(ci, /mv "\$holding\/\$migration" "prisma\/migrations\/\$migration"/);
     assert.match(
       ci,
       /Isolate SellerProfile private-boundary migration[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true/,
@@ -627,7 +643,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       ci,
-      /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=/,
+      /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=/,
     );
     assert.match(
       ci,
@@ -636,6 +652,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(
       ci,
       /Apply SellerProfile private-boundary migration in disposable PostgreSQL[\s\S]*--file=prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary\/migration\.sql/,
+    );
+    assert.match(
+      ci,
+      /Apply SellerProfile private-boundary caller migrations in disposable PostgreSQL[\s\S]*--file="prisma\/migrations\/\$migration\/migration\.sql"[\s\S]*seller-profile-private-callers-ci-/,
     );
     assert.match(
       zeroDirectProof,

@@ -1071,9 +1071,20 @@ jobs:
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-profile-private-boundary"
           mkdir "$holding"
-          mv \
-            prisma/migrations/20261013120000_prepare_seller_profile_private_boundary \
-            "$holding/20261013120000_prepare_seller_profile_private_boundary"
+          for migration in \
+            20261013120000_prepare_seller_profile_private_boundary \
+            20261013130000_move_seller_supported_snapshot_sql_callers \
+            20261013140000_move_checkout_seller_private_sql_callers \
+            20261013150000_move_custom_order_seller_private_sql_callers \
+            20261013160000_move_case_guild_seller_private_sql_caller \
+            20261013170000_move_order_label_seller_private_sql_caller \
+            20261013180000_move_provider_identity_seller_private_sql_callers \
+            20261013190000_move_reconciliation_seller_private_sql_callers \
+            20261013200000_move_final_seller_private_sql_callers \
+            20261013210000_move_account_deletion_seller_private_sql_callers
+          do
+            mv "prisma/migrations/$migration" "$holding/$migration"
+          done
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=$holding/20261013120000_prepare_seller_profile_private_boundary/migration.sql" >> "$GITHUB_ENV"
       - name: Verify compatible Order account-deletion authority
@@ -5594,9 +5605,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mv \
-            "$RUNNER_TEMP/seller-profile-private-boundary/20261013120000_prepare_seller_profile_private_boundary" \
-            prisma/migrations/20261013120000_prepare_seller_profile_private_boundary
+          holding="$RUNNER_TEMP/seller-profile-private-boundary"
+          for migration in \
+            20261013120000_prepare_seller_profile_private_boundary \
+            20261013130000_move_seller_supported_snapshot_sql_callers \
+            20261013140000_move_checkout_seller_private_sql_callers \
+            20261013150000_move_custom_order_seller_private_sql_callers \
+            20261013160000_move_case_guild_seller_private_sql_caller \
+            20261013170000_move_order_label_seller_private_sql_caller \
+            20261013180000_move_provider_identity_seller_private_sql_callers \
+            20261013190000_move_reconciliation_seller_private_sql_callers \
+            20261013200000_move_final_seller_private_sql_callers \
+            20261013210000_move_account_deletion_seller_private_sql_callers
+          do
+            mv "$holding/$migration" "prisma/migrations/$migration"
+          done
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Apply SellerProfile private-boundary migration in disposable PostgreSQL
@@ -5621,6 +5644,37 @@ jobs:
             NULL, pg_catalog.clock_timestamp(), 1
           );
           SQL
+      - name: Apply SellerProfile private-boundary caller migrations in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in \
+            20261013130000_move_seller_supported_snapshot_sql_callers \
+            20261013140000_move_checkout_seller_private_sql_callers \
+            20261013150000_move_custom_order_seller_private_sql_callers \
+            20261013160000_move_case_guild_seller_private_sql_caller \
+            20261013170000_move_order_label_seller_private_sql_caller \
+            20261013180000_move_provider_identity_seller_private_sql_callers \
+            20261013190000_move_reconciliation_seller_private_sql_callers \
+            20261013200000_move_final_seller_private_sql_callers \
+            20261013210000_move_account_deletion_seller_private_sql_callers
+          do
+            psql "$DIRECT_URL" \
+              --set=ON_ERROR_STOP=on \
+              --file="prisma/migrations/$migration/migration.sql"
+            checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+            psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+              --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'seller-profile-private-callers-ci-' || :'migration', :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+          done
       - name: Converge runtime grants after SellerProfile private boundary
         run: >-
           psql "$DIRECT_URL"
