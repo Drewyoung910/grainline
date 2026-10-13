@@ -129,6 +129,10 @@ describe("query parameter parsing helpers", () => {
   it("keeps admin queues capped and stably ordered", () => {
     const review = readFileSync("src/app/admin/review/page.tsx", "utf8");
     const verification = readFileSync("src/app/admin/verification/page.tsx", "utf8");
+    const sellerGuildStaffPrivateAccess = readFileSync(
+      "src/lib/sellerGuildStaffPrivateAccess.ts",
+      "utf8",
+    );
     const blog = readFileSync("src/app/admin/blog/page.tsx", "utf8");
     const reports = readFileSync("src/app/admin/reports/page.tsx", "utf8");
 
@@ -138,7 +142,8 @@ describe("query parameter parsing helpers", () => {
     assert.match(review, /take: REVIEW_QUEUE_LIMIT/);
 
     assert.match(verification, /where: \{ status: "PENDING" \}[\s\S]*orderBy: \[\{ appliedAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 50/);
-    assert.match(verification, /where: \{ status: "GUILD_MASTER_PENDING" \}[\s\S]*orderBy: \[\{ appliedAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 50/);
+    assert.match(verification, /sellerGuildStaffMasterPendingList\(\)/);
+    assert.match(sellerGuildStaffPrivateAccess, /where: \{ status: "GUILD_MASTER_PENDING" \}[\s\S]*orderBy: \[\{ appliedAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 50/);
 
     assert.match(blog, /where: \{ approved: false \}[\s\S]*orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 30/);
     assert.match(reports, /where: \{ resolved: false \}[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
