@@ -2611,6 +2611,17 @@ describe("database grant inventory guardrails", () => {
       source(sellerProfilePrivateBoundaryMigrationPath).includes(
         `CREATE OR REPLACE FUNCTION public.${functionName}()`,
       ));
+    const sellerProfilePrivateCallerTransitionFunctionNames = [
+      "grainline_seller_profile_deauthorize_compat",
+      "grainline_seller_profile_reconciliation_required_compat",
+    ];
+    const sellerProfilePrivateCallerTransitionsPresent = [
+      "prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql",
+      "prisma/migrations/20261013190000_move_reconciliation_seller_private_sql_callers/migration.sql",
+    ].every((migrationPath, index) => existsSync(migrationPath)
+      && source(migrationPath).includes(
+        `CREATE OR REPLACE FUNCTION public.${sellerProfilePrivateCallerTransitionFunctionNames[index]}(`,
+      ));
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -2761,6 +2772,9 @@ describe("database grant inventory guardrails", () => {
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
+      ...(sellerProfilePrivateCallerTransitionsPresent
+        ? sellerProfilePrivateCallerTransitionFunctionNames
+        : []),
       ...(sellerProfilePrivateBoundaryMigrationPresent
         ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES
         : []),
@@ -2829,6 +2843,9 @@ describe("database grant inventory guardrails", () => {
         + (clerkWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
         + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
+        + (sellerProfilePrivateCallerTransitionsPresent
+          ? sellerProfilePrivateCallerTransitionFunctionNames.length
+          : 0)
         + (sellerProfilePrivateBoundaryMigrationPresent
           ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.length
             + 1 // SellerProfilePrivate table revoke from PUBLIC
