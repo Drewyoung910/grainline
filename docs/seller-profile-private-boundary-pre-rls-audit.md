@@ -437,6 +437,23 @@ effective functions remain: the checkout-order and notification cores plus the
 two transition-only compatibility writers, all of which must be converted or
 retired after predecessor deployment drain.
 
+The twenty-third isolated slice moves the final two business-function reads
+off predecessor private fields. Migration
+`20261013200000_move_final_seller_private_sql_callers` makes checkout order
+creation source the seller's Stripe account id and version from the locked
+private companion while retaining the public-safe supported snapshot for
+eligibility. Notification creation likewise uses that snapshot for Stripe
+eligibility and reads Guild metric state from the locked private row. It is
+based on the corrected notification definition, including explicit rejection
+of a null notification type. A paid-checkout PostgreSQL proof deliberately
+poisons the predecessor Stripe fields and still creates the order from the
+private source. Thirty-three focused checks pass. The only two remaining
+effective predecessor-field dependencies are the transition-only
+`grainline_seller_profile_deauthorize_compat` and
+`grainline_seller_profile_reconciliation_required_compat` writers; both must
+be replaced or retired after Phase 0 is installed, converted application code
+is deployed, and predecessor deployments have drained.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
 direct authority on the companion. Phase 1 remains incomplete: currently

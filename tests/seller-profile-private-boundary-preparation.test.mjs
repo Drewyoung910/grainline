@@ -53,6 +53,10 @@ const reconciliationCallerMigration = readFileSync(
   "prisma/migrations/20261013190000_move_reconciliation_seller_private_sql_callers/migration.sql",
   "utf8",
 );
+const finalCallerMigration = readFileSync(
+  "prisma/migrations/20261013200000_move_final_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
@@ -446,6 +450,52 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(reconciliationCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
     assert.doesNotMatch(
       reconciliationCallerMigration,
+      /DROP\s+(?:COLUMN|TABLE|FUNCTION)/iu,
+    );
+  });
+
+  it("moves the final business-function reads off predecessor private fields", () => {
+    const notification = functionDefinition(
+      finalCallerMigration,
+      "grainline_notification_create_core",
+    );
+    assert.match(notification, /public\."SellerProfilePrivate"/);
+    assert.match(
+      notification,
+      /source_seller_private\."consecutiveMetricFailures"/,
+    );
+    assert.match(notification, /source_seller_private\."metricWarningSentAt"/);
+    assert.equal(
+      notification.match(/source_seller\."stripeAccountSupported" = true/gu)?.length,
+      4,
+    );
+    assert.match(
+      notification,
+      /IF p_type IS NULL OR \(p_source_type = 'blog_comment'/,
+    );
+    assert.doesNotMatch(notification, /source_seller\."stripeAccountVersion"/);
+    assert.doesNotMatch(notification, /source_seller\."consecutiveMetricFailures"/);
+    assert.doesNotMatch(notification, /source_seller\."metricWarningSentAt"/);
+
+    const checkout = functionDefinition(
+      finalCallerMigration,
+      "grainline_stripe_checkout_order_create",
+    );
+    assert.match(checkout, /public\."SellerProfilePrivate"/);
+    assert.match(checkout, /seller_private\."stripeAccountId"/);
+    assert.match(checkout, /seller_private\."stripeAccountVersion"/);
+    assert.match(checkout, /FOR UPDATE OF seller, seller_private/);
+    assert.doesNotMatch(checkout, /\bseller\."stripeAccountId"/);
+    assert.doesNotMatch(checkout, /\bseller\."stripeAccountVersion"/);
+
+    assert.equal(
+      finalCallerMigration.match(/CREATE OR REPLACE FUNCTION/gu)?.length,
+      2,
+    );
+    assert.doesNotMatch(finalCallerMigration, /\n(?:GRANT|REVOKE)\s/iu);
+    assert.match(finalCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(
+      finalCallerMigration,
       /DROP\s+(?:COLUMN|TABLE|FUNCTION)/iu,
     );
   });
