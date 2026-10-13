@@ -5,6 +5,7 @@ import {
   parseSellerProfilePrivateBoundaryProofConfig,
   qualifySellerProfilePrivateBoundaryMigration,
 } from "../scripts/seller-profile-private-boundary-postgres-proof.mjs";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const schema = readFileSync("prisma/schema.prisma", "utf8");
 const migrationIsolation = process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED;
@@ -26,39 +27,57 @@ const migration = readFileSync(
   "utf8",
 );
 const supportedCallerMigration = readFileSync(
-  "prisma/migrations/20261013130000_move_seller_supported_snapshot_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013130000_move_seller_supported_snapshot_sql_callers",
+  ),
   "utf8",
 );
 const checkoutCallerMigration = readFileSync(
-  "prisma/migrations/20261013140000_move_checkout_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013140000_move_checkout_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const customOrderCallerMigration = readFileSync(
-  "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013150000_move_custom_order_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const caseGuildCallerMigration = readFileSync(
-  "prisma/migrations/20261013160000_move_case_guild_seller_private_sql_caller/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013160000_move_case_guild_seller_private_sql_caller",
+  ),
   "utf8",
 );
 const orderLabelCallerMigration = readFileSync(
-  "prisma/migrations/20261013170000_move_order_label_seller_private_sql_caller/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013170000_move_order_label_seller_private_sql_caller",
+  ),
   "utf8",
 );
 const providerIdentityCallerMigration = readFileSync(
-  "prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013180000_move_provider_identity_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const reconciliationCallerMigration = readFileSync(
-  "prisma/migrations/20261013190000_move_reconciliation_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013190000_move_reconciliation_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const finalCallerMigration = readFileSync(
-  "prisma/migrations/20261013200000_move_final_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013200000_move_final_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const accountDeletionCallerMigration = readFileSync(
-  "prisma/migrations/20261013210000_move_account_deletion_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013210000_move_account_deletion_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");

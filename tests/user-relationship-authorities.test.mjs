@@ -3,11 +3,14 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const migrationPath =
   "prisma/migrations/20261006030000_prepare_user_relationship_authorities/migration.sql";
 const sellerPrivateCustomOrderMigrationPath =
-  "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql";
+  sellerProfilePrivateMigrationPath(
+    "20261013150000_move_custom_order_seller_private_sql_callers",
+  );
 const sellerPrivateCustomOrderMigration = readFileSync(
   sellerPrivateCustomOrderMigrationPath,
   "utf8",

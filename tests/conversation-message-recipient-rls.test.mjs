@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const recipientSql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-recipient-access.sql",
@@ -19,7 +20,9 @@ const authorityPreparationSql = fs.readFileSync(
   "utf8",
 );
 const sellerPrivateCustomOrderSql = fs.readFileSync(
-  "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013150000_move_custom_order_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const contract = fs.readFileSync(

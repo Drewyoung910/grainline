@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const migration = readFileSync(
   "prisma/migrations/20260815210000_prepare_seller_payout_event_authority/migration.sql",
   "utf8",
 );
 const sellerPrivateProviderMigration = readFileSync(
-  "prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013180000_move_provider_identity_seller_private_sql_callers",
+  ),
   "utf8",
 );
 

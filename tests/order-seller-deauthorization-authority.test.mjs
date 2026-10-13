@@ -4,13 +4,16 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const candidate = fs.readFileSync(
   "docs/rls-drafts/order-seller-deauthorization-authority.sql",
   "utf8",
 );
 const sellerPrivateProviderMigration = fs.readFileSync(
-  "prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013180000_move_provider_identity_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const schema = fs.readFileSync("prisma/schema.prisma", "utf8");

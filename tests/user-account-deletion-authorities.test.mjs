@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const migrationPath =
   "prisma/migrations/20261006020000_prepare_user_account_deletion_authorities/migration.sql";
 const sellerPrivateCallerMigrationPath =
-  "prisma/migrations/20261013210000_move_account_deletion_seller_private_sql_callers/migration.sql";
+  sellerProfilePrivateMigrationPath(
+    "20261013210000_move_account_deletion_seller_private_sql_callers",
+  );
 
 async function databaseFixture() {
   const database = new PGlite();

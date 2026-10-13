@@ -19,11 +19,16 @@ describe("PR E onboarding summary follow-ups", () => {
   it("keeps every summary section revisitable and keeps saved listings reachable", () => {
     const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
     const page = source("src/app/dashboard/onboarding/page.tsx");
+    const ownerAccess = source("src/lib/sellerOwnerPrivateAccess.ts");
 
     for (const step of [1, 2, 3, 4]) {
       assert.match(wizard, new RegExp(`setStep\\(${step}\\)`));
     }
-    assert.match(page, /listings: \{\s*orderBy: \{ createdAt: "desc" \}/s);
+    assert.match(page, /sellerOwnerOnboardingState\(seller\.id\)/);
+    assert.match(
+      ownerAccess,
+      /const sellerOwnerOnboardingSelect = \{[\s\S]*listings: \{\s*orderBy: \{ createdAt: "desc" \}/,
+    );
     assert.match(page, /latestListing=\{sp\.listings\[0\] \?\? null\}/);
     assert.match(wizard, /href=\{`\/dashboard\/listings\/\$\{latestListing\.id\}\/edit`\}/);
     assert.match(wizard, /Open draft/);
