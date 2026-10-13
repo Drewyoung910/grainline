@@ -23,6 +23,8 @@ on:
           - complete
           - activation-compatible
           - enabled
+          - force-compatible
+          - forced
       confirmation:
         description: Type inspect-reviewed-clerk-webhook-event-authority
         required: true
@@ -105,6 +107,8 @@ jobs:
           set -euo pipefail
           echo "c5926434597a96db649796a3c61e633827fb575ae3c29e2570efb0460e9ca643  prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql" | sha256sum --check --status
           echo "7c5fc7f61280a14695b8a2b2c4e1b3d354aeae40f581f952e529015cf70066d9  prisma/migrations/20261010160000_enable_clerk_webhook_event_rls/migration.sql" | sha256sum --check --status
+          echo "e240c9f51e187616b1ef3c8a5ea7153bc4670fc90dbda30be6fb92ae1dc5a77e  prisma/migrations/20261013030000_force_clerk_webhook_event_rls/migration.sql" | sha256sum --check --status
+          echo "b691aac5db56d1fb3b185c5c47b58e3a167cfb01ccb6ebf7cdd0a798cc1f59eb  prisma/migrations/20261013040000_add_listing_archived_at/migration.sql" | sha256sum --check --status
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
         env:

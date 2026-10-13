@@ -4,9 +4,10 @@ Date: 2026-10-12 (America/Chicago)
 
 ## Scope and evidence boundary
 
-This is a source and retained-release-evidence audit updated in the
-AccountDeletionSideEffect FORCE candidate based on exact public main
-`976844c99a3e2107a5dcfcc2775eb46ba1b379a0`. It validates the proposed
+This is a source and retained-release-evidence audit updated after the accepted
+AccountDeletionSideEffect FORCE release and in the ClerkWebhookEvent FORCE
+candidate rebased onto exact public main
+`9c1029303f44fd8d8c594d9ef4204a85b8eaecdd`. It validates the proposed
 remaining-table plan; it does not activate RLS, change grants, or claim a fresh
 whole-database Production catalog read.
 
@@ -25,12 +26,11 @@ Each conclusion below was checked against five questions:
 The supplied `24 forced / 2 staged / 42 without RLS` count is stale for this
 source. Exact-main parsing finds 68 Prisma models:
 
-- 27 have committed `ENABLE ROW LEVEL SECURITY` and
-  `FORCE ROW LEVEL SECURITY` migrations;
-- 1 has a committed ENABLE migration without FORCE: `ClerkWebhookEvent`; and
+- 28 have committed `ENABLE ROW LEVEL SECURITY` and
+  `FORCE ROW LEVEL SECURITY` migrations; and
 - 40 have no committed RLS enable migration.
 
-The 27 candidate-source FORCE models are:
+The 28 candidate-source FORCE models are:
 
 `User`, `UserEmailAddress`, `Conversation`, `Message`, `Order`,
 `OrderShippingRateQuote`, `OrderPaymentEvent`, `OrderDisputeRecovery`,
@@ -39,8 +39,8 @@ The 27 candidate-source FORCE models are:
 `Case`, `CaseResolutionClaim`, `CaseStripeDisputeApplication`,
 `CaseSellerRefundApplication`, `CaseOpenApplication`, `CaseMessage`,
 `CaseMessageAttachment`, `SavedSearch`, `DirectUpload`,
-`DirectUploadReference`, `StripeWebhookEvent`, `Notification`, and
-`AccountDeletionSideEffect`.
+`DirectUploadReference`, `StripeWebhookEvent`, `Notification`,
+`AccountDeletionSideEffect`, and `ClerkWebhookEvent`.
 
 The two Case application tables described in the supplied assessment as
 no-RLS tables with revoked grants are therefore not exceptions: both already
@@ -61,10 +61,11 @@ The 40 no-RLS models are:
 
 This is a candidate-source inventory. Production claims remain tied to retained
 run and catalog evidence. `ClerkWebhookEvent` ENABLE is accepted from closure
-run `38271942650`; `AccountDeletionSideEffect` ENABLE is accepted from run
-`38317962552`. Production therefore remains at 26 FORCE, 2 ENABLE-only, and 40
-without RLS until the AccountDeletionSideEffect FORCE candidate is merged and
-separately applied. Both service ledgers still have FORCE disabled in
+run `38271942650`. `AccountDeletionSideEffect` FORCE is accepted from exact
+main `7510a371adfb02a82727f4acb00ee36d8ce11386`, CI `38334674654`, read-only
+preflight `38337628141`, and guarded Production run `38338019810`. Production
+is therefore at 27 FORCE, 1 ENABLE-only (`ClerkWebhookEvent`), and 40 without
+RLS. Clerk FORCE is prepared in candidate source but remains disabled in
 Production.
 
 ## Runtime exposure
@@ -147,11 +148,9 @@ permanent broad-CRUD exception.
 
 ## Recommended sequence
 
-1. Complete the two already-designed User-adjacent ledgers: merge and separately
-   apply the prepared AccountDeletionSideEffect FORCE release now that its
-   unaliased Production-target pooled worker/application proof is accepted,
-   then prepare ClerkWebhookEvent FORCE from fresh enabled-state evidence. Both
-   Phase-A ENABLE releases are already live.
+1. Complete the final already-designed User-adjacent ledger: review, merge,
+   inspect, and separately apply ClerkWebhookEvent FORCE.
+   AccountDeletionSideEffect FORCE is accepted; Clerk Phase-A ENABLE is live.
 2. Remove the highest-impact mixed-row leak: split SellerProfile private
    shipping/payment/moderation columns. Pair it with the CommissionRequest
    private-location projection if the schemas can share a release safely.
@@ -173,10 +172,8 @@ or a separate multi-week workflow for every individual table.
 
 ## Immediate next boundary
 
-The AccountDeletionSideEffect unaliased candidate proof is accepted under the
-actual pooled application and deletion-worker roles on candidate
-`dpl_6RtXJxDhNtAqmeSn1YYH2CzRHaJd`. The next concrete User-family boundary is
-publishing and merging the posture-only FORCE source, then running its fresh
-`force-compatible` inspection and separately authorized guarded release. No
-new broad table group should be activated before that FORCE boundary is
-accepted.
+AccountDeletionSideEffect FORCE is accepted in Production. The next concrete
+User-family boundary is publishing and merging the posture-only
+ClerkWebhookEvent FORCE source, then running its fresh `force-compatible`
+inspection and separately authorized guarded release. No new broad table group
+should be activated before that FORCE boundary is accepted.

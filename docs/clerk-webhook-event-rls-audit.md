@@ -11,7 +11,11 @@ passed main CI run `38035908667`. Read-only compatible-state inspection run
 postflight.
 
 Compatible application deployment `dpl_HRhSLnjmWMF84qoV9mb51dULQ74i` serves all
-five canonical Production aliases. Signed Clerk delivery
+five canonical Production aliases at the original live-proof checkpoint. The
+current compatible descendant is exact main
+`9c1029303f44fd8d8c594d9ef4204a85b8eaecdd`, deployment
+`dpl_3NT37Puk7H5mS4pdjtfsVdssmB7r`; the Clerk application paths and schema are
+byte-unchanged from the accepted compatible source. Signed Clerk delivery
 `msg_3KVWlwZx4u7CaXu73TjTZqGmNp9` completed with outcome `absent-user`; its one
 exact retry produced one additional HTTP 200 attempt with outcome `duplicate`.
 The database retained one completed row at claim generation 1. Retention deleted
@@ -26,6 +30,23 @@ RLS enabled, FORCE disabled, zero policies, zero runtime/PUBLIC table or column
 authority, and the same five source-pinned operations. The compatible release
 evidence above remains the predecessor history; FORCE is the remaining
 database posture boundary.
+
+The isolated Phase-B candidate now adds posture-only migration
+`20261013030000_force_clerk_webhook_event_rls`, exact `force-compatible` and
+`forced` catalog inspection states, disposable PostgreSQL replay, global grant
+audit integration, and a separately guarded FORCE workflow. It changes no
+application code, function body, policy, or direct grant. Production remains
+ENABLE-only until this source is merged, freshly inspected, and separately
+authorized and applied.
+
+The candidate is rebased onto the already-live listing migration
+`20261013040000_add_listing_archived_at`. Its inspection verifies that newer
+migration's exact checksum and successful ledger row. The FORCE workflow keeps
+that already-applied migration in the local tree, removes only the pending
+Clerk FORCE directory for the pre-apply clean-status proof, then requires the
+full-tree pending set to contain exactly the Clerk FORCE migration. This avoids
+the cross-release deadlock where an older pending migration is hidden by moving
+an already-applied newer migration out of the tree.
 
 ## Intended behavior
 
@@ -172,8 +193,11 @@ has 51 passes, zero failures, and one GitHub-Actions-PostgreSQL-only skip.
 5. ~~Review, merge, inspect, and apply policyless Phase A.~~ Complete through
    restart-safe closure run `38271942650`, which accepted direct
    runtime/PUBLIC denial, zero policies, and five exact operations.
-6. Prepare and separately authorize FORCE from fresh enabled-state catalog and
-   actual pooled-runtime evidence.
+6. ~~Prepare FORCE from fresh enabled-state and retained actual pooled-runtime
+   evidence.~~ Complete in isolated candidate source. Review, merge, run the
+   exact-main `force-compatible` inspection, and separately authorize the
+   guarded FORCE migration. Production remains ENABLE-only until those steps
+   complete.
 
 Migration-before-deployment is mandatory: the converted application calls the
 new database functions. Deployment before the additive migration would make

@@ -7,8 +7,10 @@ import test from "node:test";
 
 import {
   CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+  CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
   CLERK_WEBHOOK_EVENT_INSPECTION_CONFIRMATION,
   CLERK_WEBHOOK_EVENT_MIGRATION,
+  CLERK_WEBHOOK_EVENT_RELEASE_SUCCESSOR_MIGRATION,
   ClerkWebhookEventCatalogVerificationError,
   assertClerkWebhookEventInspectionGitState,
   buildClerkWebhookEventCatalogExpectation,
@@ -67,8 +69,9 @@ function functionRows(expectation) {
 }
 
 function catalog(expectation, state = "complete") {
-  const complete = state === "complete" || state === "enabled";
-  const enabled = state === "enabled";
+  const complete = state === "complete" || state === "enabled" || state === "forced";
+  const enabled = state === "enabled" || state === "forced";
+  const forced = state === "forced";
   return {
     identity: {
       current_user: "neondb_owner",
@@ -81,7 +84,7 @@ function catalog(expectation, state = "complete") {
       runtime_superuser: false,
       runtime_inherit: false,
     },
-    migrations: complete ? [{
+    migrations: [...(complete ? [{
       migration_name: CLERK_WEBHOOK_EVENT_MIGRATION,
       checksum: expectation.checksum,
       finished: true,
@@ -93,12 +96,24 @@ function catalog(expectation, state = "complete") {
       finished: true,
       rolled_back: false,
       applied_steps_count: "1",
-    }] : [])] : [],
+    }] : []), ...(forced ? [{
+      migration_name: CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
+      checksum: expectation.force.checksum,
+      finished: true,
+      rolled_back: false,
+      applied_steps_count: "1",
+    }] : [])] : []), {
+      migration_name: CLERK_WEBHOOK_EVENT_RELEASE_SUCCESSOR_MIGRATION,
+      checksum: expectation.releaseSuccessor.checksum,
+      finished: true,
+      rolled_back: false,
+      applied_steps_count: "1",
+    }],
     table: {
       table_name: "ClerkWebhookEvent",
       owner_name: "neondb_owner",
       rls_enabled: enabled,
-      rls_forced: false,
+      rls_forced: forced,
       policy_count: 0,
       runtime_select: !enabled,
       runtime_insert: !enabled,
@@ -145,6 +160,26 @@ test("expectation is derived from exact reviewed migration bytes and five functi
     expectation.activation.checksum,
     createHash("sha256").update(activationSql).digest("hex"),
   );
+  const forceSql = fs.readFileSync(
+    `prisma/migrations/${CLERK_WEBHOOK_EVENT_FORCE_MIGRATION}/migration.sql`,
+    "utf8",
+  );
+  assert.equal(
+    expectation.force.checksum,
+    createHash("sha256").update(forceSql).digest("hex"),
+  );
+  const releaseSuccessorSql = fs.readFileSync(
+    `prisma/migrations/${CLERK_WEBHOOK_EVENT_RELEASE_SUCCESSOR_MIGRATION}/migration.sql`,
+    "utf8",
+  );
+  assert.equal(
+    expectation.releaseSuccessor.checksum,
+    createHash("sha256").update(releaseSuccessorSql).digest("hex"),
+  );
+  assert.equal(
+    expectation.releaseSuccessor.checksum,
+    "b691aac5db56d1fb3b185c5c47b58e3a167cfb01ccb6ebf7cdd0a798cc1f59eb",
+  );
   assert.equal(
     expectation.activation.checksum,
     "7c5fc7f61280a14695b8a2b2c4e1b3d354aeae40f581f952e529015cf70066d9",
@@ -169,6 +204,12 @@ test("config requires an exact first-attempt main dispatch, owner target, digest
       env(root, "activation-compatible"),
     ).acceptedStates,
     ["complete", "enabled"],
+  );
+  assert.deepEqual(
+    parseClerkWebhookEventInspectionConfig(
+      env(root, "force-compatible"),
+    ).acceptedStates,
+    ["enabled", "forced"],
   );
 
   for (const [key, value] of [
@@ -205,6 +246,8 @@ test("pending and complete catalogs are accepted only in their allowed states", 
     state: "complete",
     migrationApplied: true,
     activationMigrationApplied: false,
+    forceMigrationApplied: false,
+    releaseSuccessorMigrationApplied: true,
     installedFunctionCount: 5,
     reviewedFunctionCount: 5,
     rlsEnabled: false,
@@ -219,10 +262,29 @@ test("pending and complete catalogs are accepted only in their allowed states", 
       state: "enabled",
       migrationApplied: true,
       activationMigrationApplied: true,
+      forceMigrationApplied: false,
+      releaseSuccessorMigrationApplied: true,
       installedFunctionCount: 5,
       reviewedFunctionCount: 5,
       rlsEnabled: true,
       rlsForced: false,
+      predecessorRuntimeCrudRetained: false,
+      rowDataRead: false,
+      productionChanged: false,
+    },
+  );
+  assert.deepEqual(
+    verifyClerkWebhookEventCatalog(catalog(expectation, "forced"), expectation, ["forced"]),
+    {
+      state: "forced",
+      migrationApplied: true,
+      activationMigrationApplied: true,
+      forceMigrationApplied: true,
+      releaseSuccessorMigrationApplied: true,
+      installedFunctionCount: 5,
+      reviewedFunctionCount: 5,
+      rlsEnabled: true,
+      rlsForced: true,
       predecessorRuntimeCrudRetained: false,
       rowDataRead: false,
       productionChanged: false,
@@ -236,6 +298,7 @@ test("catalog verification rejects migration, column, constraint, function, gran
   const expectation = buildClerkWebhookEventCatalogExpectation();
   const mutations = [
     (value) => { value.migrations[0].checksum = "b".repeat(64); },
+    (value) => { value.migrations.at(-1).checksum = "b".repeat(64); },
     (value) => { value.columns[0].not_null = false; },
     (value) => { value.columns[0].default_expression = "1"; },
     (value) => { value.constraints[0].validated = false; },
@@ -267,6 +330,13 @@ test("catalog verification rejects migration, column, constraint, function, gran
     enabled,
     expectation,
     ["enabled"],
+  ));
+  const forced = structuredClone(catalog(expectation, "forced"));
+  forced.migrations[2].checksum = "b".repeat(64);
+  assert.throws(() => verifyClerkWebhookEventCatalog(
+    forced,
+    expectation,
+    ["forced"],
   ));
 });
 

@@ -140,6 +140,8 @@ const {
   CLERK_WEBHOOK_EVENT_TABLE,
   CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
   CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
+  CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
+  CLERK_WEBHOOK_EVENT_FORCE_MIGRATION_SHA256,
   CORE_ORDER_TABLE,
   ORDER_ITEM_TABLE,
   ORDER_QUOTE_TABLE,
@@ -169,6 +171,7 @@ const {
   accountDeletionRuntimeExecuteExpected,
   collectAccountDeletionMigrationOrderIssues,
   collectAccountDeletionWorkerBoundaryIssues,
+  collectClerkWebhookEventMigrationOrderIssues,
   clerkWebhookEventRlsActivationExpected,
   clerkWebhookEventRlsForceExpected,
   checkoutStockReservationRlsActivationExpected,
@@ -205,6 +208,7 @@ const {
   readAccountDeletionSideEffectActivationState,
   readAccountDeletionSideEffectForceState,
   readClerkWebhookEventActivationState,
+  readClerkWebhookEventForceState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
   resolveStaffReadAuditStage,
@@ -1065,6 +1069,23 @@ describe("database grant inventory guardrails", () => {
       forceApplied: true,
     }), [
       "AccountDeletionSideEffect FORCE is applied without its exact activation prerequisite",
+    ]);
+  });
+
+  it("fails closed when ClerkWebhookEvent FORCE precedes activation", () => {
+    assert.deepEqual(collectClerkWebhookEventMigrationOrderIssues({
+      activationApplied: false,
+      forceApplied: false,
+    }), []);
+    assert.deepEqual(collectClerkWebhookEventMigrationOrderIssues({
+      activationApplied: true,
+      forceApplied: true,
+    }), []);
+    assert.deepEqual(collectClerkWebhookEventMigrationOrderIssues({
+      activationApplied: false,
+      forceApplied: true,
+    }), [
+      "ClerkWebhookEvent FORCE is applied without its exact activation prerequisite",
     ]);
   });
 
@@ -2548,6 +2569,13 @@ describe("database grant inventory guardrails", () => {
         `${source(accountDeletionClaimFenceMigrationPath)}\n${source(accountDeletionMediaKeyFenceMigrationPath)}`.includes(
           `CREATE FUNCTION public.${functionName}(`,
         ));
+    const listingHideDeleteMigrationPath =
+      "prisma/migrations/20261013040000_add_listing_archived_at/migration.sql";
+    const listingHideDeleteMigrationPresent = existsSync(
+      listingHideDeleteMigrationPath,
+    ) && source(listingHideDeleteMigrationPath).includes(
+      "CREATE FUNCTION public.grainline_listing_delete_reference_state(",
+    );
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -2698,6 +2726,9 @@ describe("database grant inventory guardrails", () => {
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
+      ...(listingHideDeleteMigrationPresent
+        ? ["grainline_listing_delete_reference_state"]
+        : []),
       ...(clerkWebhookAuthorityPrepared
         ? clerkWebhookAuthorityFunctionNames
         : []),
@@ -2747,6 +2778,7 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (accountDeletionClaimFencePrepared ? 13 : 0)
         + (accountDeletionSideEffectRlsActivationExpected(inventory) ? 6 : 0)
+        + (listingHideDeleteMigrationPresent ? 1 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)
@@ -3154,6 +3186,9 @@ describe("database grant inventory guardrails", () => {
         "CaseSellerRefundApplication",
         "CaseStripeDisputeApplication",
         "CheckoutStockReservation",
+        ...(clerkWebhookEventRlsForceExpected(inventory)
+          ? [CLERK_WEBHOOK_EVENT_TABLE]
+          : []),
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
@@ -3593,6 +3628,13 @@ describe("database grant inventory guardrails", () => {
       await readClerkWebhookEventActivationState(exactClient(
         CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
         CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readClerkWebhookEventForceState(exactClient(
+        CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
+        CLERK_WEBHOOK_EVENT_FORCE_MIGRATION_SHA256,
       )),
       { applied: true, issues: [] },
     );

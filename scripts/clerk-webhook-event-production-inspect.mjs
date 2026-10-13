@@ -29,6 +29,10 @@ export const CLERK_WEBHOOK_EVENT_MIGRATION =
   "20261008120000_prepare_clerk_webhook_event_authority";
 export const CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION =
   "20261010160000_enable_clerk_webhook_event_rls";
+export const CLERK_WEBHOOK_EVENT_FORCE_MIGRATION =
+  "20261013030000_force_clerk_webhook_event_rls";
+export const CLERK_WEBHOOK_EVENT_RELEASE_SUCCESSOR_MIGRATION =
+  "20261013040000_add_listing_archived_at";
 export const CLERK_WEBHOOK_EVENT_INSPECTION_CONFIRMATION =
   "inspect-reviewed-clerk-webhook-event-authority";
 export const REVIEWED_CLERK_WEBHOOK_EVENT_TARGET = Object.freeze({
@@ -48,6 +52,8 @@ const EXPECTED_STATES = Object.freeze({
   compatible: Object.freeze(["pending", "complete"]),
   enabled: Object.freeze(["enabled"]),
   "activation-compatible": Object.freeze(["complete", "enabled"]),
+  "force-compatible": Object.freeze(["enabled", "forced"]),
+  forced: Object.freeze(["forced"]),
 });
 const FUNCTION_IDENTITIES = Object.freeze([
   "grainline_clerk_webhook_begin(text, text)",
@@ -139,12 +145,36 @@ export function buildClerkWebhookEventCatalogExpectation(root = process.cwd()) {
     "migration.sql",
   );
   const activationSql = readFileSync(activationPath, "utf8");
+  const forcePath = path.join(
+    root,
+    "prisma",
+    "migrations",
+    CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
+    "migration.sql",
+  );
+  const forceSql = readFileSync(forcePath, "utf8");
+  const releaseSuccessorPath = path.join(
+    root,
+    "prisma",
+    "migrations",
+    CLERK_WEBHOOK_EVENT_RELEASE_SUCCESSOR_MIGRATION,
+    "migration.sql",
+  );
+  const releaseSuccessorSql = readFileSync(releaseSuccessorPath, "utf8");
   return Object.freeze({
     migration: CLERK_WEBHOOK_EVENT_MIGRATION,
     checksum: createHash("sha256").update(sql, "utf8").digest("hex"),
     activation: Object.freeze({
       migration: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
       checksum: createHash("sha256").update(activationSql, "utf8").digest("hex"),
+    }),
+    force: Object.freeze({
+      migration: CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
+      checksum: createHash("sha256").update(forceSql, "utf8").digest("hex"),
+    }),
+    releaseSuccessor: Object.freeze({
+      migration: CLERK_WEBHOOK_EVENT_RELEASE_SUCCESSOR_MIGRATION,
+      checksum: createHash("sha256").update(releaseSuccessorSql, "utf8").digest("hex"),
     }),
     functions: Object.freeze(FUNCTION_IDENTITIES.map((identity) =>
       sourceFunctionContract(sql, identity))),
@@ -264,7 +294,12 @@ export async function readClerkWebhookEventCatalog(client, expectation) {
         FROM public._prisma_migrations
        WHERE migration_name = ANY($1::text[])
        ORDER BY migration_name
-    `, [[expectation.migration, expectation.activation.migration]]),
+    `, [[
+      expectation.migration,
+      expectation.activation.migration,
+      expectation.force.migration,
+      expectation.releaseSuccessor.migration,
+    ]]),
     client.query(`
       SELECT class.relname::text AS table_name,
              pg_catalog.pg_get_userbyid(class.relowner)::text AS owner_name,
@@ -430,26 +465,45 @@ export function verifyClerkWebhookEventCatalog(
     runtime_superuser: false,
     runtime_inherit: false,
   });
-  assert.ok(Array.isArray(catalog?.migrations) && catalog.migrations.length <= 2);
+  assert.ok(Array.isArray(catalog?.migrations) && catalog.migrations.length <= 4);
   const authorityRows = catalog.migrations.filter(
     ({ migration_name: name }) => name === expectation.migration,
   );
   const activationRows = catalog.migrations.filter(
     ({ migration_name: name }) => name === expectation.activation.migration,
   );
-  assert.ok(authorityRows.length <= 1 && activationRows.length <= 1);
+  const forceRows = catalog.migrations.filter(
+    ({ migration_name: name }) => name === expectation.force.migration,
+  );
+  const releaseSuccessorRows = catalog.migrations.filter(
+    ({ migration_name: name }) => name === expectation.releaseSuccessor.migration,
+  );
+  assert.ok(
+    authorityRows.length <= 1
+      && activationRows.length <= 1
+      && forceRows.length <= 1
+      && releaseSuccessorRows.length === 1,
+  );
   const authorityInstalled = authorityRows.length === 1;
   const activationInstalled = activationRows.length === 1;
+  const forceInstalled = forceRows.length === 1;
   assert.equal(
     activationInstalled && !authorityInstalled,
     false,
     "ClerkWebhookEvent activation cannot precede its authority migration",
   );
-  const state = activationInstalled
-    ? "enabled"
-    : authorityInstalled
-      ? "complete"
-      : "pending";
+  assert.equal(
+    forceInstalled && !activationInstalled,
+    false,
+    "ClerkWebhookEvent FORCE cannot precede its activation migration",
+  );
+  const state = forceInstalled
+    ? "forced"
+    : activationInstalled
+      ? "enabled"
+      : authorityInstalled
+        ? "complete"
+        : "pending";
   assert.equal(
     acceptedStates.includes(state),
     true,
@@ -459,7 +513,7 @@ export function verifyClerkWebhookEventCatalog(
     table_name: "ClerkWebhookEvent",
     owner_name: target.ownerRole,
     rls_enabled: activationInstalled,
-    rls_forced: false,
+    rls_forced: forceInstalled,
     policy_count: 0,
     runtime_select: !activationInstalled,
     runtime_insert: !activationInstalled,
@@ -510,6 +564,22 @@ export function verifyClerkWebhookEventCatalog(
       applied_steps_count: "1",
     });
   }
+  if (forceInstalled) {
+    assert.deepEqual(forceRows[0], {
+      migration_name: expectation.force.migration,
+      checksum: expectation.force.checksum,
+      finished: true,
+      rolled_back: false,
+      applied_steps_count: "1",
+    });
+  }
+  assert.deepEqual(releaseSuccessorRows[0], {
+    migration_name: expectation.releaseSuccessor.migration,
+    checksum: expectation.releaseSuccessor.checksum,
+    finished: true,
+    rolled_back: false,
+    applied_steps_count: "1",
+  });
   const expectedFunctions = authorityInstalled ? expectation.functions : [];
   const actualFunctions = [...(catalog?.functions ?? [])].sort((left, right) =>
     `${left.function_name}(${left.identity_arguments})`.localeCompare(
@@ -538,10 +608,12 @@ export function verifyClerkWebhookEventCatalog(
     state,
     migrationApplied: authorityInstalled,
     activationMigrationApplied: activationInstalled,
+    forceMigrationApplied: forceInstalled,
+    releaseSuccessorMigrationApplied: true,
     installedFunctionCount: actualFunctions.length,
     reviewedFunctionCount: expectation.functions.length,
     rlsEnabled: activationInstalled,
-    rlsForced: false,
+    rlsForced: forceInstalled,
     predecessorRuntimeCrudRetained: !activationInstalled,
     rowDataRead: false,
     productionChanged: false,

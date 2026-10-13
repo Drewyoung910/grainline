@@ -123,6 +123,10 @@ test("CI proves the Clerk webhook package, isolates it from historical guards, a
     isolated,
     /prisma\/migrations\/20261010160000_enable_clerk_webhook_event_rls/,
   );
+  assert.match(
+    isolated,
+    /prisma\/migrations\/20261013030000_force_clerk_webhook_event_rls/,
+  );
   for (const file of [
     "clerk-webhook-event-authority.test.mjs",
     "clerk-webhook-event-authority-postgres.test.mjs",
@@ -143,6 +147,10 @@ test("CI proves the Clerk webhook package, isolates it from historical guards, a
   );
   assert.match(
     replay,
+    /--file=prisma\/migrations\/20261013030000_force_clerk_webhook_event_rls\/migration\.sql/,
+  );
+  assert.match(
+    replay,
     /CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256/,
   );
   assert.match(
@@ -152,6 +160,6 @@ test("CI proves the Clerk webhook package, isolates it from historical guards, a
   assert.match(replay, /pg_catalog\.count\(\*\) = 5/);
   assert.match(replay, /claimGeneration/);
   assert.match(replay, /AND relation\.relrowsecurity/);
-  assert.match(replay, /AND NOT relation\.relforcerowsecurity/);
+  assert.match(replay, /AND relation\.relforcerowsecurity/);
   assert.match(replay, /NOT pg_catalog\.has_table_privilege/);
 });

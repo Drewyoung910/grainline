@@ -82,6 +82,10 @@ export const CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION =
   "20261010160000_enable_clerk_webhook_event_rls";
 export const CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256 =
   "7c5fc7f61280a14695b8a2b2c4e1b3d354aeae40f581f952e529015cf70066d9";
+export const CLERK_WEBHOOK_EVENT_FORCE_MIGRATION =
+  "20261013030000_force_clerk_webhook_event_rls";
+export const CLERK_WEBHOOK_EVENT_FORCE_MIGRATION_SHA256 =
+  "e240c9f51e187616b1ef3c8a5ea7153bc4670fc90dbda30be6fb92ae1dc5a77e";
 export const ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION =
   "20261011180000_enable_account_deletion_side_effect_rls";
 export const ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256 =
@@ -422,6 +426,9 @@ export function clerkWebhookEventRlsActivationExpected(inventory) {
 }
 
 export function clerkWebhookEventRlsForceExpected(inventory) {
+  if (typeof inventory?.clerkWebhookEventRlsForceApplied === "boolean") {
+    return inventory.clerkWebhookEventRlsForceApplied;
+  }
   return clerkWebhookEventRlsActivationExpected(inventory)
     && (inventory?.rlsForceTables ?? []).includes(CLERK_WEBHOOK_EVENT_TABLE);
 }
@@ -1238,6 +1245,23 @@ export async function readClerkWebhookEventActivationState(client) {
     checksum: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
     label: "ClerkWebhookEvent activation",
   });
+}
+
+export async function readClerkWebhookEventForceState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
+    checksum: CLERK_WEBHOOK_EVENT_FORCE_MIGRATION_SHA256,
+    label: "ClerkWebhookEvent FORCE",
+  });
+}
+
+export function collectClerkWebhookEventMigrationOrderIssues({
+  activationApplied,
+  forceApplied,
+}) {
+  return forceApplied && !activationApplied
+    ? ["ClerkWebhookEvent FORCE is applied without its exact activation prerequisite"]
+    : [];
 }
 
 export async function readAccountDeletionSideEffectActivationState(client) {
@@ -2710,6 +2734,13 @@ export async function auditLiveDatabase({
   const clerkWebhookEventActivation =
     await readClerkWebhookEventActivationState(client);
   issues.push(...clerkWebhookEventActivation.issues);
+  const clerkWebhookEventForce =
+    await readClerkWebhookEventForceState(client);
+  issues.push(...clerkWebhookEventForce.issues);
+  issues.push(...collectClerkWebhookEventMigrationOrderIssues({
+    activationApplied: clerkWebhookEventActivation.applied,
+    forceApplied: clerkWebhookEventForce.applied,
+  }));
   const accountDeletionClaimFencePreparation =
     await readAccountDeletionClaimFencePreparationState(client);
   issues.push(...accountDeletionClaimFencePreparation.issues);
@@ -2740,6 +2771,8 @@ export async function auditLiveDatabase({
     orderItemQuoteRuntimeLockApplied: orderItemQuoteRuntimeLock.applied,
     clerkWebhookEventRlsActivationApplied:
       clerkWebhookEventActivation.applied,
+    clerkWebhookEventRlsForceApplied:
+      clerkWebhookEventForce.applied,
     accountDeletionSideEffectRlsActivationApplied:
       accountDeletionSideEffectActivation.applied,
     accountDeletionSideEffectRlsForceApplied:
