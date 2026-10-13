@@ -319,6 +319,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     const onboardingActions = readFileSync("src/app/dashboard/onboarding/actions.ts", "utf8");
     const shopSettings = readFileSync("src/app/dashboard/seller/page.tsx", "utf8");
     const profileEditor = readFileSync("src/app/dashboard/profile/page.tsx", "utf8");
+    const guildDashboard = readFileSync("src/app/dashboard/verification/page.tsx", "utf8");
     const guildMemberCron = readFileSync("src/app/api/cron/guild-member-check/route.ts", "utf8");
     const guildMetricsCron = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
     const guildPrivateAccess = readFileSync("src/lib/sellerGuildPrivateAccess.ts", "utf8");
@@ -329,6 +330,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.doesNotMatch(onboardingActions, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(shopSettings, /prisma\.sellerProfile\./);
     assert.doesNotMatch(profileEditor, /(?:prisma|tx)\.sellerProfile\./);
+    assert.doesNotMatch(guildDashboard, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(guildMemberCron, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(guildMetricsCron, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(accountExport, /prisma\.sellerProfile\./);
@@ -349,6 +351,9 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(profileEditor, /clearSellerOwnerAvatar/);
     assert.match(profileEditor, /sellerOwnerFeaturedListingIds/);
     assert.match(profileEditor, /updateSellerOwnerFeaturedListingIds/);
+    assert.match(guildDashboard, /sellerOwnerGuildDashboardState/);
+    assert.match(guildDashboard, /sellerOwnerGuildApplicationState/);
+    assert.match(guildDashboard, /recordSellerOwnerGuildMasterApplication/);
     assert.match(guildMemberCron, /sellerGuildMemberCronBatch/);
     assert.match(guildMemberCron, /recordSellerGuildMemberRevocation/);
     assert.match(guildMetricsCron, /sellerGuildMetricsCronBatch/);

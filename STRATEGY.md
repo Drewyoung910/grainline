@@ -53,9 +53,10 @@ including private ship-from data and best-effort metro assignment. An eleventh
 moves seller profile-editor reads, profile/avatar updates and featured-listing
 state behind the same owner-bound boundary. A twelfth centralizes the daily and
 monthly Guild cron scans and guarded state transitions while preserving their
-transactional verification/audit coupling. The fixed database operations,
-staff and owner Guild state, checkout and effective SQL-function families
-remain.
+transactional verification/audit coupling. A thirteenth moves the authenticated
+Guild dashboard and both application rechecks behind the owner-bound access
+layer. The fixed database operations, staff Guild state, checkout and effective
+SQL-function families remain.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

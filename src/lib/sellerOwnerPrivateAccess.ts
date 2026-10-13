@@ -116,6 +116,31 @@ const sellerOwnerExportSelect = {
   updatedAt: true,
 } satisfies Prisma.SellerProfileSelect;
 
+const sellerOwnerGuildDashboardSelect = {
+  id: true,
+  userId: true,
+  bio: true,
+  avatarImageUrl: true,
+  returnPolicy: true,
+  customOrderPolicy: true,
+  shippingPolicy: true,
+  guildLevel: true,
+  guildMemberApprovedAt: true,
+  guildMasterApprovedAt: true,
+  guildMasterAppliedAt: true,
+  guildMasterReviewNotes: true,
+  consecutiveMetricFailures: true,
+  lastMetricCheckAt: true,
+  metricWarningSentAt: true,
+  makerVerification: true,
+} satisfies Prisma.SellerProfileSelect;
+
+const sellerOwnerGuildApplicationSelect = {
+  userId: true,
+  guildLevel: true,
+  makerVerification: { select: { status: true, reviewedAt: true } },
+} satisfies Prisma.SellerProfileSelect;
+
 /** Owner-bound compatibility reads that intentionally combine public profile
  * state with private operational state. These become fixed database operations
  * after SellerProfilePrivate is installed in Production. */
@@ -243,6 +268,49 @@ export function sellerOwnerExportProfile(
   return client.sellerProfile.findUnique({
     where: { userId },
     select: sellerOwnerExportSelect,
+  });
+}
+
+export function sellerOwnerGuildDashboardState(
+  sellerProfileId: string,
+  userId: string,
+  client: SellerOwnerPrivateClient = prisma,
+) {
+  return client.sellerProfile.findFirst({
+    where: { id: sellerProfileId, userId },
+    select: sellerOwnerGuildDashboardSelect,
+  });
+}
+
+export function sellerOwnerGuildApplicationState(
+  sellerProfileId: string,
+  userId: string,
+  client: SellerOwnerPrivateClient = prisma,
+) {
+  return client.sellerProfile.findFirst({
+    where: { id: sellerProfileId, userId },
+    select: sellerOwnerGuildApplicationSelect,
+  });
+}
+
+export function recordSellerOwnerGuildMasterApplication(
+  client: SellerOwnerPrivateClient,
+  input: {
+    sellerProfileId: string;
+    userId: string;
+    appliedAt: Date;
+  },
+) {
+  return client.sellerProfile.updateMany({
+    where: {
+      id: input.sellerProfileId,
+      userId: input.userId,
+      guildLevel: "GUILD_MEMBER",
+    },
+    data: {
+      guildMasterAppliedAt: input.appliedAt,
+      guildMasterReviewNotes: null,
+    },
   });
 }
 

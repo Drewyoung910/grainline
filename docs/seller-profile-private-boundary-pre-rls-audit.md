@@ -341,12 +341,17 @@ fresh-metrics revocation check, exact state predicates and co-committed system
 audit. The two cron routes now contain zero direct SellerProfile reads or
 writes.
 
+The thirteenth isolated slice moves the authenticated Guild dashboard state,
+both application rechecks and the Guild Master application timestamp mutation
+behind the owner boundary. Every lookup and the paired application mutation is
+bound to both seller-profile id and user id, while the existing verification
+status update and transition assertion remain in the same transaction.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
-direct authority on the companion. Phase 1 remains incomplete: staff and owner
-Guild state, checkout and currently effective SQL-function dependencies must
-move to purpose-bound private operations before predecessor columns can be
-retired.
+direct authority on the companion. Phase 1 remains incomplete: staff Guild
+state, checkout and currently effective SQL-function dependencies must move to
+purpose-bound private operations before predecessor columns can be retired.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 
