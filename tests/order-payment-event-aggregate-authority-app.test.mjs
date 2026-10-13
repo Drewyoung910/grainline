@@ -99,16 +99,16 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
   });
 
   it("keeps destructive/admin races conservatively fail-closed", () => {
-    const softDelete = source("src/lib/listingSoftDelete.ts");
+    const listingDelete = source("src/lib/listingDelete.ts");
     const eligibility = source(
       "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
     );
     const banOrderAuthority = source(
       "docs/rls-drafts/order-ban-review-authority.sql",
     );
-    assert.match(softDelete, /getListingOrderArchiveBlocked/u);
+    assert.match(listingDelete, /getListingOrderArchiveBlocked/u);
     assert.match(eligibility, /source_order\."paymentRefundBlocked" = false/u);
-    assert.match(softDelete, /TransactionIsolationLevel\.Serializable/u);
+    assert.match(listingDelete, /TransactionIsolationLevel\.Serializable/u);
     assert.match(banOrderAuthority, /source_order\."paymentRefundBlocked" = false/u);
     assert.match(banOrderAuthority, /SET "reviewNeeded" = true/u);
     assert.match(banOrderAuthority, /FOR UPDATE/u);

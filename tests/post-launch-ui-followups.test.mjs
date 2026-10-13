@@ -298,7 +298,7 @@ describe("post-launch UI follow-ups", () => {
     // owner-preview case so DRAFT/HIDDEN/REJECTED/PENDING_REVIEW don't 404.
     assert.match(dashboard, /isPublicStatus = l\.status === "ACTIVE" \|\| l\.status === "SOLD" \|\| l\.status === "SOLD_OUT"/);
     assert.match(dashboard, /\?preview=1`/);
-    assert.match(dashboard, /isArchived\s*\?\s*null/);
+    assert.match(dashboard, /where: \{ sellerId: seller\.id, archivedAt: null \}/);
   });
 
   it("AI alt-text backfill helper exists and is wired into every reviewListingWithAI path", () => {

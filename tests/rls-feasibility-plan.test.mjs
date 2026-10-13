@@ -1002,7 +1002,7 @@ describe("RLS feasibility plan guardrails", () => {
       "src/app/api/admin/listings/[id]/route.ts": ["tx.cartItem.deleteMany"],
       "src/lib/accountDeletion.ts": ["tx.cart.deleteMany"],
       "src/lib/checkoutStockRestore.ts": ["tx.cartItem.findMany"],
-      "src/lib/listingSoftDelete.ts": ["tx.cartItem.deleteMany"],
+      "src/lib/listingDelete.ts": ["tx.cartItem.deleteMany"],
     };
     const directCallsByFile = {};
 

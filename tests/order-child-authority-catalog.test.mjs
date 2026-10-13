@@ -8,6 +8,7 @@ import {
   ORDER_ITEM_TRIGGER_FUNCTIONS,
   ORDER_ITEM_TRIGGER_SOURCE_MD5,
   ORDER_QUOTE_DIRECT_FUNCTIONS,
+  orderItemDirectFunctionsForSource,
   orderChildExpectedPostureFromEnvironment,
   orderChildSourceCatalog,
   orderChildSourceFunctionCatalog,
@@ -86,10 +87,11 @@ function acceptedCatalog() {
 }
 
 test("accepted Order child authority catalog is exact and read-only", () => {
+  const expectedOrderItemFunctions = orderItemDirectFunctionsForSource();
   assert.deepEqual(verifyOrderChildAuthorityCatalog(acceptedCatalog()), {
     databaseMode: "production-read-only",
     tableOwner: owner,
-    orderItemDirectFunctionCount: 35,
+    orderItemDirectFunctionCount: expectedOrderItemFunctions.length,
     quoteDirectFunctionCount: 4,
     orderItemTriggerCount: 2,
     rowDataRead: false,
@@ -100,8 +102,11 @@ test("accepted Order child authority catalog is exact and read-only", () => {
 test("reviewed catalog exactly matches latest migration-tree definitions", () => {
   assert.deepEqual(
     orderChildSourceCatalog(),
-    [...ORDER_ITEM_DIRECT_FUNCTIONS, ...ORDER_QUOTE_DIRECT_FUNCTIONS].sort(),
+    [...orderItemDirectFunctionsForSource(), ...ORDER_QUOTE_DIRECT_FUNCTIONS].sort(),
   );
+  if (fs.existsSync("prisma/migrations/20261013040000_add_listing_archived_at")) {
+    assert.deepEqual(orderItemDirectFunctionsForSource(), ORDER_ITEM_DIRECT_FUNCTIONS);
+  }
   assert.deepEqual(
     orderChildSourceFunctionCatalog()
       .filter((entry) => entry.languageName === "sql")
@@ -128,6 +133,22 @@ test("reviewed catalog exactly matches latest migration-tree definitions", () =>
       .map((entry) => entry.name)
       .sort(),
     [...ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS],
+  );
+});
+
+test("listing authority can disappear only inside the reviewed CI isolation", () => {
+  const rootWithoutListingMigration = "/private/tmp/order-child-catalog-without-listing-migration";
+  assert.throws(
+    () => orderItemDirectFunctionsForSource(rootWithoutListingMigration, {}),
+    /missing outside its reviewed CI isolation/u,
+  );
+  assert.deepEqual(
+    orderItemDirectFunctionsForSource(rootWithoutListingMigration, {
+      ORDER_CHILD_CATALOG_LISTING_MIGRATION_ISOLATED: "true",
+    }),
+    ORDER_ITEM_DIRECT_FUNCTIONS.filter(
+      (functionName) => functionName !== "grainline_listing_delete_reference_state",
+    ),
   );
 });
 

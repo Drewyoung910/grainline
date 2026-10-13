@@ -22,6 +22,7 @@ export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma
       {
         status: ListingStatus.ACTIVE,
         isPrivate: false,
+        archivedAt: null,
         seller: PUBLIC_SELLER_STATE,
       },
       extra,
@@ -35,6 +36,7 @@ export function publicListingDetailWhere(extra: Prisma.ListingWhereInput = {}): 
       {
         status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
         isPrivate: false,
+        archivedAt: null,
         seller: PUBLIC_SELLER_STATE,
       },
       extra,
@@ -45,6 +47,7 @@ export function publicListingDetailWhere(extra: Prisma.ListingWhereInput = {}): 
 type ListingVisibilityInput = {
   status: ListingStatus | string;
   isPrivate: boolean;
+  archivedAt?: Date | string | null;
   reservedForUserId?: string | null;
   seller: {
     userId?: string | null;
@@ -57,6 +60,7 @@ type ListingVisibilityInput = {
 
 export function isPublicListing(listing: ListingVisibilityInput) {
   return (
+    !listing.archivedAt &&
     listing.status === ListingStatus.ACTIVE &&
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
@@ -68,6 +72,7 @@ export function isPublicListing(listing: ListingVisibilityInput) {
 
 export function isPublicListingDetail(listing: ListingVisibilityInput) {
   return (
+    !listing.archivedAt &&
     (listing.status === ListingStatus.ACTIVE || listing.status === ListingStatus.SOLD_OUT) &&
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
@@ -88,6 +93,10 @@ export function canViewListingDetail(
     deletedAt?: Date | string | null;
   },
 ) {
+  // Delete is permanent from every listing-detail surface. The retained row
+  // exists only to preserve order/review/conversation history.
+  if (listing.archivedAt) return false;
+
   const viewerAccountActive = !viewer.banned && !viewer.deletedAt;
   if (
     viewer.staffPreview &&

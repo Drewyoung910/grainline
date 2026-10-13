@@ -16,6 +16,7 @@ function listing(overrides = {}) {
   return {
     status: ListingStatus.ACTIVE,
     isPrivate: false,
+    archivedAt: null,
     reservedForUserId: null,
     seller: {
       userId: "user_1",
@@ -46,6 +47,7 @@ describe("listing visibility", () => {
         {
           status: ListingStatus.ACTIVE,
           isPrivate: false,
+          archivedAt: null,
           seller: {
             chargesEnabled: true,
             OR: [
@@ -65,6 +67,7 @@ describe("listing visibility", () => {
         {
           status: ListingStatus.ACTIVE,
           isPrivate: false,
+          archivedAt: null,
           seller: {
             chargesEnabled: true,
             OR: [
@@ -86,6 +89,7 @@ describe("listing visibility", () => {
         {
           status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
           isPrivate: false,
+          archivedAt: null,
           seller: {
             chargesEnabled: true,
             OR: [
@@ -220,6 +224,17 @@ describe("listing visibility", () => {
     assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "USER" }), false);
     assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "ADMIN", banned: true }), false);
     assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "EMPLOYEE" }), true);
+  });
+
+  it("keeps permanently archived rows out of public, owner, and staff detail views", () => {
+    const archived = listing({ status: ListingStatus.HIDDEN, isPrivate: true, archivedAt: new Date() });
+    assert.equal(isPublicListing(archived), false);
+    assert.equal(isPublicListingDetail(archived), false);
+    assert.equal(canViewListingDetail(archived, { dbUserId: "user_1" }), false);
+    assert.equal(
+      canViewListingDetail(archived, { staffPreview: true, role: "ADMIN" }),
+      false,
+    );
   });
 
   it("allows sold-out public listing detail pages without making them generally sellable", () => {

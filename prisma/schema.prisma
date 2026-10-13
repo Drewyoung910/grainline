@@ -336,6 +336,7 @@ model Listing {
   videoUrl     String?       @db.VarChar(2048)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  archivedAt   DateTime?
 
   // Processing time
   processingTimeMinDays Int?
@@ -424,6 +425,7 @@ model Listing {
   @@index([priceCents])
   @@index([qualityScore])
   @@index([sellerId, updatedAt])
+  @@index([sellerId, archivedAt, updatedAt])
   @@index([reservedForUserId])
   @@index([customOrderConversationId])
   @@index([metroId])

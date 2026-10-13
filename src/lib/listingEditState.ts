@@ -5,11 +5,12 @@ const STAFF_REMOVAL_REJECTION_REASON = "Removed by Grainline staff.";
 export type EditableListingState = {
   status: ListingStatus;
   isPrivate: boolean;
+  archivedAt?: Date | string | null;
   rejectionReason?: string | null;
 };
 
 export function listingEditBlockReason(listing: EditableListingState): string | null {
-  if (listing.status === ListingStatus.HIDDEN && listing.isPrivate) {
+  if (listing.archivedAt) {
     return "Archived listings cannot be edited.";
   }
 

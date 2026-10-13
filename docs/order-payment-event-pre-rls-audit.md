@@ -292,7 +292,7 @@ than disappearing from the audit.
 - `src/components/ReviewsSection.tsx`
 - `src/lib/ban.ts`
 - `src/lib/homepageStats.ts`
-- `src/lib/listingSoftDelete.ts`
+- `src/lib/listingDelete.ts`
 - `src/lib/metrics.ts`
 - `src/lib/orderEligibilityAuthority.ts`
 - `src/lib/orderPublicAggregateAuthority.ts`
