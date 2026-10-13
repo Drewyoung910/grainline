@@ -5,6 +5,8 @@ import { PGlite } from "@electric-sql/pglite";
 
 const migrationPath =
   "prisma/migrations/20261006020000_prepare_user_account_deletion_authorities/migration.sql";
+const sellerPrivateCallerMigrationPath =
+  "prisma/migrations/20261013210000_move_account_deletion_seller_private_sql_callers/migration.sql";
 
 async function databaseFixture() {
   const database = new PGlite();
@@ -59,6 +61,19 @@ async function databaseFixture() {
       "tiktokUrl" text,
       "websiteUrl" text
     );
+    CREATE TABLE public."SellerProfilePrivate" (
+      "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
+      "stripeAccountId" text,
+      "stripeAccountVersion" text,
+      "stripeControllerType" text,
+      "shipFromName" text,
+      "shipFromLine1" text,
+      "shipFromLine2" text,
+      "shipFromCity" text,
+      "shipFromState" text,
+      "shipFromPostal" text,
+      "shipFromPhone" text
+    );
     CREATE TABLE public."AccountDeletionSideEffect" (
       id text PRIMARY KEY,
       "userId" text NOT NULL,
@@ -69,6 +84,7 @@ async function databaseFixture() {
     );
   `);
   await database.exec(readFileSync(migrationPath, "utf8"));
+  await database.exec(readFileSync(sellerPrivateCallerMigrationPath, "utf8"));
   return database;
 }
 
@@ -84,8 +100,14 @@ test("User account-deletion authorities bind lifecycle access to exact durable s
       INSERT INTO public."SellerProfile" (
         id, "userId", "displayName", "stripeAccountId", "shipFromPhone", "websiteUrl"
       ) VALUES (
-        'seller_delete', 'user_delete', 'Owner Shop', 'acct_test', '+15125550100',
+        'seller_delete', 'user_delete', 'Owner Shop', 'acct_predecessor_poison', '+15125550999',
         'https://example.test/shop'
+      );
+      INSERT INTO public."SellerProfilePrivate" (
+        "sellerProfileId", "stripeAccountId", "stripeAccountVersion",
+        "stripeControllerType", "shipFromPhone"
+      ) VALUES (
+        'seller_delete', 'acct_test', 'v2', 'express', '+15125550100'
       );
       INSERT INTO public."AccountDeletionSideEffect" (
         id, "userId", kind, "dedupKey", payload, status
@@ -104,8 +126,8 @@ test("User account-deletion authorities bind lifecycle access to exact durable s
       deletedAt: null,
       sellerProfileId: "seller_delete",
       stripeAccountId: "acct_test",
-      stripeAccountVersion: null,
-      stripeControllerType: null,
+      stripeAccountVersion: "v2",
+      stripeControllerType: "express",
     }]);
 
     await database.exec("BEGIN");

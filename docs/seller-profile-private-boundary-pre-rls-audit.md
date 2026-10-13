@@ -447,10 +447,23 @@ eligibility and reads Guild metric state from the locked private row. It is
 based on the corrected notification definition, including explicit rejection
 of a null notification type. A paid-checkout PostgreSQL proof deliberately
 poisons the predecessor Stripe fields and still creates the order from the
-private source. Thirty-three focused checks pass. The only two remaining
-effective predecessor-field dependencies are the transition-only
+private source. Thirty-three focused checks pass. A subsequent independent
+latest-definition scan found four account-deletion functions that still read
+predecessor provider or ship-from fields, in addition to the transition-only
 `grainline_seller_profile_deauthorize_compat` and
-`grainline_seller_profile_reconciliation_required_compat` writers; both must
+`grainline_seller_profile_reconciliation_required_compat` writers.
+
+The twenty-fourth isolated slice moves those four account-deletion functions
+onto the companion. Migration
+`20261013210000_move_account_deletion_seller_private_sql_callers` preserves
+the preflight, snapshot, Message redaction and Case redaction signatures,
+security attributes and grants. Public seller identity remains on
+`SellerProfile`; provider identity and ship-from redaction needles now come
+from `SellerProfilePrivate`. Focused PostgreSQL proofs deliberately poison the
+predecessor provider and ship-from values, then show preflight, snapshot and
+received-message redaction use only the private values. The only remaining
+effective predecessor-field dependencies are the two transition writers;
+both must
 be replaced or retired after Phase 0 is installed, converted application code
 is deployed, and predecessor deployments have drained.
 

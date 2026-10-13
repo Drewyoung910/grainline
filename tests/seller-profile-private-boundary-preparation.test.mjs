@@ -57,6 +57,10 @@ const finalCallerMigration = readFileSync(
   "prisma/migrations/20261013200000_move_final_seller_private_sql_callers/migration.sql",
   "utf8",
 );
+const accountDeletionCallerMigration = readFileSync(
+  "prisma/migrations/20261013210000_move_account_deletion_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
@@ -498,6 +502,34 @@ describe("SellerProfile private-boundary additive preparation", () => {
       finalCallerMigration,
       /DROP\s+(?:COLUMN|TABLE|FUNCTION)/iu,
     );
+  });
+
+  it("moves account-deletion provider and ship-from reads onto the private companion", () => {
+    const callers = [
+      "grainline_user_account_deletion_preflight",
+      "grainline_user_account_deletion_snapshot",
+      "grainline_message_redact_for_account_deletion",
+      "grainline_case_account_deletion_redact",
+    ];
+    for (const caller of callers) {
+      assert.match(
+        accountDeletionCallerMigration,
+        new RegExp(`CREATE OR REPLACE FUNCTION public\\.${caller}\\(`),
+      );
+    }
+    assert.equal(
+      accountDeletionCallerMigration.match(/CREATE OR REPLACE FUNCTION public\./g)?.length,
+      callers.length,
+    );
+    assert.match(accountDeletionCallerMigration, /public\."SellerProfilePrivate"/);
+    assert.doesNotMatch(
+      accountDeletionCallerMigration,
+      /\bseller\."(?:stripeAccountId|stripeAccountVersion|stripeControllerType|shipFrom(?:Name|Line1|Line2|City|State|Postal|Phone))"/,
+    );
+    assert.match(accountDeletionCallerMigration, /\bseller\."displayName"/);
+    assert.match(accountDeletionCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(accountDeletionCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
+    assert.doesNotMatch(accountDeletionCallerMigration, /GRANT\s|REVOKE\s/i);
   });
 
   it("keeps the companion inaccessible to ordinary runtime and PUBLIC", () => {
