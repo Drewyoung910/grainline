@@ -317,11 +317,13 @@ describe("SellerProfile private-boundary additive preparation", () => {
   it("funnels owner onboarding and export reads through one compatibility boundary", () => {
     const onboarding = readFileSync("src/app/dashboard/onboarding/page.tsx", "utf8");
     const onboardingActions = readFileSync("src/app/dashboard/onboarding/actions.ts", "utf8");
+    const shopSettings = readFileSync("src/app/dashboard/seller/page.tsx", "utf8");
     const accountExport = readFileSync("src/app/api/account/export/route.ts", "utf8");
     assert.match(onboarding, /sellerOwnerOnboardingState\(seller\.id\)/);
     assert.match(accountExport, /sellerOwnerExportProfile\(user\.id\)/);
     assert.doesNotMatch(onboarding, /prisma\.sellerProfile\./);
     assert.doesNotMatch(onboardingActions, /(?:prisma|tx)\.sellerProfile\./);
+    assert.doesNotMatch(shopSettings, /prisma\.sellerProfile\./);
     assert.doesNotMatch(accountExport, /prisma\.sellerProfile\./);
     assert.match(ownerPrivateAccess, /sellerOwnerOnboardingSelect/);
     assert.match(ownerPrivateAccess, /sellerOwnerExportSelect/);
@@ -332,6 +334,9 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(onboardingActions, /updateSellerOwnerOnboardingStepTwo/);
     assert.match(onboardingActions, /advanceSellerOwnerOnboardingStep/);
     assert.match(onboardingActions, /completeSellerOwnerOnboarding/);
+    assert.match(shopSettings, /sellerOwnerShopSettingsState/);
+    assert.match(shopSettings, /updateSellerOwnerShopSettings/);
+    assert.match(shopSettings, /updateSellerOwnerMetroAssignment/);
     assert.match(ownerPrivateAccess, /where: \{ id: input\.sellerProfileId, userId: input\.userId \}/);
   });
 

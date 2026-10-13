@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { sellerSettingsOwnerSelect } from "@/lib/sellerProfileSelects";
 
 type SellerOwnerPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile">;
 
@@ -240,4 +241,92 @@ export function sellerOwnerExportProfile(
     where: { userId },
     select: sellerOwnerExportSelect,
   });
+}
+
+export function sellerOwnerShopSettingsState(
+  sellerProfileId: string,
+  userId: string,
+  client: SellerOwnerPrivateClient = prisma,
+) {
+  return client.sellerProfile.findFirst({
+    where: { id: sellerProfileId, userId },
+    select: sellerSettingsOwnerSelect,
+  });
+}
+
+export async function updateSellerOwnerShopSettings(
+  client: SellerOwnerPrivateClient,
+  input: {
+    sellerProfileId: string;
+    userId: string;
+    city: string | null;
+    state: string | null;
+    lat: number | null;
+    lng: number | null;
+    radiusMeters: number | null;
+    publicMapOptIn: boolean;
+    shippingFlatRateCents: number | null;
+    freeShippingOverCents: number | null;
+    allowLocalPickup: boolean;
+    useCalculatedShipping: boolean;
+    preferredCarriers: string[];
+    shipFromName: string | null;
+    shipFromLine1: string | null;
+    shipFromLine2: string | null;
+    shipFromCity: string | null;
+    shipFromState: string | null;
+    shipFromPostal: string | null;
+    shipFromCountry: string;
+    shipFromPhone: string | null;
+    defaultPkgLengthCm: number | null;
+    defaultPkgWidthCm: number | null;
+    defaultPkgHeightCm: number | null;
+    defaultPkgWeightGrams: number | null;
+  },
+) {
+  const result = await client.sellerProfile.updateMany({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    data: {
+      city: input.city,
+      state: input.state,
+      lat: input.lat,
+      lng: input.lng,
+      radiusMeters: input.radiusMeters,
+      publicMapOptIn: input.publicMapOptIn,
+      shippingFlatRateCents: input.shippingFlatRateCents,
+      freeShippingOverCents: input.freeShippingOverCents,
+      allowLocalPickup: input.allowLocalPickup,
+      useCalculatedShipping: input.useCalculatedShipping,
+      preferredCarriers: input.preferredCarriers,
+      shipFromName: input.shipFromName,
+      shipFromLine1: input.shipFromLine1,
+      shipFromLine2: input.shipFromLine2,
+      shipFromCity: input.shipFromCity,
+      shipFromState: input.shipFromState,
+      shipFromPostal: input.shipFromPostal,
+      shipFromCountry: input.shipFromCountry,
+      shipFromPhone: input.shipFromPhone,
+      defaultPkgLengthCm: input.defaultPkgLengthCm,
+      defaultPkgWidthCm: input.defaultPkgWidthCm,
+      defaultPkgHeightCm: input.defaultPkgHeightCm,
+      defaultPkgWeightGrams: input.defaultPkgWeightGrams,
+    },
+  });
+  await requireOneSellerOwnerMutation(result, "shop settings update");
+}
+
+export async function updateSellerOwnerMetroAssignment(
+  client: SellerOwnerPrivateClient,
+  input: {
+    sellerProfileId: string;
+    userId: string;
+    metroId: string | null;
+    cityMetroId: string | null;
+  },
+) {
+  const result = await client.sellerProfile.updateMany({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    data: { metroId: input.metroId, cityMetroId: input.cityMetroId },
+  });
+  await requireOneSellerOwnerMutation(result, "metro assignment");
 }

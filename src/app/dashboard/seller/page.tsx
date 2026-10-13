@@ -33,7 +33,11 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { latestSellerPayoutFailure } from "@/lib/sellerPayoutEventAuthority";
 import { userOwnerNotificationPreferences } from "@/lib/userRelationshipAccess";
-import { sellerSettingsOwnerSelect } from "@/lib/sellerProfileSelects";
+import {
+  sellerOwnerShopSettingsState,
+  updateSellerOwnerMetroAssignment,
+  updateSellerOwnerShopSettings,
+} from "@/lib/sellerOwnerPrivateAccess";
 
 const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
 const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
@@ -142,39 +146,32 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     return lbToG(raw);
   })();
 
-  await prisma.sellerProfile.update({
-    where: { id: seller.id },
-    data: {
-      city,
-      state,
-      lat: lat as number | null,
-      lng: lng as number | null,
-      radiusMeters: radiusMeters as number | null,
-      publicMapOptIn,
-
-      // shipping prefs
-      shippingFlatRateCents,
-      freeShippingOverCents,
-      allowLocalPickup,
-      useCalculatedShipping,
-      preferredCarriers,
-
-      // ship-from
-      shipFromName,
-      shipFromLine1,
-      shipFromLine2,
-      shipFromCity,
-      shipFromState,
-      shipFromPostal,
-      shipFromCountry,
-      shipFromPhone,
-
-      // defaults
-      defaultPkgLengthCm,
-      defaultPkgWidthCm,
-      defaultPkgHeightCm,
-      defaultPkgWeightGrams,
-    },
+  await updateSellerOwnerShopSettings(prisma, {
+    sellerProfileId: seller.id,
+    userId: seller.userId,
+    city,
+    state,
+    lat: lat as number | null,
+    lng: lng as number | null,
+    radiusMeters: radiusMeters as number | null,
+    publicMapOptIn,
+    shippingFlatRateCents,
+    freeShippingOverCents,
+    allowLocalPickup,
+    useCalculatedShipping,
+    preferredCarriers,
+    shipFromName,
+    shipFromLine1,
+    shipFromLine2,
+    shipFromCity,
+    shipFromState,
+    shipFromPostal,
+    shipFromCountry,
+    shipFromPhone,
+    defaultPkgLengthCm,
+    defaultPkgWidthCm,
+    defaultPkgHeightCm,
+    defaultPkgWeightGrams,
   });
 
   // Assign metro geography when lat/lng is set — non-fatal
@@ -182,7 +179,12 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     try {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(lat, lng);
-      await prisma.sellerProfile.update({ where: { id: seller.id }, data: { metroId, cityMetroId } });
+      await updateSellerOwnerMetroAssignment(prisma, {
+        sellerProfileId: seller.id,
+        userId: seller.userId,
+        metroId,
+        cityMetroId,
+      });
       revalidateFooterMetrosCache();
     } catch (e) {
       logServerError(e, {
@@ -217,10 +219,7 @@ export default async function SellerSettingsPage({
   if (!me) redirect("/sign-in?redirect_url=/dashboard/seller");
 
   const [row, followerCount, draftCount, userRow, latestPayoutFailure] = await Promise.all([
-    prisma.sellerProfile.findUnique({
-      where: { id: seller.id },
-      select: sellerSettingsOwnerSelect,
-    }),
+    sellerOwnerShopSettingsState(seller.id, seller.userId),
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
     prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
     userOwnerNotificationPreferences(prisma, me.id),
