@@ -86,6 +86,10 @@ export const ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION =
   "20261011180000_enable_account_deletion_side_effect_rls";
 export const ACCOUNT_DELETION_SIDE_EFFECT_ACTIVATION_MIGRATION_SHA256 =
   "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b";
+export const ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION =
+  "20261012120000_force_account_deletion_side_effect_rls";
+export const ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION_SHA256 =
+  "7bcb3ecfeab41ec457a58845e380b8837b21e75ac077ef0c045674ff1a4ce7ec";
 export const ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION =
   "20261011170000_prepare_account_deletion_side_effect_claim_fence";
 export const ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION_SHA256 =
@@ -432,6 +436,16 @@ export function accountDeletionSideEffectRlsActivationExpected(inventory) {
     && policies.has(ACCOUNT_DELETION_SIDE_EFFECT_TABLE);
 }
 
+export function accountDeletionSideEffectRlsForceExpected(inventory) {
+  if (typeof inventory?.accountDeletionSideEffectRlsForceApplied === "boolean") {
+    return inventory.accountDeletionSideEffectRlsForceApplied;
+  }
+  return accountDeletionSideEffectRlsActivationExpected(inventory) &&
+    (inventory?.rlsForceTables ?? []).includes(
+      ACCOUNT_DELETION_SIDE_EFFECT_TABLE,
+    );
+}
+
 const ACCOUNT_DELETION_CLAIM_FENCE_MARKER =
   "grainline_account_deletion_claim_user";
 const ACCOUNT_DELETION_CLAIM_FENCE_FUNCTION_NAMES = new Set([
@@ -633,6 +647,7 @@ export function collectAccountDeletionWorkerBoundaryIssues(state, inventory) {
   }
   const issues = [];
   const active = accountDeletionSideEffectRlsActivationExpected(inventory);
+  const forced = accountDeletionSideEffectRlsForceExpected(inventory);
   if (!state?.role_exists) {
     return ["account-deletion worker role does not exist"];
   }
@@ -681,7 +696,7 @@ export function collectAccountDeletionWorkerBoundaryIssues(state, inventory) {
     );
   }
   if (active) {
-    if (!state.rls_enabled || state.rls_forced) {
+    if (!state.rls_enabled || Boolean(state.rls_forced) !== forced) {
       issues.push("AccountDeletionSideEffect activation posture drifted");
     }
     if (Number(state.policy_count ?? 0) !== 1 || Number(state.exact_policy_count ?? 0) !== 1) {
@@ -1233,6 +1248,14 @@ export async function readAccountDeletionSideEffectActivationState(client) {
   });
 }
 
+export async function readAccountDeletionSideEffectForceState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION,
+    checksum: ACCOUNT_DELETION_SIDE_EFFECT_FORCE_MIGRATION_SHA256,
+    label: "AccountDeletionSideEffect FORCE",
+  });
+}
+
 export async function readAccountDeletionClaimFencePreparationState(client) {
   return readExactMigrationAppliedState(client, {
     migration: ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION,
@@ -1253,6 +1276,7 @@ export function collectAccountDeletionMigrationOrderIssues({
   claimFenceApplied,
   mediaKeyApplied,
   activationApplied,
+  forceApplied = false,
 }) {
   const issues = [];
   if (mediaKeyApplied && !claimFenceApplied) {
@@ -1263,6 +1287,11 @@ export function collectAccountDeletionMigrationOrderIssues({
   if (activationApplied && (!claimFenceApplied || !mediaKeyApplied)) {
     issues.push(
       "AccountDeletionSideEffect activation is applied without both exact preparation migrations",
+    );
+  }
+  if (forceApplied && !activationApplied) {
+    issues.push(
+      "AccountDeletionSideEffect FORCE is applied without its exact activation prerequisite",
     );
   }
   return issues;
@@ -2690,10 +2719,14 @@ export async function auditLiveDatabase({
   const accountDeletionSideEffectActivation =
     await readAccountDeletionSideEffectActivationState(client);
   issues.push(...accountDeletionSideEffectActivation.issues);
+  const accountDeletionSideEffectForce =
+    await readAccountDeletionSideEffectForceState(client);
+  issues.push(...accountDeletionSideEffectForce.issues);
   issues.push(...collectAccountDeletionMigrationOrderIssues({
     claimFenceApplied: accountDeletionClaimFencePreparation.applied,
     mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
     activationApplied: accountDeletionSideEffectActivation.applied,
+    forceApplied: accountDeletionSideEffectForce.applied,
   }));
   const liveAuthorityInventory = {
     ...withAppliedAccountDeletionAuthority(inventory, {
@@ -2709,6 +2742,8 @@ export async function auditLiveDatabase({
       clerkWebhookEventActivation.applied,
     accountDeletionSideEffectRlsActivationApplied:
       accountDeletionSideEffectActivation.applied,
+    accountDeletionSideEffectRlsForceApplied:
+      accountDeletionSideEffectForce.applied,
   };
 
   const roleResult = await client.query(

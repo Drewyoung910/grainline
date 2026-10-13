@@ -15,6 +15,10 @@ const enable = readFileSync(
   ".github/workflows/account-deletion-side-effect-enable-production.yml",
   "utf8",
 );
+const forceWorkflow = readFileSync(
+  ".github/workflows/account-deletion-side-effect-force-production.yml",
+  "utf8",
+);
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const preparationPath =
   "prisma/migrations/20261011170000_prepare_account_deletion_side_effect_claim_fence/migration.sql";
@@ -22,6 +26,8 @@ const activationPath =
   "prisma/migrations/20261011180000_enable_account_deletion_side_effect_rls/migration.sql";
 const mediaKeyPath =
   "prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql";
+const forcePath =
+  "prisma/migrations/20261012120000_force_account_deletion_side_effect_rls/migration.sql";
 const preparationDigest = createHash("sha256")
   .update(readFileSync(preparationPath))
   .digest("hex");
@@ -30,6 +36,9 @@ const activationDigest = createHash("sha256")
   .digest("hex");
 const mediaKeyDigest = createHash("sha256")
   .update(readFileSync(mediaKeyPath))
+  .digest("hex");
+const forceDigest = createHash("sha256")
+  .update(readFileSync(forcePath))
   .digest("hex");
 
 test("inspection is exact-main, exact-CI, first-attempt, manual, and read-only", () => {
@@ -65,6 +74,8 @@ test("inspection is exact-main, exact-CI, first-attempt, manual, and read-only",
   );
   assert.match(inspection, /- activation-compatible/u);
   assert.match(inspection, /- enabled/u);
+  assert.match(inspection, /- force-compatible/u);
+  assert.match(inspection, /- forced/u);
   assert.match(
     inspection,
     /name: Preserve sanitized AccountDeletionSideEffect catalog evidence\n\s+if: always\(\)/u,
@@ -89,6 +100,10 @@ test("inspection is exact-main, exact-CI, first-attempt, manual, and read-only",
       `${activationDigest}  ${activationPath.replaceAll(".", "\\.")}`,
       "u",
     ),
+  );
+  assert.match(
+    inspection,
+    new RegExp(`${forceDigest}  ${forcePath.replaceAll(".", "\\.")}`, "u"),
   );
   assert.doesNotMatch(
     inspection,
@@ -203,6 +218,85 @@ test("ENABLE proves source before owner access and inspects before and after its
   );
   const audit = enable.indexOf(
     "Audit global grants after AccountDeletionSideEffect ENABLE",
+  );
+  assert.ok(
+    bind >= 0 &&
+      bind < live &&
+      live < source &&
+      source < bytes &&
+      bytes < boundary &&
+      boundary < preflight,
+  );
+  assert.ok(preflight < apply && apply < postflight && postflight < audit);
+});
+
+test("FORCE is exact-main, CI- and inspection-bound, restart-safe, and posture-only", () => {
+  assert.match(forceWorkflow, /name: AccountDeletionSideEffect FORCE Production/u);
+  assert.match(
+    forceWorkflow,
+    /inputs\.confirmation == 'force-reviewed-account-deletion-side-effect-rls'/u,
+  );
+  assert.match(forceWorkflow, /github\.ref == 'refs\/heads\/main'/u);
+  assert.match(forceWorkflow, /github\.run_attempt == 1/u);
+  assert.match(forceWorkflow, /main\.commit\.sha !== sha/u);
+  assert.match(forceWorkflow, /ci\.head_sha !== sha/u);
+  assert.match(
+    forceWorkflow,
+    /inspection\.display_title !== `AccountDeletionSideEffect Production Inspection \[force-compatible\] \$\{sha\}`/u,
+  );
+  assert.match(forceWorkflow, /group: production-database-migrations/u);
+  assert.match(forceWorkflow, /environment: Production/u);
+  assert.match(forceWorkflow, /19f321f20d33949edd6d28f87a826aaff2b1c292/u);
+  assert.match(forceWorkflow, /dpl_4fkg6pj9L7pNa3jY5wcufqPF4ef9/u);
+  assert.match(forceWorkflow, /ACCOUNT_DELETION_EXPECTED_STATE: force-compatible/u);
+  assert.match(forceWorkflow, /enabled\|forced/u);
+  assert.match(forceWorkflow, /steps\.preflight\.outputs\.state == 'enabled'/u);
+  assert.match(forceWorkflow, /ACCOUNT_DELETION_EXPECTED_STATE: forced/u);
+  assert.equal((forceWorkflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.equal((forceWorkflow.match(/npx prisma migrate status/gu) ?? []).length, 2);
+  assert.equal(
+    (forceWorkflow.match(/assert-reviewed-pending-migrations\.mjs/gu) ?? []).length,
+    2,
+  );
+  assert.match(
+    forceWorkflow,
+    /for path in prisma\/migrations\/\*\/; do[\s\S]*if \[\[ "\$candidate" > "\$migration" \]\]/u,
+  );
+  assert.match(forceWorkflow, /trap restore EXIT/u);
+  assert.match(forceWorkflow, /npm run audit:db-grants -- --require-direct-url/u);
+  assert.match(
+    forceWorkflow,
+    new RegExp(`${forceDigest}  ${forcePath.replaceAll(".", "\\.")}`, "u"),
+  );
+  assert.doesNotMatch(
+    forceWorkflow,
+    /ALTER TABLE|FORCE ROW LEVEL SECURITY|npx vercel|vercel deploy|git push/iu,
+  );
+});
+
+test("FORCE proves source before owner access and inspects before and after its one migration", () => {
+  const bind = forceWorkflow.indexOf(
+    "Bind FORCE to exact main, CI, preflight, and live compatible application",
+  );
+  const live = forceWorkflow.indexOf("Verify live compatible application boundary");
+  const source = forceWorkflow.indexOf(
+    "Verify AccountDeletionSideEffect FORCE release source",
+  );
+  const bytes = forceWorkflow.indexOf(
+    "Verify exact AccountDeletionSideEffect FORCE migration bytes",
+  );
+  const boundary = forceWorkflow.indexOf("Verify owner connection boundary");
+  const preflight = forceWorkflow.indexOf(
+    "Inspect restart-safe AccountDeletionSideEffect state before apply",
+  );
+  const apply = forceWorkflow.indexOf(
+    "Apply only reviewed AccountDeletionSideEffect FORCE migration",
+  );
+  const postflight = forceWorkflow.indexOf(
+    "Inspect forced AccountDeletionSideEffect catalog after apply",
+  );
+  const audit = forceWorkflow.indexOf(
+    "Audit global grants after AccountDeletionSideEffect FORCE",
   );
   assert.ok(
     bind >= 0 &&

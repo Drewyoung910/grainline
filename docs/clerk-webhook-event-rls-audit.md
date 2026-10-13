@@ -19,16 +19,13 @@ zero rows, and the accepted health read reported zero failed, released, stale,
 or total issue rows. These results close the compatible-application and live
 delivery gate without claiming that RLS is enabled.
 
-Production is therefore in `COMPATIBLE_PREPARATION_LIVE`: RLS and FORCE remain
-off, zero policies remain installed, the five fixed operations are live, and
-predecessor runtime CRUD is deliberately retained until Phase A activation.
-The separate policyless Phase A source package prepares
-`20261010160000_enable_clerk_webhook_event_rls`. It revokes runtime and PUBLIC
-table and column authority, enables RLS without FORCE, retains only the five
-source-pinned operations, and includes restart-safe inspection, guarded
-Production execution, rollback, grant convergence, and disposable PostgreSQL
-proof. That package is prepared locally; it is not published, merged, applied,
-or live in Production.
+Production is now in `RLS_LIVE_PHASE_A`. Policyless ENABLE migration
+`20261010160000_enable_clerk_webhook_event_rls` is applied. Restart-safe
+closure run `38271942650` passed the enabled postflight and global grant audit:
+RLS enabled, FORCE disabled, zero policies, zero runtime/PUBLIC table or column
+authority, and the same five source-pinned operations. The compatible release
+evidence above remains the predecessor history; FORCE is the remaining
+database posture boundary.
 
 ## Intended behavior
 
@@ -172,13 +169,11 @@ has 51 passes, zero failures, and one GitHub-Actions-PostgreSQL-only skip.
    Complete on deployment `dpl_HRhSLnjmWMF84qoV9mb51dULQ74i`.
 4. ~~Inspect and drain failed, released, and stale predecessor rows.~~ Complete;
    the accepted health read reported zero issues and retention deleted zero rows.
-5. Review and merge the prepared policyless Phase A package. After exact-main CI,
-   run its read-only `activation-compatible` inspection, then separately
-   authorize only `20261010160000_enable_clerk_webhook_event_rls`. Accept direct
-   runtime/PUBLIC denial, zero policies, five exact operations, and rollback
-   evidence before calling Phase A live.
-6. After Phase A and its soak are accepted, prepare and separately authorize
-   FORCE.
+5. ~~Review, merge, inspect, and apply policyless Phase A.~~ Complete through
+   restart-safe closure run `38271942650`, which accepted direct
+   runtime/PUBLIC denial, zero policies, and five exact operations.
+6. Prepare and separately authorize FORCE from fresh enabled-state catalog and
+   actual pooled-runtime evidence.
 
 Migration-before-deployment is mandatory: the converted application calls the
 new database functions. Deployment before the additive migration would make

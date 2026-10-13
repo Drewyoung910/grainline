@@ -15,6 +15,12 @@ const mediaKeyFence = readFileSync(
   "prisma/migrations/20261011173000_prepare_account_deletion_media_key_fence/migration.sql",
   "utf8",
 );
+const force = readFileSync(
+  "prisma/migrations/20261012120000_force_account_deletion_side_effect_rls/migration.sql",
+  "utf8",
+);
+const activationChecksum =
+  "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b";
 
 const legacyFunctions = [
   ["grainline_user_account_deletion_preflight", "text"],
@@ -72,6 +78,24 @@ async function predecessorFixture() {
     `);
   }
   return database;
+}
+
+async function forceForDisposableDatabase(database) {
+  const identity = (
+    await database.query(`
+      SELECT current_user AS "currentUser",
+             current_database() AS "databaseName"
+    `)
+  ).rows[0];
+  return force
+    .replace(
+      "current_user = 'ci'",
+      `current_user = '${identity.currentUser.replaceAll("'", "''")}'`,
+    )
+    .replace(
+      "pg_catalog.current_database() = 'grainline_ci'",
+      `pg_catalog.current_database() = '${identity.databaseName.replaceAll("'", "''")}'`,
+    );
 }
 
 test("preparation preserves old callers while making the dedicated worker deployable", async () => {
@@ -260,6 +284,89 @@ test("Phase A activation denies forged ordinary-runtime rows and preserves worke
       legacyRuntimeExecute: false,
       keyRuntimeExecute: true,
     });
+  } finally {
+    await database.exec("RESET SESSION AUTHORIZATION").catch(() => {});
+    await database.close();
+  }
+});
+
+test("Phase B FORCE is posture-only and preserves the dedicated worker boundary", async () => {
+  const database = await predecessorFixture();
+  try {
+    await database.exec(preparation);
+    await database.exec(mediaKeyFence);
+    await database.exec(activation);
+    await database.exec(`
+      CREATE TABLE public._prisma_migrations (
+        migration_name text NOT NULL,
+        checksum text NOT NULL,
+        finished_at timestamp with time zone,
+        rolled_back_at timestamp with time zone,
+        applied_steps_count integer NOT NULL
+      );
+      INSERT INTO public._prisma_migrations (
+        migration_name, checksum, finished_at, rolled_back_at,
+        applied_steps_count
+      ) VALUES (
+        '20261011180000_enable_account_deletion_side_effect_rls',
+        '${activationChecksum}', now(), NULL, 1
+      );
+    `);
+
+    await database.exec(await forceForDisposableDatabase(database));
+
+    const posture = (await database.query(`
+      SELECT class.relrowsecurity AS "rlsEnabled",
+             class.relforcerowsecurity AS "rlsForced",
+             (SELECT count(*)::integer FROM pg_catalog.pg_policy AS policy
+               WHERE policy.polrelid = class.oid) AS "policyCount",
+             pg_catalog.has_table_privilege(
+               'grainline_app_runtime', class.oid,
+               'SELECT,INSERT,UPDATE,DELETE'
+             ) AS "runtimeCrud",
+             pg_catalog.has_table_privilege(
+               'grainline_account_deletion_runtime', class.oid,
+               'SELECT,INSERT,UPDATE,DELETE'
+             ) AS "workerCrud"
+        FROM pg_catalog.pg_class AS class
+       WHERE class.oid =
+             'public."AccountDeletionSideEffect"'::pg_catalog.regclass
+    `)).rows[0];
+    assert.deepEqual(posture, {
+      rlsEnabled: true,
+      rlsForced: true,
+      policyCount: 1,
+      runtimeCrud: false,
+      workerCrud: true,
+    });
+
+    await database.exec("SET SESSION AUTHORIZATION grainline_app_runtime");
+    await assert.rejects(
+      database.query('SELECT * FROM public."AccountDeletionSideEffect"'),
+      (error) => error?.code === "42501",
+    );
+    await database.exec("RESET SESSION AUTHORIZATION");
+
+    await database.exec(
+      "SET SESSION AUTHORIZATION grainline_account_deletion_runtime",
+    );
+    await database.exec(`
+      INSERT INTO public."AccountDeletionSideEffect"
+        (id, "userId", kind, "dedupKey")
+      VALUES (
+        'forced-worker', 'user-2', 'LOCAL_ANONYMIZE',
+        'account-delete:local:user-2'
+      )
+    `);
+    assert.deepEqual(
+      (
+        await database.query(`
+          SELECT id FROM public."AccountDeletionSideEffect"
+          WHERE id = 'forced-worker'
+        `)
+      ).rows,
+      [{ id: "forced-worker" }],
+    );
   } finally {
     await database.exec("RESET SESSION AUTHORIZATION").catch(() => {});
     await database.close();

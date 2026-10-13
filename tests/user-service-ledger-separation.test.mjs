@@ -21,8 +21,8 @@ test("User-adjacent service ledgers remain scalar and separately classified", ()
   assert.doesNotMatch(clerk, /\bUser\??\b|@relation\b/);
   assert.doesNotMatch(deletion, /\bUser\??\b|@relation\b/);
   assert.match(deletion, /\buserId\s+String\s+@db\.VarChar\(191\)/);
-  assert.match(matrix, /\| `ClerkWebhookEvent` \| `COMPATIBLE_PREPARATION_LIVE` \|/);
-  assert.match(matrix, /\| `AccountDeletionSideEffect` \| `ALTERNATIVE_REVIEW` \|/);
+  assert.match(matrix, /\| `ClerkWebhookEvent` \| `RLS_LIVE_PHASE_A` \|/);
+  assert.match(matrix, /\| `AccountDeletionSideEffect` \| `RLS_LIVE_PHASE_A_FORCE_PREPARED` \|/);
 });
 
 test("the separation decision preserves predecessor grants and tracks both closures", () => {

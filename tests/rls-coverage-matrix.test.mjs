@@ -40,6 +40,7 @@ describe("site-wide RLS coverage matrix", () => {
   it("uses only explicit incomplete or evidenced disposition states", () => {
     const allowed = new Set([
       "RLS_LIVE_PHASE_A",
+      "RLS_LIVE_PHASE_A_FORCE_PREPARED",
       "RLS_LIVE_PHASE_A_PENDING_POSTFLIGHT",
       "RLS_LIVE_PHASE_B",
       "RLS_LIVE_FORCE",
@@ -78,8 +79,10 @@ describe("site-wide RLS coverage matrix", () => {
       "CaseMessage",
       "CaseMessageAttachment",
       "SavedSearch",
+      "ClerkWebhookEvent",
       "DirectUpload",
       "DirectUploadReference",
+      "AccountDeletionSideEffect",
       "StripeWebhookEvent",
       "Notification",
     ]);
@@ -101,15 +104,17 @@ describe("site-wide RLS coverage matrix", () => {
         ["CaseMessage", "RLS_LIVE_FORCE"],
         ["CaseMessageAttachment", "RLS_LIVE_FORCE"],
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
+        ["ClerkWebhookEvent", "RLS_LIVE_PHASE_A"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
+        ["AccountDeletionSideEffect", "RLS_LIVE_PHASE_A_FORCE_PREPARED"],
         ["StripeWebhookEvent", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
     assert.match(
       matrix,
-      /All sixteen tables have complete retained FORCE acceptance[\s\S]*`User` is[\s\S]*policyless and FORCE-hardened/,
+      /Candidate source contains 68 Prisma models\. Twenty-seven have committed ENABLE[\s\S]*Production remains at twenty-six FORCE and two[\s\S]*ENABLE-only service ledgers: `ClerkWebhookEvent` and[\s\S]*`AccountDeletionSideEffect`/,
     );
     assert.match(
       matrix,
@@ -121,7 +126,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /User` is[\s\S]*policyless and FORCE-hardened[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*UserEmailAddress` closed its policyless FORCE release[\s\S]*37133944427[\s\S]*37136042748[\s\S]*OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*Sixteen tables now have production RLS and all sixteen are FORCE-hardened[\s\S]*Every row except those sixteen is \*\*not active[\s\S]*RLS\*\*/,
+      /User` is[\s\S]*policyless and FORCE-hardened[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*UserEmailAddress` closed its policyless FORCE release[\s\S]*37133944427[\s\S]*37136042748[\s\S]*OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
     );
     assert.match(
       matrix,
