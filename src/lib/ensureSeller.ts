@@ -3,6 +3,7 @@ import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { AccountAccessError, ensureUserByClerkId } from "@/lib/ensureUser";
 import { userAccountByClerkId } from "@/lib/userIdentityAccess";
+import { sellerBootstrapSelect } from "@/lib/sellerProfileSelects";
 import {
   normalizeDisplayNameForLookup,
   sanitizeUserName,
@@ -48,6 +49,7 @@ export async function ensureSeller() {
   // 2) Ensure we have a SellerProfile row
   let seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
+    select: sellerBootstrapSelect,
   });
   if (!seller) {
     const displayName = sanitizeUserName(me.name ?? "") || "Maker";
@@ -57,6 +59,7 @@ export async function ensureSeller() {
         displayName,
         displayNameNormalized: normalizeDisplayNameForLookup(displayName),
       },
+      select: sellerBootstrapSelect,
     });
   }
 

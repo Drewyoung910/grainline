@@ -29,6 +29,7 @@ import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/se
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { withSerializableRetry } from "@/lib/transactionRetry";
+import { sellerProfileEditorSelect } from "@/lib/sellerProfileSelects";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
@@ -368,7 +369,10 @@ export default async function ProfilePage({
   const [fullSeller, activeListings] = await Promise.all([
     prisma.sellerProfile.findUnique({
       where: { id: seller.id },
-      include: { faqs: { orderBy: { sortOrder: "asc" } } },
+      select: {
+        ...sellerProfileEditorSelect,
+        faqs: { orderBy: { sortOrder: "asc" } },
+      },
     }),
     prisma.listing.findMany({
       where: { sellerId: seller.id, status: "ACTIVE" },

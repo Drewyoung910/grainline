@@ -42,6 +42,37 @@ function parseTypeScript(file, fileSource) {
   );
 }
 
+function broadSellerProfileReads(file, fileSource) {
+  const parsed = parseTypeScript(file, fileSource);
+  const reads = [];
+
+  function visit(node) {
+    if (
+      ts.isCallExpression(node)
+      && ts.isPropertyAccessExpression(node.expression)
+      && ["findUnique", "findFirst", "findMany"].includes(node.expression.name.text)
+      && ts.isPropertyAccessExpression(node.expression.expression)
+      && node.expression.expression.name.text === "sellerProfile"
+    ) {
+      const argument = node.arguments[0];
+      const hasExplicitSelect =
+        argument
+        && ts.isObjectLiteralExpression(argument)
+        && argument.properties.some(
+          (property) => property.name && staticPropertyName(property.name) === "select",
+        );
+      if (!hasExplicitSelect) {
+        const { line } = parsed.getLineAndCharacterOfPosition(node.getStart(parsed));
+        reads.push(`${file}:${line + 1}`);
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(parsed);
+  return reads;
+}
+
 function savedSearchRelationAccesses(file, fileSource) {
   const parsed = parseTypeScript(file, fileSource);
   const accesses = [];
@@ -999,7 +1030,14 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(sellerSelects, /export const listingSellerOrderStateSelect/);
     assert.match(sellerSelects, /stripeAccountVersion: true/);
     assert.match(sellerSelects, /export const cartCheckoutSellerSelect/);
-    assert.doesNotMatch(sellerSelects, /shipFrom|manualStripeReconciliation|guildMasterReviewNotes/);
+    const orderStateSelect = sellerSelects.slice(
+      sellerSelects.indexOf("export const listingSellerOrderStateSelect"),
+      sellerSelects.indexOf("export const cartCheckoutSellerSelect"),
+    );
+    assert.doesNotMatch(
+      orderStateSelect,
+      /shipFrom|manualStripeReconciliation|guildMasterReviewNotes/,
+    );
 
     const broadSellerRelationReads = sourceFiles("src").filter((file) =>
       /\bseller\s*:\s*true\b/u.test(source(file))
@@ -1008,6 +1046,15 @@ describe("RLS feasibility plan guardrails", () => {
       broadSellerRelationReads,
       [],
       "SellerProfile relations must use an explicit reviewed projection",
+    );
+
+    const broadDirectSellerReads = sourceFiles("src").flatMap((file) =>
+      broadSellerProfileReads(file, source(file))
+    );
+    assert.deepEqual(
+      broadDirectSellerReads,
+      [],
+      "SellerProfile reads must use an explicit reviewed projection",
     );
   });
 

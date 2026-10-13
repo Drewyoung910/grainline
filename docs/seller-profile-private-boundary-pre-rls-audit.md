@@ -120,8 +120,8 @@ can never be selected with them accidentally.
 ## Current access inventory
 
 The source scan found 92 direct Prisma `SellerProfile.findUnique`,
-`findFirst`, or `findMany` calls. Only three direct reads currently return all
-scalar fields:
+`findFirst`, or `findMany` calls. The three direct reads that returned all
+scalar fields have now been converted to explicit projections:
 
 - `src/lib/ensureSeller.ts` (authenticated seller bootstrap);
 - `src/app/dashboard/seller/page.tsx` (authenticated seller settings); and
@@ -144,10 +144,10 @@ of `seller: true`. Public seller, listing, browse, map and card pages also use
 narrow projections. This audit did not confirm a current public response
 leaking ship-from, provider or reconciliation data.
 
-The guard remains incomplete for direct scalar reads: it does not yet reject
-the three owner-side broad reads or all future sensitive-field additions. That
-remaining gap is `FIX_BEFORE_ACTIVATION` and will close as the legitimate
-owner/staff/service projections are converted.
+The recursive guard now rejects both broad direct reads and nested
+`seller: true` relations. It does not yet classify all future sensitive-field
+additions by principal, so the separate public/owner/staff/service field
+allowlists remain `FIX_BEFORE_ACTIVATION` work.
 
 Historical SQL is also a compatibility dependency. The source contains 116
 migration files that mention SellerProfile. Multiple currently relevant Order,
@@ -195,8 +195,9 @@ redefined additively before the predecessor column is dropped.
 
 ### `FIX_BEFORE_ACTIVATION`
 
-1. Replace the three remaining direct broad reads with explicit projections or
-   private-boundary helpers. The nine nested `seller: true` reads are closed.
+1. Keep the converted zero-count invariant for broad direct reads and nested
+   `seller: true` relations; add principal-specific sensitive-field allowlists
+   as private operations replace predecessor reads.
 2. Add a recursive source guard with an exact sensitive-field inventory and
    reviewed public/owner/staff/service allowlists.
 3. Move conditional coordinate disclosure into a bounded database or server
@@ -303,10 +304,14 @@ guard makes the zero-count invariant durable. Exact provider-version reads
 remain intentionally limited to checkout eligibility until that family moves
 to purpose-bound private operations.
 
-Phase 1 remains incomplete. The next slice must replace the three direct broad
-owner reads, then convert provider/shipping, staff/export/deletion and currently
-effective SQL-function dependencies to explicit operations before the
-predecessor columns can be retired.
+The third isolated Phase 1 slice converts the authenticated seller bootstrap,
+shop-settings page and profile editor to explicit projections. The recursive
+guard now proves zero direct SellerProfile reads without a `select` and zero
+nested `seller: true` reads across `src`.
+
+Phase 1 remains incomplete. The next slices must convert provider/shipping,
+staff/export/deletion and currently effective SQL-function dependencies to
+purpose-bound private operations before the predecessor columns can be retired.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

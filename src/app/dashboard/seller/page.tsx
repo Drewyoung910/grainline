@@ -33,6 +33,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { latestSellerPayoutFailure } from "@/lib/sellerPayoutEventAuthority";
 import { userOwnerNotificationPreferences } from "@/lib/userRelationshipAccess";
+import { sellerSettingsOwnerSelect } from "@/lib/sellerProfileSelects";
 
 const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
 const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
@@ -216,7 +217,10 @@ export default async function SellerSettingsPage({
   if (!me) redirect("/sign-in?redirect_url=/dashboard/seller");
 
   const [row, followerCount, draftCount, userRow, latestPayoutFailure] = await Promise.all([
-    prisma.sellerProfile.findUnique({ where: { id: seller.id } }),
+    prisma.sellerProfile.findUnique({
+      where: { id: seller.id },
+      select: sellerSettingsOwnerSelect,
+    }),
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
     prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
     userOwnerNotificationPreferences(prisma, me.id),

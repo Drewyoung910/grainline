@@ -36,9 +36,12 @@ provider-version diagnostic. Exact version reads remain intentionally in
 checkout, Stripe, reconciliation, export and deletion paths until those
 families receive purpose-bound private operations. The next stacked slice
 removes all nine nested `seller: true` reads with explicit checkout, quote and
-ownership projections plus a recursive zero-count guard. These slices stay
-stacked behind Phase 0; three direct broad owner reads and the provider,
-shipping, staff, export, deletion and effective SQL-function families remain.
+ownership projections plus a recursive zero-count guard. A third stacked slice
+converts the three direct broad owner reads to explicit bootstrap, settings and
+profile-editor projections; the source guard now proves zero broad direct or
+nested SellerProfile reads. These slices stay stacked behind Phase 0; the
+provider, shipping, staff, export, deletion and effective SQL-function families
+remain.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 
