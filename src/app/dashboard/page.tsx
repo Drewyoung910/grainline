@@ -10,9 +10,9 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import InlineActionButton from "@/components/InlineActionButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Shield, Bell, BarChart, Eye, Heart, MousePointer } from "@/components/icons";
-import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
+import { deleteListingWithCleanup, listingDeletePublicError } from "@/lib/listingDelete";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
-import { archiveListingBlockReason, hideListingBlockReason, withdrawReviewBlockReason } from "@/lib/listingActionState";
+import { deleteListingBlockReason, hideListingBlockReason, withdrawReviewBlockReason } from "@/lib/listingActionState";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
@@ -61,7 +61,7 @@ async function setStatus(
     include: { seller: true },
   });
   if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
-  if (listing.status === "HIDDEN" && listing.isPrivate) {
+  if (listing.archivedAt) {
     return { ok: false, error: "Archived listings cannot be changed here." };
   }
 
@@ -82,7 +82,12 @@ async function setStatus(
   }
 
   const updated = await prisma.listing.updateMany({
-    where: { id: listingId, sellerId: listing.sellerId, status: listing.status },
+    where: {
+      id: listingId,
+      sellerId: listing.sellerId,
+      status: listing.status,
+      archivedAt: null,
+    },
     data: { status: nextStatus },
   });
   if (updated.count === 0) {
@@ -118,7 +123,7 @@ async function deleteListing(
 ): Promise<DashboardActionState> {
   "use server";
   const { userId } = await auth();
-  if (!userId) return { ok: false, error: "Sign in to archive listings." };
+  if (!userId) return { ok: false, error: "Sign in to delete listings." };
 
   const { success } = await safeRateLimit(listingMutationRatelimit, userId);
   if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
@@ -132,32 +137,43 @@ async function deleteListing(
     include: { seller: true },
   });
   if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
-  const blockReason = archiveListingBlockReason(listing);
+  const blockReason = deleteListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  // Archive: preserve order history, remove current shopping intent records.
+  let outcome: "deleted" | "archived";
   try {
-    await softDeleteListingWithCleanup(listingId, me.id);
+    outcome = await deleteListingWithCleanup(listingId, me.id);
   } catch (err) {
     logServerError(err, {
-      source: "seller_listing_archive",
+      source: "seller_listing_delete",
       extra: { listingId, sellerId: listing.sellerId },
     });
-    return { ok: false, error: "Could not archive this listing. Please try again." };
+    return {
+      ok: false,
+      error: listingDeletePublicError(err) ?? "Could not delete this listing. Please try again.",
+    };
   }
 
   after(() =>
     expireOpenCheckoutSessionsForListing({
       listingId,
       sellerId: listing.sellerId,
-      source: "listing_archive",
+      source: outcome === "archived" ? "listing_delete_archive" : "listing_delete_hard",
     }),
   );
 
-  await syncGuildMemberListingThreshold(listing.sellerId);
+  await syncGuildMemberListingThreshold(listing.sellerId).catch((error) => {
+    logServerError(error, {
+      source: "seller_listing_delete_guild_threshold",
+      extra: { listingId, sellerId: listing.sellerId },
+    });
+  });
 
   revalidatePath("/dashboard");
   revalidatePath("/browse");
+  revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${listing.sellerId}`);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
   revalidateListingSearchCaches();
   revalidateFeaturedMakerCaches();
 
@@ -259,7 +275,7 @@ async function DashboardPageContent({
 
   const [listings, savedSearches, verification, notifUnreadCount, guildSeller] = await Promise.all([
     prisma.listing.findMany({
-      where: { sellerId: seller.id },
+      where: { sellerId: seller.id, archivedAt: null },
       select: {
         id: true,
         title: true,
@@ -557,18 +573,14 @@ async function DashboardPageContent({
           <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3 sm:gap-6">
             {listings.map((l) => {
               const thumb = l.photos[0]?.url;
-              const isArchived = l.status === "HIDDEN" && l.isPrivate;
               // Card link target depends on public visibility:
               // ACTIVE/SOLD/SOLD_OUT → public listing page
               // DRAFT/HIDDEN/REJECTED/PENDING_REVIEW → preview page (?preview=1) so the
               // owner can see their listing without hitting the public 404.
-              // Archived (HIDDEN + isPrivate) listings are not linkable.
               const isPublicStatus = l.status === "ACTIVE" || l.status === "SOLD" || l.status === "SOLD_OUT";
-              const cardHref = isArchived
-                ? null
-                : isPublicStatus
-                  ? publicListingPath(l.id, l.title)
-                  : `${publicListingPath(l.id, l.title)}?preview=1`;
+              const cardHref = isPublicStatus
+                ? publicListingPath(l.id, l.title)
+                : `${publicListingPath(l.id, l.title)}?preview=1`;
 
               return (
                 // Mobile (horizontal scroll): fixed 220px width via w-[220px].
@@ -609,11 +621,7 @@ async function DashboardPageContent({
                     </div>
 
                     <div className="text-xs uppercase tracking-wide text-neutral-500">
-                      {isArchived ? (
-                        <span className="inline-block px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full font-medium normal-case">
-                          Archived
-                        </span>
-                      ) : l.status === "PENDING_REVIEW" ? (
+                      {l.status === "PENDING_REVIEW" ? (
                         <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-medium normal-case">
                           Under Review
                         </span>
@@ -629,34 +637,30 @@ async function DashboardPageContent({
                     </div>
 
                     <div className="pt-3 flex flex-wrap gap-2">
-                      {!isArchived && (
-                        <>
-                          {l.status !== "PENDING_REVIEW" && (
-                            <Link
-                              href={`/dashboard/listings/${l.id}/edit`}
-                              className={DASHBOARD_ACTION_CLASS}
-                            >
-                              Edit
-                            </Link>
-                          )}
-                          {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
-                            <Link
-                              href={`${publicListingPath(l.id, l.title)}?preview=1`}
-                              className={DASHBOARD_ACTION_CLASS}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Preview →
-                            </Link>
-                          )}
-                        </>
+                      {l.status !== "PENDING_REVIEW" && (
+                        <Link
+                          href={`/dashboard/listings/${l.id}/edit`}
+                          className={DASHBOARD_ACTION_CLASS}
+                        >
+                          Edit
+                        </Link>
+                      )}
+                      {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
+                        <Link
+                          href={`${publicListingPath(l.id, l.title)}?preview=1`}
+                          className={DASHBOARD_ACTION_CLASS}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Preview →
+                        </Link>
                       )}
 
-                      {!isArchived && l.status === "REJECTED" && (
+                      {l.status === "REJECTED" && (
                         <ResubmitButton listingId={l.id} />
                       )}
 
-                      {!isArchived && l.status === "PENDING_REVIEW" && (
+                      {l.status === "PENDING_REVIEW" && (
                         <InlineActionButton
                           action={withdrawListingReview.bind(null, l.id)}
                           confirm="Withdraw this listing from review and move it back to drafts?"
@@ -667,7 +671,7 @@ async function DashboardPageContent({
                       )}
 
                       {/* REJECTED: only Edit + Resubmit + Delete — no Hide/Unhide/Mark sold */}
-                      {!isArchived && l.status !== "REJECTED" && l.status !== "PENDING_REVIEW" && (
+                      {l.status !== "REJECTED" && l.status !== "PENDING_REVIEW" && (
                         <>
                           {/* Mark sold only for ACTIVE and SOLD_OUT — not DRAFT or HIDDEN */}
                           {(l.status === "ACTIVE" || l.status === "SOLD_OUT") && (
@@ -681,7 +685,7 @@ async function DashboardPageContent({
 
                           {l.status === "HIDDEN" ? (
                             <ResubmitButton listingId={l.id} label="Unhide" />
-                          ) : l.status === "ACTIVE" && !l.isPrivate ? (
+                          ) : l.status === "ACTIVE" || l.status === "SOLD_OUT" ? (
                             <InlineActionButton
                               action={setStatus.bind(null, l.id, ListingStatus.HIDDEN)}
                               className={DASHBOARD_ACTION_CLASS}
@@ -697,11 +701,10 @@ async function DashboardPageContent({
                       {l.status !== "PENDING_REVIEW" && (
                         <InlineActionButton
                           action={deleteListing.bind(null, l.id)}
-                          confirm="Archive this listing? It will be removed from public pages and current carts, but retained for order history."
-                          disabled={isArchived}
+                          confirm="Delete this listing? This action is permanent. Saved listings and back-in-stock subscriptions will be removed. Listings required for order, review, or conversation history will be retained only as an archived record."
                           className={DASHBOARD_DANGER_ACTION_CLASS}
                         >
-                          {isArchived ? "Archived" : "Archive"}
+                          Delete
                         </InlineActionButton>
                       )}
                     </div>

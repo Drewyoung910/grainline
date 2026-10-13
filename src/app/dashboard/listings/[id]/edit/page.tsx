@@ -696,7 +696,7 @@ export default async function EditListingPage(props: {
     },
   });
   if (!listing) return notFound();
-  if (listing.status === "HIDDEN" && listing.isPrivate) return notFound();
+  if (listing.archivedAt) return notFound();
   const editBlockReason = listingEditBlockReason(listing);
   const chargesEnabled = listing.seller.chargesEnabled;
 

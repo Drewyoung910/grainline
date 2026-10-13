@@ -52,6 +52,7 @@ const getListingForDetailPage = cache(async (listingId: string) =>
       currency: true,
       status: true,
       isPrivate: true,
+      archivedAt: true,
       reservedForUserId: true,
       listingType: true,
       stockQuantity: true,

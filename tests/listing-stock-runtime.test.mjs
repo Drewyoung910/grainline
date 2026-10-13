@@ -13,7 +13,8 @@ before(async () => {
   await db.exec(`CREATE TYPE "ListingStatus" AS ENUM ('ACTIVE','SOLD_OUT','DRAFT','HIDDEN','REJECTED','PENDING_REVIEW','SOLD');
     CREATE TABLE "Listing" (id text PRIMARY KEY, "sellerId" text, title text,
       "stockQuantity" integer, status "ListingStatus", "isPrivate" boolean DEFAULT false,
-      "listingType" text DEFAULT 'IN_STOCK', "rejectionReason" text, "updatedAt" timestamp DEFAULT now());
+      "listingType" text DEFAULT 'IN_STOCK', "archivedAt" timestamp,
+      "rejectionReason" text, "updatedAt" timestamp DEFAULT now());
     CREATE TABLE "SystemAuditLog" (id text PRIMARY KEY, "actorType" text, "actorId" text,
       action text, "targetType" text, "targetId" text, metadata jsonb);`);
 });

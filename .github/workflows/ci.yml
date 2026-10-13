@@ -229,6 +229,28 @@ jobs:
           tests/user-email-address-force-release.test.mjs
           tests/user-email-address-force-postgres-proof.test.mjs
           tests/user-email-address-force-production-workflow.test.mjs
+      - name: Verify seller listing Hide/Delete source package
+        run: >-
+          node --test
+          tests/listing-action-state.test.mjs
+          tests/listing-delete.test.mjs
+          tests/listing-edit-state.test.mjs
+          tests/listing-hide-delete-production-workflow.test.mjs
+          tests/listing-stock-runtime.test.mjs
+          tests/listing-visibility.test.mjs
+      - name: Isolate seller listing lifecycle migration from historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-hide-delete"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261013040000_add_listing_archived_at \
+            "$holding/20261013040000_add_listing_archived_at"
+          mv tests/listing-delete.test.mjs "$holding/listing-delete.test.mjs"
+          mv tests/listing-hide-delete-production-workflow.test.mjs \
+            "$holding/listing-hide-delete-production-workflow.test.mjs"
+          echo "ORDER_CHILD_CATALOG_LISTING_MIGRATION_ISOLATED=true" >> "$GITHUB_ENV"
       - name: Verify AccountDeletionSideEffect claim-fence source package
         run: >-
           node --test
@@ -5419,6 +5441,81 @@ jobs:
           }
           NODE
       - name: Audit runtime grants after AccountDeletionSideEffect FORCE
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+      - name: Restore seller listing Hide/Delete source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-hide-delete"
+          mv \
+            "$holding/20261013040000_add_listing_archived_at" \
+            prisma/migrations/20261013040000_add_listing_archived_at
+          mv "$holding/listing-delete.test.mjs" tests/listing-delete.test.mjs
+          mv \
+            "$holding/listing-hide-delete-production-workflow.test.mjs" \
+            tests/listing-hide-delete-production-workflow.test.mjs
+          rmdir "$holding"
+      - name: Re-verify seller listing Hide/Delete source package
+        run: >-
+          node --test
+          tests/listing-action-state.test.mjs
+          tests/listing-delete.test.mjs
+          tests/listing-edit-state.test.mjs
+          tests/listing-stock-runtime.test.mjs
+          tests/listing-visibility.test.mjs
+      - name: Apply seller listing Hide/Delete compatibility migration in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261013040000_add_listing_archived_at/migration.sql
+      - name: Verify seller listing Hide/Delete catalog
+        run: |
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on <<'SQL'
+          DO $verify_listing_hide_delete$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1
+                FROM pg_catalog.pg_attribute
+               WHERE attrelid = 'public."Listing"'::regclass
+                 AND attname = 'archivedAt'
+                 AND NOT attisdropped
+            ) THEN
+              RAISE EXCEPTION 'Listing archivedAt column is missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1
+                FROM pg_catalog.pg_proc AS routine
+                JOIN pg_catalog.pg_namespace AS namespace
+                  ON namespace.oid = routine.pronamespace
+               WHERE namespace.nspname = 'public'
+                 AND routine.proname = 'grainline_listing_delete_reference_state'
+                 AND pg_catalog.pg_get_function_identity_arguments(routine.oid) = 'p_actor_user_id text, p_listing_id text'
+                 AND routine.prosecdef
+                 AND routine.provolatile = 's'
+                 AND routine.proparallel = 's'
+                 AND routine.proconfig = ARRAY['search_path=pg_catalog']::text[]
+                 AND pg_catalog.has_function_privilege(
+                   'grainline_app_runtime', routine.oid, 'EXECUTE'
+                 )
+                 AND NOT pg_catalog.has_function_privilege(0, routine.oid, 'EXECUTE')
+            ) THEN
+              RAISE EXCEPTION 'Listing delete reference authority drifted';
+            END IF;
+          END
+          $verify_listing_hide_delete$;
+          SET ROLE grainline_app_runtime;
+          SELECT *
+            FROM public.grainline_listing_delete_reference_state(
+              'listing-delete-ci-actor',
+              'listing-delete-ci-absent'
+            );
+          RESET ROLE;
+          SQL
+      - name: Audit runtime grants after seller listing Hide/Delete migration
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime

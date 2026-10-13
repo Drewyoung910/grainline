@@ -46,7 +46,31 @@ export const ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS = Object.freeze([
 export const ORDER_ITEM_DIRECT_FUNCTIONS = Object.freeze([
   ...ORDER_ITEM_RLS_RELEASE_DIRECT_FUNCTIONS,
   "grainline_case_staff_resolution_recovery_finalize",
+  "grainline_listing_delete_reference_state",
 ].sort());
+
+const LISTING_HIDE_DELETE_MIGRATION =
+  "20261013040000_add_listing_archived_at";
+
+export function orderItemDirectFunctionsForSource(
+  rootDirectory = process.cwd(),
+  environment = process.env,
+) {
+  const listingMigration = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    LISTING_HIDE_DELETE_MIGRATION,
+  );
+  if (fs.existsSync(listingMigration)) return ORDER_ITEM_DIRECT_FUNCTIONS;
+  assert.equal(
+    environment.ORDER_CHILD_CATALOG_LISTING_MIGRATION_ISOLATED,
+    "true",
+    `${LISTING_HIDE_DELETE_MIGRATION} is missing outside its reviewed CI isolation`,
+  );
+  return Object.freeze(ORDER_ITEM_DIRECT_FUNCTIONS.filter((functionName) =>
+    functionName !== "grainline_listing_delete_reference_state"
+  ));
+}
 
 export const ORDER_QUOTE_DIRECT_FUNCTIONS = Object.freeze([
   "grainline_order_account_deletion_scrub",
@@ -94,7 +118,7 @@ function sorted(values) {
   return [...values].sort((left, right) => left.localeCompare(right));
 }
 
-function readCreatedFunction(sql, match) {
+function readFunctionArguments(sql, match) {
   const argumentsStart = match.index + match[0].length;
   let cursor = argumentsStart;
   let depth = 1;
@@ -113,6 +137,15 @@ function readCreatedFunction(sql, match) {
     cursor += 1;
   }
   if (depth !== 0) throw new Error(`unterminated function arguments for ${match[1] ?? match[2]}`);
+  return Object.freeze({
+    argumentsSource: sql.slice(argumentsStart, cursor - 1).trim(),
+    end: cursor,
+  });
+}
+
+function readCreatedFunction(sql, match) {
+  const parsedArguments = readFunctionArguments(sql, match);
+  const cursor = parsedArguments.end;
   const declaration = sql.slice(cursor);
   const bodyOpening = declaration.match(/\bAS\s+(\$[A-Za-z0-9_]*\$)/imu);
   if (!bodyOpening) throw new Error(`function body missing for ${match[1] ?? match[2]}`);
@@ -121,7 +154,7 @@ function readCreatedFunction(sql, match) {
   if (bodyEnd < 0) throw new Error(`unterminated function body for ${match[1] ?? match[2]}`);
   return Object.freeze({
     name: match[1] ?? match[2],
-    argumentsSource: sql.slice(argumentsStart, cursor - 1).trim(),
+    argumentsSource: parsedArguments.argumentsSource,
     body: sql.slice(bodyStart, bodyEnd),
     declaration: declaration.slice(0, bodyOpening.index),
     end: bodyEnd + bodyOpening[1].length,
@@ -208,12 +241,17 @@ export function orderChildSourceFunctionCatalog(
     let match;
     while ((match = eventPattern.exec(sql))) {
       if (match[3] !== undefined || match[4] !== undefined) {
-        definitions.delete(match[3] ?? match[4]);
+        const name = match[3] ?? match[4];
+        const parsedArguments = readFunctionArguments(sql, match);
+        definitions.delete(`${name}(${identityArguments(parsedArguments.argumentsSource)})`);
+        eventPattern.lastIndex = parsedArguments.end;
         continue;
       }
       const definition = readCreatedFunction(sql, match);
-      definitions.set(definition.name, Object.freeze({
+      const identity = `${definition.name}(${identityArguments(definition.argumentsSource)})`;
+      definitions.set(identity, Object.freeze({
         ...definition,
+        identity,
         migration: directory,
       }));
       eventPattern.lastIndex = definition.end;
@@ -224,7 +262,7 @@ export function orderChildSourceFunctionCatalog(
       || entry.body.includes('"OrderShippingRateQuote"')
   ).map((entry) => Object.freeze({
     name: entry.name,
-    identity: `${entry.name}(${identityArguments(entry.argumentsSource)})`,
+    identity: entry.identity,
     sourceMd5: createHash("md5").update(entry.body).digest("hex"),
     ...functionDeclarationMetadata(entry.declaration),
     touchesOrderItem: entry.body.includes('"OrderItem"'),
@@ -475,7 +513,8 @@ export function verifyOrderChildAuthorityCatalog(
     .map((entry) => entry.name);
   const quoteFunctions = sourceCatalog.filter((entry) => entry.touchesQuote)
     .map((entry) => entry.name);
-  assert.deepEqual(sorted(orderItemFunctions), ORDER_ITEM_DIRECT_FUNCTIONS);
+  const expectedOrderItemFunctions = orderItemDirectFunctionsForSource(rootDirectory);
+  assert.deepEqual(sorted(orderItemFunctions), expectedOrderItemFunctions);
   assert.deepEqual(sorted(quoteFunctions), ORDER_QUOTE_DIRECT_FUNCTIONS);
   assert.equal(
     new Set(catalog.functions.map((entry) => entry.function_name)).size,
@@ -541,7 +580,7 @@ export function verifyOrderChildAuthorityCatalog(
   return Object.freeze({
     databaseMode: productionOwner ? "production-read-only" : "disposable-read-only",
     tableOwner,
-    orderItemDirectFunctionCount: ORDER_ITEM_DIRECT_FUNCTIONS.length,
+    orderItemDirectFunctionCount: expectedOrderItemFunctions.length,
     quoteDirectFunctionCount: ORDER_QUOTE_DIRECT_FUNCTIONS.length,
     orderItemTriggerCount: ORDER_ITEM_TRIGGER_FUNCTIONS.length,
     rowDataRead: false,

@@ -560,7 +560,7 @@ Service, safety and aggregate consumers:
   `src/app/api/orders/[id]/refund/route.ts`;
 - PII expiry/account lifecycle: `src/lib/accountDeletion.ts`;
 - staff ban/undo and listing-retention blockers: `src/lib/ban.ts`,
-  `src/lib/audit.ts` and `src/lib/listingSoftDelete.ts`;
+  `src/lib/audit.ts` and `src/lib/listingDelete.ts`;
 - shared lock/refund/label helpers: `src/lib/orderLegacyRefundLockAuthority.ts`,
   `src/lib/localRefundEvidence.ts`,
   `src/lib/refundLedgerSql.ts`, `src/lib/orderRefundFinalization.ts` and

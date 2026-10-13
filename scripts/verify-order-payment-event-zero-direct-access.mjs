@@ -3,7 +3,7 @@
 // reviewed fixed database operations. Database posture is a later boundary;
 // this verifier owns the application-side zero-direct-access claim.
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -72,7 +72,8 @@ function trackedSourcePaths(rootDirectory) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   return raw.split("\0").filter(Boolean).filter(
-    (file) => SOURCE_EXTENSIONS.has(path.extname(file)),
+    (file) => SOURCE_EXTENSIONS.has(path.extname(file))
+      && existsSync(path.join(rootDirectory, file)),
   );
 }
 

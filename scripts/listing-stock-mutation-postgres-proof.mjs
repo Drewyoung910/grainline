@@ -93,7 +93,8 @@ export async function runStockMutationPostgresProof(env = process.env, onPhase =
     await observer.query(`CREATE TYPE "ListingStatus" AS ENUM ('ACTIVE','SOLD_OUT','DRAFT');
       CREATE TABLE "Listing" (id text PRIMARY KEY, "sellerId" text, title text,
         "stockQuantity" integer, status "ListingStatus", "isPrivate" boolean DEFAULT false,
-        "listingType" text DEFAULT 'IN_STOCK', "rejectionReason" text, "updatedAt" timestamp DEFAULT now());
+        "listingType" text DEFAULT 'IN_STOCK', "rejectionReason" text, "archivedAt" timestamp,
+        "updatedAt" timestamp DEFAULT now());
       CREATE TABLE "SystemAuditLog" (id text PRIMARY KEY, "actorType" text, "actorId" text,
         action text, "targetType" text, "targetId" text, metadata jsonb)`);
     const update = loadStockUpdate();

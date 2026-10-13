@@ -19,7 +19,7 @@ type Client = Pick<Prisma.TransactionClient, "$queryRaw" | "systemAuditLog">;
 type Scope = { listingId: string; sellerId: string; actorId: string };
 export type LockedListingStock = {
   id: string; title: string; stockQuantity: number | null; listingType: "IN_STOCK" | "MADE_TO_ORDER";
-  status: string; isPrivate: boolean; rejectionReason: string | null;
+  status: string; isPrivate: boolean; archivedAt: Date | null; rejectionReason: string | null;
 };
 const ACTION = "MANUAL_LISTING_STOCK_ADJUSTMENT";
 
@@ -32,7 +32,7 @@ export function validStockMutationIdentity(value: StockMutationIdentity) {
 export async function lockListingStock(client: Client, scope: Pick<Scope, "listingId" | "sellerId">) {
   const [listing] = await client.$queryRaw<LockedListingStock[]>`
     SELECT id, title, "stockQuantity", "listingType"::text AS "listingType",
-      status::text AS status, "isPrivate", "rejectionReason"
+      status::text AS status, "isPrivate", "archivedAt", "rejectionReason"
     FROM "Listing" WHERE id = ${scope.listingId} AND "sellerId" = ${scope.sellerId}
     FOR UPDATE
   `;

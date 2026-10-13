@@ -40,13 +40,15 @@ describe("checkout session expiry hardening", () => {
     assert.match(shopActions, /source,\s*\}\),/);
     assert.match(shopActions, /"listing_hide"/);
     assert.match(shopActions, /"listing_mark_sold"/);
-    assert.match(shopActions, /"listing_archive"/);
+    assert.match(shopActions, /"listing_delete_archive"/);
+    assert.match(shopActions, /"listing_delete_hard"/);
     assert.match(shopActions, /"listing_ai_hold"/);
 
     assert.match(dashboard, /expireOpenCheckoutSessionsForListing/);
     assert.match(dashboard, /"listing_hide"/);
     assert.match(dashboard, /"listing_mark_sold"/);
-    assert.match(dashboard, /"listing_archive"/);
+    assert.match(dashboard, /"listing_delete_archive"/);
+    assert.match(dashboard, /"listing_delete_hard"/);
 
     assert.match(editPage, /"listing_edit_ai_hold"/);
     assert.match(editPage, /"listing_edit_seller_disconnected"/);

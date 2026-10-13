@@ -13,7 +13,6 @@ import {
 interface Props {
   listingId: string;
   status: string;
-  isPrivate?: boolean;
 }
 
 const SHOP_ACTION_CLASS =
@@ -25,10 +24,9 @@ const SHOP_SUCCESS_ACTION_CLASS =
 const SHOP_DANGER_ACTION_CLASS =
   "inline-flex min-h-[30px] items-center rounded-md border border-red-200 bg-white px-3 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50";
 
-export default function ShopListingActions({ listingId, status, isPrivate = false }: Props) {
+export default function ShopListingActions({ listingId, status }: Props) {
   const [isPending, startTransition] = React.useTransition();
   const [toast, setToast] = React.useState<string | null>(null);
-  const isArchived = status === "HIDDEN" && isPrivate;
 
   function showToast(msg: string) {
     setToast(msg);
@@ -67,8 +65,8 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
         </button>
       )}
 
-      {/* Private custom listings use Archive, because HIDDEN + private is the archive marker. */}
-      {status === "ACTIVE" && !isPrivate && (
+      {/* Hide is reversible for active and sold-out listings, including private custom listings. */}
+      {(status === "ACTIVE" || status === "SOLD_OUT") && (
         <button
           disabled={isPending}
           onClick={() =>
@@ -84,7 +82,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
       )}
 
       {/* Unhide — HIDDEN only */}
-      {status === "HIDDEN" && !isArchived && (
+      {status === "HIDDEN" && (
         <button
           disabled={isPending}
           onClick={() =>
@@ -187,24 +185,30 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
       )}
 
       {/* Delete — all statuses except PENDING_REVIEW */}
-      {status !== "PENDING_REVIEW" && !isArchived && (
+      {status !== "PENDING_REVIEW" && (
         <button
           disabled={isPending}
           onClick={() => {
-            if (!window.confirm("Archive this listing? It will be removed from public pages and current carts, but retained for order history.")) return;
+            if (!window.confirm("Delete this listing? This action is permanent. Saved listings and back-in-stock subscriptions will be removed. Listings required for order, review, or conversation history will be retained only as an archived record.")) return;
             startTransition(async () => {
               const result = await deleteListingAction(listingId);
-              showToast(result.ok ? "Archived." : (result.error ?? "Could not archive this listing."));
+              showToast(
+                result.ok
+                  ? result.outcome === "archived"
+                    ? "Deleted from your shop; buyer history was retained."
+                    : "Deleted."
+                  : (result.error ?? "Could not delete this listing."),
+              );
             });
           }}
           className={SHOP_DANGER_ACTION_CLASS}
         >
-          Archive
+          Delete
         </button>
       )}
 
       {/* Edit link hidden while review owns the current draft state. */}
-      {!isArchived && status !== "PENDING_REVIEW" && (
+      {status !== "PENDING_REVIEW" && (
         <a
           href={`/dashboard/listings/${listingId}/edit`}
           className="ml-auto inline-flex min-h-[30px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50"

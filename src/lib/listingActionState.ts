@@ -7,6 +7,7 @@ export type ListingActionState = {
   listingType?: ListingType | null;
   stockQuantity?: number | null;
   isPrivate?: boolean | null;
+  archivedAt?: Date | string | null;
   rejectionReason?: string | null;
 };
 
@@ -22,9 +23,6 @@ export function hideListingBlockReason(listing: ListingActionState) {
   if (listing.status !== ListingStatus.ACTIVE && listing.status !== ListingStatus.SOLD_OUT) {
     return "Only active or sold-out listings can be hidden.";
   }
-  if (listing.isPrivate) {
-    return "Private custom listings cannot be hidden. Archive the listing when you are finished with it.";
-  }
   return null;
 }
 
@@ -32,21 +30,18 @@ export function unhideListingBlockReason(listing: ListingActionState) {
   if (listing.status !== ListingStatus.HIDDEN) {
     return "Only hidden listings can be unhidden.";
   }
-  if (listing.isPrivate) {
+  if (listing.archivedAt) {
     return "Archived listings cannot be unhidden.";
   }
   return null;
 }
 
-export function archiveListingBlockReason(listing: ListingActionState) {
-  if (listing.status === ListingStatus.HIDDEN && listing.isPrivate) {
+export function deleteListingBlockReason(listing: ListingActionState) {
+  if (listing.archivedAt) {
     return "Listing is already archived.";
   }
   if (listing.status === ListingStatus.PENDING_REVIEW) {
-    return "Listings in review cannot be archived until review is complete.";
-  }
-  if (listing.status === ListingStatus.SOLD) {
-    return "Sold listings cannot be archived from the shop page because they remain part of buyer order history.";
+    return "Listings in review cannot be deleted until review is complete.";
   }
   return null;
 }
@@ -75,7 +70,7 @@ export function publishListingBlockReason(listing: ListingActionState) {
     }
     return "This listing cannot be published from its current status.";
   }
-  if (listing.status === ListingStatus.HIDDEN && listing.isPrivate) {
+  if (listing.archivedAt) {
     return "Archived listings cannot be republished.";
   }
   if (listing.rejectionReason === STAFF_REMOVAL_REJECTION_REASON) {

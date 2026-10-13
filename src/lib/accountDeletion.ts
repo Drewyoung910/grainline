@@ -1421,6 +1421,7 @@ export async function anonymizeUserAccount(
           title: "Deleted listing",
           status: "HIDDEN",
           isPrivate: true,
+          archivedAt: now,
           description: "[Listing removed]",
           videoUrl: null,
           tags: [],

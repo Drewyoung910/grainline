@@ -166,6 +166,7 @@ export default async function SellerShopPage({
   const categoryGroupWhere = isOwner
     ? {
         sellerId,
+        archivedAt: null,
         category: { not: null },
         ...(tag ? { tags: { has: tag } } : {}),
         ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
@@ -179,7 +180,7 @@ export default async function SellerShopPage({
     ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" }
     : {};
   const where = isOwner
-    ? { sellerId, ...ownerStatusFilter, ...categoryFilter, ...tagFilter }
+    ? { sellerId, archivedAt: null, ...ownerStatusFilter, ...categoryFilter, ...tagFilter }
     : publicListingWhere({ sellerId, ...categoryFilter, ...tagFilter });
 
   // Build orderBy
@@ -439,10 +440,8 @@ export default async function SellerShopPage({
       ) : (
         <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {listings.map((l) => {
-            const isArchived = l.status === "HIDDEN" && l.isPrivate;
             const statusBadge =
               l.status === "DRAFT" ? { label: "Draft", cls: "bg-neutral-100 text-neutral-600" }
-              : isArchived ? { label: "Archived", cls: "bg-neutral-100 text-neutral-600" }
               : l.status === "HIDDEN" ? { label: "Hidden", cls: "bg-neutral-100 text-neutral-600" }
               : l.status === "PENDING_REVIEW" ? { label: "Under Review", cls: "bg-amber-50 text-amber-700 border border-amber-200" }
               : l.status === "REJECTED" ? { label: "Rejected", cls: "bg-red-50 text-red-700 border border-red-200" }
@@ -477,11 +476,9 @@ export default async function SellerShopPage({
                     initialSaved={savedSet.has(l.id)}
                     variant="grid"
                     href={
-                      isOwner && isArchived
-                        ? null
-                        : isOwner && l.status === "DRAFT"
-                          ? `${publicListingPath(l.id, l.title)}?preview=1`
-                          : undefined
+                      isOwner && l.status === "DRAFT"
+                        ? `${publicListingPath(l.id, l.title)}?preview=1`
+                        : undefined
                     }
                   />
                   {isOwner ? (
@@ -493,7 +490,7 @@ export default async function SellerShopPage({
                           </span>
                         </div>
                       )}
-                      <ShopListingActions listingId={l.id} status={l.status} isPrivate={l.isPrivate} />
+                      <ShopListingActions listingId={l.id} status={l.status} />
                     </div>
                   ) : null}
                 </div>

@@ -1,6 +1,34 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-09-07
+Last updated: 2026-10-13
+
+## 2026-10-13 — Claude session #361 seller listing Hide/Delete
+
+- **[#361 VERIFIED/FIXED ON ISOLATED CANDIDATE; NOT YET MERGED OR
+  DEPLOYED]** Seller listing Archive conflated reversible hiding with permanent
+  deletion, inferred archival from `HIDDEN + isPrivate`, kept archived rows in
+  seller lists, discarded saves/subscriptions without honest copy, and hid the
+  order case-window refusal behind a generic dashboard error. The isolated
+  candidate adds explicit `Listing.archivedAt`, allows Hide for private custom
+  listings, and exposes one permanent Delete action. A serializable, owner-bound
+  delete transaction blocks while an active checkout exists, including a
+  made-to-order checkout represented only by its durable source snapshot,
+  hard-deletes only
+  when no retained order/review/message/conversation reference exists, and
+  otherwise archives the row while retaining media for historical order
+  snapshots. Archived rows are
+  excluded from seller lists and detail routes, locked edit witnesses carry
+  `archivedAt`, and current carts, favorites, and back-in-stock subscriptions
+  are removed with explicit confirmation copy. The existing DirectUpload
+  release trigger queues hard-deleted media for bounded R2 cleanup. Focused
+  lifecycle, visibility, stock-lock, authority-catalog, and related regression
+  tests pass; TypeScript, dependency audit, and lint also pass. Exact final
+  security review, protected CI, migration, and deployment remain pending.
+- The older raw note at line ~3490 recommending preservation of favorites on
+  archive is superseded by the product decision recorded in #361: permanent
+  Delete intentionally removes saves and back-in-stock subscriptions, and the
+  confirmation text now says so. The historical note remains in place for
+  traceability.
 
 ## 2026-09-07 — Order closure side-effect candidate checkpoint
 

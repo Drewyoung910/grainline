@@ -42,7 +42,7 @@ const expectedSemanticFiles = [
   "src/app/dashboard/verification/page.tsx",
   "src/components/ReviewsSection.tsx",
   "src/lib/homepageStats.ts",
-  "src/lib/listingSoftDelete.ts",
+  "src/lib/listingDelete.ts",
   "src/lib/localRefundEvidence.ts",
   "src/lib/localRefundEvidenceCore.ts",
   "src/lib/orderPaymentEventLabels.ts",

@@ -5,7 +5,7 @@ import { ListingStatus, ListingType } from "@prisma/client";
 
 const {
   STAFF_REMOVAL_REJECTION_REASON,
-  archiveListingBlockReason,
+  deleteListingBlockReason,
   hideListingBlockReason,
   markAvailableBlockReason,
   publishListingBlockReason,
@@ -21,39 +21,35 @@ function listing(overrides = {}) {
   return {
     status: ListingStatus.ACTIVE,
     isPrivate: false,
+    archivedAt: null,
     rejectionReason: null,
     ...overrides,
   };
 }
 
 describe("listing shop action state", () => {
-  it("hides ordinary active and sold-out listings but keeps private custom listings out of the archive marker", () => {
+  it("hides active and sold-out listings, including private custom listings", () => {
     assert.equal(hideListingBlockReason(listing()), null);
     assert.equal(hideListingBlockReason(listing({ status: ListingStatus.SOLD_OUT })), null);
-    assert.match(
-      hideListingBlockReason(listing({ status: ListingStatus.ACTIVE, isPrivate: true })),
-      /Private custom listings cannot be hidden/,
-    );
+    assert.equal(hideListingBlockReason(listing({ status: ListingStatus.ACTIVE, isPrivate: true })), null);
     assert.match(hideListingBlockReason(listing({ status: ListingStatus.SOLD })), /Only active/);
     assert.match(hideListingBlockReason(listing({ status: ListingStatus.HIDDEN })), /Only active/);
   });
 
-  it("unhides only non-archived hidden listings", () => {
+  it("unhides hidden listings unless they have the explicit archive marker", () => {
     assert.equal(unhideListingBlockReason(listing({ status: ListingStatus.HIDDEN })), null);
-    assert.match(
-      unhideListingBlockReason(listing({ status: ListingStatus.HIDDEN, isPrivate: true })),
-      /Archived listings/,
-    );
+    assert.equal(unhideListingBlockReason(listing({ status: ListingStatus.HIDDEN, isPrivate: true })), null);
+    assert.match(unhideListingBlockReason(listing({ status: ListingStatus.HIDDEN, archivedAt: new Date() })), /Archived listings/);
     assert.match(unhideListingBlockReason(listing({ status: ListingStatus.ACTIVE })), /Only hidden/);
   });
 
-  it("blocks archive for in-review, sold, and already archived listings", () => {
-    assert.equal(archiveListingBlockReason(listing({ status: ListingStatus.ACTIVE })), null);
-    assert.equal(archiveListingBlockReason(listing({ status: ListingStatus.REJECTED })), null);
-    assert.match(archiveListingBlockReason(listing({ status: ListingStatus.PENDING_REVIEW })), /review/);
-    assert.match(archiveListingBlockReason(listing({ status: ListingStatus.SOLD })), /buyer order history/);
+  it("blocks delete only for in-review and explicitly archived listings", () => {
+    assert.equal(deleteListingBlockReason(listing({ status: ListingStatus.ACTIVE })), null);
+    assert.equal(deleteListingBlockReason(listing({ status: ListingStatus.REJECTED })), null);
+    assert.equal(deleteListingBlockReason(listing({ status: ListingStatus.SOLD })), null);
+    assert.match(deleteListingBlockReason(listing({ status: ListingStatus.PENDING_REVIEW })), /review/);
     assert.match(
-      archiveListingBlockReason(listing({ status: ListingStatus.HIDDEN, isPrivate: true })),
+      deleteListingBlockReason(listing({ status: ListingStatus.HIDDEN, archivedAt: new Date() })),
       /already archived/,
     );
   });
@@ -103,7 +99,7 @@ describe("listing shop action state", () => {
     assert.match(publishListingBlockReason(listing({ status: ListingStatus.ACTIVE })), /current status/);
     assert.match(publishListingBlockReason(listing({ status: ListingStatus.PENDING_REVIEW })), /already in review/);
     assert.match(
-      publishListingBlockReason(listing({ status: ListingStatus.HIDDEN, isPrivate: true })),
+      publishListingBlockReason(listing({ status: ListingStatus.HIDDEN, archivedAt: new Date() })),
       /Archived listings/,
     );
     assert.match(
@@ -155,11 +151,13 @@ describe("listing shop action state", () => {
     assert.match(inventoryRow, /: `\/dashboard\/listings\/\$\{listing\.id\}\/edit`/);
   });
 
-  it("does not offer the ordinary Hide action for private custom listings", () => {
+  it("offers Hide without using privacy as an archive proxy", () => {
     const shopUi = source("src/app/seller/[id]/shop/ShopListingActions.tsx");
     const dashboard = source("src/app/dashboard/page.tsx");
 
-    assert.match(shopUi, /status === "ACTIVE" && !isPrivate/);
-    assert.match(dashboard, /l\.status === "ACTIVE" && !l\.isPrivate/);
+    assert.match(shopUi, /status === "ACTIVE" \|\| status === "SOLD_OUT"/);
+    assert.doesNotMatch(shopUi, /!isPrivate/);
+    assert.match(dashboard, /l\.status === "ACTIVE" \|\| l\.status === "SOLD_OUT"/);
+    assert.doesNotMatch(dashboard, /!l\.isPrivate/);
   });
 });

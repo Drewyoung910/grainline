@@ -8,6 +8,7 @@ function listing(overrides = {}) {
   return {
     status: ListingStatus.ACTIVE,
     isPrivate: false,
+    archivedAt: null,
     rejectionReason: null,
     ...overrides,
   };
@@ -24,7 +25,7 @@ describe("listing edit state", () => {
 
   it("blocks archived, sold, in-review, and staff-removed listings", () => {
     assert.match(
-      listingEditBlockReason(listing({ status: ListingStatus.HIDDEN, isPrivate: true })),
+      listingEditBlockReason(listing({ status: ListingStatus.HIDDEN, isPrivate: true, archivedAt: new Date() })),
       /Archived listings/,
     );
     assert.match(

@@ -19,7 +19,7 @@ describe("Order eligibility authority contract", () => {
       "src/app/api/users/[id]/report/route.ts",
       "src/app/api/verification/apply/route.ts",
       "src/app/dashboard/verification/page.tsx",
-      "src/lib/listingSoftDelete.ts",
+      "src/lib/listingDelete.ts",
       "src/components/ReviewsSection.tsx",
     ];
     for (const path of converted) {

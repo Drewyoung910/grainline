@@ -19514,3 +19514,86 @@ verified stale/false-positive/current 579, deferred product/design/ops/legal
 87, approximate raw allegations left from current max #1126: 0. The tally is
 unchanged because Claude session #312/#318 were recorded after and outside the
 canonical numbered raw queue.
+
+### Entry 571 - Claude session #361 seller listing Hide/Delete lifecycle
+
+Entry 571 independently verifies and closes Claude session finding #361. The
+old seller action called a permanent, lossy operation Archive, inferred archive
+state from `HIDDEN + isPrivate`, kept archived rows in seller-facing lists,
+prevented private custom listings from using reversible Hide, and returned a
+generic dashboard error when order case-window retention blocked the action.
+
+Implemented on the isolated listing lifecycle candidate:
+
+- Added explicit nullable `Listing.archivedAt` with a bounded legacy backfill
+  and seller-list index. The backfill excludes current non-undone staff
+  `HOLD_LISTING` rows, while staff removal remains `REJECTED`; neither
+  moderation state is mistaken for seller archival.
+- Kept Hide reversible and allowed it for ordinary and private custom listings.
+- Replaced seller-facing Archive with one permanent Delete action. Its
+  owner-bound serializable transaction locks the exact listing and classifies
+  retained `OrderItem`, `Review`, `Conversation`, `Message`, custom-order, and
+  active checkout-reservation references through a narrow
+  `SECURITY DEFINER` function. This avoids forbidden direct reads from
+  FORCE-RLS tables and prevents an open paid checkout from racing a hard delete.
+- Hard delete requires DirectUpload lifecycle proof for every current photo,
+  original, and video URL, deletes Photo rows, then relies on the existing
+  Listing delete trigger to release the last media references and queue R2
+  cleanup. Any retained-history reference instead produces a hidden/private
+  row with `archivedAt`; its media remains available to
+  historical order snapshots.
+- Both outcomes remove carts, saves, and back-in-stock subscriptions. Seller
+  confirmation copy now describes permanence and those removals. The dashboard
+  surfaces the real order case-window block reason and no longer gives SOLD
+  listings a shop-only instruction.
+- Dashboard My Listings, owner shop, public visibility predicates, direct
+  listing detail, edit pages, and locked edit witnesses now treat `archivedAt`
+  as terminal. A stale edit cannot mutate or revive a deleted listing.
+- Removed the obsolete `listingSoftDelete.ts` implementation and updated its
+  documentation and source guard references.
+
+Independent review found two additional release blockers during this pass: the
+first implementation attempted direct runtime reads from policyless FORCE-RLS
+`OrderItem`, and the locked edit witness omitted `archivedAt`. Both were fixed
+before release. The same review identified the open-checkout race; active
+`RESERVED` and `SESSION_CREATED` reservations now block deletion until checkout
+completion or expiry, rather than hard-deleting or hiding a listing underneath
+an in-flight buyer payment. The classifier covers both inventory-backed
+`reservedItems` and the durable single/cart `sourceSnapshot` forms, including
+made-to-order checkouts whose inventory reservation is intentionally empty. The
+authority catalog parser was also corrected to key overloaded functions by
+exact identity, preventing a later overload from hiding an older direct-access
+definition.
+
+Verification at the source checkpoint:
+
+- Focused listing lifecycle, visibility, stock-lock, Order authority, checkout
+  expiry, and related regression coverage passed, including the exact 40-test
+  final listing package after the made-to-order checkout correction.
+- `tsc --noEmit`, `git diff --check`, dependency audit, and lint passed. Lint
+  retained six pre-existing warnings and produced zero errors.
+- A local production build compiled and type-checked, then stopped at the
+  expected database-first boundary because Production does not yet have
+  `Listing.archivedAt`. Exact diff security review, protected CI, Production
+  migration, post-migration build/deployment, and live validation remain the
+  release evidence still to record.
+- The first exact-head CI run then caught a historical replay mismatch: the
+  listing migration was intentionally absent while older Order releases were
+  replayed, but the shared authority catalog still required its new function.
+  The catalog now accepts the 35-function predecessor set only when the exact
+  migration is absent and CI has set the reviewed isolation marker; it returns
+  to the pinned 36-function set automatically when the migration is restored.
+  Present-tree and isolated-tree catalog tests both pass, and an unmarked
+  missing migration fails closed.
+- The replacement exact-head runs passed that catalog boundary and then exposed
+  a stale isolated PostgreSQL fixture in the stock-concurrency proof: updated
+  production lock SQL selected `Listing.archivedAt`, while the proof's private
+  shadow `Listing` table omitted the new nullable column, producing SQLSTATE
+  `42703` before any schedule ran. The fixture now mirrors the required column
+  and its contract test pins that shape; the proof remains in its historical
+  CI position and still runs exactly once.
+
+Current running tally after Entry 571: verified fixed/reduced 1104, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 86,
+approximate raw allegations left from current max #1126: 0. One deferred product
+finding moved to verified fixed; the historical raw finding remains preserved.

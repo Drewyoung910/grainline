@@ -2851,7 +2851,8 @@ WITH order_eligibility_authority(function_signature) AS (
     ('public."grainline_order_review_eligibility_lock"(text, text, bigint)'),
     ('public."grainline_order_report_target_access"(text, text, text)'),
     ('public."grainline_order_seller_verification_sales"(text, text)'),
-    ('public."grainline_listing_order_archive_blocked"(text, text, bigint)')
+    ('public."grainline_listing_order_archive_blocked"(text, text, bigint)'),
+    ('public."grainline_listing_delete_reference_state"(text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
@@ -2866,7 +2867,8 @@ WITH order_eligibility_authority(function_signature) AS (
     ('public."grainline_order_review_eligibility_lock"(text, text, bigint)'),
     ('public."grainline_order_report_target_access"(text, text, text)'),
     ('public."grainline_order_seller_verification_sales"(text, text)'),
-    ('public."grainline_listing_order_archive_blocked"(text, text, bigint)')
+    ('public."grainline_listing_order_archive_blocked"(text, text, bigint)'),
+    ('public."grainline_listing_delete_reference_state"(text, text)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

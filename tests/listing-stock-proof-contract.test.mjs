@@ -35,6 +35,7 @@ test("concurrency proof is wired only in disposable CI and verifies exact-schema
   assert.match(proof, /checkout-before-adjustment/);
   assert.match(proof, /adjustment-before-checkout/);
   assert.match(proof, /independent-adjustments/);
+  assert.match(proof, /"archivedAt" timestamp/);
   assert.match(proof, /DROP SCHEMA "\$\{schema\}" CASCADE/);
   assert.match(proof, /SELECT count\(\*\)::int AS n FROM pg_namespace WHERE nspname=\$1/);
   assert.doesNotMatch(proof, /ALTER ROLE|GRANT |REVOKE |prisma migrate/);

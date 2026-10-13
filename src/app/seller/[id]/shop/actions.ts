@@ -5,12 +5,12 @@ import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
+import { deleteListingWithCleanup, listingDeletePublicError } from "@/lib/listingDelete";
 import { ListingStatus, ListingType } from "@prisma/client";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import {
   STAFF_REMOVAL_REJECTION_REASON,
-  archiveListingBlockReason,
+  deleteListingBlockReason,
   hideListingBlockReason,
   markAvailableBlockReason,
   publishListingBlockReason,
@@ -132,7 +132,12 @@ export async function hideListingAction(listingId: string) {
   const blockReason = hideListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
   const result = await prisma.listing.updateMany({
-    where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE },
+    where: {
+      id: listingId,
+      sellerId: listing.sellerId,
+      status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
+      archivedAt: null,
+    },
     data: { status: ListingStatus.HIDDEN },
   });
   if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
@@ -180,21 +185,31 @@ export async function deleteListingAction(listingId: string) {
   const owned = await getOwnedListing(listingId);
   if (!owned.ok) return { ok: false, error: owned.error };
   const listing = owned.listing;
-  const blockReason = archiveListingBlockReason(listing);
+  const blockReason = deleteListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
-  // Soft delete: preserve order history, remove current shopping intent records.
+  let outcome: "deleted" | "archived";
   try {
-    await softDeleteListingWithCleanup(listingId, listing.seller.userId);
+    outcome = await deleteListingWithCleanup(listingId, listing.seller.userId);
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : "Could not archive this listing.",
+      error: listingDeletePublicError(error) ?? "Could not delete this listing.",
     };
   }
-  await syncGuildMemberListingThreshold(listing.sellerId);
-  queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_archive");
+  await syncGuildMemberListingThreshold(listing.sellerId).catch((error) => {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "seller_listing_delete_guild_threshold" },
+      extra: { listingId, sellerId: listing.sellerId },
+    });
+  });
+  queueCheckoutSessionExpiryForListing(
+    listingId,
+    listing.sellerId,
+    outcome === "archived" ? "listing_delete_archive" : "listing_delete_hard",
+  );
   revalidateListingSurfaces(listingId, listing.sellerId);
-  return { ok: true };
+  return { ok: true, outcome };
 }
 
 export async function withdrawListingReviewAction(listingId: string) {

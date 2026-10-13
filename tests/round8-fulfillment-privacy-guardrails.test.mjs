@@ -47,19 +47,19 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
     assert.match(accountDeletion, /within the case window/);
   });
 
-  it("blocks listing soft-delete for recent terminal orders inside the case window", () => {
-    const softDelete = source("src/lib/listingSoftDelete.ts");
+  it("blocks retained-history listing deletion for recent terminal orders inside the case window", () => {
+    const listingDelete = source("src/lib/listingDelete.ts");
     const eligibility = source(
       "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
     );
     const handbook = source("src/app/seller-handbook/page.tsx");
 
-    assert.match(softDelete, /import \{ CASE_WINDOW_DAYS \} from "@\/lib\/caseCreateState"/);
-    assert.match(softDelete, /LISTING_SOFT_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS/);
-    assert.match(softDelete, /getListingOrderArchiveBlocked/);
+    assert.match(listingDelete, /import \{ CASE_WINDOW_DAYS \} from "@\/lib\/caseCreateState"/);
+    assert.match(listingDelete, /LISTING_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS/);
+    assert.match(listingDelete, /getListingOrderArchiveBlocked/);
     assert.match(eligibility, /"fulfillmentStatus" = 'DELIVERED'[\s\S]*"deliveredAt" >= terminal_cutoff/);
     assert.match(eligibility, /"fulfillmentStatus" = 'PICKED_UP'[\s\S]*"pickedUpAt" >= terminal_cutoff/);
-    assert.match(softDelete, /Cannot delete a listing with open, active, or recently fulfilled orders inside the case window/);
+    assert.match(listingDelete, /Cannot delete a listing with open, active, or recently fulfilled orders inside the case window/);
     assert.doesNotMatch(handbook, /within 90 days/);
     assert.match(handbook, /within the 30-day case window after/);
   });
