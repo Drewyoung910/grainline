@@ -126,6 +126,7 @@ jobs:
           2b79282ad52c8f4f5c417eebeb1593b157bd66b8fd66d792185865383e1f5924 20261011170000_prepare_account_deletion_side_effect_claim_fence
           d132a70f9673815f8e789151761ed2da1031c5d58c8313c6dc25fe7c430a0ba9 20261011173000_prepare_account_deletion_media_key_fence
           86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b 20261011180000_enable_account_deletion_side_effect_rls
+          7bcb3ecfeab41ec457a58845e380b8837b21e75ac077ef0c045674ff1a4ce7ec 20261012120000_force_account_deletion_side_effect_rls
           MIGRATIONS
       - name: Isolate staged Core Order ENABLE from historical proof
         shell: bash
@@ -211,7 +212,8 @@ jobs:
             20261010160000_enable_clerk_webhook_event_rls \
             20261011170000_prepare_account_deletion_side_effect_claim_fence \
             20261011173000_prepare_account_deletion_media_key_fence \
-            20261011180000_enable_account_deletion_side_effect_rls
+            20261011180000_enable_account_deletion_side_effect_rls \
+            20261012120000_force_account_deletion_side_effect_rls
           do
             mv "$RUNNER_TEMP/$migration" "prisma/migrations/$migration"
           done

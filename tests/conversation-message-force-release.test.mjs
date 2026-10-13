@@ -278,6 +278,10 @@ describe("Conversation and Message FORCE release artifact", () => {
         "86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b",
         "20261011180000_enable_account_deletion_side_effect_rls",
       ],
+      [
+        "7bcb3ecfeab41ec457a58845e380b8837b21e75ac077ef0c045674ff1a4ce7ec",
+        "20261012120000_force_account_deletion_side_effect_rls",
+      ],
     ]) {
       assert.match(workflow, new RegExp(`${digest} ${migration}`));
       assert.ok(workflow.indexOf(`${digest} ${migration}`) > successorFence);
@@ -311,6 +315,7 @@ describe("Conversation and Message FORCE release artifact", () => {
       "20261011170000_prepare_account_deletion_side_effect_claim_fence",
       "20261011173000_prepare_account_deletion_media_key_fence",
       "20261011180000_enable_account_deletion_side_effect_rls",
+      "20261012120000_force_account_deletion_side_effect_rls",
     ]) {
       assert.match(restoreBlock, new RegExp(migration, "u"));
     }
