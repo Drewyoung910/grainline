@@ -375,6 +375,18 @@ inventory. The large notification core remains in that count so its provider
 and metric dependencies can be converted together rather than replacing its
 definition twice.
 
+The seventeenth isolated slice moves the three checkout reservation functions
+that directly consume seller provider or package state onto
+`SellerProfilePrivate`. Migration
+`20261013140000_move_checkout_seller_private_sql_callers` preserves the fixed
+function signatures, owners, security attributes and grants; public seller
+orderability continues to use `stripeAccountSupported`, while the provider id,
+provider version and default package dimensions come from the zero-direct
+companion. The disposable PostgreSQL checkout suite exercises the replacement
+functions through the restricted runtime, then restores the sealed predecessor
+definitions before replaying the historical activation/FORCE proofs. All 41
+PostgreSQL checks pass. Fourteen effective functions remain to convert.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
 direct authority on the companion. Phase 1 remains incomplete: currently

@@ -32,6 +32,10 @@ const sourceConsistencyMigration = fs.readFileSync(
   "prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency/migration.sql",
   "utf8",
 );
+const sellerPrivateCallerMigration = fs.readFileSync(
+  "prisma/migrations/20261013140000_move_checkout_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 const orderCheckoutSourceSnapshotCandidate = fs.readFileSync(
   "docs/rls-drafts/order-checkout-source-snapshot.sql",
   "utf8",
@@ -56,6 +60,7 @@ const predecessorWebhookBeginSource =
   stripeWebhookEventFunctionSources().grainline_stripe_webhook_begin;
 let db;
 let dataDirectory;
+let predecessorSellerPrivateFunctionDefinitions;
 
 const SOURCE_SCHEMA = String.raw`
   CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
@@ -74,12 +79,22 @@ const SOURCE_SCHEMA = String.raw`
     "displayName" varchar(100) NOT NULL DEFAULT 'Proof Seller',
     "stripeAccountId" varchar(255),
     "stripeAccountVersion" text,
+    "stripeAccountSupported" boolean NOT NULL DEFAULT true,
     "chargesEnabled" boolean NOT NULL DEFAULT false,
     "vacationMode" boolean NOT NULL DEFAULT false,
     "acceptingNewOrders" boolean NOT NULL DEFAULT true,
     "allowLocalPickup" boolean NOT NULL DEFAULT false,
     "offersGiftWrapping" boolean NOT NULL DEFAULT false,
     "giftWrappingPriceCents" integer,
+    "defaultPkgWeightGrams" integer,
+    "defaultPkgLengthCm" double precision,
+    "defaultPkgWidthCm" double precision,
+    "defaultPkgHeightCm" double precision
+  );
+  CREATE TABLE public."SellerProfilePrivate" (
+    "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id) ON DELETE CASCADE,
+    "stripeAccountId" varchar(255),
+    "stripeAccountVersion" text,
     "defaultPkgWeightGrams" integer,
     "defaultPkgLengthCm" double precision,
     "defaultPkgWidthCm" double precision,
@@ -520,6 +535,20 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
     await db.exec(SOURCE_SCHEMA);
     await db.exec(draft);
     await db.exec(sourceConsistencyMigration);
+    predecessorSellerPrivateFunctionDefinitions = rows(await db.query(`
+      SELECT pg_catalog.pg_get_functiondef(procedure.oid) AS definition
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = procedure.pronamespace
+       WHERE namespace.nspname = 'public'
+         AND procedure.proname IN (
+           'grainline_checkout_reservation_create_cart',
+           'grainline_checkout_reservation_create_single',
+           'grainline_checkout_reservation_seller_witness'
+         )
+       ORDER BY procedure.proname
+    `)).map(({ definition }) => definition);
+    assert.equal(predecessorSellerPrivateFunctionDefinitions.length, 3);
     await db.exec(`
       INSERT INTO public."User" (id) VALUES
         ('buyer-a'), ('buyer-b'), ('seller-user'), ('seller-user-b'),
@@ -539,6 +568,15 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
         'source-seller', 'source-seller-user', 'Source Shop', 'acct_source', 'v2',
         true, false, true, true, true, 400, 1200, 30, 20, 10
       );
+      INSERT INTO public."SellerProfilePrivate" (
+        "sellerProfileId", "stripeAccountId", "stripeAccountVersion",
+        "defaultPkgWeightGrams", "defaultPkgLengthCm", "defaultPkgWidthCm",
+        "defaultPkgHeightCm"
+      )
+      SELECT id, "stripeAccountId", "stripeAccountVersion",
+             "defaultPkgWeightGrams", "defaultPkgLengthCm", "defaultPkgWidthCm",
+             "defaultPkgHeightCm"
+        FROM public."SellerProfile";
       INSERT INTO public."Cart" (id, "userId") VALUES
         ('cart-a', 'buyer-a'),
         ('source-cart', 'source-buyer');
@@ -577,6 +615,7 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
         ('source-oak', 'source-wood', 'Oak', 0, 0, true),
         ('source-walnut', 'source-wood', 'Walnut', 500, 1, true);
     `);
+    await db.exec(sellerPrivateCallerMigration);
   });
 
   after(async () => {
@@ -646,6 +685,38 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       can_read_private_witness: false,
       can_call_private_variant_validator: false,
     });
+  });
+
+  it("sources checkout provider and package witnesses from the private companion", async () => {
+    const definitions = rows(await db.query(`
+      SELECT procedure.proname AS name,
+             pg_catalog.pg_get_functiondef(procedure.oid) AS definition
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = procedure.pronamespace
+       WHERE namespace.nspname = 'public'
+         AND procedure.proname IN (
+           'grainline_checkout_reservation_create_cart',
+           'grainline_checkout_reservation_create_single',
+           'grainline_checkout_reservation_seller_witness'
+         )
+       ORDER BY procedure.proname
+    `));
+    assert.equal(definitions.length, 3);
+    for (const { definition } of definitions) {
+      assert.match(definition, /public\."SellerProfilePrivate"/);
+      assert.doesNotMatch(definition, /seller\."stripeAccount(?:Id|Version)"/);
+    }
+    assert.equal(
+      rows(await db.query(`
+        SELECT pg_catalog.has_table_privilege(
+          'grainline_app_runtime',
+          'public."SellerProfilePrivate"',
+          'SELECT'
+        ) AS can_select
+      `))[0].can_select,
+      false,
+    );
   });
 
   it("creates from the exact single-statement source witness as the restricted runtime", async () => {
@@ -1022,6 +1093,10 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
   });
 
   it("proves the source-consistent function catalog through the runtime role", async () => {
+    // The successor migration above is proved through real checkout calls first.
+    // Restore the sealed predecessor definitions before replaying its immutable
+    // catalog, activation, FORCE, and rollback evidence below.
+    await db.exec(predecessorSellerPrivateFunctionDefinitions.join("\n;\n"));
     await db.exec("SET ROLE grainline_app_runtime");
     try {
       await db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");

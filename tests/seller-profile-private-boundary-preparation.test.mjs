@@ -29,6 +29,10 @@ const supportedCallerMigration = readFileSync(
   "prisma/migrations/20261013130000_move_seller_supported_snapshot_sql_callers/migration.sql",
   "utf8",
 );
+const checkoutCallerMigration = readFileSync(
+  "prisma/migrations/20261013140000_move_checkout_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
@@ -243,6 +247,34 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(supportedCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
     assert.doesNotMatch(supportedCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
     assert.doesNotMatch(supportedCallerMigration, /GRANT\s|REVOKE\s/i);
+  });
+
+  it("moves checkout SQL callers onto the private companion", () => {
+    const callers = [
+      "grainline_checkout_reservation_create_cart",
+      "grainline_checkout_reservation_create_single",
+      "grainline_checkout_reservation_seller_witness",
+    ];
+
+    for (const caller of callers) {
+      assert.match(
+        checkoutCallerMigration,
+        new RegExp(`CREATE OR REPLACE FUNCTION public\\.${caller}\\(`),
+      );
+    }
+    assert.equal(
+      checkoutCallerMigration.match(/CREATE OR REPLACE FUNCTION public\./g)?.length,
+      callers.length,
+    );
+    assert.match(checkoutCallerMigration, /public\."SellerProfilePrivate"/);
+    assert.doesNotMatch(checkoutCallerMigration, /seller\."stripeAccount(?:Id|Version)"/);
+    assert.doesNotMatch(
+      checkoutCallerMigration,
+      /seller\."defaultPkg(?:WeightGrams|LengthCm|WidthCm|HeightCm)"/,
+    );
+    assert.match(checkoutCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(checkoutCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
+    assert.doesNotMatch(checkoutCallerMigration, /GRANT\s|REVOKE\s/i);
   });
 
   it("keeps the companion inaccessible to ordinary runtime and PUBLIC", () => {
