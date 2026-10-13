@@ -333,11 +333,20 @@ deletion now pauses and anonymizes the expected user-owned seller row through
 one fail-closed boundary. Focused source/behavior suites and TypeScript pass for
 each slice.
 
+The twelfth isolated slice centralizes both Guild cron scans and every Guild
+metric/revocation SellerProfile mutation behind `sellerGuildPrivateAccess.ts`.
+The daily member check retains its case and listing-threshold rechecks inside
+the audit transaction, while the monthly metrics job retains its warning grace,
+fresh-metrics revocation check, exact state predicates and co-committed system
+audit. The two cron routes now contain zero direct SellerProfile reads or
+writes.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
-direct authority on the companion. Phase 1 remains incomplete: Guild/cron
-state, checkout and currently effective SQL-function dependencies must move to
-purpose-bound private operations before predecessor columns can be retired.
+direct authority on the companion. Phase 1 remains incomplete: staff and owner
+Guild state, checkout and currently effective SQL-function dependencies must
+move to purpose-bound private operations before predecessor columns can be
+retired.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

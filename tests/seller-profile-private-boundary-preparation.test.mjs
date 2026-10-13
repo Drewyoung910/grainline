@@ -319,6 +319,9 @@ describe("SellerProfile private-boundary additive preparation", () => {
     const onboardingActions = readFileSync("src/app/dashboard/onboarding/actions.ts", "utf8");
     const shopSettings = readFileSync("src/app/dashboard/seller/page.tsx", "utf8");
     const profileEditor = readFileSync("src/app/dashboard/profile/page.tsx", "utf8");
+    const guildMemberCron = readFileSync("src/app/api/cron/guild-member-check/route.ts", "utf8");
+    const guildMetricsCron = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+    const guildPrivateAccess = readFileSync("src/lib/sellerGuildPrivateAccess.ts", "utf8");
     const accountExport = readFileSync("src/app/api/account/export/route.ts", "utf8");
     assert.match(onboarding, /sellerOwnerOnboardingState\(seller\.id\)/);
     assert.match(accountExport, /sellerOwnerExportProfile\(user\.id\)/);
@@ -326,6 +329,8 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.doesNotMatch(onboardingActions, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(shopSettings, /prisma\.sellerProfile\./);
     assert.doesNotMatch(profileEditor, /(?:prisma|tx)\.sellerProfile\./);
+    assert.doesNotMatch(guildMemberCron, /(?:prisma|tx)\.sellerProfile\./);
+    assert.doesNotMatch(guildMetricsCron, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(accountExport, /prisma\.sellerProfile\./);
     assert.match(ownerPrivateAccess, /sellerOwnerOnboardingSelect/);
     assert.match(ownerPrivateAccess, /sellerOwnerExportSelect/);
@@ -344,6 +349,13 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(profileEditor, /clearSellerOwnerAvatar/);
     assert.match(profileEditor, /sellerOwnerFeaturedListingIds/);
     assert.match(profileEditor, /updateSellerOwnerFeaturedListingIds/);
+    assert.match(guildMemberCron, /sellerGuildMemberCronBatch/);
+    assert.match(guildMemberCron, /recordSellerGuildMemberRevocation/);
+    assert.match(guildMetricsCron, /sellerGuildMetricsCronBatch/);
+    assert.match(guildMetricsCron, /recordSellerGuildMetricCheck/);
+    assert.match(guildMetricsCron, /recordSellerGuildMasterRevocation/);
+    assert.match(guildPrivateAccess, /guildMemberRevocationSellerWhere/);
+    assert.match(guildPrivateAccess, /metricWarningSentAt: \{ lte: input\.warningSentBefore \}/);
     assert.match(ownerPrivateAccess, /where: \{ id: input\.sellerProfileId, userId: input\.userId \}/);
   });
 

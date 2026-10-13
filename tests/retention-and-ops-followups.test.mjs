@@ -99,22 +99,24 @@ describe("retention and ops-health follow-ups", () => {
 
   it("keeps Guild Master revocation behind a real 30-day warning grace", () => {
     const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+    const access = readFileSync("src/lib/sellerGuildPrivateAccess.ts", "utf8");
 
     assert.match(source, /const GUILD_MASTER_WARNING_GRACE_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
-    assert.match(source, /metricWarningSentAt: true/);
+    assert.match(access, /metricWarningSentAt: true/);
     assert.match(source, /now\.getTime\(\) - warningSentAt\.getTime\(\) < GUILD_MASTER_WARNING_GRACE_MS/);
-    assert.match(source, /metricWarningSentAt: warningSentAt \?\? now/);
+    assert.match(source, /warningSentAt: warningSentAt \?\? now/);
     assert.match(source, /const revocationCutoff = new Date\(now\.getTime\(\) - GUILD_MASTER_WARNING_GRACE_MS\)/);
-    assert.match(source, /metricWarningSentAt: \{ lte: revocationCutoff \}/);
+    assert.match(access, /metricWarningSentAt: \{ lte: input\.warningSentBefore \}/);
   });
 
   it("rechecks Guild Master metrics immediately before revocation", () => {
     const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+    const access = readFileSync("src/lib/sellerGuildPrivateAccess.ts", "utf8");
 
     assert.match(source, /const revocationMetrics = await calculateSellerMetrics\(seller\.id\)/);
     assert.match(source, /const revocationCriteria = meetsGuildMasterRequirements\(revocationMetrics\)/);
     assert.match(source, /if \(revocationCriteria\.allMet\) \{/);
-    assert.match(source, /consecutiveMetricFailures: 0,\s*metricWarningSentAt: null,\s*lastMetricCheckAt: now/s);
+    assert.match(access, /consecutiveMetricFailures: 0,\s*metricWarningSentAt: null,\s*lastMetricCheckAt: input\.checkedAt/s);
     assert.ok(
       source.indexOf("const revocationMetrics = await calculateSellerMetrics(seller.id)") <
         source.indexOf("const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS)"),

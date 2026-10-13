@@ -51,8 +51,11 @@ compatibility module. A ninth moves seller onboarding reads and writes behind
 owner-bound purpose-specific operations. A tenth does the same for shop-settings,
 including private ship-from data and best-effort metro assignment. An eleventh
 moves seller profile-editor reads, profile/avatar updates and featured-listing
-state behind the same owner-bound boundary. The fixed database operations,
-Guild/cron state, checkout and effective SQL-function families remain.
+state behind the same owner-bound boundary. A twelfth centralizes the daily and
+monthly Guild cron scans and guarded state transitions while preserving their
+transactional verification/audit coupling. The fixed database operations,
+staff and owner Guild state, checkout and effective SQL-function families
+remain.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

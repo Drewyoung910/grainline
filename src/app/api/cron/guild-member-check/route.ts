@@ -15,9 +15,13 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import {
-  guildMemberRevocationSellerWhere,
   type GuildMemberRevocationGuard,
 } from "@/lib/guildMemberRevocationState";
+import {
+  recordSellerGuildMemberRevocation,
+  sellerGuildMemberCronBatch,
+  type SellerGuildMemberCronRow,
+} from "@/lib/sellerGuildPrivateAccess";
 import { getCaseGuildUnresolvedGuard } from "@/lib/caseSellerAggregateAuthority";
 import {
   GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
@@ -92,24 +96,10 @@ async function runGuildMemberCheckCron() {
 }
 
 async function fetchGuildMemberBatch(cursorId: string | null) {
-  return prisma.sellerProfile.findMany({
-    where: {
-      guildLevel: "GUILD_MEMBER",
-      vacationMode: false,
-    },
-    orderBy: { id: "asc" },
-    take: SELLER_PAGE_SIZE,
-    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-    select: {
-      id: true,
-      userId: true,
-      guildLevel: true,
-      listingsBelowThresholdSince: true,
-    },
-  });
+  return sellerGuildMemberCronBatch(cursorId, SELLER_PAGE_SIZE);
 }
 
-type GuildMemberSeller = Awaited<ReturnType<typeof fetchGuildMemberBatch>>[number];
+type GuildMemberSeller = SellerGuildMemberCronRow;
 
 async function checkGuildMemberSeller(
   seller: GuildMemberSeller,
@@ -172,14 +162,9 @@ async function revokeMember(
       });
       if (verificationUpdated.count === 0) return null;
 
-      const updated = await tx.sellerProfile.updateMany({
-        where: guildMemberRevocationSellerWhere(seller.id, guard),
-        data: {
-          guildLevel: "NONE",
-          isVerifiedMaker: false,
-          consecutiveMetricFailures: 0,
-          metricWarningSentAt: null,
-        },
+      const updated = await recordSellerGuildMemberRevocation(tx, {
+        sellerProfileId: seller.id,
+        guard,
       });
       assertGuildVerificationTransition(updated.count, "revoke Guild Member");
 
