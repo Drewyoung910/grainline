@@ -229,6 +229,10 @@ jobs:
           tests/user-email-address-force-release.test.mjs
           tests/user-email-address-force-postgres-proof.test.mjs
           tests/user-email-address-force-production-workflow.test.mjs
+      - name: Verify SellerProfile private-boundary source package
+        run: >-
+          node --test
+          tests/seller-profile-private-boundary-preparation.test.mjs
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
@@ -1060,6 +1064,17 @@ jobs:
           do
             mv "prisma/migrations/$migration" "$destination/$migration"
           done
+      - name: Isolate SellerProfile private-boundary migration from historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-private-boundary"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261013120000_prepare_seller_profile_private_boundary \
+            "$holding/20261013120000_prepare_seller_profile_private_boundary"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true" >> "$GITHUB_ENV"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=$holding/20261013120000_prepare_seller_profile_private_boundary/migration.sql" >> "$GITHUB_ENV"
       - name: Verify compatible Order account-deletion authority
         run: >-
           node --test
@@ -5569,6 +5584,54 @@ jobs:
           RESET ROLE;
           SQL
       - name: Audit runtime grants after seller listing Hide/Delete migration
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+      - name: Restore SellerProfile private-boundary migration after all predecessors
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/seller-profile-private-boundary/20261013120000_prepare_seller_profile_private_boundary" \
+            prisma/migrations/20261013120000_prepare_seller_profile_private_boundary
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=" >> "$GITHUB_ENV"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Apply SellerProfile private-boundary migration in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql
+      - name: Stage exact SellerProfile private-boundary migration ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261013120000_prepare_seller_profile_private_boundary
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'seller-profile-private-boundary-ci', :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Converge runtime grants after SellerProfile private boundary
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Prove SellerProfile private boundary in ephemeral PostgreSQL
+        run: npm run audit:seller-profile-private-boundary-postgres
+        env:
+          SELLER_PROFILE_PRIVATE_BOUNDARY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Audit runtime grants after SellerProfile private boundary
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime

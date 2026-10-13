@@ -4,6 +4,31 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Split SellerProfile public and private authority (updated 2026-10-13)
+
+The User-family RLS program and the separately tracked
+`AccountDeletionSideEffect` and `ClerkWebhookEvent` ledgers are accepted through
+policyless FORCE in Production. The next RLS domain is SellerProfile, which is
+not a simple owner table: one row combines public maker/shop content with
+ship-from contact/address, Stripe and reconciliation state, conditional exact
+coordinates, staff/Guild state, onboarding and analytics.
+
+Follow `docs/seller-profile-private-boundary-pre-rls-audit.md`. The approved
+first implementation boundary is additive compatibility only: create and
+backfill a one-to-one private operational companion, maintain temporary
+transactional convergence, and add a public-safe availability snapshot. Then
+convert explicit public, owner, Stripe, shipping, staff/cron, export/deletion
+and effective database-function callers. Do not drop predecessor columns,
+revoke grants or enable SellerProfile RLS until the converted application is
+live, predecessor deployments are drained, installed function/grant state is
+inspected, and rollback is proved. Keep CommissionRequest as a separate release.
+
+The Phase 0 source candidate is now prepared and has passed focused source
+checks, Prisma validation and an exact-migration rollback-only PostgreSQL 16
+proof. The next release action is review/merge and guarded additive migration;
+Phase 1 caller conversion may proceed in isolated source but cannot deploy
+before the companion is installed.
+
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 
 `UserEmailAddress` is complete in Production through policyless FORCE from

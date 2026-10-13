@@ -2228,8 +2228,9 @@ REVOKE EXECUTE ON FUNCTION
 \endif
 \unset checkout_stock_reservation_rls_active
 
--- These owner-operated ledgers sit behind fixed functions. They intentionally
--- have FORCE RLS with zero policies and no runtime/PUBLIC table authority.
+-- These private ledgers have no runtime/PUBLIC table authority. Most sit
+-- behind fixed functions with policyless FORCE RLS; SellerProfilePrivate is
+-- an additive pre-RLS companion whose function conversion happens later.
 SELECT format(
   'REVOKE ALL ON TABLE public.%I FROM PUBLIC, %I',
   private_table.table_name,
@@ -2243,9 +2244,25 @@ FROM (
     ('CaseOpenApplication'),
     ('DirectUploadReference'),
     ('OrderDisputeRecovery'),
-    ('OrderRefundReconciliation')
+    ('OrderRefundReconciliation'),
+    ('SellerProfilePrivate')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
+\gexec
+
+-- Phase 0 creates these trigger functions without PUBLIC or ordinary-runtime
+-- execution. Re-provisioning must converge that zero-direct boundary too.
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM (
+  VALUES
+    ('public.grainline_seller_profile_private_mirror()'),
+    ('public.grainline_seller_profile_supported_snapshot()')
+) AS private_function(function_signature)
+WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
 -- DirectUpload preparation may be absent before its reviewed migrations.

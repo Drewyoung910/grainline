@@ -5,7 +5,10 @@ import { PGlite } from "@electric-sql/pglite";
 import { createOrderZeroDirectReleaseScope } from "../scripts/order-zero-direct-release-scope.mjs";
 import { createCorrectionReleasePackage, CORRECTION_RELEASE_LEDGER_QUERY } from "../scripts/order-correction-release-package.mjs";
 import { correctionProofAppliedRow, correctionProofHistoricalLedger } from "../scripts/order-correction-release-package-postgres-proof.mjs";
-import { parseZeroDirectScopeProofConfig } from "../scripts/order-zero-direct-release-scope-postgres-proof.mjs";
+import {
+  parseZeroDirectScopeProofConfig,
+  zeroDirectScopeCiAuditOptions,
+} from "../scripts/order-zero-direct-release-scope-postgres-proof.mjs";
 import { expectedZeroDirectSchema } from "../scripts/order-zero-direct-release-schema.mjs";
 import { createZeroDirectSchemaBase, applyZeroDirectSchemaMember } from "./helpers/order-zero-direct-schema-fixture.mjs";
 import { zeroDirectRoleFixture } from "./helpers/order-zero-direct-role-fixture.mjs";
@@ -172,6 +175,18 @@ test("native proof accepts only the disposable loopback owner and does not wire 
   assert.equal(parse(url).databaseUrl, url);
   for (const value of [undefined, url.replace("localhost", "prod.neon.tech"), url.replace("grainline_ci", "neondb"),
     url.replace("//ci:", "//neondb_owner:"), url + "&host=other", url + "#other"]) assert.throws(() => parse(value));
+  assert.deepEqual(
+    zeroDirectScopeCiAuditOptions({
+      GITHUB_ACTIONS: "true",
+      SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "true",
+    }),
+    { temporarilyAbsentTables: ["SellerProfilePrivate"] },
+  );
+  assert.deepEqual(zeroDirectScopeCiAuditOptions({}), { temporarilyAbsentTables: [] });
+  for (const env of [
+    { SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "true" },
+    { GITHUB_ACTIONS: "true", SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "yes" },
+  ]) assert.throws(() => zeroDirectScopeCiAuditOptions(env));
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   assert.ok(workflow.indexOf("Prove exact zero-direct release catalog") > workflow.indexOf("Converge Order participant runtime grants"));
   for (const path of [".github/workflows/production-migrations.yml", ".github/workflows/order-compatible-production.yml"])

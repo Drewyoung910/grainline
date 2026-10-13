@@ -68,12 +68,18 @@ export function assertZeroDirectConfiguration(row) {
     read_only: true, repeatable_read: true }, "unreviewed role/database configuration or transaction posture");
 }
 
-export async function auditZeroDirectAuthority(client, inventoryState, owner) {
+export async function auditZeroDirectAuthority(
+  client,
+  inventoryState,
+  owner,
+  { temporarilyAbsentTables = [] } = {},
+) {
   const configuration = await readZeroDirectConfiguration(client, owner);
   assertZeroDirectConfiguration(configuration);
   const issues = await auditLiveDatabase({ client, runtimeRole: "grainline_app_runtime",
     migrationRole: owner, inventory: inventoryState.inventory,
-    staffReadStage: ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE });
+    staffReadStage: ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE,
+    temporarilyAbsentTables });
   // No raw audit diagnostics or database identifiers enter portable evidence.
   assert.ok(Array.isArray(issues) && issues.length === 0, "global authority audit rejected the exact prefix");
   return { prefixLength: inventoryState.prefixLength, inventorySha256: inventoryState.sha256,

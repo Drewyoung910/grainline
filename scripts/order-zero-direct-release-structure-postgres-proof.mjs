@@ -3,7 +3,11 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
-import { parseZeroDirectScopeProofConfig, proveZeroDirectReleaseScope } from "./order-zero-direct-release-scope-postgres-proof.mjs";
+import {
+  parseZeroDirectScopeProofConfig,
+  proveZeroDirectReleaseScope,
+  zeroDirectScopeCiAuditOptions,
+} from "./order-zero-direct-release-scope-postgres-proof.mjs";
 import { assertZeroDirectSchema, readZeroDirectSchema } from "./order-zero-direct-release-schema.mjs";
 import { assertZeroDirectRoles, readZeroDirectRoles } from "./order-zero-direct-release-roles.mjs";
 import { verifyInputRuntimeIdentity } from "./order-input-correction-runtime-postgres-proof.mjs";
@@ -19,7 +23,8 @@ export async function runZeroDirectStructureProof(env = process.env) {
   try {
     await verifyInputRuntimeIdentity(client, "grainline_ci", "ci", env.GITHUB_ACTIONS === "true");
     await verifyRepairProofRole(client, true);
-    await proveZeroDirectReleaseScope(client);
+    const auditOptions = zeroDirectScopeCiAuditOptions(env);
+    await proveZeroDirectReleaseScope(client, auditOptions);
     const schema = await readZeroDirectSchema(client, "ci");
     const roles = await readZeroDirectRoles(client, "ci");
     const changes = [
@@ -52,7 +57,8 @@ export async function runZeroDirectStructureProof(env = process.env) {
           denials += 1;
         } else if (kind === "global") {
           const issues = await auditLiveDatabase({ client, runtimeRole: "grainline_app_runtime",
-            migrationRole: "ci", inventory: deriveGrantInventory() });
+            migrationRole: "ci", inventory: deriveGrantInventory(),
+            temporarilyAbsentTables: auditOptions.temporarilyAbsentTables });
           assert.ok(issues.length > 0, "global drift escaped existing authority audit");
           denials += 1;
         } else if (kind === "roles") {
@@ -68,7 +74,7 @@ export async function runZeroDirectStructureProof(env = process.env) {
       assert.deepEqual(await readZeroDirectSchema(client, "ci"), schema, "schema probe left residue");
       assert.deepEqual(await readZeroDirectRoles(client, "ci"), roles, "role probe left residue");
     }
-    await proveZeroDirectReleaseScope(client);
+    await proveZeroDirectReleaseScope(client, auditOptions);
     return { status: "passed", nativeDenials: denials, outOfScopeControl: 1,
       schemaRecords: schema.length, rolledBack: true, productionChanged: false,
       productionExecutionAuthorized: false };
