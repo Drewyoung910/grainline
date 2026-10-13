@@ -31,7 +31,7 @@ const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 async function findOwnedListing(listingId: string, ownerId: string) {
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    include: { seller: true },
+    include: { seller: { select: { userId: true, displayName: true } } },
   });
   if (!listing || listing.seller.userId !== ownerId) return null;
   return listing;

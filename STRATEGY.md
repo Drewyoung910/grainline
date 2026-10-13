@@ -34,9 +34,11 @@ search, commission-interest, stock-notification and conversation eligibility
 now use the derived `stripeAccountSupported` snapshot instead of the private
 provider-version diagnostic. Exact version reads remain intentionally in
 checkout, Stripe, reconciliation, export and deletion paths until those
-families receive purpose-bound private operations. This slice stays stacked
-behind Phase 0; broad owner/cart reads and the provider, shipping, staff,
-export, deletion and effective SQL-function families remain.
+families receive purpose-bound private operations. The next stacked slice
+removes all nine nested `seller: true` reads with explicit checkout, quote and
+ownership projections plus a recursive zero-count guard. These slices stay
+stacked behind Phase 0; three direct broad owner reads and the provider,
+shipping, staff, export, deletion and effective SQL-function families remain.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

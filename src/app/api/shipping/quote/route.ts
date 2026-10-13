@@ -34,6 +34,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerCartForShippingQuote, ownerCartForShippingQuoteById } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
+import { listingSellerOrderStateSelect } from "@/lib/sellerProfileSelects";
 import { buildShippoCheckoutQuoteShipment } from "@/lib/shippingQuoteProvider";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { normalizeUsState } from "@/lib/usStates";
@@ -481,7 +482,7 @@ export async function POST(req: Request) {
       const listing = await prisma.listing.findUnique({
         where: { id: body.listingId ?? "" },
         include: {
-          seller: true,
+          seller: { select: listingSellerOrderStateSelect },
           variantGroups: { include: { options: true } },
         },
       });

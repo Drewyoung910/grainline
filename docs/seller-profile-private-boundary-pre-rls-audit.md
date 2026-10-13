@@ -128,24 +128,26 @@ scalar fields:
 - `src/app/dashboard/profile/page.tsx` (authenticated seller profile editor,
   with FAQs).
 
-Nine nested Listing/Cart reads use `seller: true`:
+The nine nested Listing/Cart reads that used `seller: true` have been converted
+to explicit projections:
 
 - three checkout/shipping helpers in `src/lib/cartOwnerAccess.ts`;
 - three authenticated seller dashboard queries;
 - cart-add and shipping-quote routes; and
 - the authenticated seller shop action ownership lookup.
 
-Those broad reads are not presently serialized directly to a public response.
-Public seller, listing, browse, map and card pages use narrow projections, and
-the existing Round 8 guard covers three primary public RSC surfaces. Therefore
-this audit did not confirm a current public response leaking ship-from,
-provider or reconciliation data.
+The converted checkout and quote projections retain only the provider fields
+that those paths currently require; dashboard ownership checks select only the
+owner id, and the shop action adds the seller display name required for
+notification fanout. A recursive source guard now rejects any reintroduction
+of `seller: true`. Public seller, listing, browse, map and card pages also use
+narrow projections. This audit did not confirm a current public response
+leaking ship-from, provider or reconciliation data.
 
-The guard remains incomplete: it is not recursive, does not cover every public
-surface, and does not fail on future `seller: true`, broad scalar reads or new
-sensitive fields. That gap is `FIX_BEFORE_ACTIVATION` and should be closed
-during the application conversion, when the legitimate owner/staff/service
-allowlist is known.
+The guard remains incomplete for direct scalar reads: it does not yet reject
+the three owner-side broad reads or all future sensitive-field additions. That
+remaining gap is `FIX_BEFORE_ACTIVATION` and will close as the legitimate
+owner/staff/service projections are converted.
 
 Historical SQL is also a compatibility dependency. The source contains 116
 migration files that mention SellerProfile. Multiple currently relevant Order,
@@ -193,8 +195,8 @@ redefined additively before the predecessor column is dropped.
 
 ### `FIX_BEFORE_ACTIVATION`
 
-1. Replace the three direct broad reads and nine nested `seller: true` reads
-   with explicit projections or private-boundary helpers.
+1. Replace the three remaining direct broad reads with explicit projections or
+   private-boundary helpers. The nine nested `seller: true` reads are closed.
 2. Add a recursive source guard with an exact sensitive-field inventory and
    reviewed public/owner/staff/service allowlists.
 3. Move conditional coordinate disclosure into a bounded database or server
@@ -294,10 +296,17 @@ focused tests pass for this slice. This is prepared source only; it must stay
 stacked behind Phase 0 and is not evidence of a Production schema or
 application change.
 
-Phase 1 remains incomplete. The next slices must replace broad owner and cart
-seller reads, then convert provider/shipping, staff/export/deletion and
-currently effective SQL-function dependencies to explicit operations before
-the predecessor columns can be retired.
+The second isolated Phase 1 slice removes every nested `seller: true` read.
+Checkout and shipping share explicit seller-state projections; dashboard and
+shop ownership checks request only the fields they consume. A recursive source
+guard makes the zero-count invariant durable. Exact provider-version reads
+remain intentionally limited to checkout eligibility until that family moves
+to purpose-bound private operations.
+
+Phase 1 remains incomplete. The next slice must replace the three direct broad
+owner reads, then convert provider/shipping, staff/export/deletion and currently
+effective SQL-function dependencies to explicit operations before the
+predecessor columns can be retired.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

@@ -58,7 +58,7 @@ async function setStatus(
 
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    include: { seller: true },
+    include: { seller: { select: { userId: true } } },
   });
   if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
   if (listing.archivedAt) {
@@ -134,7 +134,7 @@ async function deleteListing(
 
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    include: { seller: true },
+    include: { seller: { select: { userId: true } } },
   });
   if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
   const blockReason = deleteListingBlockReason(listing);
@@ -198,7 +198,7 @@ async function withdrawListingReview(
 
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    include: { seller: true },
+    include: { seller: { select: { userId: true } } },
   });
   if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
   const blockReason = withdrawReviewBlockReason(listing);

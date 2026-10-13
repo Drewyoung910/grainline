@@ -938,6 +938,7 @@ describe("RLS feasibility plan guardrails", () => {
 
   it("centralizes Cart and CartItem owner reads and writes for the parent-join RLS prototype", () => {
     const ownerAccess = source("src/lib/cartOwnerAccess.ts");
+    const sellerSelects = source("src/lib/sellerProfileSelects.ts");
     const cartRoute = source("src/app/api/cart/route.ts");
     const cartAdd = source("src/app/api/cart/add/route.ts");
     const cartUpdate = source("src/app/api/cart/update/route.ts");
@@ -965,6 +966,8 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
     assert.match(ownerAccess, /export async function ownerCartExportRows/);
+    assert.match(ownerAccess, /seller: \{ select: cartCheckoutSellerSelect \}/);
+    assert.match(ownerAccess, /seller: \{ select: listingSellerOrderStateSelect \}/);
     assert.match(ownerAccess, /db\.cart\.findUnique/);
     assert.match(ownerAccess, /db\.cart\.findFirst/);
     assert.match(ownerAccess, /db\.cart\.upsert/);
@@ -993,6 +996,19 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(shippingQuote, /ownerCartForShippingQuoteById\(me\.id, body\.cartId, body\.sellerId\)/);
     assert.match(shippingQuote, /ownerCartForShippingQuote\(me\.id, body\.sellerId\)/);
     assert.match(accountExport, /ownerCartExportRows\(user\.id\)/);
+    assert.match(sellerSelects, /export const listingSellerOrderStateSelect/);
+    assert.match(sellerSelects, /stripeAccountVersion: true/);
+    assert.match(sellerSelects, /export const cartCheckoutSellerSelect/);
+    assert.doesNotMatch(sellerSelects, /shipFrom|manualStripeReconciliation|guildMasterReviewNotes/);
+
+    const broadSellerRelationReads = sourceFiles("src").filter((file) =>
+      /\bseller\s*:\s*true\b/u.test(source(file))
+    );
+    assert.deepEqual(
+      broadSellerRelationReads,
+      [],
+      "SellerProfile relations must use an explicit reviewed projection",
+    );
   });
 
   it("blocks new direct owner-style Cart and CartItem access outside the owner helper", () => {

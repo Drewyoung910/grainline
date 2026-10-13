@@ -1,5 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import {
+  cartCheckoutSellerSelect,
+  listingSellerOrderStateSelect,
+} from "@/lib/sellerProfileSelects";
 
 export type CartOwnerAccessClient = Pick<Prisma.TransactionClient, "cart" | "cartItem" | "$queryRaw">;
 
@@ -253,7 +257,7 @@ export async function ownerCartForCheckoutSeller(
         include: {
           listing: {
             include: {
-              seller: true,
+              seller: { select: cartCheckoutSellerSelect },
               photos: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
               variantGroups: { include: { options: true } },
             },
@@ -301,7 +305,7 @@ export async function ownerCartForShippingQuoteById(
         include: {
           listing: {
             include: {
-              seller: true,
+              seller: { select: listingSellerOrderStateSelect },
             },
           },
         },
@@ -323,7 +327,7 @@ export async function ownerCartForShippingQuote(
         include: {
           listing: {
             include: {
-              seller: true,
+              seller: { select: listingSellerOrderStateSelect },
             },
           },
         },
