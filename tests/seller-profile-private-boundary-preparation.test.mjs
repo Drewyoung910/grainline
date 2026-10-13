@@ -68,6 +68,14 @@ const accountDeletionPrivateAccess = readFileSync(
   "src/lib/sellerAccountDeletionPrivateAccess.ts",
   "utf8",
 );
+const guildStaffPrivateAccess = readFileSync(
+  "src/lib/sellerGuildStaffPrivateAccess.ts",
+  "utf8",
+);
+const adminVerification = readFileSync(
+  "src/app/admin/verification/page.tsx",
+  "utf8",
+);
 const PRIVATE_FIELDS = Object.freeze([
   "stripeAccountId",
   "stripeAccountVersion",
@@ -102,6 +110,40 @@ const PRIVATE_FIELDS = Object.freeze([
 ]);
 
 describe("SellerProfile private-boundary additive preparation", () => {
+  it("centralizes staff Guild private state behind one compatibility boundary", () => {
+    for (const operation of [
+      "approveSellerGuildMember",
+      "revokeSellerGuildMember",
+      "approveSellerGuildMaster",
+      "recordSellerGuildMasterRejection",
+      "revokeSellerGuildMaster",
+      "reinstateSellerGuildMember",
+      "sellerGuildStaffMasterPendingList",
+      "sellerGuildStaffMemberList",
+      "sellerGuildStaffMasterList",
+      "sellerGuildStaffRevokedMemberList",
+    ]) {
+      assert.match(adminVerification, new RegExp(`\\b${operation}\\(`));
+      assert.match(guildStaffPrivateAccess, new RegExp(`export function ${operation}\\(`));
+    }
+
+    for (const field of [
+      "guildMemberApprovedAt",
+      "guildMasterApprovedAt",
+      "guildMasterAppliedAt",
+      "guildMasterReviewNotes",
+      "consecutiveMetricFailures",
+      "lastMetricCheckAt",
+      "metricWarningSentAt",
+      "listingsBelowThresholdSince",
+    ]) {
+      assert.doesNotMatch(
+        adminVerification,
+        new RegExp(`sellerProfile\\.(?:find|update)[\\s\\S]{0,700}${field}`),
+      );
+    }
+  });
+
   it("adds the one-to-one private companion without removing predecessor fields", () => {
     assert.match(schema, /stripeAccountSupported\s+Boolean\s+@default\(true\)/);
     assert.match(schema, /privateData\s+SellerProfilePrivate\?/);

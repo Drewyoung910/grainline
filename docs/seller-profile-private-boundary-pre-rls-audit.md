@@ -347,11 +347,19 @@ behind the owner boundary. Every lookup and the paired application mutation is
 bound to both seller-profile id and user id, while the existing verification
 status update and transition assertion remain in the same transaction.
 
+The fourteenth isolated slice centralizes staff Guild private-state reads,
+review transitions, revocation/reinstatement mutations and bounded admin lists
+behind `sellerGuildStaffPrivateAccess.ts`. Existing Admin-PIN and role gates,
+verification-state compare-and-set writes, seller-account activity checks,
+transition assertions, notifications and audit writes remain at the caller.
+The staff page retains only unrelated public featured-maker SellerProfile
+operations outside this private compatibility boundary.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
-direct authority on the companion. Phase 1 remains incomplete: staff Guild
-state, checkout and currently effective SQL-function dependencies must move to
-purpose-bound private operations before predecessor columns can be retired.
+direct authority on the companion. Phase 1 remains incomplete: checkout and
+currently effective SQL-function dependencies must move to purpose-bound
+private operations before predecessor columns can be retired.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

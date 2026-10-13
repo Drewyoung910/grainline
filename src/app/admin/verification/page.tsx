@@ -51,6 +51,20 @@ import {
   verifyAdminPinCookieValue,
 } from "@/lib/adminPin";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
+import {
+  approveSellerGuildMaster,
+  approveSellerGuildMember,
+  recordSellerGuildMasterRejection,
+  reinstateSellerGuildMember,
+  revokeSellerGuildMaster,
+  revokeSellerGuildMember,
+  sellerGuildStaffContact,
+  sellerGuildStaffMasterList,
+  sellerGuildStaffMasterPendingList,
+  sellerGuildStaffMemberList,
+  sellerGuildStaffReinstatementState,
+  sellerGuildStaffRevokedMemberList,
+} from "@/lib/sellerGuildStaffPrivateAccess";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -271,17 +285,9 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
       });
       if (updated.count === 0) return null;
 
-      const sellerUpdated = await tx.sellerProfile.updateMany({
-        where: {
-          id: verification.sellerProfileId,
-          ownerAccountActive: true,
-        },
-        data: {
-          isVerifiedMaker: true,
-          verifiedAt: approvedAt,
-          guildLevel: "GUILD_MEMBER",
-          guildMemberApprovedAt: approvedAt,
-        },
+      const sellerUpdated = await approveSellerGuildMember(tx, {
+        sellerProfileId: verification.sellerProfileId,
+        approvedAt,
       });
       assertGuildVerificationTransition(sellerUpdated.count, "approve Guild Member");
       return logAdminActionOrThrow({
@@ -418,10 +424,7 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
   const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
   if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerProfileId },
-    select: { userId: true, displayName: true },
-  });
+  const seller = await sellerGuildStaffContact(sellerProfileId);
 
   const revokedAt = new Date();
   let revocationAuditId: string | null = null;
@@ -441,16 +444,9 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
       });
       if (verificationUpdated.count === 0) return null;
 
-      const updated = await tx.sellerProfile.updateMany({
-        where: { id: sellerProfileId, guildLevel: "GUILD_MEMBER" },
-        data: {
-          guildLevel: "NONE",
-          isVerifiedMaker: false,
-          consecutiveMetricFailures: 0,
-          metricWarningSentAt: null,
-          listingsBelowThresholdSince: null,
-          lastMetricCheckAt: revokedAt,
-        },
+      const updated = await revokeSellerGuildMember(tx, {
+        sellerProfileId,
+        revokedAt,
       });
       assertGuildVerificationTransition(updated.count, "revoke Guild Member");
 
@@ -583,12 +579,9 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
       });
       if (updated.count === 0) return null;
 
-      const sellerUpdated = await tx.sellerProfile.updateMany({
-        where: {
-          id: verification.sellerProfileId,
-          ownerAccountActive: true,
-        },
-        data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: approvedAt },
+      const sellerUpdated = await approveSellerGuildMaster(tx, {
+        sellerProfileId: verification.sellerProfileId,
+        approvedAt,
       });
       assertGuildVerificationTransition(sellerUpdated.count, "approve Guild Master");
       return logAdminActionOrThrow({
@@ -666,10 +659,11 @@ async function rejectGuildMaster(formData: FormData) {
     });
     if (updated.count === 0) return null;
 
-    await tx.sellerProfile.update({
-      where: { id: verification.sellerProfileId },
-      data: { guildMasterReviewNotes: reviewNotes },
+    const sellerUpdated = await recordSellerGuildMasterRejection(tx, {
+      sellerProfileId: verification.sellerProfileId,
+      reviewNotes,
     });
+    assertGuildVerificationTransition(sellerUpdated.count, "reject Guild Master");
     return logAdminActionOrThrow({
       client: tx,
       adminId: me.id,
@@ -704,10 +698,7 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
   const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
   if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerProfileId },
-    select: { userId: true, displayName: true },
-  });
+  const seller = await sellerGuildStaffContact(sellerProfileId);
 
   const revokedAt = new Date();
   let revocationAuditId: string | null = null;
@@ -727,17 +718,9 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
       });
       if (verificationUpdated.count === 0) return null;
 
-      const updated = await tx.sellerProfile.updateMany({
-        where: { id: sellerProfileId, guildLevel: "GUILD_MASTER" },
-        data: {
-          guildLevel: "GUILD_MEMBER",
-          consecutiveMetricFailures: 0,
-          metricWarningSentAt: null,
-          lastMetricCheckAt: revokedAt,
-          guildMasterApprovedAt: null,
-          guildMasterAppliedAt: null,
-          guildMasterReviewNotes: null,
-        },
+      const updated = await revokeSellerGuildMaster(tx, {
+        sellerProfileId,
+        revokedAt,
       });
       assertGuildVerificationTransition(updated.count, "revoke Guild Master");
 
@@ -799,14 +782,7 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
   let reinstatedSeller: { userId: string; displayName: string; auditLogId: string } | null = null;
   try {
     reinstatedSeller = await prisma.$transaction(async (tx) => {
-      const seller = await tx.sellerProfile.findUnique({
-        where: { id: sellerProfileId },
-        select: {
-          userId: true,
-          displayName: true,
-          ownerAccountActive: true,
-        },
-      });
+      const seller = await sellerGuildStaffReinstatementState(tx, sellerProfileId);
       if (!seller || !seller.ownerAccountActive) return null;
 
       const longCase = await getCaseGuildUnresolvedGuard(
@@ -834,21 +810,9 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
       });
       if (verificationUpdated.count === 0) return null;
 
-      const updated = await tx.sellerProfile.updateMany({
-        where: {
-          id: sellerProfileId,
-          guildLevel: "NONE",
-          guildMemberApprovedAt: { not: null },
-          ownerAccountActive: true,
-        },
-        data: {
-          guildLevel: "GUILD_MEMBER",
-          isVerifiedMaker: true,
-          consecutiveMetricFailures: 0,
-          metricWarningSentAt: null,
-          listingsBelowThresholdSince: null,
-          lastMetricCheckAt: reinstatedAt,
-        },
+      const updated = await reinstateSellerGuildMember(tx, {
+        sellerProfileId,
+        reinstatedAt,
       });
       assertGuildVerificationTransition(updated.count, "reinstate Guild Member");
 
@@ -962,52 +926,10 @@ export default async function AdminVerificationPage() {
         sellerProfile: { select: { displayName: true, id: true } },
       },
     }),
-    prisma.makerVerification.findMany({
-      where: { status: "GUILD_MASTER_PENDING" },
-      orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
-      take: 50,
-      include: {
-        sellerProfile: {
-          select: {
-            displayName: true,
-            id: true,
-            guildMasterAppliedAt: true,
-            sellerMetrics: {
-              select: {
-                calculatedAt: true,
-                periodMonths: true,
-                averageRating: true,
-                reviewCount: true,
-                onTimeShippingRate: true,
-                responseRate: true,
-                totalSalesCents: true,
-                completedOrderCount: true,
-                activeCaseCount: true,
-                accountAgeDays: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-    prisma.sellerProfile.findMany({
-      where: { guildLevel: "GUILD_MEMBER" },
-      select: { id: true, displayName: true, guildMemberApprovedAt: true, featuredUntil: true },
-      orderBy: { guildMemberApprovedAt: "desc" },
-      take: 50,
-    }),
-    prisma.sellerProfile.findMany({
-      where: { guildLevel: "GUILD_MASTER" },
-      select: { id: true, displayName: true, guildMasterApprovedAt: true, featuredUntil: true },
-      orderBy: { guildMasterApprovedAt: "desc" },
-      take: 50,
-    }),
-    prisma.sellerProfile.findMany({
-      where: { guildLevel: "NONE", guildMemberApprovedAt: { not: null } },
-      select: { id: true, displayName: true, guildMemberApprovedAt: true },
-      orderBy: { guildMemberApprovedAt: "desc" },
-      take: 50,
-    }),
+    sellerGuildStaffMasterPendingList(),
+    sellerGuildStaffMemberList(),
+    sellerGuildStaffMasterList(),
+    sellerGuildStaffRevokedMemberList(),
   ]);
 
   const masterMetricsMap = new Map<string, SellerMetricsResult>();
