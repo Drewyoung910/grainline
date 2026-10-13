@@ -1472,6 +1472,10 @@ jobs:
         run: npx prisma migrate deploy
       - name: Converge pre-activation production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Prove SellerProfile private boundary in ephemeral PostgreSQL
+        run: npm run audit:seller-profile-private-boundary-postgres
+        env:
+          SELLER_PROFILE_PRIVATE_BOUNDARY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Converge pre-activation DirectUpload cleanup-worker grants
         run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Prove DirectUpload legacy repair in ephemeral PostgreSQL

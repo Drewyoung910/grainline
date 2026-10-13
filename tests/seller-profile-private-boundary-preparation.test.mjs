@@ -17,6 +17,38 @@ const proof = readFileSync(
   "scripts/seller-profile-private-boundary-postgres-proof.mjs",
   "utf8",
 );
+const PRIVATE_FIELDS = Object.freeze([
+  "stripeAccountId",
+  "stripeAccountVersion",
+  "stripeControllerType",
+  "manualStripeReconciliationNeeded",
+  "manualStripeReconciliationNote",
+  "shipFromName",
+  "shipFromLine1",
+  "shipFromLine2",
+  "shipFromCity",
+  "shipFromState",
+  "shipFromPostal",
+  "shipFromCountry",
+  "shipFromPhone",
+  "defaultPkgWeightGrams",
+  "defaultPkgLengthCm",
+  "defaultPkgWidthCm",
+  "defaultPkgHeightCm",
+  "useCalculatedShipping",
+  "preferredCarriers",
+  "onboardingStep",
+  "onboardingComplete",
+  "guildMemberApprovedAt",
+  "guildMasterApprovedAt",
+  "guildMasterAppliedAt",
+  "guildMasterReviewNotes",
+  "consecutiveMetricFailures",
+  "lastMetricCheckAt",
+  "metricWarningSentAt",
+  "listingsBelowThresholdSince",
+  "profileViews",
+]);
 
 describe("SellerProfile private-boundary additive preparation", () => {
   it("adds the one-to-one private companion without removing predecessor fields", () => {
@@ -39,6 +71,16 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(migration, /AFTER INSERT OR UPDATE OF[\s\S]*"stripeAccountId"[\s\S]*"shipFromPhone"[\s\S]*"defaultPkgWeightGrams"[\s\S]*"onboardingComplete"[\s\S]*"guildMemberApprovedAt"[\s\S]*"guildMasterApprovedAt"[\s\S]*"guildMasterAppliedAt"[\s\S]*"guildMasterReviewNotes"[\s\S]*"profileViews"/);
     assert.match(migration, /ON CONFLICT \("sellerProfileId"\) DO UPDATE SET/);
     assert.match(migration, /ON DELETE CASCADE[\s\S]*ON UPDATE CASCADE/);
+    for (const field of PRIVATE_FIELDS) {
+      assert.match(
+        schema,
+        new RegExp(`model SellerProfilePrivate \\{[\\s\\S]*\\b${field}\\b`, "u"),
+      );
+      assert.ok(
+        migration.split(`"${field}"`).length - 1 >= 8,
+        `${field} must remain present in create, backfill, mirror, convergence, and trigger surfaces`,
+      );
+    }
   });
 
   it("derives the public-safe supported snapshot and prevents caller drift", () => {
@@ -97,5 +139,6 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(proof, /await client\.query\("ROLLBACK"\)/);
     assert.match(proof, /runtime role unexpectedly read SellerProfilePrivate/);
+    assert.match(proof, /runtimeDirectCrudDenied: true/);
   });
 });

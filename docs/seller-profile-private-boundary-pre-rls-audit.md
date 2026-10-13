@@ -256,7 +256,8 @@ Focused source tests pass, Prisma schema validation passes, and
 migration bytes on disposable PostgreSQL 16. The rollback-only proof covered
 three-row backfill, supported/legacy/unlinked provider states, insert and update
 mirroring, non-private-update isolation, check-constraint enforcement, actual
-runtime-role direct-read denial, function EXECUTE denial, delete cascade and
+runtime-role direct-read denial, effective runtime CRUD denial, function
+EXECUTE denial, delete cascade and
 catalog cleanup after rollback. This proves the candidate's additive SQL
 semantics; it is not evidence that the migration is installed in Production.
 

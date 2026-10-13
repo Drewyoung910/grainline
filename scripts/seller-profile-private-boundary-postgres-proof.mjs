@@ -281,6 +281,19 @@ export async function runSellerProfilePrivateBoundaryPostgresProof(
       supported_snapshot: false,
       private_mirror: false,
     });
+    const tablePrivileges = (await client.query(`
+      SELECT
+        pg_catalog.has_table_privilege($1, $2, 'SELECT') AS select,
+        pg_catalog.has_table_privilege($1, $2, 'INSERT') AS insert,
+        pg_catalog.has_table_privilege($1, $2, 'UPDATE') AS update,
+        pg_catalog.has_table_privilege($1, $2, 'DELETE') AS delete
+    `, [RUNTIME_ROLE, `"${schema}"."SellerProfilePrivate"`])).rows[0];
+    assert.deepEqual(tablePrivileges, {
+      select: false,
+      insert: false,
+      update: false,
+      delete: false,
+    });
     await client.query("SAVEPOINT runtime_denial");
     await client.query(`SET LOCAL ROLE ${RUNTIME_ROLE}`);
     try {
@@ -325,7 +338,7 @@ export async function runSellerProfilePrivateBoundaryPostgresProof(
       exactMigration: true,
       backfillRows: 3,
       mirroredInsertAndUpdate: true,
-      runtimeDirectReadDenied: true,
+      runtimeDirectCrudDenied: true,
       cleanup: "transaction-rollback-confirmed",
     });
   } finally {
