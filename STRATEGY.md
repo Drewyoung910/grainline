@@ -47,9 +47,10 @@ quote fulfillment inputs, owner onboarding/export reads, and staff
 ban/unban/undo seller state behind equally narrow compatibility modules. These
 slices stay stacked behind Phase 0. An eighth slice centralizes account-deletion
 seller pauses and anonymization behind an ownership-bound, fail-closed
-compatibility module. The fixed database operations, seller
-settings/onboarding writes, Guild/cron state, checkout and effective
-SQL-function families remain.
+compatibility module. A ninth moves seller onboarding reads and writes behind
+owner-bound purpose-specific operations. The fixed database operations, seller
+profile/shop-settings writes, Guild/cron state, checkout and effective SQL-function
+families remain.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

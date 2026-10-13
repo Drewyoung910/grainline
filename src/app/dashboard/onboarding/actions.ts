@@ -12,6 +12,13 @@ import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/se
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { userAccountByClerkId } from "@/lib/userIdentityAccess";
+import {
+  advanceSellerOwnerOnboardingStep,
+  completeSellerOwnerOnboarding,
+  sellerOwnerOnboardingMutationState,
+  updateSellerOwnerOnboardingStepOne,
+  updateSellerOwnerOnboardingStepTwo,
+} from "@/lib/sellerOwnerPrivateAccess";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -43,16 +50,7 @@ async function getSeller(): Promise<{
   if (!me) throw new Error("No seller profile");
   if (me.banned || me.deletedAt) throw new Error("Account suspended");
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: {
-      id: true,
-      userId: true,
-      onboardingStep: true,
-      chargesEnabled: true,
-      _count: { select: { listings: true } },
-    },
-  });
+  const seller = await sellerOwnerOnboardingMutationState(me.id);
   if (!seller) throw new Error("No seller profile");
   return {
     id: seller.id,
@@ -86,15 +84,18 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.sellerProfile.update({
-        where: { id: seller.id },
-        data: {
-          ...(displayName ? { displayName, displayNameNormalized: normalizeDisplayNameForLookup(displayName) } : {}),
-          bio,
-          tagline,
-          avatarImageUrl,
-          onboardingStep: 2,
-        },
+      await updateSellerOwnerOnboardingStepOne(tx, {
+        sellerProfileId: seller.id,
+        userId: seller.userId,
+        ...(displayName
+          ? {
+              displayName,
+              displayNameNormalized: normalizeDisplayNameForLookup(displayName),
+            }
+          : {}),
+        bio,
+        tagline,
+        avatarImageUrl,
       });
       if (avatarImageUrl) {
         await syncSellerProfileDirectUploadReferences({
@@ -124,17 +125,15 @@ export async function saveStep2(formData: FormData): Promise<ActionResult> {
     const shippingPolicy = cleanSellerProfileRichText(formData.get("shippingPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
     const acceptsCustomOrders = formData.get("acceptsCustomOrders") === "on";
 
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
-      data: {
-        yearsInBusiness,
-        city,
-        state,
-        returnPolicy,
-        shippingPolicy,
-        acceptsCustomOrders,
-        onboardingStep: 3,
-      },
+    await updateSellerOwnerOnboardingStepTwo(prisma, {
+      sellerProfileId: seller.id,
+      userId: seller.userId,
+      yearsInBusiness,
+      city,
+      state,
+      returnPolicy,
+      shippingPolicy,
+      acceptsCustomOrders,
     });
     revalidatePath("/dashboard/onboarding");
     return { ok: true };
@@ -150,9 +149,11 @@ export async function advanceStep(targetStep: number): Promise<ActionResult> {
     if (normalizedStep > seller.onboardingStep + 1) {
       return { ok: false, error: "Complete the current onboarding step first." };
     }
-    const result = await prisma.sellerProfile.updateMany({
-      where: { id: seller.id, onboardingStep: seller.onboardingStep },
-      data: { onboardingStep: normalizedStep },
+    const result = await advanceSellerOwnerOnboardingStep(prisma, {
+      sellerProfileId: seller.id,
+      userId: seller.userId,
+      expectedStep: seller.onboardingStep,
+      nextStep: normalizedStep,
     });
     if (result.count === 0) {
       return { ok: false, error: "Onboarding changed in another tab. Refresh and try again." };
@@ -176,9 +177,9 @@ export async function completeOnboarding(): Promise<ActionResult> {
     if (seller.listingCount < 1) {
       return { ok: false, error: "Create your first listing before completing onboarding." };
     }
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
-      data: { onboardingComplete: true },
+    await completeSellerOwnerOnboarding(prisma, {
+      sellerProfileId: seller.id,
+      userId: seller.userId,
     });
   } catch (error) {
     return actionError(error);

@@ -319,11 +319,12 @@ the post-Phase-0 operation migration can replace one implementation boundary
 with fixed owner/provider functions while preserving caller behavior and the
 audit-plus-capability-update transaction.
 
-The fifth through eighth isolated slices centralize the remaining shipping
-quote inputs, owner onboarding/export reads, staff ban/unban/undo seller state,
-and account-deletion seller mutations. Cart and single-listing quote paths now
+The fifth through ninth isolated slices centralize the remaining shipping
+quote inputs, owner onboarding/export reads and writes, staff ban/unban/undo
+seller state, and account-deletion seller mutations. Cart and single-listing quote paths now
 share one exact fulfillment projection; account export retains every reviewed
-owner field without leaving that projection embedded in the route; staff
+owner field without leaving that projection embedded in the route; each
+onboarding mutation is owner-bound and purpose-specific; staff
 orderability changes share a single compatibility boundary while preserving
 the existing user capability, audit and checkout-expiry protocol; and account
 deletion now pauses and anonymizes the expected user-owned seller row through
@@ -332,8 +333,8 @@ each slice.
 
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
-direct authority on the companion. Phase 1 remains incomplete: seller
-settings/onboarding writes, Guild/cron state, checkout and currently effective
+direct authority on the companion. Phase 1 remains incomplete: seller profile
+and shop-settings writes, Guild/cron state, checkout and currently effective
 SQL-function dependencies must move to purpose-bound private operations before
 predecessor columns can be retired.
 

@@ -23,7 +23,7 @@ describe("seller display-name lookup normalization guardrails", () => {
     const ensureSeller = source("src/lib/ensureSeller.ts");
     const onboarding = source("src/app/dashboard/onboarding/actions.ts");
     const profile = source("src/app/dashboard/profile/page.tsx");
-    const deletion = source("src/lib/accountDeletion.ts");
+    const deletion = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
 
     assert.match(ensureSeller, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);
     assert.match(onboarding, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);

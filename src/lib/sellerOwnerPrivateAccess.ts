@@ -26,6 +26,14 @@ const sellerOwnerOnboardingSelect = {
   },
 } satisfies Prisma.SellerProfileSelect;
 
+const sellerOwnerOnboardingMutationSelect = {
+  id: true,
+  userId: true,
+  onboardingStep: true,
+  chargesEnabled: true,
+  _count: { select: { listings: true } },
+} satisfies Prisma.SellerProfileSelect;
+
 const sellerOwnerExportSelect = {
   id: true,
   displayName: true,
@@ -115,6 +123,113 @@ export function sellerOwnerOnboardingState(
     where: { id: sellerProfileId },
     select: sellerOwnerOnboardingSelect,
   });
+}
+
+export function sellerOwnerOnboardingMutationState(
+  userId: string,
+  client: SellerOwnerPrivateClient = prisma,
+) {
+  return client.sellerProfile.findUnique({
+    where: { userId },
+    select: sellerOwnerOnboardingMutationSelect,
+  });
+}
+
+async function requireOneSellerOwnerMutation(
+  result: { count: number },
+  operation: string,
+) {
+  if (result.count !== 1) {
+    throw new Error(`Seller owner ${operation} target changed`);
+  }
+}
+
+export async function updateSellerOwnerOnboardingStepOne(
+  client: SellerOwnerPrivateClient,
+  input: {
+    sellerProfileId: string;
+    userId: string;
+    displayName?: string;
+    displayNameNormalized?: string;
+    bio: string | null;
+    tagline: string | null;
+    avatarImageUrl: string | null;
+  },
+) {
+  const result = await client.sellerProfile.updateMany({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    data: {
+      ...(input.displayName
+        ? {
+            displayName: input.displayName,
+            displayNameNormalized: input.displayNameNormalized,
+          }
+        : {}),
+      bio: input.bio,
+      tagline: input.tagline,
+      avatarImageUrl: input.avatarImageUrl,
+      onboardingStep: 2,
+    },
+  });
+  await requireOneSellerOwnerMutation(result, "onboarding step one");
+}
+
+export async function updateSellerOwnerOnboardingStepTwo(
+  client: SellerOwnerPrivateClient,
+  input: {
+    sellerProfileId: string;
+    userId: string;
+    yearsInBusiness: number | null;
+    city: string | null;
+    state: string | null;
+    returnPolicy: string | null;
+    shippingPolicy: string | null;
+    acceptsCustomOrders: boolean;
+  },
+) {
+  const result = await client.sellerProfile.updateMany({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    data: {
+      yearsInBusiness: input.yearsInBusiness,
+      city: input.city,
+      state: input.state,
+      returnPolicy: input.returnPolicy,
+      shippingPolicy: input.shippingPolicy,
+      acceptsCustomOrders: input.acceptsCustomOrders,
+      onboardingStep: 3,
+    },
+  });
+  await requireOneSellerOwnerMutation(result, "onboarding step two");
+}
+
+export function advanceSellerOwnerOnboardingStep(
+  client: SellerOwnerPrivateClient,
+  input: {
+    sellerProfileId: string;
+    userId: string;
+    expectedStep: number;
+    nextStep: number;
+  },
+) {
+  return client.sellerProfile.updateMany({
+    where: {
+      id: input.sellerProfileId,
+      userId: input.userId,
+      onboardingStep: input.expectedStep,
+    },
+    data: { onboardingStep: input.nextStep },
+  });
+}
+
+export async function completeSellerOwnerOnboarding(
+  client: SellerOwnerPrivateClient,
+  input: { sellerProfileId: string; userId: string },
+) {
+  const result = await client.sellerProfile.updateMany({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    data: { onboardingComplete: true },
+  });
+  await requireOneSellerOwnerMutation(result, "onboarding completion");
 }
 
 export function sellerOwnerExportProfile(

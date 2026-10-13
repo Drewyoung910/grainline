@@ -391,7 +391,7 @@ describe("seller operational route hardening", () => {
     assert.match(onboarding, /Too many profile updates\. Try again shortly\./);
     const limit = onboarding.indexOf("safeRateLimit(sellerProfileRatelimit, userId)");
     const actor = onboarding.indexOf("userAccountByClerkId(prisma, userId)");
-    const seller = onboarding.indexOf("prisma.sellerProfile.findUnique");
+    const seller = onboarding.indexOf("sellerOwnerOnboardingMutationState(me.id)");
     assert.ok(limit >= 0 && actor > limit && seller > actor,
       "onboarding step actions should rate-limit before actor and owned seller lookup");
 

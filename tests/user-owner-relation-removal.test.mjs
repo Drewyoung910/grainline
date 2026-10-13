@@ -45,6 +45,21 @@ test("onboarding resolves Clerk owner and denies unavailable accounts before rea
         return owner;
       },
     },
+    "@/lib/sellerOwnerPrivateAccess": {
+      sellerOwnerOnboardingMutationState: async (userId) => {
+        assert.equal(userId, "local_owner");
+        return db.sellerProfile.findUnique({
+          where: { userId },
+          select: {
+            id: true,
+            userId: true,
+            onboardingStep: true,
+            chargesEnabled: true,
+            _count: { select: { listings: true } },
+          },
+        });
+      },
+    },
   }, "\nexport { getSeller as testGetSeller };\n");
   const seller = await loaded.testGetSeller();
   assert.equal(seller.userId, "local_owner");
