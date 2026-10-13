@@ -410,6 +410,20 @@ from the private row; all 35 label checks pass, including partial-refund,
 deauthorization, claim-fencing, ambiguous-provider and rollback paths. Nine
 effective functions remain to convert.
 
+The twenty-first isolated slice moves three provider-identity callers behind
+the private companion: signed payout-failure matching, signed seller
+deauthorization, and the staff ban-repair projection. Their public contracts,
+security modes and existing caller grants remain unchanged. Payout and ban
+repair now ignore deliberately stale predecessor account ids in focused
+PostgreSQL proofs. Deauthorization finds the account through the private row
+and uses a runtime-inaccessible compatibility writer to lock and clear both
+the private account id and the predecessor copy in one transaction; replay and
+rollback behavior remain intact. That transition-only writer is the single
+remaining direct dependency for this mutation and must be replaced after old
+deployments drain, before the predecessor column is dropped. Fourteen focused
+PostgreSQL checks pass. Seven effective functions, including that compatibility
+writer, remain to convert or retire.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
 direct authority on the companion. Phase 1 remains incomplete: currently

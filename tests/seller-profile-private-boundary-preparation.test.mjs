@@ -45,6 +45,10 @@ const orderLabelCallerMigration = readFileSync(
   "prisma/migrations/20261013170000_move_order_label_seller_private_sql_caller/migration.sql",
   "utf8",
 );
+const providerIdentityCallerMigration = readFileSync(
+  "prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
@@ -144,6 +148,15 @@ const PRIVATE_FIELDS = Object.freeze([
   "listingsBelowThresholdSince",
   "profileViews",
 ]);
+
+function functionDefinition(source, name) {
+  const start = source.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  assert.notEqual(start, -1, `${name} definition is missing`);
+  const endMarker = `\n$${name}$;`;
+  const end = source.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `${name} definition is incomplete`);
+  return source.slice(start, end + endMarker.length);
+}
 
 describe("SellerProfile private-boundary additive preparation", () => {
   it("centralizes checkout private seller source projections", () => {
@@ -360,6 +373,37 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(orderLabelCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
     assert.doesNotMatch(orderLabelCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
     assert.doesNotMatch(orderLabelCallerMigration, /GRANT\s|REVOKE\s/i);
+  });
+
+  it("moves provider identity callers onto the private companion", () => {
+    const callers = [
+      "grainline_seller_payout_event_apply",
+      "grainline_stripe_seller_deauthorization_apply",
+      "grainline_user_ban_repair_target",
+    ];
+    for (const caller of callers) {
+      const definition = functionDefinition(providerIdentityCallerMigration, caller);
+      assert.match(definition, /public\."SellerProfilePrivate"/);
+      assert.doesNotMatch(definition, /seller\."stripeAccountId"/);
+    }
+
+    const bridge = functionDefinition(
+      providerIdentityCallerMigration,
+      "grainline_seller_profile_deauthorize_compat",
+    );
+    assert.match(bridge, /FOR UPDATE OF seller, seller_private/);
+    assert.match(bridge, /UPDATE public\."SellerProfilePrivate"/);
+    assert.match(bridge, /UPDATE public\."SellerProfile"/);
+    assert.match(
+      providerIdentityCallerMigration,
+      /REVOKE ALL ON FUNCTION public\.grainline_seller_profile_deauthorize_compat\(text, text\)[\s\S]*FROM PUBLIC, grainline_app_runtime/,
+    );
+    assert.doesNotMatch(providerIdentityCallerMigration, /\nGRANT\s/i);
+    assert.match(providerIdentityCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(
+      providerIdentityCallerMigration,
+      /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i,
+    );
   });
 
   it("keeps the companion inaccessible to ordinary runtime and PUBLIC", () => {

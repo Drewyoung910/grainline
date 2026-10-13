@@ -7,6 +7,21 @@ const migration = readFileSync(
   "prisma/migrations/20260815210000_prepare_seller_payout_event_authority/migration.sql",
   "utf8",
 );
+const sellerPrivateProviderMigration = readFileSync(
+  "prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
+
+function sqlFunctionDefinition(source, functionName) {
+  const start = source.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+  );
+  assert.notEqual(start, -1, `${functionName} definition is missing`);
+  const endMarker = `\n$${functionName}$;`;
+  const end = source.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `${functionName} definition is incomplete`);
+  return source.slice(start, end + endMarker.length);
+}
 
 async function createDatabase() {
   const database = new PGlite();
@@ -17,6 +32,11 @@ async function createDatabase() {
       id text PRIMARY KEY,
       "userId" text NOT NULL UNIQUE REFERENCES public."User"(id),
       "stripeAccountId" varchar(255) UNIQUE
+    );
+    CREATE TABLE public."SellerProfilePrivate" (
+      "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
+      "stripeAccountId" varchar(255) UNIQUE,
+      "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE public."StripeWebhookEvent" (
       id varchar(255) PRIMARY KEY,
@@ -50,11 +70,18 @@ async function createDatabase() {
       ON TABLE public."SellerPayoutEvent" TO grainline_app_runtime;
   `);
   await database.exec(migration);
+  await database.exec(sqlFunctionDefinition(
+    sellerPrivateProviderMigration,
+    "grainline_seller_payout_event_apply",
+  ));
   await database.exec(`
     INSERT INTO public."User" (id) VALUES ('user-1'), ('user-2');
     INSERT INTO public."SellerProfile" (id, "userId", "stripeAccountId") VALUES
-      ('seller-1', 'user-1', 'acct_1'),
-      ('seller-2', 'user-2', 'acct_2');
+      ('seller-1', 'user-1', 'acct_public_poison_1'),
+      ('seller-2', 'user-2', 'acct_public_poison_2');
+    INSERT INTO public."SellerProfilePrivate" ("sellerProfileId", "stripeAccountId") VALUES
+      ('seller-1', 'acct_1'),
+      ('seller-2', 'acct_2');
   `);
   return database;
 }
