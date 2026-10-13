@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import pg from "pg";
 import {
   CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
@@ -23,8 +24,14 @@ const serviceSql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-service-authority.sql",
   "utf8",
 );
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
 const sellerPrivateCustomOrderSql = fs.readFileSync(
-  "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql",
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013150000_move_custom_order_seller_private_sql_callers",
+    "migration.sql",
+  ),
   "utf8",
 );
 

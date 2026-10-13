@@ -32,8 +32,14 @@ const sourceConsistencyMigration = fs.readFileSync(
   "prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency/migration.sql",
   "utf8",
 );
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
 const sellerPrivateCallerMigration = fs.readFileSync(
-  "prisma/migrations/20261013140000_move_checkout_seller_private_sql_callers/migration.sql",
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013140000_move_checkout_seller_private_sql_callers",
+    "migration.sql",
+  ),
   "utf8",
 );
 const orderCheckoutSourceSnapshotCandidate = fs.readFileSync(

@@ -643,11 +643,19 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       ci,
+      /Isolate SellerProfile private-boundary migration[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=\$holding/,
+    );
+    assert.match(
+      ci,
       /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=/,
     );
     assert.match(
       ci,
       /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=/,
+    );
+    assert.match(
+      ci,
+      /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=/,
     );
     assert.match(
       ci,

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { buildOrderLabelClawbackClock, orderLabelClawbackClockDefinition } from "../scripts/build-order-label-clawback-clock.mjs";
@@ -45,8 +46,14 @@ const partialRefundCorrection = readFileSync(
   partialRefundCorrectionPath,
   "utf8",
 );
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
 const sellerPrivateLabelCorrection = readFileSync(
-  "prisma/migrations/20261013170000_move_order_label_seller_private_sql_caller/migration.sql",
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013170000_move_order_label_seller_private_sql_caller",
+    "migration.sql",
+  ),
   "utf8",
 );
 

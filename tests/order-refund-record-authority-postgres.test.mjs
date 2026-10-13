@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
@@ -15,8 +16,14 @@ const compositionCorrection = readFileSync(
   "docs/rls-drafts/order-authority-composition-correction.sql",
   "utf8",
 );
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
 const sellerPrivateReconciliationMigration = readFileSync(
-  "prisma/migrations/20261013190000_move_reconciliation_seller_private_sql_callers/migration.sql",
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013190000_move_reconciliation_seller_private_sql_callers",
+    "migration.sql",
+  ),
   "utf8",
 );
 

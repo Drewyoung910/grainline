@@ -27,8 +27,14 @@ const privateCustomPaidStateCorrection = migrationSource([
     ? `${process.env.RUNNER_TEMP}/order-private-custom-paid-state/migration.sql`
     : null,
 ], "private custom-listing successor");
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
 const finalSellerPrivateCallers = fs.readFileSync(
-  "prisma/migrations/20261013200000_move_final_seller_private_sql_callers/migration.sql",
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013200000_move_final_seller_private_sql_callers",
+    "migration.sql",
+  ),
   "utf8",
 );
 const rows = (result) => result.rows;
