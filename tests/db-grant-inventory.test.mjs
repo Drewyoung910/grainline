@@ -223,6 +223,9 @@ const {
 describe("temporary SellerProfilePrivate CI isolation", () => {
   it("is absent by default and accepted only for exact loopback GitHub CI", () => {
     assert.deepEqual(resolveTemporarilyAbsentCiTables({}), []);
+    assert.deepEqual(resolveTemporarilyAbsentCiTables({
+      SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "",
+    }), []);
     assert.deepEqual(
       resolveTemporarilyAbsentCiTables({
         GITHUB_ACTIONS: "true",
@@ -2600,6 +2603,14 @@ describe("database grant inventory guardrails", () => {
     ) && source(listingHideDeleteMigrationPath).includes(
       "CREATE FUNCTION public.grainline_listing_delete_reference_state(",
     );
+    const sellerProfilePrivateBoundaryMigrationPath =
+      "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql";
+    const sellerProfilePrivateBoundaryMigrationPresent = existsSync(
+      sellerProfilePrivateBoundaryMigrationPath,
+    ) && SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.every((functionName) =>
+      source(sellerProfilePrivateBoundaryMigrationPath).includes(
+        `CREATE OR REPLACE FUNCTION public.${functionName}()`,
+      ));
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -2750,7 +2761,9 @@ describe("database grant inventory guardrails", () => {
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
-      ...SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES,
+      ...(sellerProfilePrivateBoundaryMigrationPresent
+        ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES
+        : []),
       ...(listingHideDeleteMigrationPresent
         ? ["grainline_listing_delete_reference_state"]
         : []),
@@ -2816,8 +2829,10 @@ describe("database grant inventory guardrails", () => {
         + (clerkWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
         + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
-        + SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.length
-        + 1 // SellerProfilePrivate table revoke from PUBLIC
+        + (sellerProfilePrivateBoundaryMigrationPresent
+          ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.length
+            + 1 // SellerProfilePrivate table revoke from PUBLIC
+          : 0)
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
         + ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES.length
         + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length

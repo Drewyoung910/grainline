@@ -6,6 +6,8 @@
 -- writes. It does not remove a column, change an application caller, enable
 -- RLS, or revoke existing SellerProfile authority.
 
+BEGIN;
+
 ALTER TABLE public."SellerProfile"
   ADD COLUMN "stripeAccountSupported" boolean NOT NULL DEFAULT true;
 
@@ -330,3 +332,5 @@ BEGIN
   END IF;
 END
 $revoke_runtime$;
+
+COMMIT;

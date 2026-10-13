@@ -231,7 +231,7 @@ export function resolveTemporarilyAbsentCiTables(
   { allowLoopbackCi = false } = {},
 ) {
   const value = env[SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV];
-  if (value === undefined) return Object.freeze([]);
+  if (value === undefined || value === "") return Object.freeze([]);
   if (
     value !== "true"
     || !allowLoopbackCi
@@ -348,6 +348,8 @@ const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
 // exception explicit instead of treating every grainline_* function as a
 // runtime RPC.
 export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
+  "grainline_seller_profile_private_mirror",
+  "grainline_seller_profile_supported_snapshot",
   "grainline_case_resolution_claim_immutable",
   "grainline_case_resolution_claim_lease_valid",
   ...CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
