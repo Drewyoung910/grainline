@@ -229,6 +229,19 @@ jobs:
           tests/user-email-address-force-release.test.mjs
           tests/user-email-address-force-postgres-proof.test.mjs
           tests/user-email-address-force-production-workflow.test.mjs
+      - name: Verify SellerProfile private-boundary source package
+        run: >-
+          node --test
+          tests/seller-profile-private-boundary-preparation.test.mjs
+      - name: Isolate SellerProfile private-boundary migration from historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-private-boundary"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261013120000_prepare_seller_profile_private_boundary \
+            "$holding/20261013120000_prepare_seller_profile_private_boundary"
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
@@ -1468,6 +1481,11 @@ jobs:
           mv
           prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
           "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
+      - name: Restore SellerProfile private-boundary migration after historical release guards
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-profile-private-boundary/20261013120000_prepare_seller_profile_private_boundary"
+          prisma/migrations/20261013120000_prepare_seller_profile_private_boundary
       - name: Apply compatible migrations to CI Postgres
         run: npx prisma migrate deploy
       - name: Converge pre-activation production-style runtime grants

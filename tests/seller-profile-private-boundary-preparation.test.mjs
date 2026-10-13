@@ -13,6 +13,7 @@ const migration = readFileSync(
 );
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
+const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const proof = readFileSync(
   "scripts/seller-profile-private-boundary-postgres-proof.mjs",
   "utf8",
@@ -140,5 +141,29 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(proof, /await client\.query\("ROLLBACK"\)/);
     assert.match(proof, /runtime role unexpectedly read SellerProfilePrivate/);
     assert.match(proof, /runtimeDirectCrudDenied: true/);
+  });
+
+  it("isolates the additive migration from sealed historical release guards", () => {
+    const verify = ci.indexOf("Verify SellerProfile private-boundary source package");
+    const isolate = ci.indexOf("Isolate SellerProfile private-boundary migration from historical release guards");
+    const historical = ci.indexOf("Verify compatible Order checkout receipt authority release");
+    const restore = ci.indexOf("Restore SellerProfile private-boundary migration after historical release guards");
+    const deploy = ci.indexOf("Apply compatible migrations to CI Postgres");
+    const postgresProof = ci.indexOf("Prove SellerProfile private boundary in ephemeral PostgreSQL");
+
+    assert.ok(verify >= 0);
+    assert.ok(verify < isolate);
+    assert.ok(isolate < historical);
+    assert.ok(historical < restore);
+    assert.ok(restore < deploy);
+    assert.ok(deploy < postgresProof);
+    assert.match(
+      ci,
+      /Isolate SellerProfile private-boundary migration[\s\S]*mv \\\s+prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary/,
+    );
+    assert.match(
+      ci,
+      /Restore SellerProfile private-boundary migration[\s\S]*prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary/,
+    );
   });
 });
