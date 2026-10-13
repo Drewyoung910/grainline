@@ -31,7 +31,7 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
             AND sp."chargesEnabled" = true
             AND sp."vacationMode" = false
-            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND sp."stripeAccountSupported" = true
             AND sp."ownerAccountActive" = true
             AND l.title % ${q}
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
@@ -48,7 +48,7 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
             AND sp."chargesEnabled" = true
             AND sp."vacationMode" = false
-            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND sp."stripeAccountSupported" = true
             AND sp."ownerAccountActive" = true
             AND l.title % ${q}
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
@@ -85,7 +85,7 @@ async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], bloc
           OR (
             sp."chargesEnabled" = true
             AND sp."vacationMode" = false
-            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND sp."stripeAccountSupported" = true
             AND sp."ownerAccountActive" = true
           )
         )

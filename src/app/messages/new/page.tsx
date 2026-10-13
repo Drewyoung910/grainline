@@ -65,7 +65,7 @@ export default async function NewConversationPage({
             userId: true,
             ownerAccountActive: true,
             chargesEnabled: true,
-            stripeAccountVersion: true,
+            stripeAccountSupported: true,
             vacationMode: true,
           },
         },

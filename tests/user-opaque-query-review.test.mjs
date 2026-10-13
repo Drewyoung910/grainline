@@ -38,7 +38,7 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   assert.equal(report.opaqueShapes.length, 220);
   assert.equal(reviewedFactories.length, 185);
   assert.equal(reviewedResidual.length, 35);
-  assert.equal(report.opaqueFactoryShapes.length, 14);
+  assert.equal(report.opaqueFactoryShapes.length, 12);
   assert.deepEqual(digest(reviewedFactories), {
     unique: 152,
     sha256: "a2d6479ba3a3502e7c59181008c4a65aaf577d67702a7c9bf402ef7543fe4662",
@@ -48,8 +48,8 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
     sha256: "ea7053394df5246b4662025bdf2f01c3a39b3110f875a1ba692ff1e4947fb600",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
-    unique: 14,
-    sha256: "2724052b30cfc98d6792b944c1dc8458a08550e0107b8ada2e67c1185f5fe9b7",
+    unique: 12,
+    sha256: "8be152475784c708b5045963749df829459dc7da639b6bcaec5bfeccc6ee64a2",
   });
 });
 

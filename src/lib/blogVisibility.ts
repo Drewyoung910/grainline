@@ -1,13 +1,8 @@
 import { BlogPostStatus, Prisma } from "@prisma/client";
 
-const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
-
 const PUBLIC_BLOG_SELLER_PROFILE_STATE = {
   chargesEnabled: true,
-  OR: [
-    { stripeAccountVersion: null },
-    { stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION },
-  ],
+  stripeAccountSupported: true,
   vacationMode: false,
   ownerAccountActive: true,
 } satisfies Prisma.SellerProfileWhereInput;

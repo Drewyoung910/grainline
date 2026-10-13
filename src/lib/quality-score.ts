@@ -76,7 +76,7 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
     WHERE l.status = 'ACTIVE'
       AND l."isPrivate" = false
       AND sp."chargesEnabled" = true
-      AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+      AND sp."stripeAccountSupported" = true
       AND sp."vacationMode" = false
       AND sp."ownerAccountActive" = true
       ${cursorPredicate}

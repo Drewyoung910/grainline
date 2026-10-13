@@ -282,6 +282,23 @@ Phase 0 is accepted in Production. Prove account-deletion reset and each caller
 family as it moves; use focused tests during conversion and batch full test,
 lint and build at the cohesive merge/deploy boundary.
 
+The first isolated Phase 1 slice now converts public maker, listing, blog,
+search, commission-interest, stock-notification and conversation-eligibility
+callers from the private diagnostic `stripeAccountVersion` to the derived
+public-safe `stripeAccountSupported` snapshot. It deliberately leaves exact
+provider-version reads in checkout, Stripe Connect, reconciliation, export and
+account-deletion paths, where the diagnostic value controls provider-specific
+behavior or recovery. A focused source guard prevents the reviewed public
+paths from reintroducing the private provider version. TypeScript and 116
+focused tests pass for this slice. This is prepared source only; it must stay
+stacked behind Phase 0 and is not evidence of a Production schema or
+application change.
+
+Phase 1 remains incomplete. The next slices must replace broad owner and cart
+seller reads, then convert provider/shipping, staff/export/deletion and
+currently effective SQL-function dependencies to explicit operations before
+the predecessor columns can be retired.
+
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 
 Do not activate until all `BLOCKS_RLS_DESIGN` and `FIX_BEFORE_ACTIVATION`

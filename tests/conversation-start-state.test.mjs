@@ -13,6 +13,7 @@ const activeListing = {
   reservedForUserId: null,
   seller: {
     chargesEnabled: true,
+    stripeAccountSupported: true,
     vacationMode: false,
     user: { id: "seller_user", banned: false, deletedAt: null },
   },
@@ -63,6 +64,13 @@ describe("conversation start state", () => {
     );
     assert.equal(
       canAttachConversationContextListing(
+        { ...activeListing, seller: { ...activeListing.seller, stripeAccountSupported: false } },
+        ["seller_user", "buyer_user"],
+      ),
+      false,
+    );
+    assert.equal(
+      canAttachConversationContextListing(
         { ...activeListing, seller: { ...activeListing.seller, user: { id: "seller_user", banned: true } } },
         ["buyer_user"],
       ),
@@ -92,6 +100,7 @@ describe("conversation start state", () => {
         userId: "seller_user",
         ownerAccountActive: true,
         chargesEnabled: true,
+        stripeAccountSupported: true,
         vacationMode: false,
       },
     };

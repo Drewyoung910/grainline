@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { activeSellerProfileWhere, visibleSellerProfileWhere } = await import("../src/lib/sellerVisibility.ts");
-const { STRIPE_CONNECT_ACCOUNT_VERSION } = await import("../src/lib/stripeConnectV2State.ts");
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -31,10 +30,7 @@ describe("observability cleanup follow-ups", () => {
       AND: [
         {
           chargesEnabled: true,
-          OR: [
-            { stripeAccountVersion: null },
-            { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
-          ],
+          stripeAccountSupported: true,
           ownerAccountActive: true,
         },
         { id: "seller_1" },
@@ -44,10 +40,7 @@ describe("observability cleanup follow-ups", () => {
       AND: [
         {
           chargesEnabled: true,
-          OR: [
-            { stripeAccountVersion: null },
-            { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
-          ],
+          stripeAccountSupported: true,
           vacationMode: false,
           ownerAccountActive: true,
         },

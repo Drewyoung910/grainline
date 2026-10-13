@@ -207,7 +207,7 @@ describe("cron and public route hardening", () => {
     assert.match(similarListings, /getBlockedSellerProfileIdsFor/);
     assert.match(similarListings, /l\."sellerId" != ALL\(\$\{blockedSellerIds\}\)/);
     assert.match(similarListings, /me\?\.banned \|\| me\?\.deletedAt/);
-    assert.match(similarListings, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
+    assert.match(similarListings, /sp\."stripeAccountSupported" = true/);
     assert.match(similarListings, /LEFT JOIN LATERAL/);
     assert.match(similarListings, /ROW_NUMBER\(\) OVER \(ORDER BY p\."sortOrder" ASC, p\.id ASC\)/);
     assert.doesNotMatch(similarListings, /\(SELECT p\.url FROM "Photo" p/);

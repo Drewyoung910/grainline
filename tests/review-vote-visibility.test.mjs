@@ -15,7 +15,7 @@ describe("review vote visibility guardrails", () => {
     assert.match(source, /isPrivate: true/);
     assert.match(source, /reservedForUserId: true/);
     assert.match(source, /chargesEnabled: true/);
-    assert.match(source, /stripeAccountVersion: true/);
+    assert.match(source, /stripeAccountSupported: true/);
     assert.match(source, /vacationMode: true/);
     assert.match(source, /ownerAccountActive: true/);
     assert.doesNotMatch(source, /banned: true/);

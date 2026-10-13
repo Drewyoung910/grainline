@@ -19,7 +19,6 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
-import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { normalizeTag } from "@/lib/tags";
@@ -58,7 +57,7 @@ const getSellerProfileForShopPage = cache(async (sellerId: string) =>
       state: true,
       acceptingNewOrders: true,
       chargesEnabled: true,
-      stripeAccountVersion: true,
+      stripeAccountSupported: true,
       vacationMode: true,
       vacationReturnDate: true,
       vacationMessage: true,
@@ -78,7 +77,7 @@ function sellerShopIsPubliclyVisible(
   return Boolean(
     seller &&
       seller.chargesEnabled &&
-      isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
+      seller.stripeAccountSupported &&
       seller.ownerAccountActive,
   );
 }

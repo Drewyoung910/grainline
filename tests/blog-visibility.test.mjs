@@ -21,10 +21,7 @@ describe("blog visibility", () => {
             {
               sellerProfile: {
                 chargesEnabled: true,
-                OR: [
-                  { stripeAccountVersion: null },
-                  { stripeAccountVersion: "v2" },
-                ],
+                stripeAccountSupported: true,
                 vacationMode: false,
                 ownerAccountActive: true,
               },

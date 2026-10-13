@@ -32,7 +32,7 @@ describe("commission interest counts", () => {
             AND: [
               {
                 chargesEnabled: true,
-                OR: [{ stripeAccountVersion: null }, { stripeAccountVersion: "v2" }],
+                stripeAccountSupported: true,
                 vacationMode: false,
                 ownerAccountActive: true,
               },
@@ -74,7 +74,7 @@ describe("commission interest counts", () => {
     assert.ok(nearJoinStart >= 0 && nearJoinEnd > nearJoinStart);
     assert.match(nearJoin, /WHERE ci\."commissionRequestId" = cr\.id/);
     assert.match(nearJoin, /isp\."chargesEnabled" = true/);
-    assert.match(nearJoin, /isp\."stripeAccountVersion" IS NULL OR isp\."stripeAccountVersion" = 'v2'/);
+    assert.match(nearJoin, /isp\."stripeAccountSupported" = true/);
     assert.match(nearJoin, /isp\."vacationMode" = false/);
     assert.match(nearJoin, /isp\."ownerAccountActive" = true/);
     assert.doesNotMatch(nearJoin, /JOIN "User"/);

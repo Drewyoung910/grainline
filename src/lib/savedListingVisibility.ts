@@ -1,13 +1,8 @@
 import { ListingStatus, Prisma } from "@prisma/client";
 
-const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
-
 const SAVED_LISTING_PUBLIC_SELLER_STATE = {
   chargesEnabled: true,
-  OR: [
-    { stripeAccountVersion: null },
-    { stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION },
-  ],
+  stripeAccountSupported: true,
   vacationMode: false,
   ownerAccountActive: true,
 } satisfies Prisma.SellerProfileWhereInput;

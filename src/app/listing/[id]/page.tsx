@@ -80,7 +80,7 @@ const getListingForDetailPage = cache(async (listingId: string) =>
           publicMapOptIn: true,
           allowLocalPickup: true,
           chargesEnabled: true,
-          stripeAccountVersion: true,
+          stripeAccountSupported: true,
           vacationMode: true,
           acceptingNewOrders: true,
           acceptsCustomOrders: true,
@@ -405,6 +405,7 @@ export default async function ListingPage({
     !isOutOfStock &&
     !reservedForOther &&
     listing.seller.chargesEnabled &&
+    listing.seller.stripeAccountSupported &&
     listing.seller.acceptingNewOrders !== false;
 
   // Processing time label

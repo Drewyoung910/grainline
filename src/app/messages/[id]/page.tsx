@@ -27,7 +27,6 @@ import {
 } from "@/lib/uploadPersistenceVerification";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
 import { canViewListingDetail } from "@/lib/listingVisibility";
-import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
@@ -105,7 +104,7 @@ export default async function ThreadPage({
               userId: true,
               ownerAccountActive: true,
               chargesEnabled: true,
-              stripeAccountVersion: true,
+              stripeAccountSupported: true,
               vacationMode: true,
             },
           },
@@ -136,7 +135,7 @@ export default async function ThreadPage({
             seller: {
               select: {
                 chargesEnabled: true,
-                stripeAccountVersion: true,
+                stripeAccountSupported: true,
                 vacationMode: true,
                 userId: true,
                 ownerAccountActive: true,
@@ -168,7 +167,7 @@ export default async function ThreadPage({
           acceptsCustomOrders: true,
           avatarImageUrl: true,
           chargesEnabled: true,
-          stripeAccountVersion: true,
+          stripeAccountSupported: true,
         },
       })
     : null;
@@ -188,7 +187,7 @@ export default async function ThreadPage({
     otherSellerProfile?.id &&
     otherSellerProfile.displayName &&
     otherSellerProfile.chargesEnabled &&
-    isSupportedStripeAccountVersion(otherSellerProfile.stripeAccountVersion)
+    otherSellerProfile.stripeAccountSupported
     ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
     : null;
 
