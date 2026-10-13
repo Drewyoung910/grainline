@@ -330,6 +330,9 @@ jobs:
           mv \
             prisma/migrations/20261010160000_enable_clerk_webhook_event_rls \
             "$holding/20261010160000_enable_clerk_webhook_event_rls"
+          mv \
+            prisma/migrations/20261013030000_force_clerk_webhook_event_rls \
+            "$holding/20261013030000_force_clerk_webhook_event_rls"
           for test_file in \
             tests/clerk-webhook-event-authority.test.mjs \
             tests/clerk-webhook-event-authority-postgres.test.mjs \
@@ -5154,16 +5157,32 @@ jobs:
           done
           rmdir "$holding"
       - name: Re-verify Clerk webhook event authority source package
-        run: >-
-          node --test
-          tests/clerk-user-lifecycle.test.mjs
-          tests/clerk-webhook-event-authority.test.mjs
-          tests/clerk-webhook-event-authority-postgres.test.mjs
-          tests/clerk-webhook-event-production-inspect.test.mjs
-          tests/clerk-webhook-event-production-workflows.test.mjs
-          tests/clerk-webhook-event-state.test.mjs
-          tests/retention-and-ops-followups.test.mjs
-          tests/r65-observability-guardrails.test.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          listing_migration="20261013040000_add_listing_archived_at"
+          listing_holding="$RUNNER_TEMP/listing-hide-delete/$listing_migration/migration.sql"
+          listing_candidate="prisma/migrations/$listing_migration"
+          test -f "$listing_holding"
+          test ! -e "$listing_candidate"
+          mkdir "$listing_candidate"
+          cp "$listing_holding" "$listing_candidate/migration.sql"
+          cleanup_listing_source() {
+            unlink "$listing_candidate/migration.sql"
+            rmdir "$listing_candidate"
+          }
+          trap cleanup_listing_source EXIT
+          node --test \
+            tests/clerk-user-lifecycle.test.mjs \
+            tests/clerk-webhook-event-authority.test.mjs \
+            tests/clerk-webhook-event-authority-postgres.test.mjs \
+            tests/clerk-webhook-event-production-inspect.test.mjs \
+            tests/clerk-webhook-event-production-workflows.test.mjs \
+            tests/clerk-webhook-event-state.test.mjs \
+            tests/retention-and-ops-followups.test.mjs \
+            tests/r65-observability-guardrails.test.mjs
+          cleanup_listing_source
+          trap - EXIT
       - name: Apply Clerk webhook event authority in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"
@@ -5203,6 +5222,38 @@ jobs:
               'clerk-webhook-event-activation-proof',
               CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
               CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+            ]);
+          } finally {
+            await client.end();
+          }
+          NODE
+      - name: Apply Clerk webhook event policyless FORCE in disposable PostgreSQL
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --file=prisma/migrations/20261013030000_force_clerk_webhook_event_rls/migration.sql
+      - name: Stage exact Clerk webhook event FORCE ledger for integrated proof
+        run: |
+          node --input-type=module - <<'NODE'
+          import pg from 'pg';
+          import {
+            CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
+            CLERK_WEBHOOK_EVENT_FORCE_MIGRATION_SHA256,
+          } from './scripts/audit-runtime-db-grants.mjs';
+
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query(`
+              INSERT INTO public._prisma_migrations (
+                id, checksum, finished_at, migration_name, logs,
+                rolled_back_at, started_at, applied_steps_count
+              ) VALUES ($1, $2, clock_timestamp(), $3, NULL,
+                        NULL, clock_timestamp(), 1)
+            `, [
+              'clerk-webhook-event-force-proof',
+              CLERK_WEBHOOK_EVENT_FORCE_MIGRATION_SHA256,
+              CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
             ]);
           } finally {
             await client.end();
@@ -5272,7 +5323,7 @@ jobs:
                 FROM pg_catalog.pg_class AS relation
                WHERE relation.oid = 'public."ClerkWebhookEvent"'::regclass
                  AND relation.relrowsecurity
-                 AND NOT relation.relforcerowsecurity
+                 AND relation.relforcerowsecurity
                  AND NOT pg_catalog.has_table_privilege(
                    'grainline_app_runtime', relation.oid,
                    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
@@ -5286,7 +5337,7 @@ jobs:
                     WHERE policy.polrelid = relation.oid
                  )
             ) THEN
-              RAISE EXCEPTION 'Clerk webhook event policyless ENABLE catalog drifted';
+              RAISE EXCEPTION 'Clerk webhook event policyless FORCE catalog drifted';
             END IF;
           END
           $verify_clerk_webhook_event_authority$;
@@ -5465,8 +5516,10 @@ jobs:
           tests/listing-action-state.test.mjs
           tests/listing-delete.test.mjs
           tests/listing-edit-state.test.mjs
+          tests/listing-hide-delete-production-workflow.test.mjs
           tests/listing-stock-runtime.test.mjs
           tests/listing-visibility.test.mjs
+          tests/db-grant-inventory.test.mjs
       - name: Apply seller listing Hide/Delete compatibility migration in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"

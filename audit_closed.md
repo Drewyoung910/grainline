@@ -19592,6 +19592,19 @@ Verification at the source checkpoint:
   `42703` before any schedule ran. The fixture now mirrors the required column
   and its contract test pins that shape; the proof remains in its historical
   CI position and still runs exactly once.
+- Final release evidence is now complete. PR #567 merged exact head
+  `8b2e176862143b5c1faa649c09e92f0ddf6652ca` as merge commit
+  `9c1029303f44fd8d8c594d9ef4204a85b8eaecdd`; exact-head CI
+  `38365222559` and merged-main CI `38367935264` passed. Guarded Production run
+  `38371274030` applied only
+  `20261013040000_add_listing_archived_at` with checksum
+  `b691aac5db56d1fb3b185c5c47b58e3a167cfb01ccb6ebf7cdd0a798cc1f59eb`
+  and passed the exact catalog, pending-migration, and global-grant readbacks.
+  Production deployment `dpl_3NT37Puk7H5mS4pdjtfsVdssmB7r` was built from
+  exact main and now owns all five canonical aliases; canonical health,
+  deployment marker, protected-alias, and `www` redirect checks passed. The
+  predecessor deployment `dpl_4fkg6pj9L7pNa3jY5wcufqPF4ef9` remains the
+  rollback target.
 
 Current running tally after Entry 571: verified fixed/reduced 1104, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 86,

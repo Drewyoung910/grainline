@@ -15,6 +15,10 @@ const enable = readFileSync(
   ".github/workflows/clerk-webhook-event-enable-production.yml",
   "utf8",
 );
+const force = readFileSync(
+  ".github/workflows/clerk-webhook-event-force-production.yml",
+  "utf8",
+);
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const migrationPath =
   "prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql";
@@ -25,6 +29,16 @@ const activationPath =
   "prisma/migrations/20261010160000_enable_clerk_webhook_event_rls/migration.sql";
 const activationDigest = createHash("sha256")
   .update(readFileSync(activationPath))
+  .digest("hex");
+const forcePath =
+  "prisma/migrations/20261013030000_force_clerk_webhook_event_rls/migration.sql";
+const forceDigest = createHash("sha256")
+  .update(readFileSync(forcePath))
+  .digest("hex");
+const releaseSuccessorPath =
+  "prisma/migrations/20261013040000_add_listing_archived_at/migration.sql";
+const releaseSuccessorDigest = createHash("sha256")
+  .update(readFileSync(releaseSuccessorPath))
   .digest("hex");
 
 test("catalog inspection is exact-main, exact-CI, first-attempt, manual, and read-only", () => {
@@ -48,8 +62,57 @@ test("catalog inspection is exact-main, exact-CI, first-attempt, manual, and rea
   assert.match(inspection, /retention-days: 30/u);
   assert.match(inspection, new RegExp(`${migrationDigest}  ${migrationPath.replaceAll(".", "\\.")}`, "u"));
   assert.match(inspection, new RegExp(`${activationDigest}  ${activationPath.replaceAll(".", "\\.")}`, "u"));
-  assert.match(inspection, /- activation-compatible\n\s+- enabled/u);
+  assert.match(inspection, new RegExp(`${forceDigest}  ${forcePath.replaceAll(".", "\\.")}`, "u"));
+  assert.match(inspection, new RegExp(
+    `${releaseSuccessorDigest}  ${releaseSuccessorPath.replaceAll(".", "\\.")}`,
+    "u",
+  ));
+  assert.match(inspection, /- activation-compatible\n\s+- enabled\n\s+- force-compatible\n\s+- forced/u);
   assert.doesNotMatch(inspection, /prisma migrate deploy|ALTER TABLE|vercel|git push/iu);
+});
+
+test("policyless FORCE is exact-main, inspection-bound, restart-safe, and migration-only", () => {
+  assert.match(force, /name: ClerkWebhookEvent FORCE Production/u);
+  assert.match(force, /inputs\.confirmation == 'force-reviewed-clerk-webhook-event-rls'/u);
+  assert.match(force, /github\.ref == 'refs\/heads\/main'/u);
+  assert.match(force, /github\.run_attempt == 1/u);
+  assert.match(force, /main\.commit\.sha !== sha/u);
+  assert.match(force, /ci\.head_sha !== sha/u);
+  assert.match(force, /inspection\.path !== '\.github\/workflows\/clerk-webhook-event-production-inspection\.yml'/u);
+  assert.match(force, /inspection\.display_title !== `ClerkWebhookEvent Production Inspection \[force-compatible\] \$\{sha\}`/u);
+  assert.match(force, /inspection\.head_sha !== sha/u);
+  assert.match(force, /inspection\.run_attempt !== 1/u);
+  assert.match(force, /inspection\.conclusion !== 'success'/u);
+  assert.match(force, /group: production-database-migrations/u);
+  assert.match(force, /environment: Production/u);
+  assert.match(force, /CLERK_WEBHOOK_EVENT_EXPECTED_STATE: force-compatible/u);
+  assert.match(force, /CLERK_WEBHOOK_EVENT_EXPECTED_STATE: forced/u);
+  assert.match(force, /steps\.preflight\.outputs\.state == 'enabled'/u);
+  assert.equal((force.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.equal((force.match(/assert-reviewed-pending-migrations\.mjs/gu) ?? []).length, 2);
+  assert.match(force, new RegExp(`${forceDigest}  ${forcePath.replaceAll(".", "\\.")}`, "u"));
+  assert.match(force, new RegExp(
+    `${releaseSuccessorDigest}  ${releaseSuccessorPath.replaceAll(".", "\\.")}`,
+    "u",
+  ));
+  assert.match(force, /application_source="9c1029303f44fd8d8c594d9ef4204a85b8eaecdd"/u);
+  assert.match(force, /application_deployment="dpl_3NT37Puk7H5mS4pdjtfsVdssmB7r"/u);
+  assert.doesNotMatch(force, /if \[\[ "\$candidate" > "\$migration" \]\]/u);
+  assert.match(force, /mv "prisma\/migrations\/\$migration" "\$holding\/\$migration"[\s\S]*npx prisma migrate status[\s\S]*mv "\$holding\/\$migration" "prisma\/migrations\/\$migration"[\s\S]*REVIEWED_PENDING_MIGRATIONS="\$migration"[\s\S]*npx prisma migrate deploy/u);
+  assert.match(readFileSync(forcePath, "utf8"), /ALTER TABLE public\."ClerkWebhookEvent" FORCE ROW LEVEL SECURITY/u);
+  assert.doesNotMatch(force, /vercel deploy|git push/iu);
+});
+
+test("FORCE proves source before owner access and inspect-apply-postflight-audit in order", () => {
+  const source = force.indexOf("Verify ClerkWebhookEvent FORCE release source");
+  const bytes = force.indexOf("Verify exact ClerkWebhookEvent FORCE migration bytes");
+  const boundary = force.indexOf("Verify owner connection boundary");
+  const preflight = force.indexOf("Inspect restart-safe ClerkWebhookEvent state before apply");
+  const apply = force.indexOf("Apply only reviewed ClerkWebhookEvent FORCE migration");
+  const postflight = force.indexOf("Inspect forced ClerkWebhookEvent catalog after apply");
+  const audit = force.indexOf("Audit global grants after ClerkWebhookEvent FORCE");
+  assert.ok(source >= 0 && source < bytes && bytes < boundary && boundary < preflight);
+  assert.ok(preflight < apply && apply < postflight && postflight < audit);
 });
 
 test("policyless ENABLE is inspection-bound, exact-main, restart-safe, and keeps FORCE separate", () => {
@@ -166,7 +229,7 @@ test("release performs source proof before owner access and inspect-status-apply
 });
 
 test("current-main Clerk workflows do not require their migration to be newest", () => {
-  for (const workflow of [inspection, release, enable]) {
+  for (const workflow of [inspection, release, enable, force]) {
     const bytesStart = workflow.indexOf("Verify exact");
     const boundary = workflow.indexOf("Verify owner connection boundary");
     assert.ok(bytesStart >= 0 && boundary > bytesStart);
@@ -191,4 +254,8 @@ test("historical CI isolates the production wiring tests with their Clerk migrat
   assert.ok(isolate >= 0 && isolate < broad && restore > broad);
   assert.match(replay, /clerk-webhook-event-production-inspect\.test\.mjs/u);
   assert.match(replay, /clerk-webhook-event-production-workflows\.test\.mjs/u);
+  assert.match(
+    replay,
+    /listing_holding="\$RUNNER_TEMP\/listing-hide-delete\/\$listing_migration\/migration\.sql"[\s\S]*cp "\$listing_holding" "\$listing_candidate\/migration\.sql"[\s\S]*trap cleanup_listing_source EXIT[\s\S]*node --test[\s\S]*cleanup_listing_source[\s\S]*trap - EXIT/u,
+  );
 });

@@ -104,17 +104,17 @@ describe("site-wide RLS coverage matrix", () => {
         ["CaseMessage", "RLS_LIVE_FORCE"],
         ["CaseMessageAttachment", "RLS_LIVE_FORCE"],
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
-        ["ClerkWebhookEvent", "RLS_LIVE_PHASE_A"],
+        ["ClerkWebhookEvent", "RLS_LIVE_PHASE_A_FORCE_PREPARED"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
-        ["AccountDeletionSideEffect", "RLS_LIVE_PHASE_A_FORCE_PREPARED"],
+        ["AccountDeletionSideEffect", "RLS_LIVE_FORCE"],
         ["StripeWebhookEvent", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
     assert.match(
       matrix,
-      /Candidate source contains 68 Prisma models\. Twenty-seven have committed ENABLE[\s\S]*Production remains at twenty-six FORCE and two[\s\S]*ENABLE-only service ledgers: `ClerkWebhookEvent` and[\s\S]*`AccountDeletionSideEffect`/,
+      /Candidate source contains 68 Prisma models\. Twenty-eight have committed ENABLE[\s\S]*Production[\s\S]*twenty-seven FORCE, one ENABLE-only service ledger[\s\S]*`ClerkWebhookEvent`/,
     );
     assert.match(
       matrix,

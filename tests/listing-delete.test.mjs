@@ -123,6 +123,10 @@ describe("listing delete lifecycle", () => {
     );
     assert.match(
       workflow,
+      /Re-verify seller listing Hide\/Delete source package[\s\S]*tests\/listing-hide-delete-production-workflow\.test\.mjs[\s\S]*tests\/db-grant-inventory\.test\.mjs[\s\S]*Apply seller listing Hide\/Delete compatibility migration in disposable PostgreSQL/,
+    );
+    assert.match(
+      workflow,
       /Apply seller listing Hide\/Delete compatibility migration in disposable PostgreSQL[\s\S]*20261013040000_add_listing_archived_at\/migration\.sql/,
     );
     assert.match(workflow, /Verify seller listing Hide\/Delete catalog/);

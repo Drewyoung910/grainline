@@ -4,8 +4,8 @@ Last updated: 2026-10-13
 
 ## 2026-10-13 — Claude session #361 seller listing Hide/Delete
 
-- **[#361 VERIFIED/FIXED ON ISOLATED CANDIDATE; NOT YET MERGED OR
-  DEPLOYED]** Seller listing Archive conflated reversible hiding with permanent
+- **[#361 VERIFIED/FIXED/PRODUCTION LIVE; HISTORICAL RAW NOTE RETAINED]** Seller
+  listing Archive conflated reversible hiding with permanent
   deletion, inferred archival from `HIDDEN + isPrivate`, kept archived rows in
   seller lists, discarded saves/subscriptions without honest copy, and hid the
   order case-window refusal behind a generic dashboard error. The isolated
@@ -22,8 +22,14 @@ Last updated: 2026-10-13
   are removed with explicit confirmation copy. The existing DirectUpload
   release trigger queues hard-deleted media for bounded R2 cleanup. Focused
   lifecycle, visibility, stock-lock, authority-catalog, and related regression
-  tests pass; TypeScript, dependency audit, and lint also pass. Exact final
-  security review, protected CI, migration, and deployment remain pending.
+  tests passed; TypeScript, dependency audit, lint, exact-head CI, merged-main
+  CI, guarded Production migration, and canonical deployment validation also
+  passed. PR #567 merged exact head
+  `8b2e176862143b5c1faa649c09e92f0ddf6652ca` as main
+  `9c1029303f44fd8d8c594d9ef4204a85b8eaecdd`; guarded migration run
+  `38371274030` applied only `20261013040000_add_listing_archived_at`, and
+  Production deployment `dpl_3NT37Puk7H5mS4pdjtfsVdssmB7r` now serves all
+  five canonical aliases with health and deployment-marker validation.
 - The older raw note at line ~3490 recommending preservation of favorites on
   archive is superseded by the product decision recorded in #361: permanent
   Delete intentionally removes saves and back-in-stock subscriptions, and the
