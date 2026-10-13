@@ -2259,8 +2259,8 @@ SELECT format(
 )
 FROM (
   VALUES
-    ('public.grainline_seller_profile_private_mirror()'),
-    ('public.grainline_seller_profile_supported_snapshot()')
+    ('public."grainline_seller_profile_private_mirror"()'),
+    ('public."grainline_seller_profile_supported_snapshot"()')
 ) AS private_function(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec

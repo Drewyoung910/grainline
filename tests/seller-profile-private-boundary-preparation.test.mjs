@@ -126,7 +126,13 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(migration, /REVOKE ALL ON TABLE public\."SellerProfilePrivate" FROM grainline_app_runtime/);
     assert.match(migration, /SECURITY DEFINER[\s\S]*SET search_path = pg_catalog/);
     assert.match(grantAudit, /RUNTIME_PRIVATE_TABLES[\s\S]*"SellerProfilePrivate"/);
+    assert.match(
+      grantAudit,
+      /RUNTIME_PRIVATE_FUNCTIONS[\s\S]*"grainline_seller_profile_private_mirror"[\s\S]*"grainline_seller_profile_supported_snapshot"/,
+    );
     assert.match(provisioning, /\('SellerProfilePrivate'\)/);
+    assert.match(provisioning, /"grainline_seller_profile_private_mirror"\(\)/);
+    assert.match(provisioning, /"grainline_seller_profile_supported_snapshot"\(\)/);
   });
 
   it("provides a rollback-only exact-migration PostgreSQL proof", () => {
