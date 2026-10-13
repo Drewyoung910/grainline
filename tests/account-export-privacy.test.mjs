@@ -40,10 +40,7 @@ describe("account export privacy coverage", () => {
 
   it("exports non-note Stripe Connect diagnostics for sellers", () => {
     const schema = source("prisma/schema.prisma");
-    const route = source("src/app/api/account/export/route.ts");
-    const sellerSelectStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
-    const sellerSelectEnd = route.indexOf("const [", sellerSelectStart);
-    const sellerSelect = route.slice(sellerSelectStart, sellerSelectEnd);
+    const sellerSelect = source("src/lib/sellerOwnerPrivateAccess.ts");
 
     for (const field of [
       "stripeAccountId",
@@ -150,10 +147,7 @@ describe("account export privacy coverage", () => {
 
   it("exports seller ship-from address fields used for label purchases", () => {
     const schema = source("prisma/schema.prisma");
-    const route = source("src/app/api/account/export/route.ts");
-    const sellerSelectStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
-    const sellerSelectEnd = route.indexOf("const [", sellerSelectStart);
-    const sellerSelect = route.slice(sellerSelectStart, sellerSelectEnd);
+    const sellerSelect = source("src/lib/sellerOwnerPrivateAccess.ts");
 
     for (const field of [
       "shipFromName",
@@ -173,9 +167,7 @@ describe("account export privacy coverage", () => {
   it("exports current user-configured seller profile and listing fields", () => {
     const schema = source("prisma/schema.prisma");
     const route = source("src/app/api/account/export/route.ts");
-    const sellerSelectStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
-    const sellerSelectEnd = route.indexOf("const [", sellerSelectStart);
-    const sellerSelect = route.slice(sellerSelectStart, sellerSelectEnd);
+    const sellerSelect = source("src/lib/sellerOwnerPrivateAccess.ts");
     const listingSelectStart = route.indexOf("sellerProfile\n      ? prisma.listing.findMany");
     const listingSelectEnd = route.indexOf("photos: { orderBy", listingSelectStart);
     const listingSelect = route.slice(listingSelectStart, listingSelectEnd);
@@ -335,7 +327,7 @@ describe("account export privacy coverage", () => {
     const payload = source("src/lib/accountExportPayload.ts");
 
     const historyStart = route.indexOf("const accountEmailState = await ownerUserAccountEmailAddressState");
-    const sellerProfileStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
+    const sellerProfileStart = route.indexOf("const sellerProfile = await sellerOwnerExportProfile");
     const historyBlock = route.slice(historyStart, sellerProfileStart);
     const newsletterStart = route.indexOf("prisma.newsletterSubscriber.findMany");
     const newsletterEnd = route.indexOf("sellerProfile\n      ? prisma.sellerBroadcast.findMany", newsletterStart);

@@ -56,6 +56,10 @@ const shippingPrivateAccess = readFileSync(
   "src/lib/sellerShippingPrivateAccess.ts",
   "utf8",
 );
+const ownerPrivateAccess = readFileSync(
+  "src/lib/sellerOwnerPrivateAccess.ts",
+  "utf8",
+);
 const PRIVATE_FIELDS = Object.freeze([
   "stripeAccountId",
   "stripeAccountVersion",
@@ -300,5 +304,18 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(shippingPrivateAccess, /defaultPkgWeightGrams: true/);
     assert.match(shippingPrivateAccess, /preferredCarriers: true/);
     assert.match(shippingPrivateAccess, /sellerShippingQuoteState/);
+  });
+
+  it("funnels owner onboarding and export reads through one compatibility boundary", () => {
+    const onboarding = readFileSync("src/app/dashboard/onboarding/page.tsx", "utf8");
+    const accountExport = readFileSync("src/app/api/account/export/route.ts", "utf8");
+    assert.match(onboarding, /sellerOwnerOnboardingState\(seller\.id\)/);
+    assert.match(accountExport, /sellerOwnerExportProfile\(user\.id\)/);
+    assert.doesNotMatch(onboarding, /prisma\.sellerProfile\./);
+    assert.doesNotMatch(accountExport, /prisma\.sellerProfile\./);
+    assert.match(ownerPrivateAccess, /sellerOwnerOnboardingSelect/);
+    assert.match(ownerPrivateAccess, /sellerOwnerExportSelect/);
+    assert.match(ownerPrivateAccess, /manualStripeReconciliationNeeded: true/);
+    assert.match(ownerPrivateAccess, /guildMasterReviewNotes: true/);
   });
 });

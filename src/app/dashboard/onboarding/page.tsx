@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { stripe } from "@/lib/stripe";
 import OnboardingWizard from "./OnboardingWizard";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
+import { sellerOwnerOnboardingState } from "@/lib/sellerOwnerPrivateAccess";
 
 export const metadata: Metadata = {
   title: "Set Up Your Shop",
@@ -20,31 +20,7 @@ export default async function OnboardingPage({
   const { seller } = await ensureSeller();
   const params = await searchParams;
 
-  const sp = await prisma.sellerProfile.findUnique({
-    where: { id: seller.id },
-    select: {
-      onboardingStep: true,
-      onboardingComplete: true,
-      displayName: true,
-      bio: true,
-      tagline: true,
-      avatarImageUrl: true,
-      yearsInBusiness: true,
-      city: true,
-      state: true,
-      returnPolicy: true,
-      shippingPolicy: true,
-      acceptsCustomOrders: true,
-      stripeAccountId: true,
-      chargesEnabled: true,
-      _count: { select: { listings: true } },
-      listings: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { id: true, title: true, status: true },
-      },
-    },
-  });
+  const sp = await sellerOwnerOnboardingState(seller.id);
 
   if (!sp || sp.onboardingComplete) {
     redirect("/dashboard");
