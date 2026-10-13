@@ -261,6 +261,19 @@ EXECUTE denial, delete cascade and
 catalog cleanup after rollback. This proves the candidate's additive SQL
 semantics; it is not evidence that the migration is installed in Production.
 
+The protected Production operator is prepared separately in
+`.github/workflows/seller-profile-private-boundary-production.yml`. It binds a
+first-attempt manual dispatch to an unchanged main commit and that commit's
+successful push CI, verifies the exact migration digest, requires the accepted
+listing-lifecycle migration as its exact predecessor, rejects partial catalog
+state, and admits only this one pending migration. Its postflight compares the
+predecessor table posture, companion/public row counts and every mirrored
+private field, the derived support snapshot, constraints, triggers, function
+bodies and effective `PUBLIC`/runtime authority before running the global grant
+audit. Evidence contains counts and catalog posture only. The operator neither
+deploys the application nor enables RLS, and its source availability is not
+evidence of a Production dispatch.
+
 ### Phase 1: compatible application conversion — **GO for isolated source work**
 
 The disposable PostgreSQL prerequisite is satisfied. Isolated source work may
