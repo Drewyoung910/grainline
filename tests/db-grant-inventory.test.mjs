@@ -17,7 +17,6 @@ import {
   CASE_INVARIANT_FUNCTIONS,
   CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/case-invariant-catalog.mjs";
-import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
@@ -2605,9 +2604,7 @@ describe("database grant inventory guardrails", () => {
       "CREATE FUNCTION public.grainline_listing_delete_reference_state(",
     );
     const sellerProfilePrivateBoundaryMigrationPath =
-      sellerProfilePrivateMigrationPath(
-        "20261013120000_prepare_seller_profile_private_boundary",
-      );
+      "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql";
     const sellerProfilePrivateBoundaryMigrationPresent = existsSync(
       sellerProfilePrivateBoundaryMigrationPath,
     ) && SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.every((functionName) =>
@@ -2619,12 +2616,8 @@ describe("database grant inventory guardrails", () => {
       "grainline_seller_profile_reconciliation_required_compat",
     ];
     const sellerProfilePrivateCallerTransitionsPresent = [
-      sellerProfilePrivateMigrationPath(
-        "20261013180000_move_provider_identity_seller_private_sql_callers",
-      ),
-      sellerProfilePrivateMigrationPath(
-        "20261013190000_move_reconciliation_seller_private_sql_callers",
-      ),
+      "prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql",
+      "prisma/migrations/20261013190000_move_reconciliation_seller_private_sql_callers/migration.sql",
     ].every((migrationPath, index) => existsSync(migrationPath)
       && source(migrationPath).includes(
         `CREATE OR REPLACE FUNCTION public.${sellerProfilePrivateCallerTransitionFunctionNames[index]}(`,
