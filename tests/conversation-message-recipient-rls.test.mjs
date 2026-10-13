@@ -101,7 +101,19 @@ describe("Conversation and Message recipient RLS draft", () => {
   it("reapplies the current custom-order seller private boundary after the historical draft", () => {
     assert.match(
       proof,
-      /await owner\.query\(serviceSql\);[\s\S]*await owner\.query\(sellerPrivateCustomOrderSql\);/,
+      /await owner\.query\(serviceSql\);[\s\S]*to_regclass\([\s\S]*SellerProfilePrivate[\s\S]*if \(sellerPrivateBoundary\.rows\[0\]\.installed\) \{[\s\S]*await owner\.query\(sellerPrivateCustomOrderSql\);/,
+    );
+    assert.match(
+      proof,
+      /SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED[\s\S]*"true"[\s\S]*SellerProfilePrivate is absent outside the declared CI isolation window/,
+    );
+    assert.match(
+      proof,
+      /SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH[\s\S]*isolated SellerProfile private-boundary migration path is required/,
+    );
+    assert.match(
+      proof,
+      /seller_private_custom_order_successor_deferred_during_declared_isolation/,
     );
     for (const functionName of [
       "grainline_message_send_custom_request",

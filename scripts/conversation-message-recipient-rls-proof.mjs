@@ -411,8 +411,30 @@ async function applyDraft(owner) {
   await owner.query(serviceSql);
   // The historical service draft restores its accepted predecessor function
   // bodies. Reapply the current additive SellerProfile private-boundary
-  // successor so the runtime behavior proof exercises the effective catalog.
-  await owner.query(sellerPrivateCustomOrderSql);
+  // successor when Phase 0 is installed. During the historical CI prefix,
+  // Phase 0 and every dependent caller migration are deliberately held until
+  // all predecessor proofs pass; the reviewed workflow applies them together
+  // after restoring the exact migration files.
+  const sellerPrivateBoundary = await owner.query(
+    `SELECT pg_catalog.to_regclass(
+       'public."SellerProfilePrivate"'
+     ) IS NOT NULL AS installed`,
+  );
+  if (sellerPrivateBoundary.rows[0].installed) {
+    await owner.query(sellerPrivateCustomOrderSql);
+    record("seller_private_custom_order_successor_reapplied");
+  } else {
+    assert.equal(
+      process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED,
+      "true",
+      "SellerProfilePrivate is absent outside the declared CI isolation window",
+    );
+    assert.ok(
+      process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH,
+      "isolated SellerProfile private-boundary migration path is required",
+    );
+    record("seller_private_custom_order_successor_deferred_during_declared_isolation");
+  }
   await owner.query(policySql);
   if (forcedBeforeDraft) {
     await owner.query(
