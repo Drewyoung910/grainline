@@ -299,8 +299,10 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(accountDeletion, /runAccountDeletionStripeRejectSideEffect\(\{/);
     assert.match(accountDeletion, /stripeAccountVersion,/);
     assert.match(accountDeletion, /stripeControllerType,/);
-    assert.match(accountDeletion, /stripeAccountVersion: null/);
-    assert.match(accountDeletion, /stripeControllerType: null/);
-    assert.match(accountDeletion, /manualStripeReconciliationNote/);
+    const sellerDeletionAccess = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
+    assert.match(accountDeletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
+    assert.match(sellerDeletionAccess, /stripeAccountVersion: null/);
+    assert.match(sellerDeletionAccess, /stripeControllerType: null/);
+    assert.match(sellerDeletionAccess, /manualStripeReconciliationNote/);
   });
 });

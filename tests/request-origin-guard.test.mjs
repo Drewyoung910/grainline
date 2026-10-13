@@ -160,7 +160,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.listing.findUnique",
+      "sellerSingleCheckoutSource(body.listingId)",
       "createSnapshotSingleCheckoutStockReservation({",
       "stripe.checkout.sessions.create",
     ]);

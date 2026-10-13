@@ -267,6 +267,10 @@ describe("shipping rate tokens", () => {
   it("rechecks local pickup availability at checkout after token verification", () => {
     const sellerCheckout = readFileSync("src/app/api/cart/checkout-seller/route.ts", "utf8");
     const singleCheckout = readFileSync("src/app/api/cart/checkout/single/route.ts", "utf8");
+    const sellerCheckoutPrivateAccess = readFileSync(
+      "src/lib/sellerCheckoutPrivateAccess.ts",
+      "utf8",
+    );
     const shippingState = readFileSync("src/lib/shippingQuoteState.ts", "utf8");
 
     assert.match(shippingState, /export const PICKUP_RATE_OBJECT_ID = "pickup"/);
@@ -278,7 +282,8 @@ describe("shipping rate tokens", () => {
       assert.match(source, /Local pickup is no longer available for this seller/);
     }
 
-    assert.match(singleCheckout, /allowLocalPickup: true/);
+    assert.match(singleCheckout, /sellerSingleCheckoutSource\(body\.listingId\)/);
+    assert.match(sellerCheckoutPrivateAccess, /allowLocalPickup: true/);
     assert.match(sellerCheckout, /sellerItems\[0\]\.listing\.seller\.allowLocalPickup/);
   });
 

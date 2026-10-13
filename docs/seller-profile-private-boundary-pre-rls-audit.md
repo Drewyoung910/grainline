@@ -355,11 +355,18 @@ transition assertions, notifications and audit writes remain at the caller.
 The staff page retains only unrelated public featured-maker SellerProfile
 operations outside this private compatibility boundary.
 
+The fifteenth isolated slice centralizes the cart, single-checkout and
+single-checkout-resume private seller source projections behind
+`sellerCheckoutPrivateAccess.ts`. The boundary keeps the exact provider
+version, payout destination, package defaults and orderability snapshots used
+by the installed reservation-source witnesses, while the route-level buyer,
+listing, block, rate, price and reservation checks remain unchanged.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
-direct authority on the companion. Phase 1 remains incomplete: checkout and
-currently effective SQL-function dependencies must move to purpose-bound
-private operations before predecessor columns can be retired.
+direct authority on the companion. Phase 1 remains incomplete: currently
+effective SQL-function dependencies must move to purpose-bound private
+operations before predecessor columns can be retired.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

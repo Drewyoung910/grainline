@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { getCheckoutLock, singleCheckoutLockKey } from "@/lib/checkoutSessionLock";
@@ -12,6 +11,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
+import { sellerSingleCheckoutResumeSource } from "@/lib/sellerCheckoutPrivateAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -48,26 +48,7 @@ export async function GET(req: Request) {
     // Stock may be zero because this exact ready Session owns the final-unit
     // reservation. Every other mutable orderability rule must still hold:
     // resuming must not bypass a later listing, seller or account shutdown.
-    const listing = await prisma.listing.findUnique({
-      where: { id: listingId },
-      select: {
-        status: true,
-        isPrivate: true,
-        reservedForUserId: true,
-        seller: {
-          select: {
-            id: true,
-            userId: true,
-            stripeAccountId: true,
-            stripeAccountVersion: true,
-            chargesEnabled: true,
-            vacationMode: true,
-            acceptingNewOrders: true,
-            ownerAccountActive: true,
-          },
-        },
-      },
-    });
+    const listing = await sellerSingleCheckoutResumeSource(listingId);
     if (!listing || !singleCheckoutResumeSourceIsAvailable(listing, me.id)) {
       return privateJson(UNAVAILABLE_RESUME, { status: HTTP_STATUS.CONFLICT });
     }

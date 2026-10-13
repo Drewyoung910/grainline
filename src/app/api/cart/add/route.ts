@@ -27,7 +27,7 @@ import {
   upsertOwnerCart,
 } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
-import { listingSellerOrderStateSelect } from "@/lib/sellerProfileSelects";
+import { listingSellerOrderStateSelect } from "@/lib/sellerCheckoutPrivateAccess";
 
 const CartAddSchema = z.object({
   listingId: z.string().min(1),

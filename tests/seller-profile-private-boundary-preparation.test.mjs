@@ -76,6 +76,22 @@ const adminVerification = readFileSync(
   "src/app/admin/verification/page.tsx",
   "utf8",
 );
+const checkoutPrivateAccess = readFileSync(
+  "src/lib/sellerCheckoutPrivateAccess.ts",
+  "utf8",
+);
+const singleCheckout = readFileSync(
+  "src/app/api/cart/checkout/single/route.ts",
+  "utf8",
+);
+const singleCheckoutResume = readFileSync(
+  "src/app/api/cart/checkout/single/resume/route.ts",
+  "utf8",
+);
+const cartOwnerAccess = readFileSync(
+  "src/lib/cartOwnerAccess.ts",
+  "utf8",
+);
 const PRIVATE_FIELDS = Object.freeze([
   "stripeAccountId",
   "stripeAccountVersion",
@@ -110,6 +126,20 @@ const PRIVATE_FIELDS = Object.freeze([
 ]);
 
 describe("SellerProfile private-boundary additive preparation", () => {
+  it("centralizes checkout private seller source projections", () => {
+    assert.match(singleCheckout, /sellerSingleCheckoutSource\(body\.listingId\)/);
+    assert.doesNotMatch(singleCheckout, /seller:\s*\{\s*select:\s*\{/);
+    assert.match(singleCheckoutResume, /sellerSingleCheckoutResumeSource\(listingId\)/);
+    assert.doesNotMatch(singleCheckoutResume, /seller:\s*\{\s*select:\s*\{/);
+    assert.match(cartOwnerAccess, /include: sellerCartCheckoutInclude/);
+    assert.match(checkoutPrivateAccess, /export function sellerSingleCheckoutSource/);
+    assert.match(checkoutPrivateAccess, /export function sellerSingleCheckoutResumeSource/);
+    assert.match(checkoutPrivateAccess, /export const sellerCartCheckoutInclude/);
+    assert.match(checkoutPrivateAccess, /stripeAccountId: true/);
+    assert.match(checkoutPrivateAccess, /stripeAccountVersion: true/);
+    assert.match(checkoutPrivateAccess, /defaultPkgWeightGrams: true/);
+  });
+
   it("centralizes staff Guild private state behind one compatibility boundary", () => {
     for (const operation of [
       "approveSellerGuildMember",
