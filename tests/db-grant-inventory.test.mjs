@@ -87,6 +87,10 @@ const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_export_page",
   "grainline_seller_payout_latest_failure",
 ];
+const SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES = [
+  "grainline_seller_profile_private_mirror",
+  "grainline_seller_profile_supported_snapshot",
+];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",
   "grainline_blocked_checkout_refund_claim_resume",
@@ -595,6 +599,7 @@ describe("database grant inventory guardrails", () => {
       "OrderRefundReconciliation",
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
+      "SellerProfilePrivate",
     ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
       "CaseResolutionClaim",
@@ -2602,7 +2607,7 @@ describe("database grant inventory guardrails", () => {
         ),
       );
 
-    assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 68 : 67);
+    assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 69 : 68);
     assert.equal(inventory.enums.length, disputeRecoveryMigrationPresent ? 23 : 22);
     assert.deepEqual(inventory.functions, [
       ...(accountDeletionClaimFencePrepared
@@ -2726,6 +2731,7 @@ describe("database grant inventory guardrails", () => {
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
+      ...SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES,
       ...(listingHideDeleteMigrationPresent
         ? ["grainline_listing_delete_reference_state"]
         : []),
@@ -2791,6 +2797,8 @@ describe("database grant inventory guardrails", () => {
         + (clerkWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
         + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
+        + SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.length
+        + 1 // SellerProfilePrivate table revoke from PUBLIC
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
         + ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES.length
         + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length

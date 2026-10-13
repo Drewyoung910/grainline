@@ -2250,6 +2250,21 @@ FROM (
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec
 
+-- Phase 0 creates these trigger functions without PUBLIC or ordinary-runtime
+-- execution. Re-provisioning must converge that zero-direct boundary too.
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM (
+  VALUES
+    ('public.grainline_seller_profile_private_mirror()'),
+    ('public.grainline_seller_profile_supported_snapshot()')
+) AS private_function(function_signature)
+WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- DirectUpload preparation may be absent before its reviewed migrations.
 -- When present, converge every function to zero PUBLIC authority, revoke all
 -- direct runtime authority, then re-grant only the 21 fixed operations.
