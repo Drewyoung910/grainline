@@ -233,15 +233,6 @@ jobs:
         run: >-
           node --test
           tests/seller-profile-private-boundary-preparation.test.mjs
-      - name: Isolate SellerProfile private-boundary migration from historical release guards
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/seller-profile-private-boundary"
-          mkdir "$holding"
-          mv \
-            prisma/migrations/20261013120000_prepare_seller_profile_private_boundary \
-            "$holding/20261013120000_prepare_seller_profile_private_boundary"
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
@@ -1073,6 +1064,15 @@ jobs:
           do
             mv "prisma/migrations/$migration" "$destination/$migration"
           done
+      - name: Isolate SellerProfile private-boundary migration from historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-private-boundary"
+          mkdir "$holding"
+          mv \
+            prisma/migrations/20261013120000_prepare_seller_profile_private_boundary \
+            "$holding/20261013120000_prepare_seller_profile_private_boundary"
       - name: Verify compatible Order account-deletion authority
         run: >-
           node --test
