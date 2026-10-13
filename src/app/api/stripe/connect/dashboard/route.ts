@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -8,6 +7,7 @@ import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { sellerStripeOwnerState } from "@/lib/sellerStripePrivateAccess";
 
 export async function POST() {
   const { userId } = await auth();
@@ -25,10 +25,7 @@ export async function POST() {
     throw err;
   }
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { stripeAccountId: true, stripeAccountVersion: true },
-  });
+  const seller = await sellerStripeOwnerState(me.id);
   if (!seller?.stripeAccountId) {
     return privateJson({ error: "Stripe account not connected" }, { status: HTTP_STATUS.BAD_REQUEST });
   }

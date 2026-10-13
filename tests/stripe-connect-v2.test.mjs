@@ -223,6 +223,7 @@ describe("Stripe Connect v2 migration guardrails", () => {
     const route = source("src/app/api/cron/stripe-connect-reconcile/route.ts");
     const helper = source("src/lib/stripeConnectReconcile.ts");
     const mirror = source("src/lib/stripeWebhookMirror.ts");
+    const access = source("src/lib/sellerStripePrivateAccess.ts");
     const vercel = source("vercel.json");
 
     assert.match(vercel, /"path": "\/api\/cron\/stripe-connect-reconcile"[\s\S]*"schedule": "17 \*\/6 \* \* \*"/);
@@ -237,9 +238,10 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(helper, /STRIPE_CONNECT_RECONCILE_BATCH_SIZE = 200/);
     assert.match(helper, /runCronCursorPages\(\{/);
     assert.match(helper, /pageSize: batchSize/);
-    assert.match(helper, /stripeAccountId: \{ not: null \}/);
-    assert.match(helper, /cursor: \{ id: cursorId \}, skip: 1/);
-    assert.match(helper, /orderBy: \{ id: "asc" \}/);
+    assert.match(helper, /sellerStripeReconciliationPage\(cursorId, batchSize\)/);
+    assert.match(access, /stripeAccountId: \{ not: null \}/);
+    assert.match(access, /cursor: \{ id: cursorId \}, skip: 1/);
+    assert.match(access, /orderBy: \{ id: "asc" \}/);
     assert.match(helper, /getCursor: \(seller\) => seller\.id/);
     assert.match(helper, /result\.pagesFetched = pageResult\.pagesFetched/);
     assert.match(helper, /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
@@ -249,6 +251,8 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(helper, /failures: \[\]/);
 
     assert.match(mirror, /return \{ matched: false as const \}/);
+    assert.match(mirror, /sellerStripeMirrorState\(accountId\)/);
+    assert.match(mirror, /updateSellerStripeChargesEnabled\(tx, seller\.id, effectiveChargesEnabled\)/);
     assert.match(mirror, /changed: seller\.chargesEnabled !== effectiveChargesEnabled/);
     assert.match(mirror, /return result/);
     assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);

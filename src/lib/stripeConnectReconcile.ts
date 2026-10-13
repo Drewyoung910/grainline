@@ -1,10 +1,10 @@
-import { prisma } from "@/lib/db";
 import { stripe as defaultStripe } from "@/lib/stripe";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { runCronCursorPages } from "@/lib/cronBatchState";
 import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { logServerError, sanitizeServerErrorMessage } from "@/lib/serverErrorLogger";
+import { sellerStripeReconciliationPage } from "@/lib/sellerStripePrivateAccess";
 
 type StripeConnectAccountStatusClient = {
   accounts: {
@@ -66,18 +66,7 @@ export async function processStripeConnectAccountReconciliationBatch({
 
   const pageResult = await runCronCursorPages({
     pageSize: batchSize,
-    fetchPage: (cursorId) =>
-      prisma.sellerProfile.findMany({
-        where: { stripeAccountId: { not: null } },
-        ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-        orderBy: { id: "asc" },
-        take: batchSize,
-        select: {
-          id: true,
-          stripeAccountId: true,
-          stripeAccountVersion: true,
-        },
-      }),
+    fetchPage: (cursorId) => sellerStripeReconciliationPage(cursorId, batchSize),
     getCursor: (seller) => seller.id,
     processPage: async (sellers) => {
       result.scanned += sellers.length;

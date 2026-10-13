@@ -309,6 +309,16 @@ shop-settings page and profile editor to explicit projections. The recursive
 guard now proves zero direct SellerProfile reads without a `select` and zero
 nested `seller: true` reads across `src`.
 
+The fourth isolated slice funnels Stripe Connect owner onboarding/status,
+dashboard links, scheduled account reconciliation and signed-webhook capability
+mirroring through `sellerStripePrivateAccess.ts`. The compatibility module still
+uses exact predecessor projections because Phase 0 intentionally gives the
+ordinary runtime no direct access to `SellerProfilePrivate`; deploying a raw
+Prisma relation switch would fail. With the route and worker family centralized,
+the post-Phase-0 operation migration can replace one implementation boundary
+with fixed owner/provider functions while preserving caller behavior and the
+audit-plus-capability-update transaction.
+
 Phase 1 remains incomplete. The next slices must convert provider/shipping,
 staff/export/deletion and currently effective SQL-function dependencies to
 purpose-bound private operations before the predecessor columns can be retired.

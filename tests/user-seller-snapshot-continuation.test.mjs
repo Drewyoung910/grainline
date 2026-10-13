@@ -13,6 +13,7 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   const expire = source("src/app/api/cron/commission-expire/route.ts");
   const broadcast = source("src/app/api/seller/broadcast/route.ts");
   const mirror = source("src/lib/stripeWebhookMirror.ts");
+  const stripePrivate = source("src/lib/sellerStripePrivateAccess.ts");
   const edit = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
   assert.match(messages, /seller:\s*\{[\s\S]*?userId: true,[\s\S]*?ownerAccountActive: true/);
@@ -27,7 +28,9 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   assert.match(broadcast, /sellerProfile\.ownerAccountActive !== true/);
   assert.doesNotMatch(broadcast, /currentBroadcast\.sellerProfile\.user\.(?:banned|deletedAt)/);
 
-  assert.match(mirror, /userId: true,[\s\S]*ownerAccountActive: true/);
+  assert.match(stripePrivate, /where: \{ stripeAccountId \},[\s\S]*userId: true,[\s\S]*ownerAccountActive: true/);
+  assert.doesNotMatch(stripePrivate, /user:\s*\{[\s\S]*banned:[\s\S]*deletedAt:/);
+  assert.match(mirror, /sellerStripeMirrorState\(accountId\)/);
   assert.match(mirror, /localAccountActive = seller\.ownerAccountActive === true/);
   assert.doesNotMatch(mirror, /seller\.user\.(?:id|banned|deletedAt)/);
 

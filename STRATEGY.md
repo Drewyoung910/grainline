@@ -39,9 +39,12 @@ removes all nine nested `seller: true` reads with explicit checkout, quote and
 ownership projections plus a recursive zero-count guard. A third stacked slice
 converts the three direct broad owner reads to explicit bootstrap, settings and
 profile-editor projections; the source guard now proves zero broad direct or
-nested SellerProfile reads. These slices stay stacked behind Phase 0; the
-provider, shipping, staff, export, deletion and effective SQL-function families
-remain.
+nested SellerProfile reads. A fourth stacked slice centralizes Stripe Connect
+owner, webhook and reconciliation access in one compatibility module so the
+post-Phase-0 fixed-operation release can replace a single implementation point
+without changing provider behavior. These slices stay stacked behind Phase 0;
+the fixed provider operations, shipping, staff, export, deletion and effective
+SQL-function families remain.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

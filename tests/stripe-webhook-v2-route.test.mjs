@@ -42,6 +42,7 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
   it("mirrors v2 account capability state through the shared helper with idempotency", () => {
     const route = source("src/app/api/stripe/webhook/v2/route.ts");
     const mirror = source("src/lib/stripeWebhookMirror.ts");
+    const access = source("src/lib/sellerStripePrivateAccess.ts");
 
     assert.match(
       route,
@@ -81,8 +82,9 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     );
 
     assert.match(mirror, /export async function mirrorStripeChargesEnabled/);
-    assert.match(mirror, /where: \{ stripeAccountId: accountId \}/);
-    assert.match(mirror, /ownerAccountActive: true/);
+    assert.match(mirror, /sellerStripeMirrorState\(accountId\)/);
+    assert.match(access, /where: \{ stripeAccountId \}/);
+    assert.match(access, /ownerAccountActive: true/);
     assert.match(mirror, /const localAccountActive = seller\.ownerAccountActive === true/);
     assert.doesNotMatch(mirror, /sellerProfile\.findFirst\([\s\S]*?user:\s*\{/);
     assert.match(mirror, /const effectiveChargesEnabled = chargesEnabled && localAccountActive/);
@@ -95,7 +97,8 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
       "ignored active Stripe state for inactive local users should be logged even when local orderability was already disabled",
     );
     assert.match(mirror, /action: "STRIPE_ACCOUNT_CHARGES_UPDATED"/);
-    assert.match(mirror, /data: \{ chargesEnabled: effectiveChargesEnabled \}/);
+    assert.match(mirror, /updateSellerStripeChargesEnabled\(tx, seller\.id, effectiveChargesEnabled\)/);
+    assert.match(access, /data: \{ chargesEnabled \}/);
     assert.match(mirror, /logSecurityEvent\("ownership_violation"/);
     assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);
     assert.match(mirror, /source: route === "\/api\/stripe\/webhook\/v2" \? "stripe_v2_charges_disabled" : "stripe_charges_disabled"/);

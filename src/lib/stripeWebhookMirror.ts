@@ -3,6 +3,10 @@ import { logSecurityEvent } from "@/lib/security";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
+import {
+  sellerStripeMirrorState,
+  updateSellerStripeChargesEnabled,
+} from "@/lib/sellerStripePrivateAccess";
 
 type StripeAccountMirrorActorType = "cron" | "webhook" | "system";
 
@@ -19,16 +23,7 @@ export async function mirrorStripeChargesEnabled({
   actorType?: StripeAccountMirrorActorType;
   actorId?: string | null;
 }) {
-  const seller = await prisma.sellerProfile.findFirst({
-    where: { stripeAccountId: accountId },
-    select: {
-      id: true,
-      userId: true,
-      ownerAccountActive: true,
-      chargesEnabled: true,
-      stripeAccountId: true,
-    },
-  });
+  const seller = await sellerStripeMirrorState(accountId);
 
   if (!seller) return { matched: false as const };
 
@@ -54,10 +49,7 @@ export async function mirrorStripeChargesEnabled({
   const auditActorType =
     actorType ?? (route.startsWith("/api/cron/") ? "cron" : route.startsWith("/api/stripe/webhook") ? "webhook" : "system");
   await prisma.$transaction(async (tx) => {
-    await tx.sellerProfile.update({
-      where: { id: seller.id },
-      data: { chargesEnabled: effectiveChargesEnabled },
-    });
+    await updateSellerStripeChargesEnabled(tx, seller.id, effectiveChargesEnabled);
     await logSystemActionOrThrow({
       client: tx,
       actorType: auditActorType,

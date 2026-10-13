@@ -48,6 +48,10 @@ const zeroDirectAuthority = readFileSync(
   "scripts/order-zero-direct-release-authority.mjs",
   "utf8",
 );
+const stripePrivateAccess = readFileSync(
+  "src/lib/sellerStripePrivateAccess.ts",
+  "utf8",
+);
 const PRIVATE_FIELDS = Object.freeze([
   "stripeAccountId",
   "stripeAccountVersion",
@@ -249,5 +253,30 @@ describe("SellerProfile private-boundary additive preparation", () => {
       zeroDirectAuthority,
       /auditLiveDatabase\([\s\S]*temporarilyAbsentTables/,
     );
+  });
+
+  it("funnels the Stripe provider family through one compatibility boundary", () => {
+    const callers = [
+      "src/app/api/stripe/connect/create/route.ts",
+      "src/app/api/stripe/connect/status/route.ts",
+      "src/app/api/stripe/connect/login-link/route.ts",
+      "src/app/api/stripe/connect/dashboard/route.ts",
+      "src/lib/stripeConnectReconcile.ts",
+      "src/lib/stripeWebhookMirror.ts",
+    ];
+    for (const path of callers) {
+      const caller = readFileSync(path, "utf8");
+      assert.match(caller, /sellerStripe(?:OwnerState|ReconciliationPage|MirrorState|ChargesEnabled|Account)/);
+      assert.doesNotMatch(
+        caller,
+        /(?:prisma|tx)\.sellerProfile\.(?:findUnique|findFirst|findMany|update|updateMany|upsert)/,
+        `${path} must not bypass the private Stripe compatibility boundary`,
+      );
+    }
+    assert.match(stripePrivateAccess, /Compatibility boundary for private Stripe state/);
+    assert.match(stripePrivateAccess, /sellerStripeOwnerSelect/);
+    assert.match(stripePrivateAccess, /sellerStripeReconciliationPage/);
+    assert.match(stripePrivateAccess, /sellerStripeMirrorState/);
+    assert.match(stripePrivateAccess, /updateSellerStripeChargesEnabled/);
   });
 });
