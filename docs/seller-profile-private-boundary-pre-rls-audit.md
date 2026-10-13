@@ -387,6 +387,18 @@ functions through the restricted runtime, then restores the sealed predecessor
 definitions before replaying the historical activation/FORCE proofs. All 41
 PostgreSQL checks pass. Fourteen effective functions remain to convert.
 
+The eighteenth isolated slice moves both custom-order messaging writers and
+the bounded User custom-order seller projection onto the private companion.
+Migration `20261013150000_move_custom_order_seller_private_sql_callers`
+preserves all three public contracts and grants. Seller eligibility now joins
+the private payout destination, uses the public supported snapshot, and locks
+the companion row with the public seller row; the User projection returns the
+same bounded provider fields from the companion. The current Conversation and
+Message runtime proof reapplies this successor after its historical service
+draft so hosted CI exercises the effective function bodies rather than silently
+restoring predecessors. Focused boundary, relationship and conversation suites
+pass. Eleven effective functions remain to convert.
+
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
 direct authority on the companion. Phase 1 remains incomplete: currently

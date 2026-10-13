@@ -6,6 +6,23 @@ import { PGlite } from "@electric-sql/pglite";
 
 const migrationPath =
   "prisma/migrations/20261006030000_prepare_user_relationship_authorities/migration.sql";
+const sellerPrivateCustomOrderMigrationPath =
+  "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql";
+const sellerPrivateCustomOrderMigration = readFileSync(
+  sellerPrivateCustomOrderMigrationPath,
+  "utf8",
+);
+
+function sqlFunctionDefinition(source, functionName) {
+  const start = source.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+  );
+  assert.notEqual(start, -1, `${functionName} definition is missing`);
+  const endMarker = `\n$${functionName}$;`;
+  const end = source.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `${functionName} definition is incomplete`);
+  return source.slice(start, end + endMarker.length);
+}
 
 async function databaseFixture() {
   const database = new PGlite();
@@ -28,9 +45,15 @@ async function databaseFixture() {
       "acceptingNewOrders" boolean NOT NULL DEFAULT true,
       "stripeAccountId" text,
       "stripeAccountVersion" text,
+      "stripeAccountSupported" boolean NOT NULL DEFAULT true,
       "chargesEnabled" boolean NOT NULL DEFAULT false,
       "vacationMode" boolean NOT NULL DEFAULT false,
       "displayName" text NOT NULL
+    );
+    CREATE TABLE public."SellerProfilePrivate" (
+      "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
+      "stripeAccountId" text,
+      "stripeAccountVersion" text
     );
     CREATE TABLE public."Conversation" (
       id text PRIMARY KEY,
@@ -45,6 +68,10 @@ async function databaseFixture() {
     );
   `);
   await database.exec(readFileSync(migrationPath, "utf8"));
+  await database.exec(sqlFunctionDefinition(
+    sellerPrivateCustomOrderMigration,
+    "grainline_user_custom_order_seller_state",
+  ));
   await database.exec(`
     INSERT INTO public."User" (
       id, name, role, banned, "deletedAt", "imageUrl", "notificationPreferences"
@@ -62,6 +89,9 @@ async function databaseFixture() {
       'seller_target', 'target', true, true, 'acct_target', 'v2', true,
       false, 'Target Shop'
     );
+    INSERT INTO public."SellerProfilePrivate" (
+      "sellerProfileId", "stripeAccountId", "stripeAccountVersion"
+    ) VALUES ('seller_target', 'acct_target', 'v2');
     INSERT INTO public."Conversation" (id, "userAId", "userBId")
     VALUES ('conversation_one', 'actor', 'target');
   `);
@@ -140,6 +170,20 @@ test("custom-order and owner projections return only their bounded fields", asyn
       vacationMode: false,
       displayName: "Target Shop",
     });
+    await database.exec(`
+      UPDATE public."SellerProfile"
+         SET "stripeAccountId" = 'acct_stale',
+             "stripeAccountVersion" = 'v1'
+       WHERE id = 'seller_target'
+    `);
+    const privateSource = await database.query(`
+      SELECT "stripeAccountId", "stripeAccountVersion"
+        FROM public.grainline_user_custom_order_seller_state('actor', 'target')
+    `);
+    assert.deepEqual(privateSource.rows, [{
+      stripeAccountId: "acct_target",
+      stripeAccountVersion: "v2",
+    }]);
     const unavailableBuyer = await database.query(`
       SELECT * FROM public.grainline_user_custom_order_seller_state(
         'deleted_target', 'target'

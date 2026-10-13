@@ -18,6 +18,10 @@ const authorityPreparationSql = fs.readFileSync(
   "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
   "utf8",
 );
+const sellerPrivateCustomOrderSql = fs.readFileSync(
+  "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 const contract = fs.readFileSync(
   "docs/conversation-message-authority-contract.md",
   "utf8",
@@ -91,6 +95,27 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(
       contract,
       /25 exact functions[\s\S]*six denied[\s\S]*RLS\/FORCE disabled and zero[\s\S]*policies/,
+    );
+  });
+
+  it("reapplies the current custom-order seller private boundary after the historical draft", () => {
+    assert.match(
+      proof,
+      /await owner\.query\(serviceSql\);[\s\S]*await owner\.query\(sellerPrivateCustomOrderSql\);/,
+    );
+    for (const functionName of [
+      "grainline_message_send_custom_request",
+      "grainline_message_send_custom_order_ready",
+    ]) {
+      assert.match(
+        sellerPrivateCustomOrderSql,
+        new RegExp(`CREATE OR REPLACE FUNCTION public\\.${functionName}\\(`),
+      );
+    }
+    assert.match(sellerPrivateCustomOrderSql, /public\."SellerProfilePrivate"/);
+    assert.doesNotMatch(
+      sellerPrivateCustomOrderSql,
+      /seller\."stripeAccount(?:Id|Version)"/,
     );
   });
 

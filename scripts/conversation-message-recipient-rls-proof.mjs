@@ -23,6 +23,10 @@ const serviceSql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-service-authority.sql",
   "utf8",
 );
+const sellerPrivateCustomOrderSql = fs.readFileSync(
+  "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 
 const fixture = Object.freeze({
   userAId: "cm-recipient-rls-a",
@@ -398,6 +402,10 @@ async function applyDraft(owner) {
 
   await owner.query(recipientSql);
   await owner.query(serviceSql);
+  // The historical service draft restores its accepted predecessor function
+  // bodies. Reapply the current additive SellerProfile private-boundary
+  // successor so the runtime behavior proof exercises the effective catalog.
+  await owner.query(sellerPrivateCustomOrderSql);
   await owner.query(policySql);
   if (forcedBeforeDraft) {
     await owner.query(

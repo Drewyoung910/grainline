@@ -33,6 +33,10 @@ const checkoutCallerMigration = readFileSync(
   "prisma/migrations/20261013140000_move_checkout_seller_private_sql_callers/migration.sql",
   "utf8",
 );
+const customOrderCallerMigration = readFileSync(
+  "prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql",
+  "utf8",
+);
 const grantAudit = readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
@@ -275,6 +279,34 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(checkoutCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
     assert.doesNotMatch(checkoutCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
     assert.doesNotMatch(checkoutCallerMigration, /GRANT\s|REVOKE\s/i);
+  });
+
+  it("moves custom-order SQL callers onto the private companion", () => {
+    const callers = [
+      "grainline_message_send_custom_request",
+      "grainline_message_send_custom_order_ready",
+      "grainline_user_custom_order_seller_state",
+    ];
+
+    for (const caller of callers) {
+      assert.match(
+        customOrderCallerMigration,
+        new RegExp(`CREATE OR REPLACE FUNCTION public\\.${caller}\\(`),
+      );
+    }
+    assert.equal(
+      customOrderCallerMigration.match(/CREATE OR REPLACE FUNCTION public\./g)?.length,
+      callers.length,
+    );
+    assert.match(customOrderCallerMigration, /public\."SellerProfilePrivate"/);
+    assert.doesNotMatch(
+      customOrderCallerMigration,
+      /seller\."stripeAccount(?:Id|Version)"/,
+    );
+    assert.match(customOrderCallerMigration, /"stripeAccountSupported"/);
+    assert.match(customOrderCallerMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.doesNotMatch(customOrderCallerMigration, /DROP\s+(?:COLUMN|TABLE|FUNCTION)/i);
+    assert.doesNotMatch(customOrderCallerMigration, /GRANT\s|REVOKE\s/i);
   });
 
   it("keeps the companion inaccessible to ordinary runtime and PUBLIC", () => {
