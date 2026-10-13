@@ -1073,6 +1073,7 @@ jobs:
           mv \
             prisma/migrations/20261013120000_prepare_seller_profile_private_boundary \
             "$holding/20261013120000_prepare_seller_profile_private_boundary"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true" >> "$GITHUB_ENV"
       - name: Verify compatible Order account-deletion authority
         run: >-
           node --test
@@ -5588,10 +5589,13 @@ jobs:
           MIGRATION_DB_ROLE=ci
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore SellerProfile private-boundary migration after all predecessors
-        run: >-
-          mv
-          "$RUNNER_TEMP/seller-profile-private-boundary/20261013120000_prepare_seller_profile_private_boundary"
-          prisma/migrations/20261013120000_prepare_seller_profile_private_boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv \
+            "$RUNNER_TEMP/seller-profile-private-boundary/20261013120000_prepare_seller_profile_private_boundary" \
+            prisma/migrations/20261013120000_prepare_seller_profile_private_boundary
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=" >> "$GITHUB_ENV"
       - name: Apply SellerProfile private-boundary migration in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"

@@ -216,8 +216,27 @@ const {
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
   resolveStaffReadAuditStage,
+  resolveTemporarilyAbsentCiTables,
   withAppliedAccountDeletionAuthority,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
+
+describe("temporary SellerProfilePrivate CI isolation", () => {
+  it("is absent by default and accepted only for exact loopback GitHub CI", () => {
+    assert.deepEqual(resolveTemporarilyAbsentCiTables({}), []);
+    assert.deepEqual(
+      resolveTemporarilyAbsentCiTables({
+        GITHUB_ACTIONS: "true",
+        SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "true",
+      }, {allowLoopbackCi: true}),
+      ["SellerProfilePrivate"],
+    );
+    for (const [env, options] of [
+      [{GITHUB_ACTIONS: "true", SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "yes"}, {allowLoopbackCi: true}],
+      [{GITHUB_ACTIONS: "true", SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "true"}, {allowLoopbackCi: false}],
+      [{SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "true"}, {allowLoopbackCi: true}],
+    ]) assert.throws(() => resolveTemporarilyAbsentCiTables(env, options));
+  });
+});
 
 const { Client } = pg;
 

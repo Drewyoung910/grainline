@@ -210,6 +210,8 @@ export const ORDER_ZERO_DIRECT_PRIVATE_STAFF_READ_STAGE =
 export const ORDER_USER_COMBINED_STAFF_READ_STAGE =
   "order-user-combined";
 export const STAFF_READ_STAGE_FLAG_PREFIX = "--staff-read-stage=";
+export const SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV =
+  "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED";
 
 const OBJECT_TYPE_TABLE = "r";
 const OBJECT_TYPE_SEQUENCE = "S";
@@ -223,6 +225,24 @@ const REQUIRED_EXTENSION_RUNTIME_OPERATORS = {
     { schema: "public", name: "%", leftType: "text", rightType: "text" },
   ],
 };
+
+export function resolveTemporarilyAbsentCiTables(
+  env = process.env,
+  { allowLoopbackCi = false } = {},
+) {
+  const value = env[SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV];
+  if (value === undefined) return Object.freeze([]);
+  if (
+    value !== "true"
+    || !allowLoopbackCi
+    || env.GITHUB_ACTIONS !== "true"
+  ) {
+    throw new Error(
+      `${SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV} is allowed only as exact true in loopback CI`,
+    );
+  }
+  return Object.freeze(["SellerProfilePrivate"]);
+}
 
 export const SAVED_SEARCH_RLS_POLICIES = Object.freeze({
   saved_search_owner_select: Object.freeze({
@@ -2718,6 +2738,7 @@ export async function auditLiveDatabase({
   migrationRole,
   inventory,
   staffReadStage = null,
+  temporarilyAbsentTables = [],
 }) {
   const issues = [];
   const expectedRlsPolicyTables = new Set(inventory.rlsPolicyTables ?? []);
@@ -2896,6 +2917,10 @@ export async function auditLiveDatabase({
     }
   }
 
+  const temporarilyAbsentTableSet = new Set(temporarilyAbsentTables);
+  const expectedTables = inventory.tables.filter(
+    (tableName) => !temporarilyAbsentTableSet.has(tableName),
+  );
   const tableResult = await client.query(
     `SELECT
         c.relname AS table_name,
@@ -2978,10 +3003,10 @@ export async function auditLiveDatabase({
         AND c.relkind IN ('r', 'p')
         AND c.relname = ANY($2::text[])
       ORDER BY c.relname`,
-    [runtimeRole, inventory.tables],
+    [runtimeRole, expectedTables],
   );
   issues.push(
-    ...missingItems(inventory.tables, tableResult.rows.map((row) => row.table_name))
+    ...missingItems(expectedTables, tableResult.rows.map((row) => row.table_name))
       .map((table) => `missing expected table ${table}`),
   );
   for (const row of tableResult.rows) {
@@ -3726,9 +3751,13 @@ async function main() {
   let connectionString;
   let expectedDatabaseName;
   let staffReadStage;
+  let temporarilyAbsentTables;
   try {
     connectionString = resolveGrantAuditConnection(process.env, argv);
     staffReadStage = resolveStaffReadAuditStage(argv);
+    temporarilyAbsentTables = resolveTemporarilyAbsentCiTables(process.env, {
+      allowLoopbackCi,
+    });
     expectedDatabaseName = parseGrantAuditDatabaseIdentity(
       connectionString,
       requireDirectUrl ? "DIRECT_URL" : "grant audit database URL",
@@ -3771,6 +3800,7 @@ async function main() {
       migrationRole,
       inventory,
       staffReadStage,
+      temporarilyAbsentTables,
     });
     if (issues.length > 0) {
       await client.query("ROLLBACK");

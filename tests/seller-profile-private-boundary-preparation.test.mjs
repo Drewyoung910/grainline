@@ -169,7 +169,11 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       ci,
-      /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary/,
+      /Isolate SellerProfile private-boundary migration[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true/,
+    );
+    assert.match(
+      ci,
+      /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*prisma\/migrations\/20261013120000_prepare_seller_profile_private_boundary[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=/,
     );
     assert.match(
       ci,
