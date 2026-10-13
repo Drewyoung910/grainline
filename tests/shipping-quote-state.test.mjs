@@ -216,6 +216,10 @@ describe("shipping quote state helpers", () => {
 
   it("keeps the quote route fallback and pickup paths behind shared quote helpers", () => {
     const route = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    const sellerShippingAccess = readFileSync(
+      "src/lib/sellerShippingPrivateAccess.ts",
+      "utf8",
+    );
 
     assert.match(route, /fallbackRate\(\{\s*amountCents: safeFallbackShippingCents\(fallbackShippingCents\)/s);
     assert.match(route, /const filtered = filterShippoRatesForCheckout\(\{/);
@@ -225,9 +229,10 @@ describe("shipping quote state helpers", () => {
     assert.match(route, /sellerConfiguredRate\(\{/);
     assert.match(route, /if \(out\.length === 0\) \{\s*if \(sellerShippingPolicy\.configuredRate\) \{\s*out\.push\(\.\.\.configuredAndPickupRates\(\)\)/s);
     assert.match(route, /!out\.some\(\(rate\) => rate\.objectId === PICKUP_RATE_OBJECT_ID\)/);
-    assert.match(route, /shippingFlatRateCents: true/);
-    assert.match(route, /freeShippingOverCents: true/);
-    assert.match(route, /useCalculatedShipping: true/);
+    assert.match(route, /sellerShippingQuoteState\(sellerId\)/);
+    assert.match(sellerShippingAccess, /shippingFlatRateCents: true/);
+    assert.match(sellerShippingAccess, /freeShippingOverCents: true/);
+    assert.match(sellerShippingAccess, /useCalculatedShipping: true/);
     assert.match(route, /preferredCarriers: sellerPreferredCarriers/);
     assert.match(route, /if \(filtered\.blockedByCarrierPreference\) \{/);
     assert.match(route, /if \(sellerAllowsPickup\) \{\s*return pickupOnlyResponse/s);

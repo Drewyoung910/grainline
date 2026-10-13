@@ -52,6 +52,10 @@ const stripePrivateAccess = readFileSync(
   "src/lib/sellerStripePrivateAccess.ts",
   "utf8",
 );
+const shippingPrivateAccess = readFileSync(
+  "src/lib/sellerShippingPrivateAccess.ts",
+  "utf8",
+);
 const PRIVATE_FIELDS = Object.freeze([
   "stripeAccountId",
   "stripeAccountVersion",
@@ -278,5 +282,23 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(stripePrivateAccess, /sellerStripeReconciliationPage/);
     assert.match(stripePrivateAccess, /sellerStripeMirrorState/);
     assert.match(stripePrivateAccess, /updateSellerStripeChargesEnabled/);
+  });
+
+  it("funnels shipping quote private inputs through one compatibility boundary", () => {
+    const route = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    assert.equal(
+      route.split("sellerShippingQuoteState(sellerId)").length - 1,
+      2,
+    );
+    assert.doesNotMatch(
+      route,
+      /prisma\.sellerProfile\.findUnique\([\s\S]{0,500}shipFromLine1/,
+    );
+    assert.match(shippingPrivateAccess, /Compatibility boundary for private seller fulfillment inputs/);
+    assert.match(shippingPrivateAccess, /const sellerShippingQuoteSelect/);
+    assert.match(shippingPrivateAccess, /shipFromLine1: true/);
+    assert.match(shippingPrivateAccess, /defaultPkgWeightGrams: true/);
+    assert.match(shippingPrivateAccess, /preferredCarriers: true/);
+    assert.match(shippingPrivateAccess, /sellerShippingQuoteState/);
   });
 });

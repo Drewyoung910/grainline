@@ -38,6 +38,7 @@ import { listingSellerOrderStateSelect } from "@/lib/sellerProfileSelects";
 import { buildShippoCheckoutQuoteShipment } from "@/lib/shippingQuoteProvider";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { normalizeUsState } from "@/lib/usStates";
+import { sellerShippingQuoteState } from "@/lib/sellerShippingPrivateAccess";
 
 type SignedRateDestination = Pick<
   SignedRateFields,
@@ -393,27 +394,7 @@ export async function POST(req: Request) {
       }
 
       // Load seller defaults + ship-from
-      const seller = await prisma.sellerProfile.findUnique({
-        where: { id: sellerId },
-        select: {
-          shipFromName: true,
-          shipFromLine1: true,
-          shipFromLine2: true,
-          shipFromCity: true,
-          shipFromState: true,
-          shipFromPostal: true, // ✅ correct field
-          shipFromCountry: true,
-          defaultPkgWeightGrams: true,
-          defaultPkgLengthCm: true,
-          defaultPkgWidthCm: true,
-          defaultPkgHeightCm: true,
-          allowLocalPickup: true,
-          preferredCarriers: true,
-          useCalculatedShipping: true,
-          shippingFlatRateCents: true,
-          freeShippingOverCents: true,
-        },
-      });
+      const seller = await sellerShippingQuoteState(sellerId);
 
       if (!seller) return privateJson({ rates: [] });
 
@@ -524,27 +505,7 @@ export async function POST(req: Request) {
         }
       }
 
-      const seller = await prisma.sellerProfile.findUnique({
-        where: { id: sellerId },
-        select: {
-          shipFromName: true,
-          shipFromLine1: true,
-          shipFromLine2: true,
-          shipFromCity: true,
-          shipFromState: true,
-          shipFromPostal: true, // ✅ correct field
-          shipFromCountry: true,
-          defaultPkgWeightGrams: true,
-          defaultPkgLengthCm: true,
-          defaultPkgWidthCm: true,
-          defaultPkgHeightCm: true,
-          allowLocalPickup: true,
-          preferredCarriers: true,
-          useCalculatedShipping: true,
-          shippingFlatRateCents: true,
-          freeShippingOverCents: true,
-        },
-      });
+      const seller = await sellerShippingQuoteState(sellerId);
 
       if (!seller) return privateJson({ rates: [] });
 
