@@ -1,6 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { sellerSettingsOwnerSelect } from "@/lib/sellerProfileSelects";
+import {
+  sellerProfileEditorSelect,
+  sellerSettingsOwnerSelect,
+} from "@/lib/sellerProfileSelects";
 
 type SellerOwnerPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile">;
 
@@ -329,4 +332,146 @@ export async function updateSellerOwnerMetroAssignment(
     data: { metroId: input.metroId, cityMetroId: input.cityMetroId },
   });
   await requireOneSellerOwnerMutation(result, "metro assignment");
+}
+
+export function duplicateSellerOwnerDisplayName(
+  input: {
+    sellerProfileId: string;
+    displayName: string;
+    displayNameNormalized: string;
+  },
+  client: SellerOwnerPrivateClient = prisma,
+) {
+  return client.sellerProfile.findFirst({
+    where: {
+      OR: [
+        { displayName: { equals: input.displayName, mode: "insensitive" } },
+        {
+          displayNameNormalized: {
+            equals: input.displayNameNormalized,
+            mode: "insensitive",
+          },
+        },
+      ],
+      id: { not: input.sellerProfileId },
+    },
+    select: { id: true },
+  });
+}
+
+export async function updateSellerOwnerProfile(
+  client: SellerOwnerPrivateClient,
+  input: {
+    sellerProfileId: string;
+    userId: string;
+    displayName: string;
+    displayNameNormalized: string;
+    tagline: string | null;
+    bio: string | null;
+    storyTitle: string | null;
+    storyBody: string | null;
+    yearsInBusiness: number | null;
+    bannerImageUrl: string | null;
+    avatarImageUrl: string | null;
+    workshopImageUrl: string | null;
+    galleryImageUrls?: string[];
+    galleryAltTexts?: string[];
+    instagramUrl: string | null;
+    facebookUrl: string | null;
+    pinterestUrl: string | null;
+    tiktokUrl: string | null;
+    websiteUrl: string | null;
+    returnPolicy: string | null;
+    customOrderPolicy: string | null;
+    shippingPolicy: string | null;
+    acceptsCustomOrders: boolean;
+    acceptingNewOrders: boolean;
+    customOrderTurnaroundDays: number | null;
+    offersGiftWrapping: boolean;
+    giftWrappingPriceCents: number | null;
+  },
+) {
+  const result = await client.sellerProfile.updateMany({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    data: {
+      displayName: input.displayName,
+      displayNameNormalized: input.displayNameNormalized,
+      tagline: input.tagline,
+      bio: input.bio,
+      storyTitle: input.storyTitle,
+      storyBody: input.storyBody,
+      yearsInBusiness: input.yearsInBusiness,
+      bannerImageUrl: input.bannerImageUrl,
+      avatarImageUrl: input.avatarImageUrl,
+      workshopImageUrl: input.workshopImageUrl,
+      ...(input.galleryImageUrls
+        ? {
+            galleryImageUrls: input.galleryImageUrls,
+            galleryAltTexts: input.galleryAltTexts ?? [],
+          }
+        : {}),
+      instagramUrl: input.instagramUrl,
+      facebookUrl: input.facebookUrl,
+      pinterestUrl: input.pinterestUrl,
+      tiktokUrl: input.tiktokUrl,
+      websiteUrl: input.websiteUrl,
+      returnPolicy: input.returnPolicy,
+      customOrderPolicy: input.customOrderPolicy,
+      shippingPolicy: input.shippingPolicy,
+      acceptsCustomOrders: input.acceptsCustomOrders,
+      acceptingNewOrders: input.acceptingNewOrders,
+      customOrderTurnaroundDays: input.customOrderTurnaroundDays,
+      offersGiftWrapping: input.offersGiftWrapping,
+      giftWrappingPriceCents: input.offersGiftWrapping
+        ? input.giftWrappingPriceCents
+        : null,
+    },
+  });
+  await requireOneSellerOwnerMutation(result, "profile update");
+}
+
+export async function clearSellerOwnerAvatar(
+  client: SellerOwnerPrivateClient,
+  input: { sellerProfileId: string; userId: string },
+) {
+  const result = await client.sellerProfile.updateMany({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    data: { avatarImageUrl: null },
+  });
+  await requireOneSellerOwnerMutation(result, "avatar removal");
+}
+
+export function sellerOwnerFeaturedListingIds(
+  client: SellerOwnerPrivateClient,
+  input: { sellerProfileId: string; userId: string },
+) {
+  return client.sellerProfile.findFirst({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    select: { featuredListingIds: true },
+  });
+}
+
+export async function updateSellerOwnerFeaturedListingIds(
+  client: SellerOwnerPrivateClient,
+  input: { sellerProfileId: string; userId: string; featuredListingIds: string[] },
+) {
+  const result = await client.sellerProfile.updateMany({
+    where: { id: input.sellerProfileId, userId: input.userId },
+    data: { featuredListingIds: input.featuredListingIds },
+  });
+  await requireOneSellerOwnerMutation(result, "featured listings update");
+}
+
+export function sellerOwnerProfileEditorState(
+  sellerProfileId: string,
+  userId: string,
+  client: SellerOwnerPrivateClient = prisma,
+) {
+  return client.sellerProfile.findFirst({
+    where: { id: sellerProfileId, userId },
+    select: {
+      ...sellerProfileEditorSelect,
+      faqs: { orderBy: { sortOrder: "asc" as const } },
+    },
+  });
 }

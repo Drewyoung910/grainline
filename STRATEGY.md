@@ -49,9 +49,10 @@ slices stay stacked behind Phase 0. An eighth slice centralizes account-deletion
 seller pauses and anonymization behind an ownership-bound, fail-closed
 compatibility module. A ninth moves seller onboarding reads and writes behind
 owner-bound purpose-specific operations. A tenth does the same for shop-settings,
-including private ship-from data and best-effort metro assignment. The fixed
-database operations, seller profile-editor writes, Guild/cron state, checkout
-and effective SQL-function families remain.
+including private ship-from data and best-effort metro assignment. An eleventh
+moves seller profile-editor reads, profile/avatar updates and featured-listing
+state behind the same owner-bound boundary. The fixed database operations,
+Guild/cron state, checkout and effective SQL-function families remain.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 
