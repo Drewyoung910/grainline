@@ -50,10 +50,12 @@ describe("account-state residue hardening", () => {
 
   it("clears deleted seller trust, feature, and geo residue during anonymization", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const updateStart = deletion.indexOf("await tx.sellerProfile.update({\n        where: { id: user.sellerProfile.id }");
-    const updateBlock = deletion.slice(updateStart, deletion.indexOf("      });", updateStart));
+    const helper = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
+    const updateStart = helper.indexOf("export async function anonymizeSellerForAccountDeletion");
+    const updateBlock = helper.slice(updateStart);
 
-    assert.ok(updateStart >= 0, "account deletion should update the deleted seller profile");
+    assert.match(deletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
+    assert.ok(updateStart >= 0, "account deletion should centralize deleted seller anonymization");
     for (const [field, valuePattern] of [
       ["isVerifiedMaker", "false"],
       ["verifiedAt", "null"],
@@ -87,7 +89,7 @@ describe("account-state residue hardening", () => {
   it("removes deleted seller FAQs from retained seller profiles", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const faqDelete = deletion.indexOf("await tx.sellerFaq.deleteMany");
-    const profileUpdate = deletion.indexOf("await tx.sellerProfile.update({\n        where: { id: user.sellerProfile.id }");
+    const profileUpdate = deletion.indexOf("await anonymizeSellerForAccountDeletion(tx");
 
     assert.ok(faqDelete >= 0, "account deletion should remove seller FAQs");
     assert.match(deletion.slice(faqDelete, profileUpdate), /where: \{ sellerProfileId: user\.sellerProfile\.id \}/);

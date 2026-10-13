@@ -319,21 +319,23 @@ the post-Phase-0 operation migration can replace one implementation boundary
 with fixed owner/provider functions while preserving caller behavior and the
 audit-plus-capability-update transaction.
 
-The fifth through seventh isolated slices centralize the remaining shipping
-quote inputs, owner onboarding/export reads, and staff ban/unban/undo seller
-state. Cart and single-listing quote paths now share one exact fulfillment
-projection; account export retains every reviewed owner field without leaving
-that projection embedded in the route; and staff orderability changes share a
-single compatibility boundary while preserving the existing user capability,
-audit and checkout-expiry protocol. Focused source/behavior suites and
-TypeScript pass for each slice.
+The fifth through eighth isolated slices centralize the remaining shipping
+quote inputs, owner onboarding/export reads, staff ban/unban/undo seller state,
+and account-deletion seller mutations. Cart and single-listing quote paths now
+share one exact fulfillment projection; account export retains every reviewed
+owner field without leaving that projection embedded in the route; staff
+orderability changes share a single compatibility boundary while preserving
+the existing user capability, audit and checkout-expiry protocol; and account
+deletion now pauses and anonymizes the expected user-owned seller row through
+one fail-closed boundary. Focused source/behavior suites and TypeScript pass for
+each slice.
 
 These compatibility modules still read and write the predecessor table. That
 is intentional until Phase 0 is installed because ordinary runtime has zero
-direct authority on the companion. Phase 1 remains incomplete: account
-deletion, seller settings/onboarding writes, Guild/cron state, checkout and
-currently effective SQL-function dependencies must move to purpose-bound
-private operations before predecessor columns can be retired.
+direct authority on the companion. Phase 1 remains incomplete: seller
+settings/onboarding writes, Guild/cron state, checkout and currently effective
+SQL-function dependencies must move to purpose-bound private operations before
+predecessor columns can be retired.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

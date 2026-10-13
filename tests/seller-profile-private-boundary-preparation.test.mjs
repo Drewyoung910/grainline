@@ -64,6 +64,10 @@ const staffPrivateAccess = readFileSync(
   "src/lib/sellerStaffPrivateAccess.ts",
   "utf8",
 );
+const accountDeletionPrivateAccess = readFileSync(
+  "src/lib/sellerAccountDeletionPrivateAccess.ts",
+  "utf8",
+);
 const PRIVATE_FIELDS = Object.freeze([
   "stripeAccountId",
   "stripeAccountVersion",
@@ -333,5 +337,19 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(audit, /setSellerStaffOrderability/);
     assert.match(staffPrivateAccess, /sellerStaffOrderabilitySelect/);
     assert.match(staffPrivateAccess, /stripeAccountId: true/);
+  });
+
+  it("funnels account-deletion seller mutations through one compatibility boundary", () => {
+    const accountDeletion = readFileSync("src/lib/accountDeletion.ts", "utf8");
+    assert.match(accountDeletion, /pauseSellerForAccountDeletion/);
+    assert.match(accountDeletion, /anonymizeSellerForAccountDeletion/);
+    assert.doesNotMatch(
+      accountDeletion,
+      /(?:prisma|tx)\.sellerProfile\.(?:update|updateMany)/,
+    );
+    assert.match(accountDeletionPrivateAccess, /where: \{ id: input\.sellerProfileId, userId: input\.userId \}/);
+    assert.match(accountDeletionPrivateAccess, /if \(result\.count !== 1\)/);
+    assert.match(accountDeletionPrivateAccess, /galleryImageUrls: \[\]/);
+    assert.match(accountDeletionPrivateAccess, /manualStripeReconciliationNeeded: !input\.stripeRejectSucceeded/);
   });
 });
