@@ -682,7 +682,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       ci,
-      /Apply SellerProfile private-boundary caller migrations in disposable PostgreSQL[\s\S]*--file="prisma\/migrations\/\$migration\/migration\.sql"[\s\S]*seller-profile-private-callers-ci-/,
+      /Apply SellerProfile private-boundary caller migrations in disposable PostgreSQL[\s\S]*--file="prisma\/migrations\/\$migration\/migration\.sql"[\s\S]*'spc-' \|\| pg_catalog\.md5\(:'migration'\)/,
     );
     assert.match(
       zeroDirectProof,

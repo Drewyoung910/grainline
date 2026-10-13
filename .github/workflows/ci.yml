@@ -5671,7 +5671,7 @@ jobs:
             id, checksum, finished_at, migration_name, logs,
             rolled_back_at, started_at, applied_steps_count
           ) VALUES (
-            'seller-profile-private-callers-ci-' || :'migration', :'checksum',
+            'spc-' || pg_catalog.md5(:'migration'), :'checksum',
             pg_catalog.clock_timestamp(), :'migration', NULL,
             NULL, pg_catalog.clock_timestamp(), 1
           );
