@@ -42,9 +42,12 @@ profile-editor projections; the source guard now proves zero broad direct or
 nested SellerProfile reads. A fourth stacked slice centralizes Stripe Connect
 owner, webhook and reconciliation access in one compatibility module so the
 post-Phase-0 fixed-operation release can replace a single implementation point
-without changing provider behavior. These slices stay stacked behind Phase 0;
-the fixed provider operations, shipping, staff, export, deletion and effective
-SQL-function families remain.
+without changing provider behavior. Three following slices centralize shipping
+quote fulfillment inputs, owner onboarding/export reads, and staff
+ban/unban/undo seller state behind equally narrow compatibility modules. These
+slices stay stacked behind Phase 0. The fixed database operations, account
+deletion, seller settings/onboarding writes, Guild/cron state, checkout and
+effective SQL-function families remain.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 
