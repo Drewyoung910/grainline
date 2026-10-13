@@ -27,6 +27,7 @@ import {
   upsertOwnerCart,
 } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
+import { listingSellerOrderStateSelect } from "@/lib/sellerCheckoutPrivateAccess";
 
 const CartAddSchema = z.object({
   listingId: z.string().min(1),
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
       include: {
-        seller: true,
+        seller: { select: listingSellerOrderStateSelect },
         variantGroups: { include: { options: true } },
       },
     });

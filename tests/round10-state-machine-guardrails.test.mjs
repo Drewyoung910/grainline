@@ -91,6 +91,7 @@ describe("Round 10 state-machine guardrails", () => {
 
     const dashboard = source("src/app/dashboard/verification/page.tsx");
     const adminVerification = source("src/app/admin/verification/page.tsx");
+    const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
     const guildMemberCron = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
 
@@ -101,6 +102,12 @@ describe("Round 10 state-machine guardrails", () => {
     assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES\] \}/);
     assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES\] \}/);
     assert.match(dashboard, /assertGuildVerificationTransition\(sellerUpdated\.count, "apply for Guild Master"\)/);
+    assert.match(adminVerification, /revokeSellerGuildMember\(tx, \{/);
+    assert.match(adminVerification, /revokeSellerGuildMaster\(tx, \{/);
+    assert.match(adminVerification, /reinstateSellerGuildMember\(tx, \{/);
+    assert.match(staffGuildAccess, /where: \{ id: input\.sellerProfileId, guildLevel: "GUILD_MEMBER" \}/);
+    assert.match(staffGuildAccess, /where: \{ id: input\.sellerProfileId, guildLevel: "GUILD_MASTER" \}/);
+    assert.match(staffGuildAccess, /guildMemberApprovedAt: \{ not: null \},[\s\S]*ownerAccountActive: true/);
     assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "revoke Guild Member"\)/);
     assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "revoke Guild Master"\)/);
     assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "reinstate Guild Member"\)/);

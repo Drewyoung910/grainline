@@ -7,7 +7,6 @@ import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
-import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
@@ -26,7 +25,7 @@ const getSellerProfileForCustomerPhotosPage = cache(async (sellerId: string) =>
       id: true,
       displayName: true,
       chargesEnabled: true,
-      stripeAccountVersion: true,
+      stripeAccountSupported: true,
       userId: true,
       ownerAccountActive: true,
     },
@@ -41,7 +40,7 @@ function sellerPhotosIsPubliclyVisible(
   return Boolean(
     seller &&
       seller.chargesEnabled &&
-      isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
+      seller.stripeAccountSupported &&
       seller.ownerAccountActive,
   );
 }

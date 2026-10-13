@@ -282,7 +282,7 @@ export async function PATCH(
                   AND l."isPrivate" = false
                   AND COALESCE(l."stockQuantity", 0) > 0
                   AND sp."chargesEnabled" = true
-                  AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+                  AND sp."stripeAccountSupported" = true
                   AND sp."vacationMode" = false
                   AND sp."ownerAccountActive" = true
               ),

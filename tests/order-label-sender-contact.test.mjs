@@ -60,8 +60,9 @@ describe("Order label sender contact correction", () => {
     const authority = source("src/lib/orderLabelAuthority.ts");
     const shippo = source("src/lib/shippo.ts");
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
-    const accountExport = source("src/app/api/account/export/route.ts");
+    const accountExport = source("src/lib/sellerOwnerPrivateAccess.ts");
     const accountDeletion = source("src/lib/accountDeletion.ts");
+    const sellerDeletion = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
 
     assert.match(fields, /name="shipFromPhone"[\s\S]*type="tel"/);
     assert.match(seller, /sanitizeOptionalE164Phone\(rawShipFromPhone\)/);
@@ -74,6 +75,6 @@ describe("Order label sender contact correction", () => {
     assert.match(labelRoute, /shipping address, ship-from address, or sender phone is incomplete/);
     assert.match(accountExport, /shipFromPhone: true/);
     assert.match(accountDeletion, /user\.sellerProfile\?\.shipFromPhone/);
-    assert.match(accountDeletion, /shipFromPhone: null/);
+    assert.match(sellerDeletion, /shipFromPhone: null/);
   });
 });

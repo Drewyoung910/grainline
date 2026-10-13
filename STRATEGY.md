@@ -29,6 +29,35 @@ proof. The next release action is review/merge and guarded additive migration;
 Phase 1 caller conversion may proceed in isolated source but cannot deploy
 before the companion is installed.
 
+The first isolated Phase 1 caller slice is also prepared: public visibility,
+search, commission-interest, stock-notification and conversation eligibility
+now use the derived `stripeAccountSupported` snapshot instead of the private
+provider-version diagnostic. Exact version reads remain intentionally in
+checkout, Stripe, reconciliation, export and deletion paths until those
+families receive purpose-bound private operations. The next stacked slice
+removes all nine nested `seller: true` reads with explicit checkout, quote and
+ownership projections plus a recursive zero-count guard. A third stacked slice
+converts the three direct broad owner reads to explicit bootstrap, settings and
+profile-editor projections; the source guard now proves zero broad direct or
+nested SellerProfile reads. A fourth stacked slice centralizes Stripe Connect
+owner, webhook and reconciliation access in one compatibility module so the
+post-Phase-0 fixed-operation release can replace a single implementation point
+without changing provider behavior. Three following slices centralize shipping
+quote fulfillment inputs, owner onboarding/export reads, and staff
+ban/unban/undo seller state behind equally narrow compatibility modules. These
+slices stay stacked behind Phase 0. An eighth slice centralizes account-deletion
+seller pauses and anonymization behind an ownership-bound, fail-closed
+compatibility module. A ninth moves seller onboarding reads and writes behind
+owner-bound purpose-specific operations. A tenth does the same for shop-settings,
+including private ship-from data and best-effort metro assignment. An eleventh
+moves seller profile-editor reads, profile/avatar updates and featured-listing
+state behind the same owner-bound boundary. A twelfth centralizes the daily and
+monthly Guild cron scans and guarded state transitions while preserving their
+transactional verification/audit coupling. A thirteenth moves the authenticated
+Guild dashboard and both application rechecks behind the owner-bound access
+layer. The fixed database operations, staff Guild state, checkout and effective
+SQL-function families remain.
+
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 
 `UserEmailAddress` is complete in Production through policyless FORCE from

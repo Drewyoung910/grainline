@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { ListingStatus } from "@prisma/client";
-import { STRIPE_CONNECT_ACCOUNT_VERSION } from "../src/lib/stripeConnectV2State.ts";
 
 const {
   canViewListingDetail,
@@ -22,6 +21,7 @@ function listing(overrides = {}) {
       userId: "user_1",
       ownerAccountActive: true,
       chargesEnabled: true,
+      stripeAccountSupported: true,
       vacationMode: false,
     },
     ...overrides,
@@ -50,10 +50,7 @@ describe("listing visibility", () => {
           archivedAt: null,
           seller: {
             chargesEnabled: true,
-            OR: [
-              { stripeAccountVersion: null },
-              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
-            ],
+            stripeAccountSupported: true,
             vacationMode: false,
             ownerAccountActive: true,
           },
@@ -70,10 +67,7 @@ describe("listing visibility", () => {
           archivedAt: null,
           seller: {
             chargesEnabled: true,
-            OR: [
-              { stripeAccountVersion: null },
-              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
-            ],
+            stripeAccountSupported: true,
             vacationMode: false,
             ownerAccountActive: true,
           },
@@ -92,10 +86,7 @@ describe("listing visibility", () => {
           archivedAt: null,
           seller: {
             chargesEnabled: true,
-            OR: [
-              { stripeAccountVersion: null },
-              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
-            ],
+            stripeAccountSupported: true,
             vacationMode: false,
             ownerAccountActive: true,
           },
@@ -107,12 +98,10 @@ describe("listing visibility", () => {
 
   it("requires active, public, payable, non-vacation, non-banned seller state", () => {
     assert.equal(isPublicListing(listing()), true);
-    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: null } })), true);
-    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: "v2" } })), true);
     assert.equal(isPublicListing(listing({ status: ListingStatus.HIDDEN })), false);
     assert.equal(isPublicListing(listing({ isPrivate: true })), false);
     assert.equal(isPublicListing(listing({ seller: { ...listing().seller, chargesEnabled: false } })), false);
-    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: "legacy-v1" } })), false);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountSupported: false } })), false);
     assert.equal(isPublicListing(listing({ seller: { ...listing().seller, vacationMode: true } })), false);
     assert.equal(
       isPublicListing(listing({ seller: { ...listing().seller, ownerAccountActive: false } })),

@@ -343,12 +343,15 @@ const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
   "grainline_notification_create_core",
 ]);
 
-// Trigger functions run through their owning table triggers; the application
-// role must never be able to invoke them as ordinary functions. Keep this
-// exception explicit instead of treating every grainline_* function as a
-// runtime RPC.
+// Trigger functions run through their owning table triggers, and transition
+// helpers run only inside reviewed database-owned functions. The application
+// role must never be able to invoke either family as ordinary functions. Keep
+// these exceptions explicit instead of treating every grainline_* function as
+// a runtime RPC.
 export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
+  "grainline_seller_profile_deauthorize_compat",
   "grainline_seller_profile_private_mirror",
+  "grainline_seller_profile_reconciliation_required_compat",
   "grainline_seller_profile_supported_snapshot",
   "grainline_case_resolution_claim_immutable",
   "grainline_case_resolution_claim_lease_valid",

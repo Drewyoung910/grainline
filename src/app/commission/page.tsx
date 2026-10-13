@@ -166,7 +166,7 @@ async function CommissionPageContent({
         INNER JOIN "SellerProfile" isp ON isp.id = ci."sellerProfileId"
         WHERE ci."commissionRequestId" = cr.id
           AND isp."chargesEnabled" = true
-          AND (isp."stripeAccountVersion" IS NULL OR isp."stripeAccountVersion" = 'v2')
+          AND isp."stripeAccountSupported" = true
           AND isp."vacationMode" = false
           AND isp."ownerAccountActive" = true
       ) ci ON true

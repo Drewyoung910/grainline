@@ -337,7 +337,7 @@ async function BrowseContent({
       AND sp.lat BETWEEN -90 AND 90
       AND sp.lng BETWEEN -180 AND 180
       AND sp."chargesEnabled" = true
-      AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+      AND sp."stripeAccountSupported" = true
       AND sp."vacationMode" = false
       AND sp."ownerAccountActive" = true
       ${blockedSellerGeoSql}

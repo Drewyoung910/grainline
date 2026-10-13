@@ -27,10 +27,31 @@ const privateCustomPaidStateCorrection = migrationSource([
     ? `${process.env.RUNNER_TEMP}/order-private-custom-paid-state/migration.sql`
     : null,
 ], "private custom-listing successor");
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
+const finalSellerPrivateCallers = fs.readFileSync(
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013200000_move_final_seller_private_sql_callers",
+    "migration.sql",
+  ),
+  "utf8",
+);
 const rows = (result) => result.rows;
 let db;
 let dataDirectory;
 let paidAt;
+
+function functionDefinition(source, name) {
+  const start = source.search(
+    new RegExp(`CREATE OR REPLACE FUNCTION\\s+public\\.${name}\\(`, "u"),
+  );
+  assert.ok(start >= 0, `${name} definition must exist`);
+  const marker = `$${name}$;`;
+  const end = source.indexOf(marker, start);
+  assert.ok(end > start, `${name} definition must be complete`);
+  return source.slice(start, end + marker.length);
+}
 
 
 async function apply(eventId, generation, projection = provider(), paidAtInput = paidAt) {
@@ -76,6 +97,33 @@ describe("Order paid-checkout authority", () => {
       error.message = `private custom paid-state correction failed to install: ${error.message}`;
       throw error;
     });
+    await db.exec(`
+      ALTER TABLE public."SellerProfile"
+        ADD COLUMN "stripeAccountSupported" boolean NOT NULL DEFAULT true;
+      CREATE TABLE public."SellerProfilePrivate" (
+        "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
+        "stripeAccountId" text,
+        "stripeAccountVersion" text,
+        "consecutiveMetricFailures" integer NOT NULL DEFAULT 0,
+        "metricWarningSentAt" timestamp(3) without time zone
+      );
+      CREATE TABLE public."Block" (
+        id text PRIMARY KEY,
+        "blockerId" text NOT NULL REFERENCES public."User"(id),
+        "blockedId" text NOT NULL REFERENCES public."User"(id),
+        UNIQUE ("blockerId", "blockedId")
+      );
+      INSERT INTO public."SellerProfilePrivate" (
+        "sellerProfileId", "stripeAccountId", "stripeAccountVersion"
+      ) VALUES ('seller-1', 'acct_proof', 'v2');
+      UPDATE public."SellerProfile"
+         SET "stripeAccountId" = 'acct_stale_predecessor',
+             "stripeAccountVersion" = 'legacy';
+    `);
+    await db.exec(functionDefinition(
+      finalSellerPrivateCallers,
+      "grainline_stripe_checkout_order_create",
+    ));
   });
 
   after(async () => {

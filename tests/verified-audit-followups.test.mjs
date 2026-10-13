@@ -253,7 +253,7 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(text, /LEFT JOIN "SellerProfile" sp ON sp\.id = bp\."sellerProfileId"/);
     assert.match(text, /sp\."chargesEnabled" = true/);
     assert.match(text, /sp\."vacationMode" = false/);
-    assert.match(text, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
+    assert.match(text, /sp\."stripeAccountSupported" = true/);
     assert.match(text, /sp\."ownerAccountActive" = true/);
     assert.doesNotMatch(text, /seller_user/);
     assert.match(text, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
@@ -292,11 +292,33 @@ describe("verified audit follow-up guardrails", () => {
       "src/lib/quality-score.ts",
     ];
     for (const path of rawSqlPaths) {
-      assert.match(source(path), /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/, `${path} should keep legacy-null/v2 visibility`);
+      const text = source(path);
+      assert.match(text, /sp\."stripeAccountSupported" = true/, `${path} should use the public-safe seller capability snapshot`);
+      assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
+    }
+    for (const path of [
+      "src/app/api/reviews/[id]/vote/route.ts",
+      "src/app/api/users/[id]/report/route.ts",
+      "src/app/listing/[id]/page.tsx",
+      "src/app/messages/[id]/page.tsx",
+      "src/app/messages/new/page.tsx",
+      "src/app/seller/[id]/customer-photos/page.tsx",
+      "src/app/seller/[id]/page.tsx",
+      "src/app/seller/[id]/shop/page.tsx",
+      "src/lib/blogVisibility.ts",
+      "src/lib/commissionInterestCount.ts",
+      "src/lib/conversationStartState.ts",
+      "src/lib/listingVisibility.ts",
+      "src/lib/savedListingVisibility.ts",
+      "src/lib/sellerVisibility.ts",
+    ]) {
+      const text = source(path);
+      assert.match(text, /stripeAccountSupported/, `${path} should use the public-safe seller capability snapshot`);
+      assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
     }
     assert.doesNotMatch(source("src/app/page.tsx"), /featuredMakerWhere/);
-    assert.match(source("src/lib/conversationStartState.ts"), /listing\.seller\.stripeAccountVersion == null \|\| listing\.seller\.stripeAccountVersion === "v2"/);
-    assert.match(source("src/app/messages/new/page.tsx"), /stripeAccountVersion: true/);
+    assert.match(source("src/lib/conversationStartState.ts"), /listing\.seller\.stripeAccountSupported/);
+    assert.match(source("src/app/messages/new/page.tsx"), /stripeAccountSupported: true/);
   });
 
   it("keeps footer metro links behind a tagged cache and invalidates metro assignment changes", () => {

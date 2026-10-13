@@ -45,6 +45,21 @@ test("onboarding resolves Clerk owner and denies unavailable accounts before rea
         return owner;
       },
     },
+    "@/lib/sellerOwnerPrivateAccess": {
+      sellerOwnerOnboardingMutationState: async (userId) => {
+        assert.equal(userId, "local_owner");
+        return db.sellerProfile.findUnique({
+          where: { userId },
+          select: {
+            id: true,
+            userId: true,
+            onboardingStep: true,
+            chargesEnabled: true,
+            _count: { select: { listings: true } },
+          },
+        });
+      },
+    },
   }, "\nexport { getSeller as testGetSeller };\n");
   const seller = await loaded.testGetSeller();
   assert.equal(seller.userId, "local_owner");
@@ -60,21 +75,27 @@ test("onboarding resolves Clerk owner and denies unavailable accounts before rea
 
 test("Stripe Connect creation uses authenticated owner email without a nested User projection", async () => {
   const operations = [];
+  const db = {};
   const loaded = load("src/app/api/stripe/connect/create/route.ts", {
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk_owner" }) },
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "local_owner", email: "owner@example.com" }) },
-    "@/lib/db": { prisma: { sellerProfile: {
-      findUnique: async (query) => {
-        assert.equal(query.where.userId, "local_owner");
-        assert.equal("user" in query.select, false);
+    "@/lib/db": { prisma: db },
+    "@/lib/sellerStripePrivateAccess": {
+      sellerStripeOwnerState: async (userId) => {
+        assert.equal(userId, "local_owner");
         return { id: "seller", stripeAccountId: null, stripeAccountVersion: null, chargesEnabled: false, shipFromCountry: "US" };
       },
-      update: async (query) => { operations.push(["persist", query.data.stripeAccountId]); },
-    } } },
+      bindSellerStripeAccount: async (client, input) => {
+        assert.equal(client, db);
+        operations.push(["persist", input.stripeAccountId]);
+      },
+    },
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }) },
     "@/lib/requestBody": { readOptionalBoundedJson: async () => ({}) },
     "@/lib/internalReturnUrl": { safeInternalReturnUrl: () => null },
     "@/lib/stripeConnectV2": {
+      STRIPE_CONNECT_ACCOUNT_VERSION: "v2",
+      STRIPE_CONNECT_CONTROLLER_SUMMARY: "controller",
       createStripeConnectV2Account: async (input) => { operations.push(["create", input.email, input.idempotencyKey]); return { id: "acct_test" }; },
     },
     "@/lib/stripe": { stripe: { accountLinks: { create: async (input) => { operations.push(["link", input.account]); return { url: "https://test.example/onboarding" }; } } } },

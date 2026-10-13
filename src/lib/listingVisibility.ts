@@ -1,20 +1,11 @@
 import { ListingStatus, Prisma } from "@prisma/client";
 
-const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
-
 const PUBLIC_SELLER_STATE = {
   chargesEnabled: true,
-  OR: [
-    { stripeAccountVersion: null },
-    { stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION },
-  ],
+  stripeAccountSupported: true,
   vacationMode: false,
   ownerAccountActive: true,
 } satisfies Prisma.SellerProfileWhereInput;
-
-function isSupportedPublicStripeAccountVersion(version: string | null | undefined) {
-  return version == null || version === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION;
-}
 
 export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma.ListingWhereInput {
   return {
@@ -53,7 +44,7 @@ type ListingVisibilityInput = {
     userId?: string | null;
     ownerAccountActive: boolean;
     chargesEnabled: boolean;
-    stripeAccountVersion?: string | null;
+    stripeAccountSupported: boolean;
     vacationMode?: boolean | null;
   };
 };
@@ -64,7 +55,7 @@ export function isPublicListing(listing: ListingVisibilityInput) {
     listing.status === ListingStatus.ACTIVE &&
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
-    isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
+    listing.seller.stripeAccountSupported &&
     !listing.seller.vacationMode &&
     listing.seller.ownerAccountActive
   );
@@ -76,7 +67,7 @@ export function isPublicListingDetail(listing: ListingVisibilityInput) {
     (listing.status === ListingStatus.ACTIVE || listing.status === ListingStatus.SOLD_OUT) &&
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
-    isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
+    listing.seller.stripeAccountSupported &&
     !listing.seller.vacationMode &&
     listing.seller.ownerAccountActive
   );
@@ -121,7 +112,7 @@ export function canViewListingDetail(
   if (reservedForViewer) {
     return (
       listing.seller.chargesEnabled &&
-      isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
+      listing.seller.stripeAccountSupported &&
       !listing.seller.vacationMode &&
       listing.seller.ownerAccountActive
     );

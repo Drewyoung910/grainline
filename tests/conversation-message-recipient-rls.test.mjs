@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const recipientSql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-recipient-access.sql",
@@ -16,6 +17,12 @@ const serviceSql = fs.readFileSync(
 );
 const authorityPreparationSql = fs.readFileSync(
   "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
+  "utf8",
+);
+const sellerPrivateCustomOrderSql = fs.readFileSync(
+  sellerProfilePrivateMigrationPath(
+    "20261013150000_move_custom_order_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const contract = fs.readFileSync(
@@ -91,6 +98,39 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(
       contract,
       /25 exact functions[\s\S]*six denied[\s\S]*RLS\/FORCE disabled and zero[\s\S]*policies/,
+    );
+  });
+
+  it("reapplies the current custom-order seller private boundary after the historical draft", () => {
+    assert.match(
+      proof,
+      /await owner\.query\(serviceSql\);[\s\S]*to_regclass\([\s\S]*SellerProfilePrivate[\s\S]*if \(sellerPrivateBoundary\.rows\[0\]\.installed\) \{[\s\S]*await owner\.query\(sellerPrivateCustomOrderSql\);/,
+    );
+    assert.match(
+      proof,
+      /SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED[\s\S]*"true"[\s\S]*SellerProfilePrivate is absent outside the declared CI isolation window/,
+    );
+    assert.match(
+      proof,
+      /SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH[\s\S]*isolated SellerProfile private-boundary migration path is required/,
+    );
+    assert.match(
+      proof,
+      /seller_private_custom_order_successor_deferred_during_declared_isolation/,
+    );
+    for (const functionName of [
+      "grainline_message_send_custom_request",
+      "grainline_message_send_custom_order_ready",
+    ]) {
+      assert.match(
+        sellerPrivateCustomOrderSql,
+        new RegExp(`CREATE OR REPLACE FUNCTION public\\.${functionName}\\(`),
+      );
+    }
+    assert.match(sellerPrivateCustomOrderSql, /public\."SellerProfilePrivate"/);
+    assert.doesNotMatch(
+      sellerPrivateCustomOrderSql,
+      /seller\."stripeAccount(?:Id|Version)"/,
     );
   });
 

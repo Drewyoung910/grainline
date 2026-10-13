@@ -51,8 +51,10 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(cartUpdate, /status: HTTP_STATUS\.CONFLICT/);
 
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
-    assert.match(singleCheckout, /acceptingNewOrders: true/);
-    assert.match(singleCheckout, /stripeAccountVersion: true/);
+    const sellerCheckoutPrivateAccess = source("src/lib/sellerCheckoutPrivateAccess.ts");
+    assert.match(singleCheckout, /sellerSingleCheckoutSource\(body\.listingId\)/);
+    assert.match(sellerCheckoutPrivateAccess, /acceptingNewOrders: true/);
+    assert.match(sellerCheckoutPrivateAccess, /stripeAccountVersion: true/);
     assert.match(singleCheckout, /sellerOrderBlockReason\(listing\.seller\)/);
 
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");

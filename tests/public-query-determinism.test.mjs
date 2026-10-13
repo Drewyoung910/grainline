@@ -152,7 +152,7 @@ describe("public query determinism", () => {
 
     assert.match(geoBlock, /FROM "SellerProfile" sp/);
     assert.match(geoBlock, /sp\."chargesEnabled" = true/);
-    assert.match(geoBlock, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
+    assert.match(geoBlock, /sp\."stripeAccountSupported" = true/);
     assert.match(geoBlock, /sp\."vacationMode" = false/);
     assert.match(geoBlock, /sp\."ownerAccountActive" = true/);
     assert.doesNotMatch(geoBlock, /JOIN "User"/);

@@ -125,7 +125,7 @@ export async function GET(
         AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
         AND sp."vacationMode" = false
         AND sp."chargesEnabled" = true
-        AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+        AND sp."stripeAccountSupported" = true
         AND sp."ownerAccountActive" = true
       ORDER BY
         (l.category = ${category ?? "OTHER"}::"Category") DESC,

@@ -9,7 +9,7 @@ export function publicCommissionInterestWhere(
         AND: [
           {
             chargesEnabled: true,
-            OR: [{ stripeAccountVersion: null }, { stripeAccountVersion: "v2" }],
+            stripeAccountSupported: true,
             vacationMode: false,
             ownerAccountActive: true,
           },

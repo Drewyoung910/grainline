@@ -27,6 +27,7 @@ describe("account deletion blocker refund state", () => {
 
   it("defers provider-deleted anonymization when Grainline blockers remain", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const sellerPrivateAccess = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
     const authority = source(
       "prisma/migrations/20261006020000_prepare_user_account_deletion_authorities/migration.sql",
     );
@@ -39,7 +40,11 @@ describe("account deletion blocker refund state", () => {
     assert.match(deletion.slice(deferStart, byClerkStart), /deferProviderDeletedUserAccount\(tx/);
     assert.match(authority, /SET banned = true/);
     assert.match(authority, /"banReason" = 'Clerk account deleted before Grainline deletion blockers cleared; support review required'/);
-    assert.match(deletion.slice(deferStart, byClerkStart), /data: \{ chargesEnabled: false, vacationMode: true \}/);
+    assert.match(
+      deletion.slice(deferStart, byClerkStart),
+      /pauseSellerForAccountDeletion\(tx, \{ userId: input\.userId \}\)/,
+    );
+    assert.match(sellerPrivateAccess, /data: \{ chargesEnabled: false, vacationMode: true \}/);
     assert.match(deletion.slice(deferStart, byClerkStart), /tx\.supportRequest\.findFirst\(\{/);
     assert.match(deletion.slice(deferStart, byClerkStart), /kind: "DATA_REQUEST"/);
     assert.match(deletion.slice(deferStart, byClerkStart), /topic: PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC/);

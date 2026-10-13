@@ -42,6 +42,37 @@ function parseTypeScript(file, fileSource) {
   );
 }
 
+function broadSellerProfileReads(file, fileSource) {
+  const parsed = parseTypeScript(file, fileSource);
+  const reads = [];
+
+  function visit(node) {
+    if (
+      ts.isCallExpression(node)
+      && ts.isPropertyAccessExpression(node.expression)
+      && ["findUnique", "findFirst", "findMany"].includes(node.expression.name.text)
+      && ts.isPropertyAccessExpression(node.expression.expression)
+      && node.expression.expression.name.text === "sellerProfile"
+    ) {
+      const argument = node.arguments[0];
+      const hasExplicitSelect =
+        argument
+        && ts.isObjectLiteralExpression(argument)
+        && argument.properties.some(
+          (property) => property.name && staticPropertyName(property.name) === "select",
+        );
+      if (!hasExplicitSelect) {
+        const { line } = parsed.getLineAndCharacterOfPosition(node.getStart(parsed));
+        reads.push(`${file}:${line + 1}`);
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(parsed);
+  return reads;
+}
+
 function savedSearchRelationAccesses(file, fileSource) {
   const parsed = parseTypeScript(file, fileSource);
   const accesses = [];
@@ -938,6 +969,7 @@ describe("RLS feasibility plan guardrails", () => {
 
   it("centralizes Cart and CartItem owner reads and writes for the parent-join RLS prototype", () => {
     const ownerAccess = source("src/lib/cartOwnerAccess.ts");
+    const sellerCheckoutAccess = source("src/lib/sellerCheckoutPrivateAccess.ts");
     const cartRoute = source("src/app/api/cart/route.ts");
     const cartAdd = source("src/app/api/cart/add/route.ts");
     const cartUpdate = source("src/app/api/cart/update/route.ts");
@@ -965,6 +997,10 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
     assert.match(ownerAccess, /export async function ownerCartExportRows/);
+    assert.match(ownerAccess, /include: sellerCartCheckoutInclude/);
+    assert.match(ownerAccess, /seller: \{ select: listingSellerOrderStateSelect \}/);
+    assert.match(sellerCheckoutAccess, /seller: \{ select: cartCheckoutSellerSelect \}/);
+    assert.match(sellerCheckoutAccess, /export const sellerCartCheckoutInclude/);
     assert.match(ownerAccess, /db\.cart\.findUnique/);
     assert.match(ownerAccess, /db\.cart\.findFirst/);
     assert.match(ownerAccess, /db\.cart\.upsert/);
@@ -993,6 +1029,35 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(shippingQuote, /ownerCartForShippingQuoteById\(me\.id, body\.cartId, body\.sellerId\)/);
     assert.match(shippingQuote, /ownerCartForShippingQuote\(me\.id, body\.sellerId\)/);
     assert.match(accountExport, /ownerCartExportRows\(user\.id\)/);
+    assert.match(sellerCheckoutAccess, /export const listingSellerOrderStateSelect/);
+    assert.match(sellerCheckoutAccess, /stripeAccountVersion: true/);
+    assert.match(sellerCheckoutAccess, /export const cartCheckoutSellerSelect/);
+    const orderStateSelect = sellerCheckoutAccess.slice(
+      sellerCheckoutAccess.indexOf("export const listingSellerOrderStateSelect"),
+      sellerCheckoutAccess.indexOf("export const cartCheckoutSellerSelect"),
+    );
+    assert.doesNotMatch(
+      orderStateSelect,
+      /shipFrom|manualStripeReconciliation|guildMasterReviewNotes/,
+    );
+
+    const broadSellerRelationReads = sourceFiles("src").filter((file) =>
+      /\bseller\s*:\s*true\b/u.test(source(file))
+    );
+    assert.deepEqual(
+      broadSellerRelationReads,
+      [],
+      "SellerProfile relations must use an explicit reviewed projection",
+    );
+
+    const broadDirectSellerReads = sourceFiles("src").flatMap((file) =>
+      broadSellerProfileReads(file, source(file))
+    );
+    assert.deepEqual(
+      broadDirectSellerReads,
+      [],
+      "SellerProfile reads must use an explicit reviewed projection",
+    );
   });
 
   it("blocks new direct owner-style Cart and CartItem access outside the owner helper", () => {

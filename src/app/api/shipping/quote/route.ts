@@ -34,9 +34,11 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerCartForShippingQuote, ownerCartForShippingQuoteById } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
+import { listingSellerOrderStateSelect } from "@/lib/sellerCheckoutPrivateAccess";
 import { buildShippoCheckoutQuoteShipment } from "@/lib/shippingQuoteProvider";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { normalizeUsState } from "@/lib/usStates";
+import { sellerShippingQuoteState } from "@/lib/sellerShippingPrivateAccess";
 
 type SignedRateDestination = Pick<
   SignedRateFields,
@@ -392,27 +394,7 @@ export async function POST(req: Request) {
       }
 
       // Load seller defaults + ship-from
-      const seller = await prisma.sellerProfile.findUnique({
-        where: { id: sellerId },
-        select: {
-          shipFromName: true,
-          shipFromLine1: true,
-          shipFromLine2: true,
-          shipFromCity: true,
-          shipFromState: true,
-          shipFromPostal: true, // ✅ correct field
-          shipFromCountry: true,
-          defaultPkgWeightGrams: true,
-          defaultPkgLengthCm: true,
-          defaultPkgWidthCm: true,
-          defaultPkgHeightCm: true,
-          allowLocalPickup: true,
-          preferredCarriers: true,
-          useCalculatedShipping: true,
-          shippingFlatRateCents: true,
-          freeShippingOverCents: true,
-        },
-      });
+      const seller = await sellerShippingQuoteState(sellerId);
 
       if (!seller) return privateJson({ rates: [] });
 
@@ -481,7 +463,7 @@ export async function POST(req: Request) {
       const listing = await prisma.listing.findUnique({
         where: { id: body.listingId ?? "" },
         include: {
-          seller: true,
+          seller: { select: listingSellerOrderStateSelect },
           variantGroups: { include: { options: true } },
         },
       });
@@ -523,27 +505,7 @@ export async function POST(req: Request) {
         }
       }
 
-      const seller = await prisma.sellerProfile.findUnique({
-        where: { id: sellerId },
-        select: {
-          shipFromName: true,
-          shipFromLine1: true,
-          shipFromLine2: true,
-          shipFromCity: true,
-          shipFromState: true,
-          shipFromPostal: true, // ✅ correct field
-          shipFromCountry: true,
-          defaultPkgWeightGrams: true,
-          defaultPkgLengthCm: true,
-          defaultPkgWidthCm: true,
-          defaultPkgHeightCm: true,
-          allowLocalPickup: true,
-          preferredCarriers: true,
-          useCalculatedShipping: true,
-          shippingFlatRateCents: true,
-          freeShippingOverCents: true,
-        },
-      });
+      const seller = await sellerShippingQuoteState(sellerId);
 
       if (!seller) return privateJson({ rates: [] });
 

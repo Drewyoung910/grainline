@@ -9,14 +9,16 @@ function source(path) {
 describe("server action hardening guardrails", () => {
   it("keeps onboarding actions current-seller scoped and first-party media constrained", () => {
     const actions = source("src/app/dashboard/onboarding/actions.ts");
+    const ownerAccess = source("src/lib/sellerOwnerPrivateAccess.ts");
 
     assert.match(actions, /userAccountByClerkId\(prisma, userId\)/);
-    assert.match(actions, /where: \{ userId: me\.id \}/);
+    assert.match(actions, /sellerOwnerOnboardingMutationState\(me\.id\)/);
     assert.match(actions, /if \(me\.banned \|\| me\.deletedAt\) throw/);
     assert.match(actions, /verifyFirstPartyMediaUrlForPersistence\(\{/);
     assert.match(actions, /allowedEndpoints: \["galleryImage"\]/);
     assert.match(actions, /clerkUserId: seller\.clerkUserId/);
-    assert.match(actions, /updateMany\(\{\s*where: \{ id: seller\.id, onboardingStep: seller\.onboardingStep \}/s);
+    assert.match(actions, /advanceSellerOwnerOnboardingStep\(prisma, \{/);
+    assert.match(ownerAccess, /userId: input\.userId,\s*onboardingStep: input\.expectedStep/s);
   });
 
   it("keeps admin server actions behind local active-staff gates", () => {

@@ -251,6 +251,7 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const sellerDeletion = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
 
     assert.match(deletion, /const accountEmails = await accountEmailFallbackEmailsForUser\(tx\)/);
     assert.match(deletion, /\.\.\.accountEmails/);
@@ -258,8 +259,9 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);
     assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);
     assert.doesNotMatch(deletion, /normalizeEmailSuppressionAddress\(user\.email\)/);
-    assert.match(deletion, /galleryImageUrls: \[\]/);
-    assert.match(deletion, /galleryAltTexts: \[\]/);
+    assert.match(deletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
+    assert.match(sellerDeletion, /galleryImageUrls: \[\]/);
+    assert.match(sellerDeletion, /galleryAltTexts: \[\]/);
     assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);
     assert.match(deletion, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: suppressionEmailMatches \} \}\]/);
     assert.match(deletion, /sentAt: null/);

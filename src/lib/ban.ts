@@ -24,6 +24,11 @@ import {
   userStaffBanTarget,
   userStaffUnbanApply,
 } from './userStaffAccess'
+import {
+  disableSellerForStaff,
+  sellerStaffOrderabilityState,
+  setSellerStaffOrderability,
+} from './sellerStaffPrivateAccess'
 import * as Sentry from '@sentry/nextjs'
 
 const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
@@ -319,19 +324,13 @@ export async function banUser({ userId, adminId, reason }: {
       throwBanAuthorityPolicyError(error)
     }
     const [sellerProfile, commissionRequests] = await Promise.all([
-      tx.sellerProfile.findUnique({
-        where: { userId },
-        select: { id: true, chargesEnabled: true, vacationMode: true, stripeAccountId: true },
-      }),
+      sellerStaffOrderabilityState(userId, tx),
       tx.commissionRequest.findMany({
         where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
         select: { id: true, status: true },
       }),
     ])
-    await tx.sellerProfile.updateMany({
-      where: { userId },
-      data: { chargesEnabled: false, vacationMode: true }
-    })
+    await disableSellerForStaff(tx, userId)
     let removedCommissionInterestRequestIds: string[] = []
     if (sellerProfile) {
       const cleanup = await removeSellerCommissionInterests(tx, sellerProfile.id)
@@ -453,9 +452,7 @@ export async function unbanUser({ userId, adminId, reason }: {
     })
     return { sellerRestoreWarning: null }
   }
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId }, select: { id: true, stripeAccountId: true }
-  })
+  const seller = await sellerStaffOrderabilityState(userId)
   let sellerRestore: { id: string; chargesEnabled: boolean; vacationMode: boolean } | null = null
   let sellerRestoreWarning: string | null = null
   let sellerRestoreError: string | null = null
@@ -514,17 +511,13 @@ export async function unbanUser({ userId, adminId, reason }: {
     } catch (error) {
       throwBanAuthorityPolicyError(error)
     }
-    const previousSellerProfile = await tx.sellerProfile.findUnique({
-      where: { userId },
-      select: { id: true, chargesEnabled: true, vacationMode: true },
-    })
+    const previousSellerProfile = await sellerStaffOrderabilityState(userId, tx)
     if (sellerRestore) {
-      await tx.sellerProfile.update({
-        where: { id: sellerRestore.id },
-        data: {
-          chargesEnabled: sellerRestore.chargesEnabled,
-          vacationMode: sellerRestore.vacationMode,
-        }
+      await setSellerStaffOrderability(tx, {
+        sellerProfileId: sellerRestore.id,
+        userId,
+        chargesEnabled: sellerRestore.chargesEnabled,
+        vacationMode: sellerRestore.vacationMode,
       })
     }
     const unbanAuditLog = await tx.adminAuditLog.create({

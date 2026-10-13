@@ -19,6 +19,7 @@ import { APP_BASE_URL } from "@/lib/appBaseUrl";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { bindSellerStripeAccount, sellerStripeOwnerState } from "@/lib/sellerStripePrivateAccess";
 
 const ConnectCreateSchema = z.object({
   returnUrl: z.string().min(1).max(500).optional().nullable(),
@@ -43,16 +44,7 @@ export async function POST(req: Request) {
     throw err;
   }
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: {
-      id: true,
-      stripeAccountId: true,
-      stripeAccountVersion: true,
-      chargesEnabled: true,
-      shipFromCountry: true,
-    },
-  });
+  const seller = await sellerStripeOwnerState(me.id);
   if (!seller) return privateJson({ error: "Seller profile not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   // Optional custom return URL (used by onboarding wizard)
@@ -75,14 +67,11 @@ export async function POST(req: Request) {
       country: seller.shipFromCountry,
       idempotencyKey: `connect-v2-account:${seller.id}`,
     });
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
-      data: {
-        stripeAccountId: account.id,
-        chargesEnabled: false,
-        stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
-        stripeControllerType: STRIPE_CONNECT_CONTROLLER_SUMMARY,
-      },
+    await bindSellerStripeAccount(prisma, {
+      sellerProfileId: seller.id,
+      stripeAccountId: account.id,
+      stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
+      stripeControllerType: STRIPE_CONNECT_CONTROLLER_SUMMARY,
     });
     if (seller.chargesEnabled) {
       revalidatePublicSellerVisibilityCaches();

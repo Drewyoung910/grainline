@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -9,6 +8,7 @@ import { rateLimitResponse, safeRateLimit, stripeConnectRatelimit } from "@/lib/
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { sellerStripeOwnerState } from "@/lib/sellerStripePrivateAccess";
 
 export async function GET() {
   const { userId } = await auth();
@@ -26,10 +26,7 @@ export async function GET() {
     throw err;
   }
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true, stripeAccountId: true, stripeAccountVersion: true, chargesEnabled: true },
-  });
+  const seller = await sellerStripeOwnerState(me.id);
   if (!seller?.stripeAccountId) {
     return privateJson({ hasStripeAccount: false, chargesEnabled: false });
   }

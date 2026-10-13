@@ -120,32 +120,34 @@ can never be selected with them accidentally.
 ## Current access inventory
 
 The source scan found 92 direct Prisma `SellerProfile.findUnique`,
-`findFirst`, or `findMany` calls. Only three direct reads currently return all
-scalar fields:
+`findFirst`, or `findMany` calls. The three direct reads that returned all
+scalar fields have now been converted to explicit projections:
 
 - `src/lib/ensureSeller.ts` (authenticated seller bootstrap);
 - `src/app/dashboard/seller/page.tsx` (authenticated seller settings); and
 - `src/app/dashboard/profile/page.tsx` (authenticated seller profile editor,
   with FAQs).
 
-Nine nested Listing/Cart reads use `seller: true`:
+The nine nested Listing/Cart reads that used `seller: true` have been converted
+to explicit projections:
 
 - three checkout/shipping helpers in `src/lib/cartOwnerAccess.ts`;
 - three authenticated seller dashboard queries;
 - cart-add and shipping-quote routes; and
 - the authenticated seller shop action ownership lookup.
 
-Those broad reads are not presently serialized directly to a public response.
-Public seller, listing, browse, map and card pages use narrow projections, and
-the existing Round 8 guard covers three primary public RSC surfaces. Therefore
-this audit did not confirm a current public response leaking ship-from,
-provider or reconciliation data.
+The converted checkout and quote projections retain only the provider fields
+that those paths currently require; dashboard ownership checks select only the
+owner id, and the shop action adds the seller display name required for
+notification fanout. A recursive source guard now rejects any reintroduction
+of `seller: true`. Public seller, listing, browse, map and card pages also use
+narrow projections. This audit did not confirm a current public response
+leaking ship-from, provider or reconciliation data.
 
-The guard remains incomplete: it is not recursive, does not cover every public
-surface, and does not fail on future `seller: true`, broad scalar reads or new
-sensitive fields. That gap is `FIX_BEFORE_ACTIVATION` and should be closed
-during the application conversion, when the legitimate owner/staff/service
-allowlist is known.
+The recursive guard now rejects both broad direct reads and nested
+`seller: true` relations. It does not yet classify all future sensitive-field
+additions by principal, so the separate public/owner/staff/service field
+allowlists remain `FIX_BEFORE_ACTIVATION` work.
 
 Historical SQL is also a compatibility dependency. The source contains 116
 migration files that mention SellerProfile. Multiple currently relevant Order,
@@ -193,8 +195,9 @@ redefined additively before the predecessor column is dropped.
 
 ### `FIX_BEFORE_ACTIVATION`
 
-1. Replace the three direct broad reads and nine nested `seller: true` reads
-   with explicit projections or private-boundary helpers.
+1. Keep the converted zero-count invariant for broad direct reads and nested
+   `seller: true` relations; add principal-specific sensitive-field allowlists
+   as private operations replace predecessor reads.
 2. Add a recursive source guard with an exact sensitive-field inventory and
    reviewed public/owner/staff/service allowlists.
 3. Move conditional coordinate disclosure into a bounded database or server
@@ -281,6 +284,194 @@ now convert callers, but the converted application must not be deployed until
 Phase 0 is accepted in Production. Prove account-deletion reset and each caller
 family as it moves; use focused tests during conversion and batch full test,
 lint and build at the cohesive merge/deploy boundary.
+
+The first isolated Phase 1 slice now converts public maker, listing, blog,
+search, commission-interest, stock-notification and conversation-eligibility
+callers from the private diagnostic `stripeAccountVersion` to the derived
+public-safe `stripeAccountSupported` snapshot. It deliberately leaves exact
+provider-version reads in checkout, Stripe Connect, reconciliation, export and
+account-deletion paths, where the diagnostic value controls provider-specific
+behavior or recovery. A focused source guard prevents the reviewed public
+paths from reintroducing the private provider version. TypeScript and 116
+focused tests pass for this slice. This is prepared source only; it must stay
+stacked behind Phase 0 and is not evidence of a Production schema or
+application change.
+
+The second isolated Phase 1 slice removes every nested `seller: true` read.
+Checkout and shipping share explicit seller-state projections; dashboard and
+shop ownership checks request only the fields they consume. A recursive source
+guard makes the zero-count invariant durable. Exact provider-version reads
+remain intentionally limited to checkout eligibility until that family moves
+to purpose-bound private operations.
+
+The third isolated Phase 1 slice converts the authenticated seller bootstrap,
+shop-settings page and profile editor to explicit projections. The recursive
+guard now proves zero direct SellerProfile reads without a `select` and zero
+nested `seller: true` reads across `src`.
+
+The fourth isolated slice funnels Stripe Connect owner onboarding/status,
+dashboard links, scheduled account reconciliation and signed-webhook capability
+mirroring through `sellerStripePrivateAccess.ts`. The compatibility module still
+uses exact predecessor projections because Phase 0 intentionally gives the
+ordinary runtime no direct access to `SellerProfilePrivate`; deploying a raw
+Prisma relation switch would fail. With the route and worker family centralized,
+the post-Phase-0 operation migration can replace one implementation boundary
+with fixed owner/provider functions while preserving caller behavior and the
+audit-plus-capability-update transaction.
+
+The fifth through eleventh isolated slices centralize the remaining shipping
+quote inputs, owner onboarding/export reads and writes, staff ban/unban/undo
+seller state, account-deletion seller mutations, and the owner shop-settings
+and profile-editor read/write surfaces. Cart and single-listing quote paths now
+share one exact fulfillment projection; account export retains every reviewed
+owner field without leaving that projection embedded in the route; each
+onboarding, shop-settings and profile-editor mutation is owner-bound and
+purpose-specific; staff
+orderability changes share a single compatibility boundary while preserving
+the existing user capability, audit and checkout-expiry protocol; and account
+deletion now pauses and anonymizes the expected user-owned seller row through
+one fail-closed boundary. Focused source/behavior suites and TypeScript pass for
+each slice.
+
+The twelfth isolated slice centralizes both Guild cron scans and every Guild
+metric/revocation SellerProfile mutation behind `sellerGuildPrivateAccess.ts`.
+The daily member check retains its case and listing-threshold rechecks inside
+the audit transaction, while the monthly metrics job retains its warning grace,
+fresh-metrics revocation check, exact state predicates and co-committed system
+audit. The two cron routes now contain zero direct SellerProfile reads or
+writes.
+
+The thirteenth isolated slice moves the authenticated Guild dashboard state,
+both application rechecks and the Guild Master application timestamp mutation
+behind the owner boundary. Every lookup and the paired application mutation is
+bound to both seller-profile id and user id, while the existing verification
+status update and transition assertion remain in the same transaction.
+
+The fourteenth isolated slice centralizes staff Guild private-state reads,
+review transitions, revocation/reinstatement mutations and bounded admin lists
+behind `sellerGuildStaffPrivateAccess.ts`. Existing Admin-PIN and role gates,
+verification-state compare-and-set writes, seller-account activity checks,
+transition assertions, notifications and audit writes remain at the caller.
+The staff page retains only unrelated public featured-maker SellerProfile
+operations outside this private compatibility boundary.
+
+The fifteenth isolated slice centralizes the cart, single-checkout and
+single-checkout-resume private seller source projections behind
+`sellerCheckoutPrivateAccess.ts`. The boundary keeps the exact provider
+version, payout destination, package defaults and orderability snapshots used
+by the installed reservation-source witnesses, while the route-level buyer,
+listing, block, rate, price and reservation checks remain unchanged.
+
+The sixteenth isolated slice inventories the latest source definition of every
+database function and moves eight public-eligibility functions off the private
+`stripeAccountVersion` field. Migration
+`20261013130000_move_seller_supported_snapshot_sql_callers` preserves their
+signatures, security attributes and grants while using the transactionally
+maintained `stripeAccountSupported` snapshot. The exact migration applied in a
+transaction to disposable PostgreSQL 16; catalog readback found all eight
+functions using the snapshot and zero references to `stripeAccountVersion`.
+Seventeen effective functions still directly depend on fields in the private
+inventory. The large notification core remains in that count so its provider
+and metric dependencies can be converted together rather than replacing its
+definition twice.
+
+The seventeenth isolated slice moves the three checkout reservation functions
+that directly consume seller provider or package state onto
+`SellerProfilePrivate`. Migration
+`20261013140000_move_checkout_seller_private_sql_callers` preserves the fixed
+function signatures, owners, security attributes and grants; public seller
+orderability continues to use `stripeAccountSupported`, while the provider id,
+provider version and default package dimensions come from the zero-direct
+companion. The disposable PostgreSQL checkout suite exercises the replacement
+functions through the restricted runtime, then restores the sealed predecessor
+definitions before replaying the historical activation/FORCE proofs. All 41
+PostgreSQL checks pass. Fourteen effective functions remain to convert.
+
+The eighteenth isolated slice moves both custom-order messaging writers and
+the bounded User custom-order seller projection onto the private companion.
+Migration `20261013150000_move_custom_order_seller_private_sql_callers`
+preserves all three public contracts and grants. Seller eligibility now joins
+the private payout destination, uses the public supported snapshot, and locks
+the companion row with the public seller row; the User projection returns the
+same bounded provider fields from the companion. The current Conversation and
+Message runtime proof reapplies this successor after its historical service
+draft so hosted CI exercises the effective function bodies rather than silently
+restoring predecessors. Focused boundary, relationship and conversation suites
+pass. Eleven effective functions remain to convert.
+
+The nineteenth and twentieth slices move the Case Guild unresolved guard and
+the seller label preflight onto the companion. The Guild guard keeps public
+`guildLevel` as the current state while reading the private prior-approval
+timestamp from `SellerProfilePrivate`. The label preflight keeps public seller
+identity/display state while sourcing ship-from contact and default package
+dimensions from the companion. Its PostgreSQL suite deliberately poisons the
+predecessor public address and proves the returned label sender still comes
+from the private row; all 35 label checks pass, including partial-refund,
+deauthorization, claim-fencing, ambiguous-provider and rollback paths. Nine
+effective functions remain to convert.
+
+The twenty-first isolated slice moves three provider-identity callers behind
+the private companion: signed payout-failure matching, signed seller
+deauthorization, and the staff ban-repair projection. Their public contracts,
+security modes and existing caller grants remain unchanged. Payout and ban
+repair now ignore deliberately stale predecessor account ids in focused
+PostgreSQL proofs. Deauthorization finds the account through the private row
+and uses a runtime-inaccessible compatibility writer to lock and clear both
+the private account id and the predecessor copy in one transaction; replay and
+rollback behavior remain intact. That transition-only writer is the single
+remaining direct dependency for this mutation and must be replaced after old
+deployments drain, before the predecessor column is dropped. Fourteen focused
+PostgreSQL checks pass. Seven effective functions, including that compatibility
+writer, remain to convert or retire.
+
+The twenty-second isolated slice moves the four refund and Case-refund writers
+that set manual Stripe reconciliation state behind one runtime-inaccessible
+compatibility writer. Migration
+`20261013190000_move_reconciliation_seller_private_sql_callers` preserves the
+four public entrypoint signatures and grants, locks the public/private seller
+pair, and writes the private source plus the predecessor representation in one
+transaction. Focused PostgreSQL proof covers both seller-profile-id and
+seller-user-id resolution, deliberately verifies the restricted runtime cannot
+execute the bridge, and retains refund replay and rollback behavior. Four
+effective functions remain: the checkout-order and notification cores plus the
+two transition-only compatibility writers, all of which must be converted or
+retired after predecessor deployment drain.
+
+The twenty-third isolated slice moves the final two business-function reads
+off predecessor private fields. Migration
+`20261013200000_move_final_seller_private_sql_callers` makes checkout order
+creation source the seller's Stripe account id and version from the locked
+private companion while retaining the public-safe supported snapshot for
+eligibility. Notification creation likewise uses that snapshot for Stripe
+eligibility and reads Guild metric state from the locked private row. It is
+based on the corrected notification definition, including explicit rejection
+of a null notification type. A paid-checkout PostgreSQL proof deliberately
+poisons the predecessor Stripe fields and still creates the order from the
+private source. Thirty-three focused checks pass. A subsequent independent
+latest-definition scan found four account-deletion functions that still read
+predecessor provider or ship-from fields, in addition to the transition-only
+`grainline_seller_profile_deauthorize_compat` and
+`grainline_seller_profile_reconciliation_required_compat` writers.
+
+The twenty-fourth isolated slice moves those four account-deletion functions
+onto the companion. Migration
+`20261013210000_move_account_deletion_seller_private_sql_callers` preserves
+the preflight, snapshot, Message redaction and Case redaction signatures,
+security attributes and grants. Public seller identity remains on
+`SellerProfile`; provider identity and ship-from redaction needles now come
+from `SellerProfilePrivate`. Focused PostgreSQL proofs deliberately poison the
+predecessor provider and ship-from values, then show preflight, snapshot and
+received-message redaction use only the private values. The only remaining
+effective predecessor-field dependencies are the two transition writers;
+both must
+be replaced or retired after Phase 0 is installed, converted application code
+is deployed, and predecessor deployments have drained.
+
+These compatibility modules still read and write the predecessor table. That
+is intentional until Phase 0 is installed because ordinary runtime has zero
+direct authority on the companion. Phase 1 remains incomplete: currently
+effective SQL-function dependencies must move to purpose-bound private
+operations before predecessor columns can be retired.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

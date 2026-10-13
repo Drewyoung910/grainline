@@ -63,6 +63,18 @@ const accountDeletionSuccessorMigrations = [
   "20261011180000_enable_account_deletion_side_effect_rls",
   "20261012120000_force_account_deletion_side_effect_rls",
 ];
+const sellerProfilePrivateBoundaryMigrations = [
+  "20261013120000_prepare_seller_profile_private_boundary",
+  "20261013130000_move_seller_supported_snapshot_sql_callers",
+  "20261013140000_move_checkout_seller_private_sql_callers",
+  "20261013150000_move_custom_order_seller_private_sql_callers",
+  "20261013160000_move_case_guild_seller_private_sql_caller",
+  "20261013170000_move_order_label_seller_private_sql_caller",
+  "20261013180000_move_provider_identity_seller_private_sql_callers",
+  "20261013190000_move_reconciliation_seller_private_sql_callers",
+  "20261013200000_move_final_seller_private_sql_callers",
+  "20261013210000_move_account_deletion_seller_private_sql_callers",
+];
 const admittedTests = [...heldTests, ...packageOwnedTests];
 const staffScript = "scripts/provision-order-staff-read-role.sql";
 const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
@@ -216,14 +228,24 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
     }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
-    const trackedPaths = [...heldPaths, staffScript];
+    const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
+      (migration) => `prisma/migrations/${migration}/migration.sql`,
+    );
+    const trackedPaths = [...heldPaths, ...sellerProfilePrivateBoundaryPaths, staffScript];
     const hash = (relative) => createHash("sha256").update(readFileSync(path.join(root, relative))).digest("hex");
     const original = trackedPaths.map(hash);
     const catalogPath = "tests/user-authority-catalog.test.mjs";
     const catalogIndex = trackedPaths.indexOf(catalogPath);
-    execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
-    execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
+    const scriptEnv = {
+      PATH: process.env.PATH,
+      RUNNER_TEMP: holding,
+      GITHUB_ENV: path.join(holding, "github-env"),
+    };
+    execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate SellerProfile private-boundary migration from historical release guards")], { cwd: root, env: scriptEnv });
     assert.ok(heldPaths.every((relative) => !existsSync(path.join(root, relative))));
+    assert.ok(sellerProfilePrivateBoundaryPaths.every((relative) => !existsSync(path.join(root, relative))));
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
     assert.doesNotMatch(historicalStaff, /grainline_user_staff_/);
     assert.equal(execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(), historicalStaffBlob);
@@ -235,12 +257,13 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.ok(heldFunctions.every((name) => !historical.functions.includes(name)));
     mkdirSync(path.join(holding, "user-staff-admin-labels"));
     mkdirSync(path.join(holding, "user-follower-authority"));
-    execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
+    execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: scriptEnv });
     assert.equal(existsSync(path.join(root, `prisma/migrations/${enableMigration}`)), false);
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
-    execFileSync("bash", ["-c", bashBody("Restore User policyless ENABLE source package")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
+    execFileSync("bash", ["-c", bashBody("Restore User policyless ENABLE source package")], { cwd: root, env: scriptEnv });
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
-    execFileSync("bash", ["-c", bashBody("Restore User policyless FORCE source package")], { cwd: root, env: { PATH: process.env.PATH, RUNNER_TEMP: holding } });
+    execFileSync("bash", ["-c", bashBody("Restore User policyless FORCE source package")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore SellerProfile private-boundary migration after all predecessors")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }

@@ -29,6 +29,14 @@ import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/se
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { withSerializableRetry } from "@/lib/transactionRetry";
+import {
+  clearSellerOwnerAvatar,
+  duplicateSellerOwnerDisplayName,
+  sellerOwnerFeaturedListingIds,
+  sellerOwnerProfileEditorState,
+  updateSellerOwnerFeaturedListingIds,
+  updateSellerOwnerProfile,
+} from "@/lib/sellerOwnerPrivateAccess";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
@@ -174,46 +182,40 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       : null;
 
   // Soft uniqueness check — warn (don't block) if another seller has the same name
-  const duplicate = await prisma.sellerProfile.findFirst({
-    where: {
-      OR: [
-        { displayName: { equals: displayName, mode: "insensitive" } },
-        { displayNameNormalized: { equals: displayNameNormalized, mode: "insensitive" } },
-      ],
-      id: { not: seller.id },
-    },
-    select: { id: true },
+  const duplicate = await duplicateSellerOwnerDisplayName({
+    sellerProfileId: seller.id,
+    displayName,
+    displayNameNormalized,
   });
 
   await prisma.$transaction(async (tx) => {
-    await tx.sellerProfile.update({
-      where: { id: seller.id },
-      data: {
-        displayName,
-        displayNameNormalized,
-        tagline,
-        bio,
-        storyTitle,
-        storyBody,
-        yearsInBusiness,
-        bannerImageUrl,
-        avatarImageUrl,
-        workshopImageUrl,
-        ...(galleryImageUrlsTouched ? { galleryImageUrls, galleryAltTexts } : {}),
-        instagramUrl,
-        facebookUrl,
-        pinterestUrl,
-        tiktokUrl,
-        websiteUrl,
-        returnPolicy,
-        customOrderPolicy,
-        shippingPolicy,
-        acceptsCustomOrders,
-        acceptingNewOrders,
-        customOrderTurnaroundDays,
-        offersGiftWrapping,
-        giftWrappingPriceCents: offersGiftWrapping ? giftWrappingPriceCents : null,
-      },
+    await updateSellerOwnerProfile(tx, {
+      sellerProfileId: seller.id,
+      userId: seller.userId,
+      displayName,
+      displayNameNormalized,
+      tagline,
+      bio,
+      storyTitle,
+      storyBody,
+      yearsInBusiness,
+      bannerImageUrl,
+      avatarImageUrl,
+      workshopImageUrl,
+      ...(galleryImageUrlsTouched ? { galleryImageUrls, galleryAltTexts } : {}),
+      instagramUrl,
+      facebookUrl,
+      pinterestUrl,
+      tiktokUrl,
+      websiteUrl,
+      returnPolicy,
+      customOrderPolicy,
+      shippingPolicy,
+      acceptsCustomOrders,
+      acceptingNewOrders,
+      customOrderTurnaroundDays,
+      offersGiftWrapping,
+      giftWrappingPriceCents,
     });
     await syncSellerProfileDirectUploadReferences({
       client: tx,
@@ -297,9 +299,9 @@ async function removeSellerAvatar() {
   if (!success) return;
   const { seller } = await ensureSeller();
   await prisma.$transaction(async (tx) => {
-    await tx.sellerProfile.update({
-      where: { id: seller.id },
-      data: { avatarImageUrl: null },
+    await clearSellerOwnerAvatar(tx, {
+      sellerProfileId: seller.id,
+      userId: seller.userId,
     });
     await syncSellerProfileDirectUploadReferences({
       client: tx,
@@ -326,9 +328,9 @@ async function toggleFeaturedListing(listingId: string) {
     const owned = await tx.listing.count({ where: { id: listingId, sellerId: seller.id } });
     if (owned === 0) return;
 
-    const freshSeller = await tx.sellerProfile.findUnique({
-      where: { id: seller.id },
-      select: { featuredListingIds: true },
+    const freshSeller = await sellerOwnerFeaturedListingIds(tx, {
+      sellerProfileId: seller.id,
+      userId: seller.userId,
     });
     const current = freshSeller?.featuredListingIds ?? [];
     let next: string[];
@@ -339,9 +341,10 @@ async function toggleFeaturedListing(listingId: string) {
       next = [...current, listingId];
     }
 
-    await tx.sellerProfile.update({
-      where: { id: seller.id },
-      data: { featuredListingIds: next },
+    await updateSellerOwnerFeaturedListingIds(tx, {
+      sellerProfileId: seller.id,
+      userId: seller.userId,
+      featuredListingIds: next,
     });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
 
@@ -366,10 +369,7 @@ export default async function ProfilePage({
   const { me, seller } = await ensureSeller();
 
   const [fullSeller, activeListings] = await Promise.all([
-    prisma.sellerProfile.findUnique({
-      where: { id: seller.id },
-      include: { faqs: { orderBy: { sortOrder: "asc" } } },
-    }),
+    sellerOwnerProfileEditorState(seller.id, seller.userId),
     prisma.listing.findMany({
       where: { sellerId: seller.id, status: "ACTIVE" },
       include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },

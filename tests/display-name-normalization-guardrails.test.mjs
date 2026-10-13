@@ -23,12 +23,13 @@ describe("seller display-name lookup normalization guardrails", () => {
     const ensureSeller = source("src/lib/ensureSeller.ts");
     const onboarding = source("src/app/dashboard/onboarding/actions.ts");
     const profile = source("src/app/dashboard/profile/page.tsx");
-    const deletion = source("src/lib/accountDeletion.ts");
+    const ownerAccess = source("src/lib/sellerOwnerPrivateAccess.ts");
+    const deletion = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
 
     assert.match(ensureSeller, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);
     assert.match(onboarding, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);
     assert.match(profile, /const displayNameNormalized = normalizeDisplayNameForLookup\(displayName\)/);
-    assert.match(profile, /displayNameNormalized: \{ equals: displayNameNormalized, mode: "insensitive" \}/);
+    assert.match(ownerAccess, /displayNameNormalized: \{\s*equals: input\.displayNameNormalized,\s*mode: "insensitive",?\s*\}/s);
     assert.match(profile, /displayNameNormalized,/);
     assert.match(deletion, /displayNameNormalized: "Deleted maker"/);
   });

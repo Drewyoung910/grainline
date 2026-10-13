@@ -64,16 +64,20 @@ describe("account deletion timeout and terminal UX guardrails", () => {
 
   it("defensively disables seller orderability inside the deletion transaction", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
+    const sellerPrivateAccess = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
 
-    assert.match(accountDeletion, /if \(stripeRejectSucceeded\) \{\s*await tx\.sellerProfile\.updateMany/s);
-    assert.match(accountDeletion, /where: \{ userId: user\.id \}/);
-    assert.match(accountDeletion, /data: \{ chargesEnabled: false, vacationMode: true \}/);
-    assert.match(accountDeletion, /chargesEnabled: false/);
-    assert.match(accountDeletion, /vacationMode: true/);
+    assert.match(
+      accountDeletion,
+      /if \(stripeRejectSucceeded\) \{\s*await pauseSellerForAccountDeletion\(tx, \{ userId: user\.id \}\)/s,
+    );
+    assert.match(sellerPrivateAccess, /return client\.sellerProfile\.updateMany\(\{/);
+    assert.match(sellerPrivateAccess, /userId: input\.userId/);
+    assert.match(sellerPrivateAccess, /data: \{ chargesEnabled: false, vacationMode: true \}/);
   });
 
   it("marks sellers non-orderable after Stripe reject before the large transaction", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
+    const sellerPrivateAccess = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
     const stripeReject = accountDeletion.indexOf("const stripeRejectSucceeded =");
     const preTransactionDisable = accountDeletion.indexOf("await disableSellerOrderabilityAfterStripeReject");
     const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
@@ -84,8 +88,15 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.ok(stripeReject < preTransactionDisable);
     assert.ok(preTransactionDisable < transactionStart);
     assert.match(accountDeletion, /async function disableSellerOrderabilityAfterStripeReject/);
-    assert.match(accountDeletion, /where: \{ userId: input\.userId, stripeAccountId: input\.stripeAccountId \}/);
-    assert.match(accountDeletion, /data: \{ chargesEnabled: false, vacationMode: true \}/);
+    assert.match(
+      accountDeletion,
+      /pauseSellerForAccountDeletion\(prisma, \{\s*userId: input\.userId,\s*stripeAccountId: input\.stripeAccountId,\s*\}\)/s,
+    );
+    assert.match(
+      sellerPrivateAccess,
+      /\.\.\.\(input\.stripeAccountId \? \{ stripeAccountId: input\.stripeAccountId \} : \{\}\)/,
+    );
+    assert.match(sellerPrivateAccess, /data: \{ chargesEnabled: false, vacationMode: true \}/);
     assert.match(accountDeletion, /source: "account_delete_stripe_reject_local_disable"/);
   });
 

@@ -137,7 +137,7 @@ describe("stock mutation state", () => {
     assert.match(fanoutSql, /l\."isPrivate" = false/);
     assert.match(fanoutSql, /COALESCE\(l\."stockQuantity", 0\) > 0/);
     assert.match(fanoutSql, /sp\."chargesEnabled" = true/);
-    assert.match(fanoutSql, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
+    assert.match(fanoutSql, /sp\."stripeAccountSupported" = true/);
     assert.match(fanoutSql, /sp\."vacationMode" = false/);
     assert.match(fanoutSql, /sp\."ownerAccountActive" = true/);
   });

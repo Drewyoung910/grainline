@@ -35,24 +35,35 @@ describe("security lifecycle follow-ups", () => {
 
   it("keeps Guild Member reinstatement on active accounts and notifies the seller", () => {
     const page = source("src/app/admin/verification/page.tsx");
+    const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
     const reinstateBody = functionBody(page, "reinstateGuildMember");
 
-    assert.match(reinstateBody, /ownerAccountActive: true/);
     assert.match(reinstateBody, /!seller \|\| !seller\.ownerAccountActive/);
-    assert.match(reinstateBody, /sellerProfile\.updateMany\(\{[\s\S]*ownerAccountActive: true/);
+    assert.match(reinstateBody, /sellerGuildStaffReinstatementState\(tx, sellerProfileId\)/);
+    assert.match(reinstateBody, /reinstateSellerGuildMember\(tx, \{/);
+    assert.match(staffGuildAccess, /export function reinstateSellerGuildMember[\s\S]*sellerProfile\.updateMany\(\{[\s\S]*ownerAccountActive: true/);
     assert.match(reinstateBody, /title: "Guild Member badge reinstated"/);
     assert.match(reinstateBody, /publicSellerPath\(sellerProfileId, reinstatedSeller\.displayName\)/);
   });
 
   it("keeps Guild approval writes on active seller accounts", () => {
     const page = source("src/app/admin/verification/page.tsx");
+    const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
 
-    for (const action of ["approveGuildMember", "approveGuildMaster"]) {
+    for (const [action, helper] of [
+      ["approveGuildMember", "approveSellerGuildMember"],
+      ["approveGuildMaster", "approveSellerGuildMaster"],
+    ]) {
       const body = functionBody(page, action);
 
       assert.match(body, /ownerAccountActive: true/, `${action} must load account state`);
       assert.match(body, /!verification\.sellerProfile\.ownerAccountActive/, `${action} must block inactive accounts before approval`);
-      assert.match(body, /sellerProfile\.updateMany\(\{[\s\S]*ownerAccountActive: true/, `${action} must guard the seller write by active account state`);
+      assert.match(body, new RegExp(`${helper}\\(tx, \\{`), `${action} must use its staff Guild boundary`);
+      assert.match(
+        staffGuildAccess,
+        new RegExp(`export function ${helper}[\\s\\S]*?sellerProfile\\.updateMany\\(\\{[\\s\\S]*?ownerAccountActive: true`),
+        `${helper} must guard the seller write by active account state`,
+      );
       assert.match(body, /assertGuildVerificationTransition\(sellerUpdated\.count, "approve Guild/, `${action} must surface approval races`);
     }
   });

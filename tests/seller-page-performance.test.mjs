@@ -134,7 +134,7 @@ describe("seller public page query guardrails", () => {
 
     for (const pageSource of [sellerShopPage, customerPhotosPage]) {
       assert.match(pageSource, /import \{ cache \} from "react"/);
-      assert.match(pageSource, /isSupportedStripeAccountVersion\(seller\.stripeAccountVersion\)/);
+      assert.match(pageSource, /seller\.stripeAccountSupported/);
       assert.equal(
         (pageSource.match(/prisma\.sellerProfile\.findUnique\(/g) ?? []).length,
         1,

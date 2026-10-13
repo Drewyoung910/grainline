@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { buildOrderLabelClawbackClock, orderLabelClawbackClockDefinition } from "../scripts/build-order-label-clawback-clock.mjs";
@@ -45,6 +46,16 @@ const partialRefundCorrection = readFileSync(
   partialRefundCorrectionPath,
   "utf8",
 );
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
+const sellerPrivateLabelCorrection = readFileSync(
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013170000_move_order_label_seller_private_sql_caller",
+    "migration.sql",
+  ),
+  "utf8",
+);
 
 async function createLabelDatabase({ corrected }) {
   const database = new PGlite();
@@ -68,6 +79,15 @@ async function createLabelDatabase({ corrected }) {
       "shipFromName" text, "shipFromLine1" text, "shipFromLine2" text,
       "shipFromCity" text, "shipFromState" text, "shipFromPostal" text,
       "shipFromCountry" text, "defaultPkgWeightGrams" integer,
+      "defaultPkgLengthCm" double precision, "defaultPkgWidthCm" double precision,
+      "defaultPkgHeightCm" double precision
+    );
+    CREATE TABLE public."SellerProfilePrivate" (
+      "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
+      "shipFromName" text, "shipFromLine1" text, "shipFromLine2" text,
+      "shipFromCity" text, "shipFromState" text, "shipFromPostal" text,
+      "shipFromCountry" text, "shipFromPhone" text,
+      "defaultPkgWeightGrams" integer,
       "defaultPkgLengthCm" double precision, "defaultPkgWidthCm" double precision,
       "defaultPkgHeightCm" double precision
     );
@@ -175,6 +195,16 @@ async function createLabelDatabase({ corrected }) {
     ) VALUES
       ('seller-1', 'seller-user-1', 'Shop', 'Shop', '1 Maker St', 'Austin', 'TX', '78701', 'US', 1000, 20, 15, 10),
       ('seller-2', 'seller-user-2', 'Other', 'Other', '2 Maker St', 'Austin', 'TX', '78701', 'US', 1000, 20, 15, 10);
+    INSERT INTO public."SellerProfilePrivate" (
+      "sellerProfileId", "shipFromName", "shipFromLine1", "shipFromCity",
+      "shipFromState", "shipFromPostal", "shipFromCountry", "shipFromPhone",
+      "defaultPkgWeightGrams", "defaultPkgLengthCm", "defaultPkgWidthCm",
+      "defaultPkgHeightCm"
+    ) VALUES
+      ('seller-1', 'Shop', '1 Maker St', 'Austin', 'TX', '78701', 'US',
+       '+15125550123', 1000, 20, 15, 10),
+      ('seller-2', 'Other', '2 Maker St', 'Austin', 'TX', '78701', 'US',
+       '+15125550124', 1000, 20, 15, 10);
     INSERT INTO public."Listing" (id, "packagedWeightGrams", "packagedLengthCm", "packagedWidthCm", "packagedHeightCm")
       VALUES ('listing-1', 900, 19, 14, 9);
     INSERT INTO public."Order" (
@@ -210,10 +240,13 @@ async function createPartialRefundLabelDatabase() {
   await database.exec(fulfillmentMigration);
   await database.exec(fulfillmentDeauthorizationCorrection);
   await database.exec(partialRefundCorrection);
+  await database.exec(sellerPrivateLabelCorrection);
   await database.exec(`
     UPDATE public."SellerProfile"
-       SET "shipFromPhone" = '+15125550123'
-     WHERE id = 'seller-1';
+       SET "shipFromPhone" = '+15125550123',
+           "shipFromLine1" = 'stale-public-address',
+           "defaultPkgWeightGrams" = 499999
+     WHERE id IN ('seller-1', 'seller-2');
     UPDATE public."Order"
        SET "chargedTotalCents" = 2000,
            "itemsSubtotalCents" = 1100,
@@ -240,6 +273,7 @@ describe("Order label partial-refund successor in PostgreSQL", () => {
         ) AS result
       `);
       assert.equal(preflight.rows[0].result.outcome, "ready");
+      assert.equal(preflight.rows[0].result.shipFrom.street1, "1 Maker St");
       const quote = await asRuntime(database, `
         SELECT public.grainline_order_seller_label_quote_replace(
           'seller-user-1', 'order-1', 'shipment-partial',

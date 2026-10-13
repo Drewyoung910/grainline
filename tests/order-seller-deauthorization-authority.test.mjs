@@ -4,9 +4,16 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const candidate = fs.readFileSync(
   "docs/rls-drafts/order-seller-deauthorization-authority.sql",
+  "utf8",
+);
+const sellerPrivateProviderMigration = fs.readFileSync(
+  sellerProfilePrivateMigrationPath(
+    "20261013180000_move_provider_identity_seller_private_sql_callers",
+  ),
   "utf8",
 );
 const schema = fs.readFileSync("prisma/schema.prisma", "utf8");
@@ -39,6 +46,11 @@ describe("Order seller deauthorization authority", () => {
         "stripeAccountId" varchar(255) UNIQUE,
         "chargesEnabled" boolean NOT NULL DEFAULT false
       );
+      CREATE TABLE public."SellerProfilePrivate" (
+        "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
+        "stripeAccountId" varchar(255) UNIQUE,
+        "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
       CREATE TABLE public."StripeWebhookEvent" (
         id varchar(255) PRIMARY KEY,
         type varchar(100) NOT NULL,
@@ -46,6 +58,20 @@ describe("Order seller deauthorization authority", () => {
         "claimGeneration" bigint NOT NULL,
         "processingStartedAt" timestamp(3) without time zone,
         "processedAt" timestamp(3) without time zone
+      );
+      CREATE TABLE public."SellerPayoutEvent" (
+        id text PRIMARY KEY,
+        "sellerProfileId" text NOT NULL REFERENCES public."SellerProfile"(id),
+        "stripePayoutId" text NOT NULL UNIQUE,
+        status text NOT NULL,
+        "amountCents" integer,
+        currency text NOT NULL,
+        "failureCode" text,
+        "failureMessage" text,
+        "stripeEventId" text,
+        "stripeEventCreatedSeconds" bigint,
+        "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE public."Order" (
         id text PRIMARY KEY,
@@ -69,7 +95,10 @@ describe("Order seller deauthorization authority", () => {
       INSERT INTO public."User" (id) VALUES ('seller-user');
       INSERT INTO public."SellerProfile" (
         id, "userId", "stripeAccountId", "chargesEnabled"
-      ) VALUES ('seller-1', 'seller-user', 'acct_test_deauth', true);
+      ) VALUES ('seller-1', 'seller-user', 'acct_public_poison', true);
+      INSERT INTO public."SellerProfilePrivate" (
+        "sellerProfileId", "stripeAccountId"
+      ) VALUES ('seller-1', 'acct_test_deauth');
       INSERT INTO public."StripeWebhookEvent" (
         id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
       ) VALUES (
@@ -88,6 +117,7 @@ describe("Order seller deauthorization authority", () => {
         ('order-terminal', 'seller-1', CURRENT_TIMESTAMP - interval '1 day', 'DELIVERED', false, NULL);
     `);
     await db.exec(candidate);
+    await db.exec(sellerPrivateProviderMigration);
   });
 
   after(async () => {
@@ -188,6 +218,10 @@ describe("Order seller deauthorization authority", () => {
       SELECT "stripeAccountId" AS account_id, "chargesEnabled" AS enabled
         FROM public."SellerProfile" WHERE id = 'seller-1'
     `)), [{ account_id: null, enabled: false }]);
+    assert.deepEqual(rows(await db.query(`
+      SELECT "stripeAccountId" AS account_id
+        FROM public."SellerProfilePrivate" WHERE "sellerProfileId" = 'seller-1'
+    `)), [{ account_id: null }]);
     const orders = rows(await db.query(`
       SELECT id, "reviewNeeded" AS review_needed, "reviewNote" AS review_note,
              "sellerDeauthorizationEventId" AS event_id
@@ -222,6 +256,9 @@ describe("Order seller deauthorization authority", () => {
       UPDATE public."SellerProfile"
          SET "stripeAccountId" = 'acct_test_reconnected', "chargesEnabled" = true
        WHERE id = 'seller-1';
+      UPDATE public."SellerProfilePrivate"
+         SET "stripeAccountId" = 'acct_test_reconnected'
+       WHERE "sellerProfileId" = 'seller-1';
     `);
     let replayed;
     await db.exec("SET ROLE grainline_app_runtime");
@@ -249,6 +286,24 @@ describe("Order seller deauthorization authority", () => {
       SELECT "stripeAccountId" AS account_id, "chargesEnabled" AS enabled
         FROM public."SellerProfile" WHERE id = 'seller-1'
     `)), [{ account_id: "acct_test_reconnected", enabled: true }]);
+    assert.equal(rows(await db.query(`
+      SELECT public.grainline_seller_profile_deauthorize_compat(
+        'seller-1', 'acct_test_deauth'
+      ) AS changed
+    `))[0].changed, false);
+    assert.deepEqual(rows(await db.query(`
+      SELECT seller."stripeAccountId" AS public_account_id,
+             seller_private."stripeAccountId" AS private_account_id,
+             seller."chargesEnabled" AS enabled
+        FROM public."SellerProfile" AS seller
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId" = seller.id
+       WHERE seller.id = 'seller-1'
+    `)), [{
+      public_account_id: "acct_test_reconnected",
+      private_account_id: "acct_test_reconnected",
+      enabled: true,
+    }]);
   });
 
   it("rejects forged generations and direct runtime ledger access", async () => {
@@ -270,6 +325,12 @@ describe("Order seller deauthorization authority", () => {
       await assert.rejects(
         db.query(`SELECT * FROM public."SellerDeauthorizationApplication"`),
         /permission denied/,
+      );
+      await assert.rejects(
+        db.query(`SELECT public.grainline_seller_profile_deauthorize_compat(
+          'seller-1', 'acct_test_reconnected'
+        )`),
+        /permission denied for function grainline_seller_profile_deauthorize_compat/,
       );
     } finally {
       await db.exec("RESET ROLE").catch(() => {});
@@ -314,6 +375,9 @@ describe("Order seller deauthorization authority", () => {
       INSERT INTO public."SellerProfile" (
         id, "userId", "stripeAccountId", "chargesEnabled"
       ) VALUES ('seller-rollback', 'rollback-user', 'acct_test_rollback', true);
+      INSERT INTO public."SellerProfilePrivate" (
+        "sellerProfileId", "stripeAccountId"
+      ) VALUES ('seller-rollback', 'acct_test_rollback');
       INSERT INTO public."StripeWebhookEvent" (
         id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
       ) VALUES (
@@ -348,6 +412,11 @@ describe("Order seller deauthorization authority", () => {
       SELECT "stripeAccountId" AS account_id, "chargesEnabled" AS enabled
         FROM public."SellerProfile" WHERE id = 'seller-rollback'
     `)), [{ account_id: "acct_test_rollback", enabled: true }]);
+    assert.deepEqual(rows(await db.query(`
+      SELECT "stripeAccountId" AS account_id
+        FROM public."SellerProfilePrivate"
+       WHERE "sellerProfileId" = 'seller-rollback'
+    `)), [{ account_id: "acct_test_rollback" }]);
     assert.deepEqual(rows(await db.query(`
       SELECT "reviewNeeded" AS review_needed,
              "sellerDeauthorizationEventId" AS event_id

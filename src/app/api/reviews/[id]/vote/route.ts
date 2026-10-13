@@ -46,7 +46,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
               userId: true,
               ownerAccountActive: true,
               chargesEnabled: true,
-              stripeAccountVersion: true,
+              stripeAccountSupported: true,
               vacationMode: true,
             },
           },

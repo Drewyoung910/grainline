@@ -1,5 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import {
+  listingSellerOrderStateSelect,
+  sellerCartCheckoutInclude,
+} from "@/lib/sellerCheckoutPrivateAccess";
 
 export type CartOwnerAccessClient = Pick<Prisma.TransactionClient, "cart" | "cartItem" | "$queryRaw">;
 
@@ -248,20 +252,7 @@ export async function ownerCartForCheckoutSeller(
 ) {
   return db.cart.findUnique({
     where: { userId },
-    include: {
-      items: {
-        include: {
-          listing: {
-            include: {
-              seller: true,
-              photos: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
-              variantGroups: { include: { options: true } },
-            },
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      },
-    },
+    include: sellerCartCheckoutInclude,
   });
 }
 
@@ -301,7 +292,7 @@ export async function ownerCartForShippingQuoteById(
         include: {
           listing: {
             include: {
-              seller: true,
+              seller: { select: listingSellerOrderStateSelect },
             },
           },
         },
@@ -323,7 +314,7 @@ export async function ownerCartForShippingQuote(
         include: {
           listing: {
             include: {
-              seller: true,
+              seller: { select: listingSellerOrderStateSelect },
             },
           },
         },

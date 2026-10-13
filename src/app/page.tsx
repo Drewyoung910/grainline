@@ -143,7 +143,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
       FROM "SellerProfile" sp
       LEFT JOIN "SellerRatingSummary" srs ON srs."sellerProfileId" = sp.id
       WHERE sp."chargesEnabled" = true
-        AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+        AND sp."stripeAccountSupported" = true
         AND sp."vacationMode" = false
         AND sp."ownerAccountActive" = true
         AND EXISTS (

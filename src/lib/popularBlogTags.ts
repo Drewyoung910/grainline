@@ -22,7 +22,7 @@ export const getPopularBlogTagRows = unstable_cache(
           bp."sellerProfileId" IS NULL
           OR (
             sp."chargesEnabled" = true
-            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND sp."stripeAccountSupported" = true
             AND sp."vacationMode" = false
             AND sp."ownerAccountActive" = true
           )

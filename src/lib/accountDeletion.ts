@@ -68,6 +68,10 @@ import {
   getUserAccountDeletionPreflight,
   getUserAccountDeletionSnapshot,
 } from "@/lib/userAccountDeletionAccess";
+import {
+  anonymizeSellerForAccountDeletion,
+  pauseSellerForAccountDeletion,
+} from "@/lib/sellerAccountDeletionPrivateAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -769,9 +773,9 @@ async function disableSellerOrderabilityAfterStripeReject(input: {
   stripeControllerType: string | null;
 }) {
   try {
-    await prisma.sellerProfile.updateMany({
-      where: { userId: input.userId, stripeAccountId: input.stripeAccountId },
-      data: { chargesEnabled: false, vacationMode: true },
+    await pauseSellerForAccountDeletion(prisma, {
+      userId: input.userId,
+      stripeAccountId: input.stripeAccountId,
     });
     revalidateDeletedAccountSearchCaches(input.userId);
   } catch (error) {
@@ -961,10 +965,7 @@ async function deferProviderDeletedAccountAnonymization(input: {
       clerkId: input.clerkId,
       expectedUserId: input.userId,
     });
-    await tx.sellerProfile.updateMany({
-      where: { userId: input.userId },
-      data: { chargesEnabled: false, vacationMode: true },
-    });
+    await pauseSellerForAccountDeletion(tx, { userId: input.userId });
 
     const existingRequest = await tx.supportRequest.findFirst({
       where: {
@@ -1389,10 +1390,7 @@ export async function anonymizeUserAccount(
 
     if (user.sellerProfile) {
       if (stripeRejectSucceeded) {
-        await tx.sellerProfile.updateMany({
-          where: { userId: user.id },
-          data: { chargesEnabled: false, vacationMode: true },
-        });
+        await pauseSellerForAccountDeletion(tx, { userId: user.id });
       }
       await removeSellerCommissionInterests(tx, user.sellerProfile.id);
       await tx.sellerProfileViewDaily.deleteMany({
@@ -1460,85 +1458,13 @@ export async function anonymizeUserAccount(
       await tx.sellerFaq.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await tx.sellerProfile.update({
-        where: { id: user.sellerProfile.id },
-        data: {
-          displayName: "Deleted maker",
-          displayNameNormalized: "Deleted maker",
-          bio: null,
-          city: null,
-          state: null,
-          lat: null,
-          lng: null,
-          radiusMeters: null,
-          publicMapOptIn: false,
-          stripeAccountId: null,
-          stripeAccountVersion: null,
-          stripeControllerType: null,
-          chargesEnabled: false,
-          manualStripeReconciliationNeeded: !stripeRejectSucceeded,
-          manualStripeReconciliationNote: stripeRejectSucceeded
-            ? null
-            : `Account deletion could not reject Stripe Connect account ${stripeAccountId} (${stripeAccountVersion ?? "legacy/unknown"}; ${stripeControllerType ?? "controller unknown"}); manual Stripe dashboard reconciliation required.`,
-          shippingFlatRateCents: null,
-          freeShippingOverCents: null,
-          allowLocalPickup: false,
-          shipFromName: null,
-          shipFromLine1: null,
-          shipFromLine2: null,
-          shipFromCity: null,
-          shipFromState: null,
-          shipFromPostal: null,
-          shipFromCountry: "US",
-          shipFromPhone: null,
-          defaultPkgWeightGrams: null,
-          defaultPkgLengthCm: null,
-          defaultPkgWidthCm: null,
-          defaultPkgHeightCm: null,
-          useCalculatedShipping: false,
-          preferredCarriers: [],
-          tagline: null,
-          bannerImageUrl: null,
-          avatarImageUrl: null,
-          workshopImageUrl: null,
-          storyTitle: null,
-          storyBody: null,
-          instagramUrl: null,
-          facebookUrl: null,
-          pinterestUrl: null,
-          tiktokUrl: null,
-          websiteUrl: null,
-          yearsInBusiness: null,
-          acceptsCustomOrders: false,
-          acceptingNewOrders: false,
-          customOrderTurnaroundDays: null,
-          offersGiftWrapping: false,
-          giftWrappingPriceCents: null,
-          returnPolicy: null,
-          customOrderPolicy: null,
-          shippingPolicy: null,
-          featuredListingIds: [],
-          galleryImageUrls: [],
-          galleryAltTexts: [],
-          isVerifiedMaker: false,
-          verifiedAt: null,
-          guildLevel: "NONE",
-          guildMemberApprovedAt: null,
-          guildMasterApprovedAt: null,
-          guildMasterAppliedAt: null,
-          guildMasterReviewNotes: null,
-          consecutiveMetricFailures: 0,
-          lastMetricCheckAt: null,
-          metricWarningSentAt: null,
-          listingsBelowThresholdSince: null,
-          profileViews: 0,
-          featuredUntil: null,
-          metroId: null,
-          cityMetroId: null,
-          vacationMode: true,
-          vacationReturnDate: null,
-          vacationMessage: null,
-        },
+      await anonymizeSellerForAccountDeletion(tx, {
+        sellerProfileId: user.sellerProfile.id,
+        userId: user.id,
+        stripeRejectSucceeded,
+        stripeAccountId,
+        stripeAccountVersion,
+        stripeControllerType,
       });
     } else {
       await tx.follow.deleteMany({ where: { followerId: user.id } });

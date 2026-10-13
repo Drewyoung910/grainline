@@ -32,6 +32,16 @@ import {
 } from "@/lib/guildVerificationState";
 import { runBoundedDeletionBatches, runCronCursorPages } from "@/lib/cronBatchState";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import {
+  continueSellerGuildMasterWarning,
+  recordSellerGuildMasterRecovery,
+  recordSellerGuildMasterRevocation,
+  recordSellerGuildMetricCheck,
+  resetSellerGuildMasterMetricFailures,
+  sellerGuildMetricsCronBatch,
+  type SellerGuildMetricsCronRow,
+  warnSellerGuildMasterMetrics,
+} from "@/lib/sellerGuildPrivateAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
@@ -165,25 +175,10 @@ async function runGuildMetricsCron() {
 }
 
 async function fetchGuildSellerBatch(cursorId: string | null) {
-  return prisma.sellerProfile.findMany({
-    where: {
-      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-      vacationMode: false,
-    },
-    orderBy: { id: "asc" },
-    take: SELLER_PAGE_SIZE,
-    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-    select: {
-      id: true,
-      userId: true,
-      guildLevel: true,
-      consecutiveMetricFailures: true,
-      metricWarningSentAt: true,
-    },
-  });
+  return sellerGuildMetricsCronBatch(cursorId, SELLER_PAGE_SIZE);
 }
 
-type GuildSeller = Awaited<ReturnType<typeof fetchGuildSellerBatch>>[number];
+type GuildSeller = SellerGuildMetricsCronRow;
 
 async function processGuildSeller(seller: GuildSeller): Promise<{
   processed: number;
@@ -196,9 +191,10 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   if (seller.guildLevel !== "GUILD_MASTER") {
     // GUILD_MEMBER — just refresh metrics timestamp, no revocation logic here
     // (member revocation handled in daily guild-member-check cron)
-    await prisma.sellerProfile.updateMany({
-      where: { id: seller.id, guildLevel: seller.guildLevel },
-      data: { lastMetricCheckAt: now },
+    await recordSellerGuildMetricCheck({
+      sellerProfileId: seller.id,
+      guildLevel: seller.guildLevel,
+      checkedAt: now,
     });
     return { processed: 1, warned: 0, revokedMaster: 0 };
   }
@@ -207,13 +203,9 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
 
   if (criteria.allMet) {
     // All good — reset failure tracking
-    await prisma.sellerProfile.updateMany({
-      where: { id: seller.id, guildLevel: "GUILD_MASTER" },
-      data: {
-        consecutiveMetricFailures: 0,
-        metricWarningSentAt: null,
-        lastMetricCheckAt: now,
-      },
+    await resetSellerGuildMasterMetricFailures({
+      sellerProfileId: seller.id,
+      checkedAt: now,
     });
     return { processed: 1, warned: 0, revokedMaster: 0 };
   }
@@ -223,13 +215,9 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     const failedLabels = buildFailedLabels(criteria, metrics);
 
     const warningAuditId = await prisma.$transaction(async (tx) => {
-      const warned = await tx.sellerProfile.updateMany({
-        where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: 0 },
-        data: {
-          consecutiveMetricFailures: 1,
-          metricWarningSentAt: now,
-          lastMetricCheckAt: now,
-        },
+      const warned = await warnSellerGuildMasterMetrics(tx, {
+        sellerProfileId: seller.id,
+        warnedAt: now,
       });
       if (warned.count === 0) return null;
       return logSystemActionOrThrow({
@@ -280,12 +268,10 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
 
   const warningSentAt = seller.metricWarningSentAt;
   if (!warningSentAt || now.getTime() - warningSentAt.getTime() < GUILD_MASTER_WARNING_GRACE_MS) {
-    await prisma.sellerProfile.updateMany({
-      where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: { gt: 0 } },
-      data: {
-        metricWarningSentAt: warningSentAt ?? now,
-        lastMetricCheckAt: now,
-      },
+    await continueSellerGuildMasterWarning({
+      sellerProfileId: seller.id,
+      warningSentAt: warningSentAt ?? now,
+      checkedAt: now,
     });
     return { processed: 1, warned: 0, revokedMaster: 0 };
   }
@@ -294,13 +280,9 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   const revocationMetrics = await calculateSellerMetrics(seller.id);
   const revocationCriteria = meetsGuildMasterRequirements(revocationMetrics);
   if (revocationCriteria.allMet) {
-    await prisma.sellerProfile.updateMany({
-      where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: { gt: 0 } },
-      data: {
-        consecutiveMetricFailures: 0,
-        metricWarningSentAt: null,
-        lastMetricCheckAt: now,
-      },
+    await recordSellerGuildMasterRecovery({
+      sellerProfileId: seller.id,
+      checkedAt: now,
     });
     return { processed: 1, warned: 0, revokedMaster: 0 };
   }
@@ -322,23 +304,10 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
       });
       if (verificationUpdated.count === 0) return null;
 
-      const updated = await tx.sellerProfile.updateMany({
-        where: {
-          id: seller.id,
-          guildLevel: "GUILD_MASTER",
-          consecutiveMetricFailures: { gt: 0 },
-          metricWarningSentAt: { lte: revocationCutoff },
-        },
-        data: {
-          guildLevel: "GUILD_MEMBER",
-          isVerifiedMaker: true,
-          consecutiveMetricFailures: 0,
-          metricWarningSentAt: null,
-          lastMetricCheckAt: now,
-          guildMasterApprovedAt: null,
-          guildMasterAppliedAt: null,
-          guildMasterReviewNotes: null,
-        },
+      const updated = await recordSellerGuildMasterRevocation(tx, {
+        sellerProfileId: seller.id,
+        warningSentBefore: revocationCutoff,
+        checkedAt: now,
       });
       assertGuildVerificationTransition(updated.count, "revoke Guild Master");
 

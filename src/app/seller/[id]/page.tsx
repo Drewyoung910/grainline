@@ -30,7 +30,6 @@ import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
-import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -116,7 +115,7 @@ const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
       isFoundingMaker: true,
       foundingMakerNumber: true,
       chargesEnabled: true,
-      stripeAccountVersion: true,
+      stripeAccountSupported: true,
       ownerAccountActive: true,
       ownerImageUrl: true,
       faqs: { orderBy: { sortOrder: "asc" }, select: { id: true, question: true, answer: true } },
@@ -143,7 +142,7 @@ function sellerIsPubliclyVisible(
   return Boolean(
     seller &&
       seller.chargesEnabled &&
-      isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
+      seller.stripeAccountSupported &&
       seller.ownerAccountActive,
   );
 }

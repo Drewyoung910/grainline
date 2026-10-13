@@ -38,6 +38,12 @@ Cart, saved-blog and saved-search helpers bind scalar `userId` columns. None of
 the reviewed shapes introduces a hidden User relation, direct User delegate or
 raw User SQL access.
 
+The SellerProfile private-boundary caller conversion moved the reviewed Guild
+revocation predicate from its cron route into `sellerGuildPrivateAccess.ts`
+without changing the predicate, and replaced two opaque Stripe-version helper
+fragments with the scalar `stripeAccountSupported` snapshot. The signatures
+below record that reviewed source move and the smaller factory frontier.
+
 ## Change-detection proof
 
 `tests/user-opaque-query-review.test.mjs` canonicalizes each shape as
@@ -47,8 +53,8 @@ whitespace. It pins these reviewed sets:
 | Set | Rows | Unique signatures | SHA-256 |
 |---|---:|---:|---|
 | Reviewed helper call sites | 185 | 152 | `a2d6479ba3a3502e7c59181008c4a65aaf577d67702a7c9bf402ef7543fe4662` |
-| Reviewed residual call sites | 35 | 29 | `ea7053394df5246b4662025bdf2f01c3a39b3110f875a1ba692ff1e4947fb600` |
-| Typed factory-return shapes | 14 | 14 | `2724052b30cfc98d6792b944c1dc8458a08550e0107b8ada2e67c1185f5fe9b7` |
+| Reviewed residual call sites | 35 | 29 | `4a341e6c1b8003c634ced1688756f084d41af10765e3c278c1310b50676a9fe9` |
+| Typed factory-return shapes | 12 | 12 | `8be152475784c708b5045963749df829459dc7da639b6bcaec5bfeccc6ee64a2` |
 
 Any added, removed or semantically changed opaque shape fails the focused test
 and requires another source review. Separate assertions pin the lifecycle

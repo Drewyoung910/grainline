@@ -176,9 +176,9 @@ describe("seller operational route hardening", () => {
 
     assert.match(toggleFeatured, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(toggleFeatured, /tx\.listing\.count\(\{ where: \{ id: listingId, sellerId: seller\.id \} \}/);
-    assert.match(toggleFeatured, /tx\.sellerProfile\.findUnique\(\{/);
+    assert.match(toggleFeatured, /sellerOwnerFeaturedListingIds\(tx, \{/);
+    assert.match(toggleFeatured, /updateSellerOwnerFeaturedListingIds\(tx, \{/);
     assert.match(toggleFeatured, /if \(current\.length >= SELLER_FEATURED_LISTING_LIMIT\) return/);
-    assert.match(toggleFeatured, /tx\.sellerProfile\.update\(\{/);
     assert.match(toggleFeatured, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
     assert.match(profile, /featured\.size >= SELLER_FEATURED_LISTING_LIMIT/);
   });
@@ -372,7 +372,7 @@ describe("seller operational route hardening", () => {
         profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function removeSellerAvatar")),
       "avatar removal should rate-limit before seller lookup",
     );
-    assert.match(profile.slice(profile.indexOf("async function removeSellerAvatar")), /where: \{ id: seller\.id \}/);
+    assert.match(profile.slice(profile.indexOf("async function removeSellerAvatar")), /clearSellerOwnerAvatar\(tx, \{/);
     assert.doesNotMatch(profile.slice(profile.indexOf("async function removeSellerAvatar")), /prisma\.user\.findUnique/);
     assert.ok(
       profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function toggleFeaturedListing")) <
@@ -391,7 +391,7 @@ describe("seller operational route hardening", () => {
     assert.match(onboarding, /Too many profile updates\. Try again shortly\./);
     const limit = onboarding.indexOf("safeRateLimit(sellerProfileRatelimit, userId)");
     const actor = onboarding.indexOf("userAccountByClerkId(prisma, userId)");
-    const seller = onboarding.indexOf("prisma.sellerProfile.findUnique");
+    const seller = onboarding.indexOf("sellerOwnerOnboardingMutationState(me.id)");
     assert.ok(limit >= 0 && actor > limit && seller > actor,
       "onboarding step actions should rate-limit before actor and owned seller lookup");
 

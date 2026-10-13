@@ -2,12 +2,30 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const migrationPath =
   "prisma/migrations/20261006010000_prepare_user_staff_ban_authorities/migration.sql";
 const migration = readFileSync(migrationPath, "utf8");
+const sellerPrivateProviderMigration = readFileSync(
+  sellerProfilePrivateMigrationPath(
+    "20261013180000_move_provider_identity_seller_private_sql_callers",
+  ),
+  "utf8",
+);
 const runtimeProvisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 const staffProvisioning = readFileSync("scripts/provision-order-staff-read-role.sql", "utf8");
+
+function sqlFunctionDefinition(source, functionName) {
+  const start = source.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+  );
+  assert.notEqual(start, -1, `${functionName} definition is missing`);
+  const endMarker = `\n$${functionName}$;`;
+  const end = source.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `${functionName} definition is incomplete`);
+  return source.slice(start, end + endMarker.length);
+}
 
 async function asSession(database, role, callback) {
   await database.exec(`SET SESSION AUTHORIZATION ${role}`);
@@ -44,6 +62,11 @@ async function createDatabase() {
       "userId" text NOT NULL UNIQUE REFERENCES public."User"(id),
       "displayName" varchar(100) NOT NULL,
       "stripeAccountId" varchar(255)
+    );
+    CREATE TABLE public."SellerProfilePrivate" (
+      "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
+      "stripeAccountId" varchar(255),
+      "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE public."AdminAuditLog" (
       id text PRIMARY KEY,
@@ -82,7 +105,9 @@ async function createDatabase() {
       ('banned_one', 'clerk_banned_one', 'banned@example.com', 'Banned', 'USER', '2026-10-04', true, '2026-10-04 12:00:00', NULL),
       ('deleted_one', 'clerk_deleted_one', 'deleted@example.com', 'Deleted', 'USER', '2026-10-05', false, NULL, '2026-10-05');
     INSERT INTO public."SellerProfile" (id, "userId", "displayName", "stripeAccountId")
-    VALUES ('seller_active', 'active_one', 'Active Shop', 'acct_test');
+    VALUES
+      ('seller_active', 'active_one', 'Active Shop', 'acct_test'),
+      ('seller_banned_profile', 'banned_one', 'Banned Shop', 'acct_public_poison');
     INSERT INTO public."AdminAuditLog" (
       id, "adminId", action, "targetType", "targetId", metadata, undone
     ) VALUES
@@ -106,6 +131,16 @@ async function createDatabase() {
       FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime, grainline_untrusted;
   `);
   await database.exec(migration);
+  await database.exec(sqlFunctionDefinition(
+    sellerPrivateProviderMigration,
+    "grainline_user_ban_repair_target",
+  ));
+  await database.exec(`
+    INSERT INTO public."SellerProfilePrivate" ("sellerProfileId", "stripeAccountId")
+    VALUES
+      ('seller_active', 'acct_private_test'),
+      ('seller_banned_profile', 'acct_private_banned');
+  `);
   return database;
 }
 
@@ -250,6 +285,12 @@ test("repair projection is bound to the exact active ban audit record", async ()
       assert.deepEqual((await database.query(`SELECT * FROM public.grainline_user_ban_repair_target(
         'audit_undone', 'banned_one'
       )`)).rows, []);
+    });
+    await asSession(database, "grainline_staff_read_runtime", async () => {
+      const sellerRepair = (await database.query(`SELECT * FROM public.grainline_user_ban_repair_target(
+        'audit_banned_one', 'banned_one'
+      )`)).rows;
+      assert.equal(sellerRepair[0].stripeAccountId, "acct_private_banned");
     });
   } finally {
     await database.close();

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import pg from "pg";
 import {
   CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
@@ -21,6 +22,16 @@ const policySql = fs.readFileSync(
 );
 const serviceSql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-service-authority.sql",
+  "utf8",
+);
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
+const sellerPrivateCustomOrderSql = fs.readFileSync(
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013150000_move_custom_order_seller_private_sql_callers",
+    "migration.sql",
+  ),
   "utf8",
 );
 
@@ -398,6 +409,32 @@ async function applyDraft(owner) {
 
   await owner.query(recipientSql);
   await owner.query(serviceSql);
+  // The historical service draft restores its accepted predecessor function
+  // bodies. Reapply the current additive SellerProfile private-boundary
+  // successor when Phase 0 is installed. During the historical CI prefix,
+  // Phase 0 and every dependent caller migration are deliberately held until
+  // all predecessor proofs pass; the reviewed workflow applies them together
+  // after restoring the exact migration files.
+  const sellerPrivateBoundary = await owner.query(
+    `SELECT pg_catalog.to_regclass(
+       'public."SellerProfilePrivate"'
+     ) IS NOT NULL AS installed`,
+  );
+  if (sellerPrivateBoundary.rows[0].installed) {
+    await owner.query(sellerPrivateCustomOrderSql);
+    record("seller_private_custom_order_successor_reapplied");
+  } else {
+    assert.equal(
+      process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED,
+      "true",
+      "SellerProfilePrivate is absent outside the declared CI isolation window",
+    );
+    assert.ok(
+      process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH,
+      "isolated SellerProfile private-boundary migration path is required",
+    );
+    record("seller_private_custom_order_successor_deferred_during_declared_isolation");
+  }
   await owner.query(policySql);
   if (forcedBeforeDraft) {
     await owner.query(
