@@ -23,6 +23,10 @@ import {
   userStaffBanTarget,
   userStaffUnbanApply,
 } from './userStaffAccess'
+import {
+  sellerStaffOrderabilityState,
+  setSellerStaffOrderability,
+} from './sellerStaffPrivateAccess'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -275,10 +279,7 @@ export async function undoAdminAction({
     if (banMetadata?.previousSellerProfile) {
       sellerRestore = banMetadata.previousSellerProfile
     } else {
-      const seller = await prisma.sellerProfile.findUnique({
-        where: { userId: log.targetId },
-        select: { id: true, stripeAccountId: true },
-      })
+      const seller = await sellerStaffOrderabilityState(log.targetId)
       if (seller?.stripeAccountId) {
         let chargesEnabled = false
         try {
@@ -359,12 +360,11 @@ export async function undoAdminAction({
           throw error
         }
         if (sellerRestore) {
-          await tx.sellerProfile.updateMany({
-            where: { id: sellerRestore.id, userId: log.targetId },
-            data: {
-              chargesEnabled: sellerRestore.chargesEnabled,
-              vacationMode: sellerRestore.vacationMode,
-            }
+          await setSellerStaffOrderability(tx, {
+            sellerProfileId: sellerRestore.id,
+            userId: log.targetId,
+            chargesEnabled: sellerRestore.chargesEnabled,
+            vacationMode: sellerRestore.vacationMode,
           })
         }
         if (banMetadata?.previousCommissionRequests.length) {

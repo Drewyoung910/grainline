@@ -60,6 +60,10 @@ const ownerPrivateAccess = readFileSync(
   "src/lib/sellerOwnerPrivateAccess.ts",
   "utf8",
 );
+const staffPrivateAccess = readFileSync(
+  "src/lib/sellerStaffPrivateAccess.ts",
+  "utf8",
+);
 const PRIVATE_FIELDS = Object.freeze([
   "stripeAccountId",
   "stripeAccountVersion",
@@ -317,5 +321,17 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(ownerPrivateAccess, /sellerOwnerExportSelect/);
     assert.match(ownerPrivateAccess, /manualStripeReconciliationNeeded: true/);
     assert.match(ownerPrivateAccess, /guildMasterReviewNotes: true/);
+  });
+
+  it("funnels staff ban and undo seller state through one compatibility boundary", () => {
+    const ban = readFileSync("src/lib/ban.ts", "utf8");
+    const audit = readFileSync("src/lib/audit.ts", "utf8");
+    assert.doesNotMatch(ban, /(?:prisma|tx)\.sellerProfile\./);
+    assert.doesNotMatch(audit, /(?:prisma|tx)\.sellerProfile\./);
+    assert.match(ban, /sellerStaffOrderabilityState/);
+    assert.match(ban, /disableSellerForStaff/);
+    assert.match(audit, /setSellerStaffOrderability/);
+    assert.match(staffPrivateAccess, /sellerStaffOrderabilitySelect/);
+    assert.match(staffPrivateAccess, /stripeAccountId: true/);
   });
 });
