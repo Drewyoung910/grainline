@@ -145,11 +145,20 @@ const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
     migration: "20261014200000_prepare_seller_profile_private_guild_member_revocation_authority",
     functions: ["grainline_seller_guild_member_revoke"],
   },
+  {
+    migration: "20261014230000_prepare_seller_profile_private_remaining_app_authorities",
+    functions: [
+      "grainline_seller_profile_view_record",
+      "grainline_seller_account_deletion_reconciliation_clear",
+      "grainline_seller_owner_guild_master_application_record",
+    ],
+  },
 ];
 const SELLER_PROFILE_PRIVATE_STAFF_READ_FUNCTION_NAMES = [
   "grainline_seller_guild_staff_roster",
   "grainline_seller_guild_staff_master_pending",
   "grainline_seller_guild_staff_transition",
+  "grainline_seller_staff_orderability_state",
 ];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",

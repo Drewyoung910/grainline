@@ -80,6 +80,7 @@ test("release holds every reviewed caller successor while applying Phase 0", () 
     "20261014200000_prepare_seller_profile_private_guild_member_revocation_authority",
     "20261014210000_prepare_seller_profile_private_guild_staff_read_authorities",
     "20261014220000_prepare_seller_profile_private_guild_staff_transition_authority",
+    "20261014230000_prepare_seller_profile_private_remaining_app_authorities",
   ];
   for (const successor of successors) {
     assert.equal((workflow.match(new RegExp(successor, "gu")) ?? []).length, 1);

@@ -45,6 +45,7 @@ import {
   historicalProcessingTimeDays,
 } from "@/lib/orderItemSnapshot";
 import { readSellerOrderDetail } from "@/lib/orderParticipantDetailAuthority";
+import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -104,10 +105,12 @@ export default async function SellerOrderDetailPage({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { onboardingComplete: true, manualStripeReconciliationNeeded: true },
+    select: { id: true },
   });
   if (!seller) redirect("/dashboard/seller");
-  if (!seller.onboardingComplete) redirect("/dashboard?setup=required");
+  const sellerPrivate = await sellerOwnerPrivateState(me.id, seller.id);
+  if (!sellerPrivate) redirect("/dashboard/seller");
+  if (!sellerPrivate.onboardingComplete) redirect("/dashboard?setup=required");
 
   const order = await readSellerOrderDetail(me.id, orderId);
 
@@ -562,7 +565,7 @@ export default async function SellerOrderDetailPage({
                 <span className="font-medium">{fmtMoney(refundCents, currency)}</span>
               </div>
               <p className="text-xs text-neutral-500">
-                {seller.manualStripeReconciliationNeeded
+                {sellerPrivate.manualStripeReconciliationNeeded
                   ? "This refund is recorded; staff may need to reconcile the connected-account transfer manually."
                   : "This amount has been deducted from your Stripe balance."}
               </p>

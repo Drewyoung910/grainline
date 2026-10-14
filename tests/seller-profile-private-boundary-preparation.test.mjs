@@ -141,6 +141,14 @@ const staffPrivateAccess = readFileSync(
   "src/lib/sellerStaffPrivateAccess.ts",
   "utf8",
 );
+const remainingAppAuthorityMigration = readFileSync(
+  "prisma/migrations/20261014230000_prepare_seller_profile_private_remaining_app_authorities/migration.sql",
+  "utf8",
+);
+const profileViewAccess = readFileSync(
+  "src/lib/sellerProfileViewAccess.ts",
+  "utf8",
+);
 const accountDeletionPrivateAccess = readFileSync(
   "src/lib/sellerAccountDeletionPrivateAccess.ts",
   "utf8",
@@ -993,13 +1001,18 @@ describe("SellerProfile private-boundary additive preparation", () => {
   it("funnels staff ban and undo seller state through one compatibility boundary", () => {
     const ban = readFileSync("src/lib/ban.ts", "utf8");
     const audit = readFileSync("src/lib/audit.ts", "utf8");
-    assert.doesNotMatch(ban, /(?:prisma|tx)\.sellerProfile\./);
-    assert.doesNotMatch(audit, /(?:prisma|tx)\.sellerProfile\./);
     assert.match(ban, /sellerStaffOrderabilityState/);
     assert.match(ban, /disableSellerForStaff/);
     assert.match(audit, /setSellerStaffOrderability/);
-    assert.match(staffPrivateAccess, /sellerStaffOrderabilitySelect/);
-    assert.match(staffPrivateAccess, /stripeAccountId: true/);
+    assert.match(staffPrivateAccess, /grainline_seller_staff_orderability_state/);
+    assert.doesNotMatch(staffPrivateAccess, /stripeAccountId: true/);
+    assert.match(remainingAppAuthorityMigration, /SESSION_USER <> 'grainline_staff_read_runtime'/);
+    assert.match(remainingAppAuthorityMigration, /grainline_seller_staff_orderability_state/);
+    assert.match(remainingAppAuthorityMigration, /TO grainline_staff_read_runtime/);
+    assert.doesNotMatch(
+      `${ban}\n${audit}`,
+      /sellerProfile\.(?:findUnique|findFirst)[\s\S]{0,300}stripeAccountId:\s*true/,
+    );
   });
 
   it("funnels account-deletion seller mutations through one compatibility boundary", () => {
@@ -1012,8 +1025,22 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(accountDeletionPrivateAccess, /grainline_seller_account_deletion_pause/);
     assert.match(accountDeletionPrivateAccess, /grainline_seller_account_deletion_anonymize/);
+    assert.match(accountDeletionPrivateAccess, /grainline_seller_account_deletion_reconciliation_clear/);
     assert.match(accountDeletionPrivateAccess, /Pick<Prisma\.TransactionClient, "\$queryRaw">/);
     assert.doesNotMatch(accountDeletionPrivateAccess, /sellerProfile\.(?:update|updateMany)/);
+  });
+
+  it("moves remaining profile views and owner Guild application writes to fixed operations", () => {
+    const sellerProfileView = readFileSync("src/app/api/seller/[id]/view/route.ts", "utf8");
+    const ownerGuild = readFileSync("src/app/dashboard/verification/page.tsx", "utf8");
+    assert.match(profileViewAccess, /grainline_seller_profile_view_record/);
+    assert.match(sellerProfileView, /recordSellerProfileView\(id, todayUtcBucket\(\)\)/);
+    assert.doesNotMatch(sellerProfileView, /sellerProfile\.update|sellerProfileViewDaily\.upsert/);
+    assert.match(ownerPrivateAccess, /grainline_seller_owner_guild_master_application_record/);
+    assert.match(ownerGuild, /recordSellerOwnerGuildMasterApplication/);
+    assert.match(remainingAppAuthorityMigration, /FOR UPDATE OF seller, seller_private/);
+    assert.match(provisioning, /grainline_seller_profile_view_record"\(text, date\)/);
+    assert.match(provisioning, /grainline_seller_owner_guild_master_application_record/);
   });
 
   it("derives Guild listing-threshold state inside one fixed database operation", () => {

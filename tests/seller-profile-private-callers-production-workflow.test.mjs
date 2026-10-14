@@ -51,7 +51,7 @@ test("caller release pins the complete ordered migration batch", () => {
   }
   assert.match(
     workflow,
-    /test "\$\(find prisma\/migrations[\s\S]*20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/u,
+    /test "\$\(find prisma\/migrations[\s\S]*20261014230000_prepare_seller_profile_private_remaining_app_authorities/u,
   );
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.equal((workflow.match(/npx prisma migrate status/gu) ?? []).length, 1);

@@ -9,6 +9,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 import { readSellerRecentSales } from "@/lib/orderSellerAnalyticsAuthority";
+import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 
 export const runtime = "nodejs";
 
@@ -23,10 +24,12 @@ export async function GET() {
     const me = await ensureUserByClerkId(userId);
     const sellerProfile = await prisma.sellerProfile.findUnique({
       where: { userId: me.id },
-      select: { id: true, onboardingComplete: true, chargesEnabled: true },
+      select: { id: true, chargesEnabled: true },
     });
     if (!sellerProfile) return privateJson({ error: "Seller profile not found" }, { status: 404 });
-    if (!sellerProfile.onboardingComplete) {
+    const sellerPrivate = await sellerOwnerPrivateState(me.id, sellerProfile.id);
+    if (!sellerPrivate) return privateJson({ error: "Seller profile not found" }, { status: 404 });
+    if (!sellerPrivate.onboardingComplete) {
       return privateJson(
         {
           error: sellerProfile.chargesEnabled

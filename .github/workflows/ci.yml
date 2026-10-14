@@ -246,6 +246,7 @@ jobs:
           tests/seller-profile-private-guild-member-revocation-authority-postgres.test.mjs
           tests/seller-profile-private-guild-staff-read-authorities-postgres.test.mjs
           tests/seller-profile-private-guild-staff-transition-authority-postgres.test.mjs
+          tests/seller-profile-private-remaining-app-authorities-postgres.test.mjs
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
@@ -1105,7 +1106,8 @@ jobs:
             20261014190000_prepare_seller_profile_private_guild_metrics_authority \
             20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
             20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
-            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
+            20261014230000_prepare_seller_profile_private_remaining_app_authorities
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -5653,7 +5655,8 @@ jobs:
             20261014190000_prepare_seller_profile_private_guild_metrics_authority \
             20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
             20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
-            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
+            20261014230000_prepare_seller_profile_private_remaining_app_authorities
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -5729,7 +5732,8 @@ jobs:
             20261014190000_prepare_seller_profile_private_guild_metrics_authority \
             20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
             20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
-            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
+            20261014230000_prepare_seller_profile_private_remaining_app_authorities
           do
             psql "$DIRECT_URL" \
               --set=ON_ERROR_STOP=on \

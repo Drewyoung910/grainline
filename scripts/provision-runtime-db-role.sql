@@ -2273,6 +2273,9 @@ FROM (
     ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
     ('public."grainline_seller_account_deletion_pause"(text, text, text, bigint, uuid)'),
     ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_account_deletion_reconciliation_clear"(text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_profile_view_record"(text, date)'),
+    ('public."grainline_seller_owner_guild_master_application_record"(text, text, timestamp without time zone)'),
     ('public."grainline_seller_guild_listing_threshold_sync"(text)'),
     ('public."grainline_seller_guild_member_cron_batch"(text, integer)'),
     ('public."grainline_seller_guild_metrics_cron_batch"(text, integer)'),
@@ -2302,6 +2305,9 @@ FROM (
     ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
     ('public."grainline_seller_account_deletion_pause"(text, text, text, bigint, uuid)'),
     ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_account_deletion_reconciliation_clear"(text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_profile_view_record"(text, date)'),
+    ('public."grainline_seller_owner_guild_master_application_record"(text, text, timestamp without time zone)'),
     ('public."grainline_seller_guild_listing_threshold_sync"(text)'),
     ('public."grainline_seller_guild_member_cron_batch"(text, integer)'),
     ('public."grainline_seller_guild_metrics_cron_batch"(text, integer)'),
@@ -3393,7 +3399,8 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_user_ban_repair_target"(text, text)'),
     ('public."grainline_seller_guild_staff_roster"(text, text)'),
     ('public."grainline_seller_guild_staff_master_pending"(text)'),
-    ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)')
+    ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)'),
+    ('public."grainline_seller_staff_orderability_state"(text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

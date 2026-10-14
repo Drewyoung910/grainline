@@ -56,7 +56,7 @@ describe("ban side-effect guardrails", () => {
     assert.match(ban, /idempotentConvergence: true/);
     assert.match(
       ban,
-      /if \(!target\.banned\) \{[\s\S]*await convergeAlreadyUnbannedClerkTarget\([\s\S]*return \{ sellerRestoreWarning: null \}[\s\S]*const seller = await sellerStaffOrderabilityState\(userId\)/u,
+      /if \(!target\.banned\) \{[\s\S]*await convergeAlreadyUnbannedClerkTarget\([\s\S]*return \{ sellerRestoreWarning: null \}[\s\S]*const seller = await sellerStaffOrderabilityState\(staffClient, \{[\s\S]*actorId: adminId,[\s\S]*targetUserId: userId/u,
     );
     assert.match(ban, /originalActionId: clerkSync\.unbanAuditLogId/u);
   });

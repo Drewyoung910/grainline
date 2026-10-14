@@ -279,7 +279,10 @@ export async function undoAdminAction({
     if (banMetadata?.previousSellerProfile) {
       sellerRestore = banMetadata.previousSellerProfile
     } else {
-      const seller = await sellerStaffOrderabilityState(log.targetId)
+      const seller = await sellerStaffOrderabilityState(getOrderStaffReadClient(), {
+        actorId: adminId,
+        targetUserId: log.targetId,
+      })
       if (seller?.stripeAccountId) {
         let chargesEnabled = false
         try {

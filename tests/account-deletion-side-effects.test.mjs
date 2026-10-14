@@ -91,8 +91,10 @@ describe("account deletion side-effect retries", () => {
     assert.doesNotMatch(deletion, /mapWithConcurrency\(mediaKeys/);
 
     assert.match(sideEffects, /stripe\.accounts\.reject\(payload\.stripeAccountId/);
-    assert.match(sideEffects, /manualStripeReconciliationNote: \{\s*startsWith: "Account deletion could not reject Stripe Connect account"/s);
-    assert.match(sideEffects, /manualStripeReconciliationNeeded: false/);
+    assert.match(sideEffects, /clearSellerAccountDeletionReconciliation\(prisma, \{/);
+    assert.match(sideEffects, /sideEffectId: effect\.id/);
+    assert.match(sideEffects, /claimGeneration: effect\.claimGeneration/);
+    assert.match(sideEffects, /claimToken: effect\.claimToken/);
     assert.match(sideEffects, /deleteR2ObjectByKey\(payload\.key\)/);
     assert.match(
       sideEffects,

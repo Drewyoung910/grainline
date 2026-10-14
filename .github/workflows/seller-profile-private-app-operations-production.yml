@@ -42,7 +42,7 @@ jobs:
       PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
       PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
       RUNTIME_DB_ROLE: grainline_app_runtime
-      SELLER_PROFILE_APP_OPERATION_MIGRATIONS: 20261014120000_prepare_seller_profile_private_stripe_app_authorities,20261014130000_prepare_seller_profile_private_shipping_quote_authority,20261014140000_prepare_seller_profile_private_checkout_app_authority,20261014150000_prepare_seller_profile_private_owner_app_authorities,20261014160000_prepare_seller_profile_private_account_deletion_app_authorities,20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority,20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities,20261014190000_prepare_seller_profile_private_guild_metrics_authority,20261014200000_prepare_seller_profile_private_guild_member_revocation_authority,20261014210000_prepare_seller_profile_private_guild_staff_read_authorities,20261014220000_prepare_seller_profile_private_guild_staff_transition_authority
+      SELLER_PROFILE_APP_OPERATION_MIGRATIONS: 20261014120000_prepare_seller_profile_private_stripe_app_authorities,20261014130000_prepare_seller_profile_private_shipping_quote_authority,20261014140000_prepare_seller_profile_private_checkout_app_authority,20261014150000_prepare_seller_profile_private_owner_app_authorities,20261014160000_prepare_seller_profile_private_account_deletion_app_authorities,20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority,20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities,20261014190000_prepare_seller_profile_private_guild_metrics_authority,20261014200000_prepare_seller_profile_private_guild_member_revocation_authority,20261014210000_prepare_seller_profile_private_guild_staff_read_authorities,20261014220000_prepare_seller_profile_private_guild_staff_transition_authority,20261014230000_prepare_seller_profile_private_remaining_app_authorities
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
-            "20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"
+            "20261014230000_prepare_seller_profile_private_remaining_app_authorities"
           cat <<'DIGESTS' | sha256sum --check --status
           b3f62e41d09f0dda066980d34a40bccc88d8551a5a641867fdd8942f1703cab2  prisma/migrations/20261014120000_prepare_seller_profile_private_stripe_app_authorities/migration.sql
           88528c378d6ed7ebf7046908541ebb1ab636bae5719b2c674fee0778090e3987  prisma/migrations/20261014130000_prepare_seller_profile_private_shipping_quote_authority/migration.sql
@@ -107,6 +107,7 @@ jobs:
           e8943d3d645e265fa2377461964c83550325280d8607289a37f6c22322bc0ecf  prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql
           0cddda145727d794b9cc2711e7491c9c0da0509f39e3abaa96c30a0bd437ba05  prisma/migrations/20261014210000_prepare_seller_profile_private_guild_staff_read_authorities/migration.sql
           4826a423180823afd410cbd625425837fe02855cb9965509ce4ad8cd53fa12e0  prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql
+          a9142a0c90518db99ef8392345425e7a3bad689b3163a0e0381d30adea9175df  prisma/migrations/20261014230000_prepare_seller_profile_private_remaining_app_authorities/migration.sql
           DIGESTS
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
@@ -138,6 +139,7 @@ jobs:
             ['20261014200000_prepare_seller_profile_private_guild_member_revocation_authority', 'e8943d3d645e265fa2377461964c83550325280d8607289a37f6c22322bc0ecf'],
             ['20261014210000_prepare_seller_profile_private_guild_staff_read_authorities', '0cddda145727d794b9cc2711e7491c9c0da0509f39e3abaa96c30a0bd437ba05'],
             ['20261014220000_prepare_seller_profile_private_guild_staff_transition_authority', '4826a423180823afd410cbd625425837fe02855cb9965509ce4ad8cd53fa12e0'],
+            ['20261014230000_prepare_seller_profile_private_remaining_app_authorities', 'a9142a0c90518db99ef8392345425e7a3bad689b3163a0e0381d30adea9175df'],
           ].map(([name, checksum]) => ({name, checksum}));
           const names = [base.name, ...migrations.map(({name}) => name)];
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
@@ -259,7 +261,7 @@ jobs:
           REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Apply only the reviewed SellerProfile private application-operation suffix
-        if: steps.preflight.outputs.applied_count != '11'
+        if: steps.preflight.outputs.applied_count != '12'
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
         run: npx prisma migrate deploy
@@ -288,6 +290,7 @@ jobs:
             ['20261014200000_prepare_seller_profile_private_guild_member_revocation_authority', 'e8943d3d645e265fa2377461964c83550325280d8607289a37f6c22322bc0ecf'],
             ['20261014210000_prepare_seller_profile_private_guild_staff_read_authorities', '0cddda145727d794b9cc2711e7491c9c0da0509f39e3abaa96c30a0bd437ba05'],
             ['20261014220000_prepare_seller_profile_private_guild_staff_transition_authority', '4826a423180823afd410cbd625425837fe02855cb9965509ce4ad8cd53fa12e0'],
+            ['20261014230000_prepare_seller_profile_private_remaining_app_authorities', 'a9142a0c90518db99ef8392345425e7a3bad689b3163a0e0381d30adea9175df'],
           ]);
           const before = JSON.parse(readFileSync(
             `${process.env.RUNNER_TEMP}/seller-profile-app-operations-preflight.json`, 'utf8'));

@@ -69,7 +69,6 @@ async function AccountPageContent() {
       where: { userId: me.id },
       select: {
         id: true,
-        onboardingComplete: true,
         _count: {
           select: {
             listings: { where: { status: "ACTIVE" } },

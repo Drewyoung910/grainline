@@ -20,6 +20,7 @@ const migrations = new Map([
   ["20261014200000_prepare_seller_profile_private_guild_member_revocation_authority", "e8943d3d645e265fa2377461964c83550325280d8607289a37f6c22322bc0ecf"],
   ["20261014210000_prepare_seller_profile_private_guild_staff_read_authorities", "0cddda145727d794b9cc2711e7491c9c0da0509f39e3abaa96c30a0bd437ba05"],
   ["20261014220000_prepare_seller_profile_private_guild_staff_transition_authority", "4826a423180823afd410cbd625425837fe02855cb9965509ce4ad8cd53fa12e0"],
+  ["20261014230000_prepare_seller_profile_private_remaining_app_authorities", "a9142a0c90518db99ef8392345425e7a3bad689b3163a0e0381d30adea9175df"],
 ]);
 
 test("application-operation release is exact-main, exact-CI, and Production-reviewed", () => {
@@ -49,7 +50,7 @@ test("application-operation release pins the complete ordered batch", () => {
   }
   assert.match(
     workflow,
-    /test "\$\(find prisma\/migrations[\s\S]*20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/u,
+    /test "\$\(find prisma\/migrations[\s\S]*20261014230000_prepare_seller_profile_private_remaining_app_authorities/u,
   );
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.equal((workflow.match(/npx prisma migrate status/gu) ?? []).length, 1);
@@ -67,7 +68,7 @@ test("application-operation release accepts only a restart-safe applied prefix",
   assert.match(workflow, /12e521eabf40128aae149eb9e00cd4cbd9041bbddb5b37a3c28821132933ad90/u);
   assert.match(workflow, /applied_count=\$\{appliedCount\}/u);
   assert.match(workflow, /pending=\$\{pending\.join\(','\)\}/u);
-  assert.match(workflow, /if: steps\.preflight\.outputs\.applied_count != '11'/u);
+  assert.match(workflow, /if: steps\.preflight\.outputs\.applied_count != '12'/u);
 });
 
 test("preflight and postflight preserve private-boundary posture", () => {

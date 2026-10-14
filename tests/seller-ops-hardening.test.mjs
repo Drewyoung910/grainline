@@ -193,13 +193,12 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /accountAccessErrorResponse\(err\)/);
     assert.match(analytics, /const profileViewAggPromise = prisma\.sellerProfileViewDaily\.aggregate\(\{/);
     assert.match(analytics, /where: \{ sellerProfileId: sellerId, date: analyticsDateRange \}/);
-    assert.match(analytics, /const profileVisits =\s*range === "alltime" \? sellerProfile\.profileViews : profileViewAgg\._sum\.views \?\? 0/s);
+    assert.match(analytics, /const profileVisits =\s*range === "alltime" \? sellerPrivate\.profileViews : profileViewAgg\._sum\.views \?\? 0/s);
 
     const sellerProfileView = source("src/app/api/seller/[id]/view/route.ts");
     assert.match(sellerProfileView, /function todayUtcBucket\(\)/);
-    assert.match(sellerProfileView, /tx\.sellerProfile\.updateMany\(\{/);
-    assert.match(sellerProfileView, /tx\.sellerProfileViewDaily\.upsert\(\{/);
-    assert.match(sellerProfileView, /where: \{ sellerProfileId_date: \{ sellerProfileId: id, date: today \} \}/);
+    assert.match(sellerProfileView, /recordSellerProfileView\(id, todayUtcBucket\(\)\)/);
+    assert.doesNotMatch(sellerProfileView, /sellerProfile\.updateMany|sellerProfileViewDaily\.upsert/);
 
     assert.match(recentSales, /ensureUserByClerkId\(userId\)/);
     assert.match(recentSales, /where: \{ userId: me\.id \}/);

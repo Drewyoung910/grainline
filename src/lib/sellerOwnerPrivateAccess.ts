@@ -88,7 +88,7 @@ function isSellerOwnerPrivateState(value: unknown): value is SellerOwnerPrivateS
     && Number.isSafeInteger(state.profileViews);
 }
 
-async function sellerOwnerPrivateState(
+export async function sellerOwnerPrivateState(
   userId: string,
   expectedSellerProfileId: string | null,
   client: Pick<Prisma.TransactionClient, "$queryRaw"> = prisma,
@@ -194,13 +194,6 @@ const sellerOwnerGuildDashboardSelect = {
   customOrderPolicy: true,
   shippingPolicy: true,
   guildLevel: true,
-  guildMemberApprovedAt: true,
-  guildMasterApprovedAt: true,
-  guildMasterAppliedAt: true,
-  guildMasterReviewNotes: true,
-  consecutiveMetricFailures: true,
-  lastMetricCheckAt: true,
-  metricWarningSentAt: true,
   makerVerification: true,
 } satisfies Prisma.SellerProfileSelect;
 
@@ -394,15 +387,18 @@ export async function completeSellerOwnerOnboarding(
   if (!completed) throw new Error("Seller owner onboarding completion prerequisites changed");
 }
 
-export function sellerOwnerGuildDashboardState(
+export async function sellerOwnerGuildDashboardState(
   sellerProfileId: string,
   userId: string,
   client: SellerOwnerPrivateClient = prisma,
 ) {
-  return client.sellerProfile.findFirst({
+  const profile = await client.sellerProfile.findFirst({
     where: { id: sellerProfileId, userId },
     select: sellerOwnerGuildDashboardSelect,
   });
+  if (!profile) return null;
+  const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
+  return privateState ? { ...profile, ...privateState } : null;
 }
 
 export function sellerOwnerGuildApplicationState(
@@ -416,7 +412,7 @@ export function sellerOwnerGuildApplicationState(
   });
 }
 
-export function recordSellerOwnerGuildMasterApplication(
+export async function recordSellerOwnerGuildMasterApplication(
   client: SellerOwnerPrivateClient,
   input: {
     sellerProfileId: string;
@@ -424,17 +420,17 @@ export function recordSellerOwnerGuildMasterApplication(
     appliedAt: Date;
   },
 ) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      userId: input.userId,
-      guildLevel: "GUILD_MEMBER",
-    },
-    data: {
-      guildMasterAppliedAt: input.appliedAt,
-      guildMasterReviewNotes: null,
-    },
-  });
+  const rows = await client.$queryRaw<Array<{ applied: boolean }>>`
+    SELECT public.grainline_seller_owner_guild_master_application_record(
+      ${input.userId}::text,
+      ${input.sellerProfileId}::text,
+      ${input.appliedAt}::timestamp
+    ) AS applied
+  `;
+  if (rows.length !== 1 || typeof rows[0]?.applied !== "boolean") {
+    throw new Error("Seller owner Guild Master application authority returned an invalid result");
+  }
+  return { count: rows[0].applied ? 1 : 0 };
 }
 
 export async function sellerOwnerShopSettingsState(

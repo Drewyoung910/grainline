@@ -62,3 +62,28 @@ export async function anonymizeSellerForAccountDeletion(
     throw new Error("Seller account-deletion anonymize authority returned an invalid result");
   }
 }
+
+export async function clearSellerAccountDeletionReconciliation(
+  client: SellerAccountDeletionClient,
+  input: {
+    userId: string;
+    stripeAccountId: string;
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
+) {
+  const rows = await client.$queryRaw<Array<{ cleared: boolean }>>`
+    SELECT public.grainline_seller_account_deletion_reconciliation_clear(
+      ${input.userId}::text,
+      ${input.stripeAccountId}::text,
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
+    ) AS cleared
+  `;
+  if (rows.length !== 1 || typeof rows[0]?.cleared !== "boolean") {
+    throw new Error("Seller account-deletion reconciliation authority returned an invalid result");
+  }
+  return rows[0].cleared;
+}

@@ -709,9 +709,25 @@ immediately before the database transition; the function rechecks current
 account, verification and Guild state but does not atomically rederive those
 external aggregates.
 
+The thirty-sixth isolated slice closes the callers found by the final source
+inventory rather than relying on the earlier compatibility-module list.
+Migration
+`20261014230000_prepare_seller_profile_private_remaining_app_authorities`
+adds fixed operations for public profile-view recording, claim-bound clearing
+of account-deletion Stripe reconciliation state, and owner-bound Guild Master
+application recording. It also gives only the isolated staff role an
+actor-checked seller orderability projection for ban, unban and audited undo.
+Seller analytics and dashboards obtain private owner state through the owner
+projection. Public maker ranking no longer depends on the private profile-view
+counter; it uses public follower count with an ID tie-break. Focused PostgreSQL
+proof covers representation synchronization, stale and forged inputs, active
+staff validation, ordinary-runtime denial of the staff operation and denial of
+the private companion table. The recursive source scan now finds no direct
+selection of the classified predecessor fields.
+
 The protected
 `.github/workflows/seller-profile-private-app-operations-production.yml`
-release applies exactly the ordered eleven-migration application-operation
+release applies exactly the ordered twelve-migration application-operation
 batch. It binds dispatch to an unchanged main commit and its successful push
 CI, verifies immutable migration digests, accepts only a restart-safe applied
 prefix, admits only the reviewed pending suffix, preserves the public/private
