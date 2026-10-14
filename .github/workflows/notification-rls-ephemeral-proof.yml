@@ -118,7 +118,20 @@ jobs:
           fad2c67b0ed3ed4d762a7a5d7d491ba8cca1ab33dc6f0253d8dff845933c4302 20261007160000_converge_user_cross_domain_authorities
           628f1cbb966cde1cb7f05f48ea0c5b890dce074d8f77536b3a67117c0141146f 20261008010000_enable_user_rls
           d6e9e9afca641f527c4c120806c5af219d6b4f08936def91d16c348cff2480c3 20261008020000_force_user_rls
+          0fc8c89afe3b8256694cb1d16e2dece5790262e4631d382cda93a514d2d2fd2e 20261013120000_prepare_seller_profile_private_boundary
+          7e3f5c19b71c110a4a8aa979500e23853696724eecb095c211e07d7f0eda3e78 20261013130000_move_seller_supported_snapshot_sql_callers
+          a904f6dd17f76dd6ff3e2f4f4278196d1379e8433413bc1d9a77af9509ec9ae7 20261013140000_move_checkout_seller_private_sql_callers
+          0539711a7970f72be4c5fdd48cd16ad3bbab5d136e3f457141f00031e5b6da47 20261013150000_move_custom_order_seller_private_sql_callers
+          ed413c681bdf2bdec37ca238281a3cec5058ddff89eae09595b9b3c16822f77d 20261013160000_move_case_guild_seller_private_sql_caller
+          5dd4ed4d4d4fb3fb767abb3fa96e616d9ea753db245a6d4c99e8ab3d7a8d2be8 20261013170000_move_order_label_seller_private_sql_caller
+          b00708a8cff7171ac148087a808a928472ea283beb6b67e961e39fb808fb0992 20261013180000_move_provider_identity_seller_private_sql_callers
+          3d76c45f60d4379253c2bdd57d0d3ce79d5e2c2ae9cad84b1f1027baf84d93e4 20261013190000_move_reconciliation_seller_private_sql_callers
+          9293316672717416574d53b485b8af9d16b0757801633b493696a24329362064 20261013200000_move_final_seller_private_sql_callers
+          4d4ec8b51d24cfbdc723cdb461183711a15397c0ed2e3b2abdf33cdcc9990893 20261013210000_move_account_deletion_seller_private_sql_callers
           MIGRATIONS
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true" >> "$GITHUB_ENV"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=$RUNNER_TEMP/20261013120000_prepare_seller_profile_private_boundary/migration.sql" >> "$GITHUB_ENV"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Isolate staged Core Order ENABLE from historical proof
         shell: bash
         run: |
@@ -198,10 +211,23 @@ jobs:
             20261007155000_correct_user_clerk_identity_placeholder \
             20261007160000_converge_user_cross_domain_authorities \
             20261008010000_enable_user_rls \
-            20261008020000_force_user_rls
+            20261008020000_force_user_rls \
+            20261013120000_prepare_seller_profile_private_boundary \
+            20261013130000_move_seller_supported_snapshot_sql_callers \
+            20261013140000_move_checkout_seller_private_sql_callers \
+            20261013150000_move_custom_order_seller_private_sql_callers \
+            20261013160000_move_case_guild_seller_private_sql_caller \
+            20261013170000_move_order_label_seller_private_sql_caller \
+            20261013180000_move_provider_identity_seller_private_sql_callers \
+            20261013190000_move_reconciliation_seller_private_sql_callers \
+            20261013200000_move_final_seller_private_sql_callers \
+            20261013210000_move_account_deletion_seller_private_sql_callers
           do
             mv "$RUNNER_TEMP/$migration" "prisma/migrations/$migration"
           done
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=" >> "$GITHUB_ENV"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=" >> "$GITHUB_ENV"
       - name: Restore reviewed Production-owner Order buyer correction
         run: >-
           mv
