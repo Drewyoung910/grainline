@@ -394,7 +394,12 @@ export async function POST(req: Request) {
       }
 
       // Load seller defaults + ship-from
-      const seller = await sellerShippingQuoteState(sellerId);
+      const seller = await sellerShippingQuoteState({
+        buyerUserId: me.id,
+        sellerProfileId: sellerId,
+        cartId: cart.id,
+        listingId: null,
+      });
 
       if (!seller) return privateJson({ rates: [] });
 
@@ -505,7 +510,12 @@ export async function POST(req: Request) {
         }
       }
 
-      const seller = await sellerShippingQuoteState(sellerId);
+      const seller = await sellerShippingQuoteState({
+        buyerUserId: me.id,
+        sellerProfileId: sellerId,
+        cartId: null,
+        listingId: listing.id,
+      });
 
       if (!seller) return privateJson({ rates: [] });
 

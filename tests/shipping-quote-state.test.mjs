@@ -229,10 +229,13 @@ describe("shipping quote state helpers", () => {
     assert.match(route, /sellerConfiguredRate\(\{/);
     assert.match(route, /if \(out\.length === 0\) \{\s*if \(sellerShippingPolicy\.configuredRate\) \{\s*out\.push\(\.\.\.configuredAndPickupRates\(\)\)/s);
     assert.match(route, /!out\.some\(\(rate\) => rate\.objectId === PICKUP_RATE_OBJECT_ID\)/);
-    assert.match(route, /sellerShippingQuoteState\(sellerId\)/);
-    assert.match(sellerShippingAccess, /shippingFlatRateCents: true/);
-    assert.match(sellerShippingAccess, /freeShippingOverCents: true/);
-    assert.match(sellerShippingAccess, /useCalculatedShipping: true/);
+    assert.equal(route.split("sellerShippingQuoteState({").length - 1, 2);
+    assert.match(route, /buyerUserId: me\.id,[\s\S]*cartId: cart\.id,[\s\S]*listingId: null/);
+    assert.match(route, /buyerUserId: me\.id,[\s\S]*cartId: null,[\s\S]*listingId: listing\.id/);
+    assert.match(sellerShippingAccess, /grainline_seller_shipping_quote_state/);
+    assert.match(sellerShippingAccess, /shippingFlatRateCents: number \| null/);
+    assert.match(sellerShippingAccess, /freeShippingOverCents: number \| null/);
+    assert.match(sellerShippingAccess, /useCalculatedShipping: boolean/);
     assert.match(route, /preferredCarriers: sellerPreferredCarriers/);
     assert.match(route, /if \(filtered\.blockedByCarrierPreference\) \{/);
     assert.match(route, /if \(sellerAllowsPickup\) \{\s*return pickupOnlyResponse/s);

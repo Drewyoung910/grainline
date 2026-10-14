@@ -526,12 +526,29 @@ denial and untrusted-function denial. The focused 46-test suite and TypeScript
 pass. This slice is prepared source only; it is not yet applied, merged or
 deployed.
 
-The remaining shipping, checkout, owner, Guild, staff and account-deletion
-compatibility modules still read or write predecessor private fields. Phase 1
-remains incomplete until each family moves to purpose-bound operations, the
-converted application is deployed and proven, and predecessor deployments have
-drained. The two transition-only SQL writers remain intentionally installed
-until that drain completes.
+The twenty-sixth isolated slice converts shipping quote disclosure. Migration
+`20261014130000_prepare_seller_profile_private_shipping_quote_authority` adds
+one fixed read operation whose caller must supply an active buyer, the exact
+seller and exactly one purchase context: an eligible listing or that buyer's
+exact cart. The operation denies self-purchase, banned or deleted accounts,
+blocked buyer/seller pairs, unavailable sellers, foreign private listings,
+archived listings and invalid cart items before returning the private ship-from
+and package inputs. The route now passes the authenticated local user plus its
+exact cart or listing witness. Runtime retains zero direct table authority, and
+the TypeScript boundary rejects malformed or duplicate database results.
+Focused PostgreSQL proof deliberately poisons predecessor ship-from/package
+fields, proves the companion remains authoritative, and covers single-listing,
+private-listing and cart success plus denial for foreign, archived, blocked,
+banned, self-purchase and wrong-role requests. The focused 42-test suite,
+TypeScript and scoped lint pass. This slice is prepared source only; it is not
+yet applied, merged or deployed.
+
+The remaining checkout, owner, Guild, staff and account-deletion compatibility
+modules still read or write predecessor private fields. Phase 1 remains
+incomplete until each family moves to purpose-bound operations, the converted
+application is deployed and proven, and predecessor deployments have drained.
+The two transition-only SQL writers remain intentionally installed until that
+drain completes.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

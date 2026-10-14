@@ -121,6 +121,10 @@ const shippingPrivateAccess = readFileSync(
   "src/lib/sellerShippingPrivateAccess.ts",
   "utf8",
 );
+const shippingAppAuthorityMigration = readFileSync(
+  "prisma/migrations/20261014130000_prepare_seller_profile_private_shipping_quote_authority/migration.sql",
+  "utf8",
+);
 const ownerPrivateAccess = readFileSync(
   "src/lib/sellerOwnerPrivateAccess.ts",
   "utf8",
@@ -802,19 +806,26 @@ describe("SellerProfile private-boundary additive preparation", () => {
   it("funnels shipping quote private inputs through one compatibility boundary", () => {
     const route = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
     assert.equal(
-      route.split("sellerShippingQuoteState(sellerId)").length - 1,
+      route.split("sellerShippingQuoteState({").length - 1,
       2,
     );
     assert.doesNotMatch(
       route,
       /prisma\.sellerProfile\.findUnique\([\s\S]{0,500}shipFromLine1/,
     );
-    assert.match(shippingPrivateAccess, /Compatibility boundary for private seller fulfillment inputs/);
-    assert.match(shippingPrivateAccess, /const sellerShippingQuoteSelect/);
-    assert.match(shippingPrivateAccess, /shipFromLine1: true/);
-    assert.match(shippingPrivateAccess, /defaultPkgWeightGrams: true/);
-    assert.match(shippingPrivateAccess, /preferredCarriers: true/);
+    assert.match(shippingPrivateAccess, /Fixed database-operation boundary for private seller fulfillment inputs/);
+    assert.match(shippingPrivateAccess, /grainline_seller_shipping_quote_state/);
+    assert.doesNotMatch(shippingPrivateAccess, /\.sellerProfile\./);
+    assert.doesNotMatch(shippingPrivateAccess, /\.sellerProfilePrivate\./);
     assert.match(shippingPrivateAccess, /sellerShippingQuoteState/);
+    assert.match(route, /buyerUserId: me\.id,[\s\S]*cartId: cart\.id,[\s\S]*listingId: null/);
+    assert.match(route, /buyerUserId: me\.id,[\s\S]*cartId: null,[\s\S]*listingId: listing\.id/);
+    assert.match(shippingAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_shipping_quote_state\(/);
+    assert.match(shippingAppAuthorityMigration, /JOIN public\."SellerProfilePrivate"/);
+    assert.match(shippingAppAuthorityMigration, /p_cart_id IS NOT NULL[\s\S]*cart\."userId" = buyer\.id/);
+    assert.match(shippingAppAuthorityMigration, /p_listing_id IS NOT NULL[\s\S]*listing\."reservedForUserId" = buyer\.id/);
+    assert.doesNotMatch(shippingAppAuthorityMigration, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*SellerProfilePrivate/i);
+    assert.match(provisioning, /public\."grainline_seller_shipping_quote_state"\(text, text, text, text\)/);
   });
 
   it("funnels owner onboarding and export reads through one compatibility boundary", () => {
