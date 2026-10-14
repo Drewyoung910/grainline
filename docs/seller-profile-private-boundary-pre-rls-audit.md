@@ -633,7 +633,30 @@ the two exact function grants, and direct companion access remains denied. The
 cron routes retain their existing cursor runner and processing behavior. This
 slice is prepared source only; it is not yet applied, merged or deployed.
 
-The remaining Guild cron mutations and staff compatibility module still read
+The thirty-second isolated slice converts monthly Guild metrics mutations.
+Migration
+`20261014190000_prepare_seller_profile_private_guild_metrics_authority`
+adds one fixed transition that accepts only a seller identity and the exact
+persisted metrics calculation timestamp. The function locks the public seller,
+private companion and matching three-month metrics snapshot; rejects replaced,
+stale, future, malformed and out-of-range snapshots; derives threshold success
+inside PostgreSQL; enforces the 30-day warning window from companion state; and
+atomically synchronizes both seller representations. Warning and automatic
+Guild Master revocation audit rows are inserted in the same transaction as
+their state changes, while revocation also requires and updates the current
+`GUILD_MASTER_APPROVED` verification row. The function interface does not let
+the caller select the action, counter, warning time, demotion, verification
+result or audit payload. The cron now calculates metrics once and uses the
+returned action only for notification, email and cache side effects. The shared
+runtime still writes the `SellerMetrics` cache directly, so Phase 2 remains
+blocked on the separate coverage-ledger requirement for a database-derived or
+service-only metrics refresh; this exact-cache token is not by itself the final
+trust boundary. Focused PostgreSQL proof covers warning, recovery,
+revocation, verification conflict, exact-snapshot rejection, malformed metrics,
+direct companion denial and untrusted-function denial. This slice is prepared
+source only; it is not yet applied, merged or deployed.
+
+The Guild Member revocation mutation and staff compatibility module still read
 or write predecessor private fields. Phase 1 remains incomplete until each family moves
 to purpose-bound operations, the converted application is deployed and
 proven, and predecessor deployments have drained. The two transition-only SQL

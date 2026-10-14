@@ -137,6 +137,10 @@ const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
       "grainline_seller_guild_metrics_cron_batch",
     ],
   },
+  {
+    migration: "20261014190000_prepare_seller_profile_private_guild_metrics_authority",
+    functions: ["grainline_seller_guild_metrics_apply"],
+  },
 ];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",

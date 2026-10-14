@@ -22,9 +22,24 @@ export type SellerGuildMetricsCronRow = {
   metricWarningSentAt: Date | null;
 };
 
-/** Compatibility boundary for Guild cron reads and mutations. Phase 1 keeps
- * the predecessor table implementation; the post-Phase-0 cutover replaces
- * these purpose-specific operations without changing cron behavior. */
+export type SellerGuildMetricsAction =
+  | "NOOP"
+  | "MEMBER_CHECKED"
+  | "MASTER_OK"
+  | "MASTER_RECOVERED"
+  | "MASTER_WARNED"
+  | "MASTER_CONTINUED"
+  | "MASTER_REVOKED";
+
+export type SellerGuildMetricsTransition = {
+  action: SellerGuildMetricsAction;
+  auditId: string | null;
+  warningSentAt: Date | null;
+  sellerUserId: string;
+};
+
+/** Purpose-bound compatibility operations for Guild cron reads and mutations
+ * during the additive SellerProfilePrivate transition. */
 export async function sellerGuildMemberCronBatch(
   cursorId: string | null,
   pageSize: number,
@@ -72,115 +87,16 @@ export function recordSellerGuildMemberRevocation(
   });
 }
 
-export function recordSellerGuildMetricCheck(
-  input: {
-    sellerProfileId: string;
-    guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
-    checkedAt: Date;
-  },
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, guildLevel: input.guildLevel },
-    data: { lastMetricCheckAt: input.checkedAt },
-  });
-}
-
-export function resetSellerGuildMasterMetricFailures(
-  input: { sellerProfileId: string; checkedAt: Date },
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, guildLevel: "GUILD_MASTER" },
-    data: {
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      lastMetricCheckAt: input.checkedAt,
-    },
-  });
-}
-
-export function warnSellerGuildMasterMetrics(
-  client: SellerGuildPrivateClient,
-  input: { sellerProfileId: string; warnedAt: Date },
-) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      guildLevel: "GUILD_MASTER",
-      consecutiveMetricFailures: 0,
-    },
-    data: {
-      consecutiveMetricFailures: 1,
-      metricWarningSentAt: input.warnedAt,
-      lastMetricCheckAt: input.warnedAt,
-    },
-  });
-}
-
-export function continueSellerGuildMasterWarning(
-  input: {
-    sellerProfileId: string;
-    warningSentAt: Date;
-    checkedAt: Date;
-  },
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      guildLevel: "GUILD_MASTER",
-      consecutiveMetricFailures: { gt: 0 },
-    },
-    data: {
-      metricWarningSentAt: input.warningSentAt,
-      lastMetricCheckAt: input.checkedAt,
-    },
-  });
-}
-
-export function recordSellerGuildMasterRecovery(
-  input: { sellerProfileId: string; checkedAt: Date },
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      guildLevel: "GUILD_MASTER",
-      consecutiveMetricFailures: { gt: 0 },
-    },
-    data: {
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      lastMetricCheckAt: input.checkedAt,
-    },
-  });
-}
-
-export function recordSellerGuildMasterRevocation(
-  client: SellerGuildPrivateClient,
-  input: {
-    sellerProfileId: string;
-    warningSentBefore: Date;
-    checkedAt: Date;
-  },
-) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      guildLevel: "GUILD_MASTER",
-      consecutiveMetricFailures: { gt: 0 },
-      metricWarningSentAt: { lte: input.warningSentBefore },
-    },
-    data: {
-      guildLevel: "GUILD_MEMBER",
-      isVerifiedMaker: true,
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      lastMetricCheckAt: input.checkedAt,
-      guildMasterApprovedAt: null,
-      guildMasterAppliedAt: null,
-      guildMasterReviewNotes: null,
-    },
-  });
+export async function applySellerGuildMetrics(input: {
+  sellerProfileId: string;
+  calculatedAt: Date;
+}): Promise<SellerGuildMetricsTransition | null> {
+  const rows = await prisma.$queryRaw<SellerGuildMetricsTransition[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_metrics_apply(
+        ${input.sellerProfileId},
+        ${input.calculatedAt}
+      )
+  `;
+  return rows[0] ?? null;
 }

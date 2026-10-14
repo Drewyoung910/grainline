@@ -74,13 +74,17 @@ describe("Round 10 state-machine guardrails", () => {
     const adminVerification = source("src/app/admin/verification/page.tsx");
     const guildMemberCron = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
+    const guildMetricsAuthority = source(
+      "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+    );
 
     assert.match(applyRoute, /guildMemberApplicationBlockReason/);
     assert.match(dashboard, /guildMemberApplicationBlockReason/);
     assert.match(dashboard, /guildMasterApplicationBlockReason/);
     assert.match(adminVerification, /status: "GUILD_MASTER_REJECTED"/);
     assert.match(guildMemberCron, /status: "REJECTED", reviewedAt: now/);
-    assert.match(guildMetricsCron, /status: "GUILD_MASTER_REJECTED",\s+reviewedAt: now/s);
+    assert.match(guildMetricsAuthority, /status = 'GUILD_MASTER_REJECTED'/);
+    assert.match(guildMetricsCron, /applySellerGuildMetrics/);
   });
 
   it("guards paired Guild profile and verification transitions with current verification state", () => {
@@ -94,10 +98,14 @@ describe("Round 10 state-machine guardrails", () => {
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
     const guildMemberCron = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
+    const guildMetricsAuthority = source(
+      "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+    );
 
     assert.match(dashboard, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: s\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES\] \}/s);
     assert.match(guildMemberCron, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: seller\.id,\s*status: \{ in: \[\.\.\.GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES\] \}/s);
-    assert.match(guildMetricsCron, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: seller\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES\] \}/s);
+    assert.doesNotMatch(guildMetricsCron, /makerVerification\.updateMany/);
+    assert.match(guildMetricsAuthority, /status = 'GUILD_MASTER_APPROVED'/);
     assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES\] \}/);
     assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES\] \}/);
     assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES\] \}/);
