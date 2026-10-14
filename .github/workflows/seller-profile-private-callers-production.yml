@@ -1,0 +1,411 @@
+name: SellerProfile Private Callers Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-seller-profile-private-callers
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed SellerProfile private callers
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-seller-profile-private-callers'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      SELLER_PROFILE_CALLER_MIGRATIONS: 20261013130000_move_seller_supported_snapshot_sql_callers,20261013140000_move_checkout_seller_private_sql_callers,20261013150000_move_custom_order_seller_private_sql_callers,20261013160000_move_case_guild_seller_private_sql_caller,20261013170000_move_order_label_seller_private_sql_caller,20261013180000_move_provider_identity_seller_private_sql_callers,20261013190000_move_reconciliation_seller_private_sql_callers,20261013200000_move_final_seller_private_sql_callers,20261013210000_move_account_deletion_seller_private_sql_callers,20261014010000_tolerate_missing_seller_reconciliation_target
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind release to exact main and completed CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('SellerProfile caller release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('SellerProfile caller main/CI readback drifted');
+            }
+      - name: Verify exact SellerProfile caller source
+        run: >-
+          node --test
+          tests/seller-profile-private-boundary-preparation.test.mjs
+          tests/seller-profile-private-boundary-production-workflow.test.mjs
+          tests/seller-profile-private-callers-production-workflow.test.mjs
+          tests/reviewed-pending-migrations.test.mjs
+      - name: Verify exact SellerProfile caller migration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
+            "20261014010000_tolerate_missing_seller_reconciliation_target"
+          cat <<'DIGESTS' | sha256sum --check --status
+          7e3f5c19b71c110a4a8aa979500e23853696724eecb095c211e07d7f0eda3e78  prisma/migrations/20261013130000_move_seller_supported_snapshot_sql_callers/migration.sql
+          a904f6dd17f76dd6ff3e2f4f4278196d1379e8433413bc1d9a77af9509ec9ae7  prisma/migrations/20261013140000_move_checkout_seller_private_sql_callers/migration.sql
+          0539711a7970f72be4c5fdd48cd16ad3bbab5d136e3f457141f00031e5b6da47  prisma/migrations/20261013150000_move_custom_order_seller_private_sql_callers/migration.sql
+          ed413c681bdf2bdec37ca238281a3cec5058ddff89eae09595b9b3c16822f77d  prisma/migrations/20261013160000_move_case_guild_seller_private_sql_caller/migration.sql
+          5dd4ed4d4d4fb3fb767abb3fa96e616d9ea753db245a6d4c99e8ab3d7a8d2be8  prisma/migrations/20261013170000_move_order_label_seller_private_sql_caller/migration.sql
+          b00708a8cff7171ac148087a808a928472ea283beb6b67e961e39fb808fb0992  prisma/migrations/20261013180000_move_provider_identity_seller_private_sql_callers/migration.sql
+          3d76c45f60d4379253c2bdd57d0d3ce79d5e2c2ae9cad84b1f1027baf84d93e4  prisma/migrations/20261013190000_move_reconciliation_seller_private_sql_callers/migration.sql
+          9293316672717416574d53b485b8af9d16b0757801633b493696a24329362064  prisma/migrations/20261013200000_move_final_seller_private_sql_callers/migration.sql
+          4d4ec8b51d24cfbdc723cdb461183711a15397c0ed2e3b2abdf33cdcc9990893  prisma/migrations/20261013210000_move_account_deletion_seller_private_sql_callers/migration.sql
+          12e521eabf40128aae149eb9e00cd4cbd9041bbddb5b37a3c28821132933ad90  prisma/migrations/20261014010000_tolerate_missing_seller_reconciliation_target/migration.sql
+          DIGESTS
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe caller prefix and private-boundary convergence
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const base = {
+            name: '20261013120000_prepare_seller_profile_private_boundary',
+            checksum: '2404303e767ead69b7c9a7f8543519506552218dc25e254b3dc7ca4ea25e0305',
+          };
+          const migrations = [
+            ['20261013130000_move_seller_supported_snapshot_sql_callers', '7e3f5c19b71c110a4a8aa979500e23853696724eecb095c211e07d7f0eda3e78'],
+            ['20261013140000_move_checkout_seller_private_sql_callers', 'a904f6dd17f76dd6ff3e2f4f4278196d1379e8433413bc1d9a77af9509ec9ae7'],
+            ['20261013150000_move_custom_order_seller_private_sql_callers', '0539711a7970f72be4c5fdd48cd16ad3bbab5d136e3f457141f00031e5b6da47'],
+            ['20261013160000_move_case_guild_seller_private_sql_caller', 'ed413c681bdf2bdec37ca238281a3cec5058ddff89eae09595b9b3c16822f77d'],
+            ['20261013170000_move_order_label_seller_private_sql_caller', '5dd4ed4d4d4fb3fb767abb3fa96e616d9ea753db245a6d4c99e8ab3d7a8d2be8'],
+            ['20261013180000_move_provider_identity_seller_private_sql_callers', 'b00708a8cff7171ac148087a808a928472ea283beb6b67e961e39fb808fb0992'],
+            ['20261013190000_move_reconciliation_seller_private_sql_callers', '3d76c45f60d4379253c2bdd57d0d3ce79d5e2c2ae9cad84b1f1027baf84d93e4'],
+            ['20261013200000_move_final_seller_private_sql_callers', '9293316672717416574d53b485b8af9d16b0757801633b493696a24329362064'],
+            ['20261013210000_move_account_deletion_seller_private_sql_callers', '4d4ec8b51d24cfbdc723cdb461183711a15397c0ed2e3b2abdf33cdcc9990893'],
+            ['20261014010000_tolerate_missing_seller_reconciliation_target', '12e521eabf40128aae149eb9e00cd4cbd9041bbddb5b37a3c28821132933ad90'],
+          ].map(([name, checksum]) => ({name, checksum}));
+          const names = [base.name, ...migrations.map(({name}) => name)];
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = await client.query(`SELECT migration_name, checksum,
+              finished_at IS NOT NULL AS finished, rolled_back_at IS NOT NULL AS rolled_back,
+              applied_steps_count::int AS applied_steps_count
+              FROM public._prisma_migrations
+              WHERE migration_name = ANY($1::text[]) ORDER BY migration_name`, [names]);
+            const successfulRow = (migration) => {
+              const attempts = ledger.rows.filter(
+                ({migration_name}) => migration_name === migration.name,
+              );
+              for (const attempt of attempts) {
+                assert.equal(attempt.checksum, migration.checksum);
+              }
+              const successful = attempts.filter(
+                ({finished, rolled_back, applied_steps_count}) =>
+                  finished && !rolled_back && applied_steps_count === 1,
+              );
+              assert.ok(successful.length <= 1, `${migration.name} has duplicate successes`);
+              for (const attempt of attempts) {
+                if (!successful.includes(attempt)) {
+                  assert.equal(attempt.rolled_back, true,
+                    `${migration.name} has an unresolved failed attempt`);
+                }
+              }
+              return successful[0];
+            };
+            assert.ok(successfulRow(base), 'SellerProfile private boundary is not applied');
+            let appliedCount = 0;
+            let sawPending = false;
+            for (const migration of migrations) {
+              const row = successfulRow(migration);
+              if (!row) {
+                sawPending = true;
+                continue;
+              }
+              assert.equal(sawPending, false, 'SellerProfile caller migrations are not a prefix');
+              appliedCount += 1;
+            }
+            const publicPosture = (await client.query(`SELECT relrowsecurity, relforcerowsecurity,
+              relacl::text FROM pg_catalog.pg_class
+              WHERE oid = 'public."SellerProfile"'::regclass`)).rows[0];
+            assert.equal(publicPosture.relrowsecurity, false);
+            assert.equal(publicPosture.relforcerowsecurity, false);
+            const privatePosture = (await client.query(`SELECT relrowsecurity, relforcerowsecurity,
+              pg_catalog.has_table_privilege('grainline_app_runtime', oid,
+                'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS runtime_any,
+              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(relacl,
+                pg_catalog.acldefault('r', relowner))) AS acl WHERE acl.grantee = 0) AS public_any
+              FROM pg_catalog.pg_class
+              WHERE oid = 'public."SellerProfilePrivate"'::regclass`)).rows[0];
+            assert.deepEqual(privatePosture, {
+              relrowsecurity: false, relforcerowsecurity: false,
+              runtime_any: false, public_any: false,
+            });
+            const convergence = (await client.query(`SELECT
+              (SELECT pg_catalog.count(*)::int FROM public."SellerProfile") AS public_count,
+              (SELECT pg_catalog.count(*)::int FROM public."SellerProfilePrivate") AS private_count,
+              (SELECT pg_catalog.count(*)::int FROM public."SellerProfile" AS source
+                FULL JOIN public."SellerProfilePrivate" AS private
+                  ON private."sellerProfileId" = source.id
+                WHERE source.id IS NULL OR private."sellerProfileId" IS NULL OR
+                  private."stripeAccountId" IS DISTINCT FROM source."stripeAccountId" OR
+                  private."stripeAccountVersion" IS DISTINCT FROM source."stripeAccountVersion" OR
+                  private."stripeControllerType" IS DISTINCT FROM source."stripeControllerType" OR
+                  private."manualStripeReconciliationNeeded" IS DISTINCT FROM source."manualStripeReconciliationNeeded" OR
+                  private."manualStripeReconciliationNote" IS DISTINCT FROM source."manualStripeReconciliationNote" OR
+                  private."shipFromName" IS DISTINCT FROM source."shipFromName" OR
+                  private."shipFromLine1" IS DISTINCT FROM source."shipFromLine1" OR
+                  private."shipFromLine2" IS DISTINCT FROM source."shipFromLine2" OR
+                  private."shipFromCity" IS DISTINCT FROM source."shipFromCity" OR
+                  private."shipFromState" IS DISTINCT FROM source."shipFromState" OR
+                  private."shipFromPostal" IS DISTINCT FROM source."shipFromPostal" OR
+                  private."shipFromCountry" IS DISTINCT FROM source."shipFromCountry" OR
+                  private."shipFromPhone" IS DISTINCT FROM source."shipFromPhone" OR
+                  private."defaultPkgWeightGrams" IS DISTINCT FROM source."defaultPkgWeightGrams" OR
+                  private."defaultPkgLengthCm" IS DISTINCT FROM source."defaultPkgLengthCm" OR
+                  private."defaultPkgWidthCm" IS DISTINCT FROM source."defaultPkgWidthCm" OR
+                  private."defaultPkgHeightCm" IS DISTINCT FROM source."defaultPkgHeightCm" OR
+                  private."useCalculatedShipping" IS DISTINCT FROM source."useCalculatedShipping" OR
+                  private."preferredCarriers" IS DISTINCT FROM source."preferredCarriers" OR
+                  private."onboardingStep" IS DISTINCT FROM source."onboardingStep" OR
+                  private."onboardingComplete" IS DISTINCT FROM source."onboardingComplete" OR
+                  private."guildMemberApprovedAt" IS DISTINCT FROM source."guildMemberApprovedAt" OR
+                  private."guildMasterApprovedAt" IS DISTINCT FROM source."guildMasterApprovedAt" OR
+                  private."guildMasterAppliedAt" IS DISTINCT FROM source."guildMasterAppliedAt" OR
+                  private."guildMasterReviewNotes" IS DISTINCT FROM source."guildMasterReviewNotes" OR
+                  private."consecutiveMetricFailures" IS DISTINCT FROM source."consecutiveMetricFailures" OR
+                  private."lastMetricCheckAt" IS DISTINCT FROM source."lastMetricCheckAt" OR
+                  private."metricWarningSentAt" IS DISTINCT FROM source."metricWarningSentAt" OR
+                  private."listingsBelowThresholdSince" IS DISTINCT FROM source."listingsBelowThresholdSince" OR
+                  private."profileViews" IS DISTINCT FROM source."profileViews") AS private_mismatch_count,
+              (SELECT pg_catalog.count(*)::int FROM public."SellerProfile"
+                WHERE "stripeAccountSupported" IS DISTINCT FROM
+                  ("stripeAccountVersion" IS NULL OR "stripeAccountVersion" = 'v2')) AS snapshot_mismatch_count`)).rows[0];
+            assert.equal(convergence.public_count, convergence.private_count);
+            assert.equal(convergence.private_mismatch_count, 0);
+            assert.equal(convergence.snapshot_mismatch_count, 0);
+            await client.query('COMMIT');
+            const pending = migrations.slice(appliedCount).map(({name}) => name);
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `applied_count=${appliedCount}\npending=${pending.join(',')}\n`);
+            writeFileSync(`${process.env.RUNNER_TEMP}/seller-profile-callers-preflight.json`,
+              JSON.stringify({releaseCommit: process.env.GITHUB_SHA, appliedCount,
+                pendingCount: pending.length, publicPosture, privatePosture, convergence}),
+              {mode: 0o600, flag: 'wx'});
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require only the reviewed caller suffix pending
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Apply only the reviewed SellerProfile caller suffix
+        if: steps.preflight.outputs.applied_count != '10'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Verify complete migration status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate status
+      - name: Read back exact caller ledger, convergence, and unchanged posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const migrations = new Map([
+            ['20261013130000_move_seller_supported_snapshot_sql_callers', '7e3f5c19b71c110a4a8aa979500e23853696724eecb095c211e07d7f0eda3e78'],
+            ['20261013140000_move_checkout_seller_private_sql_callers', 'a904f6dd17f76dd6ff3e2f4f4278196d1379e8433413bc1d9a77af9509ec9ae7'],
+            ['20261013150000_move_custom_order_seller_private_sql_callers', '0539711a7970f72be4c5fdd48cd16ad3bbab5d136e3f457141f00031e5b6da47'],
+            ['20261013160000_move_case_guild_seller_private_sql_caller', 'ed413c681bdf2bdec37ca238281a3cec5058ddff89eae09595b9b3c16822f77d'],
+            ['20261013170000_move_order_label_seller_private_sql_caller', '5dd4ed4d4d4fb3fb767abb3fa96e616d9ea753db245a6d4c99e8ab3d7a8d2be8'],
+            ['20261013180000_move_provider_identity_seller_private_sql_callers', 'b00708a8cff7171ac148087a808a928472ea283beb6b67e961e39fb808fb0992'],
+            ['20261013190000_move_reconciliation_seller_private_sql_callers', '3d76c45f60d4379253c2bdd57d0d3ce79d5e2c2ae9cad84b1f1027baf84d93e4'],
+            ['20261013200000_move_final_seller_private_sql_callers', '9293316672717416574d53b485b8af9d16b0757801633b493696a24329362064'],
+            ['20261013210000_move_account_deletion_seller_private_sql_callers', '4d4ec8b51d24cfbdc723cdb461183711a15397c0ed2e3b2abdf33cdcc9990893'],
+            ['20261014010000_tolerate_missing_seller_reconciliation_target', '12e521eabf40128aae149eb9e00cd4cbd9041bbddb5b37a3c28821132933ad90'],
+          ]);
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/seller-profile-callers-preflight.json`, 'utf8'));
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = (await client.query(`SELECT migration_name, checksum,
+              finished_at IS NOT NULL AS finished, rolled_back_at IS NOT NULL AS rolled_back,
+              applied_steps_count::int AS applied_steps_count
+              FROM public._prisma_migrations
+              WHERE migration_name = ANY($1::text[]) ORDER BY migration_name`,
+              [[...migrations.keys()]])).rows;
+            for (const [name, checksum] of migrations) {
+              const attempts = ledger.filter(({migration_name}) => migration_name === name);
+              for (const attempt of attempts) assert.equal(attempt.checksum, checksum);
+              const successful = attempts.filter(
+                ({finished, rolled_back, applied_steps_count}) =>
+                  finished && !rolled_back && applied_steps_count === 1,
+              );
+              assert.equal(successful.length, 1, `${name} lacks one exact success`);
+              for (const attempt of attempts) {
+                if (!successful.includes(attempt)) {
+                  assert.equal(attempt.rolled_back, true,
+                    `${name} has an unresolved failed attempt`);
+                }
+              }
+            }
+            const publicPosture = (await client.query(`SELECT relrowsecurity, relforcerowsecurity,
+              relacl::text FROM pg_catalog.pg_class
+              WHERE oid = 'public."SellerProfile"'::regclass`)).rows[0];
+            assert.deepEqual(publicPosture, before.publicPosture);
+            const privatePosture = (await client.query(`SELECT relrowsecurity, relforcerowsecurity,
+              pg_catalog.has_table_privilege('grainline_app_runtime', oid,
+                'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS runtime_any,
+              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(relacl,
+                pg_catalog.acldefault('r', relowner))) AS acl WHERE acl.grantee = 0) AS public_any
+              FROM pg_catalog.pg_class
+              WHERE oid = 'public."SellerProfilePrivate"'::regclass`)).rows[0];
+            assert.deepEqual(privatePosture, before.privatePosture);
+            const convergence = (await client.query(`SELECT
+              (SELECT pg_catalog.count(*)::int FROM public."SellerProfile") AS public_count,
+              (SELECT pg_catalog.count(*)::int FROM public."SellerProfilePrivate") AS private_count,
+              (SELECT pg_catalog.count(*)::int FROM public."SellerProfile" AS source
+                FULL JOIN public."SellerProfilePrivate" AS private
+                  ON private."sellerProfileId" = source.id
+                WHERE source.id IS NULL OR private."sellerProfileId" IS NULL OR
+                  private."stripeAccountId" IS DISTINCT FROM source."stripeAccountId" OR
+                  private."stripeAccountVersion" IS DISTINCT FROM source."stripeAccountVersion" OR
+                  private."stripeControllerType" IS DISTINCT FROM source."stripeControllerType" OR
+                  private."manualStripeReconciliationNeeded" IS DISTINCT FROM source."manualStripeReconciliationNeeded" OR
+                  private."manualStripeReconciliationNote" IS DISTINCT FROM source."manualStripeReconciliationNote" OR
+                  private."shipFromName" IS DISTINCT FROM source."shipFromName" OR
+                  private."shipFromLine1" IS DISTINCT FROM source."shipFromLine1" OR
+                  private."shipFromLine2" IS DISTINCT FROM source."shipFromLine2" OR
+                  private."shipFromCity" IS DISTINCT FROM source."shipFromCity" OR
+                  private."shipFromState" IS DISTINCT FROM source."shipFromState" OR
+                  private."shipFromPostal" IS DISTINCT FROM source."shipFromPostal" OR
+                  private."shipFromCountry" IS DISTINCT FROM source."shipFromCountry" OR
+                  private."shipFromPhone" IS DISTINCT FROM source."shipFromPhone" OR
+                  private."defaultPkgWeightGrams" IS DISTINCT FROM source."defaultPkgWeightGrams" OR
+                  private."defaultPkgLengthCm" IS DISTINCT FROM source."defaultPkgLengthCm" OR
+                  private."defaultPkgWidthCm" IS DISTINCT FROM source."defaultPkgWidthCm" OR
+                  private."defaultPkgHeightCm" IS DISTINCT FROM source."defaultPkgHeightCm" OR
+                  private."useCalculatedShipping" IS DISTINCT FROM source."useCalculatedShipping" OR
+                  private."preferredCarriers" IS DISTINCT FROM source."preferredCarriers" OR
+                  private."onboardingStep" IS DISTINCT FROM source."onboardingStep" OR
+                  private."onboardingComplete" IS DISTINCT FROM source."onboardingComplete" OR
+                  private."guildMemberApprovedAt" IS DISTINCT FROM source."guildMemberApprovedAt" OR
+                  private."guildMasterApprovedAt" IS DISTINCT FROM source."guildMasterApprovedAt" OR
+                  private."guildMasterAppliedAt" IS DISTINCT FROM source."guildMasterAppliedAt" OR
+                  private."guildMasterReviewNotes" IS DISTINCT FROM source."guildMasterReviewNotes" OR
+                  private."consecutiveMetricFailures" IS DISTINCT FROM source."consecutiveMetricFailures" OR
+                  private."lastMetricCheckAt" IS DISTINCT FROM source."lastMetricCheckAt" OR
+                  private."metricWarningSentAt" IS DISTINCT FROM source."metricWarningSentAt" OR
+                  private."listingsBelowThresholdSince" IS DISTINCT FROM source."listingsBelowThresholdSince" OR
+                  private."profileViews" IS DISTINCT FROM source."profileViews") AS private_mismatch_count,
+              (SELECT pg_catalog.count(*)::int FROM public."SellerProfile"
+                WHERE "stripeAccountSupported" IS DISTINCT FROM
+                  ("stripeAccountVersion" IS NULL OR "stripeAccountVersion" = 'v2')) AS snapshot_mismatch_count`)).rows[0];
+            assert.equal(convergence.public_count, convergence.private_count);
+            assert.equal(convergence.private_mismatch_count, 0);
+            assert.equal(convergence.snapshot_mismatch_count, 0);
+            const restricted = (await client.query(`SELECT proname AS name,
+              pg_catalog.has_function_privilege('grainline_app_runtime', oid, 'EXECUTE') AS runtime_execute,
+              EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(proacl,
+                pg_catalog.acldefault('f', proowner))) AS acl
+                WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE') AS public_execute
+              FROM pg_catalog.pg_proc
+              WHERE oid = ANY(ARRAY[
+                'public.grainline_seller_profile_deauthorize_compat(text,text)'::regprocedure,
+                'public.grainline_seller_profile_reconciliation_required_compat(text,text,text,timestamp without time zone)'::regprocedure
+              ]::oid[]) ORDER BY proname`)).rows;
+            assert.deepEqual(restricted, [
+              {name: 'grainline_seller_profile_deauthorize_compat', runtime_execute: false, public_execute: false},
+              {name: 'grainline_seller_profile_reconciliation_required_compat', runtime_execute: false, public_execute: false},
+            ]);
+            await client.query('COMMIT');
+            writeFileSync(`${process.env.RUNNER_TEMP}/seller-profile-callers-postflight.json`,
+              JSON.stringify({status: 'passed', releaseCommit: process.env.GITHUB_SHA,
+                appliedCount: migrations.size, issueCount: 0,
+                publicCount: convergence.public_count, privateCount: convergence.private_count}),
+              {mode: 0o600, flag: 'wx'});
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Audit global runtime grants after caller release
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized SellerProfile caller evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: seller-profile-private-callers-production-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/seller-profile-callers-preflight.json
+            ${{ runner.temp }}/seller-profile-callers-postflight.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false
