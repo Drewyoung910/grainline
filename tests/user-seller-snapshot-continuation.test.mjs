@@ -28,7 +28,14 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   assert.match(broadcast, /sellerProfile\.ownerAccountActive !== true/);
   assert.doesNotMatch(broadcast, /currentBroadcast\.sellerProfile\.user\.(?:banned|deletedAt)/);
 
-  assert.match(stripePrivate, /where: \{ stripeAccountId \},[\s\S]*userId: true,[\s\S]*ownerAccountActive: true/);
+  assert.match(
+    stripePrivate,
+    /FROM public\.grainline_seller_stripe_mirror_state\(\$\{stripeAccountId\}::text\)/,
+  );
+  assert.doesNotMatch(
+    stripePrivate,
+    /\.sellerProfile\.(?:findUnique|findFirst|findMany)/,
+  );
   assert.doesNotMatch(stripePrivate, /user:\s*\{[\s\S]*banned:[\s\S]*deletedAt:/);
   assert.match(mirror, /sellerStripeMirrorState\(accountId\)/);
   assert.match(mirror, /localAccountActive = seller\.ownerAccountActive === true/);
