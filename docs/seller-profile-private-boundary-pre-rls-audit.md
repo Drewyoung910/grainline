@@ -543,8 +543,29 @@ banned, self-purchase and wrong-role requests. The focused 42-test suite,
 TypeScript and scoped lint pass. This slice is prepared source only; it is not
 yet applied, merged or deployed.
 
-The remaining checkout, owner, Guild, staff and account-deletion compatibility
-modules still read or write predecessor private fields. Phase 1 remains
+The twenty-seventh isolated slice converts checkout application projections.
+Migration
+`20261014140000_prepare_seller_profile_private_checkout_app_authority` adds one
+fixed read operation whose caller must present an active buyer, the exact
+seller and exactly one eligible purchase context: an exact listing or that
+buyer's exact cart. It rejects self-purchase, blocked pairs, inactive actors,
+unavailable sellers, foreign private listings, archived listings and invalid
+cart contents before disclosing the private Stripe account and package
+defaults. Public listing/cart projections retain only the supported-account
+snapshot used for early eligibility. Single checkout, seller-group checkout,
+cart add/update, shipping quote and single-checkout resume now obtain private
+provider/package state only through the fixed operation. Reservation witnesses
+compose that exact private result with their public source immediately before
+the database reservation call, preserving the source-equality check without
+restoring direct table access. Focused PostgreSQL proof deliberately poisons
+the predecessor values, proves listing and cart success from the companion,
+and covers invalid context, foreign/private/self/blocked and invalid-cart
+denials plus direct-table and untrusted-function denial. The 104-test focused
+suite, the 130-test adjacent-route suite, TypeScript and scoped lint pass. This
+slice is prepared source only; it is not yet applied, merged or deployed.
+
+The remaining owner, Guild, staff and account-deletion compatibility modules
+still read or write predecessor private fields. Phase 1 remains
 incomplete until each family moves to purpose-bound operations, the converted
 application is deployed and proven, and predecessor deployments have drained.
 The two transition-only SQL writers remain intentionally installed until that

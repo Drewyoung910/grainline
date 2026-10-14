@@ -1,6 +1,5 @@
 // src/app/api/cart/checkout-seller/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { shippingRateExpiresAtIsTooFarFuture, shippingRateSubjectHash, verifyRate } from "@/lib/shipping-token";
@@ -57,6 +56,7 @@ import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
 import { normalizeUsState } from "@/lib/usStates";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
+import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
 
 const CheckoutSellerSchema = z.object({
   sellerId: z.string().min(1),
@@ -178,7 +178,6 @@ export async function POST(req: Request) {
     if (body.selectedRate.currency.toLowerCase() !== currency) {
       return privateJson({ error: "Invalid shipping rate currency." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
-    const destination = sellerItems[0].listing.seller.stripeAccountId || null;
     const sellerChargesEnabled = sellerItems[0].listing.seller.chargesEnabled ?? false;
 
     const sellerBlockReason = sellerOrderBlockReason(sellerItems[0].listing.seller);
@@ -193,7 +192,7 @@ export async function POST(req: Request) {
     }
 
     // Pre-flight: verify seller can accept payments
-    if (!destination || !sellerChargesEnabled) {
+    if (!sellerChargesEnabled || !sellerItems[0].listing.seller.stripeAccountSupported) {
       return privateJson({ error: "This seller is not currently accepting orders. Please try again later." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
@@ -235,6 +234,20 @@ export async function POST(req: Request) {
         { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
+
+    const checkoutPrivateState = await sellerCheckoutPrivateState({
+      buyerUserId: me.id,
+      sellerProfileId: sellerId,
+      cartId: cart.id,
+      listingId: null,
+    });
+    if (!checkoutPrivateState) {
+      return privateJson(
+        { error: "This seller is not currently accepting orders. Please try again later." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+    const destination = checkoutPrivateState.stripeAccountId;
 
     // Gift wrapping: reject if buyer requested it but seller does not offer it.
     if (giftWrapping && !sellerItems[0].listing.seller.offersGiftWrapping) {
@@ -329,7 +342,7 @@ export async function POST(req: Request) {
     // Verify every shipping rate, including fallback. Fallback rates must be
     // signed by /api/shipping/quote; clients cannot force the fallback objectId.
     const contextId = body.sellerId;
-    const sellerDefaults = sellerItems[0].listing.seller;
+    const sellerDefaults = checkoutPrivateState;
     const subjectHash = shippingRateSubjectHash({
       mode: "cart",
       sellerId,
@@ -413,13 +426,13 @@ export async function POST(req: Request) {
               variantKey: i.variantKey,
               ...checkoutShippingPackageMetadata({
                 shippingWeightGrams:
-                  i.listing.packagedWeightGrams ?? i.listing.seller.defaultPkgWeightGrams,
+                  i.listing.packagedWeightGrams ?? checkoutPrivateState.defaultPkgWeightGrams,
                 shippingLengthCm:
-                  i.listing.packagedLengthCm ?? i.listing.seller.defaultPkgLengthCm,
+                  i.listing.packagedLengthCm ?? checkoutPrivateState.defaultPkgLengthCm,
                 shippingWidthCm:
-                  i.listing.packagedWidthCm ?? i.listing.seller.defaultPkgWidthCm,
+                  i.listing.packagedWidthCm ?? checkoutPrivateState.defaultPkgWidthCm,
                 shippingHeightCm:
-                  i.listing.packagedHeightCm ?? i.listing.seller.defaultPkgHeightCm,
+                  i.listing.packagedHeightCm ?? checkoutPrivateState.defaultPkgHeightCm,
               }),
             },
             tax_code: "txcd_99999999", // General - Tangible Personal Property
@@ -542,10 +555,20 @@ export async function POST(req: Request) {
         title: it.listing.title,
       }));
     checkoutReservationItemCount = reservableItems.length;
+    const checkoutSourceItems = resolvedSellerItems.map((item) => ({
+      ...item,
+      listing: {
+        ...item.listing,
+        seller: {
+          ...item.listing.seller,
+          ...checkoutPrivateState,
+        },
+      },
+    }));
     const pricedSourceWitness = cartCheckoutReservationSnapshotWitness(
       me.id,
       sellerId,
-      resolvedSellerItems,
+      checkoutSourceItems,
     );
     if (!pricedSourceWitness) {
       await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);

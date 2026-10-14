@@ -27,7 +27,10 @@ import {
   upsertOwnerCart,
 } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
-import { listingSellerOrderStateSelect } from "@/lib/sellerCheckoutPrivateAccess";
+import {
+  listingSellerOrderStateSelect,
+  sellerCheckoutPrivateState,
+} from "@/lib/sellerCheckoutPrivateAccess";
 
 const CartAddSchema = z.object({
   listingId: z.string().min(1),
@@ -118,7 +121,7 @@ export async function POST(req: Request) {
       return privateJson({ error: "You cannot add your own listing to cart." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
-    if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
+    if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountSupported) {
       return privateJson({ error: "This seller is not currently accepting orders." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
@@ -136,6 +139,16 @@ export async function POST(req: Request) {
     // Block private/reserved listings
     if (listing.isPrivate && listing.reservedForUserId !== me.id) {
       return privateJson({ error: "This listing is not available." }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+
+    const checkoutPrivateState = await sellerCheckoutPrivateState({
+      buyerUserId: me.id,
+      sellerProfileId: listing.sellerId,
+      cartId: null,
+      listingId: listing.id,
+    });
+    if (!checkoutPrivateState) {
+      return privateJson({ error: "This seller is not currently accepting orders." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     // Cap made-to-order quantity at 1

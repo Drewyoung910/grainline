@@ -13,6 +13,7 @@ export type SellerOrderBlockReason =
 export type SellerOrderState = {
   acceptingNewOrders?: boolean | null;
   vacationMode?: boolean | null;
+  stripeAccountSupported?: boolean | null;
   stripeAccountVersion?: string | null;
   ownerAccountActive?: boolean | null;
   user?: {
@@ -28,7 +29,15 @@ export function sellerOrderBlockReason(
   if ("ownerAccountActive" in seller && seller.ownerAccountActive !== true) return "inactive_account";
   if (seller.user?.banned || seller.user?.deletedAt) return "inactive_account";
   if (
-    "stripeAccountVersion" in seller &&
+    "stripeAccountSupported" in seller
+    && seller.stripeAccountSupported !== true
+  ) {
+    return "unsupported_stripe_account";
+  }
+  if (
+    !("stripeAccountSupported" in seller)
+    && "stripeAccountVersion" in seller
+    &&
     !isSupportedSellerStripeAccountVersion(seller.stripeAccountVersion)
   ) {
     return "unsupported_stripe_account";

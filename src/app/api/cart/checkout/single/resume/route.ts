@@ -11,7 +11,10 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
-import { sellerSingleCheckoutResumeSource } from "@/lib/sellerCheckoutPrivateAccess";
+import {
+  sellerCheckoutPrivateState,
+  sellerSingleCheckoutResumeSource,
+} from "@/lib/sellerCheckoutPrivateAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -50,6 +53,15 @@ export async function GET(req: Request) {
     // resuming must not bypass a later listing, seller or account shutdown.
     const listing = await sellerSingleCheckoutResumeSource(listingId);
     if (!listing || !singleCheckoutResumeSourceIsAvailable(listing, me.id)) {
+      return privateJson(UNAVAILABLE_RESUME, { status: HTTP_STATUS.CONFLICT });
+    }
+    const checkoutPrivateState = await sellerCheckoutPrivateState({
+      buyerUserId: me.id,
+      sellerProfileId: listing.seller.id,
+      cartId: null,
+      listingId,
+    });
+    if (!checkoutPrivateState) {
       return privateJson(UNAVAILABLE_RESUME, { status: HTTP_STATUS.CONFLICT });
     }
     const session = await stripe.checkout.sessions.retrieve(lock.sessionId);

@@ -2265,7 +2265,8 @@ FROM (
     ('public."grainline_seller_stripe_reconciliation_page"(text, integer)'),
     ('public."grainline_seller_stripe_mirror_state"(text)'),
     ('public."grainline_seller_stripe_charges_update"(text, text, boolean)'),
-    ('public."grainline_seller_shipping_quote_state"(text, text, text, text)')
+    ('public."grainline_seller_shipping_quote_state"(text, text, text, text)'),
+    ('public."grainline_seller_checkout_private_state"(text, text, text, text)')
 ) AS seller_stripe_authority(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
@@ -2282,7 +2283,8 @@ FROM (
     ('public."grainline_seller_stripe_reconciliation_page"(text, integer)'),
     ('public."grainline_seller_stripe_mirror_state"(text)'),
     ('public."grainline_seller_stripe_charges_update"(text, text, boolean)'),
-    ('public."grainline_seller_shipping_quote_state"(text, text, text, text)')
+    ('public."grainline_seller_shipping_quote_state"(text, text, text, text)'),
+    ('public."grainline_seller_checkout_private_state"(text, text, text, text)')
 ) AS seller_stripe_authority(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec

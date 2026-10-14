@@ -25,6 +25,7 @@ import {
   updateOwnerCartItemQuantity,
 } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
+import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
 
 const CartUpdateSchema = z.object({
   cartItemId: z.string().min(1).optional(),
@@ -107,12 +108,12 @@ export async function POST(req: Request) {
           variantGroups: { include: { options: true } },
           seller: {
             select: {
+              id: true,
               userId: true,
               chargesEnabled: true,
-              stripeAccountId: true,
+              stripeAccountSupported: true,
               vacationMode: true,
               acceptingNewOrders: true,
-              stripeAccountVersion: true,
               ownerAccountActive: true,
             },
           },
@@ -126,7 +127,7 @@ export async function POST(req: Request) {
       }
       if (
         !listing.seller.chargesEnabled ||
-        !listing.seller.stripeAccountId ||
+        !listing.seller.stripeAccountSupported ||
         !listing.seller.ownerAccountActive
       ) {
         return privateJson({ error: "This seller is not currently accepting orders." }, { status: HTTP_STATUS.BAD_REQUEST });
@@ -140,6 +141,15 @@ export async function POST(req: Request) {
           { error: CHECKOUT_PAIR_UNAVAILABLE_MESSAGE },
           { status: HTTP_STATUS.FORBIDDEN },
         );
+      }
+      const checkoutPrivateState = await sellerCheckoutPrivateState({
+        buyerUserId: me.id,
+        sellerProfileId: listing.seller.id,
+        cartId: null,
+        listingId: item.listingId,
+      });
+      if (!checkoutPrivateState) {
+        return privateJson({ error: "This seller is not currently accepting orders." }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (listing?.listingType === "MADE_TO_ORDER" && quantity > 1) {
         return privateJson(

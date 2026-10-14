@@ -125,6 +125,10 @@ const shippingAppAuthorityMigration = readFileSync(
   "prisma/migrations/20261014130000_prepare_seller_profile_private_shipping_quote_authority/migration.sql",
   "utf8",
 );
+const checkoutAppAuthorityMigration = readFileSync(
+  "prisma/migrations/20261014140000_prepare_seller_profile_private_checkout_app_authority/migration.sql",
+  "utf8",
+);
 const ownerPrivateAccess = readFileSync(
   "src/lib/sellerOwnerPrivateAccess.ts",
   "utf8",
@@ -220,9 +224,18 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(checkoutPrivateAccess, /export function sellerSingleCheckoutSource/);
     assert.match(checkoutPrivateAccess, /export function sellerSingleCheckoutResumeSource/);
     assert.match(checkoutPrivateAccess, /export const sellerCartCheckoutInclude/);
-    assert.match(checkoutPrivateAccess, /stripeAccountId: true/);
-    assert.match(checkoutPrivateAccess, /stripeAccountVersion: true/);
-    assert.match(checkoutPrivateAccess, /defaultPkgWeightGrams: true/);
+    assert.match(checkoutPrivateAccess, /stripeAccountSupported: true/);
+    assert.match(checkoutPrivateAccess, /grainline_seller_checkout_private_state/);
+    assert.doesNotMatch(checkoutPrivateAccess, /stripeAccountId: true/);
+    assert.doesNotMatch(checkoutPrivateAccess, /stripeAccountVersion: true/);
+    assert.doesNotMatch(checkoutPrivateAccess, /defaultPkgWeightGrams: true/);
+    assert.match(checkoutAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_checkout_private_state\(/);
+    assert.match(checkoutAppAuthorityMigration, /JOIN public\."SellerProfilePrivate"/);
+    assert.doesNotMatch(checkoutAppAuthorityMigration, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*SellerProfilePrivate/i);
+    assert.match(provisioning, /public\."grainline_seller_checkout_private_state"\(text, text, text, text\)/);
+    for (const source of [singleCheckout, singleCheckoutResume]) {
+      assert.match(source, /sellerCheckoutPrivateState\(\{/);
+    }
   });
 
   it("centralizes staff Guild private state behind one compatibility boundary", () => {

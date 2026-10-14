@@ -346,7 +346,7 @@ export async function POST(req: Request) {
       }
 
       const paymentUnavailableItem = cart.items.find(
-        (it) => !it.listing.seller.chargesEnabled || !it.listing.seller.stripeAccountId,
+        (it) => !it.listing.seller.chargesEnabled || !it.listing.seller.stripeAccountSupported,
       );
       if (paymentUnavailableItem) {
         return quoteBlockedResponse("This seller is not currently accepting orders.");
@@ -494,7 +494,7 @@ export async function POST(req: Request) {
       if (sellerBlockReason) {
         return quoteBlockedResponse(sellerOrderBlockMessage(sellerBlockReason));
       }
-      if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
+      if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountSupported) {
         return quoteBlockedResponse("This seller is not currently accepting orders.");
       }
       if (listing.listingType === "MADE_TO_ORDER" && qty > 1) {

@@ -27,6 +27,8 @@ describe("order-state audit follow-up guardrails", () => {
     assert.equal(sellerOrderBlockReason({ stripeAccountVersion: null, acceptingNewOrders: true, vacationMode: false }), null);
     assert.equal(sellerOrderBlockReason({ stripeAccountVersion: "v1" }), "unsupported_stripe_account");
     assert.equal(sellerOrderBlockReason({ stripeAccountVersion: "v2", acceptingNewOrders: true, vacationMode: false }), null);
+    assert.equal(sellerOrderBlockReason({ stripeAccountSupported: false }), "unsupported_stripe_account");
+    assert.equal(sellerOrderBlockReason({ stripeAccountSupported: true, stripeAccountVersion: "v1" }), null);
     assert.equal(
       sellerOrderBlockMessage("not_accepting_orders"),
       "This maker is not currently accepting new orders.",
@@ -43,7 +45,8 @@ describe("order-state audit follow-up guardrails", () => {
 
     const cartUpdate = source("src/app/api/cart/update/route.ts");
     assert.match(cartUpdate, /acceptingNewOrders: true/);
-    assert.match(cartUpdate, /stripeAccountVersion: true/);
+    assert.match(cartUpdate, /stripeAccountSupported: true/);
+    assert.match(cartUpdate, /sellerCheckoutPrivateState\(\{/);
     assert.match(cartUpdate, /sellerOrderBlockReason\(listing\.seller\)/);
     assert.match(cartUpdate, /sellerOrderBlockMessage\(sellerBlockReason\)/);
     assert.match(cartUpdate, /deleteOwnerCartItem\(me\.id, lockedItem\.cartId, lockedItem\.id, tx\)/);
@@ -54,7 +57,8 @@ describe("order-state audit follow-up guardrails", () => {
     const sellerCheckoutPrivateAccess = source("src/lib/sellerCheckoutPrivateAccess.ts");
     assert.match(singleCheckout, /sellerSingleCheckoutSource\(body\.listingId\)/);
     assert.match(sellerCheckoutPrivateAccess, /acceptingNewOrders: true/);
-    assert.match(sellerCheckoutPrivateAccess, /stripeAccountVersion: true/);
+    assert.match(sellerCheckoutPrivateAccess, /stripeAccountSupported: true/);
+    assert.match(sellerCheckoutPrivateAccess, /grainline_seller_checkout_private_state/);
     assert.match(singleCheckout, /sellerOrderBlockReason\(listing\.seller\)/);
 
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
@@ -203,7 +207,7 @@ describe("order-state audit follow-up guardrails", () => {
     const shippingQuote = source("src/app/api/shipping/quote/route.ts");
     assert.match(shippingQuote, /listing\.status !== "ACTIVE"/);
     assert.match(shippingQuote, /listing\.isPrivate && listing\.reservedForUserId !== me\.id/);
-    assert.match(shippingQuote, /!listing\.seller\.chargesEnabled \|\| !listing\.seller\.stripeAccountId/);
+    assert.match(shippingQuote, /!listing\.seller\.chargesEnabled \|\| !listing\.seller\.stripeAccountSupported/);
 
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
     assert.match(sellerCheckout, /logSecurityEvent\("token_rejected"/);

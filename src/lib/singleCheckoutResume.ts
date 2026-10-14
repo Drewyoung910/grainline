@@ -31,7 +31,7 @@ type SingleCheckoutResumeSource = {
   seller: (SellerOrderState & {
     id?: unknown;
     userId?: unknown;
-    stripeAccountId?: unknown;
+    stripeAccountSupported?: unknown;
     chargesEnabled?: unknown;
   }) | null;
 };
@@ -56,12 +56,10 @@ export function singleCheckoutResumeSourceIsAvailable(
     && typeof seller.userId === "string"
     && seller.userId.length > 0
     && seller.userId !== buyerId
-    && typeof seller.stripeAccountId === "string"
-    && seller.stripeAccountId.length > 0
+    && seller.stripeAccountSupported === true
     && seller.chargesEnabled === true
     && seller.vacationMode === false
     && seller.acceptingNewOrders === true
-    && (seller.stripeAccountVersion === null || seller.stripeAccountVersion === "v2")
     && localAccountActive
     && !sellerOrderBlockReason(seller));
 }
