@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "0fc8c89afe3b8256694cb1d16e2dece5790262e4631d382cda93a514d2d2fd2e  prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql" \
+          echo "2404303e767ead69b7c9a7f8543519506552218dc25e254b3dc7ca4ea25e0305  prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql" \
             | sha256sum --check --status
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
@@ -109,7 +109,7 @@ jobs:
           import pg from 'pg';
 
           const migration = '20261013120000_prepare_seller_profile_private_boundary';
-          const checksum = '0fc8c89afe3b8256694cb1d16e2dece5790262e4631d382cda93a514d2d2fd2e';
+          const checksum = '2404303e767ead69b7c9a7f8543519506552218dc25e254b3dc7ca4ea25e0305';
           const predecessor = '20261013040000_add_listing_archived_at';
           const predecessorChecksum = 'b691aac5db56d1fb3b185c5c47b58e3a167cfb01ccb6ebf7cdd0a798cc1f59eb';
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
@@ -238,7 +238,7 @@ jobs:
           import pg from 'pg';
 
           const migration = '20261013120000_prepare_seller_profile_private_boundary';
-          const checksum = '0fc8c89afe3b8256694cb1d16e2dece5790262e4631d382cda93a514d2d2fd2e';
+          const checksum = '2404303e767ead69b7c9a7f8543519506552218dc25e254b3dc7ca4ea25e0305';
           const sql = readFileSync(
             `prisma/migrations/${migration}/migration.sql`, 'utf8');
           const reviewedBody = (name) => {

@@ -192,6 +192,11 @@ function functionDefinition(source, name) {
 }
 
 describe("SellerProfile private-boundary additive preparation", () => {
+  it("bounds Production lock and statement waits", () => {
+    assert.match(migration, /SET LOCAL lock_timeout = '10s';/);
+    assert.match(migration, /SET LOCAL statement_timeout = '120s';/);
+  });
+
   it("centralizes checkout private seller source projections", () => {
     assert.match(singleCheckout, /sellerSingleCheckoutSource\(body\.listingId\)/);
     assert.doesNotMatch(singleCheckout, /seller:\s*\{\s*select:\s*\{/);

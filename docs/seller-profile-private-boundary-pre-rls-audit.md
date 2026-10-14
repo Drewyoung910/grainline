@@ -254,6 +254,12 @@ the derived `stripeAccountSupported` snapshot. The migration gives neither
 `PUBLIC` nor `grainline_app_runtime` direct companion-table or trigger-function
 authority.
 
+The migration bounds its Production transaction with a 10-second lock timeout
+and a 120-second statement timeout. Lock contention or an unexpectedly slow
+backfill therefore fails the run without leaving partial schema state, so the
+operator can investigate and retry rather than waiting indefinitely on the
+Production writer.
+
 Focused source tests pass, Prisma schema validation passes, and
 `scripts/seller-profile-private-boundary-postgres-proof.mjs` executed the exact
 migration bytes on disposable PostgreSQL 16. The rollback-only proof covered

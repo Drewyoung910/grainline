@@ -128,7 +128,7 @@ jobs:
           86b511f8fec0104c4ef3c1fbc7b2017d40847b286ac92bf26cdafc12518c5b3b 20261011180000_enable_account_deletion_side_effect_rls
           7bcb3ecfeab41ec457a58845e380b8837b21e75ac077ef0c045674ff1a4ce7ec 20261012120000_force_account_deletion_side_effect_rls
           e240c9f51e187616b1ef3c8a5ea7153bc4670fc90dbda30be6fb92ae1dc5a77e 20261013030000_force_clerk_webhook_event_rls
-          0fc8c89afe3b8256694cb1d16e2dece5790262e4631d382cda93a514d2d2fd2e 20261013120000_prepare_seller_profile_private_boundary
+          2404303e767ead69b7c9a7f8543519506552218dc25e254b3dc7ca4ea25e0305 20261013120000_prepare_seller_profile_private_boundary
           7e3f5c19b71c110a4a8aa979500e23853696724eecb095c211e07d7f0eda3e78 20261013130000_move_seller_supported_snapshot_sql_callers
           a904f6dd17f76dd6ff3e2f4f4278196d1379e8433413bc1d9a77af9509ec9ae7 20261013140000_move_checkout_seller_private_sql_callers
           0539711a7970f72be4c5fdd48cd16ad3bbab5d136e3f457141f00031e5b6da47 20261013150000_move_custom_order_seller_private_sql_callers
