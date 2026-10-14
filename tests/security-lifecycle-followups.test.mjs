@@ -30,42 +30,47 @@ describe("security lifecycle follow-ups", () => {
     assert.match(functionBody(page, "featureMaker"), /activeSellerProfileWhere\(\{\s*id: sellerProfileId,\s*guildLevel: \{ in: \["GUILD_MEMBER", "GUILD_MASTER"\] \}/s);
 
     assert.match(functionBody(page, "approveGuildMember"), /const me = await requireStaff\(\)/);
+    assert.match(functionBody(page, "approveGuildMember"), /const adminOverride = me\.role === "ADMIN"/);
     assert.match(functionBody(page, "approveGuildMaster"), /const me = await requireStaff\(\)/);
+    assert.match(page, /staff\.role === "ADMIN" && \(/);
   });
 
   it("keeps Guild Member reinstatement on active accounts and notifies the seller", () => {
     const page = source("src/app/admin/verification/page.tsx");
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
+    const transitionAuthority = source("prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql");
     const reinstateBody = functionBody(page, "reinstateGuildMember");
 
-    assert.match(reinstateBody, /!seller \|\| !seller\.ownerAccountActive/);
-    assert.match(reinstateBody, /sellerGuildStaffReinstatementState\(tx, sellerProfileId\)/);
-    assert.match(reinstateBody, /reinstateSellerGuildMember\(tx, \{/);
-    assert.match(staffGuildAccess, /export function reinstateSellerGuildMember[\s\S]*sellerProfile\.updateMany\(\{[\s\S]*ownerAccountActive: true/);
+    assert.match(reinstateBody, /applySellerGuildStaffTransition\(getOrderStaffReadClient\(\), \{/);
+    assert.match(reinstateBody, /operation: "REINSTATE_GUILD_MEMBER"/);
+    assert.match(staffGuildAccess, /export async function applySellerGuildStaffTransition/);
+    assert.match(transitionAuthority, /source_seller\."ownerAccountActive"/);
+    assert.match(transitionAuthority, /active_listing_count < 5/);
+    assert.match(transitionAuthority, /grainline_case_guild_unresolved_guard/);
+    assert.match(transitionAuthority, /source_actor_role <> 'ADMIN'/);
     assert.match(reinstateBody, /title: "Guild Member badge reinstated"/);
-    assert.match(reinstateBody, /publicSellerPath\(sellerProfileId, reinstatedSeller\.displayName\)/);
+    assert.match(reinstateBody, /publicSellerPath\(sellerProfileId, reinstatement\.sellerDisplayName\)/);
   });
 
   it("keeps Guild approval writes on active seller accounts", () => {
     const page = source("src/app/admin/verification/page.tsx");
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
+    const transitionAuthority = source("prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql");
 
-    for (const [action, helper] of [
-      ["approveGuildMember", "approveSellerGuildMember"],
-      ["approveGuildMaster", "approveSellerGuildMaster"],
+    for (const [action, operation] of [
+      ["approveGuildMember", "APPROVE_GUILD_MEMBER"],
+      ["approveGuildMaster", "APPROVE_GUILD_MASTER"],
     ]) {
       const body = functionBody(page, action);
 
       assert.match(body, /ownerAccountActive: true/, `${action} must load account state`);
       assert.match(body, /!verification\.sellerProfile\.ownerAccountActive/, `${action} must block inactive accounts before approval`);
-      assert.match(body, new RegExp(`${helper}\\(tx, \\{`), `${action} must use its staff Guild boundary`);
-      assert.match(
-        staffGuildAccess,
-        new RegExp(`export function ${helper}[\\s\\S]*?sellerProfile\\.updateMany\\(\\{[\\s\\S]*?ownerAccountActive: true`),
-        `${helper} must guard the seller write by active account state`,
-      );
-      assert.match(body, /assertGuildVerificationTransition\(sellerUpdated\.count, "approve Guild/, `${action} must surface approval races`);
+      assert.match(body, /applySellerGuildStaffTransition\(getOrderStaffReadClient\(\), \{/, `${action} must use the isolated staff boundary`);
+      assert.match(body, new RegExp(`operation: "${operation}"`), `${action} must select the fixed transition`);
     }
+    assert.match(staffGuildAccess, /grainline_seller_guild_staff_transition/);
+    assert.match(transitionAuthority, /NOT source_seller\."ownerAccountActive"/);
+    assert.match(transitionAuthority, /RETURN QUERY SELECT false/);
   });
 
   it("keeps Guild verification notifications scoped to the source action", () => {

@@ -687,12 +687,34 @@ projection, inactive-actor rejection, ordinary-runtime denial and direct
 private-table denial. This slice is prepared source only; it is not yet
 applied, merged or deployed.
 
-Staff Guild transition mutations are the only remaining application operations
-that write predecessor private fields. Phase 1 remains incomplete until those
-paired verification/seller transitions move to purpose-bound operations, the
-converted application is deployed and proven, and predecessor deployments have
-drained. The two transition-only SQL writers remain intentionally installed
-until that drain completes.
+The thirty-fifth isolated slice converts all seven staff Guild transitions.
+Migration
+`20261014220000_prepare_seller_profile_private_guild_staff_transition_authority`
+adds one operation selected from a closed transition set and executable only
+through the isolated staff database role. Every call revalidates the active
+employee or administrator actor, locks the verification, public seller and
+private companion rows, enforces the current transition state, and updates the
+paired records plus `AdminAuditLog` atomically. Reinstatement additionally
+requires an administrator and rederives the active-account, prior-approval,
+unresolved-case and five-active-public-listing guards in PostgreSQL. The admin
+sales override is also administrator-only in the UI, server action and database.
+The admin
+page now uses the returned audit and seller identity only for notification and
+email side effects; ordinary runtime has no function or table authority.
+Focused PostgreSQL proof covers all seven transitions, audit pairing, stale
+state, forged actor, ordinary-runtime and direct-table denial. Guild Member
+approval sales, account-age and case/listing aggregate eligibility, and Guild
+Master approval metrics are still intentionally checked in the application
+immediately before the database transition; the function rechecks current
+account, verification and Guild state but does not atomically rederive those
+external aggregates.
+
+No known application caller now reads or writes the classified predecessor
+private fields directly. Phase 1 remains incomplete until this complete
+converted source is merged, its additive migrations are applied in the
+reviewed order, the converted application is deployed and proven, and
+predecessor deployments have drained. The transition-only SQL writers remain
+installed until that drain completes.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

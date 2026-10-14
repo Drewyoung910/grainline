@@ -169,6 +169,10 @@ const guildStaffReadAuthorityMigration = readFileSync(
   "prisma/migrations/20261014210000_prepare_seller_profile_private_guild_staff_read_authorities/migration.sql",
   "utf8",
 );
+const guildStaffTransitionAuthorityMigration = readFileSync(
+  "prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql",
+  "utf8",
+);
 const guildStaffPrivateAccess = readFileSync(
   "src/lib/sellerGuildStaffPrivateAccess.ts",
   "utf8",
@@ -268,12 +272,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
 
   it("centralizes staff Guild private state behind one compatibility boundary", () => {
     for (const operation of [
-      "approveSellerGuildMember",
-      "revokeSellerGuildMember",
-      "approveSellerGuildMaster",
-      "recordSellerGuildMasterRejection",
-      "revokeSellerGuildMaster",
-      "reinstateSellerGuildMember",
+      "applySellerGuildStaffTransition",
       "sellerGuildStaffMasterPendingList",
       "sellerGuildStaffMemberList",
       "sellerGuildStaffMasterList",
@@ -289,6 +288,15 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(guildStaffReadAuthorityMigration, /SESSION_USER <> 'grainline_staff_read_runtime'/);
     assert.match(guildStaffReadAuthorityMigration, /GRANT EXECUTE[\s\S]*TO grainline_staff_read_runtime/);
     assert.doesNotMatch(guildStaffReadAuthorityMigration, /GRANT EXECUTE[\s\S]*TO grainline_app_runtime/);
+    assert.match(guildStaffPrivateAccess, /grainline_seller_guild_staff_transition/);
+    assert.match(guildStaffTransitionAuthorityMigration, /SESSION_USER <> 'grainline_staff_read_runtime'/);
+    assert.match(guildStaffTransitionAuthorityMigration, /FOR UPDATE/);
+    assert.match(guildStaffTransitionAuthorityMigration, /UPDATE public\."MakerVerification"/);
+    assert.match(guildStaffTransitionAuthorityMigration, /UPDATE public\."SellerProfilePrivate"/);
+    assert.match(guildStaffTransitionAuthorityMigration, /UPDATE public\."SellerProfile"/);
+    assert.match(guildStaffTransitionAuthorityMigration, /INSERT INTO public\."AdminAuditLog"/);
+    assert.match(guildStaffTransitionAuthorityMigration, /GRANT EXECUTE[\s\S]*TO grainline_staff_read_runtime/);
+    assert.doesNotMatch(guildStaffTransitionAuthorityMigration, /GRANT EXECUTE[\s\S]*TO grainline_app_runtime/);
     assert.doesNotMatch(guildStaffPrivateAccess, /sellerProfile\.findMany/);
     assert.doesNotMatch(guildStaffPrivateAccess, /makerVerification\.findMany/);
 

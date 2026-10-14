@@ -233,7 +233,8 @@ WITH required(function_signature) AS (
     ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),
     ('public."grainline_user_ban_repair_target"(text, text)'),
     ('public."grainline_seller_guild_staff_roster"(text, text)'),
-    ('public."grainline_seller_guild_staff_master_pending"(text)')
+    ('public."grainline_seller_guild_staff_master_pending"(text)'),
+    ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)')
 ), missing AS (
   SELECT function_signature FROM required
   WHERE pg_catalog.to_regprocedure(function_signature) IS NULL
@@ -302,6 +303,9 @@ GRANT EXECUTE ON FUNCTION
 GRANT EXECUTE ON FUNCTION
   public.grainline_seller_guild_staff_master_pending(text)
   TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_seller_guild_staff_transition(text, text, text, text, text, boolean)
+  TO :"staff_role";
 
 WITH table_authority AS (
   SELECT class.oid
@@ -362,7 +366,8 @@ WITH table_authority AS (
     ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),
     ('public."grainline_user_ban_repair_target"(text, text)'),
     ('public."grainline_seller_guild_staff_roster"(text, text)'),
-    ('public."grainline_seller_guild_staff_master_pending"(text)')
+    ('public."grainline_seller_guild_staff_master_pending"(text)'),
+    ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)')
 ), expected_authority AS (
   SELECT function_signature,
          pg_catalog.has_function_privilege(

@@ -16,6 +16,9 @@ describe("Notification verification and Guild authority", () => {
   const memberAuthority = source(
     "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
   );
+  const staffTransitionAuthority = source(
+    "prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql",
+  );
   const sql = source("docs/rls-drafts/notification-service-authority.sql");
 
   it("binds all seven staff notifications to transaction-returned admin audit ids", () => {
@@ -23,11 +26,13 @@ describe("Notification verification and Guild authority", () => {
       (admin.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.GUILD_ADMIN_ACTION/g) ?? []).length,
       7,
     );
-    assert.equal((admin.match(/sourceId: (?:approval|rejection|revocation)AuditId/g) ?? []).length, 6);
-    assert.match(admin, /sourceId: reinstatedSeller\.auditLogId/);
-    assert.equal((admin.match(/return logAdminActionOrThrow\(\{/g) ?? []).length, 6);
-    assert.match(admin, /const auditLogId = await logAdminActionOrThrow\(\{/);
-    assert.match(admin, /return \{ \.\.\.seller, auditLogId \}/);
+    assert.equal(
+      (admin.match(/sourceId: (?:approval|rejection|revocation|reinstatement)\.auditId/g) ?? []).length,
+      7,
+    );
+    assert.match(staffTransitionAuthority, /audit_id := pg_catalog\.gen_random_uuid\(\)::text/);
+    assert.match(staffTransitionAuthority, /INSERT INTO public\."AdminAuditLog"/);
+    assert.match(staffTransitionAuthority, /RETURN QUERY SELECT true, audit_id/);
   });
 
   it("co-commits all three cron sources and does not authorize a warning from mutable state alone", () => {

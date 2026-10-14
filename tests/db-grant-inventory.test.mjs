@@ -149,6 +149,7 @@ const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
 const SELLER_PROFILE_PRIVATE_STAFF_READ_FUNCTION_NAMES = [
   "grainline_seller_guild_staff_roster",
   "grainline_seller_guild_staff_master_pending",
+  "grainline_seller_guild_staff_transition",
 ];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",

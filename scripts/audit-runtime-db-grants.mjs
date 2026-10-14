@@ -189,6 +189,7 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_user_ban_repair_target(text,text)",
   "grainline_seller_guild_staff_roster(text,text)",
   "grainline_seller_guild_staff_master_pending(text)",
+  "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
   [
@@ -203,6 +204,7 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_user_staff_admin_labels(text,text[])",
     "grainline_seller_guild_staff_roster(text,text)",
     "grainline_seller_guild_staff_master_pending(text)",
+    "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
   ],
 );
 export const MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
