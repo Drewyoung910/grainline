@@ -26,6 +26,14 @@ const sellerPrivateReconciliationMigration = readFileSync(
   ),
   "utf8",
 );
+const sellerPrivateReconciliationTargetCorrection = readFileSync(
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261014010000_tolerate_missing_seller_reconciliation_target",
+    "migration.sql",
+  ),
+  "utf8",
+);
 
 function correctedFunction(name) {
   const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
@@ -178,6 +186,7 @@ async function createDatabase() {
   await database.exec(correctedFunction("grainline_blocked_checkout_refund_record_core"));
   await database.exec("SET check_function_bodies = off");
   await database.exec(sellerPrivateReconciliationMigration);
+  await database.exec(sellerPrivateReconciliationTargetCorrection);
   await database.exec("SET check_function_bodies = on");
   await database.exec(`
     INSERT INTO public."User" (id) VALUES
@@ -465,6 +474,64 @@ test("reconciliation bridge resolves Case seller identity and stays runtime-inac
         ) AS allowed
       `)).rows[0].allowed,
       false,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("reconciliation bridge records a warning instead of rejecting missing seller targets", async () => {
+  const database = await createDatabase();
+  try {
+    await database.exec(`
+      DELETE FROM public."SellerProfilePrivate"
+       WHERE "sellerProfileId" = 'seller-profile';
+
+      SELECT public.grainline_seller_profile_reconciliation_required_compat(
+        'seller-profile',
+        NULL::text,
+        'Provider refund needs manual seller-transfer reconciliation.',
+        pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+      );
+
+      SELECT public.grainline_seller_profile_reconciliation_required_compat(
+        NULL::text,
+        'missing-seller-user',
+        'Provider refund needs manual seller-transfer reconciliation.',
+        pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+      );
+    `);
+
+    assert.deepEqual(
+      (await database.query(`
+        SELECT
+          "targetType" AS target_type,
+          "targetId" AS target_id,
+          reason,
+          metadata ->> 'missingRelation' AS missing_relation,
+          metadata ->> 'reconciliationNote' AS reconciliation_note
+        FROM public."SystemAuditLog"
+        WHERE action = 'SELLER_RECONCILIATION_FLAG_SKIPPED'
+        ORDER BY reason
+      `)).rows,
+      [
+        {
+          target_type: "USER",
+          target_id: "missing-seller-user",
+          reason: "seller_profile_missing",
+          missing_relation: "SellerProfile",
+          reconciliation_note:
+            "Provider refund needs manual seller-transfer reconciliation.",
+        },
+        {
+          target_type: "SELLER_PROFILE",
+          target_id: "seller-profile",
+          reason: "seller_profile_private_missing",
+          missing_relation: "SellerProfilePrivate",
+          reconciliation_note:
+            "Provider refund needs manual seller-transfer reconciliation.",
+        },
+      ],
     );
   } finally {
     await database.close();

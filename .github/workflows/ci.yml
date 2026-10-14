@@ -1081,7 +1081,8 @@ jobs:
             20261013180000_move_provider_identity_seller_private_sql_callers \
             20261013190000_move_reconciliation_seller_private_sql_callers \
             20261013200000_move_final_seller_private_sql_callers \
-            20261013210000_move_account_deletion_seller_private_sql_callers
+            20261013210000_move_account_deletion_seller_private_sql_callers \
+            20261014010000_tolerate_missing_seller_reconciliation_target
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -5617,7 +5618,8 @@ jobs:
             20261013180000_move_provider_identity_seller_private_sql_callers \
             20261013190000_move_reconciliation_seller_private_sql_callers \
             20261013200000_move_final_seller_private_sql_callers \
-            20261013210000_move_account_deletion_seller_private_sql_callers
+            20261013210000_move_account_deletion_seller_private_sql_callers \
+            20261014010000_tolerate_missing_seller_reconciliation_target
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -5659,7 +5661,8 @@ jobs:
             20261013180000_move_provider_identity_seller_private_sql_callers \
             20261013190000_move_reconciliation_seller_private_sql_callers \
             20261013200000_move_final_seller_private_sql_callers \
-            20261013210000_move_account_deletion_seller_private_sql_callers
+            20261013210000_move_account_deletion_seller_private_sql_callers \
+            20261014010000_tolerate_missing_seller_reconciliation_target
           do
             psql "$DIRECT_URL" \
               --set=ON_ERROR_STOP=on \

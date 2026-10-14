@@ -68,6 +68,7 @@ test("release holds every reviewed caller successor while applying Phase 0", () 
     "20261013190000_move_reconciliation_seller_private_sql_callers",
     "20261013200000_move_final_seller_private_sql_callers",
     "20261013210000_move_account_deletion_seller_private_sql_callers",
+    "20261014010000_tolerate_missing_seller_reconciliation_target",
   ];
   for (const successor of successors) {
     assert.equal((workflow.match(new RegExp(successor, "gu")) ?? []).length, 1);

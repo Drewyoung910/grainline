@@ -68,6 +68,12 @@ const reconciliationCallerMigration = readFileSync(
   ),
   "utf8",
 );
+const reconciliationTargetCorrectionMigration = readFileSync(
+  sellerProfilePrivateMigrationPath(
+    "20261014010000_tolerate_missing_seller_reconciliation_target",
+  ),
+  "utf8",
+);
 const finalCallerMigration = readFileSync(
   sellerProfilePrivateMigrationPath(
     "20261013200000_move_final_seller_private_sql_callers",
@@ -482,6 +488,36 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
   });
 
+  it("keeps provider refund recording durable when a reconciliation target is missing", () => {
+    const bridge = functionDefinition(
+      reconciliationTargetCorrectionMigration,
+      "grainline_seller_profile_reconciliation_required_compat",
+    );
+    assert.match(bridge, /SELLER_RECONCILIATION_FLAG_SKIPPED/);
+    assert.match(bridge, /seller_profile_missing/);
+    assert.match(bridge, /seller_profile_private_missing/);
+    assert.match(bridge, /INSERT INTO public\."SystemAuditLog"/);
+    assert.match(bridge, /RETURN;/);
+    assert.doesNotMatch(
+      bridge,
+      /Seller reconciliation target is missing[\s\S]*foreign_key_violation/,
+    );
+    assert.match(bridge, /UPDATE public\."SellerProfile"/);
+    assert.match(bridge, /UPDATE public\."SellerProfilePrivate"/);
+    assert.match(
+      reconciliationTargetCorrectionMigration,
+      /REVOKE ALL ON FUNCTION[\s\S]*grainline_seller_profile_reconciliation_required_compat\([\s\S]*timestamp without time zone[\s\S]*FROM PUBLIC, grainline_app_runtime/,
+    );
+    assert.doesNotMatch(reconciliationTargetCorrectionMigration, /\nGRANT\s/iu);
+    assert.match(reconciliationTargetCorrectionMigration, /BEGIN;[\s\S]*COMMIT;/);
+    assert.match(reconciliationTargetCorrectionMigration, /SET LOCAL lock_timeout = '5s'/);
+    assert.match(reconciliationTargetCorrectionMigration, /SET LOCAL statement_timeout = '30s'/);
+    assert.doesNotMatch(
+      reconciliationTargetCorrectionMigration,
+      /DROP\s+(?:COLUMN|TABLE|FUNCTION)/iu,
+    );
+  });
+
   it("moves the final business-function reads off predecessor private fields", () => {
     const notification = functionDefinition(
       finalCallerMigration,
@@ -651,6 +687,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
       "20261013190000_move_reconciliation_seller_private_sql_callers",
       "20261013200000_move_final_seller_private_sql_callers",
       "20261013210000_move_account_deletion_seller_private_sql_callers",
+      "20261014010000_tolerate_missing_seller_reconciliation_target",
     ]) {
       const occurrences = ci.split(candidate).length - 1;
       assert.ok(occurrences >= 2, `${candidate} must be isolated and restored/applied`);

@@ -446,6 +446,20 @@ effective functions remain: the checkout-order and notification cores plus the
 two transition-only compatibility writers, all of which must be converted or
 retired after predecessor deployment drain.
 
+The subsequent correction migration
+`20261014010000_tolerate_missing_seller_reconciliation_target` closes the
+post-provider failure identified as Claude session #419 without changing those
+four finalizer contracts. A valid public/private seller pair is still locked
+and updated exactly as before. If the public seller or its private companion is
+unexpectedly absent, the compatibility writer now returns without rejecting
+the enclosing refund record and inserts a bounded
+`SELLER_RECONCILIATION_FLAG_SKIPPED` warning in `SystemAuditLog` identifying the
+missing relation and lookup target. Invalid inputs and lost updates on an
+already locked valid pair continue to fail closed. Focused PGlite coverage
+proves both missing-target branches, the unchanged valid-target writes and the
+runtime-inaccessible grant posture. The correction is additive and must be
+applied with the caller batch before those definitions become live.
+
 The twenty-third isolated slice moves the final two business-function reads
 off predecessor private fields. Migration
 `20261013200000_move_final_seller_private_sql_callers` makes checkout order
