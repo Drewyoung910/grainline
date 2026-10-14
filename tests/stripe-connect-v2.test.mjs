@@ -303,9 +303,13 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(accountDeletion, /stripeAccountVersion,/);
     assert.match(accountDeletion, /stripeControllerType,/);
     const sellerDeletionAccess = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
+    const sellerDeletionAuthority = source(
+      "prisma/migrations/20261014160000_prepare_seller_profile_private_account_deletion_app_authorities/migration.sql",
+    );
     assert.match(accountDeletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
-    assert.match(sellerDeletionAccess, /stripeAccountVersion: null/);
-    assert.match(sellerDeletionAccess, /stripeControllerType: null/);
-    assert.match(sellerDeletionAccess, /manualStripeReconciliationNote/);
+    assert.match(sellerDeletionAccess, /grainline_seller_account_deletion_anonymize/);
+    assert.match(sellerDeletionAuthority, /"stripeAccountVersion" = NULL/);
+    assert.match(sellerDeletionAuthority, /"stripeControllerType" = NULL/);
+    assert.match(sellerDeletionAuthority, /"manualStripeReconciliationNote" = reconciliation_note/);
   });
 });

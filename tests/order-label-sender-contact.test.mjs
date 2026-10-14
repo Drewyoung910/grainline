@@ -62,7 +62,9 @@ describe("Order label sender contact correction", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
     const accountExport = source("src/lib/sellerOwnerPrivateAccess.ts");
     const accountDeletion = source("src/lib/accountDeletion.ts");
-    const sellerDeletion = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
+    const sellerDeletion = source(
+      "prisma/migrations/20261014160000_prepare_seller_profile_private_account_deletion_app_authorities/migration.sql",
+    );
 
     assert.match(fields, /name="shipFromPhone"[\s\S]*type="tel"/);
     assert.match(seller, /sanitizeOptionalE164Phone\(rawShipFromPhone\)/);
@@ -73,8 +75,9 @@ describe("Order label sender contact correction", () => {
     assert.match(shippo, /phone: from\.phone/);
     assert.doesNotMatch(shippo, /SHIPPO_LABEL_SENDER_PHONE/);
     assert.match(labelRoute, /shipping address, ship-from address, or sender phone is incomplete/);
-    assert.match(accountExport, /shipFromPhone: true/);
+    assert.match(accountExport, /shipFromPhone: string \| null/);
+    assert.match(accountExport, /nullableString\(state\.shipFromPhone\)/);
     assert.match(accountDeletion, /user\.sellerProfile\?\.shipFromPhone/);
-    assert.match(sellerDeletion, /shipFromPhone: null/);
+    assert.match(sellerDeletion, /"shipFromPhone" = NULL/);
   });
 });

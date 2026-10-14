@@ -44,7 +44,8 @@ describe("account deletion blocker refund state", () => {
       deletion.slice(deferStart, byClerkStart),
       /pauseSellerForAccountDeletion\(tx, \{ userId: input\.userId \}\)/,
     );
-    assert.match(sellerPrivateAccess, /data: \{ chargesEnabled: false, vacationMode: true \}/);
+    assert.match(sellerPrivateAccess, /grainline_seller_account_deletion_pause/);
+    assert.match(sellerPrivateAccess, /return \{ count: rows\[0\]\.paused \? 1 : 0 \}/);
     assert.match(deletion.slice(deferStart, byClerkStart), /tx\.supportRequest\.findFirst\(\{/);
     assert.match(deletion.slice(deferStart, byClerkStart), /kind: "DATA_REQUEST"/);
     assert.match(deletion.slice(deferStart, byClerkStart), /topic: PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC/);

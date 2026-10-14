@@ -585,12 +585,33 @@ stale-step, completion-prerequisite, direct-table and untrusted-function
 denials. The 65-test owner/static suite, TypeScript and scoped lint pass. This
 slice is prepared source only; it is not yet applied, merged or deployed.
 
-The remaining Guild, staff and account-deletion compatibility modules still
-read or write predecessor private fields. Phase 1 remains
-incomplete until each family moves to purpose-bound operations, the converted
-application is deployed and proven, and predecessor deployments have drained.
-The two transition-only SQL writers remain intentionally installed until that
-drain completes.
+The twenty-ninth isolated slice converts account-deletion application writes.
+Migration
+`20261014160000_prepare_seller_profile_private_account_deletion_app_authorities`
+adds one exact pause operation and one atomic anonymization operation. Both
+destructive paths require the current generation-fenced, UUID-bound
+`LOCAL_ANONYMIZE` side-effect claim. The pause operation also supports the
+separate Clerk-provider-deleted deferral only after the database verifies the
+exact terminal local ban reason, and it tolerates buyer-only accounts. Seller
+pauses bind to the authoritative private Stripe account when provider identity
+is known. The anonymization operation locks both representations, fails closed
+if the private provider identity changed after deletion preflight, and clears
+the private companion and predecessor fields in one transaction. It does not
+require an otherwise active User because claimed cleanup runs after Clerk
+identity deletion. Ordinary runtime retains no direct private-table authority
+and cannot use the functions without a live deletion witness. Focused
+PostgreSQL proof poisons the public Stripe and ship-from predecessors, proves
+claim-token and exact-account enforcement, provider-rebind denial, full
+public/private cleanup, safe buyer-only deferral, direct-table denial and
+untrusted-function denial. Focused account-deletion tests, TypeScript and
+scoped lint pass. This slice is prepared source only; it is not yet applied,
+merged or deployed.
+
+The remaining Guild and staff compatibility modules still read or write
+predecessor private fields. Phase 1 remains incomplete until each family moves
+to purpose-bound operations, the converted application is deployed and
+proven, and predecessor deployments have drained. The two transition-only SQL
+writers remain intentionally installed until that drain completes.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

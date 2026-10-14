@@ -251,7 +251,9 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const sellerDeletion = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
+    const sellerDeletionAuthority = source(
+      "prisma/migrations/20261014160000_prepare_seller_profile_private_account_deletion_app_authorities/migration.sql",
+    );
 
     assert.match(deletion, /const accountEmails = await accountEmailFallbackEmailsForUser\(tx\)/);
     assert.match(deletion, /\.\.\.accountEmails/);
@@ -260,8 +262,8 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);
     assert.doesNotMatch(deletion, /normalizeEmailSuppressionAddress\(user\.email\)/);
     assert.match(deletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
-    assert.match(sellerDeletion, /galleryImageUrls: \[\]/);
-    assert.match(sellerDeletion, /galleryAltTexts: \[\]/);
+    assert.match(sellerDeletionAuthority, /"galleryImageUrls" = ARRAY\[\]::text\[\]/);
+    assert.match(sellerDeletionAuthority, /"galleryAltTexts" = ARRAY\[\]::text\[\]/);
     assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);
     assert.match(deletion, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: suppressionEmailMatches \} \}\]/);
     assert.match(deletion, /sentAt: null/);

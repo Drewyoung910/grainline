@@ -68,11 +68,11 @@ describe("account deletion timeout and terminal UX guardrails", () => {
 
     assert.match(
       accountDeletion,
-      /if \(stripeRejectSucceeded\) \{\s*await pauseSellerForAccountDeletion\(tx, \{ userId: user\.id \}\)/s,
+      /if \(stripeRejectSucceeded\) \{\s*await pauseSellerForAccountDeletion\(tx, \{\s*userId: user\.id,\s*sideEffectId: localAnonymizeSideEffectId,\s*claimGeneration: localClaimGeneration,\s*claimToken: localClaimToken,\s*\}\)/s,
     );
-    assert.match(sellerPrivateAccess, /return client\.sellerProfile\.updateMany\(\{/);
-    assert.match(sellerPrivateAccess, /userId: input\.userId/);
-    assert.match(sellerPrivateAccess, /data: \{ chargesEnabled: false, vacationMode: true \}/);
+    assert.match(sellerPrivateAccess, /grainline_seller_account_deletion_pause/);
+    assert.match(sellerPrivateAccess, /\$queryRaw/);
+    assert.doesNotMatch(sellerPrivateAccess, /client\.sellerProfile\./);
   });
 
   it("marks sellers non-orderable after Stripe reject before the large transaction", () => {
@@ -90,13 +90,16 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /async function disableSellerOrderabilityAfterStripeReject/);
     assert.match(
       accountDeletion,
-      /pauseSellerForAccountDeletion\(prisma, \{\s*userId: input\.userId,\s*stripeAccountId: input\.stripeAccountId,\s*\}\)/s,
+      /pauseSellerForAccountDeletion\(prisma, \{\s*userId: input\.userId,\s*stripeAccountId: input\.stripeAccountId,\s*sideEffectId: input\.sideEffectId,\s*claimGeneration: input\.claimGeneration,\s*claimToken: input\.claimToken,\s*\}\)/s,
     );
     assert.match(
       sellerPrivateAccess,
-      /\.\.\.\(input\.stripeAccountId \? \{ stripeAccountId: input\.stripeAccountId \} : \{\}\)/,
+      /\$\{input\.stripeAccountId \?\? null\}::text/,
     );
-    assert.match(sellerPrivateAccess, /data: \{ chargesEnabled: false, vacationMode: true \}/);
+    assert.match(sellerPrivateAccess, /Account deletion seller provider identity changed/);
+    assert.match(accountDeletion, /sideEffectId: localAnonymizeSideEffectId/);
+    assert.match(accountDeletion, /claimGeneration: localClaimGeneration/);
+    assert.match(accountDeletion, /claimToken: localClaimToken/);
     assert.match(accountDeletion, /source: "account_delete_stripe_reject_local_disable"/);
   });
 

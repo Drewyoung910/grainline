@@ -924,9 +924,9 @@ describe("SellerProfile private-boundary additive preparation", () => {
       accountDeletion,
       /(?:prisma|tx)\.sellerProfile\.(?:update|updateMany)/,
     );
-    assert.match(accountDeletionPrivateAccess, /where: \{ id: input\.sellerProfileId, userId: input\.userId \}/);
-    assert.match(accountDeletionPrivateAccess, /if \(result\.count !== 1\)/);
-    assert.match(accountDeletionPrivateAccess, /galleryImageUrls: \[\]/);
-    assert.match(accountDeletionPrivateAccess, /manualStripeReconciliationNeeded: !input\.stripeRejectSucceeded/);
+    assert.match(accountDeletionPrivateAccess, /grainline_seller_account_deletion_pause/);
+    assert.match(accountDeletionPrivateAccess, /grainline_seller_account_deletion_anonymize/);
+    assert.match(accountDeletionPrivateAccess, /Pick<Prisma\.TransactionClient, "\$queryRaw">/);
+    assert.doesNotMatch(accountDeletionPrivateAccess, /sellerProfile\.(?:update|updateMany)/);
   });
 });
