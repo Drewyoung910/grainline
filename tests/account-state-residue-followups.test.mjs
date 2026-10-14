@@ -197,7 +197,10 @@ describe("account-state residue hardening", () => {
     assert.match(helper, /data: \{ closureEvidenceById: null \}/);
     assert.match(helper, /FROM "SupportRequest"/);
     assert.match(helper, /"closureEvidence" IS NOT NULL/);
-    assert.match(helper, /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues\)/);
+    assert.match(
+      helper,
+      /redactAccountDeletionText\(\s*request\.closureEvidence,\s*sensitiveValues,\s*undefined,\s*4000,\s*\)/,
+    );
     assert.match(helper, /data: \{ closureEvidence: closureEvidence\.text \}/);
     assert.match(deletion, /redactSupportClosureEvidenceByDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
   });
