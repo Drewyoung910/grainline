@@ -8,6 +8,11 @@
 
 BEGIN;
 
+-- Fail closed instead of waiting indefinitely for the table lock or an
+-- unexpectedly slow backfill on the Production writer.
+SET LOCAL lock_timeout = '10s';
+SET LOCAL statement_timeout = '120s';
+
 ALTER TABLE public."SellerProfile"
   ADD COLUMN "stripeAccountSupported" boolean NOT NULL DEFAULT true;
 

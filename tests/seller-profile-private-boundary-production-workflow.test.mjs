@@ -8,7 +8,7 @@ const workflow = readFileSync(
 );
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const migration = "20261013120000_prepare_seller_profile_private_boundary";
-const checksum = "0fc8c89afe3b8256694cb1d16e2dece5790262e4631d382cda93a514d2d2fd2e";
+const checksum = "2404303e767ead69b7c9a7f8543519506552218dc25e254b3dc7ca4ea25e0305";
 const migrationPath =
   process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH ??
   `prisma/migrations/${migration}/migration.sql`;

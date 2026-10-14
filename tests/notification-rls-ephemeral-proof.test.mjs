@@ -453,7 +453,7 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
         "20261003030000_force_user_email_address_rls",
       ],
       [
-        "0fc8c89afe3b8256694cb1d16e2dece5790262e4631d382cda93a514d2d2fd2e",
+        "2404303e767ead69b7c9a7f8543519506552218dc25e254b3dc7ca4ea25e0305",
         "20261013120000_prepare_seller_profile_private_boundary",
       ],
       [
