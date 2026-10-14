@@ -237,6 +237,10 @@ const {
   SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256,
   SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION,
   SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION_SHA256,
+  SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION,
+  SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION_SHA256,
+  SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION,
+  SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION_SHA256,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
@@ -263,6 +267,7 @@ const {
   collectAccountDeletionMigrationOrderIssues,
   collectAccountDeletionWorkerBoundaryIssues,
   collectClerkWebhookEventMigrationOrderIssues,
+  collectSellerProfilePrivateMigrationOrderIssues,
   clerkWebhookEventRlsActivationExpected,
   clerkWebhookEventRlsForceExpected,
   checkoutStockReservationRlsActivationExpected,
@@ -301,6 +306,8 @@ const {
   readClerkWebhookEventActivationState,
   readClerkWebhookEventForceState,
   readSellerProfileDeauthorizeCompatState,
+  readSellerProfilePrivatePreparationState,
+  readSellerProfilePrivatePredecessorRetirementState,
   readSellerProfileReconciliationCompatState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
@@ -308,6 +315,7 @@ const {
   resolveTemporarilyAbsentCiTables,
   withAppliedAccountDeletionAuthority,
   withAppliedSellerProfileCallerAuthority,
+  withAppliedSellerProfilePredecessorRetirement,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
 describe("temporary SellerProfilePrivate CI isolation", () => {
@@ -3968,6 +3976,96 @@ describe("database grant inventory guardrails", () => {
         "SellerProfile deauthorization compatibility migration ledger is partial or drifted",
       ],
     });
+  });
+
+  it("derives the SellerProfile private trigger generation from exact live ledgers", {
+    skip: typeof withAppliedSellerProfilePredecessorRetirement === "function"
+      ? false
+      : "requires the SellerProfile private trigger-generation audit",
+  }, async () => {
+    const exactClient = (expectedMigration, expectedChecksum) => ({
+      queryCount: 0,
+      async query(sql, parameters) {
+        this.queryCount += 1;
+        if (this.queryCount === 1) {
+          return { rows: [{ migration_table: "_prisma_migrations" }] };
+        }
+        assert.match(sql, /FROM public\._prisma_migrations/u);
+        assert.deepEqual(parameters, [expectedMigration]);
+        return {
+          rows: [{
+            checksum: expectedChecksum,
+            finished_at: new Date("2026-10-14T00:00:00Z"),
+            rolled_back_at: null,
+            applied_steps_count: "1",
+          }],
+        };
+      },
+    });
+    assert.deepEqual(
+      await readSellerProfilePrivatePreparationState(exactClient(
+        SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION,
+        SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readSellerProfilePrivatePredecessorRetirementState(exactClient(
+        SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION,
+        SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+
+    const sourceInventory = {
+      functions: [
+        "grainline_existing_function",
+        "grainline_seller_profile_private_initialize",
+      ],
+    };
+    const beforePreparation = withAppliedSellerProfilePredecessorRetirement(
+      sourceInventory,
+      { preparationApplied: false, retirementApplied: false },
+    );
+    assert.deepEqual(beforePreparation.functions, ["grainline_existing_function"]);
+
+    const prepared = withAppliedSellerProfilePredecessorRetirement(
+      sourceInventory,
+      { preparationApplied: true, retirementApplied: false },
+    );
+    assert.deepEqual(prepared.functions, [
+      "grainline_existing_function",
+      "grainline_seller_profile_private_mirror",
+      "grainline_seller_profile_supported_snapshot",
+    ]);
+    assert.equal(
+      runtimePrivateFunctionNames(prepared).includes(
+        "grainline_seller_profile_private_mirror",
+      ),
+      true,
+    );
+    assert.equal(
+      runtimePrivateFunctionNames(prepared).includes(
+        "grainline_seller_profile_supported_snapshot",
+      ),
+      true,
+    );
+
+    const retired = withAppliedSellerProfilePredecessorRetirement(
+      sourceInventory,
+      { preparationApplied: true, retirementApplied: true },
+    );
+    assert.deepEqual(retired.functions, sourceInventory.functions);
+    assert.deepEqual(collectSellerProfilePrivateMigrationOrderIssues({
+      preparationApplied: true,
+      retirementApplied: true,
+    }), []);
+    assert.deepEqual(collectSellerProfilePrivateMigrationOrderIssues({
+      preparationApplied: false,
+      retirementApplied: true,
+    }), [
+      "SellerProfile private predecessor retirement is applied without its exact preparation prerequisite",
+    ]);
   });
 
   it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {

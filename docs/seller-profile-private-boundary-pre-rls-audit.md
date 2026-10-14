@@ -784,6 +784,35 @@ public alias to both the reviewed Vercel deployment ID and the exact reviewed
 source commit published by that deployment before it can apply SQL. Neither
 migration is merged or applied in Production at this checkpoint.
 
+### 2026-10-14 correction application and staged-audit recovery
+
+The correction package subsequently merged through PRs #579 and #580. Exact
+main `c0e203b3d1f541b1653de5c3dba30931de09df4e` passed push CI
+`38634079585`. Protected Production run `38638730245` then applied only
+`20261015000000_correct_seller_profile_private_app_authorities`. Its exact
+migration ledger, four corrected function bodies and grants, and unchanged
+SellerProfile/SellerProfilePrivate RLS posture all passed. No application was
+deployed, no alias moved, no predecessor column was retired, and no RLS bit was
+enabled or forced.
+
+The run's final global grant audit failed after that successful scoped
+postflight because main's source-derived function inventory represented the
+future post-retirement state. Production correctly remained in the prepared
+state with the revoked
+`grainline_seller_profile_private_mirror` and
+`grainline_seller_profile_supported_snapshot` trigger helpers, while source
+expected the later revoked
+`grainline_seller_profile_private_initialize` helper. This was an audit-model
+defect, not evidence of an unexpected Production grant. The global audit now
+reads the exact preparation and predecessor-retirement migration ledgers,
+derives the matching trigger generation, keeps both generations
+runtime-private, and rejects retirement without its exact preparation
+prerequisite. Restart the correction workflow after this audit correction is
+on exact main; it must skip the already-applied migration and pass the full
+global audit before the correction release is accepted. The predecessor
+retirement remains blocked until that acceptance and the existing converted
+deployment/drain gate pass.
+
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 
 Do not activate until all `BLOCKS_RLS_DESIGN` and `FIX_BEFORE_ACTIVATION`
