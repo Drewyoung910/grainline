@@ -270,21 +270,25 @@ EXECUTE denial, delete cascade and
 catalog cleanup after rollback. This proves the candidate's additive SQL
 semantics; it is not evidence that the migration is installed in Production.
 
-The protected Production operator is prepared separately in
+The protected Production operator is recorded separately in
 `.github/workflows/seller-profile-private-boundary-production.yml`. It binds a
 first-attempt manual dispatch to an unchanged main commit and that commit's
 successful push CI, verifies the exact migration digest, requires the accepted
 listing-lifecycle migration as its exact predecessor, rejects partial catalog
 state, and admits only this one pending migration. After the nine reviewed
 caller migrations landed on main, the operator was tightened to hold and
-exactly identify that complete successor set while it checks and applies Phase
-0, then prove that all nine remain pending afterward. Its postflight compares the
+exactly identify the complete successor set while it checks and applies Phase
+0, then prove that all successors remain pending afterward. Its postflight compares the
 predecessor table posture, companion/public row counts and every mirrored
 private field, the derived support snapshot, constraints, triggers, function
 bodies and effective `PUBLIC`/runtime authority before running the global grant
-audit. Evidence contains counts and catalog posture only. The operator neither
-deploys the application nor enables RLS, and its source availability is not
-evidence of a Production dispatch.
+audit. Evidence contains counts and catalog posture only. Production run
+`38507108254` installed Phase 0 but its stale global grant expectation failed
+after the exact catalog/data postflight. The corrected restart-safe recovery
+run `38514343739` then detected the migration as already applied, skipped SQL,
+and passed the exact postflight, nine-successor pending check and global grant
+audit. The four public and four private rows converged with zero issues.
+Neither run deployed the application or enabled RLS.
 
 ### Phase 1: compatible application conversion — **GO for isolated source work**
 
@@ -459,6 +463,19 @@ already locked valid pair continue to fail closed. Focused PGlite coverage
 proves both missing-target branches, the unchanged valid-target writes and the
 runtime-inaccessible grant posture. The correction is additive and must be
 applied with the caller batch before those definitions become live.
+
+The protected caller-batch operator is prepared in
+`.github/workflows/seller-profile-private-callers-production.yml`. It binds an
+unchanged main commit to successful full push CI, pins all ten migration
+digests, accepts only a contiguous restart-safe applied prefix, and requires
+the remaining exact suffix to be the complete pending migration set before
+Prisma deploys it. Preflight and postflight retain `SellerProfile` with RLS off,
+retain zero direct ordinary-runtime or `PUBLIC` table authority on
+`SellerProfilePrivate`, require public/private identity and supported-snapshot
+convergence, verify both transition writers remain runtime-inaccessible, and
+run the global grant audit. The workflow deploys no application and performs
+no RLS activation; its source availability is not evidence of a Production
+dispatch.
 
 The twenty-third isolated slice moves the final two business-function reads
 off predecessor private fields. Migration

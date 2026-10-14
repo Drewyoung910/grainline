@@ -234,6 +234,7 @@ jobs:
           node --test
           tests/seller-profile-private-boundary-preparation.test.mjs
           tests/seller-profile-private-boundary-production-workflow.test.mjs
+          tests/seller-profile-private-callers-production-workflow.test.mjs
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
