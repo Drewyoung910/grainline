@@ -120,8 +120,8 @@ test("new seller rows receive an isolated private companion", () => {
   assert.match(migration, /INSERT INTO public\."SellerProfilePrivate"[\s\S]*NEW\.id/u);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.grainline_seller_profile_private_initialize\(\)[\s\S]*FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime/u);
   assert.match(grantAudit, /"grainline_seller_profile_private_initialize"/u);
-  assert.doesNotMatch(grantAudit, /"grainline_seller_profile_private_mirror"/u);
-  assert.doesNotMatch(grantAudit, /"grainline_seller_profile_supported_snapshot"/u);
+  assert.match(grantAudit, /withAppliedSellerProfilePredecessorRetirement/u);
+  assert.match(grantAudit, /SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES/u);
   assert.match(provisioning, /grainline_seller_profile_private_initialize/u);
 });
 

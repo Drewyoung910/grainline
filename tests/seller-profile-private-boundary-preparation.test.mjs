@@ -675,7 +675,11 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(grantAudit, /RUNTIME_PRIVATE_TABLES[\s\S]*"SellerProfilePrivate"/);
     assert.match(
       grantAudit,
-      /RUNTIME_PRIVATE_FUNCTIONS[\s\S]*"grainline_seller_profile_private_initialize"/,
+      /SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES = Object\.freeze\(\[[\s\S]*"grainline_seller_profile_private_initialize"/,
+    );
+    assert.match(
+      grantAudit,
+      /RUNTIME_PRIVATE_FUNCTIONS = Object\.freeze\(\[[\s\S]*\.\.\.SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES/,
     );
     assert.match(provisioning, /\('SellerProfilePrivate'\)/);
     assert.match(provisioning, /"grainline_seller_profile_private_initialize"\(\)/);

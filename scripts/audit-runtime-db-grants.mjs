@@ -132,6 +132,21 @@ export const SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION =
   "20261013190000_move_reconciliation_seller_private_sql_callers";
 export const SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION_SHA256 =
   "3d76c45f60d4379253c2bdd57d0d3ce79d5e2c2ae9cad84b1f1027baf84d93e4";
+export const SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION =
+  "20261013120000_prepare_seller_profile_private_boundary";
+export const SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION_SHA256 =
+  "2404303e767ead69b7c9a7f8543519506552218dc25e254b3dc7ca4ea25e0305";
+export const SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION =
+  "20261015010000_retire_seller_profile_private_predecessor";
+export const SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION_SHA256 =
+  "d111e615a40cd0c2936eeb137db23c5fbcc63c7acb81bce27a36d71229963b3a";
+export const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = Object.freeze([
+  "grainline_seller_profile_private_mirror",
+  "grainline_seller_profile_supported_snapshot",
+]);
+export const SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES = Object.freeze([
+  "grainline_seller_profile_private_initialize",
+]);
 export const ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLES = Object.freeze([
   "OrderItem",
   "OrderShippingRateQuote",
@@ -367,7 +382,7 @@ const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
 // a runtime RPC.
 export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_profile_deauthorize_compat",
-  "grainline_seller_profile_private_initialize",
+  ...SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES,
   "grainline_seller_profile_reconciliation_required_compat",
   "grainline_case_resolution_claim_immutable",
   "grainline_case_resolution_claim_lease_valid",
@@ -595,6 +610,39 @@ export function withAppliedSellerProfileCallerAuthority(
     sellerProfileDeauthorizeCompatApplied: deauthorizeCompatApplied,
     sellerProfileReconciliationCompatApplied: reconciliationCompatApplied,
   };
+}
+
+export function withAppliedSellerProfilePredecessorRetirement(
+  inventory,
+  { preparationApplied, retirementApplied },
+) {
+  const transitionFunctionNames = new Set([
+    ...SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES,
+    ...SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES,
+  ]);
+  const functions = (inventory?.functions ?? []).filter(
+    (name) => !transitionFunctionNames.has(name),
+  );
+  if (retirementApplied) {
+    functions.push(...SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES);
+  } else if (preparationApplied) {
+    functions.push(...SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES);
+  }
+  return {
+    ...inventory,
+    functions: sortedUnique(functions),
+    sellerProfilePrivatePreparationApplied: preparationApplied,
+    sellerProfilePrivatePredecessorRetirementApplied: retirementApplied,
+  };
+}
+
+export function collectSellerProfilePrivateMigrationOrderIssues({
+  preparationApplied,
+  retirementApplied,
+}) {
+  return retirementApplied && !preparationApplied
+    ? ["SellerProfile private predecessor retirement is applied without its exact preparation prerequisite"]
+    : [];
 }
 
 export function collectPublicFunctionExecuteIssues(rows) {
@@ -1141,12 +1189,16 @@ export function runtimePrivateFunctionNames(inventory) {
     orderPaymentEventRlsActivationExpected(inventory);
   const sellerEmailProjectionRetirementApplied =
     inventory?.orderSellerEmailProjectionRetirementApplied === true;
+  const sellerProfilePrivatePredecessorPrepared =
+    inventory?.sellerProfilePrivatePreparationApplied === true
+    && inventory?.sellerProfilePrivatePredecessorRetirementApplied !== true;
   if (
     !directUploadActivated
     && !reservationActivated
     && !reservationSourceCutoverApplied
     && !orderPaymentEventActivated
     && !sellerEmailProjectionRetirementApplied
+    && !sellerProfilePrivatePredecessorPrepared
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -1169,6 +1221,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(sellerEmailProjectionRetirementApplied
       ? ORDER_SELLER_EMAIL_PROJECTION_RETIRED_RUNTIME_FUNCTION_NAMES
+      : []),
+    ...(sellerProfilePrivatePredecessorPrepared
+      ? SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES
       : []),
   ]);
 }
@@ -1376,6 +1431,22 @@ export async function readSellerProfileReconciliationCompatState(client) {
     migration: SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION,
     checksum: SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION_SHA256,
     label: "SellerProfile reconciliation compatibility",
+  });
+}
+
+export async function readSellerProfilePrivatePreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION,
+    checksum: SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION_SHA256,
+    label: "SellerProfile private preparation",
+  });
+}
+
+export async function readSellerProfilePrivatePredecessorRetirementState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION,
+    checksum: SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION_SHA256,
+    label: "SellerProfile private predecessor retirement",
   });
 }
 
@@ -2854,6 +2925,16 @@ export async function auditLiveDatabase({
   const sellerProfileReconciliationCompat =
     await readSellerProfileReconciliationCompatState(client);
   issues.push(...sellerProfileReconciliationCompat.issues);
+  const sellerProfilePrivatePreparation =
+    await readSellerProfilePrivatePreparationState(client);
+  issues.push(...sellerProfilePrivatePreparation.issues);
+  const sellerProfilePrivatePredecessorRetirement =
+    await readSellerProfilePrivatePredecessorRetirementState(client);
+  issues.push(...sellerProfilePrivatePredecessorRetirement.issues);
+  issues.push(...collectSellerProfilePrivateMigrationOrderIssues({
+    preparationApplied: sellerProfilePrivatePreparation.applied,
+    retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
+  }));
   issues.push(...collectAccountDeletionMigrationOrderIssues({
     claimFenceApplied: accountDeletionClaimFencePreparation.applied,
     mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
@@ -2861,14 +2942,20 @@ export async function auditLiveDatabase({
     forceApplied: accountDeletionSideEffectForce.applied,
   }));
   const liveAuthorityInventory = {
-    ...withAppliedSellerProfileCallerAuthority(
-      withAppliedAccountDeletionAuthority(inventory, {
-        claimFenceApplied: accountDeletionClaimFencePreparation.applied,
-        mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
-      }),
+    ...withAppliedSellerProfilePredecessorRetirement(
+      withAppliedSellerProfileCallerAuthority(
+        withAppliedAccountDeletionAuthority(inventory, {
+          claimFenceApplied: accountDeletionClaimFencePreparation.applied,
+          mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
+        }),
+        {
+          deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
+          reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
+        },
+      ),
       {
-        deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
-        reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
+        preparationApplied: sellerProfilePrivatePreparation.applied,
+        retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
       },
     ),
     checkoutStockReservationSourceCutoverApplied:
