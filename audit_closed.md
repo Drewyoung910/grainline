@@ -19610,3 +19610,34 @@ Current running tally after Entry 571: verified fixed/reduced 1104, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 86,
 approximate raw allegations left from current max #1126: 0. One deferred product
 finding moved to verified fixed; the historical raw finding remains preserved.
+
+### Entry 572 - Claude session #419 refund finalizer reconciliation target
+
+Entry 572 independently verifies Claude session finding #419 as real and fixes
+it in source. The pending SellerProfile caller migration changed four
+post-provider refund finalizers from a bare, zero-row-tolerant public
+`SellerProfile` update to a compatibility function that raised
+`foreign_key_violation` when either the public seller or private companion was
+missing. That could roll back the local refund record after Stripe had already
+completed the refund, forcing an avoidable ambiguous-provider recovery.
+
+The additive successor migration
+`20261014010000_tolerate_missing_seller_reconciliation_target` keeps strict
+input validation, seller-first row locking, dual public/private updates and
+lost-update failures for a valid pair. A missing public seller or private
+companion now skips only the manual reconciliation flag, writes a bounded
+`SELLER_RECONCILIATION_FLAG_SKIPPED` `SystemAuditLog` warning, and lets the
+enclosing refund finalizer commit its provider evidence. The compatibility
+function remains revoked from `PUBLIC` and `grainline_app_runtime`.
+
+Focused source and PGlite verification passed 31 tests with zero failures,
+covering both missing-target branches, the unchanged valid-target path, grant
+posture and caller wiring. The first run exposed only an expected-row ordering
+mismatch in the new assertion; correcting that deterministic expectation made
+the unchanged SQL behavior pass. Production remains unchanged, and the
+correction must ship with the pending SellerProfile caller batch.
+
+Current running tally after Entry 572: verified fixed/reduced 1105, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 86,
+approximate raw allegations left from current max #1126: 0. The raw Claude
+finding remains preserved in its source ledger.
