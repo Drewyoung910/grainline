@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -227,11 +227,20 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("git", ["clone", "--quiet", "--shared", "--no-checkout", process.cwd(), root], { env: { PATH: process.env.PATH } });
     mkdirSync(holding);
     mkdirSync(path.join(root, "tests"));
-    mkdirSync(path.join(root, "scripts"));
-    cpSync(staffScript, path.join(root, staffScript));
-    cpSync(grantAuditScript, path.join(root, grantAuditScript));
-    cpSync(runtimeProvisionScript, path.join(root, runtimeProvisionScript));
+    mkdirSync(path.join(root, "docs"));
+    cpSync("scripts", path.join(root, "scripts"), { recursive: true });
+    symlinkSync(path.join(process.cwd(), "node_modules"), path.join(root, "node_modules"), "dir");
     cpSync("prisma", path.join(root, "prisma"), { recursive: true });
+    for (const file of [
+      "db-defense-in-depth-plan.md",
+      "rls-feasibility-plan.md",
+      "runbook.md",
+      "launch-checklist.md",
+    ]) {
+      cpSync(`docs/${file}`, path.join(root, "docs", file));
+    }
+    cpSync(".env.example", path.join(root, ".env.example"));
+    cpSync("package.json", path.join(root, "package.json"));
     for (const migration of accountDeletionSuccessorMigrations) {
       const target = path.join(root, "prisma", "migrations", migration);
       if (!existsSync(target)) {
@@ -298,6 +307,11 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
     execFileSync("bash", ["-c", bashBody("Restore User policyless ENABLE source package")], { cwd: root, env: scriptEnv });
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
+    execFileSync(process.execPath, ["--test", "tests/db-grant-inventory.test.mjs"], {
+      cwd: root,
+      env: { PATH: process.env.PATH },
+      stdio: "pipe",
+    });
     execFileSync("bash", ["-c", bashBody("Restore User policyless FORCE source package")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SellerProfile private-boundary migration after all predecessors")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {

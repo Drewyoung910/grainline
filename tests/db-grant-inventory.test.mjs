@@ -154,11 +154,22 @@ const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
     ],
   },
 ];
-const SELLER_PROFILE_PRIVATE_STAFF_READ_FUNCTION_NAMES = [
-  "grainline_seller_guild_staff_roster",
-  "grainline_seller_guild_staff_master_pending",
-  "grainline_seller_guild_staff_transition",
-  "grainline_seller_staff_orderability_state",
+const SELLER_PROFILE_PRIVATE_STAFF_READ_AUTHORITY_GROUPS = [
+  {
+    migration: "20261014210000_prepare_seller_profile_private_guild_staff_read_authorities",
+    functions: [
+      "grainline_seller_guild_staff_roster",
+      "grainline_seller_guild_staff_master_pending",
+    ],
+  },
+  {
+    migration: "20261014220000_prepare_seller_profile_private_guild_staff_transition_authority",
+    functions: ["grainline_seller_guild_staff_transition"],
+  },
+  {
+    migration: "20261014230000_prepare_seller_profile_private_remaining_app_authorities",
+    functions: ["grainline_seller_staff_orderability_state"],
+  },
 ];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",
@@ -2707,6 +2718,15 @@ describe("database grant inventory guardrails", () => {
           `CREATE OR REPLACE FUNCTION public.${functionName}(`,
         )) ? functions : [];
       });
+    const sellerProfilePrivateStaffReadFunctionNames =
+      SELLER_PROFILE_PRIVATE_STAFF_READ_AUTHORITY_GROUPS.flatMap(({ migration, functions }) => {
+        const migrationPath = `prisma/migrations/${migration}/migration.sql`;
+        if (!existsSync(migrationPath)) return [];
+        const migrationSource = source(migrationPath);
+        return functions.every((functionName) => migrationSource.includes(
+          `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+        )) ? functions : [];
+      });
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -2864,7 +2884,7 @@ describe("database grant inventory guardrails", () => {
         ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES
         : []),
       ...sellerProfilePrivateAppAuthorityFunctionNames,
-      ...SELLER_PROFILE_PRIVATE_STAFF_READ_FUNCTION_NAMES,
+      ...sellerProfilePrivateStaffReadFunctionNames,
       ...(listingHideDeleteMigrationPresent
         ? ["grainline_listing_delete_reference_state"]
         : []),
@@ -2938,7 +2958,7 @@ describe("database grant inventory guardrails", () => {
             + 1 // SellerProfilePrivate table revoke from PUBLIC
           : 0)
         + sellerProfilePrivateAppAuthorityFunctionNames.length
-        + SELLER_PROFILE_PRIVATE_STAFF_READ_FUNCTION_NAMES.length
+        + sellerProfilePrivateStaffReadFunctionNames.length
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
         + ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES.length
         + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length
