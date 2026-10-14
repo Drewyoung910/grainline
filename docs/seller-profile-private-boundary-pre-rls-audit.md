@@ -697,10 +697,10 @@ private companion rows, enforces the current transition state, and updates the
 paired records plus `AdminAuditLog` atomically. Reinstatement additionally
 requires an administrator and rederives the active-account, prior-approval,
 unresolved-case and five-active-public-listing guards in PostgreSQL. The admin
-sales override is also administrator-only in the UI, server action and database.
-The admin
-page now uses the returned audit and seller identity only for notification and
-email side effects; ordinary runtime has no function or table authority.
+sales override is also administrator-only in the UI, server action and
+database. The admin page now uses the returned audit and seller identity only
+for notification and email side effects; ordinary runtime has no function or
+table authority.
 Focused PostgreSQL proof covers all seven transitions, audit pairing, stale
 state, forged actor, ordinary-runtime and direct-table denial. Guild Member
 approval sales, account-age and case/listing aggregate eligibility, and Guild
@@ -708,6 +708,20 @@ Master approval metrics are still intentionally checked in the application
 immediately before the database transition; the function rechecks current
 account, verification and Guild state but does not atomically rederive those
 external aggregates.
+
+The protected
+`.github/workflows/seller-profile-private-app-operations-production.yml`
+release applies exactly the ordered eleven-migration application-operation
+batch. It binds dispatch to an unchanged main commit and its successful push
+CI, verifies immutable migration digests, accepts only a restart-safe applied
+prefix, admits only the reviewed pending suffix, preserves the public/private
+convergence and pre-RLS posture, audits global grants, and stores sanitized
+preflight/postflight evidence. It neither deploys the application nor enables
+RLS. CI holds the complete SellerProfile private migration family until its
+historical predecessors have run, then applies both caller and application
+operation batches in disposable PostgreSQL before grant audit and build. The
+older Phase 0 and caller workflows now hold these newer migrations so a
+recovery dispatch cannot apply them accidentally.
 
 No known application caller now reads or writes the classified predecessor
 private fields directly. Phase 1 remains incomplete until this complete

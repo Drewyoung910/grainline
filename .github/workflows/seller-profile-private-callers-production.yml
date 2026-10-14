@@ -43,6 +43,7 @@ jobs:
       PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
       RUNTIME_DB_ROLE: grainline_app_runtime
       SELLER_PROFILE_CALLER_MIGRATIONS: 20261013130000_move_seller_supported_snapshot_sql_callers,20261013140000_move_checkout_seller_private_sql_callers,20261013150000_move_custom_order_seller_private_sql_callers,20261013160000_move_case_guild_seller_private_sql_caller,20261013170000_move_order_label_seller_private_sql_caller,20261013180000_move_provider_identity_seller_private_sql_callers,20261013190000_move_reconciliation_seller_private_sql_callers,20261013200000_move_final_seller_private_sql_callers,20261013210000_move_account_deletion_seller_private_sql_callers,20261014010000_tolerate_missing_seller_reconciliation_target
+      SELLER_PROFILE_APP_OPERATION_SUCCESSORS: 20261014120000_prepare_seller_profile_private_stripe_app_authorities,20261014130000_prepare_seller_profile_private_shipping_quote_authority,20261014140000_prepare_seller_profile_private_checkout_app_authority,20261014150000_prepare_seller_profile_private_owner_app_authorities,20261014160000_prepare_seller_profile_private_account_deletion_app_authorities,20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority,20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities,20261014190000_prepare_seller_profile_private_guild_metrics_authority,20261014200000_prepare_seller_profile_private_guild_member_revocation_authority,20261014210000_prepare_seller_profile_private_guild_staff_read_authorities,20261014220000_prepare_seller_profile_private_guild_staff_transition_authority
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,7 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)" = \
-            "20261014010000_tolerate_missing_seller_reconciliation_target"
+            "20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"
           cat <<'DIGESTS' | sha256sum --check --status
           7e3f5c19b71c110a4a8aa979500e23853696724eecb095c211e07d7f0eda3e78  prisma/migrations/20261013130000_move_seller_supported_snapshot_sql_callers/migration.sql
           a904f6dd17f76dd6ff3e2f4f4278196d1379e8433413bc1d9a77af9509ec9ae7  prisma/migrations/20261013140000_move_checkout_seller_private_sql_callers/migration.sql
@@ -107,6 +108,16 @@ jobs:
           4d4ec8b51d24cfbdc723cdb461183711a15397c0ed2e3b2abdf33cdcc9990893  prisma/migrations/20261013210000_move_account_deletion_seller_private_sql_callers/migration.sql
           12e521eabf40128aae149eb9e00cd4cbd9041bbddb5b37a3c28821132933ad90  prisma/migrations/20261014010000_tolerate_missing_seller_reconciliation_target/migration.sql
           DIGESTS
+      - name: Hold reviewed SellerProfile application-operation successors
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-private-app-operation-successors"
+          mkdir "$holding"
+          IFS=, read -r -a successors <<< "$SELLER_PROFILE_APP_OPERATION_SUCCESSORS"
+          for migration in "${successors[@]}"; do
+            mv "prisma/migrations/$migration" "$holding/$migration"
+          done
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
         env:
@@ -398,6 +409,21 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
         run: npm run audit:db-grants -- --require-direct-url
+      - name: Restore reviewed SellerProfile application-operation successors
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-private-app-operation-successors"
+          if [[ -d "$holding" ]]; then
+            IFS=, read -r -a successors <<< "$SELLER_PROFILE_APP_OPERATION_SUCCESSORS"
+            for migration in "${successors[@]}"; do
+              if [[ -d "$holding/$migration" ]]; then
+                mv "$holding/$migration" "prisma/migrations/$migration"
+              fi
+            done
+            rmdir "$holding"
+          fi
       - name: Preserve sanitized SellerProfile caller evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

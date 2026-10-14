@@ -235,6 +235,17 @@ jobs:
           tests/seller-profile-private-boundary-preparation.test.mjs
           tests/seller-profile-private-boundary-production-workflow.test.mjs
           tests/seller-profile-private-callers-production-workflow.test.mjs
+          tests/seller-profile-private-app-operations-production-workflow.test.mjs
+          tests/seller-profile-private-stripe-app-authorities-postgres.test.mjs
+          tests/seller-profile-private-shipping-app-authority-postgres.test.mjs
+          tests/seller-profile-private-checkout-app-authority-postgres.test.mjs
+          tests/seller-profile-private-owner-app-authority-postgres.test.mjs
+          tests/seller-profile-private-account-deletion-app-authority-postgres.test.mjs
+          tests/seller-profile-private-guild-cron-batch-authorities-postgres.test.mjs
+          tests/seller-profile-private-guild-metrics-authority-postgres.test.mjs
+          tests/seller-profile-private-guild-member-revocation-authority-postgres.test.mjs
+          tests/seller-profile-private-guild-staff-read-authorities-postgres.test.mjs
+          tests/seller-profile-private-guild-staff-transition-authority-postgres.test.mjs
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
@@ -1083,7 +1094,18 @@ jobs:
             20261013190000_move_reconciliation_seller_private_sql_callers \
             20261013200000_move_final_seller_private_sql_callers \
             20261013210000_move_account_deletion_seller_private_sql_callers \
-            20261014010000_tolerate_missing_seller_reconciliation_target
+            20261014010000_tolerate_missing_seller_reconciliation_target \
+            20261014120000_prepare_seller_profile_private_stripe_app_authorities \
+            20261014130000_prepare_seller_profile_private_shipping_quote_authority \
+            20261014140000_prepare_seller_profile_private_checkout_app_authority \
+            20261014150000_prepare_seller_profile_private_owner_app_authorities \
+            20261014160000_prepare_seller_profile_private_account_deletion_app_authorities \
+            20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority \
+            20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities \
+            20261014190000_prepare_seller_profile_private_guild_metrics_authority \
+            20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
+            20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -5620,7 +5642,18 @@ jobs:
             20261013190000_move_reconciliation_seller_private_sql_callers \
             20261013200000_move_final_seller_private_sql_callers \
             20261013210000_move_account_deletion_seller_private_sql_callers \
-            20261014010000_tolerate_missing_seller_reconciliation_target
+            20261014010000_tolerate_missing_seller_reconciliation_target \
+            20261014120000_prepare_seller_profile_private_stripe_app_authorities \
+            20261014130000_prepare_seller_profile_private_shipping_quote_authority \
+            20261014140000_prepare_seller_profile_private_checkout_app_authority \
+            20261014150000_prepare_seller_profile_private_owner_app_authorities \
+            20261014160000_prepare_seller_profile_private_account_deletion_app_authorities \
+            20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority \
+            20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities \
+            20261014190000_prepare_seller_profile_private_guild_metrics_authority \
+            20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
+            20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -5676,6 +5709,39 @@ jobs:
             rolled_back_at, started_at, applied_steps_count
           ) VALUES (
             'spc-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+          done
+      - name: Apply SellerProfile private application-operation migrations in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in \
+            20261014120000_prepare_seller_profile_private_stripe_app_authorities \
+            20261014130000_prepare_seller_profile_private_shipping_quote_authority \
+            20261014140000_prepare_seller_profile_private_checkout_app_authority \
+            20261014150000_prepare_seller_profile_private_owner_app_authorities \
+            20261014160000_prepare_seller_profile_private_account_deletion_app_authorities \
+            20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority \
+            20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities \
+            20261014190000_prepare_seller_profile_private_guild_metrics_authority \
+            20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
+            20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority
+          do
+            psql "$DIRECT_URL" \
+              --set=ON_ERROR_STOP=on \
+              --file="prisma/migrations/$migration/migration.sql"
+            checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+            psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+              --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'spa-' || pg_catalog.md5(:'migration'), :'checksum',
             pg_catalog.clock_timestamp(), :'migration', NULL,
             NULL, pg_catalog.clock_timestamp(), 1
           );
