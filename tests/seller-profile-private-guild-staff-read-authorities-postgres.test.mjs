@@ -8,6 +8,18 @@ const migration = readFileSync(
   sellerProfilePrivateMigrationPath("20261014210000_prepare_seller_profile_private_guild_staff_read_authorities"),
   "utf8",
 );
+const hotfix = readFileSync(
+  sellerProfilePrivateMigrationPath("20261015000000_correct_seller_profile_private_app_authorities"),
+  "utf8",
+);
+
+function hotfixFunction(name) {
+  const start = hotfix.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const marker = `$${name}$;`;
+  const end = hotfix.indexOf(marker, start);
+  assert.ok(start >= 0 && end >= start, `${name} hotfix must be present`);
+  return hotfix.slice(start, end + marker.length);
+}
 
 async function asRole(database, role, operation) {
   await database.exec(`SET SESSION AUTHORIZATION ${role}`);
@@ -97,6 +109,7 @@ async function createDatabase() {
     );
   `);
   await database.exec(migration);
+  await database.exec(hotfixFunction("grainline_seller_guild_staff_roster"));
   return database;
 }
 
@@ -131,6 +144,10 @@ test("Guild staff projections return bounded private lifecycle data", async () =
       await assert.rejects(
         database.query(`SELECT * FROM public.grainline_seller_guild_staff_roster('banned_staff', 'GUILD_MEMBER')`),
         /not authorized/,
+      );
+      await assert.rejects(
+        database.query(`SELECT * FROM public.grainline_seller_guild_staff_roster('staff', NULL)`),
+        /input is invalid/,
       );
     });
   } finally {

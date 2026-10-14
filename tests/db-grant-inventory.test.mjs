@@ -87,9 +87,12 @@ const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_export_page",
   "grainline_seller_payout_latest_failure",
 ];
-const SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES = [
+const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = [
   "grainline_seller_profile_private_mirror",
   "grainline_seller_profile_supported_snapshot",
+];
+const SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES = [
+  "grainline_seller_profile_private_initialize",
 ];
 const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
   {
@@ -2701,14 +2704,28 @@ describe("database grant inventory guardrails", () => {
     ) && source(listingHideDeleteMigrationPath).includes(
       "CREATE FUNCTION public.grainline_listing_delete_reference_state(",
     );
-    const sellerProfilePrivateBoundaryMigrationPath =
+    const sellerProfilePrivatePreparationMigrationPath =
       "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql";
-    const sellerProfilePrivateBoundaryMigrationPresent = existsSync(
-      sellerProfilePrivateBoundaryMigrationPath,
-    ) && SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.every((functionName) =>
-      source(sellerProfilePrivateBoundaryMigrationPath).includes(
-        `CREATE OR REPLACE FUNCTION public.${functionName}()`,
+    const sellerProfilePrivatePreparationMigrationPresent = existsSync(
+      sellerProfilePrivatePreparationMigrationPath,
+    ) && SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(sellerProfilePrivatePreparationMigrationPath).includes(
+        `FUNCTION public.${functionName}()`,
       ));
+    const sellerProfilePrivateRetirementMigrationPath =
+      "prisma/migrations/20261015010000_retire_seller_profile_private_predecessor/migration.sql";
+    const sellerProfilePrivateRetirementMigrationPresent = existsSync(
+      sellerProfilePrivateRetirementMigrationPath,
+    ) && SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES.every((functionName) =>
+      source(sellerProfilePrivateRetirementMigrationPath).includes(
+        `FUNCTION public.${functionName}()`,
+      ));
+    const sellerProfilePrivateBoundaryFunctionNames =
+      sellerProfilePrivateRetirementMigrationPresent
+        ? SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES
+        : sellerProfilePrivatePreparationMigrationPresent
+          ? SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES
+          : [];
     const sellerProfilePrivateCallerTransitionFunctionNames = [
       "grainline_seller_profile_deauthorize_compat",
       "grainline_seller_profile_reconciliation_required_compat",
@@ -2891,9 +2908,7 @@ describe("database grant inventory guardrails", () => {
       ...(sellerProfilePrivateCallerTransitionsPresent
         ? sellerProfilePrivateCallerTransitionFunctionNames
         : []),
-      ...(sellerProfilePrivateBoundaryMigrationPresent
-        ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES
-        : []),
+      ...sellerProfilePrivateBoundaryFunctionNames,
       ...sellerProfilePrivateAppAuthorityFunctionNames,
       ...sellerProfilePrivateStaffReadFunctionNames,
       ...(listingHideDeleteMigrationPresent
@@ -2964,9 +2979,12 @@ describe("database grant inventory guardrails", () => {
         + (sellerProfilePrivateCallerTransitionsPresent
           ? sellerProfilePrivateCallerTransitionFunctionNames.length
           : 0)
-        + (sellerProfilePrivateBoundaryMigrationPresent
-          ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.length
+        + (sellerProfilePrivatePreparationMigrationPresent
+          ? SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES.length
             + 1 // SellerProfilePrivate table revoke from PUBLIC
+          : 0)
+        + (sellerProfilePrivateRetirementMigrationPresent
+          ? 3 // initializer plus reasserted compat-helper revokes
           : 0)
         + sellerProfilePrivateAppAuthorityFunctionNames.length
         + sellerProfilePrivateStaffReadFunctionNames.length

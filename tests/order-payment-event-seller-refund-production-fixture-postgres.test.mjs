@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { SELLER_PROFILE_PRIVATE_FIXTURE_SQL } from "./helpers/seller-profile-private-fixture-sql.mjs";
 import {
   assertCleanupSnapshot,
   assertProofSnapshot,
@@ -49,10 +50,10 @@ async function database() {
     CREATE TABLE public."SellerProfile" (
       id text PRIMARY KEY, "userId" text NOT NULL UNIQUE REFERENCES public."User"(id) ON DELETE CASCADE,
       "displayName" varchar(100) NOT NULL, "displayNameNormalized" varchar(100) NOT NULL,
-      "stripeAccountId" varchar(255) UNIQUE, "chargesEnabled" boolean NOT NULL DEFAULT false,
-      "stripeAccountVersion" varchar(20), "stripeControllerType" varchar(100), "vacationMode" boolean NOT NULL DEFAULT false,
+      "chargesEnabled" boolean NOT NULL DEFAULT false, "vacationMode" boolean NOT NULL DEFAULT false,
       "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" timestamp(3) NOT NULL
     );
+    ${SELLER_PROFILE_PRIVATE_FIXTURE_SQL}
     CREATE TABLE public."Listing" (
       id text PRIMARY KEY, "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id) ON DELETE RESTRICT,
       title varchar(150) NOT NULL, description varchar(5000) NOT NULL, "priceCents" integer NOT NULL,

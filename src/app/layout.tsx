@@ -7,6 +7,11 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getFooterMetros } from "@/lib/footerMetros";
 
+const vercelCommit = process.env.VERCEL_GIT_COMMIT_SHA;
+const releaseCommit = vercelCommit && /^[0-9a-f]{40}$/.test(vercelCommit)
+  ? vercelCommit
+  : undefined;
+
 export const viewport: Viewport = {
   themeColor: "#1C1917",
   viewportFit: "cover",
@@ -58,6 +63,9 @@ export const metadata: Metadata = {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
   },
   robots: { index: true, follow: true },
+  ...(releaseCommit
+    ? { other: { "grainline-release-commit": releaseCommit } }
+    : {}),
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

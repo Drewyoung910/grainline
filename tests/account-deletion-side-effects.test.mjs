@@ -92,6 +92,7 @@ describe("account deletion side-effect retries", () => {
 
     assert.match(sideEffects, /stripe\.accounts\.reject\(payload\.stripeAccountId/);
     assert.match(sideEffects, /clearSellerAccountDeletionReconciliation\(prisma, \{/);
+    assert.match(sideEffects, /if \(!cleared\) \{[\s\S]*Account deletion Stripe reconciliation state was not cleared/);
     assert.match(sideEffects, /sideEffectId: effect\.id/);
     assert.match(sideEffects, /claimGeneration: effect\.claimGeneration/);
     assert.match(sideEffects, /claimToken: effect\.claimToken/);

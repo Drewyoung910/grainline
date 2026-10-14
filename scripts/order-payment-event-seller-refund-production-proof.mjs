@@ -937,7 +937,12 @@ export async function createFixtures(owner, state) {
     const collisions = await owner.query(`
       SELECT
         (SELECT count(*)::integer FROM public."User" WHERE id = $1 OR "clerkId" = $2 OR email = $3) AS buyers,
-        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id = $4 OR "userId" = $5 OR "stripeAccountId" = $6) AS sellers,
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           LEFT JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id = $4 OR seller."userId" = $5
+             OR seller_private."stripeAccountId" = $6) AS sellers,
         (SELECT count(*)::integer FROM public."Listing" WHERE id = $7) AS listings,
         (SELECT count(*)::integer FROM public."Order" WHERE id = $8 OR "stripePaymentIntentId" = $9 OR "stripeChargeId" = $10) AS orders,
         (SELECT count(*)::integer FROM public."OrderItem" WHERE id = $11) AS items,
@@ -955,10 +960,18 @@ export async function createFixtures(owner, state) {
           (SELECT count(*)::integer FROM public."User" WHERE id=$1 AND "clerkId"=$2 AND email=$3
             AND name='Grainline Refund Proof Buyer' AND role='USER'
             AND "notificationPreferences"='{"EMAIL_REFUND_ISSUED":false}'::jsonb) AS buyer,
-          (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$4 AND "userId"=$5 AND "stripeAccountId"=$6
-            AND "displayName"='Grainline Refund Proof' AND "displayNameNormalized"='grainline refund proof'
-            AND "chargesEnabled"=true AND "stripeAccountVersion"='v1' AND "stripeControllerType"='custom'
-            AND "vacationMode"=true) AS seller,
+          (SELECT count(*)::integer
+             FROM public."SellerProfile" AS seller
+             JOIN public."SellerProfilePrivate" AS seller_private
+               ON seller_private."sellerProfileId" = seller.id
+            WHERE seller.id=$4 AND seller."userId"=$5
+              AND seller_private."stripeAccountId"=$6
+              AND seller."displayName"='Grainline Refund Proof'
+              AND seller."displayNameNormalized"='grainline refund proof'
+              AND seller."chargesEnabled"=true
+              AND seller_private."stripeAccountVersion"='v1'
+              AND seller_private."stripeControllerType"='custom'
+              AND seller."vacationMode"=true) AS seller,
           (SELECT count(*)::integer FROM public."Listing" WHERE id=$7 AND "sellerId"=$4
             AND title='seller-refund-production-proof'
             AND description='Disposable vacation-hidden seller refund production proof fixture'
@@ -991,10 +1004,22 @@ export async function createFixtures(owner, state) {
     `, [state.buyerId, state.buyerClerkId, state.buyerEmail]);
     await owner.query(`
       INSERT INTO public."SellerProfile" (
-        id, "userId", "displayName", "displayNameNormalized", "stripeAccountId",
-        "chargesEnabled", "stripeAccountVersion", "stripeControllerType", "vacationMode", "updatedAt"
-      ) VALUES ($1, $2, 'Grainline Refund Proof', 'grainline refund proof', $3, true, 'v1', 'custom', true, CURRENT_TIMESTAMP)
-    `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId]);
+        id, "userId", "displayName", "displayNameNormalized",
+        "chargesEnabled", "vacationMode", "updatedAt"
+      ) VALUES ($1, $2, 'Grainline Refund Proof', 'grainline refund proof', true, true, CURRENT_TIMESTAMP)
+    `, [state.sellerProfileId, state.sellerUserId]);
+    const privateSeller = await owner.query(`
+      UPDATE public."SellerProfilePrivate"
+         SET "stripeAccountId" = $2,
+             "stripeAccountVersion" = 'v1',
+             "stripeControllerType" = 'custom',
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "sellerProfileId" = $1
+       RETURNING "sellerProfileId"
+    `, [state.sellerProfileId, state.stripeAccountId]);
+    if (resultCardinality(privateSeller) !== 1) {
+      throw new Error("seller refund private fixture cardinality drifted");
+    }
     await owner.query(`
       INSERT INTO public."Listing" (
         id, "sellerId", title, description, "priceCents", currency, status,
@@ -1256,8 +1281,14 @@ export async function cleanupExactRows(owner, state) {
       SELECT
         (SELECT count(*)::integer FROM public."User" WHERE id = $1 AND "clerkId" = $2 AND email = $3
           AND name = 'Grainline Refund Proof Buyer' AND "notificationPreferences" = '{"EMAIL_REFUND_ISSUED":false}'::jsonb) AS buyer,
-        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id = $4 AND "userId" = $5 AND "stripeAccountId" = $6
-          AND "displayName" = 'Grainline Refund Proof' AND "vacationMode" = true) AS seller,
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id = $4 AND seller."userId" = $5
+            AND seller_private."stripeAccountId" = $6
+            AND seller."displayName" = 'Grainline Refund Proof'
+            AND seller."vacationMode" = true) AS seller,
         (SELECT count(*)::integer FROM public."Listing" WHERE id = $7 AND "sellerId" = $4
           AND title = 'seller-refund-production-proof' AND "priceCents" = 500 AND currency = 'usd'
           AND status = 'ACTIVE' AND "listingType" = 'IN_STOCK' AND "stockQuantity" = 1 AND "isPrivate" = false) AS listing,
@@ -1310,6 +1341,10 @@ export async function cleanupExactRows(owner, state) {
     if (resultCardinality(await owner.query(`DELETE FROM public."Order" WHERE id = $1 RETURNING id`, [state.orderId])) !== 1) throw new Error("seller refund Order cleanup drifted");
     await assertNoForeignKeyDependents(owner, 'public."Listing"', state.listingId);
     if (resultCardinality(await owner.query(`DELETE FROM public."Listing" WHERE id = $1 RETURNING id`, [state.listingId])) !== 1) throw new Error("seller refund Listing cleanup drifted");
+    if (resultCardinality(await owner.query(
+      `DELETE FROM public."SellerProfilePrivate" WHERE "sellerProfileId" = $1 RETURNING "sellerProfileId"`,
+      [state.sellerProfileId],
+    )) !== 1) throw new Error("seller refund private profile cleanup drifted");
     await assertNoForeignKeyDependents(owner, 'public."SellerProfile"', state.sellerProfileId);
     if (resultCardinality(await owner.query(`DELETE FROM public."SellerProfile" WHERE id = $1 RETURNING id`, [state.sellerProfileId])) !== 1) throw new Error("seller refund profile cleanup drifted");
     await assertNoForeignKeyDependents(owner, 'public."User"', state.buyerId);

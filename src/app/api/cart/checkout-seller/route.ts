@@ -235,6 +235,30 @@ export async function POST(req: Request) {
       );
     }
 
+    for (const item of sellerItems) {
+      if (item.listing.listingType === "MADE_TO_ORDER" && item.quantity !== 1) {
+        return privateJson(
+          { error: `"${item.listing.title}" can only be ordered one at a time.` },
+          { status: HTTP_STATUS.BAD_REQUEST },
+        );
+      }
+      if (item.listing.listingType === "IN_STOCK") {
+        const available = item.listing.stockQuantity ?? 0;
+        if (available <= 0) {
+          return privateJson(
+            { error: `"${item.listing.title}" is currently out of stock.` },
+            { status: HTTP_STATUS.BAD_REQUEST },
+          );
+        }
+        if (item.quantity > available) {
+          return privateJson(
+            { error: `Only ${available} available for "${item.listing.title}".` },
+            { status: HTTP_STATUS.BAD_REQUEST },
+          );
+        }
+      }
+    }
+
     const checkoutPrivateState = await sellerCheckoutPrivateState({
       buyerUserId: me.id,
       sellerProfileId: sellerId,
@@ -271,28 +295,6 @@ export async function POST(req: Request) {
     }> = [];
 
     for (const item of sellerItems) {
-      if (item.listing.listingType === "MADE_TO_ORDER" && item.quantity !== 1) {
-        return privateJson(
-          { error: `"${item.listing.title}" can only be ordered one at a time.` },
-          { status: HTTP_STATUS.BAD_REQUEST },
-        );
-      }
-      if (item.listing.listingType === "IN_STOCK") {
-        const available = item.listing.stockQuantity ?? 0;
-        if (available <= 0) {
-          return privateJson(
-            { error: `"${item.listing.title}" is currently out of stock.` },
-            { status: HTTP_STATUS.BAD_REQUEST },
-          );
-        }
-        if (item.quantity > available) {
-          return privateJson(
-            { error: `Only ${available} available for "${item.listing.title}".` },
-            { status: HTTP_STATUS.BAD_REQUEST },
-          );
-        }
-      }
-
       const variantResolution = resolveListingVariantSelection(
         item.listing.variantGroups,
         item.selectedVariantOptionIds ?? [],

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { SELLER_PROFILE_PRIVATE_FIXTURE_SQL } from "./helpers/seller-profile-private-fixture-sql.mjs";
 import {
   assertCleanupSnapshot,
   assertDeliverySnapshot,
@@ -55,6 +56,7 @@ async function createDatabase() {
       "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" timestamp(3) without time zone NOT NULL
     );
+    ${SELLER_PROFILE_PRIVATE_FIXTURE_SQL}
     CREATE TABLE public."Listing" (
       id text PRIMARY KEY,
       "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id) ON DELETE RESTRICT,

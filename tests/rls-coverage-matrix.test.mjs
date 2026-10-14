@@ -114,7 +114,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /Current candidate source contains 69 Prisma models\. Twenty-eight have committed[\s\S]*forty-one have no committed RLS activation[\s\S]*Production evidence remains at 68 models: twenty-eight FORCE and forty without\s+RLS/,
+      /Current candidate source contains 69 Prisma models\. Twenty-eight have committed[\s\S]*forty-one have no committed RLS activation[\s\S]*Retained Production\s+evidence covers 69 model tables: twenty-eight FORCE and forty-one without RLS/,
     );
     assert.match(
       matrix,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { SELLER_PROFILE_PRIVATE_FIXTURE_SQL } from "./helpers/seller-profile-private-fixture-sql.mjs";
 
 import {
   ORDER_FIXTURE_SHIP_FROM,
@@ -50,26 +51,13 @@ async function createDatabase() {
       "userId" text NOT NULL UNIQUE REFERENCES public."User"(id),
       "displayName" varchar(100) NOT NULL,
       "displayNameNormalized" varchar(100) NOT NULL,
-      "stripeAccountId" varchar(255) UNIQUE,
       "chargesEnabled" boolean NOT NULL DEFAULT false,
-      "shipFromName" varchar(100),
-      "shipFromLine1" varchar(200),
-      "shipFromCity" varchar(100),
-      "shipFromState" varchar(50),
-      "shipFromPostal" varchar(20),
-      "shipFromCountry" varchar(2) DEFAULT 'US',
-      "shipFromPhone" varchar(30),
-      "defaultPkgWeightGrams" integer,
-      "defaultPkgLengthCm" double precision,
-      "defaultPkgWidthCm" double precision,
-      "defaultPkgHeightCm" double precision,
-      "useCalculatedShipping" boolean NOT NULL DEFAULT false,
       "vacationMode" boolean NOT NULL DEFAULT false,
       "acceptingNewOrders" boolean NOT NULL DEFAULT true,
-      "onboardingComplete" boolean NOT NULL DEFAULT false,
       "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    ${SELLER_PROFILE_PRIVATE_FIXTURE_SQL}
     CREATE TABLE public."Listing" (
       id text PRIMARY KEY,
       "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id),
@@ -181,11 +169,16 @@ test("raw authenticated Order fixture SQL is valid, exact and restart-safe", asy
       ('checkout-seller-user', 'clerk-checkout-seller', 'seller@example.test', 'Seller');
     INSERT INTO public."SellerProfile" (
       id, "userId", "displayName", "displayNameNormalized", "chargesEnabled",
-      "useCalculatedShipping", "acceptingNewOrders", "onboardingComplete"
+      "acceptingNewOrders"
     ) VALUES (
       'checkout-seller', 'checkout-seller-user', 'Checkout Seller', 'checkout seller',
-      true, true, true, true
+      true, true
     );
+    UPDATE public."SellerProfilePrivate"
+       SET "useCalculatedShipping" = true,
+           "onboardingComplete" = true,
+           "updatedAt" = CURRENT_TIMESTAMP
+     WHERE "sellerProfileId" = 'checkout-seller';
   `);
   const deletedKeys = [];
   const redis = { del: async (key) => { deletedKeys.push(key); return 1; } };
@@ -204,13 +197,17 @@ test("raw authenticated Order fixture SQL is valid, exact and restart-safe", asy
     `, [fixtureIds.checkoutListingId]);
     assert.deepEqual(listing.rows, [{ status: "ACTIVE", stock: 5, buyer: "canary-user" }]);
     const labelAddresses = await database.query(`
-      SELECT seller."shipFromLine1" AS from_line1, seller."shipFromCity" AS from_city,
-             seller."shipFromState" AS from_state, seller."shipFromPostal" AS from_postal,
-             seller."shipFromPhone" AS from_phone,
+      SELECT seller_private."shipFromLine1" AS from_line1,
+             seller_private."shipFromCity" AS from_city,
+             seller_private."shipFromState" AS from_state,
+             seller_private."shipFromPostal" AS from_postal,
+             seller_private."shipFromPhone" AS from_phone,
              purchase."shipToLine1" AS to_line1, purchase."shipToCity" AS to_city,
              purchase."shipToState" AS to_state, purchase."shipToPostalCode" AS to_postal
         FROM public."Order" AS purchase
         JOIN public."SellerProfile" AS seller ON seller.id = purchase."sellerProfileId"
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId" = seller.id
        WHERE purchase.id = $1
     `, [fixtureIds.labelOrderId]);
     assert.deepEqual(labelAddresses.rows, [{

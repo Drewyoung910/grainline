@@ -367,9 +367,8 @@ const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
 // a runtime RPC.
 export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_profile_deauthorize_compat",
-  "grainline_seller_profile_private_mirror",
+  "grainline_seller_profile_private_initialize",
   "grainline_seller_profile_reconciliation_required_compat",
-  "grainline_seller_profile_supported_snapshot",
   "grainline_case_resolution_claim_immutable",
   "grainline_case_resolution_claim_lease_valid",
   ...CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
@@ -2264,12 +2263,23 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     [...migrationSql.matchAll(/\bCREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([A-Za-z_][A-Za-z0-9_]*)"?/gi)]
       .map((match) => match[1]),
   );
+  // Track name-level function lifecycle in migration order. A simple CREATE
+  // scan keeps functions that a later migration explicitly retires, which in
+  // turn makes the live grant audit demand catalog entries that must be gone.
+  // Grainline DROP FUNCTION migrations retire every overload of the named
+  // internal helper; a later CREATE/CREATE OR REPLACE restores the name.
+  const functionLifecycle = new Map();
+  for (const match of migrationSql.matchAll(
+    /\b(CREATE\s+(?:OR\s+REPLACE\s+)?|DROP\s+(?:IF\s+EXISTS\s+)?)FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(/gi,
+  )) {
+    const [, operation, name] = match;
+    if (!name.startsWith("grainline_")) continue;
+    functionLifecycle.set(name, /^CREATE\b/i.test(operation));
+  }
   const functions = sortedUnique(
-    [...migrationSql.matchAll(
-      /\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(/gi,
-    )]
-      .map((match) => match[1])
-      .filter((name) => name.startsWith("grainline_")),
+    [...functionLifecycle]
+      .filter(([, exists]) => exists)
+      .map(([name]) => name),
   );
   const publicRevokes = sortedUnique(
     sqlStatements(migrationSql)

@@ -746,6 +746,44 @@ reviewed order, the converted application is deployed and proven, and
 predecessor deployments have drained. The transition-only SQL writers remain
 installed until that drain completes.
 
+### 2026-10-14 production checkpoint and predecessor-retirement candidate
+
+Production has advanced beyond the preparation state described above. All 22
+SellerProfile private-boundary migrations through
+`20261014230000_prepare_seller_profile_private_remaining_app_authorities` are
+applied, and the converted application from exact main
+`485b31cf18c7c65267d24b4f92e55670ff65175d` is live as deployment
+`dpl_4Dc18kuDcb4EeaipCLhEamUJsWbL`. The five canonical aliases point to that
+deployment. Preserved predecessor deployment
+`dpl_3NT37Puk7H5mS4pdjtfsVdssmB7r` remains the rollback target. Production
+still has SellerProfile RLS off, and `SellerProfilePrivate` retains zero direct
+ordinary-runtime or `PUBLIC` authority.
+
+Independent re-verification found four defects in the applied SQL authority
+surface: a `varchar(255)` to `text` table-return mismatch in staff
+orderability, nullable Guild operation/cohort inputs that bypassed closed-set
+validation, unbounded Guild review notes copied into a 1000-character audit
+column, and an account-deletion reconciliation clear that tried to match the
+provider account after the same transaction had anonymized it. Migration
+`20261015000000_correct_seller_profile_private_app_authorities` corrects those
+functions without changing table shape, RLS posture, or direct grants. The
+application now also reports a failed reconciliation clear and performs
+quantity/stock checks before the seller-private checkout projection so an
+out-of-stock item is not misreported as seller unavailability.
+
+Migration
+`20261015010000_retire_seller_profile_private_predecessor` is the separately
+staged cutover after the correction. It takes bounded exclusive locks, proves
+one-to-one public/private convergence, replaces every effective writer, retires
+the compatibility triggers, installs a private-row initializer for new public
+seller rows, and drops the 30 predecessor private columns from
+`SellerProfile`. It does not enable or force RLS. The correction must be
+applied first; the retirement additionally requires an exact converted
+deployment and verified predecessor drain. Its protected workflow binds every
+public alias to both the reviewed Vercel deployment ID and the exact reviewed
+source commit published by that deployment before it can apply SQL. Neither
+migration is merged or applied in Production at this checkpoint.
+
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 
 Do not activate until all `BLOCKS_RLS_DESIGN` and `FIX_BEFORE_ACTIVATION`

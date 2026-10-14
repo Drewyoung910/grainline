@@ -1,0 +1,274 @@
+name: SellerProfile Private App Authorities Correction Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-seller-profile-private-app-authorities-correction
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed SellerProfile private app-authority correction
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-seller-profile-private-app-authorities-correction'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind correction to exact main and completed CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('SellerProfile private app-authority correction binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('SellerProfile private app-authority correction main/CI readback drifted');
+            }
+      - name: Verify exact correction source and immutable migration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "20261015010000_retire_seller_profile_private_predecessor"
+          cat <<'DIGESTS' | sha256sum --check --status
+          3136a21f44e0be6e488adcad25c2d9c1c7a789e5f7adb387b31309c592c56309  prisma/migrations/20261015000000_correct_seller_profile_private_app_authorities/migration.sql
+          d111e615a40cd0c2936eeb137db23c5fbcc63c7acb81bce27a36d71229963b3a  prisma/migrations/20261015010000_retire_seller_profile_private_predecessor/migration.sql
+          DIGESTS
+          node --test \
+            tests/seller-profile-private-app-authorities-hotfix.test.mjs \
+            tests/seller-profile-private-guild-staff-read-authorities-postgres.test.mjs \
+            tests/seller-profile-private-guild-staff-transition-authority-postgres.test.mjs \
+            tests/seller-profile-private-remaining-app-authorities-postgres.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Capture exact correction predecessor or restart state
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {appendFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const predecessor = ['20261014230000_prepare_seller_profile_private_remaining_app_authorities',
+            'a9142a0c90518db99ef8392345425e7a3bad689b3163a0e0381d30adea9175df'];
+          const correction = ['20261015000000_correct_seller_profile_private_app_authorities',
+            '3136a21f44e0be6e488adcad25c2d9c1c7a789e5f7adb387b31309c592c56309'];
+          const retirement = '20261015010000_retire_seller_profile_private_predecessor';
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = (await client.query(`SELECT migration_name, checksum,
+              finished_at IS NOT NULL AS finished, rolled_back_at IS NOT NULL AS rolled_back,
+              applied_steps_count::int AS applied_steps_count FROM public._prisma_migrations
+              WHERE migration_name = ANY($1::text[]) ORDER BY migration_name`,
+              [[predecessor[0], correction[0], retirement]])).rows;
+            const accepted = (name, checksum) => {
+              const attempts = ledger.filter(row => row.migration_name === name);
+              for (const row of attempts) assert.equal(row.checksum, checksum);
+              const successes = attempts.filter(row => row.finished && !row.rolled_back && row.applied_steps_count === 1);
+              assert.ok(successes.length <= 1, `${name} has duplicate successes`);
+              for (const row of attempts) if (!successes.includes(row)) assert.equal(row.rolled_back, true);
+              return successes.length === 1;
+            };
+            assert.equal(accepted(...predecessor), true, 'required SellerProfile app-operation predecessor is missing');
+            const applied = accepted(...correction);
+            assert.equal(ledger.some(row => row.migration_name === retirement), false,
+              'predecessor retirement was already attempted before the correction release');
+            const posture = (await client.query(`SELECT
+              (SELECT relrowsecurity FROM pg_catalog.pg_class WHERE oid = 'public."SellerProfile"'::regclass) AS public_rls,
+              (SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid = 'public."SellerProfile"'::regclass) AS public_force,
+              (SELECT relrowsecurity FROM pg_catalog.pg_class WHERE oid = 'public."SellerProfilePrivate"'::regclass) AS private_rls,
+              (SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid = 'public."SellerProfilePrivate"'::regclass) AS private_force,
+              pg_catalog.has_table_privilege('grainline_app_runtime', 'public."SellerProfilePrivate"',
+                'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS runtime_private_any,
+              EXISTS (SELECT 1 FROM pg_catalog.pg_class AS target
+                CROSS JOIN LATERAL pg_catalog.aclexplode(
+                  pg_catalog.coalesce(target.relacl, pg_catalog.acldefault('r', target.relowner))
+                ) AS privilege
+                WHERE target.oid = 'public."SellerProfilePrivate"'::regclass
+                  AND privilege.grantee = 0) AS public_private_any`)).rows[0];
+            assert.deepEqual(posture, {public_rls: false, public_force: false,
+              private_rls: false, private_force: false, runtime_private_any: false,
+              public_private_any: false});
+            await client.query('COMMIT');
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${applied ? 'applied' : 'pending'}\npending=${applied ? '' : correction[0]}\n`);
+            writeFileSync(`${process.env.RUNNER_TEMP}/seller-profile-private-correction-preflight.json`,
+              JSON.stringify({releaseCommit: process.env.GITHUB_SHA,
+                state: applied ? 'applied' : 'pending', posture}), {mode: 0o600, flag: 'wx'});
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Apply only the reviewed SellerProfile private app-authority correction
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          CORRECTION_STATE: ${{ steps.preflight.outputs.state }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+        run: |
+          set -euo pipefail
+          retirement=20261015010000_retire_seller_profile_private_predecessor
+          holding="$RUNNER_TEMP/$retirement"
+          mv "prisma/migrations/$retirement" "$holding"
+          trap 'mv "$holding" "prisma/migrations/$retirement"' EXIT
+          node scripts/assert-reviewed-pending-migrations.mjs
+          if [[ "$CORRECTION_STATE" == "pending" ]]; then
+            npx prisma migrate deploy
+          elif [[ "$CORRECTION_STATE" != "applied" ]]; then
+            echo "Unexpected SellerProfile correction state" >&2
+            exit 1
+          fi
+          npx prisma migrate status
+      - name: Read back corrected functions, grants, ledger, and unchanged posture
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20261015000000_correct_seller_profile_private_app_authorities';
+          const checksum = '3136a21f44e0be6e488adcad25c2d9c1c7a789e5f7adb387b31309c592c56309';
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/seller-profile-private-correction-preflight.json`, 'utf8'));
+          const expected = new Map([
+            ['public.grainline_seller_guild_staff_roster(text,text)', ['grainline_seller_guild_staff_roster', true, false]],
+            ['public.grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)', ['grainline_seller_guild_staff_transition', true, false]],
+            ['public.grainline_seller_account_deletion_reconciliation_clear(text,text,text,bigint,uuid)', ['grainline_seller_account_deletion_reconciliation_clear', false, true]],
+            ['public.grainline_seller_staff_orderability_state(text,text)', ['grainline_seller_staff_orderability_state', true, false]],
+          ]);
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = (await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count::int AS applied_steps_count FROM public._prisma_migrations
+              WHERE migration_name = $1`, [migration])).rows;
+            const successes = ledger.filter(row => row.finished_at && row.rolled_back_at === null && row.applied_steps_count === 1);
+            assert.equal(successes.length, 1);
+            assert.equal(successes[0].checksum, checksum);
+            const functions = (await client.query(`SELECT expected.identity, procedure.proname,
+              procedure.prosrc,
+              pg_catalog.has_function_privilege('grainline_staff_read_runtime', procedure.oid, 'EXECUTE') AS staff_execute,
+              pg_catalog.has_function_privilege('grainline_app_runtime', procedure.oid, 'EXECUTE') AS runtime_execute,
+              pg_catalog.has_function_privilege('public', procedure.oid, 'EXECUTE') AS public_execute
+              FROM pg_catalog.unnest($1::text[]) AS expected(identity)
+              LEFT JOIN pg_catalog.pg_proc AS procedure
+                ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
+              ORDER BY expected.identity`, [[...expected.keys()]])).rows;
+            assert.equal(functions.length, expected.size);
+            for (const row of functions) {
+              const [name, staff, runtime] = expected.get(row.identity);
+              assert.equal(row.proname, name, row.identity);
+              assert.equal(row.staff_execute, staff, row.identity);
+              assert.equal(row.runtime_execute, runtime, row.identity);
+              assert.equal(row.public_execute, false, row.identity);
+            }
+            const byName = new Map(functions.map(row => [row.proname, row.prosrc]));
+            assert.match(byName.get('grainline_seller_guild_staff_roster'), /p_cohort IS NULL/);
+            assert.match(byName.get('grainline_seller_guild_staff_transition'), /p_operation IS NULL/);
+            assert.match(byName.get('grainline_seller_guild_staff_transition'), /left\(p_review_notes, 500\)/);
+            assert.match(byName.get('grainline_seller_staff_orderability_state'), /"stripeAccountId"::text/);
+            assert.doesNotMatch(byName.get('grainline_seller_account_deletion_reconciliation_clear'),
+              /"stripeAccountId" = p_stripe_account_id/);
+            const posture = (await client.query(`SELECT
+              (SELECT relrowsecurity FROM pg_catalog.pg_class WHERE oid = 'public."SellerProfile"'::regclass) AS public_rls,
+              (SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid = 'public."SellerProfile"'::regclass) AS public_force,
+              (SELECT relrowsecurity FROM pg_catalog.pg_class WHERE oid = 'public."SellerProfilePrivate"'::regclass) AS private_rls,
+              (SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid = 'public."SellerProfilePrivate"'::regclass) AS private_force,
+              pg_catalog.has_table_privilege('grainline_app_runtime', 'public."SellerProfilePrivate"',
+                'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS runtime_private_any,
+              EXISTS (SELECT 1 FROM pg_catalog.pg_class AS target
+                CROSS JOIN LATERAL pg_catalog.aclexplode(
+                  pg_catalog.coalesce(target.relacl, pg_catalog.acldefault('r', target.relowner))
+                ) AS privilege
+                WHERE target.oid = 'public."SellerProfilePrivate"'::regclass
+                  AND privilege.grantee = 0) AS public_private_any`)).rows[0];
+            assert.deepEqual(posture, before.posture);
+            await client.query('COMMIT');
+            writeFileSync(`${process.env.RUNNER_TEMP}/seller-profile-private-correction-postflight.json`,
+              JSON.stringify({status: 'passed', releaseCommit: process.env.GITHUB_SHA,
+                migration, functionCount: functions.length, posture}), {mode: 0o600, flag: 'wx'});
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Audit global runtime grants after SellerProfile correction
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized SellerProfile correction evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: seller-profile-private-correction-production-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/seller-profile-private-correction-preflight.json
+            ${{ runner.temp }}/seller-profile-private-correction-postflight.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

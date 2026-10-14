@@ -1031,8 +1031,10 @@ async function inspectRuntime(config, ids) {
     const result = await client.query(`
       SELECT
         (SELECT pg_catalog.count(*)::integer
-           FROM public."SellerProfile"
-          WHERE "stripeAccountId" = $1) AS seller_count,
+           FROM public."SellerProfile" AS seller
+           JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller_private."stripeAccountId" = $1) AS seller_count,
         (SELECT pg_catalog.count(*)::integer
            FROM public."SellerPayoutEvent"
           WHERE "stripePayoutId" = $2) AS payout_projection_count,

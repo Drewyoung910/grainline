@@ -490,11 +490,13 @@ async function selectCanary(clerk, owner) {
 
 async function selectSeller(owner, stripe, buyerId) {
   const candidates = await owner.query(`
-    SELECT seller.id, seller."userId", seller."stripeAccountId"
+    SELECT seller.id, seller."userId", seller_private."stripeAccountId"
       FROM public."SellerProfile" AS seller
+      JOIN public."SellerProfilePrivate" AS seller_private
+        ON seller_private."sellerProfileId" = seller.id
       JOIN public."User" AS account ON account.id = seller."userId"
      WHERE seller."chargesEnabled" = true
-       AND seller."stripeAccountId" IS NOT NULL
+       AND seller_private."stripeAccountId" IS NOT NULL
        AND seller."allowLocalPickup" = true
        AND seller."vacationMode" = false
        AND seller."acceptingNewOrders" = true

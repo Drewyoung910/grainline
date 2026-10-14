@@ -247,6 +247,11 @@ jobs:
           tests/seller-profile-private-guild-staff-read-authorities-postgres.test.mjs
           tests/seller-profile-private-guild-staff-transition-authority-postgres.test.mjs
           tests/seller-profile-private-remaining-app-authorities-postgres.test.mjs
+          tests/seller-profile-private-app-authorities-hotfix.test.mjs
+          tests/seller-profile-private-predecessor-retirement.test.mjs
+          tests/seller-profile-private-predecessor-retirement-postgres.test.mjs
+          tests/seller-profile-private-app-authorities-correction-production-workflow.test.mjs
+          tests/seller-profile-private-predecessor-retirement-production-workflow.test.mjs
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
@@ -1107,7 +1112,9 @@ jobs:
             20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
             20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
             20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
-            20261014230000_prepare_seller_profile_private_remaining_app_authorities
+            20261014230000_prepare_seller_profile_private_remaining_app_authorities \
+            20261015000000_correct_seller_profile_private_app_authorities \
+            20261015010000_retire_seller_profile_private_predecessor
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -5690,7 +5697,9 @@ jobs:
             20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
             20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
             20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
-            20261014230000_prepare_seller_profile_private_remaining_app_authorities
+            20261014230000_prepare_seller_profile_private_remaining_app_authorities \
+            20261015000000_correct_seller_profile_private_app_authorities \
+            20261015010000_retire_seller_profile_private_predecessor
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -5785,6 +5794,46 @@ jobs:
           );
           SQL
           done
+      - name: Apply SellerProfile private app-authority correction in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015000000_correct_seller_profile_private_app_authorities
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'sph-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Apply SellerProfile private predecessor retirement in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015010000_retire_seller_profile_private_predecessor
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'spr-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
       - name: Converge runtime grants after SellerProfile private boundary
         run: >-
           psql "$DIRECT_URL"

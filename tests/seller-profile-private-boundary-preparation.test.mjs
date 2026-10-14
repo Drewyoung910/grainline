@@ -335,7 +335,8 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(schema, /model SellerProfilePrivate \{[\s\S]*guildMasterApprovedAt\s+DateTime\?/);
     assert.match(schema, /model SellerProfilePrivate \{[\s\S]*guildMasterAppliedAt\s+DateTime\?/);
     assert.match(schema, /model SellerProfilePrivate \{[\s\S]*guildMasterReviewNotes\s+String\?/);
-    assert.match(schema, /model SellerProfile \{[\s\S]*shipFromLine1\s+String\?/);
+    const publicModel = schema.match(/model SellerProfile \{[\s\S]*?\n\}/u)?.[0] ?? "";
+    assert.doesNotMatch(publicModel, /\bshipFromLine1\b/u);
     assert.doesNotMatch(migration, /DROP\s+(?:COLUMN|TABLE)/i);
     assert.doesNotMatch(migration, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/i);
   });
@@ -674,11 +675,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(grantAudit, /RUNTIME_PRIVATE_TABLES[\s\S]*"SellerProfilePrivate"/);
     assert.match(
       grantAudit,
-      /RUNTIME_PRIVATE_FUNCTIONS[\s\S]*"grainline_seller_profile_private_mirror"[\s\S]*"grainline_seller_profile_supported_snapshot"/,
+      /RUNTIME_PRIVATE_FUNCTIONS[\s\S]*"grainline_seller_profile_private_initialize"/,
     );
     assert.match(provisioning, /\('SellerProfilePrivate'\)/);
-    assert.match(provisioning, /"grainline_seller_profile_private_mirror"\(\)/);
-    assert.match(provisioning, /"grainline_seller_profile_supported_snapshot"\(\)/);
+    assert.match(provisioning, /"grainline_seller_profile_private_initialize"\(\)/);
   });
 
   it("provides a rollback-only exact-migration PostgreSQL proof", () => {

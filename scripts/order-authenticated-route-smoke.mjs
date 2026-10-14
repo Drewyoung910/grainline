@@ -767,19 +767,21 @@ async function selectCanary(clerk, owner) {
 
 async function selectCheckoutSeller(owner, stripe, buyerId) {
   const candidates = await owner.query(`
-    SELECT seller.id, seller."userId", seller."stripeAccountId"
+    SELECT seller.id, seller."userId", seller_private."stripeAccountId"
       FROM public."SellerProfile" AS seller
+      JOIN public."SellerProfilePrivate" AS seller_private
+        ON seller_private."sellerProfileId" = seller.id
       JOIN public."User" AS account ON account.id = seller."userId"
      WHERE seller."chargesEnabled"
-       AND seller."stripeAccountId" IS NOT NULL
+       AND seller_private."stripeAccountId" IS NOT NULL
        AND seller."vacationMode" = false
        AND seller."acceptingNewOrders"
-       AND seller."useCalculatedShipping"
-       AND NULLIF(pg_catalog.btrim(seller."shipFromName"), '') IS NOT NULL
-       AND NULLIF(pg_catalog.btrim(seller."shipFromLine1"), '') IS NOT NULL
-       AND NULLIF(pg_catalog.btrim(seller."shipFromCity"), '') IS NOT NULL
-       AND NULLIF(pg_catalog.btrim(seller."shipFromState"), '') IS NOT NULL
-       AND NULLIF(pg_catalog.btrim(seller."shipFromPostal"), '') IS NOT NULL
+       AND seller_private."useCalculatedShipping"
+       AND NULLIF(pg_catalog.btrim(seller_private."shipFromName"), '') IS NOT NULL
+       AND NULLIF(pg_catalog.btrim(seller_private."shipFromLine1"), '') IS NOT NULL
+       AND NULLIF(pg_catalog.btrim(seller_private."shipFromCity"), '') IS NOT NULL
+       AND NULLIF(pg_catalog.btrim(seller_private."shipFromState"), '') IS NOT NULL
+       AND NULLIF(pg_catalog.btrim(seller_private."shipFromPostal"), '') IS NOT NULL
        AND NOT account.banned AND account."deletedAt" IS NULL
        AND seller."userId" <> $1
      ORDER BY seller.id
@@ -1334,12 +1336,19 @@ async function captureSeededOrderFixtureSnapshot(owner, state) {
         FROM public."User" WHERE id = ANY($1::text[]) ORDER BY id
     `, [[ids.syntheticBuyerUserId, ids.receiptSellerUserId]]);
   const sellers = await owner.query(`
-      SELECT id, "userId", "displayName", "displayNameNormalized", "vacationMode",
-             "acceptingNewOrders", "onboardingComplete", "chargesEnabled",
-             "stripeAccountId", "useCalculatedShipping", "shipFromName",
-             "shipFromLine1", "shipFromCity", "shipFromState", "shipFromPostal",
-             "shipFromCountry", "shipFromPhone"
-        FROM public."SellerProfile" WHERE id = ANY($1::text[]) ORDER BY id
+      SELECT seller.id, seller."userId", seller."displayName", seller."displayNameNormalized",
+             seller."vacationMode", seller."acceptingNewOrders",
+             seller_private."onboardingComplete", seller."chargesEnabled",
+             seller_private."stripeAccountId", seller_private."useCalculatedShipping",
+             seller_private."shipFromName", seller_private."shipFromLine1",
+             seller_private."shipFromCity", seller_private."shipFromState",
+             seller_private."shipFromPostal", seller_private."shipFromCountry",
+             seller_private."shipFromPhone"
+        FROM public."SellerProfile" AS seller
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId" = seller.id
+       WHERE seller.id = ANY($1::text[])
+       ORDER BY seller.id
     `, [[ids.canarySellerProfileId, ids.receiptSellerProfileId]]);
   const listings = await owner.query(`
       SELECT id, "sellerId", title, "priceCents", "priceVersion", currency,
@@ -1411,26 +1420,40 @@ export async function seedOrderFixtures(owner, state) {
     `, [ids.syntheticBuyerSuppressionId, syntheticBuyerEmail]);
     await owner.query(`
       INSERT INTO public."SellerProfile" (
-        id, "userId", "displayName", "displayNameNormalized", "shipFromName",
-        "shipFromLine1", "shipFromCity", "shipFromState", "shipFromPostal",
-        "shipFromCountry", "shipFromPhone", "defaultPkgWeightGrams", "defaultPkgLengthCm",
-        "defaultPkgWidthCm", "defaultPkgHeightCm", "vacationMode",
-        "acceptingNewOrders", "onboardingComplete", "createdAt", "updatedAt"
+        id, "userId", "displayName", "displayNameNormalized", "vacationMode",
+        "acceptingNewOrders", "createdAt", "updatedAt"
       ) VALUES
         ($1, $2, 'Grainline Route Canary Shop', 'grainline route canary shop',
-         $5, $6, $7, $8, $9, $10, $11,
-         500, 10, 10, 10, true, false, false,
-         pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()),
+         true, false, pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()),
         ($3, $4, 'Disposable Receipt Shop', 'disposable receipt shop',
-         $5, $6, $7, $8, $9, $10, $11,
-         500, 10, 10, 10, true, false, false,
-         pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())
+         true, false, pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())
       ON CONFLICT (id) DO NOTHING
     `, [
       ids.canarySellerProfileId,
       state.canary.userId,
       ids.receiptSellerProfileId,
       ids.receiptSellerUserId,
+    ]);
+    const privateFixture = await owner.query(`
+      UPDATE public."SellerProfilePrivate"
+         SET "shipFromName" = $2,
+             "shipFromLine1" = $3,
+             "shipFromCity" = $4,
+             "shipFromState" = $5,
+             "shipFromPostal" = $6,
+             "shipFromCountry" = $7,
+             "shipFromPhone" = $8,
+             "defaultPkgWeightGrams" = 500,
+             "defaultPkgLengthCm" = 10,
+             "defaultPkgWidthCm" = 10,
+             "defaultPkgHeightCm" = 10,
+             "useCalculatedShipping" = false,
+             "onboardingComplete" = false,
+             "updatedAt" = pg_catalog.clock_timestamp()
+       WHERE "sellerProfileId" = ANY($1::text[])
+       RETURNING "sellerProfileId"
+    `, [
+      [ids.canarySellerProfileId, ids.receiptSellerProfileId],
       ORDER_FIXTURE_SHIP_FROM.name,
       ORDER_FIXTURE_SHIP_FROM.line1,
       ORDER_FIXTURE_SHIP_FROM.city,
@@ -1439,6 +1462,9 @@ export async function seedOrderFixtures(owner, state) {
       ORDER_FIXTURE_SHIP_FROM.country,
       ORDER_FIXTURE_SHIP_FROM.phone,
     ]);
+    if (privateFixture.rowCount !== 2) {
+      throw new Error("Order route private seller fixture cardinality drifted");
+    }
     const listingIds = [ids.labelListingId, ids.fulfillmentListingId, ids.receiptListingId];
     const sellerIds = [
       ids.canarySellerProfileId,
@@ -2057,9 +2083,13 @@ async function runBuyerReceiptPhase({ owner, state, token, routeRequest }) {
 
 async function assertCheckoutSellerUnchanged(owner, stripe, state) {
   const seller = await owner.query(`
-    SELECT id, "userId", "stripeAccountId", "chargesEnabled", "vacationMode",
-           "acceptingNewOrders", "useCalculatedShipping"
-      FROM public."SellerProfile" WHERE id = $1
+    SELECT seller.id, seller."userId", seller_private."stripeAccountId",
+           seller."chargesEnabled", seller."vacationMode", seller."acceptingNewOrders",
+           seller_private."useCalculatedShipping"
+      FROM public."SellerProfile" AS seller
+      JOIN public."SellerProfilePrivate" AS seller_private
+        ON seller_private."sellerProfileId" = seller.id
+     WHERE seller.id = $1
   `, [state.checkoutSeller.sellerProfileId]);
   if (
     seller.rowCount !== 1
