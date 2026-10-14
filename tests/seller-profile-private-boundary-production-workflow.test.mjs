@@ -41,20 +41,50 @@ test("release admits and applies exactly the one reviewed migration", () => {
   assert.equal((workflow.match(/npx prisma migrate status/gu) ?? []).length, 3);
   assert.equal(
     (workflow.match(/assert-reviewed-pending-migrations\.mjs/gu) ?? []).length,
-    3,
+    5,
   );
   assert.match(
     workflow,
     new RegExp(
-      `mv "prisma/migrations/\\$migration" "\\$holding"[\\s\\S]*npx prisma migrate status[\\s\\S]*mv "\\$holding" "prisma/migrations/\\$migration"[\\s\\S]*REVIEWED_PENDING_MIGRATIONS="\\$migration"`,
+      `if \\[\\[ "\\$candidate" > "\\$migration" \\]\\]; then[\\s\\S]*mv "\\$path" "\\$holding/\\$candidate"[\\s\\S]*mv "prisma/migrations/\\$migration" "\\$holding/\\$migration"[\\s\\S]*npx prisma migrate status[\\s\\S]*mv "\\$holding/\\$migration" "prisma/migrations/\\$migration"[\\s\\S]*REVIEWED_PENDING_MIGRATIONS="\\$migration"[\\s\\S]*npx prisma migrate deploy[\\s\\S]*restore`,
       "u",
     ),
   );
   assert.match(
     workflow,
-    /steps\.preflight\.outputs\.state == 'pending'/u,
+    /MIGRATION_STATE: \$\{\{ steps\.preflight\.outputs\.state \}\}/u,
   );
   assert.doesNotMatch(workflow, /vercel deploy|git push|ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/iu);
+});
+
+test("release holds every reviewed caller successor while applying Phase 0", () => {
+  const successors = [
+    "20261013130000_move_seller_supported_snapshot_sql_callers",
+    "20261013140000_move_checkout_seller_private_sql_callers",
+    "20261013150000_move_custom_order_seller_private_sql_callers",
+    "20261013160000_move_case_guild_seller_private_sql_caller",
+    "20261013170000_move_order_label_seller_private_sql_caller",
+    "20261013180000_move_provider_identity_seller_private_sql_callers",
+    "20261013190000_move_reconciliation_seller_private_sql_callers",
+    "20261013200000_move_final_seller_private_sql_callers",
+    "20261013210000_move_account_deletion_seller_private_sql_callers",
+  ];
+  for (const successor of successors) {
+    assert.equal((workflow.match(new RegExp(successor, "gu")) ?? []).length, 1);
+  }
+  assert.match(
+    workflow,
+    /REVIEWED_PENDING_MIGRATIONS="\$SELLER_PROFILE_CALLER_SUCCESSORS" node scripts\/assert-reviewed-pending-migrations\.mjs/u,
+  );
+  assert.match(workflow, /test "\$actual_successors" = "\$SELLER_PROFILE_CALLER_SUCCESSORS"/u);
+  assert.match(
+    workflow,
+    /expected_before="\$migration,\$SELLER_PROFILE_CALLER_SUCCESSORS"[\s\S]*expected_before="\$SELLER_PROFILE_CALLER_SUCCESSORS"[\s\S]*REVIEWED_PENDING_MIGRATIONS="\$expected_before"/u,
+  );
+  assert.match(
+    workflow,
+    /Require only reviewed SellerProfile caller successors pending/u,
+  );
 });
 
 test("preflight rejects partial state and requires the accepted listing predecessor", () => {
@@ -77,7 +107,7 @@ test("preflight rejects partial state and requires the accepted listing predeces
 
 test("postflight proves exact catalog, row convergence, and zero direct authority", () => {
   const readback = workflow.indexOf("Read back exact catalog and data convergence");
-  const converged = workflow.indexOf("Require no pending migrations after apply");
+  const converged = workflow.indexOf("Require only reviewed SellerProfile caller successors pending");
   const audit = workflow.indexOf("Audit global runtime grants");
   const apply = workflow.indexOf("Apply only reviewed SellerProfile private-boundary migration");
   assert.ok(apply >= 0 && readback > apply && converged > readback && audit > converged);
