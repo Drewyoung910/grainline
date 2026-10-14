@@ -18,6 +18,8 @@ const repair = readFileSync(
 async function createRetiredFixture() {
   const database = new PGlite();
   await database.exec(`
+    CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
+    CREATE ROLE grainline_account_deletion_runtime LOGIN NOINHERIT;
     CREATE TABLE public._prisma_migrations (
       id text PRIMARY KEY,
       checksum text NOT NULL,
@@ -175,6 +177,13 @@ async function createRetiredFixture() {
     ) LANGUAGE plpgsql VOLATILE PARALLEL UNSAFE SECURITY DEFINER
       SET search_path = pg_catalog
     AS 'BEGIN RETURN; END';
+
+    REVOKE ALL ON FUNCTION
+      public.grainline_account_deletion_side_effect_claim(text)
+      FROM PUBLIC, grainline_app_runtime, grainline_account_deletion_runtime;
+    GRANT EXECUTE ON FUNCTION
+      public.grainline_account_deletion_side_effect_claim(text)
+      TO grainline_account_deletion_runtime;
   `);
   await database.exec(repair);
   return database;
@@ -250,6 +259,29 @@ test("post-retirement repair restores varchar claim results and buyer/seller scr
     assert.match(definitions.rows[0].definition, /kind::text/u);
     assert.doesNotMatch(definitions.rows[1].definition, /SellerProfile"%ROWTYPE/u);
     assert.match(definitions.rows[1].definition, /SellerProfilePrivate/u);
+    const privileges = await database.query(`
+      SELECT
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_account_deletion_side_effect_claim(text)',
+          'EXECUTE'
+        ) AS app_runtime,
+        pg_catalog.has_function_privilege(
+          'grainline_account_deletion_runtime',
+          'public.grainline_account_deletion_side_effect_claim(text)',
+          'EXECUTE'
+        ) AS deletion_runtime,
+        pg_catalog.has_function_privilege(
+          'public',
+          'public.grainline_account_deletion_side_effect_claim(text)',
+          'EXECUTE'
+        ) AS public_execute
+    `);
+    assert.deepEqual(privileges.rows[0], {
+      app_runtime: false,
+      deletion_runtime: true,
+      public_execute: false,
+    });
   } finally {
     await database.close();
   }

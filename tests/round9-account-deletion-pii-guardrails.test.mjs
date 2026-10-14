@@ -293,8 +293,14 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /async function redactSupportRequestsForDeletedAccount/);
     assert.match(deletion, /supportRequestAccountExportWhere\(deletedUserId, accountEmails\)/);
     assert.match(deletion, /tx\.supportRequest\.findMany\(\{/);
-    assert.match(deletion, /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues\)\.text/);
-    assert.match(deletion, /redactAccountDeletionText\(request\.emailLastError, sensitiveValues\)\.text/);
+    assert.match(
+      deletion,
+      /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues, undefined, 4000\)\.text/,
+    );
+    assert.match(
+      deletion,
+      /redactAccountDeletionText\(request\.emailLastError, sensitiveValues, undefined, 1000\)\.text/,
+    );
     assert.match(deletion, /userId: null/);
     assert.match(deletion, /name: null/);
     assert.match(deletion, /email: DELETED_SUPPORT_REQUEST_EMAIL/);
@@ -375,7 +381,10 @@ describe("Round 9 account deletion PII guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
     assert.match(deletion, /COALESCE\(reason, ''\)/);
-    assert.match(deletion, /redactAccountDeletionText\(candidate\.reason, sensitiveValues\)/);
+    assert.match(
+      deletion,
+      /redactAccountDeletionText\(candidate\.reason, sensitiveValues, undefined, 1000\)/,
+    );
     assert.match(deletion, /reason\.changed && reason\.text !== null \? \{ reason: reason\.text \} : \{\}/);
   });
 

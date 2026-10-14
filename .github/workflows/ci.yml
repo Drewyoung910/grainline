@@ -316,6 +316,14 @@ jobs:
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
+      - name: Isolate post-retirement account-deletion repair until all predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/account-deletion-post-retirement-repair"
+          mkdir "$holding"
+          migration=20261015013000_repair_account_deletion_after_seller_profile_retirement
+          mv "prisma/migrations/$migration" "$holding/$migration"
       - name: Verify accumulated User access source package
         run: >-
           node --test
@@ -1120,8 +1128,7 @@ jobs:
             20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
             20261014230000_prepare_seller_profile_private_remaining_app_authorities \
             20261015000000_correct_seller_profile_private_app_authorities \
-            20261015010000_retire_seller_profile_private_predecessor \
-            20261015013000_repair_account_deletion_after_seller_profile_retirement
+            20261015010000_retire_seller_profile_private_predecessor
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -5706,14 +5713,21 @@ jobs:
             20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
             20261014230000_prepare_seller_profile_private_remaining_app_authorities \
             20261015000000_correct_seller_profile_private_app_authorities \
-            20261015010000_retire_seller_profile_private_predecessor \
-            20261015013000_repair_account_deletion_after_seller_profile_retirement
+            20261015010000_retire_seller_profile_private_predecessor
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=" >> "$GITHUB_ENV"
+      - name: Restore post-retirement account-deletion repair after all predecessors
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/account-deletion-post-retirement-repair"
+          migration=20261015013000_repair_account_deletion_after_seller_profile_retirement
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          rmdir "$holding"
       - name: Apply SellerProfile private-boundary migration in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"

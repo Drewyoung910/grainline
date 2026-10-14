@@ -7,8 +7,16 @@ const workflow = readFileSync(
   ".github/workflows/account-deletion-post-retirement-repair-production.yml",
   "utf8",
 );
+const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 const repair = "20261015013000_repair_account_deletion_after_seller_profile_retirement";
 const checksum = "c2884361016a554b28afebe58776938faf695c39c86fb22c9d40c87949e02368";
+
+function ciStep(name) {
+  const start = ci.indexOf(`      - name: ${name}\n`);
+  assert.ok(start >= 0, name);
+  const next = ci.indexOf("\n      - ", start + 1);
+  return ci.slice(start, next < 0 ? undefined : next);
+}
 
 test("repair workflow parses as YAML", () => {
   const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
@@ -51,4 +59,23 @@ test("repair workflow uses read-only sanitized inspection and no deployment or R
     workflow,
     /vercel\s+(?:deploy|alias|promote)|ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/iu,
   );
+});
+
+test("CI isolates the repair until both predecessor families are restored", () => {
+  const verify = "Verify post-retirement account-deletion repair source package";
+  const isolate = "Isolate post-retirement account-deletion repair until all predecessors pass";
+  const restoreClaimFence = "Restore AccountDeletionSideEffect claim-fence source package";
+  const restoreSellerPrivate = "Restore SellerProfile private-boundary migration after all predecessors";
+  const restore = "Restore post-retirement account-deletion repair after all predecessors";
+  const apply = "Apply account-deletion post-retirement repair in disposable PostgreSQL";
+
+  assert.ok(ci.indexOf(verify) < ci.indexOf(isolate));
+  assert.ok(ci.indexOf(isolate) < ci.indexOf("Verify accumulated User access source package"));
+  assert.ok(ci.indexOf(restoreClaimFence) < ci.indexOf(restore));
+  assert.ok(ci.indexOf(restoreSellerPrivate) < ci.indexOf(restore));
+  assert.ok(ci.indexOf(restore) < ci.indexOf(apply));
+  assert.ok(ciStep(isolate).includes(repair));
+  assert.ok(ciStep(restore).includes(repair));
+  assert.ok(!ciStep(restoreClaimFence).includes(repair));
+  assert.ok(!ciStep(restoreSellerPrivate).includes(repair));
 });
