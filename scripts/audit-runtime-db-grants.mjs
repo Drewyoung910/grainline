@@ -124,6 +124,14 @@ export const ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION =
   "20260929130000_revoke_order_item_shipping_quote_runtime_access";
 export const ORDER_ITEM_QUOTE_RUNTIME_LOCK_MIGRATION_SHA256 =
   "32c085b262400201864e6bfb7d32829b886b99a48771f62da141352c1c8bab99";
+export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION =
+  "20261013180000_move_provider_identity_seller_private_sql_callers";
+export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256 =
+  "b00708a8cff7171ac148087a808a928472ea283beb6b67e961e39fb808fb0992";
+export const SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION =
+  "20261013190000_move_reconciliation_seller_private_sql_callers";
+export const SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION_SHA256 =
+  "3d76c45f60d4379253c2bdd57d0d3ce79d5e2c2ae9cad84b1f1027baf84d93e4";
 export const ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLES = Object.freeze([
   "OrderItem",
   "OrderShippingRateQuote",
@@ -553,6 +561,27 @@ export function withAppliedAccountDeletionAuthority(
     functions,
     accountDeletionClaimFencePreparationApplied: claimFenceApplied,
     accountDeletionMediaKeyPreparationApplied: mediaKeyApplied,
+  };
+}
+
+export function withAppliedSellerProfileCallerAuthority(
+  inventory,
+  { deauthorizeCompatApplied, reconciliationCompatApplied },
+) {
+  const functions = (inventory?.functions ?? []).filter((name) => {
+    if (name === "grainline_seller_profile_deauthorize_compat") {
+      return deauthorizeCompatApplied;
+    }
+    if (name === "grainline_seller_profile_reconciliation_required_compat") {
+      return reconciliationCompatApplied;
+    }
+    return true;
+  });
+  return {
+    ...inventory,
+    functions,
+    sellerProfileDeauthorizeCompatApplied: deauthorizeCompatApplied,
+    sellerProfileReconciliationCompatApplied: reconciliationCompatApplied,
   };
 }
 
@@ -1319,6 +1348,22 @@ export async function readAccountDeletionMediaKeyPreparationState(client) {
     migration: ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION,
     checksum: ACCOUNT_DELETION_MEDIA_KEY_PREPARATION_MIGRATION_SHA256,
     label: "AccountDeletionSideEffect media-key preparation",
+  });
+}
+
+export async function readSellerProfileDeauthorizeCompatState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION,
+    checksum: SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256,
+    label: "SellerProfile deauthorization compatibility",
+  });
+}
+
+export async function readSellerProfileReconciliationCompatState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION,
+    checksum: SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION_SHA256,
+    label: "SellerProfile reconciliation compatibility",
   });
 }
 
@@ -2780,6 +2825,12 @@ export async function auditLiveDatabase({
   const accountDeletionSideEffectForce =
     await readAccountDeletionSideEffectForceState(client);
   issues.push(...accountDeletionSideEffectForce.issues);
+  const sellerProfileDeauthorizeCompat =
+    await readSellerProfileDeauthorizeCompatState(client);
+  issues.push(...sellerProfileDeauthorizeCompat.issues);
+  const sellerProfileReconciliationCompat =
+    await readSellerProfileReconciliationCompatState(client);
+  issues.push(...sellerProfileReconciliationCompat.issues);
   issues.push(...collectAccountDeletionMigrationOrderIssues({
     claimFenceApplied: accountDeletionClaimFencePreparation.applied,
     mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
@@ -2787,10 +2838,16 @@ export async function auditLiveDatabase({
     forceApplied: accountDeletionSideEffectForce.applied,
   }));
   const liveAuthorityInventory = {
-    ...withAppliedAccountDeletionAuthority(inventory, {
-      claimFenceApplied: accountDeletionClaimFencePreparation.applied,
-      mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
-    }),
+    ...withAppliedSellerProfileCallerAuthority(
+      withAppliedAccountDeletionAuthority(inventory, {
+        claimFenceApplied: accountDeletionClaimFencePreparation.applied,
+        mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
+      }),
+      {
+        deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
+        reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
+      },
+    ),
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,
     orderSellerEmailProjectionRetirementApplied:

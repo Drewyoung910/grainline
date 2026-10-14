@@ -150,6 +150,10 @@ const {
   ORDER_ITEM_TABLE,
   ORDER_QUOTE_TABLE,
   ORDER_PAYMENT_EVENT_TABLE,
+  SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION,
+  SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256,
+  SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION,
+  SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION_SHA256,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
@@ -213,11 +217,14 @@ const {
   readAccountDeletionSideEffectForceState,
   readClerkWebhookEventActivationState,
   readClerkWebhookEventForceState,
+  readSellerProfileDeauthorizeCompatState,
+  readSellerProfileReconciliationCompatState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
   resolveStaffReadAuditStage,
   resolveTemporarilyAbsentCiTables,
   withAppliedAccountDeletionAuthority,
+  withAppliedSellerProfileCallerAuthority,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
 describe("temporary SellerProfilePrivate CI isolation", () => {
@@ -3734,6 +3741,102 @@ describe("database grant inventory guardrails", () => {
       rlsPolicyTables: [ACCOUNT_DELETION_SIDE_EFFECT_TABLE],
       accountDeletionSideEffectRlsActivationApplied: false,
     }), false);
+  });
+
+  it("derives staged SellerProfile caller functions only from exact live ledgers", async () => {
+    const exactClient = (expectedMigration, expectedChecksum) => ({
+      queryCount: 0,
+      async query(sql, parameters) {
+        this.queryCount += 1;
+        if (this.queryCount === 1) {
+          return { rows: [{ migration_table: "_prisma_migrations" }] };
+        }
+        assert.match(sql, /FROM public\._prisma_migrations/u);
+        assert.deepEqual(parameters, [expectedMigration]);
+        return {
+          rows: [{
+            checksum: expectedChecksum,
+            finished_at: new Date("2026-10-14T00:00:00Z"),
+            rolled_back_at: null,
+            applied_steps_count: "1",
+          }],
+        };
+      },
+    });
+    assert.deepEqual(
+      await readSellerProfileDeauthorizeCompatState(exactClient(
+        SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION,
+        SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readSellerProfileReconciliationCompatState(exactClient(
+        SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION,
+        SELLER_PROFILE_RECONCILIATION_COMPAT_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+
+    const sourceInventory = {
+      functions: [
+        "grainline_seller_profile_private_mirror",
+        "grainline_seller_profile_supported_snapshot",
+        "grainline_seller_profile_deauthorize_compat",
+        "grainline_seller_profile_reconciliation_required_compat",
+      ],
+    };
+    assert.deepEqual(
+      withAppliedSellerProfileCallerAuthority(sourceInventory, {
+        deauthorizeCompatApplied: false,
+        reconciliationCompatApplied: false,
+      }).functions,
+      [
+        "grainline_seller_profile_private_mirror",
+        "grainline_seller_profile_supported_snapshot",
+      ],
+    );
+    assert.deepEqual(
+      withAppliedSellerProfileCallerAuthority(sourceInventory, {
+        deauthorizeCompatApplied: true,
+        reconciliationCompatApplied: false,
+      }).functions,
+      [
+        "grainline_seller_profile_private_mirror",
+        "grainline_seller_profile_supported_snapshot",
+        "grainline_seller_profile_deauthorize_compat",
+      ],
+    );
+    assert.deepEqual(
+      withAppliedSellerProfileCallerAuthority(sourceInventory, {
+        deauthorizeCompatApplied: true,
+        reconciliationCompatApplied: true,
+      }).functions,
+      sourceInventory.functions,
+    );
+
+    const drifted = await readSellerProfileDeauthorizeCompatState({
+      queryCount: 0,
+      async query() {
+        this.queryCount += 1;
+        return this.queryCount === 1
+          ? { rows: [{ migration_table: "_prisma_migrations" }] }
+          : {
+            rows: [{
+              checksum: "0".repeat(64),
+              finished_at: new Date("2026-10-14T00:00:00Z"),
+              rolled_back_at: null,
+              applied_steps_count: "1",
+            }],
+          };
+      },
+    });
+    assert.deepEqual(drifted, {
+      applied: false,
+      issues: [
+        "SellerProfile deauthorization compatibility migration ledger is partial or drifted",
+      ],
+    });
   });
 
   it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {
