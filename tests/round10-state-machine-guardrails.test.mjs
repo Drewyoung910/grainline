@@ -72,17 +72,19 @@ describe("Round 10 state-machine guardrails", () => {
     const applyRoute = source("src/app/api/verification/apply/route.ts");
     const dashboard = source("src/app/dashboard/verification/page.tsx");
     const adminVerification = source("src/app/admin/verification/page.tsx");
-    const guildMemberCron = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
     const guildMetricsAuthority = source(
       "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+    );
+    const guildMemberAuthority = source(
+      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
     );
 
     assert.match(applyRoute, /guildMemberApplicationBlockReason/);
     assert.match(dashboard, /guildMemberApplicationBlockReason/);
     assert.match(dashboard, /guildMasterApplicationBlockReason/);
     assert.match(adminVerification, /status: "GUILD_MASTER_REJECTED"/);
-    assert.match(guildMemberCron, /status: "REJECTED", reviewedAt: now/);
+    assert.match(guildMemberAuthority, /status = 'REJECTED'[\s\S]*"reviewedAt" = source_now/);
     assert.match(guildMetricsAuthority, /status = 'GUILD_MASTER_REJECTED'/);
     assert.match(guildMetricsCron, /applySellerGuildMetrics/);
   });
@@ -101,9 +103,13 @@ describe("Round 10 state-machine guardrails", () => {
     const guildMetricsAuthority = source(
       "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
     );
+    const guildMemberAuthority = source(
+      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+    );
 
     assert.match(dashboard, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: s\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES\] \}/s);
-    assert.match(guildMemberCron, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: seller\.id,\s*status: \{ in: \[\.\.\.GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES\] \}/s);
+    assert.doesNotMatch(guildMemberCron, /makerVerification\.updateMany/);
+    assert.match(guildMemberAuthority, /status IN \([\s\S]*'APPROVED'[\s\S]*'GUILD_MASTER_REJECTED'/);
     assert.doesNotMatch(guildMetricsCron, /makerVerification\.updateMany/);
     assert.match(guildMetricsAuthority, /status = 'GUILD_MASTER_APPROVED'/);
     assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES\] \}/);

@@ -13,6 +13,9 @@ describe("Notification verification and Guild authority", () => {
   const metricsAuthority = source(
     "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
   );
+  const memberAuthority = source(
+    "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+  );
   const sql = source("docs/rls-drafts/notification-service-authority.sql");
 
   it("binds all seven staff notifications to transaction-returned admin audit ids", () => {
@@ -40,7 +43,9 @@ describe("Notification verification and Guild authority", () => {
       (memberCron.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.GUILD_SYSTEM_ACTION/g) ?? []).length,
       1,
     );
-    assert.match(memberCron, /sourceId: revocationAuditId/);
+    assert.match(memberAuthority, /'AUTO_REVOKE_GUILD_MEMBER'/);
+    assert.match(memberAuthority, /INSERT INTO public\."SystemAuditLog"/);
+    assert.match(memberCron, /sourceId: revocation\.auditId/);
     assert.equal(
       (metricsCron.match(/sourceId: transition\.auditId/g) ?? []).length,
       2,

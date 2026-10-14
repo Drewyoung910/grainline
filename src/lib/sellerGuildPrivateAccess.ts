@@ -1,11 +1,4 @@
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import {
-  guildMemberRevocationSellerWhere,
-  type GuildMemberRevocationGuard,
-} from "@/lib/guildMemberRevocationState";
-
-type SellerGuildPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile">;
 
 export type SellerGuildMemberCronRow = {
   id: string;
@@ -38,6 +31,14 @@ export type SellerGuildMetricsTransition = {
   sellerUserId: string;
 };
 
+export type SellerGuildMemberRevocation = {
+  applied: boolean;
+  auditId: string | null;
+  reason: string | null;
+  sellerUserId: string | null;
+  guardKind: "unresolved_case" | "listing_threshold" | null;
+};
+
 /** Purpose-bound compatibility operations for Guild cron reads and mutations
  * during the additive SellerProfilePrivate transition. */
 export async function sellerGuildMemberCronBatch(
@@ -66,25 +67,16 @@ export async function sellerGuildMetricsCronBatch(
   `;
 }
 
-export function recordSellerGuildMemberRevocation(
-  client: SellerGuildPrivateClient,
-  input: {
-    sellerProfileId: string;
-    guard: GuildMemberRevocationGuard;
-  },
-) {
-  return client.sellerProfile.updateMany({
-    where: guildMemberRevocationSellerWhere(
-      input.sellerProfileId,
-      input.guard,
-    ),
-    data: {
-      guildLevel: "NONE",
-      isVerifiedMaker: false,
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-    },
-  });
+export async function applySellerGuildMemberRevocation(
+  sellerProfileId: string,
+): Promise<SellerGuildMemberRevocation | null> {
+  const rows = await prisma.$queryRaw<SellerGuildMemberRevocation[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_member_revoke(
+        ${sellerProfileId}
+      )
+  `;
+  return rows[0] ?? null;
 }
 
 export async function applySellerGuildMetrics(input: {

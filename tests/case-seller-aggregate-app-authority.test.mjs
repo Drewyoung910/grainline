@@ -99,19 +99,23 @@ describe("Case seller aggregate application authority", () => {
   it("rechecks the Guild predicate inside revocation and reinstatement transactions", () => {
     const cron = source("src/app/api/cron/guild-member-check/route.ts");
     const admin = source("src/app/admin/verification/page.tsx");
-    const state = source("src/lib/guildMemberRevocationState.ts");
+    const revocationAuthority = source(
+      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+    );
 
     assert.match(
       cron,
-      /prisma\.\$transaction\(async \(tx\) => \{[\s\S]*guard\.kind === "unresolved_case"[\s\S]*getCaseGuildUnresolvedGuard\(seller\.id, tx\)[\s\S]*makerVerification\.updateMany/,
+      /applySellerGuildMemberRevocation\(seller\.id\)/,
     );
+    assert.match(revocationAuthority, /grainline_case_guild_unresolved_guard/);
+    assert.match(revocationAuthority, /UPDATE public\."MakerVerification"[\s\S]*UPDATE public\."SellerProfile"/);
     assert.match(
       admin,
       /prisma\.\$transaction\(async \(tx\) => \{[\s\S]*getCaseGuildUnresolvedGuard\(\s*sellerProfileId,\s*tx,[\s\S]*makerVerification\.updateMany/,
     );
     assert.doesNotMatch(cron, /\bprisma\.case\./);
     assert.doesNotMatch(admin, /\b(?:prisma|tx)\.case\./);
-    assert.doesNotMatch(state, /casesAsSeller|Prisma\.CaseWhereInput/);
+    assert.doesNotMatch(revocationAuthority, /FROM public\."Case"/);
   });
 
   it("revalidates the session-bound admin PIN inside verification actions", () => {

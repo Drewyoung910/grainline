@@ -2276,7 +2276,8 @@ FROM (
     ('public."grainline_seller_guild_listing_threshold_sync"(text)'),
     ('public."grainline_seller_guild_member_cron_batch"(text, integer)'),
     ('public."grainline_seller_guild_metrics_cron_batch"(text, integer)'),
-    ('public."grainline_seller_guild_metrics_apply"(text, timestamp without time zone)')
+    ('public."grainline_seller_guild_metrics_apply"(text, timestamp without time zone)'),
+    ('public."grainline_seller_guild_member_revoke"(text)')
 ) AS seller_stripe_authority(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
@@ -2304,7 +2305,8 @@ FROM (
     ('public."grainline_seller_guild_listing_threshold_sync"(text)'),
     ('public."grainline_seller_guild_member_cron_batch"(text, integer)'),
     ('public."grainline_seller_guild_metrics_cron_batch"(text, integer)'),
-    ('public."grainline_seller_guild_metrics_apply"(text, timestamp without time zone)')
+    ('public."grainline_seller_guild_metrics_apply"(text, timestamp without time zone)'),
+    ('public."grainline_seller_guild_member_revoke"(text)')
 ) AS seller_stripe_authority(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec

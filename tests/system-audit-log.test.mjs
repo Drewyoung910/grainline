@@ -39,15 +39,18 @@ describe("system audit logging", () => {
     const guildMetricsAuthority = source(
       "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
     );
+    const guildMemberAuthority = source(
+      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+    );
     const caseAutoClose = source("src/app/api/cron/case-auto-close/route.ts");
     const caseEscalate = source("src/app/api/cases/[id]/escalate/route.ts");
     const caseTransitionAuthority = source(
       "prisma/migrations/20260729060000_prepare_case_escalation_cron_authority/migration.sql",
     );
 
-    assert.match(guildMember, /logSystemActionOrThrow/);
-    assert.match(guildMember, /action: "AUTO_REVOKE_GUILD_MEMBER"/);
-    assert.match(guildMember, /client: tx/);
+    assert.match(guildMember, /applySellerGuildMemberRevocation/);
+    assert.match(guildMemberAuthority, /'AUTO_REVOKE_GUILD_MEMBER'/);
+    assert.match(guildMemberAuthority, /INSERT INTO public\."SystemAuditLog"/);
 
     assert.match(guildMetricsAuthority, /'AUTO_REVOKE_GUILD_MASTER'/);
     assert.match(guildMetricsAuthority, /INSERT INTO public\."SystemAuditLog"/);

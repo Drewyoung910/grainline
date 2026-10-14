@@ -79,8 +79,8 @@ describe("public cache invalidation guardrails", () => {
     assert.match(dashboard, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(newListing, /finalListing\?\.status === "ACTIVE"[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(editListing, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(memberCron, /if \(!revocationAuditId\) return 0;[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(metricsCron, /if \(!revocationAuditId\) return \{ processed: 1, warned: 0, revokedMaster: 0 \};[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(memberCron, /!revocation\?\.applied[\s\S]*return 0;[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(metricsCron, /transition\.action !== "MASTER_REVOKED"[\s\S]*return \{ processed: 1, warned: 0, revokedMaster: 0 \};[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(sellerProfile, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(sellerProfile, /updateSellerProfile[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\("\/"\)/);
     assert.match(sellerProfile, /removeSellerAvatar[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\("\/"\)/);

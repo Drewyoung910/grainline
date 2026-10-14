@@ -161,6 +161,10 @@ const guildMetricsAuthorityMigration = readFileSync(
   "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
   "utf8",
 );
+const guildMemberRevocationAuthorityMigration = readFileSync(
+  "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+  "utf8",
+);
 const guildStaffPrivateAccess = readFileSync(
   "src/lib/sellerGuildStaffPrivateAccess.ts",
   "utf8",
@@ -911,10 +915,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(guildDashboard, /sellerOwnerGuildApplicationState/);
     assert.match(guildDashboard, /recordSellerOwnerGuildMasterApplication/);
     assert.match(guildMemberCron, /sellerGuildMemberCronBatch/);
-    assert.match(guildMemberCron, /recordSellerGuildMemberRevocation/);
+    assert.match(guildMemberCron, /applySellerGuildMemberRevocation/);
     assert.match(guildMetricsCron, /sellerGuildMetricsCronBatch/);
     assert.match(guildMetricsCron, /applySellerGuildMetrics/);
-    assert.match(guildPrivateAccess, /guildMemberRevocationSellerWhere/);
+    assert.match(guildPrivateAccess, /grainline_seller_guild_member_revoke/);
     assert.match(guildPrivateAccess, /grainline_seller_guild_member_cron_batch/);
     assert.match(guildPrivateAccess, /grainline_seller_guild_metrics_cron_batch/);
     assert.match(guildPrivateAccess, /grainline_seller_guild_metrics_apply/);
@@ -940,6 +944,14 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(guildMetricsAuthorityMigration, /INTERVAL '30 days'/);
     assert.match(guildMetricsAuthorityMigration, /INSERT INTO public\."SystemAuditLog"/);
     assert.match(
+      guildMemberRevocationAuthorityMigration,
+      /CREATE OR REPLACE FUNCTION public\.grainline_seller_guild_member_revoke\(/,
+    );
+    assert.match(guildMemberRevocationAuthorityMigration, /grainline_case_guild_unresolved_guard/);
+    assert.match(guildMemberRevocationAuthorityMigration, /pg_catalog\.count\(\*\)/);
+    assert.match(guildMemberRevocationAuthorityMigration, /INTERVAL '30 days'/);
+    assert.match(guildMemberRevocationAuthorityMigration, /INSERT INTO public\."SystemAuditLog"/);
+    assert.match(
       provisioning,
       /public\."grainline_seller_guild_member_cron_batch"\(text, integer\)/,
     );
@@ -947,6 +959,11 @@ describe("SellerProfile private-boundary additive preparation", () => {
       provisioning,
       /public\."grainline_seller_guild_metrics_apply"\(text, timestamp without time zone\)/,
     );
+    assert.match(
+      provisioning,
+      /public\."grainline_seller_guild_member_revoke"\(text\)/,
+    );
+    assert.doesNotMatch(guildMemberCron, /(?:prisma|tx)\.makerVerification\./);
     assert.doesNotMatch(guildMetricsCron, /(?:prisma|tx)\.makerVerification\./);
     assert.doesNotMatch(guildPrivateAccess, /consecutiveMetricFailures:\s*\{/);
     assert.match(ownerPrivateAccess, /where: \{ id: input\.sellerProfileId, userId: input\.userId \}/);

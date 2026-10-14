@@ -656,11 +656,29 @@ revocation, verification conflict, exact-snapshot rejection, malformed metrics,
 direct companion denial and untrusted-function denial. This slice is prepared
 source only; it is not yet applied, merged or deployed.
 
-The Guild Member revocation mutation and staff compatibility module still read
-or write predecessor private fields. Phase 1 remains incomplete until each family moves
-to purpose-bound operations, the converted application is deployed and
-proven, and predecessor deployments have drained. The two transition-only SQL
-writers remain intentionally installed until that drain completes.
+The thirty-third isolated slice converts automatic Guild Member revocation.
+Migration
+`20261014200000_prepare_seller_profile_private_guild_member_revocation_authority`
+adds one fixed transition that accepts only the seller identity. PostgreSQL
+locks the seller and private companion, derives the current 90-day unresolved
+case guard through the existing Case authority, and otherwise requires both a
+private 30-day below-threshold clock and a fresh count below five ACTIVE,
+non-private listings. A successful transition updates the current eligible
+verification, public badge state, private metrics state and
+`AUTO_REVOKE_GUILD_MEMBER` audit row atomically. The caller cannot choose the
+guard, reason, verification result, seller state or audit payload. The cron
+uses the database result only for notification, email and cache side effects.
+Focused PostgreSQL proof covers case and listing revocations, restored-count
+and recent-threshold rejection, stale/non-member state, verification conflict,
+atomic state, direct companion denial and untrusted-function denial. This
+slice is prepared source only; it is not yet applied, merged or deployed.
+
+The staff compatibility module is the only remaining application caller
+family that reads or writes predecessor private fields. Phase 1 remains
+incomplete until it moves to purpose-bound operations, the converted
+application is deployed and proven, and predecessor deployments have drained.
+The two transition-only SQL writers remain intentionally installed until that
+drain completes.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

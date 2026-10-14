@@ -54,7 +54,9 @@ describe("guild and listing-edit audit follow-ups", () => {
   it("keeps Guild case metrics and reinstatement checks on active unresolved cases", () => {
     const metrics = source("src/lib/metrics.ts");
     const metricsState = source("src/lib/metricsState.ts");
-    const revocationState = source("src/lib/guildMemberRevocationState.ts");
+    const revocationAuthority = source(
+      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+    );
     const adminVerification = source("src/app/admin/verification/page.tsx");
 
     assert.match(metrics, /getCaseSellerActiveCount\(sellerProfileId, db\)/);
@@ -64,7 +66,8 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(metrics, /const now = new Date\(\)/);
     assert.match(metrics, /metricsPeriodStart\(now, periodMonths\)/);
     assert.doesNotMatch(metricsState, /setMonth\(/);
-    assert.doesNotMatch(revocationState, /casesAsSeller|Prisma\.CaseWhereInput/);
+    assert.match(revocationAuthority, /grainline_case_guild_unresolved_guard/);
+    assert.doesNotMatch(revocationAuthority, /p_case_created_before/);
     assert.match(adminVerification, /getCaseGuildUnresolvedGuard/);
     assert.match(adminVerification, /longCase\.blocked/);
     assert.match(adminVerification, /activeListings < 5/);
