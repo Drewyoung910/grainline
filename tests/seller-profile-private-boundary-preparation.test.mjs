@@ -113,6 +113,10 @@ const stripePrivateAccess = readFileSync(
   "src/lib/sellerStripePrivateAccess.ts",
   "utf8",
 );
+const stripeAppAuthorityMigration = readFileSync(
+  "prisma/migrations/20261014120000_prepare_seller_profile_private_stripe_app_authorities/migration.sql",
+  "utf8",
+);
 const shippingPrivateAccess = readFileSync(
   "src/lib/sellerShippingPrivateAccess.ts",
   "utf8",
@@ -770,11 +774,29 @@ describe("SellerProfile private-boundary additive preparation", () => {
         `${path} must not bypass the private Stripe compatibility boundary`,
       );
     }
-    assert.match(stripePrivateAccess, /Compatibility boundary for private Stripe state/);
-    assert.match(stripePrivateAccess, /sellerStripeOwnerSelect/);
+    assert.match(stripePrivateAccess, /Fixed database-operation boundary for private Stripe state/);
     assert.match(stripePrivateAccess, /sellerStripeReconciliationPage/);
     assert.match(stripePrivateAccess, /sellerStripeMirrorState/);
     assert.match(stripePrivateAccess, /updateSellerStripeChargesEnabled/);
+    assert.match(stripePrivateAccess, /grainline_seller_stripe_owner_state/);
+    assert.match(stripePrivateAccess, /grainline_seller_stripe_account_bind/);
+    assert.match(stripePrivateAccess, /grainline_seller_stripe_reconciliation_page/);
+    assert.match(stripePrivateAccess, /grainline_seller_stripe_mirror_state/);
+    assert.match(stripePrivateAccess, /grainline_seller_stripe_charges_update/);
+    assert.doesNotMatch(stripePrivateAccess, /\.sellerProfile\./);
+    assert.doesNotMatch(stripePrivateAccess, /\.sellerProfilePrivate\./);
+    assert.doesNotMatch(stripeAppAuthorityMigration, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*SellerProfilePrivate/i);
+    for (const operation of [
+      "grainline_seller_stripe_owner_state",
+      "grainline_seller_stripe_account_bind",
+      "grainline_seller_stripe_reconciliation_page",
+      "grainline_seller_stripe_mirror_state",
+      "grainline_seller_stripe_charges_update",
+    ]) {
+      assert.match(stripeAppAuthorityMigration, new RegExp(`CREATE OR REPLACE FUNCTION public\\.${operation}\\(`));
+      assert.match(stripeAppAuthorityMigration, new RegExp(`REVOKE ALL ON FUNCTION public\\.${operation}\\(`));
+      assert.match(provisioning, new RegExp(`public\."${operation}"`));
+    }
   });
 
   it("funnels shipping quote private inputs through one compatibility boundary", () => {

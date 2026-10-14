@@ -507,11 +507,31 @@ both must
 be replaced or retired after Phase 0 is installed, converted application code
 is deployed, and predecessor deployments have drained.
 
-These compatibility modules still read and write the predecessor table. That
-is intentional until Phase 0 is installed because ordinary runtime has zero
-direct authority on the companion. Phase 1 remains incomplete: currently
-effective SQL-function dependencies must move to purpose-bound private
-operations before predecessor columns can be retired.
+The twenty-fifth isolated slice begins the application cutover with the complete
+Stripe provider family. Migration
+`20261014120000_prepare_seller_profile_private_stripe_app_authorities` adds five
+fixed operations for owner state, account binding, bounded reconciliation,
+signed-provider mirroring and exact-account charge-state updates. Ordinary
+runtime retains zero table authority on `SellerProfilePrivate`. Account binding
+is now bound to both the authenticated user and seller profile, locks both
+representations, refuses a conflicting rebind, and keeps both representations
+synchronized during deployment skew. Charge-state updates require both the
+seller profile and the exact private connected-account id, preventing a stale
+webhook lookup from updating a newly rebound seller. The converted TypeScript
+boundary validates every returned row and contains no direct Prisma access to
+either seller table. Focused PGlite proof covers owner availability, idempotent
+binding, foreign-owner denial, conflicting rebind denial, exact-account charge
+updates, bounded reconciliation, representation convergence, direct-table
+denial and untrusted-function denial. The focused 46-test suite and TypeScript
+pass. This slice is prepared source only; it is not yet applied, merged or
+deployed.
+
+The remaining shipping, checkout, owner, Guild, staff and account-deletion
+compatibility modules still read or write predecessor private fields. Phase 1
+remains incomplete until each family moves to purpose-bound operations, the
+converted application is deployed and proven, and predecessor deployments have
+drained. The two transition-only SQL writers remain intentionally installed
+until that drain completes.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

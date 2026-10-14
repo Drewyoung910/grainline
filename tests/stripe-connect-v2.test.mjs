@@ -239,9 +239,9 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(helper, /runCronCursorPages\(\{/);
     assert.match(helper, /pageSize: batchSize/);
     assert.match(helper, /sellerStripeReconciliationPage\(cursorId, batchSize\)/);
-    assert.match(access, /stripeAccountId: \{ not: null \}/);
-    assert.match(access, /cursor: \{ id: cursorId \}, skip: 1/);
-    assert.match(access, /orderBy: \{ id: "asc" \}/);
+    assert.match(access, /grainline_seller_stripe_reconciliation_page/);
+    assert.match(access, /\$queryRaw<SellerStripeReconciliationState\[\]>/);
+    assert.doesNotMatch(access, /\.sellerProfile\.findMany/);
     assert.match(helper, /getCursor: \(seller\) => seller\.id/);
     assert.match(helper, /result\.pagesFetched = pageResult\.pagesFetched/);
     assert.match(helper, /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
@@ -252,7 +252,10 @@ describe("Stripe Connect v2 migration guardrails", () => {
 
     assert.match(mirror, /return \{ matched: false as const \}/);
     assert.match(mirror, /sellerStripeMirrorState\(accountId\)/);
-    assert.match(mirror, /updateSellerStripeChargesEnabled\(tx, seller\.id, effectiveChargesEnabled\)/);
+    assert.match(
+      mirror,
+      /updateSellerStripeChargesEnabled\([\s\S]*tx,[\s\S]*seller\.id,[\s\S]*accountId,[\s\S]*effectiveChargesEnabled/,
+    );
     assert.match(mirror, /changed: seller\.chargesEnabled !== effectiveChargesEnabled/);
     assert.match(mirror, /return result/);
     assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);

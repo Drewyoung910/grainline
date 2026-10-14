@@ -2250,6 +2250,41 @@ FROM (
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec
 
+-- SellerProfilePrivate application operations are the only ordinary-runtime
+-- path to private Stripe provider identity. They may be absent before the
+-- reviewed application-authority preparation migration.
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM (
+  VALUES
+    ('public."grainline_seller_stripe_owner_state"(text)'),
+    ('public."grainline_seller_stripe_account_bind"(text, text, text, text, text)'),
+    ('public."grainline_seller_stripe_reconciliation_page"(text, integer)'),
+    ('public."grainline_seller_stripe_mirror_state"(text)'),
+    ('public."grainline_seller_stripe_charges_update"(text, text, boolean)')
+) AS seller_stripe_authority(function_signature)
+WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM (
+  VALUES
+    ('public."grainline_seller_stripe_owner_state"(text)'),
+    ('public."grainline_seller_stripe_account_bind"(text, text, text, text, text)'),
+    ('public."grainline_seller_stripe_reconciliation_page"(text, integer)'),
+    ('public."grainline_seller_stripe_mirror_state"(text)'),
+    ('public."grainline_seller_stripe_charges_update"(text, text, boolean)')
+) AS seller_stripe_authority(function_signature)
+WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Phase 0 creates these trigger functions without PUBLIC or ordinary-runtime
 -- execution. Re-provisioning must converge that zero-direct boundary too.
 SELECT format(
