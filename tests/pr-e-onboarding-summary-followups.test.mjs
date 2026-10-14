@@ -24,7 +24,7 @@ describe("PR E onboarding summary follow-ups", () => {
     for (const step of [1, 2, 3, 4]) {
       assert.match(wizard, new RegExp(`setStep\\(${step}\\)`));
     }
-    assert.match(page, /sellerOwnerOnboardingState\(seller\.id\)/);
+    assert.match(page, /sellerOwnerOnboardingState\(seller\.id, seller\.userId\)/);
     assert.match(
       ownerAccess,
       /const sellerOwnerOnboardingSelect = \{[\s\S]*listings: \{\s*orderBy: \{ createdAt: "desc" \}/,

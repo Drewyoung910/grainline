@@ -5,11 +5,110 @@ import {
   sellerSettingsOwnerSelect,
 } from "@/lib/sellerProfileSelects";
 
-type SellerOwnerPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile">;
+type SellerOwnerPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile" | "$queryRaw">;
+
+type SellerOwnerPrivateState = {
+  stripeAccountId: string | null;
+  stripeAccountVersion: string | null;
+  stripeControllerType: string | null;
+  manualStripeReconciliationNeeded: boolean;
+  manualStripeReconciliationNote: string | null;
+  shipFromName: string | null;
+  shipFromLine1: string | null;
+  shipFromLine2: string | null;
+  shipFromCity: string | null;
+  shipFromState: string | null;
+  shipFromPostal: string | null;
+  shipFromCountry: string | null;
+  shipFromPhone: string | null;
+  defaultPkgWeightGrams: number | null;
+  defaultPkgLengthCm: number | null;
+  defaultPkgWidthCm: number | null;
+  defaultPkgHeightCm: number | null;
+  useCalculatedShipping: boolean;
+  preferredCarriers: string[];
+  onboardingStep: number;
+  onboardingComplete: boolean;
+  guildMemberApprovedAt: string | Date | null;
+  guildMasterApprovedAt: string | Date | null;
+  guildMasterAppliedAt: string | Date | null;
+  guildMasterReviewNotes: string | null;
+  consecutiveMetricFailures: number;
+  lastMetricCheckAt: string | Date | null;
+  metricWarningSentAt: string | Date | null;
+  listingsBelowThresholdSince: string | Date | null;
+  profileViews: number;
+};
+
+function nullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+function nullableNumber(value: unknown): value is number | null {
+  return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
+function nullableDateValue(value: unknown): value is string | Date | null {
+  return value === null || typeof value === "string" || value instanceof Date;
+}
+
+function isSellerOwnerPrivateState(value: unknown): value is SellerOwnerPrivateState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = value as Record<string, unknown>;
+  return nullableString(state.stripeAccountId)
+    && nullableString(state.stripeAccountVersion)
+    && nullableString(state.stripeControllerType)
+    && typeof state.manualStripeReconciliationNeeded === "boolean"
+    && nullableString(state.manualStripeReconciliationNote)
+    && nullableString(state.shipFromName)
+    && nullableString(state.shipFromLine1)
+    && nullableString(state.shipFromLine2)
+    && nullableString(state.shipFromCity)
+    && nullableString(state.shipFromState)
+    && nullableString(state.shipFromPostal)
+    && nullableString(state.shipFromCountry)
+    && nullableString(state.shipFromPhone)
+    && nullableNumber(state.defaultPkgWeightGrams)
+    && nullableNumber(state.defaultPkgLengthCm)
+    && nullableNumber(state.defaultPkgWidthCm)
+    && nullableNumber(state.defaultPkgHeightCm)
+    && typeof state.useCalculatedShipping === "boolean"
+    && Array.isArray(state.preferredCarriers)
+    && state.preferredCarriers.every((carrier) => typeof carrier === "string")
+    && Number.isSafeInteger(state.onboardingStep)
+    && typeof state.onboardingComplete === "boolean"
+    && nullableDateValue(state.guildMemberApprovedAt)
+    && nullableDateValue(state.guildMasterApprovedAt)
+    && nullableDateValue(state.guildMasterAppliedAt)
+    && nullableString(state.guildMasterReviewNotes)
+    && Number.isSafeInteger(state.consecutiveMetricFailures)
+    && nullableDateValue(state.lastMetricCheckAt)
+    && nullableDateValue(state.metricWarningSentAt)
+    && nullableDateValue(state.listingsBelowThresholdSince)
+    && Number.isSafeInteger(state.profileViews);
+}
+
+async function sellerOwnerPrivateState(
+  userId: string,
+  expectedSellerProfileId: string | null,
+  client: Pick<Prisma.TransactionClient, "$queryRaw"> = prisma,
+) {
+  const rows = await client.$queryRaw<Array<{ id: string; state: unknown }>>`
+    SELECT id, state
+      FROM public.grainline_seller_owner_private_state(${userId}::text)
+  `;
+  const row = rows[0];
+  const valid = row
+    && typeof row.id === "string"
+    && (expectedSellerProfileId === null || row.id === expectedSellerProfileId)
+    && isSellerOwnerPrivateState(row.state);
+  if (rows.length > 1 || (row && !valid)) {
+    throw new Error("Seller owner private-state authority returned an invalid result");
+  }
+  return valid ? { id: row.id, ...(row.state as SellerOwnerPrivateState) } : null;
+}
 
 const sellerOwnerOnboardingSelect = {
-  onboardingStep: true,
-  onboardingComplete: true,
   displayName: true,
   bio: true,
   tagline: true,
@@ -20,7 +119,6 @@ const sellerOwnerOnboardingSelect = {
   returnPolicy: true,
   shippingPolicy: true,
   acceptsCustomOrders: true,
-  stripeAccountId: true,
   chargesEnabled: true,
   _count: { select: { listings: true } },
   listings: {
@@ -33,7 +131,6 @@ const sellerOwnerOnboardingSelect = {
 const sellerOwnerOnboardingMutationSelect = {
   id: true,
   userId: true,
-  onboardingStep: true,
   chargesEnabled: true,
   _count: { select: { listings: true } },
 } satisfies Prisma.SellerProfileSelect;
@@ -49,27 +146,9 @@ const sellerOwnerExportSelect = {
   radiusMeters: true,
   publicMapOptIn: true,
   chargesEnabled: true,
-  stripeAccountId: true,
-  stripeAccountVersion: true,
-  stripeControllerType: true,
-  manualStripeReconciliationNeeded: true,
   shippingFlatRateCents: true,
   freeShippingOverCents: true,
   allowLocalPickup: true,
-  useCalculatedShipping: true,
-  preferredCarriers: true,
-  defaultPkgWeightGrams: true,
-  defaultPkgLengthCm: true,
-  defaultPkgWidthCm: true,
-  defaultPkgHeightCm: true,
-  shipFromName: true,
-  shipFromLine1: true,
-  shipFromLine2: true,
-  shipFromCity: true,
-  shipFromState: true,
-  shipFromPostal: true,
-  shipFromCountry: true,
-  shipFromPhone: true,
   tagline: true,
   bannerImageUrl: true,
   avatarImageUrl: true,
@@ -96,16 +175,6 @@ const sellerOwnerExportSelect = {
   isVerifiedMaker: true,
   verifiedAt: true,
   guildLevel: true,
-  guildMemberApprovedAt: true,
-  guildMasterApprovedAt: true,
-  guildMasterAppliedAt: true,
-  guildMasterReviewNotes: true,
-  consecutiveMetricFailures: true,
-  lastMetricCheckAt: true,
-  metricWarningSentAt: true,
-  listingsBelowThresholdSince: true,
-  onboardingStep: true,
-  onboardingComplete: true,
   vacationMode: true,
   vacationReturnDate: true,
   vacationMessage: true,
@@ -144,24 +213,83 @@ const sellerOwnerGuildApplicationSelect = {
 /** Owner-bound compatibility reads that intentionally combine public profile
  * state with private operational state. These become fixed database operations
  * after SellerProfilePrivate is installed in Production. */
-export function sellerOwnerOnboardingState(
+export async function sellerOwnerOnboardingState(
   sellerProfileId: string,
-  client: SellerOwnerPrivateClient = prisma,
-) {
-  return client.sellerProfile.findUnique({
-    where: { id: sellerProfileId },
-    select: sellerOwnerOnboardingSelect,
-  });
-}
-
-export function sellerOwnerOnboardingMutationState(
   userId: string,
   client: SellerOwnerPrivateClient = prisma,
 ) {
-  return client.sellerProfile.findUnique({
+  const profile = await client.sellerProfile.findFirst({
+    where: { id: sellerProfileId, userId },
+    select: sellerOwnerOnboardingSelect,
+  });
+  if (!profile) return null;
+  const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
+  return privateState ? { ...profile, ...privateState } : null;
+}
+
+export async function sellerOwnerOnboardingMutationState(
+  userId: string,
+  client: SellerOwnerPrivateClient = prisma,
+) {
+  const profile = await client.sellerProfile.findUnique({
     where: { userId },
     select: sellerOwnerOnboardingMutationSelect,
   });
+  if (!profile) return null;
+  const privateState = await sellerOwnerPrivateState(userId, profile.id, client);
+  return privateState ? { ...profile, onboardingStep: privateState.onboardingStep } : null;
+}
+
+async function updateSellerOwnerOnboardingStep(
+  client: Pick<Prisma.TransactionClient, "$queryRaw">,
+  input: {
+    sellerProfileId: string;
+    userId: string;
+    expectedStep: number | null;
+    nextStep: number;
+  },
+) {
+  const rows = await client.$queryRaw<Array<{ updated: boolean }>>`
+    SELECT public.grainline_seller_owner_onboarding_step_update(
+      ${input.userId}::text,
+      ${input.sellerProfileId}::text,
+      ${input.expectedStep}::integer,
+      ${input.nextStep}::integer
+    ) AS updated
+  `;
+  if (rows.length !== 1 || typeof rows[0]?.updated !== "boolean") {
+    throw new Error("Seller owner onboarding-step authority returned an invalid result");
+  }
+  return rows[0].updated;
+}
+
+async function completeSellerOwnerOnboardingState(
+  client: Pick<Prisma.TransactionClient, "$queryRaw">,
+  input: { sellerProfileId: string; userId: string },
+) {
+  const rows = await client.$queryRaw<Array<{ completed: boolean }>>`
+    SELECT public.grainline_seller_owner_onboarding_complete(
+      ${input.userId}::text,
+      ${input.sellerProfileId}::text
+    ) AS completed
+  `;
+  if (rows.length !== 1 || typeof rows[0]?.completed !== "boolean") {
+    throw new Error("Seller owner onboarding-complete authority returned an invalid result");
+  }
+  return rows[0].completed;
+}
+
+export async function sellerOwnerExportProfile(
+  userId: string,
+  client: SellerOwnerPrivateClient = prisma,
+) {
+  const profile = await client.sellerProfile.findUnique({
+    where: { userId },
+    select: sellerOwnerExportSelect,
+  });
+  if (!profile) return null;
+  const privateState = await sellerOwnerPrivateState(userId, profile.id, client);
+  return privateState ? { ...profile, ...privateState } : null;
 }
 
 async function requireOneSellerOwnerMutation(
@@ -197,10 +325,17 @@ export async function updateSellerOwnerOnboardingStepOne(
       bio: input.bio,
       tagline: input.tagline,
       avatarImageUrl: input.avatarImageUrl,
-      onboardingStep: 2,
     },
   });
   await requireOneSellerOwnerMutation(result, "onboarding step one");
+  if (!await updateSellerOwnerOnboardingStep(client, {
+    sellerProfileId: input.sellerProfileId,
+    userId: input.userId,
+    expectedStep: null,
+    nextStep: 2,
+  })) {
+    throw new Error("Seller owner onboarding step one changed");
+  }
 }
 
 export async function updateSellerOwnerOnboardingStepTwo(
@@ -225,13 +360,20 @@ export async function updateSellerOwnerOnboardingStepTwo(
       returnPolicy: input.returnPolicy,
       shippingPolicy: input.shippingPolicy,
       acceptsCustomOrders: input.acceptsCustomOrders,
-      onboardingStep: 3,
     },
   });
   await requireOneSellerOwnerMutation(result, "onboarding step two");
+  if (!await updateSellerOwnerOnboardingStep(client, {
+    sellerProfileId: input.sellerProfileId,
+    userId: input.userId,
+    expectedStep: null,
+    nextStep: 3,
+  })) {
+    throw new Error("Seller owner onboarding step two changed");
+  }
 }
 
-export function advanceSellerOwnerOnboardingStep(
+export async function advanceSellerOwnerOnboardingStep(
   client: SellerOwnerPrivateClient,
   input: {
     sellerProfileId: string;
@@ -240,35 +382,16 @@ export function advanceSellerOwnerOnboardingStep(
     nextStep: number;
   },
 ) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      userId: input.userId,
-      onboardingStep: input.expectedStep,
-    },
-    data: { onboardingStep: input.nextStep },
-  });
+  const updated = await updateSellerOwnerOnboardingStep(client, input);
+  return { count: updated ? 1 : 0 };
 }
 
 export async function completeSellerOwnerOnboarding(
   client: SellerOwnerPrivateClient,
   input: { sellerProfileId: string; userId: string },
 ) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: { onboardingComplete: true },
-  });
-  await requireOneSellerOwnerMutation(result, "onboarding completion");
-}
-
-export function sellerOwnerExportProfile(
-  userId: string,
-  client: SellerOwnerPrivateClient = prisma,
-) {
-  return client.sellerProfile.findUnique({
-    where: { userId },
-    select: sellerOwnerExportSelect,
-  });
+  const completed = await completeSellerOwnerOnboardingState(client, input);
+  if (!completed) throw new Error("Seller owner onboarding completion prerequisites changed");
 }
 
 export function sellerOwnerGuildDashboardState(
@@ -314,15 +437,18 @@ export function recordSellerOwnerGuildMasterApplication(
   });
 }
 
-export function sellerOwnerShopSettingsState(
+export async function sellerOwnerShopSettingsState(
   sellerProfileId: string,
   userId: string,
   client: SellerOwnerPrivateClient = prisma,
 ) {
-  return client.sellerProfile.findFirst({
+  const profile = await client.sellerProfile.findFirst({
     where: { id: sellerProfileId, userId },
     select: sellerSettingsOwnerSelect,
   });
+  if (!profile) return null;
+  const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
+  return privateState ? { ...profile, ...privateState } : null;
 }
 
 export async function updateSellerOwnerShopSettings(
@@ -355,35 +481,38 @@ export async function updateSellerOwnerShopSettings(
     defaultPkgWeightGrams: number | null;
   },
 ) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: {
-      city: input.city,
-      state: input.state,
-      lat: input.lat,
-      lng: input.lng,
-      radiusMeters: input.radiusMeters,
-      publicMapOptIn: input.publicMapOptIn,
-      shippingFlatRateCents: input.shippingFlatRateCents,
-      freeShippingOverCents: input.freeShippingOverCents,
-      allowLocalPickup: input.allowLocalPickup,
-      useCalculatedShipping: input.useCalculatedShipping,
-      preferredCarriers: input.preferredCarriers,
-      shipFromName: input.shipFromName,
-      shipFromLine1: input.shipFromLine1,
-      shipFromLine2: input.shipFromLine2,
-      shipFromCity: input.shipFromCity,
-      shipFromState: input.shipFromState,
-      shipFromPostal: input.shipFromPostal,
-      shipFromCountry: input.shipFromCountry,
-      shipFromPhone: input.shipFromPhone,
-      defaultPkgLengthCm: input.defaultPkgLengthCm,
-      defaultPkgWidthCm: input.defaultPkgWidthCm,
-      defaultPkgHeightCm: input.defaultPkgHeightCm,
-      defaultPkgWeightGrams: input.defaultPkgWeightGrams,
-    },
-  });
-  await requireOneSellerOwnerMutation(result, "shop settings update");
+  const rows = await client.$queryRaw<Array<{ id: string }>>`
+    SELECT public.grainline_seller_owner_shop_settings_update(
+      ${input.userId}::text,
+      ${input.sellerProfileId}::text,
+      ${input.city}::text,
+      ${input.state}::text,
+      ${input.lat}::double precision,
+      ${input.lng}::double precision,
+      ${input.radiusMeters}::double precision,
+      ${input.publicMapOptIn}::boolean,
+      ${input.shippingFlatRateCents}::integer,
+      ${input.freeShippingOverCents}::integer,
+      ${input.allowLocalPickup}::boolean,
+      ${input.useCalculatedShipping}::boolean,
+      ${input.preferredCarriers}::text[],
+      ${input.shipFromName}::text,
+      ${input.shipFromLine1}::text,
+      ${input.shipFromLine2}::text,
+      ${input.shipFromCity}::text,
+      ${input.shipFromState}::text,
+      ${input.shipFromPostal}::text,
+      ${input.shipFromCountry}::text,
+      ${input.shipFromPhone}::text,
+      ${input.defaultPkgLengthCm}::double precision,
+      ${input.defaultPkgWidthCm}::double precision,
+      ${input.defaultPkgHeightCm}::double precision,
+      ${input.defaultPkgWeightGrams}::integer
+    ) AS id
+  `;
+  if (rows.length !== 1 || rows[0]?.id !== input.sellerProfileId) {
+    throw new Error("Seller owner shop-settings authority returned an invalid result");
+  }
 }
 
 export async function updateSellerOwnerMetroAssignment(

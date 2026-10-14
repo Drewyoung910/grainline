@@ -564,8 +564,29 @@ denials plus direct-table and untrusted-function denial. The 104-test focused
 suite, the 130-test adjacent-route suite, TypeScript and scoped lint pass. This
 slice is prepared source only; it is not yet applied, merged or deployed.
 
-The remaining owner, Guild, staff and account-deletion compatibility modules
-still read or write predecessor private fields. Phase 1 remains
+The twenty-eighth isolated slice converts the non-Guild owner surface.
+Migration
+`20261014150000_prepare_seller_profile_private_owner_app_authorities` adds an
+active-owner-only private-state projection plus narrow onboarding-step,
+onboarding-completion and shop-settings writers. Onboarding, shop settings and
+account export combine bounded public projections with that private result;
+the general seller bootstrap no longer carries a private Stripe account id.
+Vacation-mode checkout expiry obtains the account id through the already fixed
+Stripe owner operation. Onboarding progress uses a compare-and-set operation,
+and completion now rechecks the private step, current Stripe eligibility and
+existence of a listing while both seller representations are locked. The shop
+settings writer validates geographic, monetary, carrier, address-country and
+package bounds and updates the private source plus predecessor representation
+in one transaction during deployment skew. Ordinary runtime receives only
+function execution and retains zero private-table authority. Focused PostgreSQL
+proof deliberately poisons predecessor private values, proves owner reads come
+from the companion, proves onboarding and settings synchronization, and covers
+stale-step, completion-prerequisite, direct-table and untrusted-function
+denials. The 65-test owner/static suite, TypeScript and scoped lint pass. This
+slice is prepared source only; it is not yet applied, merged or deployed.
+
+The remaining Guild, staff and account-deletion compatibility modules still
+read or write predecessor private fields. Phase 1 remains
 incomplete until each family moves to purpose-bound operations, the converted
 application is deployed and proven, and predecessor deployments have drained.
 The two transition-only SQL writers remain intentionally installed until that

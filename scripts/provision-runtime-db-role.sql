@@ -2266,7 +2266,11 @@ FROM (
     ('public."grainline_seller_stripe_mirror_state"(text)'),
     ('public."grainline_seller_stripe_charges_update"(text, text, boolean)'),
     ('public."grainline_seller_shipping_quote_state"(text, text, text, text)'),
-    ('public."grainline_seller_checkout_private_state"(text, text, text, text)')
+    ('public."grainline_seller_checkout_private_state"(text, text, text, text)'),
+    ('public."grainline_seller_owner_private_state"(text)'),
+    ('public."grainline_seller_owner_onboarding_step_update"(text, text, integer, integer)'),
+    ('public."grainline_seller_owner_onboarding_complete"(text, text)'),
+    ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)')
 ) AS seller_stripe_authority(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
@@ -2284,7 +2288,11 @@ FROM (
     ('public."grainline_seller_stripe_mirror_state"(text)'),
     ('public."grainline_seller_stripe_charges_update"(text, text, boolean)'),
     ('public."grainline_seller_shipping_quote_state"(text, text, text, text)'),
-    ('public."grainline_seller_checkout_private_state"(text, text, text, text)')
+    ('public."grainline_seller_checkout_private_state"(text, text, text, text)'),
+    ('public."grainline_seller_owner_private_state"(text)'),
+    ('public."grainline_seller_owner_onboarding_step_update"(text, text, integer, integer)'),
+    ('public."grainline_seller_owner_onboarding_complete"(text, text)'),
+    ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)')
 ) AS seller_stripe_authority(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec

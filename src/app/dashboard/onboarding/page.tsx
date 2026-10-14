@@ -20,7 +20,7 @@ export default async function OnboardingPage({
   const { seller } = await ensureSeller();
   const params = await searchParams;
 
-  const sp = await sellerOwnerOnboardingState(seller.id);
+  const sp = await sellerOwnerOnboardingState(seller.id, seller.userId);
 
   if (!sp || sp.onboardingComplete) {
     redirect("/dashboard");

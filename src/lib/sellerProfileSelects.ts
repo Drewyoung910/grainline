@@ -8,7 +8,6 @@ export const sellerBootstrapSelect = {
   userId: true,
   displayName: true,
   chargesEnabled: true,
-  stripeAccountId: true,
   vacationMode: true,
   bannerImageUrl: true,
   avatarImageUrl: true,
@@ -18,7 +17,6 @@ export const sellerBootstrapSelect = {
 
 export const sellerSettingsOwnerSelect = {
   id: true,
-  stripeAccountId: true,
   chargesEnabled: true,
   vacationMode: true,
   vacationReturnDate: true,
@@ -32,20 +30,6 @@ export const sellerSettingsOwnerSelect = {
   shippingFlatRateCents: true,
   freeShippingOverCents: true,
   allowLocalPickup: true,
-  useCalculatedShipping: true,
-  preferredCarriers: true,
-  shipFromName: true,
-  shipFromLine1: true,
-  shipFromLine2: true,
-  shipFromCity: true,
-  shipFromState: true,
-  shipFromPostal: true,
-  shipFromCountry: true,
-  shipFromPhone: true,
-  defaultPkgWeightGrams: true,
-  defaultPkgLengthCm: true,
-  defaultPkgWidthCm: true,
-  defaultPkgHeightCm: true,
 } satisfies Prisma.SellerProfileSelect;
 
 export const sellerProfileEditorSelect = {

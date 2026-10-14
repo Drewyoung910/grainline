@@ -129,6 +129,10 @@ const checkoutAppAuthorityMigration = readFileSync(
   "prisma/migrations/20261014140000_prepare_seller_profile_private_checkout_app_authority/migration.sql",
   "utf8",
 );
+const ownerAppAuthorityMigration = readFileSync(
+  "prisma/migrations/20261014150000_prepare_seller_profile_private_owner_app_authorities/migration.sql",
+  "utf8",
+);
 const ownerPrivateAccess = readFileSync(
   "src/lib/sellerOwnerPrivateAccess.ts",
   "utf8",
@@ -851,7 +855,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     const guildMetricsCron = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
     const guildPrivateAccess = readFileSync("src/lib/sellerGuildPrivateAccess.ts", "utf8");
     const accountExport = readFileSync("src/app/api/account/export/route.ts", "utf8");
-    assert.match(onboarding, /sellerOwnerOnboardingState\(seller\.id\)/);
+    assert.match(onboarding, /sellerOwnerOnboardingState\(seller\.id, seller\.userId\)/);
     assert.match(accountExport, /sellerOwnerExportProfile\(user\.id\)/);
     assert.doesNotMatch(onboarding, /prisma\.sellerProfile\./);
     assert.doesNotMatch(onboardingActions, /(?:prisma|tx)\.sellerProfile\./);
@@ -863,8 +867,17 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.doesNotMatch(accountExport, /prisma\.sellerProfile\./);
     assert.match(ownerPrivateAccess, /sellerOwnerOnboardingSelect/);
     assert.match(ownerPrivateAccess, /sellerOwnerExportSelect/);
-    assert.match(ownerPrivateAccess, /manualStripeReconciliationNeeded: true/);
-    assert.match(ownerPrivateAccess, /guildMasterReviewNotes: true/);
+    assert.match(ownerPrivateAccess, /grainline_seller_owner_private_state/);
+    assert.match(ownerPrivateAccess, /manualStripeReconciliationNeeded: boolean/);
+    assert.match(ownerPrivateAccess, /guildMasterReviewNotes: string \| null/);
+    assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_private_state\(/);
+    assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_step_update\(/);
+    assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_complete\(/);
+    assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_shop_settings_update\(/);
+    assert.match(ownerAppAuthorityMigration, /JOIN public\."SellerProfilePrivate"/);
+    assert.doesNotMatch(ownerAppAuthorityMigration, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*SellerProfilePrivate/i);
+    assert.match(provisioning, /public\."grainline_seller_owner_private_state"\(text\)/);
+    assert.match(provisioning, /public\."grainline_seller_owner_onboarding_complete"\(text, text\)/);
     assert.match(onboardingActions, /sellerOwnerOnboardingMutationState/);
     assert.match(onboardingActions, /updateSellerOwnerOnboardingStepOne/);
     assert.match(onboardingActions, /updateSellerOwnerOnboardingStepTwo/);
