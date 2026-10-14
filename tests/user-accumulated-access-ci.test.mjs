@@ -124,6 +124,22 @@ function accountDeletionSuccessorMigrationPath(migration) {
   return stagedPath;
 }
 
+function accountDeletionPostRetirementRepairPath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    accountDeletionPostRetirementRepair,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "account-deletion-post-retirement-repair",
+    accountDeletionPostRetirementRepair,
+  );
+  assert.ok(existsSync(stagedPath), "missing isolated account-deletion post-retirement repair");
+  return stagedPath;
+}
+
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
   const omitted = [];
   for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
@@ -248,6 +264,15 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       if (!existsSync(target)) {
         cpSync(accountDeletionSuccessorMigrationPath(migration), target, { recursive: true });
       }
+    }
+    const repairTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      accountDeletionPostRetirementRepair,
+    );
+    if (!existsSync(repairTarget)) {
+      cpSync(accountDeletionPostRetirementRepairPath(), repairTarget, { recursive: true });
     }
     for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
     for (const file of accountDeletionSuccessorTests) {
