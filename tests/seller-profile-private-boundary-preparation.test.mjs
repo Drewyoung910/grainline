@@ -165,6 +165,10 @@ const guildMemberRevocationAuthorityMigration = readFileSync(
   "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
   "utf8",
 );
+const guildStaffReadAuthorityMigration = readFileSync(
+  "prisma/migrations/20261014210000_prepare_seller_profile_private_guild_staff_read_authorities/migration.sql",
+  "utf8",
+);
 const guildStaffPrivateAccess = readFileSync(
   "src/lib/sellerGuildStaffPrivateAccess.ts",
   "utf8",
@@ -276,8 +280,17 @@ describe("SellerProfile private-boundary additive preparation", () => {
       "sellerGuildStaffRevokedMemberList",
     ]) {
       assert.match(adminVerification, new RegExp(`\\b${operation}\\(`));
-      assert.match(guildStaffPrivateAccess, new RegExp(`export function ${operation}\\(`));
+      assert.match(guildStaffPrivateAccess, new RegExp(`export (?:async )?function ${operation}\\(`));
     }
+
+    assert.match(guildStaffPrivateAccess, /grainline_seller_guild_staff_roster/);
+    assert.match(guildStaffPrivateAccess, /grainline_seller_guild_staff_master_pending/);
+    assert.match(guildStaffReadAuthorityMigration, /JOIN public\."SellerProfilePrivate"/);
+    assert.match(guildStaffReadAuthorityMigration, /SESSION_USER <> 'grainline_staff_read_runtime'/);
+    assert.match(guildStaffReadAuthorityMigration, /GRANT EXECUTE[\s\S]*TO grainline_staff_read_runtime/);
+    assert.doesNotMatch(guildStaffReadAuthorityMigration, /GRANT EXECUTE[\s\S]*TO grainline_app_runtime/);
+    assert.doesNotMatch(guildStaffPrivateAccess, /sellerProfile\.findMany/);
+    assert.doesNotMatch(guildStaffPrivateAccess, /makerVerification\.findMany/);
 
     for (const field of [
       "guildMemberApprovedAt",

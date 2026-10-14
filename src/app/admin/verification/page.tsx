@@ -917,6 +917,7 @@ async function unfeatureMaker(sellerProfileId: string) {
 export default async function AdminVerificationPage() {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
+  const staffClient = getOrderStaffReadClient();
   const [memberPending, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
     prisma.makerVerification.findMany({
       where: { status: "PENDING" },
@@ -926,10 +927,10 @@ export default async function AdminVerificationPage() {
         sellerProfile: { select: { displayName: true, id: true } },
       },
     }),
-    sellerGuildStaffMasterPendingList(),
-    sellerGuildStaffMemberList(),
-    sellerGuildStaffMasterList(),
-    sellerGuildStaffRevokedMemberList(),
+    sellerGuildStaffMasterPendingList(staffClient, staff.id),
+    sellerGuildStaffMemberList(staffClient, staff.id),
+    sellerGuildStaffMasterList(staffClient, staff.id),
+    sellerGuildStaffRevokedMemberList(staffClient, staff.id),
   ]);
 
   const masterMetricsMap = new Map<string, SellerMetricsResult>();

@@ -3390,7 +3390,9 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_user_staff_email_recipient"(text, text, text)'),
     ('public."grainline_user_staff_ban_target"(text, text)'),
     ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),
-    ('public."grainline_user_ban_repair_target"(text, text)')
+    ('public."grainline_user_ban_repair_target"(text, text)'),
+    ('public."grainline_seller_guild_staff_roster"(text, text)'),
+    ('public."grainline_seller_guild_staff_master_pending"(text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

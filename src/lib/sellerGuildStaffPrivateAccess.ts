@@ -3,8 +3,40 @@ import { prisma } from "@/lib/db";
 
 type SellerGuildStaffPrivateClient = Pick<
   Prisma.TransactionClient,
-  "sellerProfile" | "makerVerification"
+  "sellerProfile" | "makerVerification" | "$queryRaw"
 >;
+
+type SellerGuildStaffReadClient = Pick<Prisma.TransactionClient, "$queryRaw">;
+
+export type SellerGuildStaffRosterRow = {
+  id: string;
+  displayName: string;
+  guildMemberApprovedAt: Date | null;
+  guildMasterApprovedAt: Date | null;
+  featuredUntil: Date | null;
+};
+
+type SellerGuildStaffMasterPendingRow = {
+  id: string;
+  craftDescription: string;
+  guildMasterCraftBusiness: string | null;
+  yearsExperience: number;
+  portfolioUrl: string | null;
+  appliedAt: Date;
+  sellerProfileId: string;
+  sellerDisplayName: string;
+  guildMasterAppliedAt: Date | null;
+  metricsCalculatedAt: Date | null;
+  metricsPeriodMonths: number | null;
+  metricsAverageRating: number | null;
+  metricsReviewCount: number | null;
+  metricsOnTimeShippingRate: number | null;
+  metricsResponseRate: number | null;
+  metricsTotalSalesCents: bigint | null;
+  metricsCompletedOrderCount: number | null;
+  metricsActiveCaseCount: number | null;
+  metricsAccountAgeDays: number | null;
+};
 
 const sellerGuildStaffContactSelect = {
   userId: true,
@@ -17,9 +49,9 @@ const sellerGuildStaffReinstatementSelect = {
   ownerAccountActive: true,
 } satisfies Prisma.SellerProfileSelect;
 
-/** Compatibility boundary for staff Guild reads and transitions. The
- * implementation intentionally uses SellerProfile until the additive private
- * companion is installed and its fixed database operations are available. */
+/** Compatibility boundary for staff Guild reads and transitions. Read lists
+ * use fixed isolated-staff database projections; transition writes remain on
+ * SellerProfile until their paired database operation is prepared. */
 export function sellerGuildStaffContact(
   sellerProfileId: string,
   client: SellerGuildStaffPrivateClient = prisma,
@@ -135,78 +167,73 @@ export function reinstateSellerGuildMember(
   });
 }
 
-export function sellerGuildStaffMemberList(
-  client: SellerGuildStaffPrivateClient = prisma,
+async function sellerGuildStaffRoster(
+  client: SellerGuildStaffReadClient,
+  actorId: string,
+  cohort: "GUILD_MEMBER" | "GUILD_MASTER" | "REVOKED_MEMBER",
 ) {
-  return client.sellerProfile.findMany({
-    where: { guildLevel: "GUILD_MEMBER" },
-    select: {
-      id: true,
-      displayName: true,
-      guildMemberApprovedAt: true,
-      featuredUntil: true,
-    },
-    orderBy: { guildMemberApprovedAt: "desc" },
-    take: 50,
-  });
+  return client.$queryRaw<SellerGuildStaffRosterRow[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_staff_roster(
+        ${actorId},
+        ${cohort}
+      )
+  `;
+}
+
+export function sellerGuildStaffMemberList(
+  client: SellerGuildStaffReadClient,
+  actorId: string,
+) {
+  return sellerGuildStaffRoster(client, actorId, "GUILD_MEMBER");
 }
 
 export function sellerGuildStaffMasterList(
-  client: SellerGuildStaffPrivateClient = prisma,
+  client: SellerGuildStaffReadClient,
+  actorId: string,
 ) {
-  return client.sellerProfile.findMany({
-    where: { guildLevel: "GUILD_MASTER" },
-    select: {
-      id: true,
-      displayName: true,
-      guildMasterApprovedAt: true,
-      featuredUntil: true,
-    },
-    orderBy: { guildMasterApprovedAt: "desc" },
-    take: 50,
-  });
+  return sellerGuildStaffRoster(client, actorId, "GUILD_MASTER");
 }
 
 export function sellerGuildStaffRevokedMemberList(
-  client: SellerGuildStaffPrivateClient = prisma,
+  client: SellerGuildStaffReadClient,
+  actorId: string,
 ) {
-  return client.sellerProfile.findMany({
-    where: { guildLevel: "NONE", guildMemberApprovedAt: { not: null } },
-    select: { id: true, displayName: true, guildMemberApprovedAt: true },
-    orderBy: { guildMemberApprovedAt: "desc" },
-    take: 50,
-  });
+  return sellerGuildStaffRoster(client, actorId, "REVOKED_MEMBER");
 }
 
-export function sellerGuildStaffMasterPendingList(
-  client: SellerGuildStaffPrivateClient = prisma,
+export async function sellerGuildStaffMasterPendingList(
+  client: SellerGuildStaffReadClient,
+  actorId: string,
 ) {
-  return client.makerVerification.findMany({
-    where: { status: "GUILD_MASTER_PENDING" },
-    orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
-    take: 50,
-    include: {
-      sellerProfile: {
-        select: {
-          displayName: true,
-          id: true,
-          guildMasterAppliedAt: true,
-          sellerMetrics: {
-            select: {
-              calculatedAt: true,
-              periodMonths: true,
-              averageRating: true,
-              reviewCount: true,
-              onTimeShippingRate: true,
-              responseRate: true,
-              totalSalesCents: true,
-              completedOrderCount: true,
-              activeCaseCount: true,
-              accountAgeDays: true,
-            },
-          },
-        },
+  const rows = await client.$queryRaw<SellerGuildStaffMasterPendingRow[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_staff_master_pending(${actorId})
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    craftDescription: row.craftDescription,
+    guildMasterCraftBusiness: row.guildMasterCraftBusiness,
+    yearsExperience: row.yearsExperience,
+    portfolioUrl: row.portfolioUrl,
+    appliedAt: row.appliedAt,
+    sellerProfileId: row.sellerProfileId,
+    sellerProfile: {
+      id: row.sellerProfileId,
+      displayName: row.sellerDisplayName,
+      guildMasterAppliedAt: row.guildMasterAppliedAt,
+      sellerMetrics: row.metricsCalculatedAt === null ? null : {
+        calculatedAt: row.metricsCalculatedAt,
+        periodMonths: row.metricsPeriodMonths!,
+        averageRating: row.metricsAverageRating!,
+        reviewCount: row.metricsReviewCount!,
+        onTimeShippingRate: row.metricsOnTimeShippingRate!,
+        responseRate: row.metricsResponseRate!,
+        totalSalesCents: row.metricsTotalSalesCents!,
+        completedOrderCount: row.metricsCompletedOrderCount!,
+        activeCaseCount: row.metricsActiveCaseCount!,
+        accountAgeDays: row.metricsAccountAgeDays!,
       },
     },
-  });
+  }));
 }

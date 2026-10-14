@@ -146,6 +146,10 @@ const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
     functions: ["grainline_seller_guild_member_revoke"],
   },
 ];
+const SELLER_PROFILE_PRIVATE_STAFF_READ_FUNCTION_NAMES = [
+  "grainline_seller_guild_staff_roster",
+  "grainline_seller_guild_staff_master_pending",
+];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",
   "grainline_blocked_checkout_refund_claim_resume",
@@ -2850,6 +2854,7 @@ describe("database grant inventory guardrails", () => {
         ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES
         : []),
       ...sellerProfilePrivateAppAuthorityFunctionNames,
+      ...SELLER_PROFILE_PRIVATE_STAFF_READ_FUNCTION_NAMES,
       ...(listingHideDeleteMigrationPresent
         ? ["grainline_listing_delete_reference_state"]
         : []),
@@ -2923,6 +2928,7 @@ describe("database grant inventory guardrails", () => {
             + 1 // SellerProfilePrivate table revoke from PUBLIC
           : 0)
         + sellerProfilePrivateAppAuthorityFunctionNames.length
+        + SELLER_PROFILE_PRIVATE_STAFF_READ_FUNCTION_NAMES.length
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
         + ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES.length
         + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length

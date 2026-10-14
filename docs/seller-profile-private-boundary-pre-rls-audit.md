@@ -673,12 +673,26 @@ and recent-threshold rejection, stale/non-member state, verification conflict,
 atomic state, direct companion denial and untrusted-function denial. This
 slice is prepared source only; it is not yet applied, merged or deployed.
 
-The staff compatibility module is the only remaining application caller
-family that reads or writes predecessor private fields. Phase 1 remains
-incomplete until it moves to purpose-bound operations, the converted
-application is deployed and proven, and predecessor deployments have drained.
-The two transition-only SQL writers remain intentionally installed until that
-drain completes.
+The thirty-fourth isolated slice converts staff Guild private reads. Migration
+`20261014210000_prepare_seller_profile_private_guild_staff_read_authorities`
+adds an actor-checked, 50-row-capped roster projection for current Members,
+current Masters and revoked former Members plus a separate stable Guild Master
+review queue projection. Both execute only through the isolated
+`grainline_staff_read_runtime`, revalidate that the actor is an active employee
+or administrator, join lifecycle timestamps from the private companion, and
+leave the isolated role with zero direct table authority. The admin page now
+uses those operations for all three rosters and the Guild Master queue.
+Focused PostgreSQL proof covers cohort filtering, timestamp ordering, metrics
+projection, inactive-actor rejection, ordinary-runtime denial and direct
+private-table denial. This slice is prepared source only; it is not yet
+applied, merged or deployed.
+
+Staff Guild transition mutations are the only remaining application operations
+that write predecessor private fields. Phase 1 remains incomplete until those
+paired verification/seller transitions move to purpose-bound operations, the
+converted application is deployed and proven, and predecessor deployments have
+drained. The two transition-only SQL writers remain intentionally installed
+until that drain completes.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 
