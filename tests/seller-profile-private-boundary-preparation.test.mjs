@@ -795,6 +795,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       ci,
+      /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*"\$holding\/audit-runtime-db-grants\.mjs"[\s\S]*scripts\/audit-runtime-db-grants\.mjs/,
+    );
+    assert.match(
+      ci,
       /Restore SellerProfile private-boundary migration after all predecessors[\s\S]*SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=/,
     );
     assert.match(

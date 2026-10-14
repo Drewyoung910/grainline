@@ -4672,12 +4672,19 @@ jobs:
           mv \
             "$holding/provision-order-staff-read-role.sql" \
             "$seller_holding/provision-order-staff-read-role.sql"
+          mv \
+            scripts/audit-runtime-db-grants.mjs \
+            "$seller_holding/audit-runtime-db-grants.mjs"
           git cat-file -e "$seller_profile_predecessor^{commit}"
           git merge-base --is-ancestor "$seller_profile_predecessor" HEAD
           git show \
             "$seller_profile_predecessor:scripts/provision-order-staff-read-role.sql" \
             > scripts/provision-order-staff-read-role.sql
           test "$(git hash-object scripts/provision-order-staff-read-role.sql)" = "abffb4dce9351bdd64e63b3d846e8abd27e98e9f"
+          git show \
+            "$seller_profile_predecessor:scripts/audit-runtime-db-grants.mjs" \
+            > scripts/audit-runtime-db-grants.mjs
+          test "$(git hash-object scripts/audit-runtime-db-grants.mjs)" = "38bd25785a96b50b3148843608f1a927b7d867ac"
           for migration in \
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
@@ -5647,6 +5654,9 @@ jobs:
           mv \
             "$holding/provision-order-staff-read-role.sql" \
             scripts/provision-order-staff-read-role.sql
+          mv \
+            "$holding/audit-runtime-db-grants.mjs" \
+            scripts/audit-runtime-db-grants.mjs
           for migration in \
             20261013120000_prepare_seller_profile_private_boundary \
             20261013130000_move_seller_supported_snapshot_sql_callers \
