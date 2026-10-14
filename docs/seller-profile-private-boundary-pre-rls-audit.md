@@ -269,7 +269,10 @@ The protected Production operator is prepared separately in
 first-attempt manual dispatch to an unchanged main commit and that commit's
 successful push CI, verifies the exact migration digest, requires the accepted
 listing-lifecycle migration as its exact predecessor, rejects partial catalog
-state, and admits only this one pending migration. Its postflight compares the
+state, and admits only this one pending migration. After the nine reviewed
+caller migrations landed on main, the operator was tightened to hold and
+exactly identify that complete successor set while it checks and applies Phase
+0, then prove that all nine remain pending afterward. Its postflight compares the
 predecessor table posture, companion/public row counts and every mirrored
 private field, the derived support snapshot, constraints, triggers, function
 bodies and effective `PUBLIC`/runtime authority before running the global grant
