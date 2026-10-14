@@ -172,13 +172,12 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.ok(step(isolate).includes(historicalStaffBlob));
   assert.ok(step(isolate).includes(staffScript));
   assert.ok(step(restore).includes(staffScript));
+  assert.ok(step(restore).includes(sellerProfilePredecessor));
+  assert.ok(step(restore).includes(sellerProfilePredecessorStaffBlob));
+  assert.match(step(restore), /"\$seller_holding\/provision-order-staff-read-role\.sql"/);
   assert.match(step(converge), /--set=staff_role=grainline_staff_read_runtime/);
   assert.match(step(converge), /--set=migration_role=ci/);
-  assert.ok(step(converge).includes(sellerProfilePredecessor));
-  assert.ok(step(converge).includes(sellerProfilePredecessorStaffBlob));
-  assert.match(step(converge), /git merge-base --is-ancestor "\$seller_profile_predecessor" HEAD/);
-  assert.match(step(converge), /--file="\$predecessor_script"/);
-  assert.doesNotMatch(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
+  assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
   for (const auditStep of [
     audit,
     "Audit runtime grants after User block-email authorities",
@@ -264,6 +263,11 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     mkdirSync(path.join(holding, "user-staff-admin-labels"));
     mkdirSync(path.join(holding, "user-follower-authority"));
     execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: scriptEnv });
+    assert.equal(
+      execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(),
+      sellerProfilePredecessorStaffBlob,
+    );
+    assert.ok(existsSync(path.join(holding, "seller-profile-private-boundary", "provision-order-staff-read-role.sql")));
     assert.equal(existsSync(path.join(root, `prisma/migrations/${enableMigration}`)), false);
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
     execFileSync("bash", ["-c", bashBody("Restore User policyless ENABLE source package")], { cwd: root, env: scriptEnv });

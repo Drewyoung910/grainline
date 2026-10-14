@@ -4666,7 +4666,18 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/user-accumulated-access"
-          mv "$holding/provision-order-staff-read-role.sql" scripts/provision-order-staff-read-role.sql
+          seller_holding="$RUNNER_TEMP/seller-profile-private-boundary"
+          seller_profile_predecessor=0b10fab0e0072cb6dfba83119e3881c7cc0afa27
+          test -d "$seller_holding"
+          mv \
+            "$holding/provision-order-staff-read-role.sql" \
+            "$seller_holding/provision-order-staff-read-role.sql"
+          git cat-file -e "$seller_profile_predecessor^{commit}"
+          git merge-base --is-ancestor "$seller_profile_predecessor" HEAD
+          git show \
+            "$seller_profile_predecessor:scripts/provision-order-staff-read-role.sql" \
+            > scripts/provision-order-staff-read-role.sql
+          test "$(git hash-object scripts/provision-order-staff-read-role.sql)" = "abffb4dce9351bdd64e63b3d846e8abd27e98e9f"
           for migration in \
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
@@ -4718,19 +4729,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          seller_profile_predecessor=0b10fab0e0072cb6dfba83119e3881c7cc0afa27
-          predecessor_script="$RUNNER_TEMP/pre-seller-profile-provision-order-staff-read-role.sql"
-          git cat-file -e "$seller_profile_predecessor^{commit}"
-          git merge-base --is-ancestor "$seller_profile_predecessor" HEAD
-          git show \
-            "$seller_profile_predecessor:scripts/provision-order-staff-read-role.sql" \
-            > "$predecessor_script"
-          test "$(git hash-object "$predecessor_script")" = "abffb4dce9351bdd64e63b3d846e8abd27e98e9f"
           psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
             --set=staff_role=grainline_staff_read_runtime \
             --set=runtime_role=grainline_app_runtime \
             --set=migration_role=ci \
-            --file="$predecessor_script"
+            --file=scripts/provision-order-staff-read-role.sql
       - name: Audit runtime grants after accumulated User access
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User block-email source package
@@ -5641,6 +5644,9 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-profile-private-boundary"
+          mv \
+            "$holding/provision-order-staff-read-role.sql" \
+            scripts/provision-order-staff-read-role.sql
           for migration in \
             20261013120000_prepare_seller_profile_private_boundary \
             20261013130000_move_seller_supported_snapshot_sql_callers \
