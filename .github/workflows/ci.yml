@@ -4718,11 +4718,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          seller_profile_predecessor=0b10fab0e0072cb6dfba83119e3881c7cc0afa27
+          predecessor_script="$RUNNER_TEMP/pre-seller-profile-provision-order-staff-read-role.sql"
+          git cat-file -e "$seller_profile_predecessor^{commit}"
+          git merge-base --is-ancestor "$seller_profile_predecessor" HEAD
+          git show \
+            "$seller_profile_predecessor:scripts/provision-order-staff-read-role.sql" \
+            > "$predecessor_script"
+          test "$(git hash-object "$predecessor_script")" = "abffb4dce9351bdd64e63b3d846e8abd27e98e9f"
           psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
             --set=staff_role=grainline_staff_read_runtime \
             --set=runtime_role=grainline_app_runtime \
             --set=migration_role=ci \
-            --file=scripts/provision-order-staff-read-role.sql
+            --file="$predecessor_script"
       - name: Audit runtime grants after accumulated User access
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User block-email source package
@@ -5758,6 +5766,14 @@ jobs:
           --set=runtime_role=grainline_app_runtime
           --set=migration_role=ci
           --file=scripts/provision-runtime-db-role.sql
+      - name: Converge staff grants after SellerProfile private boundary
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=staff_role=grainline_staff_read_runtime
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-order-staff-read-role.sql
       - name: Prove SellerProfile private boundary in ephemeral PostgreSQL
         run: npm run audit:seller-profile-private-boundary-postgres
         env:

@@ -736,6 +736,8 @@ describe("SellerProfile private-boundary additive preparation", () => {
     const deploy = ci.indexOf("Apply SellerProfile private-boundary migration in disposable PostgreSQL");
     const ledger = ci.indexOf("Stage exact SellerProfile private-boundary migration ledger");
     const callerApply = ci.indexOf("Apply SellerProfile private-boundary caller migrations in disposable PostgreSQL");
+    const applicationApply = ci.indexOf("Apply SellerProfile private application-operation migrations in disposable PostgreSQL");
+    const staffConverge = ci.indexOf("Converge staff grants after SellerProfile private boundary");
     const postgresProof = ci.indexOf("Prove SellerProfile private boundary in ephemeral PostgreSQL");
 
     assert.ok(verify >= 0);
@@ -747,6 +749,9 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.ok(restore < deploy);
     assert.ok(deploy < ledger);
     assert.ok(ledger < callerApply);
+    assert.ok(callerApply < applicationApply);
+    assert.ok(applicationApply < staffConverge);
+    assert.ok(staffConverge < postgresProof);
     assert.ok(callerApply < postgresProof);
     assert.ok(ledger < postgresProof);
     assert.ok(deploy < postgresProof);
@@ -799,6 +804,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(
       ci,
       /Apply SellerProfile private-boundary caller migrations in disposable PostgreSQL[\s\S]*--file="prisma\/migrations\/\$migration\/migration\.sql"[\s\S]*'spc-' \|\| pg_catalog\.md5\(:'migration'\)/,
+    );
+    assert.match(
+      ci,
+      /Converge staff grants after SellerProfile private boundary[\s\S]*--set=staff_role=grainline_staff_read_runtime[\s\S]*--file=scripts\/provision-order-staff-read-role\.sql/,
     );
     assert.match(
       zeroDirectProof,

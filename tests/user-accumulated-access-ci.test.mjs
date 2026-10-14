@@ -80,6 +80,8 @@ const staffScript = "scripts/provision-order-staff-read-role.sql";
 const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
 const historicalStaffBlob = "46fd8e1bfa086cb097adf194eb193389122ee9d9";
 const historicalStaffCatalogBlob = "6d0a46c02fa040e7651b675696cec67ad1b2fdd3";
+const sellerProfilePredecessor = "0b10fab0e0072cb6dfba83119e3881c7cc0afa27";
+const sellerProfilePredecessorStaffBlob = "abffb4dce9351bdd64e63b3d846e8abd27e98e9f";
 
 function step(name) {
   const start = workflow.indexOf(`      - name: ${name}\n`);
@@ -172,7 +174,11 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.ok(step(restore).includes(staffScript));
   assert.match(step(converge), /--set=staff_role=grainline_staff_read_runtime/);
   assert.match(step(converge), /--set=migration_role=ci/);
-  assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
+  assert.ok(step(converge).includes(sellerProfilePredecessor));
+  assert.ok(step(converge).includes(sellerProfilePredecessorStaffBlob));
+  assert.match(step(converge), /git merge-base --is-ancestor "\$seller_profile_predecessor" HEAD/);
+  assert.match(step(converge), /--file="\$predecessor_script"/);
+  assert.doesNotMatch(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
   for (const auditStep of [
     audit,
     "Audit runtime grants after User block-email authorities",
