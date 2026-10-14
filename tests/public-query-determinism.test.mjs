@@ -111,7 +111,7 @@ describe("public query determinism", () => {
       assert.match(metroText, /where: \{ userId: meDbId, listingId: \{ in: listingIds \} \}/);
     }
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(makersMetro, /orderBy: \[\{ profileViews: "desc" \}, \{ id: "asc" \}\]/);
+    assert.match(makersMetro, /orderBy: \[\{ followers: \{ _count: "desc" \} \}, \{ id: "asc" \}\]/);
     assert.match(makersMetro, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
     assert.match(makersMetro, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
     assert.match(makersMetro, /getBlockedSellerProfileIdsFor\(meDbId\)/);

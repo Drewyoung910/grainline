@@ -297,6 +297,10 @@ export async function banUser({ userId, adminId, reason }: {
     return
   }
   const staffClient = getOrderStaffReadClient()
+  const reviewedSeller = await sellerStaffOrderabilityState(staffClient, {
+    actorId: adminId,
+    targetUserId: userId,
+  })
   const userBanCapability = await mintUserStaffCapability(staffClient, {
     actorId: adminId,
     targetId: userId,
@@ -323,13 +327,22 @@ export async function banUser({ userId, adminId, reason }: {
     } catch (error) {
       throwBanAuthorityPolicyError(error)
     }
-    const [sellerProfile, commissionRequests] = await Promise.all([
-      sellerStaffOrderabilityState(userId, tx),
+    const [sellerPublic, commissionRequests] = await Promise.all([
+      tx.sellerProfile.findUnique({
+        where: { userId },
+        select: { id: true, chargesEnabled: true, vacationMode: true },
+      }),
       tx.commissionRequest.findMany({
         where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
         select: { id: true, status: true },
       }),
     ])
+    if (sellerPublic?.id !== reviewedSeller?.id) {
+      throw new BanUserPolicyError('Seller profile changed. Refresh and try again.', 409)
+    }
+    const sellerProfile = sellerPublic
+      ? { ...sellerPublic, stripeAccountId: reviewedSeller?.stripeAccountId ?? null }
+      : null
     await disableSellerForStaff(tx, userId)
     let removedCommissionInterestRequestIds: string[] = []
     if (sellerProfile) {
@@ -452,7 +465,11 @@ export async function unbanUser({ userId, adminId, reason }: {
     })
     return { sellerRestoreWarning: null }
   }
-  const seller = await sellerStaffOrderabilityState(userId)
+  const staffClient = getOrderStaffReadClient()
+  const seller = await sellerStaffOrderabilityState(staffClient, {
+    actorId: adminId,
+    targetUserId: userId,
+  })
   let sellerRestore: { id: string; chargesEnabled: boolean; vacationMode: boolean } | null = null
   let sellerRestoreWarning: string | null = null
   let sellerRestoreError: string | null = null
@@ -480,7 +497,6 @@ export async function unbanUser({ userId, adminId, reason }: {
     select: { metadata: true },
   })
   const capabilityBanMetadata = readBanAuditMetadata(latestBanForCapability?.metadata)
-  const staffClient = getOrderStaffReadClient()
   const userUnbanCapability = await mintUserStaffCapability(staffClient, {
     actorId: adminId,
     targetId: userId,
@@ -511,7 +527,13 @@ export async function unbanUser({ userId, adminId, reason }: {
     } catch (error) {
       throwBanAuthorityPolicyError(error)
     }
-    const previousSellerProfile = await sellerStaffOrderabilityState(userId, tx)
+    const previousSellerProfile = await tx.sellerProfile.findUnique({
+      where: { userId },
+      select: { id: true, chargesEnabled: true, vacationMode: true },
+    })
+    if (previousSellerProfile?.id !== seller?.id) {
+      throw new BanUserPolicyError('Seller profile changed. Refresh and try again.', 409)
+    }
     if (sellerRestore) {
       await setSellerStaffOrderability(tx, {
         sellerProfileId: sellerRestore.id,

@@ -22,7 +22,7 @@ const catalog = provision.slice(start, end)
   .replaceAll(":'staff_role'", "'grainline_staff_read_runtime'")
   .replaceAll(":'runtime_role'", "'grainline_app_runtime'");
 
-test("historical six-operation database rejects the newer staff script until User functions exist", async () => {
+test("historical six-operation database rejects the newer staff script until successor functions exist", async () => {
   const database = new PGlite();
   try {
     await database.exec(`
@@ -41,7 +41,10 @@ test("historical six-operation database rejects the newer staff script until Use
     `);
     const refusal = (await database.query(requiredOperations(provision))).rows[0];
     assert.equal(refusal.grainline_staff_role_failed, true);
-    assert.match(refusal.grainline_staff_role_failure, /^missing staff operation: public\."grainline_user_/);
+    assert.match(
+      refusal.grainline_staff_role_failure,
+      /^missing staff operation: public\."grainline_(?:seller|user)_/,
+    );
     assert.deepEqual((await database.query(requiredOperations(historical))).rows, [{
       grainline_staff_role_failed: false, grainline_staff_role_failure: "",
     }]);

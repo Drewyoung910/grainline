@@ -1,198 +1,94 @@
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import {
-  guildMemberRevocationSellerWhere,
-  type GuildMemberRevocationGuard,
-} from "@/lib/guildMemberRevocationState";
 
-type SellerGuildPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile">;
+export type SellerGuildMemberCronRow = {
+  id: string;
+  userId: string;
+  guildLevel: "GUILD_MEMBER";
+  listingsBelowThresholdSince: Date | null;
+};
 
-/** Compatibility boundary for Guild cron reads and mutations. Phase 1 keeps
- * the predecessor table implementation; the post-Phase-0 cutover replaces
- * these purpose-specific operations without changing cron behavior. */
-export function sellerGuildMemberCronBatch(
+export type SellerGuildMetricsCronRow = {
+  id: string;
+  userId: string;
+  guildLevel: "GUILD_MEMBER" | "GUILD_MASTER";
+  consecutiveMetricFailures: number;
+  metricWarningSentAt: Date | null;
+};
+
+export type SellerGuildMetricsAction =
+  | "NOOP"
+  | "MEMBER_CHECKED"
+  | "MASTER_OK"
+  | "MASTER_RECOVERED"
+  | "MASTER_WARNED"
+  | "MASTER_CONTINUED"
+  | "MASTER_REVOKED";
+
+export type SellerGuildMetricsTransition = {
+  action: SellerGuildMetricsAction;
+  auditId: string | null;
+  warningSentAt: Date | null;
+  sellerUserId: string;
+};
+
+export type SellerGuildMemberRevocation = {
+  applied: boolean;
+  auditId: string | null;
+  reason: string | null;
+  sellerUserId: string | null;
+  guardKind: "unresolved_case" | "listing_threshold" | null;
+};
+
+/** Purpose-bound compatibility operations for Guild cron reads and mutations
+ * during the additive SellerProfilePrivate transition. */
+export async function sellerGuildMemberCronBatch(
   cursorId: string | null,
   pageSize: number,
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.findMany({
-    where: {
-      guildLevel: "GUILD_MEMBER",
-      vacationMode: false,
-    },
-    orderBy: { id: "asc" },
-    take: pageSize,
-    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-    select: {
-      id: true,
-      userId: true,
-      guildLevel: true,
-      listingsBelowThresholdSince: true,
-    },
-  });
+): Promise<SellerGuildMemberCronRow[]> {
+  return prisma.$queryRaw<SellerGuildMemberCronRow[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_member_cron_batch(
+        ${cursorId},
+        ${pageSize}
+      )
+  `;
 }
 
-export type SellerGuildMemberCronRow = Awaited<
-  ReturnType<typeof sellerGuildMemberCronBatch>
->[number];
-
-export function sellerGuildMetricsCronBatch(
+export async function sellerGuildMetricsCronBatch(
   cursorId: string | null,
   pageSize: number,
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.findMany({
-    where: {
-      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-      vacationMode: false,
-    },
-    orderBy: { id: "asc" },
-    take: pageSize,
-    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-    select: {
-      id: true,
-      userId: true,
-      guildLevel: true,
-      consecutiveMetricFailures: true,
-      metricWarningSentAt: true,
-    },
-  });
+): Promise<SellerGuildMetricsCronRow[]> {
+  return prisma.$queryRaw<SellerGuildMetricsCronRow[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_metrics_cron_batch(
+        ${cursorId},
+        ${pageSize}
+      )
+  `;
 }
 
-export type SellerGuildMetricsCronRow = Awaited<
-  ReturnType<typeof sellerGuildMetricsCronBatch>
->[number];
-
-export function recordSellerGuildMemberRevocation(
-  client: SellerGuildPrivateClient,
-  input: {
-    sellerProfileId: string;
-    guard: GuildMemberRevocationGuard;
-  },
-) {
-  return client.sellerProfile.updateMany({
-    where: guildMemberRevocationSellerWhere(
-      input.sellerProfileId,
-      input.guard,
-    ),
-    data: {
-      guildLevel: "NONE",
-      isVerifiedMaker: false,
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-    },
-  });
+export async function applySellerGuildMemberRevocation(
+  sellerProfileId: string,
+): Promise<SellerGuildMemberRevocation | null> {
+  const rows = await prisma.$queryRaw<SellerGuildMemberRevocation[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_member_revoke(
+        ${sellerProfileId}
+      )
+  `;
+  return rows[0] ?? null;
 }
 
-export function recordSellerGuildMetricCheck(
-  input: {
-    sellerProfileId: string;
-    guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
-    checkedAt: Date;
-  },
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, guildLevel: input.guildLevel },
-    data: { lastMetricCheckAt: input.checkedAt },
-  });
-}
-
-export function resetSellerGuildMasterMetricFailures(
-  input: { sellerProfileId: string; checkedAt: Date },
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, guildLevel: "GUILD_MASTER" },
-    data: {
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      lastMetricCheckAt: input.checkedAt,
-    },
-  });
-}
-
-export function warnSellerGuildMasterMetrics(
-  client: SellerGuildPrivateClient,
-  input: { sellerProfileId: string; warnedAt: Date },
-) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      guildLevel: "GUILD_MASTER",
-      consecutiveMetricFailures: 0,
-    },
-    data: {
-      consecutiveMetricFailures: 1,
-      metricWarningSentAt: input.warnedAt,
-      lastMetricCheckAt: input.warnedAt,
-    },
-  });
-}
-
-export function continueSellerGuildMasterWarning(
-  input: {
-    sellerProfileId: string;
-    warningSentAt: Date;
-    checkedAt: Date;
-  },
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      guildLevel: "GUILD_MASTER",
-      consecutiveMetricFailures: { gt: 0 },
-    },
-    data: {
-      metricWarningSentAt: input.warningSentAt,
-      lastMetricCheckAt: input.checkedAt,
-    },
-  });
-}
-
-export function recordSellerGuildMasterRecovery(
-  input: { sellerProfileId: string; checkedAt: Date },
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      guildLevel: "GUILD_MASTER",
-      consecutiveMetricFailures: { gt: 0 },
-    },
-    data: {
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      lastMetricCheckAt: input.checkedAt,
-    },
-  });
-}
-
-export function recordSellerGuildMasterRevocation(
-  client: SellerGuildPrivateClient,
-  input: {
-    sellerProfileId: string;
-    warningSentBefore: Date;
-    checkedAt: Date;
-  },
-) {
-  return client.sellerProfile.updateMany({
-    where: {
-      id: input.sellerProfileId,
-      guildLevel: "GUILD_MASTER",
-      consecutiveMetricFailures: { gt: 0 },
-      metricWarningSentAt: { lte: input.warningSentBefore },
-    },
-    data: {
-      guildLevel: "GUILD_MEMBER",
-      isVerifiedMaker: true,
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      lastMetricCheckAt: input.checkedAt,
-      guildMasterApprovedAt: null,
-      guildMasterAppliedAt: null,
-      guildMasterReviewNotes: null,
-    },
-  });
+export async function applySellerGuildMetrics(input: {
+  sellerProfileId: string;
+  calculatedAt: Date;
+}): Promise<SellerGuildMetricsTransition | null> {
+  const rows = await prisma.$queryRaw<SellerGuildMetricsTransition[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_metrics_apply(
+        ${input.sellerProfileId},
+        ${input.calculatedAt}
+      )
+  `;
+  return rows[0] ?? null;
 }

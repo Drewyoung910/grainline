@@ -1,95 +1,150 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
-type SellerStripeClient = Pick<Prisma.TransactionClient, "sellerProfile">;
+type SellerStripeClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
-const sellerStripeOwnerSelect = {
-  id: true,
-  stripeAccountId: true,
-  stripeAccountVersion: true,
-  chargesEnabled: true,
-  shipFromCountry: true,
-} satisfies Prisma.SellerProfileSelect;
+export type SellerStripeOwnerState = {
+  id: string;
+  stripeAccountId: string | null;
+  stripeAccountVersion: string | null;
+  chargesEnabled: boolean;
+  shipFromCountry: string | null;
+};
+
+export type SellerStripeReconciliationState = Pick<
+  SellerStripeOwnerState,
+  "id" | "stripeAccountId" | "stripeAccountVersion"
+>;
+
+export type SellerStripeMirrorState = {
+  id: string;
+  userId: string;
+  ownerAccountActive: boolean;
+  chargesEnabled: boolean;
+  stripeAccountId: string;
+};
+
+function optionalString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+function validOwnerState(row: SellerStripeOwnerState | undefined): row is SellerStripeOwnerState {
+  return Boolean(
+    row
+    && typeof row.id === "string"
+    && optionalString(row.stripeAccountId)
+    && optionalString(row.stripeAccountVersion)
+    && typeof row.chargesEnabled === "boolean"
+    && optionalString(row.shipFromCountry),
+  );
+}
 
 /**
- * Compatibility boundary for private Stripe state that is still authoritative
- * on SellerProfile. Keep provider callers behind this module so its internals
- * can move to fixed SellerProfilePrivate database operations after Phase 0 is
- * installed without another route-by-route conversion.
+ * Fixed database-operation boundary for private Stripe state. Provider callers
+ * never receive direct SellerProfilePrivate table authority.
  */
-export function sellerStripeOwnerState(
+export async function sellerStripeOwnerState(
   userId: string,
   client: SellerStripeClient = prisma,
 ) {
-  return client.sellerProfile.findUnique({
-    where: { userId },
-    select: sellerStripeOwnerSelect,
-  });
+  const rows = await client.$queryRaw<SellerStripeOwnerState[]>`
+    SELECT id, "stripeAccountId", "stripeAccountVersion",
+           "chargesEnabled", "shipFromCountry"
+      FROM public.grainline_seller_stripe_owner_state(${userId}::text)
+  `;
+  if (rows.length > 1 || (rows[0] && !validOwnerState(rows[0]))) {
+    throw new Error("Seller Stripe owner-state authority returned an invalid result");
+  }
+  return rows[0] ?? null;
 }
 
-export function bindSellerStripeAccount(
+export async function bindSellerStripeAccount(
   client: SellerStripeClient,
   input: {
+    userId: string;
     sellerProfileId: string;
     stripeAccountId: string;
     stripeAccountVersion: string;
     stripeControllerType: string;
   },
 ) {
-  return client.sellerProfile.update({
-    where: { id: input.sellerProfileId },
-    data: {
-      stripeAccountId: input.stripeAccountId,
-      chargesEnabled: false,
-      stripeAccountVersion: input.stripeAccountVersion,
-      stripeControllerType: input.stripeControllerType,
-    },
-    select: { id: true },
-  });
+  const rows = await client.$queryRaw<Array<{ id: string }>>`
+    SELECT public.grainline_seller_stripe_account_bind(
+      ${input.userId}::text,
+      ${input.sellerProfileId}::text,
+      ${input.stripeAccountId}::text,
+      ${input.stripeAccountVersion}::text,
+      ${input.stripeControllerType}::text
+    ) AS id
+  `;
+  if (rows.length !== 1 || rows[0]?.id !== input.sellerProfileId) {
+    throw new Error("Seller Stripe account-bind authority returned an invalid result");
+  }
+  return rows[0];
 }
 
-export function sellerStripeReconciliationPage(
+export async function sellerStripeReconciliationPage(
   cursorId: string | null,
   take: number,
   client: SellerStripeClient = prisma,
 ) {
-  return client.sellerProfile.findMany({
-    where: { stripeAccountId: { not: null } },
-    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-    orderBy: { id: "asc" },
-    take,
-    select: {
-      id: true,
-      stripeAccountId: true,
-      stripeAccountVersion: true,
-    },
-  });
+  const rows = await client.$queryRaw<SellerStripeReconciliationState[]>`
+    SELECT id, "stripeAccountId", "stripeAccountVersion"
+      FROM public.grainline_seller_stripe_reconciliation_page(
+        ${cursorId}::text,
+        ${take}::integer
+      )
+  `;
+  const ids = new Set<string>();
+  if (rows.length > take || rows.some((row) => {
+    const valid = typeof row.id === "string"
+      && !ids.has(row.id)
+      && typeof row.stripeAccountId === "string"
+      && optionalString(row.stripeAccountVersion);
+    ids.add(row.id);
+    return !valid;
+  })) {
+    throw new Error("Seller Stripe reconciliation authority returned an invalid result");
+  }
+  return rows;
 }
 
-export function sellerStripeMirrorState(
+export async function sellerStripeMirrorState(
   stripeAccountId: string,
   client: SellerStripeClient = prisma,
 ) {
-  return client.sellerProfile.findFirst({
-    where: { stripeAccountId },
-    select: {
-      id: true,
-      userId: true,
-      ownerAccountActive: true,
-      chargesEnabled: true,
-      stripeAccountId: true,
-    },
-  });
+  const rows = await client.$queryRaw<SellerStripeMirrorState[]>`
+    SELECT id, "userId", "ownerAccountActive", "chargesEnabled", "stripeAccountId"
+      FROM public.grainline_seller_stripe_mirror_state(${stripeAccountId}::text)
+  `;
+  const row = rows[0];
+  const valid = row
+    && typeof row.id === "string"
+    && typeof row.userId === "string"
+    && typeof row.ownerAccountActive === "boolean"
+    && typeof row.chargesEnabled === "boolean"
+    && row.stripeAccountId === stripeAccountId;
+  if (rows.length > 1 || (row && !valid)) {
+    throw new Error("Seller Stripe mirror-state authority returned an invalid result");
+  }
+  return valid ? row : null;
 }
 
-export function updateSellerStripeChargesEnabled(
+export async function updateSellerStripeChargesEnabled(
   client: SellerStripeClient,
   sellerProfileId: string,
+  stripeAccountId: string,
   chargesEnabled: boolean,
 ) {
-  return client.sellerProfile.update({
-    where: { id: sellerProfileId },
-    data: { chargesEnabled },
-    select: { id: true },
-  });
+  const rows = await client.$queryRaw<Array<{ id: string }>>`
+    SELECT public.grainline_seller_stripe_charges_update(
+      ${sellerProfileId}::text,
+      ${stripeAccountId}::text,
+      ${chargesEnabled}::boolean
+    ) AS id
+  `;
+  if (rows.length !== 1 || rows[0]?.id !== sellerProfileId) {
+    throw new Error("Seller Stripe charges-update authority returned an invalid result");
+  }
+  return rows[0];
 }

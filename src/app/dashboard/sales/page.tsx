@@ -29,6 +29,7 @@ import {
   orderListCursorFromRow,
   parseOrderHistoryCursor,
 } from "@/lib/orderHistoryCursor";
+import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -84,11 +85,13 @@ async function SalesContent({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { id: true, displayName: true, onboardingComplete: true, chargesEnabled: true },
+    select: { id: true, displayName: true, chargesEnabled: true },
   });
   if (!seller) redirect("/dashboard/seller");
+  const sellerPrivate = await sellerOwnerPrivateState(me.id, seller.id);
+  if (!sellerPrivate) redirect("/dashboard/seller");
 
-  if (!seller.onboardingComplete) {
+  if (!sellerPrivate.onboardingComplete) {
     return (
       <main className="mx-auto max-w-4xl p-8 space-y-6">
         <header>

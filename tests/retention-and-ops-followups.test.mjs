@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const notificationRetention = await import("../src/lib/notificationRetentionState.ts");
 const webhookRetention = await import("../src/lib/webhookEventRetentionState.ts");
@@ -100,28 +101,30 @@ describe("retention and ops-health follow-ups", () => {
   it("keeps Guild Master revocation behind a real 30-day warning grace", () => {
     const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
     const access = readFileSync("src/lib/sellerGuildPrivateAccess.ts", "utf8");
+    const authority = readFileSync(
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
+      "utf8",
+    );
 
-    assert.match(source, /const GUILD_MASTER_WARNING_GRACE_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
-    assert.match(access, /metricWarningSentAt: true/);
-    assert.match(source, /now\.getTime\(\) - warningSentAt\.getTime\(\) < GUILD_MASTER_WARNING_GRACE_MS/);
-    assert.match(source, /warningSentAt: warningSentAt \?\? now/);
-    assert.match(source, /const revocationCutoff = new Date\(now\.getTime\(\) - GUILD_MASTER_WARNING_GRACE_MS\)/);
-    assert.match(access, /metricWarningSentAt: \{ lte: input\.warningSentBefore \}/);
+    assert.match(source, /applySellerGuildMetrics\(\{/);
+    assert.match(access, /grainline_seller_guild_metrics_apply/);
+    assert.match(authority, /transition_warning_at > source_now - INTERVAL '30 days'/);
+    assert.match(authority, /source_private\."metricWarningSentAt"/);
+    assert.match(authority, /status = 'GUILD_MASTER_APPROVED'/);
   });
 
   it("rechecks Guild Master metrics immediately before revocation", () => {
     const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
-    const access = readFileSync("src/lib/sellerGuildPrivateAccess.ts", "utf8");
-
-    assert.match(source, /const revocationMetrics = await calculateSellerMetrics\(seller\.id\)/);
-    assert.match(source, /const revocationCriteria = meetsGuildMasterRequirements\(revocationMetrics\)/);
-    assert.match(source, /if \(revocationCriteria\.allMet\) \{/);
-    assert.match(access, /consecutiveMetricFailures: 0,\s*metricWarningSentAt: null,\s*lastMetricCheckAt: input\.checkedAt/s);
-    assert.ok(
-      source.indexOf("const revocationMetrics = await calculateSellerMetrics(seller.id)") <
-        source.indexOf("const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS)"),
-      "fresh metrics must be recalculated before revocation update",
+    const authority = readFileSync(
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
+      "utf8",
     );
+
+    assert.equal((source.match(/await calculateSellerMetrics\(seller\.id\)/g) ?? []).length, 1);
+    assert.match(source, /calculatedAt: metrics\.calculatedAt/);
+    assert.match(authority, /metrics\."calculatedAt" = p_calculated_at/);
+    assert.match(authority, /metrics\."calculatedAt" >= source_now - INTERVAL '10 minutes'/);
+    assert.match(authority, /FROM public\."SellerMetrics" AS metrics[\s\S]*FOR UPDATE/);
   });
 
   it("surfaces webhook and account-deletion side-effect piles in ops-health", () => {

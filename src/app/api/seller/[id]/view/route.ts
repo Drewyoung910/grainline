@@ -8,6 +8,7 @@ import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCooki
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
 import { privateResponse } from "@/lib/privateResponse";
+import { recordSellerProfileView } from "@/lib/sellerProfileViewAccess";
 
 const VIEWED_SELLER_IDS_COOKIE = "viewed_seller_profile_ids";
 
@@ -60,21 +61,7 @@ export async function POST(
     return res;
   }
 
-  const tracked = await prisma.$transaction(async (tx) => {
-    const result = await tx.sellerProfile.updateMany({
-      where: visibleSellerProfileWhere({ id }),
-      data: { profileViews: { increment: 1 } },
-    });
-    if (result.count === 0) return false;
-
-    const today = todayUtcBucket();
-    await tx.sellerProfileViewDaily.upsert({
-      where: { sellerProfileId_date: { sellerProfileId: id, date: today } },
-      create: { sellerProfileId: id, date: today, views: 1 },
-      update: { views: { increment: 1 } },
-    });
-    return true;
-  });
+  const tracked = await recordSellerProfileView(id, todayUtcBucket());
   if (!tracked) return telemetryJson({ ok: true, skipped: true });
 
   const res = telemetryJson({ ok: true });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const {
   parseBoundedDecimalParam,
@@ -142,8 +143,13 @@ describe("query parameter parsing helpers", () => {
     assert.match(review, /take: REVIEW_QUEUE_LIMIT/);
 
     assert.match(verification, /where: \{ status: "PENDING" \}[\s\S]*orderBy: \[\{ appliedAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 50/);
-    assert.match(verification, /sellerGuildStaffMasterPendingList\(\)/);
-    assert.match(sellerGuildStaffPrivateAccess, /where: \{ status: "GUILD_MASTER_PENDING" \}[\s\S]*orderBy: \[\{ appliedAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 50/);
+    assert.match(verification, /sellerGuildStaffMasterPendingList\(staffClient, staff\.id\)/);
+    assert.match(sellerGuildStaffPrivateAccess, /grainline_seller_guild_staff_master_pending/);
+    const staffReadMigration = readFileSync(
+      sellerProfilePrivateMigrationPath("20261014210000_prepare_seller_profile_private_guild_staff_read_authorities"),
+      "utf8",
+    );
+    assert.match(staffReadMigration, /ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT 50/);
 
     assert.match(blog, /where: \{ approved: false \}[\s\S]*orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 30/);
     assert.match(reports, /where: \{ resolved: false \}[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);

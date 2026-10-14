@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -50,32 +51,31 @@ describe("account-state residue hardening", () => {
 
   it("clears deleted seller trust, feature, and geo residue during anonymization", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const helper = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
-    const updateStart = helper.indexOf("export async function anonymizeSellerForAccountDeletion");
-    const updateBlock = helper.slice(updateStart);
+    const authority = source(
+      sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
+    );
 
     assert.match(deletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
-    assert.ok(updateStart >= 0, "account deletion should centralize deleted seller anonymization");
     for (const [field, valuePattern] of [
       ["isVerifiedMaker", "false"],
-      ["verifiedAt", "null"],
-      ["guildLevel", '"NONE"'],
-      ["guildMemberApprovedAt", "null"],
-      ["guildMasterApprovedAt", "null"],
-      ["guildMasterAppliedAt", "null"],
-      ["guildMasterReviewNotes", "null"],
+      ["verifiedAt", "NULL"],
+      ["guildLevel", "'NONE'"],
+      ["guildMemberApprovedAt", "NULL"],
+      ["guildMasterApprovedAt", "NULL"],
+      ["guildMasterAppliedAt", "NULL"],
+      ["guildMasterReviewNotes", "NULL"],
       ["consecutiveMetricFailures", "0"],
-      ["lastMetricCheckAt", "null"],
-      ["metricWarningSentAt", "null"],
-      ["listingsBelowThresholdSince", "null"],
+      ["lastMetricCheckAt", "NULL"],
+      ["metricWarningSentAt", "NULL"],
+      ["listingsBelowThresholdSince", "NULL"],
       ["profileViews", "0"],
-      ["featuredUntil", "null"],
-      ["metroId", "null"],
-      ["cityMetroId", "null"],
+      ["featuredUntil", "NULL"],
+      ["metroId", "NULL"],
+      ["cityMetroId", "NULL"],
     ]) {
       assert.match(
-        updateBlock,
-        new RegExp(`${field}: ${valuePattern}`),
+        authority,
+        new RegExp(`"${field}" = ${valuePattern}`),
         `account deletion should reset ${field}`,
       );
     }

@@ -15,21 +15,11 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import {
-  type GuildMemberRevocationGuard,
-} from "@/lib/guildMemberRevocationState";
-import {
-  recordSellerGuildMemberRevocation,
+  applySellerGuildMemberRevocation,
   sellerGuildMemberCronBatch,
   type SellerGuildMemberCronRow,
 } from "@/lib/sellerGuildPrivateAccess";
-import { getCaseGuildUnresolvedGuard } from "@/lib/caseSellerAggregateAuthority";
-import {
-  GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
-  assertGuildVerificationTransition,
-  isGuildVerificationTransitionConflict,
-} from "@/lib/guildVerificationState";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
-import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import { runCronCursorPages } from "@/lib/cronBatchState";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
@@ -61,10 +51,6 @@ export async function GET(request: NextRequest) {
 }
 
 async function runGuildMemberCheckCron() {
-  const now = new Date();
-  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
   let revokedMember = 0;
   const errors: Array<{ sellerId: string; code: string }> = [];
 
@@ -78,7 +64,7 @@ async function runGuildMemberCheckCron() {
         const results = await Promise.all(
           batch.map(async (seller) => {
             try {
-              return await checkGuildMemberSeller(seller, ninetyDaysAgo, thirtyDaysAgo, now);
+              return await checkGuildMemberSeller(seller);
             } catch (err) {
               const code = getErrorCode(err);
               errors.push({ sellerId: seller.id, code });
@@ -103,115 +89,35 @@ type GuildMemberSeller = SellerGuildMemberCronRow;
 
 async function checkGuildMemberSeller(
   seller: GuildMemberSeller,
-  ninetyDaysAgo: Date,
-  thirtyDaysAgo: Date,
-  now: Date,
 ): Promise<number> {
-  // Check 1: unresolved case older than 90 days
-  const unresolvedCaseGuard: GuildMemberRevocationGuard = {
-    kind: "unresolved_case",
-    caseCreatedBefore: ninetyDaysAgo,
-  };
-  const longCase = await getCaseGuildUnresolvedGuard(seller.id);
-  if (!longCase) {
-    throw new Error("Case Guild unresolved guard denied current Guild Member");
-  }
-  if (longCase.blocked) {
-    return revokeMember(seller, "An unresolved dispute has been open for over 90 days.", unresolvedCaseGuard, now);
-  }
-
-  // Check 2: active listings below 5 for 30+ consecutive days
+  const revocation = await applySellerGuildMemberRevocation(seller.id);
   if (
-    seller.listingsBelowThresholdSince &&
-    new Date(seller.listingsBelowThresholdSince) < thirtyDaysAgo
-  ) {
-    const listingThresholdGuard: GuildMemberRevocationGuard = {
-      kind: "listing_threshold",
-      listingsBelowThresholdBefore: thirtyDaysAgo,
-    };
-    return revokeMember(
-      seller,
-      "Your shop has had fewer than 5 active listings for over 30 consecutive days.",
-      listingThresholdGuard,
-      now,
-    );
-  }
-
-  return 0;
-}
-
-async function revokeMember(
-  seller: { id: string; userId: string },
-  reason: string,
-  guard: GuildMemberRevocationGuard,
-  now: Date,
-): Promise<number> {
-  let revocationAuditId: string | null = null;
-  try {
-    revocationAuditId = await prisma.$transaction(async (tx) => {
-      if (guard.kind === "unresolved_case") {
-        const longCase = await getCaseGuildUnresolvedGuard(seller.id, tx);
-        if (!longCase || !longCase.blocked) return null;
-      }
-      const verificationUpdated = await tx.makerVerification.updateMany({
-        where: {
-          sellerProfileId: seller.id,
-          status: { in: [...GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES] },
-        },
-        data: { status: "REJECTED", reviewedAt: now, reviewNotes: reason },
-      });
-      if (verificationUpdated.count === 0) return null;
-
-      const updated = await recordSellerGuildMemberRevocation(tx, {
-        sellerProfileId: seller.id,
-        guard,
-      });
-      assertGuildVerificationTransition(updated.count, "revoke Guild Member");
-
-      return logSystemActionOrThrow({
-        client: tx,
-        actorType: "cron",
-        actorId: "guild-member-check",
-        action: "AUTO_REVOKE_GUILD_MEMBER",
-        targetType: "SELLER_PROFILE",
-        targetId: seller.id,
-        reason,
-        metadata: {
-          jobName: "guild-member-check",
-          sellerUserId: seller.userId,
-          guardKind: guard.kind,
-          caseCreatedBefore:
-            guard.kind === "unresolved_case" ? guard.caseCreatedBefore.toISOString() : null,
-          listingsBelowThresholdBefore:
-            guard.kind === "listing_threshold" ? guard.listingsBelowThresholdBefore.toISOString() : null,
-        },
-      });
-    });
-  } catch (error) {
-    if (!isGuildVerificationTransitionConflict(error)) throw error;
-  }
-  if (!revocationAuditId) return 0;
+    !revocation?.applied
+    || !revocation.auditId
+    || !revocation.reason
+    || !revocation.sellerUserId
+  ) return 0;
   revalidateFeaturedMakerCaches();
 
   await createNotification({
-    userId: seller.userId,
+    userId: revocation.sellerUserId,
     type: "VERIFICATION_REJECTED",
     title: "Guild Member badge revoked",
-    body: reason,
+    body: revocation.reason,
     link: "/dashboard/verification",
     sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_SYSTEM_ACTION,
-    sourceId: revocationAuditId,
+    sourceId: revocation.auditId,
   });
 
   const emailRecipient = await userEmailDeliveryRecipient(prisma, {
-    userId: seller.userId,
+    userId: revocation.sellerUserId,
     preferenceKey: "EMAIL_VERIFICATION_REJECTED",
   });
   if (emailRecipient) {
     try {
       await sendGuildMemberRevokedEmail({
         seller: { displayName: emailRecipient.name, email: emailRecipient.email },
-        reason,
+        reason: revocation.reason,
       });
     } catch (err) {
       Sentry.captureException(err, { tags: { source: "cron_guild_member_check_revoked_email", sellerId: seller.id } });

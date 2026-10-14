@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -36,19 +37,26 @@ describe("system audit logging", () => {
   it("audits automated Guild and case state transitions at the mutation point", () => {
     const guildMember = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetrics = source("src/app/api/cron/guild-metrics/route.ts");
+    const guildMetricsAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
+    );
+    const guildMemberAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
+    );
     const caseAutoClose = source("src/app/api/cron/case-auto-close/route.ts");
     const caseEscalate = source("src/app/api/cases/[id]/escalate/route.ts");
     const caseTransitionAuthority = source(
       "prisma/migrations/20260729060000_prepare_case_escalation_cron_authority/migration.sql",
     );
 
-    assert.match(guildMember, /logSystemActionOrThrow/);
-    assert.match(guildMember, /action: "AUTO_REVOKE_GUILD_MEMBER"/);
-    assert.match(guildMember, /client: tx/);
+    assert.match(guildMember, /applySellerGuildMemberRevocation/);
+    assert.match(guildMemberAuthority, /'AUTO_REVOKE_GUILD_MEMBER'/);
+    assert.match(guildMemberAuthority, /INSERT INTO public\."SystemAuditLog"/);
 
-    assert.match(guildMetrics, /action: "AUTO_REVOKE_GUILD_MASTER"/);
+    assert.match(guildMetricsAuthority, /'AUTO_REVOKE_GUILD_MASTER'/);
+    assert.match(guildMetricsAuthority, /INSERT INTO public\."SystemAuditLog"/);
     assert.match(guildMetrics, /action: "PRUNE_LISTING_VIEW_DAILY"/);
-    assert.match(guildMetrics, /client: tx/);
+    assert.match(guildMetrics, /applySellerGuildMetrics/);
 
     assert.match(caseAutoClose, /runCaseCronTransitionBatch/);
     assert.doesNotMatch(caseAutoClose, /logSystemActionOrThrow|prisma\.case\./);

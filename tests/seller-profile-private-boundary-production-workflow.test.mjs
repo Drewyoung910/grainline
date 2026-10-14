@@ -69,6 +69,18 @@ test("release holds every reviewed caller successor while applying Phase 0", () 
     "20261013200000_move_final_seller_private_sql_callers",
     "20261013210000_move_account_deletion_seller_private_sql_callers",
     "20261014010000_tolerate_missing_seller_reconciliation_target",
+    "20261014120000_prepare_seller_profile_private_stripe_app_authorities",
+    "20261014130000_prepare_seller_profile_private_shipping_quote_authority",
+    "20261014140000_prepare_seller_profile_private_checkout_app_authority",
+    "20261014150000_prepare_seller_profile_private_owner_app_authorities",
+    "20261014160000_prepare_seller_profile_private_account_deletion_app_authorities",
+    "20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority",
+    "20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities",
+    "20261014190000_prepare_seller_profile_private_guild_metrics_authority",
+    "20261014200000_prepare_seller_profile_private_guild_member_revocation_authority",
+    "20261014210000_prepare_seller_profile_private_guild_staff_read_authorities",
+    "20261014220000_prepare_seller_profile_private_guild_staff_transition_authority",
+    "20261014230000_prepare_seller_profile_private_remaining_app_authorities",
   ];
   for (const successor of successors) {
     assert.equal((workflow.match(new RegExp(successor, "gu")) ?? []).length, 1);

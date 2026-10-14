@@ -65,7 +65,7 @@ export default async function SimilarMakers({
     });
   const orderBy = [
     { guildLevel: "desc" as const },
-    { profileViews: "desc" as const },
+    { followers: { _count: "desc" as const } },
     { id: "asc" as const },
   ];
 

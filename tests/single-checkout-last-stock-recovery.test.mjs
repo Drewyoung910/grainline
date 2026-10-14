@@ -45,8 +45,7 @@ const sourceListing = {
   seller: {
     id: expected.sellerId,
     userId: "seller-user-1",
-    stripeAccountId: "acct_1",
-    stripeAccountVersion: "v2",
+    stripeAccountSupported: true,
     chargesEnabled: true,
     vacationMode: false,
     acceptingNewOrders: true,
@@ -128,11 +127,10 @@ describe("single-checkout last-stock recovery", () => {
       { ...sourceListing, seller: { ...sourceListing.seller, id: "" } },
       { ...sourceListing, seller: { ...sourceListing.seller, userId: "" } },
       { ...sourceListing, seller: { ...sourceListing.seller, userId: expected.buyerId } },
-      { ...sourceListing, seller: { ...sourceListing.seller, stripeAccountId: null } },
+      { ...sourceListing, seller: { ...sourceListing.seller, stripeAccountSupported: false } },
       { ...sourceListing, seller: { ...sourceListing.seller, chargesEnabled: false } },
       { ...sourceListing, seller: { ...sourceListing.seller, vacationMode: true } },
       { ...sourceListing, seller: { ...sourceListing.seller, acceptingNewOrders: false } },
-      { ...sourceListing, seller: { ...sourceListing.seller, stripeAccountVersion: "v1" } },
       { ...sourceListing, seller: { ...sourceListing.seller, user: { banned: true, deletedAt: null } } },
       { ...sourceListing, seller: { ...sourceListing.seller, user: { banned: false, deletedAt: new Date() } } },
     ]) {
@@ -174,6 +172,7 @@ describe("single-checkout last-stock recovery", () => {
     assert.match(route, /singleCheckoutLockKey\(me\.id, listingId\)/);
     assert.match(route, /sellerSingleCheckoutResumeSource\(listingId\)/);
     assert.match(route, /singleCheckoutResumeSourceIsAvailable\(listing, me\.id\)/);
+    assert.match(route, /sellerCheckoutPrivateState\(\{/);
     assert.match(route, /stripe\.checkout\.sessions\.retrieve\(lock\.sessionId\)/);
     assert.match(route, /resolveSingleCheckoutResume\(lock, session/);
     assert.match(route, /sellerId: listing\.seller\.id/);

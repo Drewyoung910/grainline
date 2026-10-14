@@ -51,7 +51,7 @@ test("caller release pins the complete ordered migration batch", () => {
   }
   assert.match(
     workflow,
-    /test "\$\(find prisma\/migrations[\s\S]*20261014010000_tolerate_missing_seller_reconciliation_target/u,
+    /test "\$\(find prisma\/migrations[\s\S]*20261014230000_prepare_seller_profile_private_remaining_app_authorities/u,
   );
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.equal((workflow.match(/npx prisma migrate status/gu) ?? []).length, 1);
@@ -79,13 +79,16 @@ test("caller release accepts only a restart-safe applied prefix", () => {
 });
 
 test("preflight and postflight preserve the private-boundary safety posture", () => {
+  const hold = workflow.indexOf("Hold reviewed SellerProfile application-operation successors");
   const inspect = workflow.indexOf("Inspect restart-safe caller prefix");
   const requirePending = workflow.indexOf("Require only the reviewed caller suffix pending");
   const apply = workflow.indexOf("Apply only the reviewed SellerProfile caller suffix");
   const readback = workflow.indexOf("Read back exact caller ledger");
   const audit = workflow.indexOf("Audit global runtime grants after caller release");
-  assert.ok(inspect >= 0 && requirePending > inspect && apply > requirePending);
+  const restore = workflow.indexOf("Restore reviewed SellerProfile application-operation successors");
+  assert.ok(hold >= 0 && inspect > hold && requirePending > inspect && apply > requirePending);
   assert.ok(readback > apply && audit > readback);
+  assert.ok(restore > audit);
   assert.match(workflow, /publicPosture\.relrowsecurity, false/u);
   assert.match(workflow, /publicPosture\.relforcerowsecurity, false/u);
   assert.match(workflow, /runtime_any: false, public_any: false/u);
@@ -100,6 +103,8 @@ test("preflight and postflight preserve the private-boundary safety posture", ()
   assert.match(workflow, /grainline_seller_profile_reconciliation_required_compat/u);
   assert.match(workflow, /runtime_execute: false, public_execute: false/u);
   assert.match(workflow, /npm run audit:db-grants -- --require-direct-url/u);
+  assert.match(workflow, /SELLER_PROFILE_APP_OPERATION_SUCCESSORS:/u);
+  assert.match(workflow, /if: always\(\)[\s\S]*seller-profile-private-app-operation-successors/u);
 });
 
 test("release has no application deploy or RLS activation and preserves sanitized evidence", () => {

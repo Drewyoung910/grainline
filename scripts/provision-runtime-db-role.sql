@@ -2250,6 +2250,73 @@ FROM (
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec
 
+-- SellerProfilePrivate application operations are the only ordinary-runtime
+-- path to private Stripe provider identity. They may be absent before the
+-- reviewed application-authority preparation migration.
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM (
+  VALUES
+    ('public."grainline_seller_stripe_owner_state"(text)'),
+    ('public."grainline_seller_stripe_account_bind"(text, text, text, text, text)'),
+    ('public."grainline_seller_stripe_reconciliation_page"(text, integer)'),
+    ('public."grainline_seller_stripe_mirror_state"(text)'),
+    ('public."grainline_seller_stripe_charges_update"(text, text, boolean)'),
+    ('public."grainline_seller_shipping_quote_state"(text, text, text, text)'),
+    ('public."grainline_seller_checkout_private_state"(text, text, text, text)'),
+    ('public."grainline_seller_owner_private_state"(text)'),
+    ('public."grainline_seller_owner_onboarding_step_update"(text, text, integer, integer)'),
+    ('public."grainline_seller_owner_onboarding_complete"(text, text)'),
+    ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
+    ('public."grainline_seller_account_deletion_pause"(text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_account_deletion_reconciliation_clear"(text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_profile_view_record"(text, date)'),
+    ('public."grainline_seller_owner_guild_master_application_record"(text, text, timestamp without time zone)'),
+    ('public."grainline_seller_guild_listing_threshold_sync"(text)'),
+    ('public."grainline_seller_guild_member_cron_batch"(text, integer)'),
+    ('public."grainline_seller_guild_metrics_cron_batch"(text, integer)'),
+    ('public."grainline_seller_guild_metrics_apply"(text, timestamp without time zone)'),
+    ('public."grainline_seller_guild_member_revoke"(text)')
+) AS seller_stripe_authority(function_signature)
+WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM (
+  VALUES
+    ('public."grainline_seller_stripe_owner_state"(text)'),
+    ('public."grainline_seller_stripe_account_bind"(text, text, text, text, text)'),
+    ('public."grainline_seller_stripe_reconciliation_page"(text, integer)'),
+    ('public."grainline_seller_stripe_mirror_state"(text)'),
+    ('public."grainline_seller_stripe_charges_update"(text, text, boolean)'),
+    ('public."grainline_seller_shipping_quote_state"(text, text, text, text)'),
+    ('public."grainline_seller_checkout_private_state"(text, text, text, text)'),
+    ('public."grainline_seller_owner_private_state"(text)'),
+    ('public."grainline_seller_owner_onboarding_step_update"(text, text, integer, integer)'),
+    ('public."grainline_seller_owner_onboarding_complete"(text, text)'),
+    ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
+    ('public."grainline_seller_account_deletion_pause"(text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_account_deletion_reconciliation_clear"(text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_profile_view_record"(text, date)'),
+    ('public."grainline_seller_owner_guild_master_application_record"(text, text, timestamp without time zone)'),
+    ('public."grainline_seller_guild_listing_threshold_sync"(text)'),
+    ('public."grainline_seller_guild_member_cron_batch"(text, integer)'),
+    ('public."grainline_seller_guild_metrics_cron_batch"(text, integer)'),
+    ('public."grainline_seller_guild_metrics_apply"(text, timestamp without time zone)'),
+    ('public."grainline_seller_guild_member_revoke"(text)')
+) AS seller_stripe_authority(function_signature)
+WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Phase 0 creates these trigger functions without PUBLIC or ordinary-runtime
 -- execution. Re-provisioning must converge that zero-direct boundary too.
 SELECT format(
@@ -3329,7 +3396,11 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_user_staff_email_recipient"(text, text, text)'),
     ('public."grainline_user_staff_ban_target"(text, text)'),
     ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),
-    ('public."grainline_user_ban_repair_target"(text, text)')
+    ('public."grainline_user_ban_repair_target"(text, text)'),
+    ('public."grainline_seller_guild_staff_roster"(text, text)'),
+    ('public."grainline_seller_guild_staff_master_pending"(text)'),
+    ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)'),
+    ('public."grainline_seller_staff_orderability_state"(text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

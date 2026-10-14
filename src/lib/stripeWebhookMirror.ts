@@ -49,7 +49,12 @@ export async function mirrorStripeChargesEnabled({
   const auditActorType =
     actorType ?? (route.startsWith("/api/cron/") ? "cron" : route.startsWith("/api/stripe/webhook") ? "webhook" : "system");
   await prisma.$transaction(async (tx) => {
-    await updateSellerStripeChargesEnabled(tx, seller.id, effectiveChargesEnabled);
+    await updateSellerStripeChargesEnabled(
+      tx,
+      seller.id,
+      accountId,
+      effectiveChargesEnabled,
+    );
     await logSystemActionOrThrow({
       client: tx,
       actorType: auditActorType,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -10,6 +11,18 @@ describe("Notification verification and Guild authority", () => {
   const admin = source("src/app/admin/verification/page.tsx");
   const memberCron = source("src/app/api/cron/guild-member-check/route.ts");
   const metricsCron = source("src/app/api/cron/guild-metrics/route.ts");
+  const metricsAuthority = readFileSync(
+    sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
+    "utf8",
+  );
+  const memberAuthority = readFileSync(
+    sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
+    "utf8",
+  );
+  const staffTransitionAuthority = readFileSync(
+    sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
+    "utf8",
+  );
   const sql = source("docs/rls-drafts/notification-service-authority.sql");
 
   it("binds all seven staff notifications to transaction-returned admin audit ids", () => {
@@ -17,19 +30,20 @@ describe("Notification verification and Guild authority", () => {
       (admin.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.GUILD_ADMIN_ACTION/g) ?? []).length,
       7,
     );
-    assert.equal((admin.match(/sourceId: (?:approval|rejection|revocation)AuditId/g) ?? []).length, 6);
-    assert.match(admin, /sourceId: reinstatedSeller\.auditLogId/);
-    assert.equal((admin.match(/return logAdminActionOrThrow\(\{/g) ?? []).length, 6);
-    assert.match(admin, /const auditLogId = await logAdminActionOrThrow\(\{/);
-    assert.match(admin, /return \{ \.\.\.seller, auditLogId \}/);
+    assert.equal(
+      (admin.match(/sourceId: (?:approval|rejection|revocation|reinstatement)\.auditId/g) ?? []).length,
+      7,
+    );
+    assert.match(staffTransitionAuthority, /audit_id := pg_catalog\.gen_random_uuid\(\)::text/);
+    assert.match(staffTransitionAuthority, /INSERT INTO public\."AdminAuditLog"/);
+    assert.match(staffTransitionAuthority, /RETURN QUERY SELECT true, audit_id/);
   });
 
   it("co-commits all three cron sources and does not authorize a warning from mutable state alone", () => {
-    assert.match(metricsCron, /action: "WARN_GUILD_MASTER_METRICS"/);
-    assert.match(
-      metricsCron,
-      /const warningAuditId = await prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,900}client: tx/,
-    );
+    assert.match(metricsAuthority, /'WARN_GUILD_MASTER_METRICS'/);
+    assert.match(metricsAuthority, /'AUTO_REVOKE_GUILD_MASTER'/);
+    assert.match(metricsAuthority, /INSERT INTO public\."SystemAuditLog"/);
+    assert.match(metricsAuthority, /metrics\."calculatedAt" = p_calculated_at/);
     assert.equal(
       (metricsCron.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.GUILD_SYSTEM_ACTION/g) ?? []).length,
       2,
@@ -38,9 +52,13 @@ describe("Notification verification and Guild authority", () => {
       (memberCron.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.GUILD_SYSTEM_ACTION/g) ?? []).length,
       1,
     );
-    assert.match(memberCron, /sourceId: revocationAuditId/);
-    assert.match(metricsCron, /sourceId: warningAuditId/);
-    assert.match(metricsCron, /sourceId: revocationAuditId/);
+    assert.match(memberAuthority, /'AUTO_REVOKE_GUILD_MEMBER'/);
+    assert.match(memberAuthority, /INSERT INTO public\."SystemAuditLog"/);
+    assert.match(memberCron, /sourceId: revocation\.auditId/);
+    assert.equal(
+      (metricsCron.match(/sourceId: transition\.auditId/g) ?? []).length,
+      2,
+    );
   });
 
   it("derives staff and cron payload authority from exact actors, audits, recipients, and states", () => {

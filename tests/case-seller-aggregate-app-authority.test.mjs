@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import {
   validateCaseGuildUnresolvedGuard,
   validateCaseSellerActiveCount,
@@ -99,19 +100,27 @@ describe("Case seller aggregate application authority", () => {
   it("rechecks the Guild predicate inside revocation and reinstatement transactions", () => {
     const cron = source("src/app/api/cron/guild-member-check/route.ts");
     const admin = source("src/app/admin/verification/page.tsx");
-    const state = source("src/lib/guildMemberRevocationState.ts");
+    const revocationAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
+    );
+    const staffTransitionAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
+    );
 
     assert.match(
       cron,
-      /prisma\.\$transaction\(async \(tx\) => \{[\s\S]*guard\.kind === "unresolved_case"[\s\S]*getCaseGuildUnresolvedGuard\(seller\.id, tx\)[\s\S]*makerVerification\.updateMany/,
+      /applySellerGuildMemberRevocation\(seller\.id\)/,
     );
-    assert.match(
-      admin,
-      /prisma\.\$transaction\(async \(tx\) => \{[\s\S]*getCaseGuildUnresolvedGuard\(\s*sellerProfileId,\s*tx,[\s\S]*makerVerification\.updateMany/,
-    );
+    assert.match(revocationAuthority, /grainline_case_guild_unresolved_guard/);
+    assert.match(revocationAuthority, /UPDATE public\."MakerVerification"[\s\S]*UPDATE public\."SellerProfile"/);
+    assert.match(admin, /applySellerGuildStaffTransition\(getOrderStaffReadClient\(\), \{/);
+    assert.match(admin, /operation: "REINSTATE_GUILD_MEMBER"/);
+    assert.match(staffTransitionAuthority, /grainline_case_guild_unresolved_guard\(source_seller\.id\)/);
+    assert.match(staffTransitionAuthority, /UPDATE public\."MakerVerification"[\s\S]*UPDATE public\."SellerProfile"/);
     assert.doesNotMatch(cron, /\bprisma\.case\./);
     assert.doesNotMatch(admin, /\b(?:prisma|tx)\.case\./);
-    assert.doesNotMatch(state, /casesAsSeller|Prisma\.CaseWhereInput/);
+    assert.doesNotMatch(revocationAuthority, /FROM public\."Case"/);
+    assert.doesNotMatch(staffTransitionAuthority, /FROM public\."Case"/);
   });
 
   it("revalidates the session-bound admin PIN inside verification actions", () => {

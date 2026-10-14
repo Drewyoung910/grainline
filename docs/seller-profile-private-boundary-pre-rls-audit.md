@@ -507,11 +507,244 @@ both must
 be replaced or retired after Phase 0 is installed, converted application code
 is deployed, and predecessor deployments have drained.
 
-These compatibility modules still read and write the predecessor table. That
-is intentional until Phase 0 is installed because ordinary runtime has zero
-direct authority on the companion. Phase 1 remains incomplete: currently
-effective SQL-function dependencies must move to purpose-bound private
-operations before predecessor columns can be retired.
+The twenty-fifth isolated slice begins the application cutover with the complete
+Stripe provider family. Migration
+`20261014120000_prepare_seller_profile_private_stripe_app_authorities` adds five
+fixed operations for owner state, account binding, bounded reconciliation,
+signed-provider mirroring and exact-account charge-state updates. Ordinary
+runtime retains zero table authority on `SellerProfilePrivate`. Account binding
+is now bound to both the authenticated user and seller profile, locks both
+representations, refuses a conflicting rebind, and keeps both representations
+synchronized during deployment skew. Charge-state updates require both the
+seller profile and the exact private connected-account id, preventing a stale
+webhook lookup from updating a newly rebound seller. The converted TypeScript
+boundary validates every returned row and contains no direct Prisma access to
+either seller table. Focused PGlite proof covers owner availability, idempotent
+binding, foreign-owner denial, conflicting rebind denial, exact-account charge
+updates, bounded reconciliation, representation convergence, direct-table
+denial and untrusted-function denial. The focused 46-test suite and TypeScript
+pass. This slice is prepared source only; it is not yet applied, merged or
+deployed.
+
+The twenty-sixth isolated slice converts shipping quote disclosure. Migration
+`20261014130000_prepare_seller_profile_private_shipping_quote_authority` adds
+one fixed read operation whose caller must supply an active buyer, the exact
+seller and exactly one purchase context: an eligible listing or that buyer's
+exact cart. The operation denies self-purchase, banned or deleted accounts,
+blocked buyer/seller pairs, unavailable sellers, foreign private listings,
+archived listings and invalid cart items before returning the private ship-from
+and package inputs. The route now passes the authenticated local user plus its
+exact cart or listing witness. Runtime retains zero direct table authority, and
+the TypeScript boundary rejects malformed or duplicate database results.
+Focused PostgreSQL proof deliberately poisons predecessor ship-from/package
+fields, proves the companion remains authoritative, and covers single-listing,
+private-listing and cart success plus denial for foreign, archived, blocked,
+banned, self-purchase and wrong-role requests. The focused 42-test suite,
+TypeScript and scoped lint pass. This slice is prepared source only; it is not
+yet applied, merged or deployed.
+
+The twenty-seventh isolated slice converts checkout application projections.
+Migration
+`20261014140000_prepare_seller_profile_private_checkout_app_authority` adds one
+fixed read operation whose caller must present an active buyer, the exact
+seller and exactly one eligible purchase context: an exact listing or that
+buyer's exact cart. It rejects self-purchase, blocked pairs, inactive actors,
+unavailable sellers, foreign private listings, archived listings and invalid
+cart contents before disclosing the private Stripe account and package
+defaults. Public listing/cart projections retain only the supported-account
+snapshot used for early eligibility. Single checkout, seller-group checkout,
+cart add/update, shipping quote and single-checkout resume now obtain private
+provider/package state only through the fixed operation. Reservation witnesses
+compose that exact private result with their public source immediately before
+the database reservation call, preserving the source-equality check without
+restoring direct table access. Focused PostgreSQL proof deliberately poisons
+the predecessor values, proves listing and cart success from the companion,
+and covers invalid context, foreign/private/self/blocked and invalid-cart
+denials plus direct-table and untrusted-function denial. The 104-test focused
+suite, the 130-test adjacent-route suite, TypeScript and scoped lint pass. This
+slice is prepared source only; it is not yet applied, merged or deployed.
+
+The twenty-eighth isolated slice converts the non-Guild owner surface.
+Migration
+`20261014150000_prepare_seller_profile_private_owner_app_authorities` adds an
+active-owner-only private-state projection plus narrow onboarding-step,
+onboarding-completion and shop-settings writers. Onboarding, shop settings and
+account export combine bounded public projections with that private result;
+the general seller bootstrap no longer carries a private Stripe account id.
+Vacation-mode checkout expiry obtains the account id through the already fixed
+Stripe owner operation. Onboarding progress uses a compare-and-set operation,
+and completion now rechecks the private step, current Stripe eligibility and
+existence of a listing while both seller representations are locked. The shop
+settings writer validates geographic, monetary, carrier, address-country and
+package bounds and updates the private source plus predecessor representation
+in one transaction during deployment skew. Ordinary runtime receives only
+function execution and retains zero private-table authority. Focused PostgreSQL
+proof deliberately poisons predecessor private values, proves owner reads come
+from the companion, proves onboarding and settings synchronization, and covers
+stale-step, completion-prerequisite, direct-table and untrusted-function
+denials. The 65-test owner/static suite, TypeScript and scoped lint pass. This
+slice is prepared source only; it is not yet applied, merged or deployed.
+
+The twenty-ninth isolated slice converts account-deletion application writes.
+Migration
+`20261014160000_prepare_seller_profile_private_account_deletion_app_authorities`
+adds one exact pause operation and one atomic anonymization operation. Both
+destructive paths require the current generation-fenced, UUID-bound
+`LOCAL_ANONYMIZE` side-effect claim. The pause operation also supports the
+separate Clerk-provider-deleted deferral only after the database verifies the
+exact terminal local ban reason, and it tolerates buyer-only accounts. Seller
+pauses bind to the authoritative private Stripe account when provider identity
+is known. The anonymization operation locks both representations, fails closed
+if the private provider identity changed after deletion preflight, and clears
+the private companion and predecessor fields in one transaction. It does not
+require an otherwise active User because claimed cleanup runs after Clerk
+identity deletion. Ordinary runtime retains no direct private-table authority
+and cannot use the functions without a live deletion witness. Focused
+PostgreSQL proof poisons the public Stripe and ship-from predecessors, proves
+claim-token and exact-account enforcement, provider-rebind denial, full
+public/private cleanup, safe buyer-only deferral, direct-table denial and
+untrusted-function denial. Focused account-deletion tests, TypeScript and
+scoped lint pass. This slice is prepared source only; it is not yet applied,
+merged or deployed.
+
+The thirtieth isolated slice converts Guild listing-threshold maintenance.
+Migration
+`20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority`
+adds a fixed operation that accepts only a seller identity, locks both seller
+representations, derives the current count from canonical active public
+listings, preserves the existing below-threshold clock when appropriate, and
+synchronizes the companion and predecessor in one transaction. All listing
+creation, stock, seller-hide and staff-review callers retain their existing
+best-effort invocation but can no longer issue a direct SellerProfile update.
+Ordinary runtime receives only function execution and cannot choose the
+private timestamp or obtain direct private-table authority. Focused source
+tests, TypeScript and scoped lint pass. This slice is prepared source only; it
+is not yet applied, merged or deployed.
+
+The thirty-first isolated slice converts the two bounded Guild cron scans.
+Migration
+`20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities`
+adds separate 100-row-capped, stable projections for daily Guild Member
+revocation review and monthly Guild metrics review. Public badge and vacation
+eligibility remain on SellerProfile; the threshold clock, consecutive failure
+counter and warning timestamp come only from the private companion. Cursor and
+page-size inputs are bounded in the database, ordinary runtime receives only
+the two exact function grants, and direct companion access remains denied. The
+cron routes retain their existing cursor runner and processing behavior. This
+slice is prepared source only; it is not yet applied, merged or deployed.
+
+The thirty-second isolated slice converts monthly Guild metrics mutations.
+Migration
+`20261014190000_prepare_seller_profile_private_guild_metrics_authority`
+adds one fixed transition that accepts only a seller identity and the exact
+persisted metrics calculation timestamp. The function locks the public seller,
+private companion and matching three-month metrics snapshot; rejects replaced,
+stale, future, malformed and out-of-range snapshots; derives threshold success
+inside PostgreSQL; enforces the 30-day warning window from companion state; and
+atomically synchronizes both seller representations. Warning and automatic
+Guild Master revocation audit rows are inserted in the same transaction as
+their state changes, while revocation also requires and updates the current
+`GUILD_MASTER_APPROVED` verification row. The function interface does not let
+the caller select the action, counter, warning time, demotion, verification
+result or audit payload. The cron now calculates metrics once and uses the
+returned action only for notification, email and cache side effects. The shared
+runtime still writes the `SellerMetrics` cache directly, so Phase 2 remains
+blocked on the separate coverage-ledger requirement for a database-derived or
+service-only metrics refresh; this exact-cache token is not by itself the final
+trust boundary. Focused PostgreSQL proof covers warning, recovery,
+revocation, verification conflict, exact-snapshot rejection, malformed metrics,
+direct companion denial and untrusted-function denial. This slice is prepared
+source only; it is not yet applied, merged or deployed.
+
+The thirty-third isolated slice converts automatic Guild Member revocation.
+Migration
+`20261014200000_prepare_seller_profile_private_guild_member_revocation_authority`
+adds one fixed transition that accepts only the seller identity. PostgreSQL
+locks the seller and private companion, derives the current 90-day unresolved
+case guard through the existing Case authority, and otherwise requires both a
+private 30-day below-threshold clock and a fresh count below five ACTIVE,
+non-private listings. A successful transition updates the current eligible
+verification, public badge state, private metrics state and
+`AUTO_REVOKE_GUILD_MEMBER` audit row atomically. The caller cannot choose the
+guard, reason, verification result, seller state or audit payload. The cron
+uses the database result only for notification, email and cache side effects.
+Focused PostgreSQL proof covers case and listing revocations, restored-count
+and recent-threshold rejection, stale/non-member state, verification conflict,
+atomic state, direct companion denial and untrusted-function denial. This
+slice is prepared source only; it is not yet applied, merged or deployed.
+
+The thirty-fourth isolated slice converts staff Guild private reads. Migration
+`20261014210000_prepare_seller_profile_private_guild_staff_read_authorities`
+adds an actor-checked, 50-row-capped roster projection for current Members,
+current Masters and revoked former Members plus a separate stable Guild Master
+review queue projection. Both execute only through the isolated
+`grainline_staff_read_runtime`, revalidate that the actor is an active employee
+or administrator, join lifecycle timestamps from the private companion, and
+leave the isolated role with zero direct table authority. The admin page now
+uses those operations for all three rosters and the Guild Master queue.
+Focused PostgreSQL proof covers cohort filtering, timestamp ordering, metrics
+projection, inactive-actor rejection, ordinary-runtime denial and direct
+private-table denial. This slice is prepared source only; it is not yet
+applied, merged or deployed.
+
+The thirty-fifth isolated slice converts all seven staff Guild transitions.
+Migration
+`20261014220000_prepare_seller_profile_private_guild_staff_transition_authority`
+adds one operation selected from a closed transition set and executable only
+through the isolated staff database role. Every call revalidates the active
+employee or administrator actor, locks the verification, public seller and
+private companion rows, enforces the current transition state, and updates the
+paired records plus `AdminAuditLog` atomically. Reinstatement additionally
+requires an administrator and rederives the active-account, prior-approval,
+unresolved-case and five-active-public-listing guards in PostgreSQL. The admin
+sales override is also administrator-only in the UI, server action and
+database. The admin page now uses the returned audit and seller identity only
+for notification and email side effects; ordinary runtime has no function or
+table authority.
+Focused PostgreSQL proof covers all seven transitions, audit pairing, stale
+state, forged actor, ordinary-runtime and direct-table denial. Guild Member
+approval sales, account-age and case/listing aggregate eligibility, and Guild
+Master approval metrics are still intentionally checked in the application
+immediately before the database transition; the function rechecks current
+account, verification and Guild state but does not atomically rederive those
+external aggregates.
+
+The thirty-sixth isolated slice closes the callers found by the final source
+inventory rather than relying on the earlier compatibility-module list.
+Migration
+`20261014230000_prepare_seller_profile_private_remaining_app_authorities`
+adds fixed operations for public profile-view recording, claim-bound clearing
+of account-deletion Stripe reconciliation state, and owner-bound Guild Master
+application recording. It also gives only the isolated staff role an
+actor-checked seller orderability projection for ban, unban and audited undo.
+Seller analytics and dashboards obtain private owner state through the owner
+projection. Public maker ranking no longer depends on the private profile-view
+counter; it uses public follower count with an ID tie-break. Focused PostgreSQL
+proof covers representation synchronization, stale and forged inputs, active
+staff validation, ordinary-runtime denial of the staff operation and denial of
+the private companion table. The recursive source scan now finds no direct
+selection of the classified predecessor fields.
+
+The protected
+`.github/workflows/seller-profile-private-app-operations-production.yml`
+release applies exactly the ordered twelve-migration application-operation
+batch. It binds dispatch to an unchanged main commit and its successful push
+CI, verifies immutable migration digests, accepts only a restart-safe applied
+prefix, admits only the reviewed pending suffix, preserves the public/private
+convergence and pre-RLS posture, audits global grants, and stores sanitized
+preflight/postflight evidence. It neither deploys the application nor enables
+RLS. CI holds the complete SellerProfile private migration family until its
+historical predecessors have run, then applies both caller and application
+operation batches in disposable PostgreSQL before grant audit and build. The
+older Phase 0 and caller workflows now hold these newer migrations so a
+recovery dispatch cannot apply them accidentally.
+
+No known application caller now reads or writes the classified predecessor
+private fields directly. Phase 1 remains incomplete until this complete
+converted source is merged, its additive migrations are applied in the
+reviewed order, the converted application is deployed and proven, and
+predecessor deployments have drained. The transition-only SQL writers remain
+installed until that drain completes.
 
 ### Phase 2: private-boundary cutover and RLS/grants — **NO-GO**
 

@@ -1,19 +1,34 @@
 import type { Prisma } from "@prisma/client";
 
-type SellerAccountDeletionClient = Pick<Prisma.TransactionClient, "sellerProfile">;
+type SellerAccountDeletionClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 /** Compatibility boundary for account-deletion mutations of private seller data. */
-export function pauseSellerForAccountDeletion(
+export async function pauseSellerForAccountDeletion(
   client: SellerAccountDeletionClient,
-  input: { userId: string; stripeAccountId?: string },
+  input: {
+    userId: string;
+    stripeAccountId?: string;
+    sideEffectId?: string;
+    claimGeneration?: bigint;
+    claimToken?: string;
+  },
 ) {
-  return client.sellerProfile.updateMany({
-    where: {
-      userId: input.userId,
-      ...(input.stripeAccountId ? { stripeAccountId: input.stripeAccountId } : {}),
-    },
-    data: { chargesEnabled: false, vacationMode: true },
-  });
+  const rows = await client.$queryRaw<Array<{ paused: boolean }>>`
+    SELECT public.grainline_seller_account_deletion_pause(
+      ${input.userId}::text,
+      ${input.stripeAccountId ?? null}::text,
+      ${input.sideEffectId ?? null}::text,
+      ${input.claimGeneration ?? null}::bigint,
+      ${input.claimToken ?? null}::uuid
+    ) AS paused
+  `;
+  if (rows.length !== 1 || typeof rows[0]?.paused !== "boolean") {
+    throw new Error("Seller account-deletion pause authority returned an invalid result");
+  }
+  if (!rows[0].paused && input.stripeAccountId) {
+    throw new Error("Account deletion seller provider identity changed");
+  }
+  return { count: rows[0].paused ? 1 : 0 };
 }
 
 export async function anonymizeSellerForAccountDeletion(
@@ -25,90 +40,50 @@ export async function anonymizeSellerForAccountDeletion(
     stripeAccountId: string | null;
     stripeAccountVersion: string | null;
     stripeControllerType: string | null;
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
   },
 ) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: {
-      displayName: "Deleted maker",
-      displayNameNormalized: "Deleted maker",
-      bio: null,
-      city: null,
-      state: null,
-      lat: null,
-      lng: null,
-      radiusMeters: null,
-      publicMapOptIn: false,
-      stripeAccountId: null,
-      stripeAccountVersion: null,
-      stripeControllerType: null,
-      chargesEnabled: false,
-      manualStripeReconciliationNeeded: !input.stripeRejectSucceeded,
-      manualStripeReconciliationNote: input.stripeRejectSucceeded
-        ? null
-        : `Account deletion could not reject Stripe Connect account ${input.stripeAccountId} (${input.stripeAccountVersion ?? "legacy/unknown"}; ${input.stripeControllerType ?? "controller unknown"}); manual Stripe dashboard reconciliation required.`,
-      shippingFlatRateCents: null,
-      freeShippingOverCents: null,
-      allowLocalPickup: false,
-      shipFromName: null,
-      shipFromLine1: null,
-      shipFromLine2: null,
-      shipFromCity: null,
-      shipFromState: null,
-      shipFromPostal: null,
-      shipFromCountry: "US",
-      shipFromPhone: null,
-      defaultPkgWeightGrams: null,
-      defaultPkgLengthCm: null,
-      defaultPkgWidthCm: null,
-      defaultPkgHeightCm: null,
-      useCalculatedShipping: false,
-      preferredCarriers: [],
-      tagline: null,
-      bannerImageUrl: null,
-      avatarImageUrl: null,
-      workshopImageUrl: null,
-      storyTitle: null,
-      storyBody: null,
-      instagramUrl: null,
-      facebookUrl: null,
-      pinterestUrl: null,
-      tiktokUrl: null,
-      websiteUrl: null,
-      yearsInBusiness: null,
-      acceptsCustomOrders: false,
-      acceptingNewOrders: false,
-      customOrderTurnaroundDays: null,
-      offersGiftWrapping: false,
-      giftWrappingPriceCents: null,
-      returnPolicy: null,
-      customOrderPolicy: null,
-      shippingPolicy: null,
-      featuredListingIds: [],
-      galleryImageUrls: [],
-      galleryAltTexts: [],
-      isVerifiedMaker: false,
-      verifiedAt: null,
-      guildLevel: "NONE",
-      guildMemberApprovedAt: null,
-      guildMasterApprovedAt: null,
-      guildMasterAppliedAt: null,
-      guildMasterReviewNotes: null,
-      consecutiveMetricFailures: 0,
-      lastMetricCheckAt: null,
-      metricWarningSentAt: null,
-      listingsBelowThresholdSince: null,
-      profileViews: 0,
-      featuredUntil: null,
-      metroId: null,
-      cityMetroId: null,
-      vacationMode: true,
-      vacationReturnDate: null,
-      vacationMessage: null,
-    },
-  });
-
-  if (result.count !== 1) {
-    throw new Error("Account deletion seller profile ownership changed");
+  const rows = await client.$queryRaw<Array<{ id: string }>>`
+    SELECT public.grainline_seller_account_deletion_anonymize(
+      ${input.sellerProfileId}::text,
+      ${input.userId}::text,
+      ${input.stripeRejectSucceeded}::boolean,
+      ${input.stripeAccountId}::text,
+      ${input.stripeAccountVersion}::text,
+      ${input.stripeControllerType}::text,
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
+    ) AS id
+  `;
+  if (rows.length !== 1 || rows[0]?.id !== input.sellerProfileId) {
+    throw new Error("Seller account-deletion anonymize authority returned an invalid result");
   }
+}
+
+export async function clearSellerAccountDeletionReconciliation(
+  client: SellerAccountDeletionClient,
+  input: {
+    userId: string;
+    stripeAccountId: string;
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
+) {
+  const rows = await client.$queryRaw<Array<{ cleared: boolean }>>`
+    SELECT public.grainline_seller_account_deletion_reconciliation_clear(
+      ${input.userId}::text,
+      ${input.stripeAccountId}::text,
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
+    ) AS cleared
+  `;
+  if (rows.length !== 1 || typeof rows[0]?.cleared !== "boolean") {
+    throw new Error("Seller account-deletion reconciliation authority returned an invalid result");
+  }
+  return rows[0].cleared;
 }

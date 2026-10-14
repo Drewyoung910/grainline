@@ -55,7 +55,10 @@ import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
 import { normalizeUsState } from "@/lib/usStates";
-import { sellerSingleCheckoutSource } from "@/lib/sellerCheckoutPrivateAccess";
+import {
+  sellerCheckoutPrivateState,
+  sellerSingleCheckoutSource,
+} from "@/lib/sellerCheckoutPrivateAccess";
 
 const CheckoutSingleSchema = z.object({
   listingId: z.string().min(1),
@@ -181,6 +184,19 @@ export async function POST(req: Request) {
       );
     }
 
+    const checkoutPrivateState = await sellerCheckoutPrivateState({
+      buyerUserId: me.id,
+      sellerProfileId: listing.sellerId,
+      cartId: null,
+      listingId: listing.id,
+    });
+    if (!checkoutPrivateState) {
+      return privateJson(
+        { error: "This seller is not currently accepting orders. Please try again later." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
     if (listing.listingType === "MADE_TO_ORDER" && body.quantity > 1) {
       return privateJson(
         { error: "Made-to-order items can only be ordered one at a time." },
@@ -191,11 +207,11 @@ export async function POST(req: Request) {
     if (body.selectedRate.currency.toLowerCase() !== currency) {
       return privateJson({ error: "Invalid shipping rate currency." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
-    const sellerStripeAccountId = listing.seller.stripeAccountId || null;
+    const sellerStripeAccountId = checkoutPrivateState.stripeAccountId;
     const sp = listing.seller;
 
     // Pre-flight: verify seller can accept payments
-    if (!sellerStripeAccountId || !sp.chargesEnabled) {
+    if (!sp.chargesEnabled || !sp.stripeAccountSupported) {
       return privateJson(
         { error: "This seller is not currently accepting orders. Please try again later." },
         { status: HTTP_STATUS.BAD_REQUEST },
@@ -239,10 +255,10 @@ export async function POST(req: Request) {
       variantKey: variantResolution.variantKey,
       unitPriceCents,
       priceVersion: listing.priceVersion,
-      weight: listing.packagedWeightGrams ?? listing.seller.defaultPkgWeightGrams ?? 0,
-      length: listing.packagedLengthCm ?? listing.seller.defaultPkgLengthCm ?? 0,
-      width: listing.packagedWidthCm ?? listing.seller.defaultPkgWidthCm ?? 0,
-      height: listing.packagedHeightCm ?? listing.seller.defaultPkgHeightCm ?? 0,
+      weight: listing.packagedWeightGrams ?? checkoutPrivateState.defaultPkgWeightGrams ?? 0,
+      length: listing.packagedLengthCm ?? checkoutPrivateState.defaultPkgLengthCm ?? 0,
+      width: listing.packagedWidthCm ?? checkoutPrivateState.defaultPkgWidthCm ?? 0,
+      height: listing.packagedHeightCm ?? checkoutPrivateState.defaultPkgHeightCm ?? 0,
     });
     const rateVerification = verifyRate(
       {
@@ -406,9 +422,16 @@ export async function POST(req: Request) {
         }]
       : [];
     checkoutReservationItemCount = reservableItems.length;
+    const checkoutSourceListing = {
+      ...listing,
+      seller: {
+        ...listing.seller,
+        ...checkoutPrivateState,
+      },
+    };
     const pricedSourceWitness = singleCheckoutReservationSnapshotWitness(
       me.id,
-      listing,
+      checkoutSourceListing,
       body.quantity,
       body.selectedVariantOptionIds,
     );
@@ -481,13 +504,13 @@ export async function POST(req: Request) {
               listingId: listing.id,
               ...checkoutShippingPackageMetadata({
                 shippingWeightGrams:
-                  listing.packagedWeightGrams ?? listing.seller.defaultPkgWeightGrams,
+                  listing.packagedWeightGrams ?? checkoutPrivateState.defaultPkgWeightGrams,
                 shippingLengthCm:
-                  listing.packagedLengthCm ?? listing.seller.defaultPkgLengthCm,
+                  listing.packagedLengthCm ?? checkoutPrivateState.defaultPkgLengthCm,
                 shippingWidthCm:
-                  listing.packagedWidthCm ?? listing.seller.defaultPkgWidthCm,
+                  listing.packagedWidthCm ?? checkoutPrivateState.defaultPkgWidthCm,
                 shippingHeightCm:
-                  listing.packagedHeightCm ?? listing.seller.defaultPkgHeightCm,
+                  listing.packagedHeightCm ?? checkoutPrivateState.defaultPkgHeightCm,
               }),
             },
             tax_code: "txcd_99999999", // General - Tangible Personal Property

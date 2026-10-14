@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -24,14 +25,17 @@ describe("seller display-name lookup normalization guardrails", () => {
     const onboarding = source("src/app/dashboard/onboarding/actions.ts");
     const profile = source("src/app/dashboard/profile/page.tsx");
     const ownerAccess = source("src/lib/sellerOwnerPrivateAccess.ts");
-    const deletion = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
+    const deletion = readFileSync(
+      sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
+      "utf8",
+    );
 
     assert.match(ensureSeller, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);
     assert.match(onboarding, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);
     assert.match(profile, /const displayNameNormalized = normalizeDisplayNameForLookup\(displayName\)/);
     assert.match(ownerAccess, /displayNameNormalized: \{\s*equals: input\.displayNameNormalized,\s*mode: "insensitive",?\s*\}/s);
     assert.match(profile, /displayNameNormalized,/);
-    assert.match(deletion, /displayNameNormalized: "Deleted maker"/);
+    assert.match(deletion, /"displayNameNormalized" = 'Deleted maker'/);
   });
 
   it("uses normalized seller display names in public search surfaces", () => {

@@ -49,7 +49,7 @@ describe("account export privacy coverage", () => {
       "manualStripeReconciliationNeeded",
     ]) {
       assert.match(schema, new RegExp(`\\b${field}\\b`), `schema must retain ${field}`);
-      assert.match(sellerSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+      assert.match(sellerSelect, new RegExp(`\\b${field}:`), `account export boundary must retain ${field}`);
     }
   });
 
@@ -160,7 +160,7 @@ describe("account export privacy coverage", () => {
       "shipFromPhone",
     ]) {
       assert.match(schema, new RegExp(`${field}\\s+String\\?`), `schema must retain ${field}`);
-      assert.match(sellerSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+      assert.match(sellerSelect, new RegExp(`\\b${field}:`), `account export boundary must retain ${field}`);
     }
   });
 
@@ -215,7 +215,7 @@ describe("account export privacy coverage", () => {
       "foundingMakerAt",
     ]) {
       assert.match(schema, new RegExp(`\\b${field}\\b`), `schema must retain ${field}`);
-      assert.match(sellerSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+      assert.match(sellerSelect, new RegExp(`\\b${field}:`), `account export boundary must retain ${field}`);
     }
 
     for (const field of [

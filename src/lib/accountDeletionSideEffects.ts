@@ -12,6 +12,7 @@ import {
   ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_TIME_BUDGET_MS,
   accountDeletionSideEffectDoneRetentionCutoff,
 } from "@/lib/accountDeletionSideEffectRetentionState";
+import { clearSellerAccountDeletionReconciliation } from "@/lib/sellerAccountDeletionPrivateAccess";
 
 export const ACCOUNT_DELETION_SIDE_EFFECT_STATUS = {
   PENDING: "PENDING",
@@ -386,18 +387,12 @@ async function performAccountDeletionSideEffect(effect: {
       throw new Error("Missing Stripe account id for account deletion side effect");
     }
     await stripe.accounts.reject(payload.stripeAccountId, { reason: "other" });
-    await prisma.sellerProfile.updateMany({
-      where: {
-        userId: effect.userId,
-        manualStripeReconciliationNeeded: true,
-        manualStripeReconciliationNote: {
-          startsWith: "Account deletion could not reject Stripe Connect account",
-        },
-      },
-      data: {
-        manualStripeReconciliationNeeded: false,
-        manualStripeReconciliationNote: null,
-      },
+    await clearSellerAccountDeletionReconciliation(prisma, {
+      userId: effect.userId,
+      stripeAccountId: payload.stripeAccountId,
+      sideEffectId: effect.id,
+      claimGeneration: effect.claimGeneration,
+      claimToken: effect.claimToken,
     });
     return;
   }

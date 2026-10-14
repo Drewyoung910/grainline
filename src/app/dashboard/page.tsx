@@ -17,6 +17,7 @@ import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { countUnreadOwnerNotifications } from "@/lib/notificationOwnerAccess";
+import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 import { deleteOwnerSavedSearch, listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
@@ -266,11 +267,8 @@ async function DashboardPageContent({
 
   const { me, seller } = await ensureSeller();
 
-  const sellerProfile = await prisma.sellerProfile.findUnique({
-    where: { id: seller.id },
-    select: { onboardingComplete: true },
-  });
-  const onboardingComplete = sellerProfile?.onboardingComplete ?? false;
+  const sellerPrivate = await sellerOwnerPrivateState(seller.userId, seller.id);
+  const onboardingComplete = sellerPrivate?.onboardingComplete ?? false;
   const forceSetupBanner = params.setup === "required";
 
   const [listings, savedSearches, verification, notifUnreadCount, guildSeller] = await Promise.all([

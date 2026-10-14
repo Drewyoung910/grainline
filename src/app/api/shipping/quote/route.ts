@@ -346,7 +346,7 @@ export async function POST(req: Request) {
       }
 
       const paymentUnavailableItem = cart.items.find(
-        (it) => !it.listing.seller.chargesEnabled || !it.listing.seller.stripeAccountId,
+        (it) => !it.listing.seller.chargesEnabled || !it.listing.seller.stripeAccountSupported,
       );
       if (paymentUnavailableItem) {
         return quoteBlockedResponse("This seller is not currently accepting orders.");
@@ -394,7 +394,12 @@ export async function POST(req: Request) {
       }
 
       // Load seller defaults + ship-from
-      const seller = await sellerShippingQuoteState(sellerId);
+      const seller = await sellerShippingQuoteState({
+        buyerUserId: me.id,
+        sellerProfileId: sellerId,
+        cartId: cart.id,
+        listingId: null,
+      });
 
       if (!seller) return privateJson({ rates: [] });
 
@@ -489,7 +494,7 @@ export async function POST(req: Request) {
       if (sellerBlockReason) {
         return quoteBlockedResponse(sellerOrderBlockMessage(sellerBlockReason));
       }
-      if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
+      if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountSupported) {
         return quoteBlockedResponse("This seller is not currently accepting orders.");
       }
       if (listing.listingType === "MADE_TO_ORDER" && qty > 1) {
@@ -505,7 +510,12 @@ export async function POST(req: Request) {
         }
       }
 
-      const seller = await sellerShippingQuoteState(sellerId);
+      const seller = await sellerShippingQuoteState({
+        buyerUserId: me.id,
+        sellerProfileId: sellerId,
+        cartId: null,
+        listingId: listing.id,
+      });
 
       if (!seller) return privateJson({ rates: [] });
 

@@ -125,15 +125,17 @@ export async function saveStep2(formData: FormData): Promise<ActionResult> {
     const shippingPolicy = cleanSellerProfileRichText(formData.get("shippingPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
     const acceptsCustomOrders = formData.get("acceptsCustomOrders") === "on";
 
-    await updateSellerOwnerOnboardingStepTwo(prisma, {
-      sellerProfileId: seller.id,
-      userId: seller.userId,
-      yearsInBusiness,
-      city,
-      state,
-      returnPolicy,
-      shippingPolicy,
-      acceptsCustomOrders,
+    await prisma.$transaction(async (tx) => {
+      await updateSellerOwnerOnboardingStepTwo(tx, {
+        sellerProfileId: seller.id,
+        userId: seller.userId,
+        yearsInBusiness,
+        city,
+        state,
+        returnPolicy,
+        shippingPolicy,
+        acceptsCustomOrders,
+      });
     });
     revalidatePath("/dashboard/onboarding");
     return { ok: true };

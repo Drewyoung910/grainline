@@ -771,11 +771,17 @@ async function disableSellerOrderabilityAfterStripeReject(input: {
   stripeAccountId: string;
   stripeAccountVersion: string | null;
   stripeControllerType: string | null;
+  sideEffectId: string;
+  claimGeneration: bigint;
+  claimToken: string;
 }) {
   try {
     await pauseSellerForAccountDeletion(prisma, {
       userId: input.userId,
       stripeAccountId: input.stripeAccountId,
+      sideEffectId: input.sideEffectId,
+      claimGeneration: input.claimGeneration,
+      claimToken: input.claimToken,
     });
     revalidateDeletedAccountSearchCaches(input.userId);
   } catch (error) {
@@ -1088,6 +1094,9 @@ export async function anonymizeUserAccount(
       stripeAccountId,
       stripeAccountVersion,
       stripeControllerType,
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
     });
   }
   await cleanupAccountCheckoutStockReservationsForDeletion({
@@ -1390,7 +1399,12 @@ export async function anonymizeUserAccount(
 
     if (user.sellerProfile) {
       if (stripeRejectSucceeded) {
-        await pauseSellerForAccountDeletion(tx, { userId: user.id });
+        await pauseSellerForAccountDeletion(tx, {
+          userId: user.id,
+          sideEffectId: localAnonymizeSideEffectId,
+          claimGeneration: localClaimGeneration,
+          claimToken: localClaimToken,
+        });
       }
       await removeSellerCommissionInterests(tx, user.sellerProfile.id);
       await tx.sellerProfileViewDaily.deleteMany({
@@ -1465,6 +1479,9 @@ export async function anonymizeUserAccount(
         stripeAccountId,
         stripeAccountVersion,
         stripeControllerType,
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
     } else {
       await tx.follow.deleteMany({ where: { followerId: user.id } });

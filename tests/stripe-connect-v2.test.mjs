@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import {
   buildStripeConnectV2AccountCreateParams,
   STRIPE_CONNECT_ACCOUNT_VERSION,
@@ -239,9 +240,9 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(helper, /runCronCursorPages\(\{/);
     assert.match(helper, /pageSize: batchSize/);
     assert.match(helper, /sellerStripeReconciliationPage\(cursorId, batchSize\)/);
-    assert.match(access, /stripeAccountId: \{ not: null \}/);
-    assert.match(access, /cursor: \{ id: cursorId \}, skip: 1/);
-    assert.match(access, /orderBy: \{ id: "asc" \}/);
+    assert.match(access, /grainline_seller_stripe_reconciliation_page/);
+    assert.match(access, /\$queryRaw<SellerStripeReconciliationState\[\]>/);
+    assert.doesNotMatch(access, /\.sellerProfile\.findMany/);
     assert.match(helper, /getCursor: \(seller\) => seller\.id/);
     assert.match(helper, /result\.pagesFetched = pageResult\.pagesFetched/);
     assert.match(helper, /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
@@ -252,7 +253,10 @@ describe("Stripe Connect v2 migration guardrails", () => {
 
     assert.match(mirror, /return \{ matched: false as const \}/);
     assert.match(mirror, /sellerStripeMirrorState\(accountId\)/);
-    assert.match(mirror, /updateSellerStripeChargesEnabled\(tx, seller\.id, effectiveChargesEnabled\)/);
+    assert.match(
+      mirror,
+      /updateSellerStripeChargesEnabled\([\s\S]*tx,[\s\S]*seller\.id,[\s\S]*accountId,[\s\S]*effectiveChargesEnabled/,
+    );
     assert.match(mirror, /changed: seller\.chargesEnabled !== effectiveChargesEnabled/);
     assert.match(mirror, /return result/);
     assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);
@@ -300,9 +304,13 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(accountDeletion, /stripeAccountVersion,/);
     assert.match(accountDeletion, /stripeControllerType,/);
     const sellerDeletionAccess = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
+    const sellerDeletionAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
+    );
     assert.match(accountDeletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
-    assert.match(sellerDeletionAccess, /stripeAccountVersion: null/);
-    assert.match(sellerDeletionAccess, /stripeControllerType: null/);
-    assert.match(sellerDeletionAccess, /manualStripeReconciliationNote/);
+    assert.match(sellerDeletionAccess, /grainline_seller_account_deletion_anonymize/);
+    assert.match(sellerDeletionAuthority, /"stripeAccountVersion" = NULL/);
+    assert.match(sellerDeletionAuthority, /"stripeControllerType" = NULL/);
+    assert.match(sellerDeletionAuthority, /"manualStripeReconciliationNote" = reconciliation_note/);
   });
 });

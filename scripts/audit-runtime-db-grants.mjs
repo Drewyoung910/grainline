@@ -183,10 +183,15 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_user_staff_directory_page(text,text,integer)",
   "grainline_user_staff_exact_email_target(text,text)",
   "grainline_user_staff_report_labels(text,text[])",
+  "grainline_user_staff_admin_labels(text,text[])",
   "grainline_user_staff_email_recipient(text,text,text)",
   "grainline_user_staff_ban_target(text,text)",
   "grainline_user_staff_capability_mint(text,text,text,timestamp without time zone)",
   "grainline_user_ban_repair_target(text,text)",
+  "grainline_seller_guild_staff_roster(text,text)",
+  "grainline_seller_guild_staff_master_pending(text)",
+  "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+  "grainline_seller_staff_orderability_state(text,text)",
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
   [
@@ -199,6 +204,10 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_user_staff_capability_mint(text,text,text,timestamp without time zone)",
     "grainline_user_ban_repair_target(text,text)",
     "grainline_user_staff_admin_labels(text,text[])",
+    "grainline_seller_guild_staff_roster(text,text)",
+    "grainline_seller_guild_staff_master_pending(text)",
+    "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+    "grainline_seller_staff_orderability_state(text,text)",
   ],
 );
 export const MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
@@ -379,6 +388,10 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_user_public_review_commission_state_sync",
   "grainline_seller_public_commission_state_sync",
   ...USER_ISOLATED_STAFF_PRIVATE_FUNCTION_NAMES,
+  "grainline_seller_guild_staff_roster",
+  "grainline_seller_guild_staff_master_pending",
+  "grainline_seller_guild_staff_transition",
+  "grainline_seller_staff_orderability_state",
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",
   "grainline_order_seller_key_assert",

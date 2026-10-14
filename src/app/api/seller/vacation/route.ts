@@ -16,6 +16,7 @@ import {
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { sellerStripeOwnerState } from "@/lib/sellerStripePrivateAccess";
 
 const VacationSchema = z.object({
   vacationMode: z.boolean(),
@@ -101,10 +102,11 @@ export async function POST(req: Request) {
     revalidatePublicSellerVisibilityCaches();
 
     if (vacationMode) {
+      const stripeState = await sellerStripeOwnerState(seller.userId);
       after(() =>
         expireOpenCheckoutSessionsForSeller({
           sellerId: seller.id,
-          stripeAccountId: seller.stripeAccountId,
+          stripeAccountId: stripeState?.stripeAccountId ?? null,
           source: "seller_vacation",
         }),
       );

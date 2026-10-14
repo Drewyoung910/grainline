@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -77,9 +77,15 @@ const sellerProfilePrivateBoundaryMigrations = [
 ];
 const admittedTests = [...heldTests, ...packageOwnedTests];
 const staffScript = "scripts/provision-order-staff-read-role.sql";
+const grantAuditScript = "scripts/audit-runtime-db-grants.mjs";
+const runtimeProvisionScript = "scripts/provision-runtime-db-role.sql";
 const historicalBase = "66746f47e87a73a6efce2ee6833542be5a86cc57";
 const historicalStaffBlob = "46fd8e1bfa086cb097adf194eb193389122ee9d9";
 const historicalStaffCatalogBlob = "6d0a46c02fa040e7651b675696cec67ad1b2fdd3";
+const sellerProfilePredecessor = "0b10fab0e0072cb6dfba83119e3881c7cc0afa27";
+const sellerProfilePredecessorStaffBlob = "abffb4dce9351bdd64e63b3d846e8abd27e98e9f";
+const sellerProfilePredecessorGrantAuditBlob = "38bd25785a96b50b3148843608f1a927b7d867ac";
+const sellerProfilePredecessorRuntimeProvisionBlob = "6824b5ecb9a7e9f4bc6e2d440d22f6b6a2a38e5a";
 
 function step(name) {
   const start = workflow.indexOf(`      - name: ${name}\n`);
@@ -170,6 +176,13 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.ok(step(isolate).includes(historicalStaffBlob));
   assert.ok(step(isolate).includes(staffScript));
   assert.ok(step(restore).includes(staffScript));
+  assert.ok(step(restore).includes(sellerProfilePredecessor));
+  assert.ok(step(restore).includes(sellerProfilePredecessorStaffBlob));
+  assert.ok(step(restore).includes(sellerProfilePredecessorGrantAuditBlob));
+  assert.ok(step(restore).includes(sellerProfilePredecessorRuntimeProvisionBlob));
+  assert.match(step(restore), /"\$seller_holding\/provision-order-staff-read-role\.sql"/);
+  assert.match(step(restore), /"\$seller_holding\/audit-runtime-db-grants\.mjs"/);
+  assert.match(step(restore), /"\$seller_holding\/provision-runtime-db-role\.sql"/);
   assert.match(step(converge), /--set=staff_role=grainline_staff_read_runtime/);
   assert.match(step(converge), /--set=migration_role=ci/);
   assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
@@ -214,9 +227,20 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("git", ["clone", "--quiet", "--shared", "--no-checkout", process.cwd(), root], { env: { PATH: process.env.PATH } });
     mkdirSync(holding);
     mkdirSync(path.join(root, "tests"));
-    mkdirSync(path.join(root, "scripts"));
-    cpSync(staffScript, path.join(root, staffScript));
+    mkdirSync(path.join(root, "docs"));
+    cpSync("scripts", path.join(root, "scripts"), { recursive: true });
+    symlinkSync(path.join(process.cwd(), "node_modules"), path.join(root, "node_modules"), "dir");
     cpSync("prisma", path.join(root, "prisma"), { recursive: true });
+    for (const file of [
+      "db-defense-in-depth-plan.md",
+      "rls-feasibility-plan.md",
+      "runbook.md",
+      "launch-checklist.md",
+    ]) {
+      cpSync(`docs/${file}`, path.join(root, "docs", file));
+    }
+    cpSync(".env.example", path.join(root, ".env.example"));
+    cpSync("package.json", path.join(root, "package.json"));
     for (const migration of accountDeletionSuccessorMigrations) {
       const target = path.join(root, "prisma", "migrations", migration);
       if (!existsSync(target)) {
@@ -231,7 +255,13 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
       (migration) => `prisma/migrations/${migration}/migration.sql`,
     );
-    const trackedPaths = [...heldPaths, ...sellerProfilePrivateBoundaryPaths, staffScript];
+    const trackedPaths = [
+      ...heldPaths,
+      ...sellerProfilePrivateBoundaryPaths,
+      staffScript,
+      grantAuditScript,
+      runtimeProvisionScript,
+    ];
     const hash = (relative) => createHash("sha256").update(readFileSync(path.join(root, relative))).digest("hex");
     const original = trackedPaths.map(hash);
     const catalogPath = "tests/user-authority-catalog.test.mjs";
@@ -258,10 +288,30 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     mkdirSync(path.join(holding, "user-staff-admin-labels"));
     mkdirSync(path.join(holding, "user-follower-authority"));
     execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: scriptEnv });
+    assert.equal(
+      execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(),
+      sellerProfilePredecessorStaffBlob,
+    );
+    assert.equal(
+      execFileSync("git", ["hash-object", grantAuditScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(),
+      sellerProfilePredecessorGrantAuditBlob,
+    );
+    assert.equal(
+      execFileSync("git", ["hash-object", runtimeProvisionScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(),
+      sellerProfilePredecessorRuntimeProvisionBlob,
+    );
+    assert.ok(existsSync(path.join(holding, "seller-profile-private-boundary", "provision-order-staff-read-role.sql")));
+    assert.ok(existsSync(path.join(holding, "seller-profile-private-boundary", "audit-runtime-db-grants.mjs")));
+    assert.ok(existsSync(path.join(holding, "seller-profile-private-boundary", "provision-runtime-db-role.sql")));
     assert.equal(existsSync(path.join(root, `prisma/migrations/${enableMigration}`)), false);
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
     execFileSync("bash", ["-c", bashBody("Restore User policyless ENABLE source package")], { cwd: root, env: scriptEnv });
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
+    execFileSync(process.execPath, ["--test", "tests/db-grant-inventory.test.mjs"], {
+      cwd: root,
+      env: { PATH: process.env.PATH },
+      stdio: "pipe",
+    });
     execFileSync("bash", ["-c", bashBody("Restore User policyless FORCE source package")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SellerProfile private-boundary migration after all predecessors")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {

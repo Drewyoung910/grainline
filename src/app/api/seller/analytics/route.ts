@@ -19,6 +19,7 @@ import {
   readSellerOrderTopListings,
 } from "@/lib/orderSellerAnalyticsAuthority";
 import type { SellerOrderAnalyticsBucket } from "@/lib/orderSellerAnalyticsState";
+import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 
 export const runtime = "nodejs";
 
@@ -160,13 +161,13 @@ export async function GET(req: Request) {
       select: {
         id: true,
         createdAt: true,
-        profileViews: true,
-        onboardingComplete: true,
         chargesEnabled: true,
       },
     });
     if (!sellerProfile) return privateJson({ error: "Seller profile not found" }, { status: 404 });
-    if (!sellerProfile.onboardingComplete) {
+    const sellerPrivate = await sellerOwnerPrivateState(me.id, sellerProfile.id);
+    if (!sellerPrivate) return privateJson({ error: "Seller profile not found" }, { status: 404 });
+    if (!sellerPrivate.onboardingComplete) {
       return privateJson(
         {
           error: sellerProfile.chargesEnabled
@@ -291,7 +292,7 @@ export async function GET(req: Request) {
     const totalViews = rangeViewAgg._sum.views ?? 0;
     const totalClicks = rangeViewAgg._sum.clicks ?? 0;
     const profileVisits =
-      range === "alltime" ? sellerProfile.profileViews : profileViewAgg._sum.views ?? 0;
+      range === "alltime" ? sellerPrivate.profileViews : profileViewAgg._sum.views ?? 0;
     // Conversion rate: null when no view data but orders exist (ListingViewDaily tracking wasn't active yet)
     // Cap at 100% to handle edge cases. Returns 0 when both are 0.
     const conversionRate: number | null =

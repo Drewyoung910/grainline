@@ -1,28 +1,31 @@
 import type { Prisma } from '@prisma/client'
-import { prisma } from './db'
+type SellerStaffReadClient = Pick<Prisma.TransactionClient, '$queryRaw'>
+type SellerStaffMutationClient = Pick<Prisma.TransactionClient, 'sellerProfile'>
 
-type SellerStaffPrivateClient = Pick<Prisma.TransactionClient, 'sellerProfile'>
-
-const sellerStaffOrderabilitySelect = {
-  id: true,
-  chargesEnabled: true,
-  vacationMode: true,
-  stripeAccountId: true,
-} satisfies Prisma.SellerProfileSelect
+export type SellerStaffOrderabilityState = {
+  id: string
+  chargesEnabled: boolean
+  vacationMode: boolean
+  stripeAccountId: string | null
+}
 
 /** Compatibility boundary for staff ban/unban and audited undo operations. */
-export function sellerStaffOrderabilityState(
-  userId: string,
-  client: SellerStaffPrivateClient = prisma,
+export async function sellerStaffOrderabilityState(
+  client: SellerStaffReadClient,
+  input: { actorId: string; targetUserId: string },
 ) {
-  return client.sellerProfile.findUnique({
-    where: { userId },
-    select: sellerStaffOrderabilitySelect,
-  })
+  const rows = await client.$queryRaw<SellerStaffOrderabilityState[]>`
+    SELECT *
+      FROM public.grainline_seller_staff_orderability_state(
+        ${input.actorId},
+        ${input.targetUserId}
+      )
+  `
+  return rows[0] ?? null
 }
 
 export function setSellerStaffOrderability(
-  client: SellerStaffPrivateClient,
+  client: SellerStaffMutationClient,
   input: {
     sellerProfileId: string
     userId?: string
@@ -43,7 +46,7 @@ export function setSellerStaffOrderability(
 }
 
 export function disableSellerForStaff(
-  client: SellerStaffPrivateClient,
+  client: SellerStaffMutationClient,
   userId: string,
 ) {
   return client.sellerProfile.updateMany({

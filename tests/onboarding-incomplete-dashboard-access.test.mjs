@@ -12,7 +12,8 @@ describe("onboarding-incomplete dashboard access", () => {
 
     assert.doesNotMatch(dashboard, /if \(sellerProfile && !sellerProfile\.onboardingComplete\) \{\s*redirect\("\/dashboard\/onboarding"\);/s);
     assert.match(dashboard, /searchParams\?: Promise<\{ setup\?: string \}>/);
-    assert.match(dashboard, /const onboardingComplete = sellerProfile\?\.onboardingComplete \?\? false/);
+    assert.match(dashboard, /const sellerPrivate = await sellerOwnerPrivateState\(seller\.userId, seller\.id\)/);
+    assert.match(dashboard, /const onboardingComplete = sellerPrivate\?\.onboardingComplete \?\? false/);
     assert.match(dashboard, /forceSetupBanner = params\.setup === "required"/);
     assert.match(dashboard, /Finish setup to start selling/);
     assert.match(dashboard, /Continue setup →/);
@@ -37,17 +38,20 @@ describe("onboarding-incomplete dashboard access", () => {
 
   it("keeps sales and analytics out of the normal metrics flow for incomplete sellers", () => {
     const sales = source("src/app/dashboard/sales/page.tsx");
-    assert.match(sales, /select: \{ id: true, displayName: true, onboardingComplete: true, chargesEnabled: true \}/);
-    assert.match(sales, /if \(!seller\.onboardingComplete\)/);
+    assert.match(sales, /select: \{ id: true, displayName: true, chargesEnabled: true \}/);
+    assert.match(sales, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, seller\.id\)/);
+    assert.match(sales, /if \(!sellerPrivate\.onboardingComplete\)/);
     assert.match(sales, /Connect Stripe to start accepting orders/);
 
     const salesDetail = source("src/app/dashboard/sales/[orderId]/page.tsx");
-    assert.match(salesDetail, /select: \{ onboardingComplete: true, manualStripeReconciliationNeeded: true \}/);
+    assert.match(salesDetail, /select: \{ id: true \}/);
     assert.doesNotMatch(salesDetail, /select: \{[^}]*displayName: true/);
-    assert.match(salesDetail, /if \(!seller\.onboardingComplete\) redirect\("\/dashboard\?setup=required"\)/);
+    assert.match(salesDetail, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, seller\.id\)/);
+    assert.match(salesDetail, /if \(!sellerPrivate\.onboardingComplete\) redirect\("\/dashboard\?setup=required"\)/);
 
     const analyticsApi = source("src/app/api/seller/analytics/route.ts");
-    assert.match(analyticsApi, /onboardingComplete: true/);
+    assert.match(analyticsApi, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, sellerProfile\.id\)/);
+    assert.match(analyticsApi, /if \(!sellerPrivate\.onboardingComplete\)/);
     assert.match(analyticsApi, /code: "SETUP_REQUIRED"/);
 
     const analyticsPage = source("src/app/dashboard/analytics/page.tsx");

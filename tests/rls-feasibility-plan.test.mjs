@@ -1030,7 +1030,8 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(shippingQuote, /ownerCartForShippingQuote\(me\.id, body\.sellerId\)/);
     assert.match(accountExport, /ownerCartExportRows\(user\.id\)/);
     assert.match(sellerCheckoutAccess, /export const listingSellerOrderStateSelect/);
-    assert.match(sellerCheckoutAccess, /stripeAccountVersion: true/);
+    assert.match(sellerCheckoutAccess, /stripeAccountSupported: true/);
+    assert.match(sellerCheckoutAccess, /grainline_seller_checkout_private_state/);
     assert.match(sellerCheckoutAccess, /export const cartCheckoutSellerSelect/);
     const orderStateSelect = sellerCheckoutAccess.slice(
       sellerCheckoutAccess.indexOf("export const listingSellerOrderStateSelect"),

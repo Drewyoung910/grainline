@@ -235,6 +235,18 @@ jobs:
           tests/seller-profile-private-boundary-preparation.test.mjs
           tests/seller-profile-private-boundary-production-workflow.test.mjs
           tests/seller-profile-private-callers-production-workflow.test.mjs
+          tests/seller-profile-private-app-operations-production-workflow.test.mjs
+          tests/seller-profile-private-stripe-app-authorities-postgres.test.mjs
+          tests/seller-profile-private-shipping-app-authority-postgres.test.mjs
+          tests/seller-profile-private-checkout-app-authority-postgres.test.mjs
+          tests/seller-profile-private-owner-app-authority-postgres.test.mjs
+          tests/seller-profile-private-account-deletion-app-authority-postgres.test.mjs
+          tests/seller-profile-private-guild-cron-batch-authorities-postgres.test.mjs
+          tests/seller-profile-private-guild-metrics-authority-postgres.test.mjs
+          tests/seller-profile-private-guild-member-revocation-authority-postgres.test.mjs
+          tests/seller-profile-private-guild-staff-read-authorities-postgres.test.mjs
+          tests/seller-profile-private-guild-staff-transition-authority-postgres.test.mjs
+          tests/seller-profile-private-remaining-app-authorities-postgres.test.mjs
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
@@ -1083,7 +1095,19 @@ jobs:
             20261013190000_move_reconciliation_seller_private_sql_callers \
             20261013200000_move_final_seller_private_sql_callers \
             20261013210000_move_account_deletion_seller_private_sql_callers \
-            20261014010000_tolerate_missing_seller_reconciliation_target
+            20261014010000_tolerate_missing_seller_reconciliation_target \
+            20261014120000_prepare_seller_profile_private_stripe_app_authorities \
+            20261014130000_prepare_seller_profile_private_shipping_quote_authority \
+            20261014140000_prepare_seller_profile_private_checkout_app_authority \
+            20261014150000_prepare_seller_profile_private_owner_app_authorities \
+            20261014160000_prepare_seller_profile_private_account_deletion_app_authorities \
+            20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority \
+            20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities \
+            20261014190000_prepare_seller_profile_private_guild_metrics_authority \
+            20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
+            20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
+            20261014230000_prepare_seller_profile_private_remaining_app_authorities
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -4642,7 +4666,32 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/user-accumulated-access"
-          mv "$holding/provision-order-staff-read-role.sql" scripts/provision-order-staff-read-role.sql
+          seller_holding="$RUNNER_TEMP/seller-profile-private-boundary"
+          seller_profile_predecessor=0b10fab0e0072cb6dfba83119e3881c7cc0afa27
+          test -d "$seller_holding"
+          mv \
+            "$holding/provision-order-staff-read-role.sql" \
+            "$seller_holding/provision-order-staff-read-role.sql"
+          mv \
+            scripts/audit-runtime-db-grants.mjs \
+            "$seller_holding/audit-runtime-db-grants.mjs"
+          mv \
+            scripts/provision-runtime-db-role.sql \
+            "$seller_holding/provision-runtime-db-role.sql"
+          git cat-file -e "$seller_profile_predecessor^{commit}"
+          git merge-base --is-ancestor "$seller_profile_predecessor" HEAD
+          git show \
+            "$seller_profile_predecessor:scripts/provision-order-staff-read-role.sql" \
+            > scripts/provision-order-staff-read-role.sql
+          test "$(git hash-object scripts/provision-order-staff-read-role.sql)" = "abffb4dce9351bdd64e63b3d846e8abd27e98e9f"
+          git show \
+            "$seller_profile_predecessor:scripts/audit-runtime-db-grants.mjs" \
+            > scripts/audit-runtime-db-grants.mjs
+          test "$(git hash-object scripts/audit-runtime-db-grants.mjs)" = "38bd25785a96b50b3148843608f1a927b7d867ac"
+          git show \
+            "$seller_profile_predecessor:scripts/provision-runtime-db-role.sql" \
+            > scripts/provision-runtime-db-role.sql
+          test "$(git hash-object scripts/provision-runtime-db-role.sql)" = "6824b5ecb9a7e9f4bc6e2d440d22f6b6a2a38e5a"
           for migration in \
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
@@ -5609,6 +5658,15 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-profile-private-boundary"
+          mv \
+            "$holding/provision-order-staff-read-role.sql" \
+            scripts/provision-order-staff-read-role.sql
+          mv \
+            "$holding/audit-runtime-db-grants.mjs" \
+            scripts/audit-runtime-db-grants.mjs
+          mv \
+            "$holding/provision-runtime-db-role.sql" \
+            scripts/provision-runtime-db-role.sql
           for migration in \
             20261013120000_prepare_seller_profile_private_boundary \
             20261013130000_move_seller_supported_snapshot_sql_callers \
@@ -5620,7 +5678,19 @@ jobs:
             20261013190000_move_reconciliation_seller_private_sql_callers \
             20261013200000_move_final_seller_private_sql_callers \
             20261013210000_move_account_deletion_seller_private_sql_callers \
-            20261014010000_tolerate_missing_seller_reconciliation_target
+            20261014010000_tolerate_missing_seller_reconciliation_target \
+            20261014120000_prepare_seller_profile_private_stripe_app_authorities \
+            20261014130000_prepare_seller_profile_private_shipping_quote_authority \
+            20261014140000_prepare_seller_profile_private_checkout_app_authority \
+            20261014150000_prepare_seller_profile_private_owner_app_authorities \
+            20261014160000_prepare_seller_profile_private_account_deletion_app_authorities \
+            20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority \
+            20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities \
+            20261014190000_prepare_seller_profile_private_guild_metrics_authority \
+            20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
+            20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
+            20261014230000_prepare_seller_profile_private_remaining_app_authorities
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -5681,6 +5751,40 @@ jobs:
           );
           SQL
           done
+      - name: Apply SellerProfile private application-operation migrations in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in \
+            20261014120000_prepare_seller_profile_private_stripe_app_authorities \
+            20261014130000_prepare_seller_profile_private_shipping_quote_authority \
+            20261014140000_prepare_seller_profile_private_checkout_app_authority \
+            20261014150000_prepare_seller_profile_private_owner_app_authorities \
+            20261014160000_prepare_seller_profile_private_account_deletion_app_authorities \
+            20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority \
+            20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities \
+            20261014190000_prepare_seller_profile_private_guild_metrics_authority \
+            20261014200000_prepare_seller_profile_private_guild_member_revocation_authority \
+            20261014210000_prepare_seller_profile_private_guild_staff_read_authorities \
+            20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
+            20261014230000_prepare_seller_profile_private_remaining_app_authorities
+          do
+            psql "$DIRECT_URL" \
+              --set=ON_ERROR_STOP=on \
+              --file="prisma/migrations/$migration/migration.sql"
+            checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+            psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+              --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'spa-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+          done
       - name: Converge runtime grants after SellerProfile private boundary
         run: >-
           psql "$DIRECT_URL"
@@ -5688,6 +5792,14 @@ jobs:
           --set=runtime_role=grainline_app_runtime
           --set=migration_role=ci
           --file=scripts/provision-runtime-db-role.sql
+      - name: Converge staff grants after SellerProfile private boundary
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=staff_role=grainline_staff_read_runtime
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-order-staff-read-role.sql
       - name: Prove SellerProfile private boundary in ephemeral PostgreSQL
         run: npm run audit:seller-profile-private-boundary-postgres
         env:

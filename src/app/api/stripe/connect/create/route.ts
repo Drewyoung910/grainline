@@ -68,6 +68,7 @@ export async function POST(req: Request) {
       idempotencyKey: `connect-v2-account:${seller.id}`,
     });
     await bindSellerStripeAccount(prisma, {
+      userId: me.id,
       sellerProfileId: seller.id,
       stripeAccountId: account.id,
       stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,

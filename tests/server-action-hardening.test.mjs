@@ -18,7 +18,8 @@ describe("server action hardening guardrails", () => {
     assert.match(actions, /allowedEndpoints: \["galleryImage"\]/);
     assert.match(actions, /clerkUserId: seller\.clerkUserId/);
     assert.match(actions, /advanceSellerOwnerOnboardingStep\(prisma, \{/);
-    assert.match(ownerAccess, /userId: input\.userId,\s*onboardingStep: input\.expectedStep/s);
+    assert.match(ownerAccess, /grainline_seller_owner_onboarding_step_update/);
+    assert.match(ownerAccess, /\$\{input\.expectedStep\}::integer/);
   });
 
   it("keeps admin server actions behind local active-staff gates", () => {

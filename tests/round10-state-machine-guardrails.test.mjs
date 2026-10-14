@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -71,16 +72,24 @@ describe("Round 10 state-machine guardrails", () => {
 
     const applyRoute = source("src/app/api/verification/apply/route.ts");
     const dashboard = source("src/app/dashboard/verification/page.tsx");
-    const adminVerification = source("src/app/admin/verification/page.tsx");
-    const guildMemberCron = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
+    const guildMetricsAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
+    );
+    const guildMemberAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
+    );
+    const staffTransitionAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
+    );
 
     assert.match(applyRoute, /guildMemberApplicationBlockReason/);
     assert.match(dashboard, /guildMemberApplicationBlockReason/);
     assert.match(dashboard, /guildMasterApplicationBlockReason/);
-    assert.match(adminVerification, /status: "GUILD_MASTER_REJECTED"/);
-    assert.match(guildMemberCron, /status: "REJECTED", reviewedAt: now/);
-    assert.match(guildMetricsCron, /status: "GUILD_MASTER_REJECTED",\s+reviewedAt: now/s);
+    assert.match(staffTransitionAuthority, /'GUILD_MASTER_REJECTED'::public\."VerificationStatus"/);
+    assert.match(guildMemberAuthority, /status = 'REJECTED'[\s\S]*"reviewedAt" = source_now/);
+    assert.match(guildMetricsAuthority, /status = 'GUILD_MASTER_REJECTED'/);
+    assert.match(guildMetricsCron, /applySellerGuildMetrics/);
   });
 
   it("guards paired Guild profile and verification transitions with current verification state", () => {
@@ -94,23 +103,30 @@ describe("Round 10 state-machine guardrails", () => {
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
     const guildMemberCron = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
+    const guildMetricsAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
+    );
+    const guildMemberAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
+    );
+    const staffTransitionAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
+    );
 
     assert.match(dashboard, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: s\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES\] \}/s);
-    assert.match(guildMemberCron, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: seller\.id,\s*status: \{ in: \[\.\.\.GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES\] \}/s);
-    assert.match(guildMetricsCron, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: seller\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES\] \}/s);
-    assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES\] \}/);
-    assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES\] \}/);
-    assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES\] \}/);
+    assert.doesNotMatch(guildMemberCron, /makerVerification\.updateMany/);
+    assert.match(guildMemberAuthority, /status IN \([\s\S]*'APPROVED'[\s\S]*'GUILD_MASTER_REJECTED'/);
+    assert.doesNotMatch(guildMetricsCron, /makerVerification\.updateMany/);
+    assert.match(guildMetricsAuthority, /status = 'GUILD_MASTER_APPROVED'/);
     assert.match(dashboard, /assertGuildVerificationTransition\(sellerUpdated\.count, "apply for Guild Master"\)/);
-    assert.match(adminVerification, /revokeSellerGuildMember\(tx, \{/);
-    assert.match(adminVerification, /revokeSellerGuildMaster\(tx, \{/);
-    assert.match(adminVerification, /reinstateSellerGuildMember\(tx, \{/);
-    assert.match(staffGuildAccess, /where: \{ id: input\.sellerProfileId, guildLevel: "GUILD_MEMBER" \}/);
-    assert.match(staffGuildAccess, /where: \{ id: input\.sellerProfileId, guildLevel: "GUILD_MASTER" \}/);
-    assert.match(staffGuildAccess, /guildMemberApprovedAt: \{ not: null \},[\s\S]*ownerAccountActive: true/);
-    assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "revoke Guild Member"\)/);
-    assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "revoke Guild Master"\)/);
-    assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "reinstate Guild Member"\)/);
+    for (const operation of ["REVOKE_GUILD_MEMBER", "REVOKE_GUILD_MASTER", "REINSTATE_GUILD_MEMBER"]) {
+      assert.match(adminVerification, new RegExp(`operation: "${operation}"`));
+    }
+    assert.match(staffGuildAccess, /grainline_seller_guild_staff_transition/);
+    assert.match(staffTransitionAuthority, /source_seller\."guildLevel" <> 'GUILD_MEMBER'/);
+    assert.match(staffTransitionAuthority, /source_seller\."guildLevel" <> 'GUILD_MASTER'/);
+    assert.match(staffTransitionAuthority, /source_verification\.status <> 'REJECTED'/);
+    assert.match(staffTransitionAuthority, /source_private\."guildMemberApprovedAt" IS NULL/);
   });
 
   it("fails listing undo closed and uses current-state guards before restoring metadata", () => {

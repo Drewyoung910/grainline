@@ -23,24 +23,14 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
-import { logSystemAction, logSystemActionOrThrow } from "@/lib/systemAudit";
+import { logSystemAction } from "@/lib/systemAudit";
 import { formatCurrencyCents } from "@/lib/money";
-import {
-  GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
-  assertGuildVerificationTransition,
-  isGuildVerificationTransitionConflict,
-} from "@/lib/guildVerificationState";
 import { runBoundedDeletionBatches, runCronCursorPages } from "@/lib/cronBatchState";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import {
-  continueSellerGuildMasterWarning,
-  recordSellerGuildMasterRecovery,
-  recordSellerGuildMasterRevocation,
-  recordSellerGuildMetricCheck,
-  resetSellerGuildMasterMetricFailures,
+  applySellerGuildMetrics,
   sellerGuildMetricsCronBatch,
   type SellerGuildMetricsCronRow,
-  warnSellerGuildMasterMetrics,
 } from "@/lib/sellerGuildPrivateAccess";
 
 export const runtime = "nodejs";
@@ -50,7 +40,6 @@ const SELLER_PAGE_SIZE = 50;
 const SELLER_PROCESS_CONCURRENCY = 3;
 const VIEW_CLEANUP_BATCH_SIZE = 1000;
 const VIEW_CLEANUP_TIME_BUDGET_MS = 60_000;
-const GUILD_MASTER_WARNING_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   if (!verifyCronRequest(request)) {
@@ -186,70 +175,28 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   revokedMaster: number;
 }> {
   const metrics = await calculateSellerMetrics(seller.id);
-  const now = new Date();
-
-  if (seller.guildLevel !== "GUILD_MASTER") {
-    // GUILD_MEMBER — just refresh metrics timestamp, no revocation logic here
-    // (member revocation handled in daily guild-member-check cron)
-    await recordSellerGuildMetricCheck({
-      sellerProfileId: seller.id,
-      guildLevel: seller.guildLevel,
-      checkedAt: now,
-    });
-    return { processed: 1, warned: 0, revokedMaster: 0 };
-  }
-
   const criteria = meetsGuildMasterRequirements(metrics);
+  const transition = await applySellerGuildMetrics({
+    sellerProfileId: seller.id,
+    calculatedAt: metrics.calculatedAt,
+  });
+  if (!transition) return { processed: 1, warned: 0, revokedMaster: 0 };
 
-  if (criteria.allMet) {
-    // All good — reset failure tracking
-    await resetSellerGuildMasterMetricFailures({
-      sellerProfileId: seller.id,
-      checkedAt: now,
-    });
-    return { processed: 1, warned: 0, revokedMaster: 0 };
-  }
-
-  if (seller.consecutiveMetricFailures === 0) {
-    // First failure — send warning
+  if (transition.action === "MASTER_WARNED" && transition.auditId) {
     const failedLabels = buildFailedLabels(criteria, metrics);
 
-    const warningAuditId = await prisma.$transaction(async (tx) => {
-      const warned = await warnSellerGuildMasterMetrics(tx, {
-        sellerProfileId: seller.id,
-        warnedAt: now,
-      });
-      if (warned.count === 0) return null;
-      return logSystemActionOrThrow({
-        client: tx,
-        actorType: "cron",
-        actorId: "guild-metrics",
-        action: "WARN_GUILD_MASTER_METRICS",
-        targetType: "SELLER_PROFILE",
-        targetId: seller.id,
-        reason: "Guild Master metrics fell below requirements.",
-        metadata: {
-          jobName: "guild-metrics",
-          sellerUserId: seller.userId,
-          warningSentAt: now.toISOString(),
-          failedCriteria: failedLabels,
-        },
-      });
-    });
-    if (!warningAuditId) return { processed: 1, warned: 0, revokedMaster: 0 };
-
     await createNotification({
-      userId: seller.userId,
+      userId: transition.sellerUserId,
       type: "VERIFICATION_REJECTED",
       title: "Guild Master status at risk",
       body: "Your metrics have fallen below Guild Master requirements. You have 30 days to improve before your badge is reviewed. Check your dashboard for details.",
       link: "/dashboard/verification",
       sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_SYSTEM_ACTION,
-      sourceId: warningAuditId,
+      sourceId: transition.auditId,
     });
 
     const emailRecipient = await userEmailDeliveryRecipient(prisma, {
-      userId: seller.userId,
+      userId: transition.sellerUserId,
       preferenceKey: "EMAIL_VERIFICATION_REJECTED",
     });
     if (emailRecipient) {
@@ -266,86 +213,23 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     return { processed: 1, warned: 1, revokedMaster: 0 };
   }
 
-  const warningSentAt = seller.metricWarningSentAt;
-  if (!warningSentAt || now.getTime() - warningSentAt.getTime() < GUILD_MASTER_WARNING_GRACE_MS) {
-    await continueSellerGuildMasterWarning({
-      sellerProfileId: seller.id,
-      warningSentAt: warningSentAt ?? now,
-      checkedAt: now,
-    });
+  if (transition.action !== "MASTER_REVOKED" || !transition.auditId) {
     return { processed: 1, warned: 0, revokedMaster: 0 };
   }
-
-  // Second consecutive failure — revoke Guild Master
-  const revocationMetrics = await calculateSellerMetrics(seller.id);
-  const revocationCriteria = meetsGuildMasterRequirements(revocationMetrics);
-  if (revocationCriteria.allMet) {
-    await recordSellerGuildMasterRecovery({
-      sellerProfileId: seller.id,
-      checkedAt: now,
-    });
-    return { processed: 1, warned: 0, revokedMaster: 0 };
-  }
-
-  const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS);
-  let revocationAuditId: string | null = null;
-  try {
-    revocationAuditId = await prisma.$transaction(async (tx) => {
-      const verificationUpdated = await tx.makerVerification.updateMany({
-        where: {
-          sellerProfileId: seller.id,
-          status: { in: [...GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES] },
-        },
-        data: {
-          status: "GUILD_MASTER_REJECTED",
-          reviewedAt: now,
-          reviewNotes: "Metrics fell below requirements for two consecutive months.",
-        },
-      });
-      if (verificationUpdated.count === 0) return null;
-
-      const updated = await recordSellerGuildMasterRevocation(tx, {
-        sellerProfileId: seller.id,
-        warningSentBefore: revocationCutoff,
-        checkedAt: now,
-      });
-      assertGuildVerificationTransition(updated.count, "revoke Guild Master");
-
-      return logSystemActionOrThrow({
-        client: tx,
-        actorType: "cron",
-        actorId: "guild-metrics",
-        action: "AUTO_REVOKE_GUILD_MASTER",
-        targetType: "SELLER_PROFILE",
-        targetId: seller.id,
-        reason: "Metrics fell below requirements for two consecutive months.",
-        metadata: {
-          jobName: "guild-metrics",
-          sellerUserId: seller.userId,
-          warningSentAt: warningSentAt.toISOString(),
-          revocationCutoff: revocationCutoff.toISOString(),
-          failedCriteria: buildFailedLabels(revocationCriteria, revocationMetrics),
-        },
-      });
-    });
-  } catch (error) {
-    if (!isGuildVerificationTransitionConflict(error)) throw error;
-  }
-  if (!revocationAuditId) return { processed: 1, warned: 0, revokedMaster: 0 };
   revalidateFeaturedMakerCaches();
 
   await createNotification({
-    userId: seller.userId,
+    userId: transition.sellerUserId,
     type: "VERIFICATION_REJECTED",
     title: "Guild Master badge revoked",
     body: "Your metrics fell below requirements for two consecutive months. Your Guild Member badge remains active.",
     link: "/dashboard/verification",
     sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_SYSTEM_ACTION,
-    sourceId: revocationAuditId,
+    sourceId: transition.auditId,
   });
 
   const emailRecipient = await userEmailDeliveryRecipient(prisma, {
-    userId: seller.userId,
+    userId: transition.sellerUserId,
     preferenceKey: "EMAIL_VERIFICATION_REJECTED",
   });
   if (emailRecipient) {

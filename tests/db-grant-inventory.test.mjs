@@ -91,6 +91,86 @@ const SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES = [
   "grainline_seller_profile_private_mirror",
   "grainline_seller_profile_supported_snapshot",
 ];
+const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
+  {
+    migration: "20261014120000_prepare_seller_profile_private_stripe_app_authorities",
+    functions: [
+      "grainline_seller_stripe_owner_state",
+      "grainline_seller_stripe_account_bind",
+      "grainline_seller_stripe_reconciliation_page",
+      "grainline_seller_stripe_mirror_state",
+      "grainline_seller_stripe_charges_update",
+    ],
+  },
+  {
+    migration: "20261014130000_prepare_seller_profile_private_shipping_quote_authority",
+    functions: ["grainline_seller_shipping_quote_state"],
+  },
+  {
+    migration: "20261014140000_prepare_seller_profile_private_checkout_app_authority",
+    functions: ["grainline_seller_checkout_private_state"],
+  },
+  {
+    migration: "20261014150000_prepare_seller_profile_private_owner_app_authorities",
+    functions: [
+      "grainline_seller_owner_private_state",
+      "grainline_seller_owner_onboarding_step_update",
+      "grainline_seller_owner_onboarding_complete",
+      "grainline_seller_owner_shop_settings_update",
+    ],
+  },
+  {
+    migration: "20261014160000_prepare_seller_profile_private_account_deletion_app_authorities",
+    functions: [
+      "grainline_seller_account_deletion_pause",
+      "grainline_seller_account_deletion_anonymize",
+    ],
+  },
+  {
+    migration: "20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority",
+    functions: ["grainline_seller_guild_listing_threshold_sync"],
+  },
+  {
+    migration: "20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities",
+    functions: [
+      "grainline_seller_guild_member_cron_batch",
+      "grainline_seller_guild_metrics_cron_batch",
+    ],
+  },
+  {
+    migration: "20261014190000_prepare_seller_profile_private_guild_metrics_authority",
+    functions: ["grainline_seller_guild_metrics_apply"],
+  },
+  {
+    migration: "20261014200000_prepare_seller_profile_private_guild_member_revocation_authority",
+    functions: ["grainline_seller_guild_member_revoke"],
+  },
+  {
+    migration: "20261014230000_prepare_seller_profile_private_remaining_app_authorities",
+    functions: [
+      "grainline_seller_profile_view_record",
+      "grainline_seller_account_deletion_reconciliation_clear",
+      "grainline_seller_owner_guild_master_application_record",
+    ],
+  },
+];
+const SELLER_PROFILE_PRIVATE_STAFF_READ_AUTHORITY_GROUPS = [
+  {
+    migration: "20261014210000_prepare_seller_profile_private_guild_staff_read_authorities",
+    functions: [
+      "grainline_seller_guild_staff_roster",
+      "grainline_seller_guild_staff_master_pending",
+    ],
+  },
+  {
+    migration: "20261014220000_prepare_seller_profile_private_guild_staff_transition_authority",
+    functions: ["grainline_seller_guild_staff_transition"],
+  },
+  {
+    migration: "20261014230000_prepare_seller_profile_private_remaining_app_authorities",
+    functions: ["grainline_seller_staff_orderability_state"],
+  },
+];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",
   "grainline_blocked_checkout_refund_claim_resume",
@@ -2356,6 +2436,15 @@ describe("database grant inventory guardrails", () => {
       [...new Set(provisioned)].sort((a, b) => a.localeCompare(b)),
       [...STAFF_READ_FUNCTION_IDENTITIES].sort((a, b) => a.localeCompare(b)),
     );
+    const runtimePrivateNames = new Set(
+      runtimePrivateFunctionNames(deriveGrantInventory()),
+    );
+    for (const identity of STAFF_READ_FUNCTION_IDENTITIES) {
+      assert.ok(
+        runtimePrivateNames.has(identity.slice(0, identity.indexOf("("))),
+        `${identity} must remain unavailable to ordinary runtime`,
+      );
+    }
   });
 
   it("derives exact migration and provisioned staff-read catalogs", () => {
@@ -2431,7 +2520,9 @@ describe("database grant inventory guardrails", () => {
         null,
         ORDER_USER_COMBINED_STAFF_READ_STAGE,
       ),
-      [...STAFF_READ_FUNCTION_IDENTITIES],
+      STAFF_READ_FUNCTION_IDENTITIES.filter(
+        (identity) => !identity.startsWith("grainline_user_staff_admin_labels("),
+      ),
     );
     assert.deepEqual(
       staffReadFunctionIdentitiesForInventory(
@@ -2629,6 +2720,24 @@ describe("database grant inventory guardrails", () => {
       && source(migrationPath).includes(
         `CREATE OR REPLACE FUNCTION public.${sellerProfilePrivateCallerTransitionFunctionNames[index]}(`,
       ));
+    const sellerProfilePrivateAppAuthorityFunctionNames =
+      SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS.flatMap(({ migration, functions }) => {
+        const migrationPath = `prisma/migrations/${migration}/migration.sql`;
+        if (!existsSync(migrationPath)) return [];
+        const migrationSource = source(migrationPath);
+        return functions.every((functionName) => migrationSource.includes(
+          `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+        )) ? functions : [];
+      });
+    const sellerProfilePrivateStaffReadFunctionNames =
+      SELLER_PROFILE_PRIVATE_STAFF_READ_AUTHORITY_GROUPS.flatMap(({ migration, functions }) => {
+        const migrationPath = `prisma/migrations/${migration}/migration.sql`;
+        if (!existsSync(migrationPath)) return [];
+        const migrationSource = source(migrationPath);
+        return functions.every((functionName) => migrationSource.includes(
+          `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+        )) ? functions : [];
+      });
     const conversationMessageAuthorityPrepared =
       CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
         (entry) => inventory.functions.includes(entry.name),
@@ -2785,6 +2894,8 @@ describe("database grant inventory guardrails", () => {
       ...(sellerProfilePrivateBoundaryMigrationPresent
         ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES
         : []),
+      ...sellerProfilePrivateAppAuthorityFunctionNames,
+      ...sellerProfilePrivateStaffReadFunctionNames,
       ...(listingHideDeleteMigrationPresent
         ? ["grainline_listing_delete_reference_state"]
         : []),
@@ -2857,6 +2968,8 @@ describe("database grant inventory guardrails", () => {
           ? SELLER_PROFILE_PRIVATE_BOUNDARY_FUNCTION_NAMES.length
             + 1 // SellerProfilePrivate table revoke from PUBLIC
           : 0)
+        + sellerProfilePrivateAppAuthorityFunctionNames.length
+        + sellerProfilePrivateStaffReadFunctionNames.length
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
         + ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES.length
         + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length
