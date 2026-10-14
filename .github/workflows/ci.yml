@@ -4675,6 +4675,9 @@ jobs:
           mv \
             scripts/audit-runtime-db-grants.mjs \
             "$seller_holding/audit-runtime-db-grants.mjs"
+          mv \
+            scripts/provision-runtime-db-role.sql \
+            "$seller_holding/provision-runtime-db-role.sql"
           git cat-file -e "$seller_profile_predecessor^{commit}"
           git merge-base --is-ancestor "$seller_profile_predecessor" HEAD
           git show \
@@ -4685,6 +4688,10 @@ jobs:
             "$seller_profile_predecessor:scripts/audit-runtime-db-grants.mjs" \
             > scripts/audit-runtime-db-grants.mjs
           test "$(git hash-object scripts/audit-runtime-db-grants.mjs)" = "38bd25785a96b50b3148843608f1a927b7d867ac"
+          git show \
+            "$seller_profile_predecessor:scripts/provision-runtime-db-role.sql" \
+            > scripts/provision-runtime-db-role.sql
+          test "$(git hash-object scripts/provision-runtime-db-role.sql)" = "6824b5ecb9a7e9f4bc6e2d440d22f6b6a2a38e5a"
           for migration in \
             20261006010000_prepare_user_staff_ban_authorities \
             20261006020000_prepare_user_account_deletion_authorities \
@@ -5657,6 +5664,9 @@ jobs:
           mv \
             "$holding/audit-runtime-db-grants.mjs" \
             scripts/audit-runtime-db-grants.mjs
+          mv \
+            "$holding/provision-runtime-db-role.sql" \
+            scripts/provision-runtime-db-role.sql
           for migration in \
             20261013120000_prepare_seller_profile_private_boundary \
             20261013130000_move_seller_supported_snapshot_sql_callers \
