@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -37,10 +38,10 @@ describe("system audit logging", () => {
     const guildMember = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetrics = source("src/app/api/cron/guild-metrics/route.ts");
     const guildMetricsAuthority = source(
-      "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
     );
     const guildMemberAuthority = source(
-      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
     );
     const caseAutoClose = source("src/app/api/cron/case-auto-close/route.ts");
     const caseEscalate = source("src/app/api/cases/[id]/escalate/route.ts");

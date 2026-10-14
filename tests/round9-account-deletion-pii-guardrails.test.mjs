@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -252,7 +253,7 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const sellerDeletionAuthority = source(
-      "prisma/migrations/20261014160000_prepare_seller_profile_private_account_deletion_app_authorities/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
     );
 
     assert.match(deletion, /const accountEmails = await accountEmailFallbackEmailsForUser\(tx\)/);

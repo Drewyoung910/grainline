@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const {
   parseBoundedDecimalParam,
@@ -145,7 +146,7 @@ describe("query parameter parsing helpers", () => {
     assert.match(verification, /sellerGuildStaffMasterPendingList\(staffClient, staff\.id\)/);
     assert.match(sellerGuildStaffPrivateAccess, /grainline_seller_guild_staff_master_pending/);
     const staffReadMigration = readFileSync(
-      "prisma/migrations/20261014210000_prepare_seller_profile_private_guild_staff_read_authorities/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014210000_prepare_seller_profile_private_guild_staff_read_authorities"),
       "utf8",
     );
     assert.match(staffReadMigration, /ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT 50/);

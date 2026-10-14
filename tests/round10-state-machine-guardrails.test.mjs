@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -73,13 +74,13 @@ describe("Round 10 state-machine guardrails", () => {
     const dashboard = source("src/app/dashboard/verification/page.tsx");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
     const guildMetricsAuthority = source(
-      "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
     );
     const guildMemberAuthority = source(
-      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
     );
     const staffTransitionAuthority = source(
-      "prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
     );
 
     assert.match(applyRoute, /guildMemberApplicationBlockReason/);
@@ -103,13 +104,13 @@ describe("Round 10 state-machine guardrails", () => {
     const guildMemberCron = source("src/app/api/cron/guild-member-check/route.ts");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
     const guildMetricsAuthority = source(
-      "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
     );
     const guildMemberAuthority = source(
-      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
     );
     const staffTransitionAuthority = source(
-      "prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
     );
 
     assert.match(dashboard, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: s\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES\] \}/s);

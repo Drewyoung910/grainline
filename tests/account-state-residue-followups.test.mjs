@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -51,7 +52,7 @@ describe("account-state residue hardening", () => {
   it("clears deleted seller trust, feature, and geo residue during anonymization", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const authority = source(
-      "prisma/migrations/20261014160000_prepare_seller_profile_private_account_deletion_app_authorities/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
     );
 
     assert.match(deletion, /anonymizeSellerForAccountDeletion\(tx, \{/);

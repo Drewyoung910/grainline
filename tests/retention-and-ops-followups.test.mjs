@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const notificationRetention = await import("../src/lib/notificationRetentionState.ts");
 const webhookRetention = await import("../src/lib/webhookEventRetentionState.ts");
@@ -101,7 +102,7 @@ describe("retention and ops-health follow-ups", () => {
     const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
     const access = readFileSync("src/lib/sellerGuildPrivateAccess.ts", "utf8");
     const authority = readFileSync(
-      "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
       "utf8",
     );
 
@@ -115,7 +116,7 @@ describe("retention and ops-health follow-ups", () => {
   it("rechecks Guild Master metrics immediately before revocation", () => {
     const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
     const authority = readFileSync(
-      "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
       "utf8",
     );
 

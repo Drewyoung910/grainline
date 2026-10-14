@@ -114,7 +114,7 @@ const stripePrivateAccess = readFileSync(
   "utf8",
 );
 const stripeAppAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014120000_prepare_seller_profile_private_stripe_app_authorities/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014120000_prepare_seller_profile_private_stripe_app_authorities"),
   "utf8",
 );
 const shippingPrivateAccess = readFileSync(
@@ -122,15 +122,15 @@ const shippingPrivateAccess = readFileSync(
   "utf8",
 );
 const shippingAppAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014130000_prepare_seller_profile_private_shipping_quote_authority/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014130000_prepare_seller_profile_private_shipping_quote_authority"),
   "utf8",
 );
 const checkoutAppAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014140000_prepare_seller_profile_private_checkout_app_authority/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014140000_prepare_seller_profile_private_checkout_app_authority"),
   "utf8",
 );
 const ownerAppAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014150000_prepare_seller_profile_private_owner_app_authorities/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014150000_prepare_seller_profile_private_owner_app_authorities"),
   "utf8",
 );
 const ownerPrivateAccess = readFileSync(
@@ -142,7 +142,7 @@ const staffPrivateAccess = readFileSync(
   "utf8",
 );
 const remainingAppAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014230000_prepare_seller_profile_private_remaining_app_authorities/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014230000_prepare_seller_profile_private_remaining_app_authorities"),
   "utf8",
 );
 const profileViewAccess = readFileSync(
@@ -158,27 +158,27 @@ const guildListingThreshold = readFileSync(
   "utf8",
 );
 const guildListingThresholdMigration = readFileSync(
-  "prisma/migrations/20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority"),
   "utf8",
 );
 const guildCronBatchMigration = readFileSync(
-  "prisma/migrations/20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities"),
   "utf8",
 );
 const guildMetricsAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
   "utf8",
 );
 const guildMemberRevocationAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
   "utf8",
 );
 const guildStaffReadAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014210000_prepare_seller_profile_private_guild_staff_read_authorities/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014210000_prepare_seller_profile_private_guild_staff_read_authorities"),
   "utf8",
 );
 const guildStaffTransitionAuthorityMigration = readFileSync(
-  "prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql",
+  sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
   "utf8",
 );
 const guildStaffPrivateAccess = readFileSync(

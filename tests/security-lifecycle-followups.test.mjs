@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -38,7 +39,7 @@ describe("security lifecycle follow-ups", () => {
   it("keeps Guild Member reinstatement on active accounts and notifies the seller", () => {
     const page = source("src/app/admin/verification/page.tsx");
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
-    const transitionAuthority = source("prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql");
+    const transitionAuthority = source(sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"));
     const reinstateBody = functionBody(page, "reinstateGuildMember");
 
     assert.match(reinstateBody, /applySellerGuildStaffTransition\(getOrderStaffReadClient\(\), \{/);
@@ -55,7 +56,7 @@ describe("security lifecycle follow-ups", () => {
   it("keeps Guild approval writes on active seller accounts", () => {
     const page = source("src/app/admin/verification/page.tsx");
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
-    const transitionAuthority = source("prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql");
+    const transitionAuthority = source(sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"));
 
     for (const [action, operation] of [
       ["approveGuildMember", "APPROVE_GUILD_MEMBER"],

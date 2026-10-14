@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -10,14 +11,17 @@ describe("Notification verification and Guild authority", () => {
   const admin = source("src/app/admin/verification/page.tsx");
   const memberCron = source("src/app/api/cron/guild-member-check/route.ts");
   const metricsCron = source("src/app/api/cron/guild-metrics/route.ts");
-  const metricsAuthority = source(
-    "prisma/migrations/20261014190000_prepare_seller_profile_private_guild_metrics_authority/migration.sql",
+  const metricsAuthority = readFileSync(
+    sellerProfilePrivateMigrationPath("20261014190000_prepare_seller_profile_private_guild_metrics_authority"),
+    "utf8",
   );
-  const memberAuthority = source(
-    "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+  const memberAuthority = readFileSync(
+    sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
+    "utf8",
   );
-  const staffTransitionAuthority = source(
-    "prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql",
+  const staffTransitionAuthority = readFileSync(
+    sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
+    "utf8",
   );
   const sql = source("docs/rls-drafts/notification-service-authority.sql");
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import {
   buildStripeConnectV2AccountCreateParams,
   STRIPE_CONNECT_ACCOUNT_VERSION,
@@ -304,7 +305,7 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(accountDeletion, /stripeControllerType,/);
     const sellerDeletionAccess = source("src/lib/sellerAccountDeletionPrivateAccess.ts");
     const sellerDeletionAuthority = source(
-      "prisma/migrations/20261014160000_prepare_seller_profile_private_account_deletion_app_authorities/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
     );
     assert.match(accountDeletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
     assert.match(sellerDeletionAccess, /grainline_seller_account_deletion_anonymize/);

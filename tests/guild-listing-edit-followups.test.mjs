@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -55,7 +56,10 @@ describe("guild and listing-edit audit follow-ups", () => {
     const metrics = source("src/lib/metrics.ts");
     const metricsState = source("src/lib/metricsState.ts");
     const revocationAuthority = source(
-      "prisma/migrations/20261014200000_prepare_seller_profile_private_guild_member_revocation_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
+    );
+    const staffTransitionAuthority = source(
+      sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
     );
     const adminVerification = source("src/app/admin/verification/page.tsx");
 
@@ -68,15 +72,15 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.doesNotMatch(metricsState, /setMonth\(/);
     assert.match(revocationAuthority, /grainline_case_guild_unresolved_guard/);
     assert.doesNotMatch(revocationAuthority, /p_case_created_before/);
-    assert.match(adminVerification, /getCaseGuildUnresolvedGuard/);
-    assert.match(adminVerification, /longCase\.blocked/);
-    assert.match(adminVerification, /activeListings < 5/);
+    assert.match(adminVerification, /operation: "REINSTATE_GUILD_MEMBER"/);
+    assert.match(staffTransitionAuthority, /grainline_case_guild_unresolved_guard\(source_seller\.id\)/);
+    assert.match(staffTransitionAuthority, /active_listing_count < 5/);
   });
 
   it("syncs Guild listing threshold through a database-derived fixed operation", () => {
     const helper = source("src/lib/guildListingThreshold.ts");
     const migration = source(
-      "prisma/migrations/20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority"),
     );
     const newListing = source("src/app/dashboard/listings/new/page.tsx");
     const dashboard = source("src/app/dashboard/page.tsx");

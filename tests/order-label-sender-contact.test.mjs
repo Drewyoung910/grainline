@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const source = (path) => readFileSync(path, "utf8");
 const migrationPath =
@@ -63,7 +64,7 @@ describe("Order label sender contact correction", () => {
     const accountExport = source("src/lib/sellerOwnerPrivateAccess.ts");
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const sellerDeletion = source(
-      "prisma/migrations/20261014160000_prepare_seller_profile_private_account_deletion_app_authorities/migration.sql",
+      sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
     );
 
     assert.match(fields, /name="shipFromPhone"[\s\S]*type="tel"/);
