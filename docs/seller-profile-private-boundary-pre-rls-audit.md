@@ -607,7 +607,21 @@ untrusted-function denial. Focused account-deletion tests, TypeScript and
 scoped lint pass. This slice is prepared source only; it is not yet applied,
 merged or deployed.
 
-The remaining Guild and staff compatibility modules still read or write
+The thirtieth isolated slice converts Guild listing-threshold maintenance.
+Migration
+`20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority`
+adds a fixed operation that accepts only a seller identity, locks both seller
+representations, derives the current count from canonical active public
+listings, preserves the existing below-threshold clock when appropriate, and
+synchronizes the companion and predecessor in one transaction. All listing
+creation, stock, seller-hide and staff-review callers retain their existing
+best-effort invocation but can no longer issue a direct SellerProfile update.
+Ordinary runtime receives only function execution and cannot choose the
+private timestamp or obtain direct private-table authority. Focused source
+tests, TypeScript and scoped lint pass. This slice is prepared source only; it
+is not yet applied, merged or deployed.
+
+The remaining Guild cron and staff compatibility modules still read or write
 predecessor private fields. Phase 1 remains incomplete until each family moves
 to purpose-bound operations, the converted application is deployed and
 proven, and predecessor deployments have drained. The two transition-only SQL

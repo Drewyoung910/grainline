@@ -2272,7 +2272,8 @@ FROM (
     ('public."grainline_seller_owner_onboarding_complete"(text, text)'),
     ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
     ('public."grainline_seller_account_deletion_pause"(text, text, text, bigint, uuid)'),
-    ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)')
+    ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_guild_listing_threshold_sync"(text)')
 ) AS seller_stripe_authority(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
@@ -2296,7 +2297,8 @@ FROM (
     ('public."grainline_seller_owner_onboarding_complete"(text, text)'),
     ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
     ('public."grainline_seller_account_deletion_pause"(text, text, text, bigint, uuid)'),
-    ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)')
+    ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)'),
+    ('public."grainline_seller_guild_listing_threshold_sync"(text)')
 ) AS seller_stripe_authority(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec

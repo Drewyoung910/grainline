@@ -145,6 +145,14 @@ const accountDeletionPrivateAccess = readFileSync(
   "src/lib/sellerAccountDeletionPrivateAccess.ts",
   "utf8",
 );
+const guildListingThreshold = readFileSync(
+  "src/lib/guildListingThreshold.ts",
+  "utf8",
+);
+const guildListingThresholdMigration = readFileSync(
+  "prisma/migrations/20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority/migration.sql",
+  "utf8",
+);
 const guildStaffPrivateAccess = readFileSync(
   "src/lib/sellerGuildStaffPrivateAccess.ts",
   "utf8",
@@ -928,5 +936,26 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(accountDeletionPrivateAccess, /grainline_seller_account_deletion_anonymize/);
     assert.match(accountDeletionPrivateAccess, /Pick<Prisma\.TransactionClient, "\$queryRaw">/);
     assert.doesNotMatch(accountDeletionPrivateAccess, /sellerProfile\.(?:update|updateMany)/);
+  });
+
+  it("derives Guild listing-threshold state inside one fixed database operation", () => {
+    assert.match(guildListingThreshold, /grainline_seller_guild_listing_threshold_sync/);
+    assert.doesNotMatch(guildListingThreshold, /UPDATE\s+"SellerProfile"/);
+    assert.match(
+      guildListingThresholdMigration,
+      /CREATE OR REPLACE FUNCTION public\.grainline_seller_guild_listing_threshold_sync\(/,
+    );
+    assert.match(guildListingThresholdMigration, /JOIN public\."SellerProfilePrivate"/);
+    assert.match(guildListingThresholdMigration, /FROM public\."Listing" AS listing/);
+    assert.match(guildListingThresholdMigration, /UPDATE public\."SellerProfilePrivate"/);
+    assert.match(guildListingThresholdMigration, /UPDATE public\."SellerProfile"/);
+    assert.doesNotMatch(
+      guildListingThresholdMigration,
+      /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*SellerProfilePrivate/i,
+    );
+    assert.match(
+      provisioning,
+      /public\."grainline_seller_guild_listing_threshold_sync"\(text\)/,
+    );
   });
 });

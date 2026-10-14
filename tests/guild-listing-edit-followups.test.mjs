@@ -70,8 +70,11 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(adminVerification, /activeListings < 5/);
   });
 
-  it("syncs Guild listing threshold from a single SQL statement", () => {
+  it("syncs Guild listing threshold through a database-derived fixed operation", () => {
     const helper = source("src/lib/guildListingThreshold.ts");
+    const migration = source(
+      "prisma/migrations/20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority/migration.sql",
+    );
     const newListing = source("src/app/dashboard/listings/new/page.tsx");
     const dashboard = source("src/app/dashboard/page.tsx");
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
@@ -79,10 +82,16 @@ describe("guild and listing-edit audit follow-ups", () => {
     const adminRemoveRoute = source("src/app/api/admin/listings/[id]/route.ts");
     const adminReviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
 
-    assert.match(helper, /UPDATE "SellerProfile" sp/);
-    assert.match(helper, /COUNT\(\*\)[\s\S]*FROM "Listing" l/);
-    assert.match(helper, /l\."isPrivate" = false/);
-    assert.match(helper, /COALESCE\(sp\."listingsBelowThresholdSince", NOW\(\)\)/);
+    assert.match(helper, /grainline_seller_guild_listing_threshold_sync/);
+    assert.doesNotMatch(helper, /UPDATE "SellerProfile"/);
+    assert.match(migration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_guild_listing_threshold_sync\(/);
+    assert.match(migration, /JOIN public\."SellerProfilePrivate"/);
+    assert.match(migration, /pg_catalog\.count\(\*\)[\s\S]*FROM public\."Listing"/);
+    assert.match(migration, /listing\."isPrivate" = false/);
+    assert.match(migration, /UPDATE public\."SellerProfilePrivate"/);
+    assert.match(migration, /UPDATE public\."SellerProfile"/);
+    assert.match(migration, /REVOKE ALL ON FUNCTION public\.grainline_seller_guild_listing_threshold_sync\(text\)/);
+    assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.grainline_seller_guild_listing_threshold_sync\(text\)/);
     assert.match(newListing, /finalListing\?\.status === "ACTIVE"/);
     assert.match(newListing, /syncGuildMemberListingThreshold\(seller\.id\)/);
     assert.match(dashboard, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
