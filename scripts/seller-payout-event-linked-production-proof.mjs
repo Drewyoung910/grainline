@@ -753,16 +753,24 @@ export async function createDisposableDatabaseFixture(owner, state) {
       SELECT
         (SELECT count(*)::integer FROM public."User"
           WHERE id = $1 OR "clerkId" = $2 OR email = $3) AS "userCandidates",
-        (SELECT count(*)::integer FROM public."SellerProfile"
-          WHERE id = $4 OR "userId" = $1 OR "stripeAccountId" = $5) AS "sellerCandidates",
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           LEFT JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id = $4 OR seller."userId" = $1
+             OR seller_private."stripeAccountId" = $5) AS "sellerCandidates",
         (SELECT count(*)::integer FROM public."User"
           WHERE id = $1 AND "clerkId" = $2 AND email = $3
             AND role = 'USER' AND "deletedAt" IS NULL AND banned = false) AS "exactUser",
-        (SELECT count(*)::integer FROM public."SellerProfile"
-          WHERE id = $4 AND "userId" = $1 AND "stripeAccountId" = $5
-            AND "displayName" = 'Grainline Provider Canary'
-            AND "displayNameNormalized" = 'grainline provider canary'
-            AND "chargesEnabled" = true AND "vacationMode" = true) AS "exactSeller"
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id = $4 AND seller."userId" = $1
+            AND seller_private."stripeAccountId" = $5
+            AND seller."displayName" = 'Grainline Provider Canary'
+            AND seller."displayNameNormalized" = 'grainline provider canary'
+            AND seller."chargesEnabled" = true AND seller."vacationMode" = true) AS "exactSeller"
     `, [identity.userId, identity.clerkId, identity.email, identity.sellerId, state.stripeAccountId]);
     const row = existing.rows[0];
     const absent = Number(row?.userCandidates) === 0 && Number(row?.sellerCandidates) === 0;
@@ -780,15 +788,27 @@ export async function createDisposableDatabaseFixture(owner, state) {
       const insertedSeller = await owner.query(`
         INSERT INTO public."SellerProfile" (
           id, "userId", "displayName", "displayNameNormalized",
-          "stripeAccountId", "chargesEnabled", "vacationMode",
-          "stripeAccountVersion", "stripeControllerType", "updatedAt"
+          "chargesEnabled", "vacationMode", "updatedAt"
         ) VALUES (
           $1, $2, 'Grainline Provider Canary', 'grainline provider canary',
-          $3, true, true, 'v2', 'express', CURRENT_TIMESTAMP
+          true, true, CURRENT_TIMESTAMP
         )
         RETURNING id
-      `, [identity.sellerId, identity.userId, state.stripeAccountId]);
-      if (resultCardinality(insertedUser) !== 1 || resultCardinality(insertedSeller) !== 1) {
+      `, [identity.sellerId, identity.userId]);
+      const insertedPrivate = await owner.query(`
+        UPDATE public."SellerProfilePrivate"
+           SET "stripeAccountId" = $2,
+               "stripeAccountVersion" = 'v2',
+               "stripeControllerType" = 'express',
+               "updatedAt" = CURRENT_TIMESTAMP
+         WHERE "sellerProfileId" = $1
+         RETURNING "sellerProfileId"
+      `, [identity.sellerId, state.stripeAccountId]);
+      if (
+        resultCardinality(insertedUser) !== 1
+        || resultCardinality(insertedSeller) !== 1
+        || resultCardinality(insertedPrivate) !== 1
+      ) {
         throw new Error("linked payout disposable fixture insert cardinality drifted");
       }
     } else if (!exact) {
@@ -798,9 +818,11 @@ export async function createDisposableDatabaseFixture(owner, state) {
       SELECT count(*)::integer AS count
         FROM public."User" AS account
         JOIN public."SellerProfile" AS seller ON seller."userId" = account.id
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId" = seller.id
        WHERE account.id = $1 AND account."clerkId" = $2 AND account.email = $3
          AND account.role = 'USER' AND account."deletedAt" IS NULL AND account.banned = false
-         AND seller.id = $4 AND seller."stripeAccountId" = $5
+         AND seller.id = $4 AND seller_private."stripeAccountId" = $5
          AND seller."displayName" = 'Grainline Provider Canary'
          AND seller."displayNameNormalized" = 'grainline provider canary'
          AND seller."chargesEnabled" = true AND seller."vacationMode" = true
@@ -822,8 +844,12 @@ async function ownerSnapshot(owner, state) {
       SELECT
         (SELECT count(*)::integer FROM public."User"
           WHERE id = $2 AND "clerkId" = $6 AND email = $7) AS "userCount",
-        (SELECT count(*)::integer FROM public."SellerProfile"
-          WHERE id = $1 AND "userId" = $2 AND "stripeAccountId" = $3) AS "sellerCount",
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id = $1 AND seller."userId" = $2
+            AND seller_private."stripeAccountId" = $3) AS "sellerCount",
         (SELECT count(*)::integer FROM public."StripeWebhookEvent"
           WHERE id = $4 AND type = 'payout.failed' AND "sourceObjectId" = $5) AS "webhookCount",
         (SELECT type FROM public."StripeWebhookEvent" WHERE id = $4) AS "webhookType",
@@ -916,17 +942,19 @@ export async function cleanupExactRows(owner, state) {
       SELECT payout.id
         FROM public."SellerPayoutEvent" AS payout
         JOIN public."SellerProfile" AS seller ON seller.id = payout."sellerProfileId"
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId" = seller.id
         JOIN public."StripeWebhookEvent" AS event ON event.id = payout."stripeEventId"
        WHERE payout.id = $1
          AND payout."stripePayoutId" = $2
          AND payout."stripeEventId" = $3
          AND seller.id = $4
          AND seller."userId" = $5
-         AND seller."stripeAccountId" = $6
+         AND seller_private."stripeAccountId" = $6
          AND event.type = 'payout.failed'
          AND event."sourceObjectId" = $2
          AND event."processedAt" IS NOT NULL
-       FOR UPDATE OF payout, seller, event
+       FOR UPDATE OF payout, seller, seller_private, event
     `, [
       state.payoutEventId,
       state.payoutId,
@@ -969,13 +997,16 @@ export async function cleanupExactRows(owner, state) {
       throw new Error("exact payout cleanup cardinality drifted");
     }
     const seller = await owner.query(`
-      SELECT id
-        FROM public."SellerProfile"
-       WHERE id = $1 AND "userId" = $2 AND "stripeAccountId" = $3
-         AND "displayName" = 'Grainline Provider Canary'
-         AND "displayNameNormalized" = 'grainline provider canary'
-         AND "chargesEnabled" = true AND "vacationMode" = true
-       FOR UPDATE
+      SELECT seller.id
+        FROM public."SellerProfile" AS seller
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId" = seller.id
+       WHERE seller.id = $1 AND seller."userId" = $2
+         AND seller_private."stripeAccountId" = $3
+         AND seller."displayName" = 'Grainline Provider Canary'
+         AND seller."displayNameNormalized" = 'grainline provider canary'
+         AND seller."chargesEnabled" = true AND seller."vacationMode" = true
+       FOR UPDATE OF seller, seller_private
     `, [state.sellerId, state.sellerUserId, state.stripeAccountId]);
     const account = await owner.query(`
       SELECT id
@@ -987,6 +1018,10 @@ export async function cleanupExactRows(owner, state) {
     if (resultCardinality(seller) !== 1 || resultCardinality(account) !== 1) {
       throw new Error("linked payout disposable cleanup identity drifted");
     }
+    const deletedPrivateSeller = await owner.query(
+      `DELETE FROM public."SellerProfilePrivate" WHERE "sellerProfileId" = $1 RETURNING "sellerProfileId"`,
+      [state.sellerId],
+    );
     await assertNoForeignKeyDependents(owner, 'public."SellerProfile"', state.sellerId);
     const deletedSeller = await owner.query(
       `DELETE FROM public."SellerProfile" WHERE id = $1 RETURNING id`,
@@ -997,7 +1032,9 @@ export async function cleanupExactRows(owner, state) {
       `DELETE FROM public."User" WHERE id = $1 RETURNING id`,
       [state.sellerUserId],
     );
-    if (resultCardinality(deletedSeller) !== 1 || resultCardinality(deletedUser) !== 1) {
+    if (resultCardinality(deletedPrivateSeller) !== 1
+      || resultCardinality(deletedSeller) !== 1
+      || resultCardinality(deletedUser) !== 1) {
       throw new Error("linked payout disposable cleanup cardinality drifted");
     }
     await owner.query("COMMIT");
@@ -1014,8 +1051,12 @@ export async function readCleanupSnapshot(owner, state) {
       SELECT
         (SELECT count(*)::integer FROM public."User"
           WHERE id = $2 AND "clerkId" = $8 AND email = $9) AS "userCount",
-        (SELECT count(*)::integer FROM public."SellerProfile"
-          WHERE id = $1 AND "userId" = $2 AND "stripeAccountId" = $3) AS "sellerCount",
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id = $1 AND seller."userId" = $2
+            AND seller_private."stripeAccountId" = $3) AS "sellerCount",
         (SELECT count(*)::integer FROM public."StripeWebhookEvent"
           WHERE id = $4 AND type = 'payout.failed' AND "sourceObjectId" = $5) AS "webhookCount",
         (SELECT "processedAt" IS NOT NULL FROM public."StripeWebhookEvent" WHERE id = $4)

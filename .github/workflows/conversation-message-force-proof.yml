@@ -142,6 +142,25 @@ jobs:
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=$RUNNER_TEMP/20261013120000_prepare_seller_profile_private_boundary/migration.sql" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Isolate every post-historical SellerProfile migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/post-historical-seller-profile-migrations"
+          manifest="$destination/manifest"
+          mkdir -p "$destination"
+          : > "$manifest"
+          find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print \
+            | LC_ALL=C sort \
+            | while read -r path; do
+                migration="${path##*/}"
+                if [[ "$migration" < "20261014010000" ]]; then
+                  continue
+                fi
+                printf '%s\n' "$migration" >> "$manifest"
+                mv "$path" "$destination/$migration"
+              done
+          test -s "$manifest"
       - name: Isolate staged Core Order ENABLE from historical proof
         shell: bash
         run: |
@@ -245,6 +264,14 @@ jobs:
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=" >> "$GITHUB_ENV"
+      - name: Restore every post-historical SellerProfile migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/post-historical-seller-profile-migrations"
+          while read -r migration; do
+            mv "$destination/$migration" "prisma/migrations/$migration"
+          done < "$destination/manifest"
       - name: Restore reviewed Production-owner Order buyer correction
         run: >-
           mv

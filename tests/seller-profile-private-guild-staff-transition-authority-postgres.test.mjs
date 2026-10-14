@@ -8,6 +8,18 @@ const migration = readFileSync(
   sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
   "utf8",
 );
+const hotfix = readFileSync(
+  sellerProfilePrivateMigrationPath("20261015000000_correct_seller_profile_private_app_authorities"),
+  "utf8",
+);
+
+function hotfixFunction(name) {
+  const start = hotfix.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const marker = `$${name}$;`;
+  const end = hotfix.indexOf(marker, start);
+  assert.ok(start >= 0 && end >= start, `${name} hotfix must be present`);
+  return hotfix.slice(start, end + marker.length);
+}
 
 async function asRole(database, role, operation) {
   await database.exec(`SET SESSION AUTHORIZATION ${role}`);
@@ -48,7 +60,7 @@ async function createDatabase() {
     CREATE TABLE public."Listing" (id text PRIMARY KEY, "sellerId" text NOT NULL, status public."ListingStatus" NOT NULL, "isPrivate" boolean NOT NULL);
     CREATE TABLE public."AdminAuditLog" (
       id text PRIMARY KEY, "adminId" text NOT NULL, action text NOT NULL, "targetType" text NOT NULL,
-      "targetId" text NOT NULL, reason text, metadata jsonb NOT NULL, undone boolean NOT NULL, "createdAt" timestamp(3) NOT NULL
+      "targetId" text NOT NULL, reason varchar(1000), metadata jsonb NOT NULL, undone boolean NOT NULL, "createdAt" timestamp(3) NOT NULL
     );
     CREATE TABLE public."GuildCaseGuard" ("sellerProfileId" text PRIMARY KEY, blocked boolean NOT NULL);
     CREATE FUNCTION public.grainline_case_guild_unresolved_guard(text) RETURNS TABLE(blocked boolean)
@@ -65,10 +77,22 @@ async function createDatabase() {
     LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS $$
       SELECT pg_catalog.count(*)::integer FROM public."AdminAuditLog"
     $$;
+    CREATE FUNCTION public.test_guild_rejection_lengths(text)
+    RETURNS TABLE(review_notes_length integer, audit_reason_length integer)
+    LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS $$
+      SELECT pg_catalog.length(verification."reviewNotes")::integer,
+             pg_catalog.length(audit.reason)::integer
+        FROM public."MakerVerification" AS verification
+        JOIN public."AdminAuditLog" AS audit
+          ON audit."targetId" = verification."sellerProfileId"
+       WHERE verification.id = $1
+    $$;
     REVOKE ALL ON FUNCTION public.test_seller_guild_levels() FROM PUBLIC;
     REVOKE ALL ON FUNCTION public.test_admin_audit_count() FROM PUBLIC;
+    REVOKE ALL ON FUNCTION public.test_guild_rejection_lengths(text) FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION public.test_seller_guild_levels() TO grainline_staff_read_runtime;
     GRANT EXECUTE ON FUNCTION public.test_admin_audit_count() TO grainline_staff_read_runtime;
+    GRANT EXECUTE ON FUNCTION public.test_guild_rejection_lengths(text) TO grainline_staff_read_runtime;
     INSERT INTO public."User" VALUES ('employee','EMPLOYEE',false,NULL),('admin','ADMIN',false,NULL),('user','USER',false,NULL);
     INSERT INTO public."SellerProfile" (id,"userId","displayName","guildLevel","ownerAccountActive","isVerifiedMaker","guildMemberApprovedAt") VALUES
       ('approve_member','u1','Approve Member','NONE',true,false,NULL),
@@ -90,6 +114,7 @@ async function createDatabase() {
     INSERT INTO public."Listing" SELECT 'listing_'||value, 'reinstate', 'ACTIVE', false FROM generate_series(1,5) value;
   `);
   await database.exec(migration);
+  await database.exec(hotfixFunction("grainline_seller_guild_staff_transition"));
   return database;
 }
 
@@ -139,11 +164,25 @@ test("Guild staff transition rejects forged roles and stale transitions", async 
       await assert.rejects(transition(database,"admin","REINSTATE_GUILD_MEMBER",null,"reinstate"),/permission denied/);
     });
     await asRole(database,"grainline_staff_read_runtime", async () => {
+      await assert.rejects(transition(database,"employee",null,null,"reinstate"),/input is invalid/);
       await assert.rejects(transition(database,"user","REVOKE_GUILD_MEMBER",null,"revoke_member"),/not authorized/);
       await assert.rejects(transition(database,"employee","REINSTATE_GUILD_MEMBER",null,"reinstate"),/not authorized/);
       await assert.rejects(transition(database,"employee","APPROVE_GUILD_MEMBER","v1",null,null,true),/not authorized/);
       const stale = await transition(database,"employee","APPROVE_GUILD_MEMBER","v3",null);
       assert.equal(stale.rows[0].applied,false);
+    });
+  } finally { await database.close(); }
+});
+
+test("Guild rejection preserves full review notes but bounds the audit reason", async () => {
+  const database = await createDatabase();
+  try {
+    const notes = "x".repeat(2000);
+    await asRole(database, "grainline_staff_read_runtime", async () => {
+      const result = await transition(database, "employee", "REJECT_GUILD_MEMBER", "v2", null, notes);
+      assert.equal(result.rows[0].applied, true);
+      const lengths = await database.query(`SELECT * FROM public.test_guild_rejection_lengths('v2')`);
+      assert.deepEqual(lengths.rows, [{ review_notes_length: 2000, audit_reason_length: 500 }]);
     });
   } finally { await database.close(); }
 });

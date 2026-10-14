@@ -11,27 +11,41 @@ function assertNonProductionScript() {
 
 async function main() {
   assertNonProductionScript()
-  const sellers = await prisma.sellerProfile.findMany({
-    where: { stripeAccountId: { not: null } },
-    select: { id: true, stripeAccountId: true },
-  })
-
   let updated = 0
-  for (const seller of sellers) {
-    if (!seller.stripeAccountId) continue
-    try {
-      const account = await stripe.accounts.retrieve(seller.stripeAccountId)
-      await prisma.sellerProfile.update({
-        where: { id: seller.id },
-        data: { chargesEnabled: Boolean(account.charges_enabled) },
-      })
-      updated += 1
-    } catch (error) {
-      console.error(`Failed to sync ${seller.id} (${seller.stripeAccountId}):`, error)
+  let scanned = 0
+  let cursor: string | null = null
+  for (;;) {
+    const sellers = await prisma.$queryRaw<Array<{
+      id: string
+      stripeAccountId: string
+    }>>`
+      SELECT id, "stripeAccountId"
+        FROM public.grainline_seller_stripe_reconciliation_page(
+          ${cursor}::text,
+          200::integer
+        )
+    `
+    if (sellers.length === 0) break
+    for (const seller of sellers) {
+      scanned += 1
+      try {
+        const account = await stripe.accounts.retrieve(seller.stripeAccountId)
+        await prisma.$queryRaw`
+          SELECT public.grainline_seller_stripe_charges_update(
+            ${seller.id}::text,
+            ${seller.stripeAccountId}::text,
+            ${Boolean(account.charges_enabled)}::boolean
+          )
+        `
+        updated += 1
+      } catch (error) {
+        console.error(`Failed to sync ${seller.id} (${seller.stripeAccountId}):`, error)
+      }
     }
+    cursor = sellers.at(-1)!.id
   }
 
-  console.log(`Synced ${updated}/${sellers.length} seller profiles`)
+  console.log(`Synced ${updated}/${scanned} seller profiles`)
   await prisma.$disconnect()
 }
 

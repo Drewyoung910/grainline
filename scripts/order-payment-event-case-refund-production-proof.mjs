@@ -1014,8 +1014,12 @@ export async function createFixtures(owner, state) {
       SELECT
         (SELECT count(*)::integer FROM public."User" WHERE id IN ($1::text, $2::text)
           OR "clerkId" IN ($3::text, $4::text) OR email IN ($5::text, $6::text)) AS users,
-        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$7::text
-          OR "userId"=$1::text OR "stripeAccountId"=$8::text) AS sellers,
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           LEFT JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id=$7::text OR seller."userId"=$1::text
+             OR seller_private."stripeAccountId"=$8::text) AS sellers,
         (SELECT count(*)::integer FROM public."Listing" WHERE id=$9::text) AS listings,
         (SELECT count(*)::integer FROM public."Order" WHERE id=$10::text
           OR "stripePaymentIntentId"=$11::text OR "stripeChargeId"=$12::text) AS orders,
@@ -1045,11 +1049,23 @@ export async function createFixtures(owner, state) {
       state.buyerUserId, state.buyerClerkId, state.buyerEmail]);
     await owner.query(`
       INSERT INTO public."SellerProfile" (
-        id, "userId", "displayName", "displayNameNormalized", "stripeAccountId",
-        "chargesEnabled", "stripeAccountVersion", "stripeControllerType", "vacationMode", "updatedAt"
-      ) VALUES ($1, $2, 'Grainline Case Refund Proof', 'grainline case refund proof', $3,
-        true, 'v1', 'express', true, CURRENT_TIMESTAMP)
-    `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId]);
+        id, "userId", "displayName", "displayNameNormalized",
+        "chargesEnabled", "vacationMode", "updatedAt"
+      ) VALUES ($1, $2, 'Grainline Case Refund Proof', 'grainline case refund proof',
+        true, true, CURRENT_TIMESTAMP)
+    `, [state.sellerProfileId, state.sellerUserId]);
+    const privateSeller = await owner.query(`
+      UPDATE public."SellerProfilePrivate"
+         SET "stripeAccountId" = $2,
+             "stripeAccountVersion" = 'v1',
+             "stripeControllerType" = 'express',
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "sellerProfileId" = $1
+       RETURNING "sellerProfileId"
+    `, [state.sellerProfileId, state.stripeAccountId]);
+    if (resultCardinality(privateSeller) !== 1) {
+      throw new Error("Case refund private fixture cardinality drifted");
+    }
     await owner.query(`
       INSERT INTO public."Listing" (
         id, "sellerId", title, description, "priceCents", currency, status,
@@ -1097,9 +1113,14 @@ export async function readFixtureSnapshot(owner, state) {
       (SELECT count(*)::integer FROM public."User" WHERE id=$4 AND "clerkId"=$5 AND email=$6
         AND name='Grainline Case Refund Proof Buyer' AND role='USER'
         AND "notificationPreferences"='{"EMAIL_REFUND_ISSUED":false}'::jsonb) AS buyer_user,
-      (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$7 AND "userId"=$1
-        AND "stripeAccountId"=$8 AND "displayName"='Grainline Case Refund Proof'
-        AND "vacationMode"=true AND "chargesEnabled"=true) AS seller_profile,
+      (SELECT count(*)::integer
+         FROM public."SellerProfile" AS seller
+         JOIN public."SellerProfilePrivate" AS seller_private
+           ON seller_private."sellerProfileId" = seller.id
+        WHERE seller.id=$7 AND seller."userId"=$1
+          AND seller_private."stripeAccountId"=$8
+          AND seller."displayName"='Grainline Case Refund Proof'
+          AND seller."vacationMode"=true AND seller."chargesEnabled"=true) AS seller_profile,
       (SELECT count(*)::integer FROM public."Listing" WHERE id=$9 AND "sellerId"=$7
         AND title='case-refund-production-proof' AND "priceCents"=500 AND "stockQuantity"=0
         AND status='SOLD_OUT' AND "listingType"='IN_STOCK' AND "isPrivate"=true) AS listing,
@@ -1339,8 +1360,14 @@ export async function cleanupExactRows(owner, state) {
           AND name='Grainline Case Refund Proof Seller') AS seller_user,
         (SELECT count(*)::integer FROM public."User" WHERE id=$4 AND "clerkId"=$5 AND email=$6
           AND name='Grainline Case Refund Proof Buyer' AND "notificationPreferences"='{"EMAIL_REFUND_ISSUED":false}'::jsonb) AS buyer_user,
-        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$7 AND "userId"=$1 AND "stripeAccountId"=$8
-          AND "displayName"='Grainline Case Refund Proof' AND "vacationMode"=true) AS seller_profile,
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id=$7 AND seller."userId"=$1
+            AND seller_private."stripeAccountId"=$8
+            AND seller."displayName"='Grainline Case Refund Proof'
+            AND seller."vacationMode"=true) AS seller_profile,
         (SELECT count(*)::integer FROM public."Listing" WHERE id=$9 AND "sellerId"=$7
           AND title='case-refund-production-proof' AND "priceCents"=500 AND "stockQuantity"=1
           AND status='SOLD_OUT' AND "isPrivate"=true) AS listing,

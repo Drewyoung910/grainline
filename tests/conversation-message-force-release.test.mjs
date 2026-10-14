@@ -223,8 +223,25 @@ describe("Conversation and Message FORCE release artifact", () => {
     const successorRestore = workflow.indexOf(
       "Restore reviewed Order release successors",
     );
+    const futureFence = workflow.indexOf(
+      "Isolate every post-historical SellerProfile migration",
+    );
+    const futureRestore = workflow.indexOf(
+      "Restore every post-historical SellerProfile migration",
+    );
     const coreRestore = workflow.indexOf("Restore staged Core Order ENABLE");
     assert.ok(successorFence >= 0);
+    assert.ok(futureFence > successorFence && futureFence < compatibleApply);
+    assert.ok(futureRestore > conversationProof && futureRestore < coreRestore);
+    assert.match(
+      workflow.slice(futureFence, compatibleApply),
+      /find prisma\/migrations[\s\S]*20261014010000/u,
+    );
+    assert.match(workflow.slice(futureFence, compatibleApply), /post-historical-seller-profile-migrations/u);
+    assert.match(
+      workflow.slice(futureRestore, coreRestore),
+      /done < "\$destination\/manifest"/u,
+    );
     for (const [digest, migration] of [
       [
         "a648437f13d93e1673f64935d381630e6ec2b19e7633c33837e88938240ef5c7",

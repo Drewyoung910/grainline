@@ -177,41 +177,15 @@ model SellerProfile {
   radiusMeters          Int?
   publicMapOptIn        Boolean  @default(false)
 
-  // Stripe Connect
-  stripeAccountId                  String? @unique @db.VarChar(255)
-  chargesEnabled                   Boolean @default(false)
-  stripeAccountVersion             String? @db.VarChar(20)
-  stripeAccountSupported           Boolean @default(true)
-  stripeControllerType             String? @db.VarChar(100)
-  manualStripeReconciliationNeeded Boolean @default(false)
-  manualStripeReconciliationNote   String? @db.VarChar(1000)
+  // Public-safe Stripe availability snapshots. Provider identity and
+  // reconciliation state live only in SellerProfilePrivate.
+  chargesEnabled         Boolean @default(false)
+  stripeAccountSupported Boolean @default(true)
 
   // Flat-rate shipping (legacy/simple fallback)
   shippingFlatRateCents Int?
   freeShippingOverCents Int?
   allowLocalPickup      Boolean @default(false)
-
-  // 🆕 Ship-from address (used for live-rate quoting/labels)
-  shipFromName    String? @db.VarChar(100)
-  shipFromLine1   String? @db.VarChar(200)
-  shipFromLine2   String? @db.VarChar(200)
-  shipFromCity    String? @db.VarChar(100)
-  shipFromState   String? @db.VarChar(50)
-  shipFromPostal  String? @db.VarChar(20)
-  shipFromCountry String? @default("US") @db.VarChar(2)
-  shipFromPhone   String? @db.VarChar(30)
-
-  // 🆕 Default package (used when listings don’t specify packaged dims)
-  defaultPkgWeightGrams Int?
-  defaultPkgLengthCm    Float?
-  defaultPkgWidthCm     Float?
-  defaultPkgHeightCm    Float?
-
-  // Use live carrier rates (Shippo) instead of flat rate by default
-  useCalculatedShipping Boolean @default(false)
-
-  // Preferred carriers for shipping quotes (empty = show all)
-  preferredCarriers String[] @default([])
 
   // Rich profile / personalization
   tagline                   String?    @db.VarChar(140)
@@ -240,28 +214,10 @@ model SellerProfile {
   isVerifiedMaker           Boolean    @default(false)
   verifiedAt                DateTime?
   guildLevel                GuildLevel @default(NONE)
-  guildMemberApprovedAt     DateTime?
-  guildMasterApprovedAt     DateTime?
-  guildMasterAppliedAt      DateTime?
-  guildMasterReviewNotes    String?    @db.VarChar(2000)
-
-  // Guild Phase 3 — revoke tracking
-  consecutiveMetricFailures   Int       @default(0)
-  lastMetricCheckAt           DateTime?
-  metricWarningSentAt         DateTime?
-  listingsBelowThresholdSince DateTime?
-
-  // Seller onboarding wizard
-  onboardingStep     Int     @default(0)
-  onboardingComplete Boolean @default(false)
-
   // Vacation mode
-  vacationMode       Boolean   @default(false)
-  vacationReturnDate DateTime?
-  vacationMessage    String?   @db.VarChar(500)
-
-  // Analytics
-  profileViews Int @default(0)
+  vacationMode              Boolean    @default(false)
+  vacationReturnDate        DateTime?
+  vacationMessage           String?    @db.VarChar(500)
 
   // Admin-featured spotlight (set by admin for 7 days to pin to Meet a Maker)
   featuredUntil DateTime?
@@ -301,9 +257,8 @@ model SellerProfile {
   @@index([cityMetroId])
 }
 
-// Additive compatibility boundary for seller-only provider, fulfillment,
-// workflow and operational state. SellerProfile remains authoritative until
-// the compatible application conversion and predecessor drain are complete.
+// Authoritative seller-only provider, fulfillment, workflow and operational
+// state. Ordinary application callers use purpose-bound database operations.
 model SellerProfilePrivate {
   sellerProfileId String        @id
   sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
@@ -333,9 +288,9 @@ model SellerProfilePrivate {
   onboardingStep     Int     @default(0)
   onboardingComplete Boolean @default(false)
 
-  guildMemberApprovedAt DateTime?
-  guildMasterApprovedAt DateTime?
-  guildMasterAppliedAt  DateTime?
+  guildMemberApprovedAt       DateTime?
+  guildMasterApprovedAt       DateTime?
+  guildMasterAppliedAt        DateTime?
   guildMasterReviewNotes      String?   @db.VarChar(2000)
   consecutiveMetricFailures   Int       @default(0)
   lastMetricCheckAt           DateTime?

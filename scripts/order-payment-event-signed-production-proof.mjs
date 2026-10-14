@@ -878,6 +878,10 @@ export async function cleanupExactRows(owner, state) {
       `DELETE FROM public."Listing" WHERE id IN ($1, $2) RETURNING id`,
       [state.refundListingId, state.disputeListingId],
     );
+    const deletedPrivateSeller = await owner.query(
+      `DELETE FROM public."SellerProfilePrivate" WHERE "sellerProfileId" = $1 RETURNING "sellerProfileId"`,
+      [state.sellerProfileId],
+    );
     await assertNoForeignKeyDependents(owner, 'public."SellerProfile"', state.sellerProfileId);
     const deletedSeller = await owner.query(
       `DELETE FROM public."SellerProfile" WHERE id = $1 RETURNING id`,
@@ -892,6 +896,7 @@ export async function cleanupExactRows(owner, state) {
     if (
       resultCardinality(deletedOrders) !== 2
       || resultCardinality(deletedListings) !== 2
+      || resultCardinality(deletedPrivateSeller) !== 1
       || resultCardinality(deletedSeller) !== 1
       || resultCardinality(deletedUsers) !== 2
     ) throw new Error("signed payment parent cleanup cardinality drifted");

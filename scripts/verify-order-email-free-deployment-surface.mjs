@@ -27,12 +27,19 @@ function checkedUrl(value, label) {
 
 export async function verifyOrderEmailFreeDeploymentSurface({
   deploymentId,
+  releaseCommit,
   fetchImpl = globalThis.fetch,
   cacheBuster = Date.now(),
 } = {}) {
   assert.match(deploymentId ?? "", /^dpl_[A-Za-z0-9]{20,64}$/);
+  if (releaseCommit !== undefined) {
+    assert.match(releaseCommit, /^[0-9a-f]{40}$/);
+  }
   assert.equal(typeof fetchImpl, "function");
   const marker = new RegExp(`dpl=${deploymentId}(?:["&<]|$)`);
+  const releaseMarker = releaseCommit === undefined
+    ? null
+    : new RegExp(`<meta(?=[^>]+name=["']grainline-release-commit["'])(?=[^>]+content=["']${releaseCommit}["'])[^>]*>`, "i");
 
   for (const alias of PUBLIC_ALIASES) {
     const requestUrl = new URL(`https://${alias}/`);
@@ -68,6 +75,7 @@ export async function verifyOrderEmailFreeDeploymentSurface({
     assert.equal(response.status, 200, alias);
     assert.ok(Buffer.byteLength(body, "utf8") <= MAX_PAGE_BYTES, alias);
     assert.match(body, marker, alias);
+    if (releaseMarker) assert.match(body, releaseMarker, alias);
   }
 
   for (const alias of PROTECTED_ALIASES) {
@@ -118,5 +126,6 @@ const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).hr
 if (invokedPath === import.meta.url) {
   await verifyOrderEmailFreeDeploymentSurface({
     deploymentId: process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID,
+    releaseCommit: process.env.REVIEWED_RELEASE_COMMIT,
   });
 }

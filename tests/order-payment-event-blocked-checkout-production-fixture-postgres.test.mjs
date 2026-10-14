@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import { SELLER_PROFILE_PRIVATE_FIXTURE_SQL } from "./helpers/seller-profile-private-fixture-sql.mjs";
 import {
   assertCleanupSnapshot,
   assertDeliverySnapshot,
@@ -65,12 +66,12 @@ async function database() {
     CREATE TABLE public."SellerProfile" (
       id text PRIMARY KEY, "userId" text NOT NULL UNIQUE REFERENCES public."User"(id) ON DELETE CASCADE,
       "displayName" varchar(100) NOT NULL, "displayNameNormalized" varchar(100) NOT NULL,
-      "stripeAccountId" varchar(255) UNIQUE, "chargesEnabled" boolean NOT NULL DEFAULT false,
-      "stripeAccountVersion" varchar(20), "stripeControllerType" varchar(100),
+      "chargesEnabled" boolean NOT NULL DEFAULT false,
       "vacationMode" boolean NOT NULL DEFAULT false, "acceptingNewOrders" boolean NOT NULL DEFAULT true,
       "allowLocalPickup" boolean NOT NULL DEFAULT false,
       "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" timestamp NOT NULL
     );
+    ${SELLER_PROFILE_PRIVATE_FIXTURE_SQL}
     CREATE TABLE public."Listing" (
       id text PRIMARY KEY, "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id) ON DELETE RESTRICT,
       title varchar(150) NOT NULL, description varchar(5000) NOT NULL, "priceCents" integer NOT NULL,
@@ -343,23 +344,28 @@ test("fixture Connect identity is honest, current-controller bound, and narrowly
   const value = state();
   try {
     await createFixtures(db, value);
-    const created = await db.query(`SELECT "stripeAccountVersion","stripeControllerType" FROM public."SellerProfile" WHERE id=$1`,
+    const created = await db.query(`SELECT "stripeAccountVersion","stripeControllerType"
+      FROM public."SellerProfilePrivate" WHERE "sellerProfileId"=$1`,
       [value.sellerProfileId]);
     assert.deepEqual(created.rows[0], {
       stripeAccountVersion: null,
       stripeControllerType: DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
     });
 
-    await db.query(`UPDATE public."SellerProfile" SET "stripeAccountVersion"='v1',"stripeControllerType"='custom' WHERE id=$1`,
+    await db.query(`UPDATE public."SellerProfilePrivate"
+      SET "stripeAccountVersion"='v1',"stripeControllerType"='custom'
+      WHERE "sellerProfileId"=$1`,
       [value.sellerProfileId]);
     const repaired = await convergeFixtureSellerConnectIdentity(db, value);
     assert.equal(repaired.stripeAccountVersion, null);
     assert.equal(repaired.stripeControllerType, DISPOSABLE_SELLER_CONTROLLER_SUMMARY);
 
-    await db.query(`UPDATE public."SellerProfile" SET "stripeControllerType"='unexpected-controller' WHERE id=$1`,
+    await db.query(`UPDATE public."SellerProfilePrivate"
+      SET "stripeControllerType"='unexpected-controller' WHERE "sellerProfileId"=$1`,
       [value.sellerProfileId]);
     await assert.rejects(convergeFixtureSellerConnectIdentity(db, value), /Connect identity drifted/);
-    const retained = await db.query(`SELECT "stripeControllerType" FROM public."SellerProfile" WHERE id=$1`,
+    const retained = await db.query(`SELECT "stripeControllerType"
+      FROM public."SellerProfilePrivate" WHERE "sellerProfileId"=$1`,
       [value.sellerProfileId]);
     assert.equal(retained.rows[0].stripeControllerType, "unexpected-controller");
   } finally {

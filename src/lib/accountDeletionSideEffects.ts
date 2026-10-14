@@ -387,13 +387,20 @@ async function performAccountDeletionSideEffect(effect: {
       throw new Error("Missing Stripe account id for account deletion side effect");
     }
     await stripe.accounts.reject(payload.stripeAccountId, { reason: "other" });
-    await clearSellerAccountDeletionReconciliation(prisma, {
+    const cleared = await clearSellerAccountDeletionReconciliation(prisma, {
       userId: effect.userId,
       stripeAccountId: payload.stripeAccountId,
       sideEffectId: effect.id,
       claimGeneration: effect.claimGeneration,
       claimToken: effect.claimToken,
     });
+    if (!cleared) {
+      Sentry.captureMessage("Account deletion Stripe reconciliation state was not cleared", {
+        level: "warning",
+        tags: { source: "account_delete_side_effect", kind: effect.kind },
+        extra: { userId: effect.userId, sideEffectId: effect.id },
+      });
+    }
     return;
   }
 

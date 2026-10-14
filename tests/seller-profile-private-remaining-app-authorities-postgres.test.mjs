@@ -8,6 +8,18 @@ const migration = readFileSync(
   sellerProfilePrivateMigrationPath("20261014230000_prepare_seller_profile_private_remaining_app_authorities"),
   "utf8",
 );
+const hotfix = readFileSync(
+  sellerProfilePrivateMigrationPath("20261015000000_correct_seller_profile_private_app_authorities"),
+  "utf8",
+);
+
+function hotfixFunction(name) {
+  const start = hotfix.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const marker = `$${name}$;`;
+  const end = hotfix.indexOf(marker, start);
+  assert.ok(start >= 0 && end >= start, `${name} hotfix must be present`);
+  return hotfix.slice(start, end + marker.length);
+}
 
 async function asRole(database, role, operation) {
   await database.exec(`SET ROLE ${role}`);
@@ -55,7 +67,7 @@ async function createDatabase() {
     );
     CREATE TABLE public."SellerProfilePrivate" (
       "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
-      "stripeAccountId" text,
+      "stripeAccountId" varchar(255),
       "profileViews" integer NOT NULL DEFAULT 0,
       "manualStripeReconciliationNeeded" boolean NOT NULL DEFAULT false,
       "manualStripeReconciliationNote" text,
@@ -102,6 +114,8 @@ async function createDatabase() {
       TO grainline_app_runtime;
   `);
   await database.exec(migration);
+  await database.exec(hotfixFunction("grainline_seller_account_deletion_reconciliation_clear"));
+  await database.exec(hotfixFunction("grainline_seller_staff_orderability_state"));
   return database;
 }
 
@@ -130,6 +144,13 @@ test("remaining runtime operations synchronize private state and reject forged s
         `),
         /source is not authorized/,
       );
+    });
+    await database.query(`
+      UPDATE public."SellerProfilePrivate"
+         SET "stripeAccountId" = NULL
+       WHERE "sellerProfileId" = 'seller'
+    `);
+    await asRole(database, "grainline_app_runtime", async () => {
       const cleared = await database.query(`
         SELECT public.grainline_seller_account_deletion_reconciliation_clear(
           'owner', 'acct_private', 'effect', 2,

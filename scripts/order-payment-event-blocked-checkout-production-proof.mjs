@@ -1227,7 +1227,12 @@ export async function createFixtures(owner, state) {
     const collision = await owner.query(`
       SELECT
         (SELECT count(*)::integer FROM public."User" WHERE id=$1 OR "clerkId"=$2 OR email=$3) AS seller_user,
-        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$4 OR "userId"=$1 OR "stripeAccountId"=$5) AS seller,
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           LEFT JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId" = seller.id
+          WHERE seller.id=$4 OR seller."userId"=$1
+             OR seller_private."stripeAccountId"=$5) AS seller,
         (SELECT count(*)::integer FROM public."Listing" WHERE id=$6) AS listing
     `, [state.sellerUserId, state.sellerClerkId, state.sellerEmail, state.sellerProfileId, state.stripeAccountId, state.listingId]);
     const counts = Object.values(collision.rows[0] ?? {}).map(Number);
@@ -1236,10 +1241,19 @@ export async function createFixtures(owner, state) {
         SELECT
           (SELECT count(*)::integer FROM public."User" WHERE id=$1 AND "clerkId"=$2 AND email=$3
             AND name='Grainline Blocked Checkout Proof Seller' AND role='USER' AND banned=false AND "deletedAt" IS NULL) AS seller_user,
-          (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$4 AND "userId"=$1 AND "stripeAccountId"=$5
-            AND "displayName"='Grainline Blocked Checkout Proof' AND "displayNameNormalized"='grainline blocked checkout proof'
-            AND "chargesEnabled"=true AND "stripeAccountVersion" IS NULL AND "stripeControllerType"=$8
-            AND "vacationMode" IN (false,true) AND "acceptingNewOrders"=true AND "allowLocalPickup"=true) AS seller,
+          (SELECT count(*)::integer
+             FROM public."SellerProfile" AS seller
+             JOIN public."SellerProfilePrivate" AS seller_private
+               ON seller_private."sellerProfileId" = seller.id
+            WHERE seller.id=$4 AND seller."userId"=$1
+              AND seller_private."stripeAccountId"=$5
+              AND seller."displayName"='Grainline Blocked Checkout Proof'
+              AND seller."displayNameNormalized"='grainline blocked checkout proof'
+              AND seller."chargesEnabled"=true
+              AND seller_private."stripeAccountVersion" IS NULL
+              AND seller_private."stripeControllerType"=$8
+              AND seller."vacationMode" IN (false,true)
+              AND seller."acceptingNewOrders"=true AND seller."allowLocalPickup"=true) AS seller,
           (SELECT count(*)::integer FROM public."Listing" WHERE id=$6 AND "sellerId"=$4
             AND title='blocked-checkout-production-proof' AND "priceCents"=500 AND currency='usd'
             AND status IN ('ACTIVE','SOLD_OUT') AND "listingType"='IN_STOCK' AND "stockQuantity" IN (0,1)
@@ -1272,10 +1286,22 @@ export async function createFixtures(owner, state) {
     `, [state.sellerUserId, state.sellerClerkId, state.sellerEmail]);
     await owner.query(`
       INSERT INTO public."SellerProfile" (
-        id,"userId","displayName","displayNameNormalized","stripeAccountId","chargesEnabled",
-        "stripeAccountVersion","stripeControllerType","vacationMode","acceptingNewOrders","allowLocalPickup","updatedAt"
-      ) VALUES ($1,$2,'Grainline Blocked Checkout Proof','grainline blocked checkout proof',$3,true,NULL,$4,false,true,true,CURRENT_TIMESTAMP)
-    `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
+        id,"userId","displayName","displayNameNormalized","chargesEnabled",
+        "vacationMode","acceptingNewOrders","allowLocalPickup","updatedAt"
+      ) VALUES ($1,$2,'Grainline Blocked Checkout Proof','grainline blocked checkout proof',true,false,true,true,CURRENT_TIMESTAMP)
+    `, [state.sellerProfileId, state.sellerUserId]);
+    const privateSeller = await owner.query(`
+      UPDATE public."SellerProfilePrivate"
+         SET "stripeAccountId"=$2,
+             "stripeAccountVersion"=NULL,
+             "stripeControllerType"=$3,
+             "updatedAt"=CURRENT_TIMESTAMP
+       WHERE "sellerProfileId"=$1
+       RETURNING "sellerProfileId"
+    `, [state.sellerProfileId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
+    if (resultCardinality(privateSeller) !== 1) {
+      throw new Error("blocked-checkout private seller fixture cardinality drifted");
+    }
     await owner.query(`
       INSERT INTO public."Listing" (
         id,"sellerId",title,description,"priceCents",currency,status,"listingType","stockQuantity",
@@ -1293,21 +1319,43 @@ export async function createFixtures(owner, state) {
 
 export async function convergeFixtureSellerConnectIdentity(owner, state) {
   const converged = await owner.query(`
-    UPDATE public."SellerProfile"
-       SET "stripeAccountVersion"=NULL,
-           "stripeControllerType"=$4,
-           "updatedAt"=CURRENT_TIMESTAMP
-     WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3
-       AND "displayName"='Grainline Blocked Checkout Proof'
-       AND "displayNameNormalized"='grainline blocked checkout proof'
-       AND "chargesEnabled"=true AND "vacationMode"=false
-       AND "acceptingNewOrders"=true AND "allowLocalPickup"=true
-       AND (
-         ("stripeAccountVersion"='v1' AND "stripeControllerType"='custom')
-         OR
-         ("stripeAccountVersion" IS NULL AND "stripeControllerType"=$4)
-       )
-    RETURNING id,"stripeAccountVersion","stripeControllerType","vacationMode"
+    WITH target AS (
+      SELECT seller.id
+        FROM public."SellerProfile" AS seller
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId" = seller.id
+       WHERE seller.id=$1 AND seller."userId"=$2
+         AND seller_private."stripeAccountId"=$3
+         AND seller."displayName"='Grainline Blocked Checkout Proof'
+         AND seller."displayNameNormalized"='grainline blocked checkout proof'
+         AND seller."chargesEnabled"=true AND seller."vacationMode"=false
+         AND seller."acceptingNewOrders"=true AND seller."allowLocalPickup"=true
+         AND (
+           (seller_private."stripeAccountVersion"='v1' AND seller_private."stripeControllerType"='custom')
+           OR
+           (seller_private."stripeAccountVersion" IS NULL AND seller_private."stripeControllerType"=$4)
+         )
+       FOR UPDATE OF seller, seller_private
+    ), updated_private AS (
+      UPDATE public."SellerProfilePrivate" AS seller_private
+         SET "stripeAccountVersion"=NULL,
+             "stripeControllerType"=$4,
+             "updatedAt"=CURRENT_TIMESTAMP
+        FROM target
+       WHERE seller_private."sellerProfileId"=target.id
+      RETURNING seller_private."sellerProfileId", seller_private."stripeAccountVersion",
+                seller_private."stripeControllerType"
+    ), updated_public AS (
+      UPDATE public."SellerProfile" AS seller
+         SET "updatedAt"=CURRENT_TIMESTAMP
+        FROM target
+       WHERE seller.id=target.id
+      RETURNING seller.id, seller."vacationMode"
+    )
+    SELECT updated_public.id, updated_private."stripeAccountVersion",
+           updated_private."stripeControllerType", updated_public."vacationMode"
+      FROM updated_public
+      JOIN updated_private ON updated_private."sellerProfileId"=updated_public.id
   `, [
     state.sellerProfileId,
     state.sellerUserId,
@@ -1327,15 +1375,19 @@ export async function convergeFixtureSellerConnectIdentity(owner, state) {
 
 export async function blockFixtureSeller(owner, state) {
   const blocked = await owner.query(`
-    UPDATE public."SellerProfile"
+    UPDATE public."SellerProfile" AS seller
        SET "vacationMode"=true,"updatedAt"=CURRENT_TIMESTAMP
-     WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3
-       AND "displayName"='Grainline Blocked Checkout Proof'
-       AND "displayNameNormalized"='grainline blocked checkout proof'
-       AND "chargesEnabled"=true AND "acceptingNewOrders"=true
-       AND "allowLocalPickup"=true
-       AND "stripeAccountVersion" IS NULL AND "stripeControllerType"=$4
-    RETURNING id,"vacationMode"
+      FROM public."SellerProfilePrivate" AS seller_private
+     WHERE seller.id=$1 AND seller."userId"=$2
+       AND seller_private."sellerProfileId"=seller.id
+       AND seller_private."stripeAccountId"=$3
+       AND seller."displayName"='Grainline Blocked Checkout Proof'
+       AND seller."displayNameNormalized"='grainline blocked checkout proof'
+       AND seller."chargesEnabled"=true AND seller."acceptingNewOrders"=true
+       AND seller."allowLocalPickup"=true
+       AND seller_private."stripeAccountVersion" IS NULL
+       AND seller_private."stripeControllerType"=$4
+    RETURNING seller.id,seller."vacationMode"
   `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
   if (
     resultCardinality(blocked) !== 1
@@ -1672,13 +1724,19 @@ export async function reopenFixtureSellerForPaymentRenewal(owner, state, history
       throw new Error("blocked-checkout renewal seller user drifted");
     }
     const seller = await owner.query(`
-      SELECT id,"vacationMode" FROM public."SellerProfile"
-       WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3
-         AND "displayName"='Grainline Blocked Checkout Proof'
-         AND "displayNameNormalized"='grainline blocked checkout proof'
-         AND "chargesEnabled"=true AND "acceptingNewOrders"=true AND "allowLocalPickup"=true
-         AND "stripeAccountVersion" IS NULL AND "stripeControllerType"=$4
-       FOR UPDATE
+      SELECT seller.id,seller."vacationMode"
+        FROM public."SellerProfile" AS seller
+        JOIN public."SellerProfilePrivate" AS seller_private
+          ON seller_private."sellerProfileId"=seller.id
+       WHERE seller.id=$1 AND seller."userId"=$2
+         AND seller_private."stripeAccountId"=$3
+         AND seller."displayName"='Grainline Blocked Checkout Proof'
+         AND seller."displayNameNormalized"='grainline blocked checkout proof'
+         AND seller."chargesEnabled"=true AND seller."acceptingNewOrders"=true
+         AND seller."allowLocalPickup"=true
+         AND seller_private."stripeAccountVersion" IS NULL
+         AND seller_private."stripeControllerType"=$4
+       FOR UPDATE OF seller, seller_private
     `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
     if (resultCardinality(seller) !== 1 || seller.rows[0]?.id !== state.sellerProfileId
       || typeof seller.rows[0]?.vacationMode !== "boolean") {
@@ -1698,14 +1756,19 @@ export async function reopenFixtureSellerForPaymentRenewal(owner, state, history
     assertLockedRenewalRows(await readCheckoutAttemptRows(owner, state, true), history, state);
     assertExpiredPaymentSnapshot(await readPreparedSnapshot(owner, state), state, seller.rows[0].vacationMode);
     const reopened = await owner.query(`
-      UPDATE public."SellerProfile"
+      UPDATE public."SellerProfile" AS seller
          SET "vacationMode"=false,"updatedAt"=CURRENT_TIMESTAMP
-       WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3
-         AND "displayName"='Grainline Blocked Checkout Proof'
-         AND "displayNameNormalized"='grainline blocked checkout proof'
-         AND "chargesEnabled"=true AND "acceptingNewOrders"=true AND "allowLocalPickup"=true
-         AND "stripeAccountVersion" IS NULL AND "stripeControllerType"=$4
-      RETURNING id,"vacationMode"
+        FROM public."SellerProfilePrivate" AS seller_private
+       WHERE seller.id=$1 AND seller."userId"=$2
+         AND seller_private."sellerProfileId"=seller.id
+         AND seller_private."stripeAccountId"=$3
+         AND seller."displayName"='Grainline Blocked Checkout Proof'
+         AND seller."displayNameNormalized"='grainline blocked checkout proof'
+         AND seller."chargesEnabled"=true AND seller."acceptingNewOrders"=true
+         AND seller."allowLocalPickup"=true
+         AND seller_private."stripeAccountVersion" IS NULL
+         AND seller_private."stripeControllerType"=$4
+      RETURNING seller.id,seller."vacationMode"
     `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
     if (resultCardinality(reopened) !== 1 || reopened.rows[0]?.id !== state.sellerProfileId
       || reopened.rows[0]?.vacationMode !== false) {
@@ -2165,8 +2228,14 @@ export async function cleanupDeliveredRows(owner, state, expectedListingStatus =
       SELECT
         (SELECT count(*)::integer FROM public."User" WHERE id=$1 AND "clerkId"=$2 AND email=$3
           AND name='Grainline Blocked Checkout Proof Seller') AS seller_user,
-        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$4 AND "userId"=$1 AND "stripeAccountId"=$5
-          AND "displayName"='Grainline Blocked Checkout Proof' AND "vacationMode"=true) AS seller,
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId"=seller.id
+          WHERE seller.id=$4 AND seller."userId"=$1
+            AND seller_private."stripeAccountId"=$5
+            AND seller."displayName"='Grainline Blocked Checkout Proof'
+            AND seller."vacationMode"=true) AS seller,
         (SELECT count(*)::integer FROM public."Listing" WHERE id=$6 AND "sellerId"=$4
           AND title='blocked-checkout-production-proof' AND status=$20 AND "stockQuantity"=1
           AND "isPrivate"=true AND "reservedForUserId"=$7) AS listing,
@@ -2220,6 +2289,12 @@ export async function cleanupDeliveredRows(owner, state, expectedListingStatus =
     await assertNoForeignKeyDependents(owner, 'public."Listing"', state.listingId);
     if (resultCardinality(await owner.query(`DELETE FROM public."Listing" WHERE id=$1 RETURNING id`, [state.listingId])) !== 1) {
       throw new Error("blocked-checkout Listing cleanup drifted");
+    }
+    if (resultCardinality(await owner.query(
+      `DELETE FROM public."SellerProfilePrivate" WHERE "sellerProfileId"=$1 RETURNING "sellerProfileId"`,
+      [state.sellerProfileId],
+    )) !== 1) {
+      throw new Error("blocked-checkout SellerProfilePrivate cleanup drifted");
     }
     await assertNoForeignKeyDependents(owner, 'public."SellerProfile"', state.sellerProfileId);
     if (resultCardinality(await owner.query(`DELETE FROM public."SellerProfile" WHERE id=$1 RETURNING id`, [state.sellerProfileId])) !== 1) {
@@ -3287,8 +3362,12 @@ export async function cleanupUnpaidFixtures(owner, state) {
           AND status='RESTORED' AND "buyerId"=$3 AND "sellerId"=$4) AS reservation,
         (SELECT count(*)::integer FROM public."Listing" WHERE id=$5 AND "sellerId"=$4 AND "stockQuantity"=1
           AND status='ACTIVE' AND "reservedForUserId"=$3) AS listing,
-        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$4 AND "stripeAccountId"=$6
-          AND "vacationMode"=true) AS seller,
+        (SELECT count(*)::integer
+           FROM public."SellerProfile" AS seller
+           JOIN public."SellerProfilePrivate" AS seller_private
+             ON seller_private."sellerProfileId"=seller.id
+          WHERE seller.id=$4 AND seller_private."stripeAccountId"=$6
+            AND seller."vacationMode"=true) AS seller,
         (SELECT count(*)::integer FROM public."User" WHERE id=$7 AND "clerkId"=$8 AND email=$9) AS seller_user
     `, [state.stripeSessionId, state.reservationId, state.buyerId, state.sellerProfileId, state.listingId,
       state.stripeAccountId, state.sellerUserId, state.sellerClerkId, state.sellerEmail]);

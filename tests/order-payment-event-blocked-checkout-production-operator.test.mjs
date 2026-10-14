@@ -1007,7 +1007,10 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.match(source, /assertLockedRenewalRows\(await readCheckoutAttemptRows\(owner, state, true\), history, state\)/);
   assert.match(source, /payment renewal failed and the synthetic seller could not be reblocked/);
   assert.match(source, /assertPreparedSnapshot\([\s\S]*replacementSnapshot\.vacation_mode/);
-  assert.match(source, /"stripeAccountVersion" IS NULL AND "stripeControllerType"=\$4/);
+  assert.match(
+    source,
+    /seller_private\."stripeAccountVersion" IS NULL AND seller_private\."stripeControllerType"=\$4/,
+  );
   assert.doesNotMatch(source, /VALUES \([^\n]*true,'v1','custom'/);
   assert.match(source, /spawnSync\([\s\S]*"\/usr\/bin\/open"[\s\S]*stdio: "ignore"/);
   assert.doesNotMatch(source, /type: "custom"/);

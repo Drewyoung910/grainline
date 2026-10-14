@@ -2327,9 +2327,8 @@ SELECT format(
 FROM (
   VALUES
     ('public."grainline_seller_profile_deauthorize_compat"(text, text)'),
-    ('public."grainline_seller_profile_private_mirror"()'),
-    ('public."grainline_seller_profile_reconciliation_required_compat"(text, text, text, timestamp without time zone)'),
-    ('public."grainline_seller_profile_supported_snapshot"()')
+    ('public."grainline_seller_profile_private_initialize"()'),
+    ('public."grainline_seller_profile_reconciliation_required_compat"(text, text, text, timestamp without time zone)')
 ) AS private_function(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
