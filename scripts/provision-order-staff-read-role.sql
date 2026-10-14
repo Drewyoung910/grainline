@@ -1,10 +1,11 @@
--- Grainline Order and User isolated-staff least-privilege convergence.
+-- Grainline Order, User, and SellerProfile isolated-staff least-privilege convergence.
 --
 -- This script never creates a role or sets a password. The reviewed provider
 -- operator must first create grainline_staff_read_runtime as a separately
 -- authenticated LOGIN. The historical role name is retained, but its authority
 -- is the exact bounded staff read-and-mutation surface below. Run this only
--- after the corrected Order v2 operations and User staff authorities exist:
+-- after the corrected Order v2 operations, User staff authorities, and
+-- SellerProfile staff authorities exist:
 --
 --   psql "$DIRECT_URL" \
 --     -v staff_role=grainline_staff_read_runtime \
@@ -228,6 +229,7 @@ WITH required(function_signature) AS (
     ('public."grainline_user_staff_directory_page"(text, text, integer)'),
     ('public."grainline_user_staff_exact_email_target"(text, text)'),
     ('public."grainline_user_staff_report_labels"(text, text[])'),
+    ('public."grainline_user_staff_admin_labels"(text, text[])'),
     ('public."grainline_user_staff_email_recipient"(text, text, text)'),
     ('public."grainline_user_staff_ban_target"(text, text)'),
     ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),
@@ -285,6 +287,9 @@ GRANT EXECUTE ON FUNCTION
   TO :"staff_role";
 GRANT EXECUTE ON FUNCTION
   public.grainline_user_staff_report_labels(text, text[])
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_user_staff_admin_labels(text, text[])
   TO :"staff_role";
 GRANT EXECUTE ON FUNCTION
   public.grainline_user_staff_email_recipient(text, text, text)
@@ -365,6 +370,7 @@ WITH table_authority AS (
     ('public."grainline_user_staff_directory_page"(text, text, integer)'),
     ('public."grainline_user_staff_exact_email_target"(text, text)'),
     ('public."grainline_user_staff_report_labels"(text, text[])'),
+    ('public."grainline_user_staff_admin_labels"(text, text[])'),
     ('public."grainline_user_staff_email_recipient"(text, text, text)'),
     ('public."grainline_user_staff_ban_target"(text, text)'),
     ('public."grainline_user_staff_capability_mint"(text, text, text, timestamp without time zone)'),

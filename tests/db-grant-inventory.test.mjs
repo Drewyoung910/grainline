@@ -2436,6 +2436,15 @@ describe("database grant inventory guardrails", () => {
       [...new Set(provisioned)].sort((a, b) => a.localeCompare(b)),
       [...STAFF_READ_FUNCTION_IDENTITIES].sort((a, b) => a.localeCompare(b)),
     );
+    const runtimePrivateNames = new Set(
+      runtimePrivateFunctionNames(deriveGrantInventory()),
+    );
+    for (const identity of STAFF_READ_FUNCTION_IDENTITIES) {
+      assert.ok(
+        runtimePrivateNames.has(identity.slice(0, identity.indexOf("("))),
+        `${identity} must remain unavailable to ordinary runtime`,
+      );
+    }
   });
 
   it("derives exact migration and provisioned staff-read catalogs", () => {
@@ -2511,7 +2520,9 @@ describe("database grant inventory guardrails", () => {
         null,
         ORDER_USER_COMBINED_STAFF_READ_STAGE,
       ),
-      [...STAFF_READ_FUNCTION_IDENTITIES],
+      STAFF_READ_FUNCTION_IDENTITIES.filter(
+        (identity) => !identity.startsWith("grainline_user_staff_admin_labels("),
+      ),
     );
     assert.deepEqual(
       staffReadFunctionIdentitiesForInventory(
