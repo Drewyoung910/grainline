@@ -164,7 +164,7 @@ jobs:
                 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS runtime_private_any,
               EXISTS (SELECT 1 FROM pg_catalog.pg_class AS target
                 CROSS JOIN LATERAL pg_catalog.aclexplode(
-                  pg_catalog.coalesce(target.relacl, pg_catalog.acldefault('r', target.relowner))
+                  coalesce(target.relacl, pg_catalog.acldefault('r', target.relowner))
                 ) AS privilege
                 WHERE target.oid = 'public."SellerProfilePrivate"'::regclass
                   AND privilege.grantee = 0) AS public_private_any`)).rows[0];
@@ -267,7 +267,7 @@ jobs:
                 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS runtime_private_any,
               EXISTS (SELECT 1 FROM pg_catalog.pg_class AS target
                 CROSS JOIN LATERAL pg_catalog.aclexplode(
-                  pg_catalog.coalesce(target.relacl, pg_catalog.acldefault('r', target.relowner))
+                  coalesce(target.relacl, pg_catalog.acldefault('r', target.relowner))
                 ) AS privilege
                 WHERE target.oid = 'public."SellerProfilePrivate"'::regclass
                   AND privilege.grantee = 0) AS public_private_any`)).rows[0];
