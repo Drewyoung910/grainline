@@ -621,8 +621,20 @@ private timestamp or obtain direct private-table authority. Focused source
 tests, TypeScript and scoped lint pass. This slice is prepared source only; it
 is not yet applied, merged or deployed.
 
-The remaining Guild cron and staff compatibility modules still read or write
-predecessor private fields. Phase 1 remains incomplete until each family moves
+The thirty-first isolated slice converts the two bounded Guild cron scans.
+Migration
+`20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities`
+adds separate 100-row-capped, stable projections for daily Guild Member
+revocation review and monthly Guild metrics review. Public badge and vacation
+eligibility remain on SellerProfile; the threshold clock, consecutive failure
+counter and warning timestamp come only from the private companion. Cursor and
+page-size inputs are bounded in the database, ordinary runtime receives only
+the two exact function grants, and direct companion access remains denied. The
+cron routes retain their existing cursor runner and processing behavior. This
+slice is prepared source only; it is not yet applied, merged or deployed.
+
+The remaining Guild cron mutations and staff compatibility module still read
+or write predecessor private fields. Phase 1 remains incomplete until each family moves
 to purpose-bound operations, the converted application is deployed and
 proven, and predecessor deployments have drained. The two transition-only SQL
 writers remain intentionally installed until that drain completes.

@@ -153,6 +153,10 @@ const guildListingThresholdMigration = readFileSync(
   "prisma/migrations/20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority/migration.sql",
   "utf8",
 );
+const guildCronBatchMigration = readFileSync(
+  "prisma/migrations/20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities/migration.sql",
+  "utf8",
+);
 const guildStaffPrivateAccess = readFileSync(
   "src/lib/sellerGuildStaffPrivateAccess.ts",
   "utf8",
@@ -908,6 +912,25 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(guildMetricsCron, /recordSellerGuildMetricCheck/);
     assert.match(guildMetricsCron, /recordSellerGuildMasterRevocation/);
     assert.match(guildPrivateAccess, /guildMemberRevocationSellerWhere/);
+    assert.match(guildPrivateAccess, /grainline_seller_guild_member_cron_batch/);
+    assert.match(guildPrivateAccess, /grainline_seller_guild_metrics_cron_batch/);
+    assert.doesNotMatch(
+      guildPrivateAccess,
+      /sellerProfile\.findMany/,
+    );
+    assert.match(
+      guildCronBatchMigration,
+      /CREATE OR REPLACE FUNCTION public\.grainline_seller_guild_member_cron_batch\(/,
+    );
+    assert.match(
+      guildCronBatchMigration,
+      /CREATE OR REPLACE FUNCTION public\.grainline_seller_guild_metrics_cron_batch\(/,
+    );
+    assert.match(guildCronBatchMigration, /JOIN public\."SellerProfilePrivate"/);
+    assert.match(
+      provisioning,
+      /public\."grainline_seller_guild_member_cron_batch"\(text, integer\)/,
+    );
     assert.match(guildPrivateAccess, /metricWarningSentAt: \{ lte: input\.warningSentBefore \}/);
     assert.match(ownerPrivateAccess, /where: \{ id: input\.sellerProfileId, userId: input\.userId \}/);
   });

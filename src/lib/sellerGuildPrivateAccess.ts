@@ -7,61 +7,49 @@ import {
 
 type SellerGuildPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile">;
 
+export type SellerGuildMemberCronRow = {
+  id: string;
+  userId: string;
+  guildLevel: "GUILD_MEMBER";
+  listingsBelowThresholdSince: Date | null;
+};
+
+export type SellerGuildMetricsCronRow = {
+  id: string;
+  userId: string;
+  guildLevel: "GUILD_MEMBER" | "GUILD_MASTER";
+  consecutiveMetricFailures: number;
+  metricWarningSentAt: Date | null;
+};
+
 /** Compatibility boundary for Guild cron reads and mutations. Phase 1 keeps
  * the predecessor table implementation; the post-Phase-0 cutover replaces
  * these purpose-specific operations without changing cron behavior. */
-export function sellerGuildMemberCronBatch(
+export async function sellerGuildMemberCronBatch(
   cursorId: string | null,
   pageSize: number,
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.findMany({
-    where: {
-      guildLevel: "GUILD_MEMBER",
-      vacationMode: false,
-    },
-    orderBy: { id: "asc" },
-    take: pageSize,
-    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-    select: {
-      id: true,
-      userId: true,
-      guildLevel: true,
-      listingsBelowThresholdSince: true,
-    },
-  });
+): Promise<SellerGuildMemberCronRow[]> {
+  return prisma.$queryRaw<SellerGuildMemberCronRow[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_member_cron_batch(
+        ${cursorId},
+        ${pageSize}
+      )
+  `;
 }
 
-export type SellerGuildMemberCronRow = Awaited<
-  ReturnType<typeof sellerGuildMemberCronBatch>
->[number];
-
-export function sellerGuildMetricsCronBatch(
+export async function sellerGuildMetricsCronBatch(
   cursorId: string | null,
   pageSize: number,
-  client: SellerGuildPrivateClient = prisma,
-) {
-  return client.sellerProfile.findMany({
-    where: {
-      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-      vacationMode: false,
-    },
-    orderBy: { id: "asc" },
-    take: pageSize,
-    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-    select: {
-      id: true,
-      userId: true,
-      guildLevel: true,
-      consecutiveMetricFailures: true,
-      metricWarningSentAt: true,
-    },
-  });
+): Promise<SellerGuildMetricsCronRow[]> {
+  return prisma.$queryRaw<SellerGuildMetricsCronRow[]>`
+    SELECT *
+      FROM public.grainline_seller_guild_metrics_cron_batch(
+        ${cursorId},
+        ${pageSize}
+      )
+  `;
 }
-
-export type SellerGuildMetricsCronRow = Awaited<
-  ReturnType<typeof sellerGuildMetricsCronBatch>
->[number];
 
 export function recordSellerGuildMemberRevocation(
   client: SellerGuildPrivateClient,

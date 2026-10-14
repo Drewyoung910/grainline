@@ -130,6 +130,13 @@ const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
     migration: "20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority",
     functions: ["grainline_seller_guild_listing_threshold_sync"],
   },
+  {
+    migration: "20261014180000_prepare_seller_profile_private_guild_cron_batch_authorities",
+    functions: [
+      "grainline_seller_guild_member_cron_batch",
+      "grainline_seller_guild_metrics_cron_batch",
+    ],
+  },
 ];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",
