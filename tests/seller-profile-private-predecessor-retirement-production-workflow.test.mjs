@@ -96,6 +96,8 @@ test("retirement proves convergence, column removal, initializer isolation, and 
   assert.match(workflow, /runtime_execute: false, staff_execute: false, public_execute: false/u);
   assert.match(workflow, /assert\.deepEqual\(posture, before\.posture\)/u);
   assert.match(workflow, /public_private_any/u);
+  assert.match(workflow, /coalesce\(target\.relacl, pg_catalog\.acldefault/u);
+  assert.doesNotMatch(workflow, /pg_catalog\.coalesce/u);
   assert.match(workflow, /npm run audit:db-grants -- --require-direct-url/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)|ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/iu);
 });
