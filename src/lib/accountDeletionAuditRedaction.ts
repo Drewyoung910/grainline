@@ -110,14 +110,26 @@ export function redactAccountDeletionText(
   text: string,
   sensitiveValues: Iterable<string | null | undefined>,
   replacement = ACCOUNT_DELETION_TEXT_REDACTION,
+  maxLength?: number,
 ) {
+  if (maxLength !== undefined && (!Number.isInteger(maxLength) || maxLength < 1)) {
+    throw new TypeError("maxLength must be a positive integer");
+  }
   const needles = normalizeNeedles(sensitiveValues).filter((value) => Array.from(value).length >= 2);
-  if (needles.length === 0) return { text, changed: false };
+  if (needles.length === 0) {
+    const bounded = maxLength === undefined
+      ? text
+      : Array.from(text).slice(0, maxLength).join("");
+    return { text: bounded, changed: bounded !== text };
+  }
 
   let redacted = text;
   for (const needle of needles.sort((a, b) => b.length - a.length)) {
     redacted = redacted.replace(redactionPatternForNeedle(needle), replacement);
   }
 
-  return { text: redacted, changed: redacted !== text };
+  const bounded = maxLength === undefined
+    ? redacted
+    : Array.from(redacted).slice(0, maxLength).join("");
+  return { text: bounded, changed: bounded !== text };
 }

@@ -820,3 +820,85 @@ items close, predecessor deployments are drained, effective SQL functions are
 redefined and inspected, converted runtime smoke passes, and the exact rollback
 order is reviewed. RLS activation remains a separate decision after the split
 is accepted in Production.
+
+### 2026-10-14 post-retirement Claude-finding reconciliation — **NO-GO**
+
+Protected run `38652163688` applied exact migration
+`20261015010000_retire_seller_profile_private_predecessor` on main
+`a343fd9c4413db103b72c5a534645b7336bbb42f` at 23:07Z. The retained
+postflight proves all 30 predecessor columns are gone, the four public rows
+still have four private companions, and neither table's RLS posture changed.
+That successful structural postflight did not execute the account-deletion
+workflow after the drop.
+
+The Claude update imported with SHA-256
+`a40846cd58d5167c990a6df772762251cfacf765f0372e2c0a0f927ec49d2c59`
+was treated as an allegation set and checked against exact main, the applied
+ledger, effective function definitions, and the protected workflow evidence:
+
+- **#649 verified, Production P0:**
+  `grainline_account_deletion_side_effect_claim(text)` returns the
+  `varchar(191)` user ID and `varchar(40)` kind into declared `text` output
+  columns without casts. A claimable side effect raises `42804`, so local
+  anonymization cannot leave its first database step.
+- **#651 verified, Production P0 and RLS blocker:** the effective
+  two-argument Order scrub still declares `SellerProfile%ROWTYPE` and
+  dereferences retired `shipFrom*` fields. The claim-bound five-argument
+  function calls it. Once #649 is repaired, buyer and seller deletions reach
+  this function and raise `42703`.
+- **#652 verified, operator defect:** the Order legacy inspector still reads
+  the retired shipping fields from `SellerProfile`; the corrected query must
+  join `SellerProfilePrivate`.
+- **#653 verified, separate `FIX_BEFORE_ACTIVATION`:** retirement removed the
+  predecessor E.164 phone check and the trigger-backed relationship between
+  private `stripeAccountVersion` and public `stripeAccountSupported`. Restore
+  those invariants in a separately reviewed integrity migration rather than
+  enlarging the account-deletion emergency repair.
+- **#654 verified as a release-skew defect, current incident window transient:**
+  the predecessor vacation route used a broad Prisma update return. The exact
+  converted deployment is now live, but the forward source fix adds an
+  explicit `select` so a future old-client overlap cannot request retired
+  scalar fields.
+- **#666 verified and included in the forward source repair:** TypeScript text
+  redaction can expand two-character values such as a state code into
+  `[deleted account]`, exceeding the `SupportRequest.closureEvidence` (4000),
+  `SupportRequest.emailLastError` (1000), or `AdminAuditLog.reason` (1000)
+  database width. Each bounded write now caps by Unicode character count after
+  redaction, with a regression case at the exact 4000-character boundary.
+- **#627 is outside this repair and was already proven by the applied
+  correction.** The concurrency findings in the same Claude packet remain
+  unvetted audit allegations and are not silently imported as SellerProfile
+  RLS facts.
+
+Forward migration
+`20261015013000_repair_account_deletion_after_seller_profile_retirement`
+replaces both broken functions while preserving their OIDs, owners, ACLs,
+`SECURITY DEFINER` posture, volatility, parallel safety, and fixed search path.
+The Order scrub now projects public seller fields and authoritative private
+shipping fields explicitly, and fails closed if a seller has no private
+companion. CI applies the repair only after the retirement in disposable
+PostgreSQL 16, executes complete no-order buyer and seller deletion chains,
+and scans every live PL/pgSQL signature for references to retired public
+SellerProfile columns. This paragraph records prepared source only until the
+exact commit merges and its protected Production migration succeeds.
+
+Newer account-deletion allegations #667–#669 were also checked against exact
+source and remain open for the next bounded pass after this P0 repair:
+
+- **#667 verified:** the checkout reservation scrub predates
+  `sourceSnapshot`, leaves that JSON untouched, and explicitly advances
+  `updatedAt`, restarting the 30-day prune clock.
+- **#668 verified:** deletion clears the deleted reviewer's `comment` and the
+  deleted author's own blog-comment bodies, but leaves `Review.sellerReply`
+  and other authors' quoted replies intact.
+- **#669 verified:** runtime retains direct EXECUTE on the user-id-driven
+  reservation claim and scrub functions; neither function derives the target
+  user from the active account-deletion claim.
+
+They are retained here, rather than deleted from the audit history, so
+resuming SellerProfilePrivate RLS cannot silently skip them.
+
+Before every later inspection, ENABLE, or FORCE dispatch, compare the newest
+Claude findings since this checkpoint to exact main and current Production.
+Append the verified, stale, deferred, and unrelated outcomes here before
+proceeding. Claude status text alone cannot close or block a finding.

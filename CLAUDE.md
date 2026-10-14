@@ -14,6 +14,13 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 - Work from `/Users/drewyoung/grainline` on `main` unless Drew explicitly says otherwise.
 - Treat Claude/other-agent findings as allegations, not facts. Verify each one against current `main` before fixing or closing it.
+- Before every RLS production inspection, ENABLE, or FORCE dispatch, reconcile
+  Claude findings added since the prior release checkpoint against the exact
+  source head and current Production evidence. Record each related allegation
+  as verified, stale/false, deferred with closure criteria, or unrelated in the
+  table-specific pre-RLS audit. A verified current-schema or protected-workflow
+  defect blocks that dispatch until its forward fix and focused regression proof
+  are accepted. Never infer closure from Claude's status text alone.
 - Treat prior Codex/agent open/closed status summaries as snapshots, not current
   truth. Before repeating that a finding is open, fixed, stale, or deferred,
   re-check current `HEAD`, recent commits, relevant source/tests, and latest CI.

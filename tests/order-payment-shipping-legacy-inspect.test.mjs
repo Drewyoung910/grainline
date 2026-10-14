@@ -432,7 +432,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
-      /btrim\(orders\."shipToLine1"\)[\s\S]*btrim\(seller\."shipFromLine1"\)[\s\S]*label_invalid_address_candidate_count/,
+      /btrim\(orders\."shipToLine1"\)[\s\S]*btrim\(seller_private\."shipFromLine1"\)[\s\S]*label_invalid_address_candidate_count/,
     );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,

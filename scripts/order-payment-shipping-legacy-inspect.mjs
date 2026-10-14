@@ -760,17 +760,19 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
         AND NULLIF(pg_catalog.btrim(
           COALESCE(orders."buyerName", orders."quotedToName", '')
         ), '') IS NOT NULL
-        AND NULLIF(pg_catalog.btrim(seller."shipFromLine1"), '') IS NOT NULL
-        AND NULLIF(pg_catalog.btrim(seller."shipFromCity"), '') IS NOT NULL
-        AND NULLIF(pg_catalog.btrim(seller."shipFromState"), '') IS NOT NULL
-        AND NULLIF(pg_catalog.btrim(seller."shipFromPostal"), '') IS NOT NULL
-        AND COALESCE(seller."shipFromCountry", 'US') ~ '^[A-Za-z]{2}$'
+        AND NULLIF(pg_catalog.btrim(seller_private."shipFromLine1"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(seller_private."shipFromCity"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(seller_private."shipFromState"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(seller_private."shipFromPostal"), '') IS NOT NULL
+        AND COALESCE(seller_private."shipFromCountry", 'US') ~ '^[A-Za-z]{2}$'
         AND NULLIF(pg_catalog.btrim(
-          COALESCE(seller."shipFromName", seller."displayName", '')
+          COALESCE(seller_private."shipFromName", seller."displayName", '')
         ), '') IS NOT NULL AS address_resolvable
     FROM public."Order" AS orders
     JOIN public."SellerProfile" AS seller
       ON seller.id = orders."sellerProfileId"
+    JOIN public."SellerProfilePrivate" AS seller_private
+      ON seller_private."sellerProfileId" = seller.id
     JOIN public."User" AS seller_user
       ON seller_user.id = seller."userId"
     WHERE seller_user.banned = false

@@ -316,7 +316,7 @@ async function collectAdminAuditLogRedactionUpdates({
       ? markAccountDeletionAuditMetadata(redacted.metadata)
       : { metadata: redacted.metadata, changed: false };
     const reason = candidate.reason
-      ? redactAccountDeletionText(candidate.reason, sensitiveValues)
+      ? redactAccountDeletionText(candidate.reason, sensitiveValues, undefined, 1000)
       : { text: null, changed: false };
 
     if (!redacted.changed && !marked.changed && !reason.changed) continue;
@@ -434,10 +434,10 @@ async function redactSupportRequestsForDeletedAccount(
 
     for (const request of requests) {
       const closureEvidence = request.closureEvidence
-        ? redactAccountDeletionText(request.closureEvidence, sensitiveValues).text
+        ? redactAccountDeletionText(request.closureEvidence, sensitiveValues, undefined, 4000).text
         : null;
       const emailLastError = request.emailLastError
-        ? redactAccountDeletionText(request.emailLastError, sensitiveValues).text
+        ? redactAccountDeletionText(request.emailLastError, sensitiveValues, undefined, 1000).text
         : null;
 
       await tx.supportRequest.update({
@@ -510,7 +510,12 @@ async function redactSupportClosureEvidenceByDeletedAccount(
   }
 
   for (const [id, request] of requests) {
-    const closureEvidence = redactAccountDeletionText(request.closureEvidence, sensitiveValues);
+    const closureEvidence = redactAccountDeletionText(
+      request.closureEvidence,
+      sensitiveValues,
+      undefined,
+      4000,
+    );
     if (!closureEvidence.changed) continue;
 
     await tx.supportRequest.update({

@@ -104,4 +104,26 @@ describe("account deletion audit metadata redaction", () => {
     assert.equal(embedded.changed, false);
     assert.equal(embedded.text, "The listing is ready.");
   });
+
+  it("caps redacted database text by Unicode character count", () => {
+    const closure = `Shipped replacement to AK. ${"x".repeat(3973)}`;
+    assert.equal(Array.from(closure).length, 4000);
+    const result = redactAccountDeletionText(
+      closure,
+      ["AK"],
+      ACCOUNT_DELETION_TEXT_REDACTION,
+      4000,
+    );
+    assert.equal(result.changed, true);
+    assert.equal(Array.from(result.text).length, 4000);
+    assert.doesNotMatch(result.text, /\bAK\b/u);
+
+    const unicode = redactAccountDeletionText("TX🧵", ["TX"], "deleted", 8);
+    assert.equal(Array.from(unicode.text).length, 8);
+    assert.equal(unicode.text, "deleted🧵");
+    assert.throws(
+      () => redactAccountDeletionText("text", [], undefined, 0),
+      /positive integer/u,
+    );
+  });
 });
