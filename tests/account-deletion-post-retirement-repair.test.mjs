@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import {
@@ -10,10 +11,32 @@ import {
   REPAIR_MIGRATION,
 } from "../scripts/account-deletion-post-retirement-production-inspect.mjs";
 
-const repair = readFileSync(
-  "prisma/migrations/20261015013000_repair_account_deletion_after_seller_profile_retirement/migration.sql",
-  "utf8",
-);
+const repairMigration =
+  "20261015013000_repair_account_deletion_after_seller_profile_retirement";
+
+function repairMigrationPath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    repairMigration,
+    "migration.sql",
+  );
+  if (existsSync(livePath)) return livePath;
+
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "account-deletion-post-retirement-repair",
+    repairMigration,
+    "migration.sql",
+  );
+  assert.ok(
+    existsSync(stagedPath),
+    "missing live or isolated account-deletion post-retirement repair migration",
+  );
+  return stagedPath;
+}
+
+const repair = readFileSync(repairMigrationPath(), "utf8");
 
 async function createRetiredFixture() {
   const database = new PGlite();
