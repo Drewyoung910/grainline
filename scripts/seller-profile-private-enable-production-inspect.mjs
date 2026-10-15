@@ -9,8 +9,10 @@ const INVARIANTS = Object.freeze({
 });
 const ENABLE = Object.freeze({
   name: "20261015100000_enable_seller_profile_private_rls",
-  checksum: "9774282f05c2a3369fe8962bc88fca88928629746cfe67067eae853a4182f088",
+  checksum: "3a5d128c6a5d5a7bd4bc768fe0d57d674b24a35a07ae776e442722481f26426c",
 });
+const EXPECTED_PHONE_CONSTRAINT_DEFINITION =
+  `CHECK ("shipFromPhone" IS NULL OR "shipFromPhone"::text ~ '^[+][1-9][0-9]{7,14}$'::text)`;
 const EXPECTED_STATES = new Set(["ready", "enabled", "ready-or-enabled"]);
 
 function required(name, env = process.env) {
@@ -152,6 +154,14 @@ export async function inspectSellerProfilePrivateEnableProduction(env = process.
                 'SellerProfilePrivate_shipFromPhone_e164_check'
             AND constraint_row.contype = 'c'
             AND constraint_row.convalidated) AS constraint_count,
+        (SELECT pg_catalog.pg_get_constraintdef(constraint_row.oid, true)
+           FROM pg_catalog.pg_constraint AS constraint_row
+          WHERE constraint_row.conrelid =
+                'public."SellerProfilePrivate"'::pg_catalog.regclass
+            AND constraint_row.conname =
+                'SellerProfilePrivate_shipFromPhone_e164_check'
+            AND constraint_row.contype = 'c'
+            AND constraint_row.convalidated) AS phone_constraint_definition,
         (SELECT pg_catalog.count(*)::integer
            FROM pg_catalog.pg_trigger AS trigger_row
           WHERE trigger_row.tgname IN (
@@ -192,6 +202,7 @@ export async function inspectSellerProfilePrivateEnableProduction(env = process.
     `)).rows[0];
     assert.deepEqual(invariantCatalog, {
       constraint_count: 1,
+      phone_constraint_definition: EXPECTED_PHONE_CONSTRAINT_DEFINITION,
       trigger_count: 2,
       function_count: 2,
     });

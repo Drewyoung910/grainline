@@ -151,7 +151,7 @@ export const SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION_SHA256 =
 export const SELLER_PROFILE_PRIVATE_ENABLE_MIGRATION =
   "20261015100000_enable_seller_profile_private_rls";
 export const SELLER_PROFILE_PRIVATE_ENABLE_MIGRATION_SHA256 =
-  "9774282f05c2a3369fe8962bc88fca88928629746cfe67067eae853a4182f088";
+  "3a5d128c6a5d5a7bd4bc768fe0d57d674b24a35a07ae776e442722481f26426c";
 export const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_profile_private_mirror",
   "grainline_seller_profile_supported_snapshot",

@@ -144,18 +144,8 @@ BEGIN
          'SellerProfilePrivate_shipFromPhone_e164_check'
      AND constraint_row.contype = 'c'
      AND constraint_row.convalidated
-     AND pg_catalog.strpos(
-       pg_catalog.pg_get_constraintdef(constraint_row.oid, true),
-       '"shipFromPhone" IS NULL'
-     ) > 0
-     AND pg_catalog.strpos(
-       pg_catalog.pg_get_constraintdef(constraint_row.oid, true),
-       '"shipFromPhone" ~'
-     ) > 0
-     AND pg_catalog.strpos(
-       pg_catalog.pg_get_constraintdef(constraint_row.oid, true),
-       '^[+][1-9][0-9]{7,14}$'
-     ) > 0;
+     AND pg_catalog.pg_get_constraintdef(constraint_row.oid, true) =
+         $constraint$CHECK ("shipFromPhone" IS NULL OR "shipFromPhone"::text ~ '^[+][1-9][0-9]{7,14}$'::text)$constraint$;
   IF invariant_object_count <> 1 THEN
     RAISE EXCEPTION
       'SellerProfilePrivate ENABLE phone constraint drifted';

@@ -952,7 +952,7 @@ unpublished and cannot be dispatched until the invariant candidate merges and
 its protected Production workflow succeeds.
 
 - Migration `20261015100000_enable_seller_profile_private_rls`, SHA-256
-  `9774282f05c2a3369fe8962bc88fca88928629746cfe67067eae853a4182f088`,
+  `3a5d128c6a5d5a7bd4bc768fe0d57d674b24a35a07ae776e442722481f26426c`,
   enables RLS on `SellerProfilePrivate`, explicitly leaves FORCE off, creates
   no policy or function, changes no row, and re-revokes direct table authority.
 - Preflight requires the exact retirement, deletion-repair, and invariant

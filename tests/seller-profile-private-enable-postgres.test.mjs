@@ -20,6 +20,8 @@ const rollback = readFileSync(
   "docs/rls-drafts/seller-profile-private-enable-rollback.sql",
   "utf8",
 );
+const expectedPhoneConstraintDefinition =
+  `CHECK ("shipFromPhone" IS NULL OR "shipFromPhone"::text ~ '^[+][1-9][0-9]{7,14}$'::text)`;
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -44,7 +46,7 @@ async function readyDatabase() {
     CREATE TABLE public."SellerProfilePrivate" (
       "sellerProfileId" text PRIMARY KEY,
       "stripeAccountVersion" text,
-      "shipFromPhone" text,
+      "shipFromPhone" varchar(30),
       "updatedAt" timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     REVOKE ALL ON TABLE public."SellerProfilePrivate"
@@ -71,6 +73,15 @@ async function readyDatabase() {
        pg_catalog.clock_timestamp(), 1);
   `);
   await database.exec(invariants);
+  const phoneConstraint = (await database.query(`
+    SELECT pg_catalog.pg_get_constraintdef(constraint_row.oid, true) AS definition
+      FROM pg_catalog.pg_constraint AS constraint_row
+     WHERE constraint_row.conrelid =
+           'public."SellerProfilePrivate"'::pg_catalog.regclass
+       AND constraint_row.conname =
+           'SellerProfilePrivate_shipFromPhone_e164_check'
+  `)).rows[0];
+  assert.equal(phoneConstraint.definition, expectedPhoneConstraintDefinition);
   await database.query(`
     INSERT INTO public._prisma_migrations (
       id, checksum, finished_at, migration_name, started_at,
