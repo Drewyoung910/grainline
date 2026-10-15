@@ -60,6 +60,10 @@ const proof = fs.readFileSync(
   "utf8",
 );
 const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+const forceProofWorkflow = fs.readFileSync(
+  ".github/workflows/conversation-message-force-proof.yml",
+  "utf8",
+);
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
 const recipientFunctions = [
@@ -312,6 +316,39 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(
       proof,
       /procedure\.proname = 'grainline_message_redact_for_account_deletion'[\s\S]*procedure\.oid <> pg_catalog\.to_regprocedure/,
+    );
+  });
+
+  it("reviews the dedicated FORCE proof on PRs and points it at isolated User migrations", () => {
+    assert.match(
+      forceProofWorkflow,
+      /on:\n  pull_request:\n    branches:\n      - main/u,
+    );
+    const proofStepStart = forceProofWorkflow.indexOf(
+      "      - name: Prove FORCE-hardened Conversation and Message authority\n",
+    );
+    assert.ok(proofStepStart >= 0);
+    const proofStepEnd = forceProofWorkflow.indexOf(
+      "\n      - name:",
+      proofStepStart + 1,
+    );
+    const proofStep = forceProofWorkflow.slice(
+      proofStepStart,
+      proofStepEnd < 0 ? undefined : proofStepEnd,
+    );
+    assert.match(
+      proofStep,
+      /USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR: \$\{\{ runner\.temp \}\}\/user-accumulated-access/u,
+    );
+    assert.ok(
+      forceProofWorkflow.includes(
+        '"$user_access_dir/20261006030000_prepare_user_relationship_authorities"',
+      ),
+    );
+    assert.ok(
+      forceProofWorkflow.includes(
+        '"$user_access_dir/20261007160000_converge_user_cross_domain_authorities"',
+      ),
     );
   });
 

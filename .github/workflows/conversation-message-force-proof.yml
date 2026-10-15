@@ -1,6 +1,24 @@
 name: Conversation and Message RLS FORCE Proof
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/conversation-message-force-proof.yml
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/audit-runtime-db-grants.mjs
+      - scripts/conversation-message-force-rollback-proof.mjs
+      - scripts/conversation-message-recipient-rls-proof.mjs
+      - scripts/guard-saved-search-rls-deploy.mjs
+      - scripts/prepare-ci-rls-runtime-role.sql
+      - scripts/provision-direct-upload-cleanup-role.sql
+      - scripts/provision-runtime-db-role.sql
+      - scripts/verify-conversation-message-activation-release.mjs
+      - scripts/verify-conversation-message-force-release.mjs
+      - tests/conversation-message-recipient-rls.test.mjs
   push:
     branches:
       - agent/conversation-message-force-20260726
@@ -19,6 +37,7 @@ on:
       - scripts/provision-runtime-db-role.sql
       - scripts/verify-conversation-message-activation-release.mjs
       - scripts/verify-conversation-message-force-release.mjs
+      - tests/conversation-message-recipient-rls.test.mjs
   workflow_dispatch:
 
 permissions:
@@ -139,6 +158,14 @@ jobs:
           9293316672717416574d53b485b8af9d16b0757801633b493696a24329362064 20261013200000_move_final_seller_private_sql_callers
           4d4ec8b51d24cfbdc723cdb461183711a15397c0ed2e3b2abdf33cdcc9990893 20261013210000_move_account_deletion_seller_private_sql_callers
           MIGRATIONS
+          user_access_dir="$RUNNER_TEMP/user-accumulated-access"
+          mkdir -p "$user_access_dir"
+          cp -R \
+            prisma/migrations/20261006030000_prepare_user_relationship_authorities \
+            "$user_access_dir/20261006030000_prepare_user_relationship_authorities"
+          cp -R \
+            "$RUNNER_TEMP/20261007160000_converge_user_cross_domain_authorities" \
+            "$user_access_dir/20261007160000_converge_user_cross_domain_authorities"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=true" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=$RUNNER_TEMP/20261013120000_prepare_seller_profile_private_boundary/migration.sql" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
@@ -199,6 +226,8 @@ jobs:
       - name: Prove database-first Conversation and Message FORCE rollback
         run: npm run audit:rls-conversation-message-force-rollback
       - name: Prove FORCE-hardened Conversation and Message authority
+        env:
+          USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR: ${{ runner.temp }}/user-accumulated-access
         run: npm run audit:rls-conversation-message-recipient
       - name: Restore reviewed Order release successors
         shell: bash
