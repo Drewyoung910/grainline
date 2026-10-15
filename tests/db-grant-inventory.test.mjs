@@ -2747,6 +2747,9 @@ describe("database grant inventory guardrails", () => {
       source(sellerProfilePrivateInvariantsMigrationPath).includes(
         `FUNCTION public.${functionName}()`,
       ));
+    const sellerProfilePrivateEnableMigrationPresent = existsSync(
+      "prisma/migrations/20261015100000_enable_seller_profile_private_rls/migration.sql",
+    );
     const sellerProfilePrivateBoundaryFunctionNames =
       sellerProfilePrivateRetirementMigrationPresent
         ? SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES
@@ -3019,6 +3022,7 @@ describe("database grant inventory guardrails", () => {
         + (sellerProfilePrivateInvariantsMigrationPresent
           ? SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES.length
           : 0)
+        + (sellerProfilePrivateEnableMigrationPresent ? 1 : 0)
         + sellerProfilePrivateAppAuthorityFunctionNames.length
         + sellerProfilePrivateStaffReadFunctionNames.length
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
@@ -3395,6 +3399,9 @@ describe("database grant inventory guardrails", () => {
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
+        ...(sellerProfilePrivateEnableMigrationPresent
+          ? ["SellerProfilePrivate"]
+          : []),
         "StripeWebhookEvent",
         ...(userRlsActivationExpected(inventory) ? [USER_TABLE] : []),
         ...(userEmailAddressRlsActivationExpected(inventory)
@@ -4141,6 +4148,21 @@ describe("database grant inventory guardrails", () => {
     }), [
       "SellerProfile private invariants are applied without exact retirement and post-retirement repair prerequisites",
     ]);
+    assert.deepEqual(collectSellerProfilePrivateMigrationOrderIssues({
+      preparationApplied: true,
+      retirementApplied: true,
+      postRetirementRepairApplied: true,
+      invariantsApplied: false,
+      enableApplied: true,
+    }), [
+      "SellerProfilePrivate RLS ENABLE is applied without its exact invariant prerequisite",
+    ]);
+    assert.equal(
+      policylessServiceRlsTableNames({
+        sellerProfilePrivateRlsEnabled: true,
+      }).includes("SellerProfilePrivate"),
+      true,
+    );
   });
 
   it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {
