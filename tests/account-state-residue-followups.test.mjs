@@ -192,14 +192,18 @@ describe("account-state residue hardening", () => {
     const helper = deletion.slice(helperStart, deletion.indexOf("async function archiveBlogPostsForDeletedAccount", helperStart));
 
     assert.ok(helperStart >= 0, "account deletion should redact staff closure evidence references");
-    assert.match(deletion, /function supportClosureEvidenceTextMatchSql/);
     assert.match(helper, /where: \{ closureEvidenceById: deletedUserId \}/);
-    assert.match(helper, /data: \{ closureEvidenceById: null \}/);
-    assert.match(helper, /FROM "SupportRequest"/);
-    assert.match(helper, /"closureEvidence" IS NOT NULL/);
-    assert.match(helper, /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues\)/);
-    assert.match(helper, /data: \{ closureEvidence: closureEvidence\.text \}/);
-    assert.match(deletion, /redactSupportClosureEvidenceByDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
+    assert.doesNotMatch(helper, /\$queryRaw|FROM "SupportRequest"/);
+    assert.match(
+      helper,
+      /redactAccountDeletionText\(\s*request\.closureEvidence,\s*sensitiveValues,\s*undefined,\s*4000,\s*\)/,
+    );
+    assert.match(helper, /closureEvidenceById: null/);
+    assert.match(helper, /closureEvidence,/);
+    assert.match(
+      deletion,
+      /redactSupportClosureEvidenceByDeletedAccount\(\s*tx,\s*user\.id,\s*accountAuditSensitiveValues,\s*\)/,
+    );
   });
 
   it("rechecks outbox recipient account state even without a preference key", () => {

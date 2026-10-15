@@ -63,6 +63,8 @@ const accountDeletionSuccessorMigrations = [
   "20261011180000_enable_account_deletion_side_effect_rls",
   "20261012120000_force_account_deletion_side_effect_rls",
 ];
+const accountDeletionPostRetirementRepair =
+  "20261015013000_repair_account_deletion_after_seller_profile_retirement";
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -119,6 +121,22 @@ function accountDeletionSuccessorMigrationPath(migration) {
     migration,
   );
   assert.ok(existsSync(stagedPath), `missing isolated AccountDeletionSideEffect migration ${migration}`);
+  return stagedPath;
+}
+
+function accountDeletionPostRetirementRepairPath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    accountDeletionPostRetirementRepair,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "account-deletion-post-retirement-repair",
+    accountDeletionPostRetirementRepair,
+  );
+  assert.ok(existsSync(stagedPath), "missing isolated account-deletion post-retirement repair");
   return stagedPath;
 }
 
@@ -247,6 +265,15 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         cpSync(accountDeletionSuccessorMigrationPath(migration), target, { recursive: true });
       }
     }
+    const repairTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      accountDeletionPostRetirementRepair,
+    );
+    if (!existsSync(repairTarget)) {
+      cpSync(accountDeletionPostRetirementRepairPath(), repairTarget, { recursive: true });
+    }
     for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
     for (const file of accountDeletionSuccessorTests) {
       cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
@@ -255,9 +282,12 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
       (migration) => `prisma/migrations/${migration}/migration.sql`,
     );
+    const postRetirementRepairPath =
+      `prisma/migrations/${accountDeletionPostRetirementRepair}/migration.sql`;
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
+      postRetirementRepairPath,
       staffScript,
       grantAuditScript,
       runtimeProvisionScript,
@@ -272,10 +302,12 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       GITHUB_ENV: path.join(holding, "github-env"),
     };
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SellerProfile private-boundary migration from historical release guards")], { cwd: root, env: scriptEnv });
     assert.ok(heldPaths.every((relative) => !existsSync(path.join(root, relative))));
     assert.ok(sellerProfilePrivateBoundaryPaths.every((relative) => !existsSync(path.join(root, relative))));
+    assert.equal(existsSync(path.join(root, postRetirementRepairPath)), false);
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
     assert.doesNotMatch(historicalStaff, /grainline_user_staff_/);
     assert.equal(execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(), historicalStaffBlob);
@@ -314,6 +346,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     });
     execFileSync("bash", ["-c", bashBody("Restore User policyless FORCE source package")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SellerProfile private-boundary migration after all predecessors")], { cwd: root, env: scriptEnv });
+    assert.equal(existsSync(path.join(root, postRetirementRepairPath)), false);
+    execFileSync("bash", ["-c", bashBody("Restore post-retirement account-deletion repair after all predecessors")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }

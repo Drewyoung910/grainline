@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { parseOrderPaymentShippingLegacyInspectionProofConfig } from "../scripts/order-payment-shipping-legacy-inspection-postgres-proof.mjs";
+import { ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL } from "../scripts/order-payment-shipping-legacy-inspect.mjs";
 
 const proof = readFileSync(
   "scripts/order-payment-shipping-legacy-inspection-postgres-proof.mjs",
@@ -70,6 +71,18 @@ describe("Order/payment/shipping legacy inspection PostgreSQL proof", () => {
     assert.match(proof, /same_second_dispute_conflict_detected: 1/);
     assert.match(proof, /paymentEventSemanticsAccepted: true/);
     assert.match(proof, /labelStateSemanticsAccepted: true/);
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /seller_private\."defaultPkgWeightGrams"/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /JOIN public\."SellerProfilePrivate" AS seller_private/,
+    );
+    assert.doesNotMatch(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /seller\."defaultPkg(?:WeightGrams|LengthCm|WidthCm|HeightCm)"/,
+    );
     assert.match(proof, /invalid_label_states: 5/);
     assert.match(proof, /label_negative_cost_count: "1"/);
     assert.match(proof, /label_purchased_missing_transaction_count: "3"/);
@@ -106,11 +119,19 @@ describe("Order/payment/shipping legacy inspection PostgreSQL proof", () => {
     const compatibleApply = ci.indexOf(
       "Apply compatible Order participant authority",
     );
+    const sellerProfileRetirement = ci.indexOf(
+      "Apply SellerProfile private predecessor retirement in disposable PostgreSQL",
+    );
+    const accountDeletionRepair = ci.indexOf(
+      "Apply account-deletion post-retirement repair in disposable PostgreSQL",
+    );
     assert.ok(
       forceAudit >= 0
       && forceAudit < compatibleApply
-      && compatibleApply < inspection,
-      "legacy inspection requires the compatible schema containing label claim columns",
+      && compatibleApply < sellerProfileRetirement
+      && sellerProfileRetirement < accountDeletionRepair
+      && accountDeletionRepair < inspection,
+      "legacy inspection requires the compatible label-claim and SellerProfilePrivate schemas",
     );
     assert.match(
       ci,

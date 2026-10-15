@@ -293,8 +293,14 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /async function redactSupportRequestsForDeletedAccount/);
     assert.match(deletion, /supportRequestAccountExportWhere\(deletedUserId, accountEmails\)/);
     assert.match(deletion, /tx\.supportRequest\.findMany\(\{/);
-    assert.match(deletion, /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues\)\.text/);
-    assert.match(deletion, /redactAccountDeletionText\(request\.emailLastError, sensitiveValues\)\.text/);
+    assert.match(
+      deletion,
+      /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues, undefined, 4000\)\.text/,
+    );
+    assert.match(
+      deletion,
+      /redactAccountDeletionText\(request\.emailLastError, sensitiveValues, undefined, 1000\)\.text/,
+    );
     assert.match(deletion, /userId: null/);
     assert.match(deletion, /name: null/);
     assert.match(deletion, /email: DELETED_SUPPORT_REQUEST_EMAIL/);
@@ -373,9 +379,43 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("redacts account identifiers from admin audit reasons as well as metadata", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const referenceStart = deletion.indexOf(
+      "const accountAuditReferenceValues = normalizedSensitiveValues",
+    );
+    const referenceEnd = deletion.indexOf("]);", referenceStart);
+    const referenceBlock = deletion.slice(referenceStart, referenceEnd);
+    const auditNeedlesStart = deletion.indexOf(
+      "const accountAuditSensitiveValues = normalizedSensitiveValues",
+    );
+    const auditNeedlesEnd = deletion.indexOf("]);", auditNeedlesStart);
+    const auditNeedlesBlock = deletion.slice(auditNeedlesStart, auditNeedlesEnd);
 
-    assert.match(deletion, /COALESCE\(reason, ''\)/);
-    assert.match(deletion, /redactAccountDeletionText\(candidate\.reason, sensitiveValues\)/);
+    assert.ok(referenceStart > -1);
+    assert.match(referenceBlock, /user\.id/);
+    assert.match(referenceBlock, /user\.clerkId/);
+    assert.match(referenceBlock, /user\.sellerProfile\?\.id/);
+    assert.doesNotMatch(referenceBlock, /email|name|city|state|postal/i);
+    assert.ok(auditNeedlesStart > -1);
+    assert.match(
+      deletion,
+      /ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH = 3/,
+    );
+    assert.match(
+      deletion.slice(auditNeedlesStart, auditNeedlesEnd + 160),
+      /Array\.from\(value\)\.length >= ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH/,
+    );
+    assert.doesNotMatch(
+      auditNeedlesBlock,
+      /shippingCity|shippingState|shippingPostalCode|sellerProfile\?\.(?:city|state|shipFromCity|shipFromState|shipFromPostal|tagline)/,
+    );
+    assert.match(deletion, /jsonb_path_exists\(/);
+    assert.match(deletion, /@ == \$account_reference/);
+    assert.doesNotMatch(deletion, /collectAuditLogsBySensitiveMetadata/);
+    assert.doesNotMatch(deletion, /position\(\$\{normalized\} in lower\(metadata::text\)\)/);
+    assert.match(
+      deletion,
+      /redactAccountDeletionText\(candidate\.reason, sensitiveValues, undefined, 1000\)/,
+    );
     assert.match(deletion, /reason\.changed && reason\.text !== null \? \{ reason: reason\.text \} : \{\}/);
   });
 

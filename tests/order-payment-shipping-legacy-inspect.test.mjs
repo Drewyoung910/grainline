@@ -112,11 +112,19 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     const compatibleApply = ciWorkflow.indexOf(
       "Apply compatible Order participant authority",
     );
+    const sellerProfileRetirement = ciWorkflow.indexOf(
+      "Apply SellerProfile private predecessor retirement in disposable PostgreSQL",
+    );
+    const accountDeletionRepair = ciWorkflow.indexOf(
+      "Apply account-deletion post-retirement repair in disposable PostgreSQL",
+    );
     assert.ok(
       forceAudit >= 0
       && forceAudit < compatibleApply
-      && compatibleApply < inspection,
-      "inspection proof must run after compatible label-claim columns exist",
+      && compatibleApply < sellerProfileRetirement
+      && sellerProfileRetirement < accountDeletionRepair
+      && accountDeletionRepair < inspection,
+      "inspection proof must run after compatible label-claim and SellerProfilePrivate schemas exist",
     );
     assert.equal(
       ciWorkflow.match(/npm run audit:rls-order-payment-shipping-legacy-inspection-postgres/g)?.length,
@@ -432,7 +440,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
-      /btrim\(orders\."shipToLine1"\)[\s\S]*btrim\(seller\."shipFromLine1"\)[\s\S]*label_invalid_address_candidate_count/,
+      /btrim\(orders\."shipToLine1"\)[\s\S]*btrim\(seller_private\."shipFromLine1"\)[\s\S]*label_invalid_address_candidate_count/,
     );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,

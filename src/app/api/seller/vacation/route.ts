@@ -98,6 +98,7 @@ export async function POST(req: Request) {
     await prisma.sellerProfile.update({
       where: { id: seller.id },
       data: { vacationMode, vacationReturnDate, vacationMessage },
+      select: { id: true },
     });
     revalidatePublicSellerVisibilityCaches();
 

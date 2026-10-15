@@ -252,6 +252,12 @@ jobs:
           tests/seller-profile-private-predecessor-retirement-postgres.test.mjs
           tests/seller-profile-private-app-authorities-correction-production-workflow.test.mjs
           tests/seller-profile-private-predecessor-retirement-production-workflow.test.mjs
+      - name: Verify post-retirement account-deletion repair source package
+        run: >-
+          node --test
+          tests/account-deletion-audit.test.mjs
+          tests/account-deletion-post-retirement-repair.test.mjs
+          tests/account-deletion-post-retirement-production-workflow.test.mjs
       - name: Verify seller listing Hide/Delete source package
         run: >-
           node --test
@@ -310,6 +316,14 @@ jobs:
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
+      - name: Isolate post-retirement account-deletion repair until all predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/account-deletion-post-retirement-repair"
+          mkdir "$holding"
+          migration=20261015013000_repair_account_deletion_after_seller_profile_retirement
+          mv "prisma/migrations/$migration" "$holding/$migration"
       - name: Verify accumulated User access source package
         run: >-
           node --test
@@ -2511,10 +2525,6 @@ jobs:
           npm run audit:db-grants --
           --allow-loopback-ci
           --staff-read-stage=order-zero-direct-private
-      - name: Prove Order/payment/shipping legacy inspection SQL after label claim preparation
-        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
-        env:
-          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove complete Order zero-direct prefix in disposable PostgreSQL
         run: npm run audit:order-zero-direct-compatible-prefix-postgres
         env:
@@ -5706,6 +5716,14 @@ jobs:
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED=" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR=" >> "$GITHUB_ENV"
+      - name: Restore post-retirement account-deletion repair after all predecessors
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/account-deletion-post-retirement-repair"
+          migration=20261015013000_repair_account_deletion_after_seller_profile_retirement
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          rmdir "$holding"
       - name: Apply SellerProfile private-boundary migration in disposable PostgreSQL
         run: >-
           psql "$DIRECT_URL"
@@ -5834,6 +5852,38 @@ jobs:
             NULL, pg_catalog.clock_timestamp(), 1
           );
           SQL
+      - name: Apply account-deletion post-retirement repair in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015013000_repair_account_deletion_after_seller_profile_retirement
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'adr-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Prove complete buyer and seller deletion after retirement
+        run: node scripts/account-deletion-post-retirement-postgres-proof.mjs
+        env:
+          ACCOUNT_DELETION_POST_RETIREMENT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Reject retired SellerProfile references in every live function signature
+        run: node scripts/seller-profile-retired-function-reference-postgres-proof.mjs
+        env:
+          SELLER_PROFILE_RETIRED_FUNCTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Order/payment/shipping legacy inspection SQL after label claim preparation
+        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
+        env:
+          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Converge runtime grants after SellerProfile private boundary
         run: >-
           psql "$DIRECT_URL"

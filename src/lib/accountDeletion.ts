@@ -72,10 +72,12 @@ import {
   anonymizeSellerForAccountDeletion,
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
+import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
+const ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH = 3;
 const ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50;
 const ACCOUNT_DELETION_LOCK_TTL_SECONDS = 120;
 const RELEASE_ACCOUNT_DELETION_LOCK_SCRIPT = `
@@ -194,43 +196,22 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
     });
 }
 
-function escapePostgresRegex(value: string) {
-  return value.replace(/[\\.^$|?*+()[\]{}]/g, "\\$&");
-}
-
-function supportClosureEvidenceTextMatchSql(value: string) {
-  const normalized = value.toLowerCase();
-  if (Array.from(normalized).length >= 3) {
-    return Prisma.sql`position(${normalized} in lower(COALESCE("closureEvidence", ''))) > 0`;
-  }
-
-  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
-  return Prisma.sql`lower(COALESCE("closureEvidence", '')) ~ ${pattern}`;
-}
-
-function auditMetadataTextMatchSql(value: string) {
-  const normalized = value.toLowerCase();
-  if (Array.from(normalized).length >= 3) {
-    return Prisma.sql`(
-      position(${normalized} in lower(metadata::text)) > 0 OR
-      position(${normalized} in lower(COALESCE(reason, ''))) > 0
-    )`;
-  }
-
-  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
-  return Prisma.sql`(
-    lower(metadata::text) ~ ${pattern} OR
-    lower(COALESCE(reason, '')) ~ ${pattern}
+function auditMetadataExactAccountReferenceSql(value: string) {
+  return Prisma.sql`jsonb_path_exists(
+    metadata,
+    '$.** ? (@ == $account_reference)'::jsonpath,
+    jsonb_build_object('account_reference', to_jsonb(${value}::text)),
+    true
   )`;
 }
 
-async function collectAuditLogsBySensitiveMetadata(
+async function collectAuditLogsByExactAccountMetadataReference(
   db: AuditLogRedactionDb,
   candidates: Map<string, AuditLogRedactionCandidate>,
-  sensitiveValues: string[],
+  accountReferenceValues: string[],
 ) {
-  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
-    const textMatchSql = auditMetadataTextMatchSql(value);
+  for (const value of accountReferenceValues) {
+    const exactReferenceSql = auditMetadataExactAccountReferenceSql(value);
     let cursor: string | null = null;
 
     for (;;) {
@@ -239,19 +220,25 @@ async function collectAuditLogsBySensitiveMetadata(
           SELECT id, metadata, reason
           FROM "AdminAuditLog"
           WHERE id > ${cursor}
-            AND ${textMatchSql}
+            AND ${exactReferenceSql}
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `
         : Prisma.sql`
           SELECT id, metadata, reason
           FROM "AdminAuditLog"
-          WHERE ${textMatchSql}
+          WHERE ${exactReferenceSql}
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `;
       const matches: { id: string; metadata: Prisma.JsonValue; reason: string | null }[] = await db.$queryRaw(query);
-      matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, log.reason, false));
+      matches.forEach((log) => mergeAuditLogRedactionCandidate(
+        candidates,
+        log.id,
+        log.metadata,
+        log.reason,
+        true,
+      ));
 
       if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
       cursor = matches[matches.length - 1]?.id ?? null;
@@ -295,16 +282,22 @@ async function collectAdminAuditLogRedactionUpdates({
   db,
   adminId,
   targetIds,
+  accountReferenceValues,
   sensitiveValues,
 }: {
   db: AuditLogRedactionDb;
   adminId: string;
   targetIds: string[];
+  accountReferenceValues: string[];
   sensitiveValues: string[];
 }): Promise<AccountDeletionAuditRedactionUpdate[]> {
   const candidates = new Map<string, AuditLogRedactionCandidate>();
-  await collectAuditLogsBySensitiveMetadata(db, candidates, sensitiveValues);
   await collectAuditLogsByAccountReference(db, candidates, adminId, targetIds);
+  await collectAuditLogsByExactAccountMetadataReference(
+    db,
+    candidates,
+    accountReferenceValues,
+  );
 
   const updates: AccountDeletionAuditRedactionUpdate[] = [];
   for (const [id, candidate] of candidates) {
@@ -316,7 +309,7 @@ async function collectAdminAuditLogRedactionUpdates({
       ? markAccountDeletionAuditMetadata(redacted.metadata)
       : { metadata: redacted.metadata, changed: false };
     const reason = candidate.reason
-      ? redactAccountDeletionText(candidate.reason, sensitiveValues)
+      ? redactAccountDeletionText(candidate.reason, sensitiveValues, undefined, 1000)
       : { text: null, changed: false };
 
     if (!redacted.changed && !marked.changed && !reason.changed) continue;
@@ -421,23 +414,21 @@ async function redactSupportRequestsForDeletedAccount(
   sensitiveValues: string[],
 ) {
   const where = supportRequestAccountExportWhere(deletedUserId, accountEmails);
-  let cursor: string | undefined;
-
-  for (;;) {
-    const requests = await tx.supportRequest.findMany({
-      where,
-      select: { id: true, closureEvidence: true, emailLastError: true },
-      orderBy: { id: "asc" },
-      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-
-    for (const request of requests) {
+  await drainMutatingFilterBatches({
+    keyOf: (request) => request.id,
+    loadBatch: () =>
+      tx.supportRequest.findMany({
+        where,
+        select: { id: true, closureEvidence: true, emailLastError: true },
+        orderBy: { id: "asc" },
+        take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+      }),
+    mutate: async (request) => {
       const closureEvidence = request.closureEvidence
-        ? redactAccountDeletionText(request.closureEvidence, sensitiveValues).text
+        ? redactAccountDeletionText(request.closureEvidence, sensitiveValues, undefined, 4000).text
         : null;
       const emailLastError = request.emailLastError
-        ? redactAccountDeletionText(request.emailLastError, sensitiveValues).text
+        ? redactAccountDeletionText(request.emailLastError, sensitiveValues, undefined, 1000).text
         : null;
 
       await tx.supportRequest.update({
@@ -453,12 +444,8 @@ async function redactSupportRequestsForDeletedAccount(
           closureEvidence,
         },
       });
-    }
-
-    if (requests.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-    cursor = requests[requests.length - 1]?.id;
-    if (!cursor) break;
-  }
+    },
+  });
 }
 
 async function redactSupportClosureEvidenceByDeletedAccount(
@@ -466,58 +453,33 @@ async function redactSupportClosureEvidenceByDeletedAccount(
   deletedUserId: string,
   sensitiveValues: string[],
 ) {
-  await tx.supportRequest.updateMany({
-    where: { closureEvidenceById: deletedUserId },
-    data: { closureEvidenceById: null },
-  });
-
-  const requests = new Map<string, { closureEvidence: string }>();
-
-  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
-    const textMatchSql = supportClosureEvidenceTextMatchSql(value);
-    let cursor: string | null = null;
-
-    for (;;) {
-      const query: Prisma.Sql = cursor
-        ? Prisma.sql`
-          SELECT id, "closureEvidence"
-          FROM "SupportRequest"
-          WHERE id > ${cursor}
-            AND "closureEvidence" IS NOT NULL
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `
-        : Prisma.sql`
-          SELECT id, "closureEvidence"
-          FROM "SupportRequest"
-          WHERE "closureEvidence" IS NOT NULL
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `;
-      const matches: { id: string; closureEvidence: string }[] = await tx.$queryRaw(query);
-      matches.forEach((request) => {
-        if (!requests.has(request.id)) {
-          requests.set(request.id, { closureEvidence: request.closureEvidence });
-        }
+  await drainMutatingFilterBatches({
+    keyOf: (request) => request.id,
+    loadBatch: () =>
+      tx.supportRequest.findMany({
+        where: { closureEvidenceById: deletedUserId },
+        select: { id: true, closureEvidence: true },
+        orderBy: { id: "asc" },
+        take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+      }),
+    mutate: async (request) => {
+      const closureEvidence = request.closureEvidence
+        ? redactAccountDeletionText(
+            request.closureEvidence,
+            sensitiveValues,
+            undefined,
+            4000,
+          ).text
+        : null;
+      await tx.supportRequest.update({
+        where: { id: request.id },
+        data: {
+          closureEvidenceById: null,
+          closureEvidence,
+        },
       });
-
-      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-      cursor = matches[matches.length - 1]?.id ?? null;
-      if (!cursor) break;
-    }
-  }
-
-  for (const [id, request] of requests) {
-    const closureEvidence = redactAccountDeletionText(request.closureEvidence, sensitiveValues);
-    if (!closureEvidence.changed) continue;
-
-    await tx.supportRequest.update({
-      where: { id },
-      data: { closureEvidence: closureEvidence.text },
-    });
-  }
+    },
+  });
 }
 
 async function archiveBlogPostsForDeletedAccount(
@@ -525,7 +487,6 @@ async function archiveBlogPostsForDeletedAccount(
   userId: string,
   sellerProfileId: string | null,
 ) {
-  let cursor: string | undefined;
   const where: Prisma.BlogPostWhereInput = {
     OR: [
       { authorId: userId },
@@ -549,16 +510,16 @@ async function archiveBlogPostsForDeletedAccount(
     throw new Error("Could not allocate deleted-account blog archive slug.");
   }
 
-  for (;;) {
-    const posts = await tx.blogPost.findMany({
-      where,
-      select: { id: true },
-      orderBy: { id: "asc" },
-      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-
-    for (const post of posts) {
+  await drainMutatingFilterBatches({
+    keyOf: (post) => post.id,
+    loadBatch: () =>
+      tx.blogPost.findMany({
+        where,
+        select: { id: true },
+        orderBy: { id: "asc" },
+        take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+      }),
+    mutate: async (post) => {
       const archivedSlug = await deletedAccountAvailableBlogSlug(post.id);
       await tx.blogPost.update({
         where: { id: post.id },
@@ -579,12 +540,8 @@ async function archiveBlogPostsForDeletedAccount(
           publishedAt: null,
         },
       });
-    }
-
-    if (posts.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-    cursor = posts[posts.length - 1]?.id;
-    if (!cursor) break;
-  }
+    },
+  });
 }
 
 async function getAccountDeletionBlockersInTransaction(
@@ -1163,7 +1120,16 @@ export async function anonymizeUserAccount(
       } : null,
     };
 
-    if (user.deletedAt) return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
+    if (user.deletedAt) {
+      return {
+        ok: true,
+        alreadyDeleted: true,
+        auditTargetIds: [],
+        accountAuditReferenceValues: [],
+        accountAuditSensitiveValues: [],
+        accountSensitiveValues: [],
+      };
+    }
 
     const now = new Date();
     const lockedBlockers = await getAccountDeletionBlockersInTransaction(
@@ -1215,6 +1181,36 @@ export async function anonymizeUserAccount(
       user.sellerProfile?.tiktokUrl,
       user.sellerProfile?.websiteUrl,
     ]);
+    const accountAuditReferenceValues = normalizedSensitiveValues([
+      user.id,
+      user.clerkId,
+      user.sellerProfile?.id,
+    ]);
+    const accountAuditSensitiveValues = normalizedSensitiveValues([
+      ...accountAuditReferenceValues,
+      user.email,
+      ...accountEmails,
+      user.name,
+      user.shippingName,
+      user.shippingLine1,
+      user.shippingLine2,
+      user.shippingPhone,
+      user.sellerProfile?.displayName,
+      user.sellerProfile?.shipFromName,
+      user.sellerProfile?.shipFromLine1,
+      user.sellerProfile?.shipFromLine2,
+      user.sellerProfile?.shipFromPhone,
+      user.sellerProfile?.bannerImageUrl,
+      user.sellerProfile?.avatarImageUrl,
+      user.sellerProfile?.workshopImageUrl,
+      user.sellerProfile?.instagramUrl,
+      user.sellerProfile?.facebookUrl,
+      user.sellerProfile?.pinterestUrl,
+      user.sellerProfile?.tiktokUrl,
+      user.sellerProfile?.websiteUrl,
+    ]).filter(
+      (value) => Array.from(value).length >= ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH,
+    );
     const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId);
     await enqueueAccountDeletionMediaDeleteSideEffects(
       tx,
@@ -1318,7 +1314,11 @@ export async function anonymizeUserAccount(
         resolutionNote: "Auto-resolved after the reported account was deleted.",
       },
     });
-    await redactSupportClosureEvidenceByDeletedAccount(tx, user.id, accountSensitiveValues);
+    await redactSupportClosureEvidenceByDeletedAccount(
+      tx,
+      user.id,
+      accountAuditSensitiveValues,
+    );
     await redactSupportRequestsForDeletedAccount(tx, user.id, accountEmails, accountSensitiveValues);
     await tx.emailOutbox.updateMany({
       where: {
@@ -1515,6 +1515,8 @@ export async function anonymizeUserAccount(
       ok: true,
       alreadyDeleted: false,
       auditTargetIds,
+      accountAuditReferenceValues,
+      accountAuditSensitiveValues,
       accountSensitiveValues,
     };
   }, { timeout: 30000, maxWait: 10000 }).catch((error) => {
@@ -1547,7 +1549,8 @@ export async function anonymizeUserAccount(
         db: prisma,
         adminId: userId,
         targetIds: result.auditTargetIds,
-        sensitiveValues: result.accountSensitiveValues,
+        accountReferenceValues: result.accountAuditReferenceValues,
+        sensitiveValues: result.accountAuditSensitiveValues,
       });
       await enqueueAccountDeletionAuditRedactionSideEffects(
         getAccountDeletionSideEffectClient(),
