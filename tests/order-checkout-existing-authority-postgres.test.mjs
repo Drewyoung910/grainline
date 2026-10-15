@@ -9,9 +9,26 @@ const candidate = fs.readFileSync(
   "docs/rls-drafts/order-checkout-existing-authority.sql",
   "utf8",
 );
+const blockedCheckoutRefundWitness = fs.readFileSync(
+  "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql",
+  "utf8",
+);
 const rows = (result) => result.rows;
 let db;
 let dataDirectory;
+
+function functionDefinition(source, name) {
+  const start = source.search(
+    new RegExp(`CREATE OR REPLACE FUNCTION\\s+public\\.${name}\\(`, "u"),
+  );
+  assert.ok(start >= 0, `${name} definition must exist`);
+  const delimiter = source.slice(start).match(/\nAS (\$[A-Za-z0-9_]*\$)/u)?.[1];
+  assert.ok(delimiter, `${name} body delimiter must exist`);
+  const marker = `${delimiter};`;
+  const end = source.indexOf(marker, start);
+  assert.ok(end > start, `${name} definition must be complete`);
+  return source.slice(start, end + marker.length);
+}
 
 async function classify(generation = 2n, sessionId = "cs-existing") {
   return rows(await db.query(`
@@ -50,7 +67,9 @@ describe("Order checkout existing PostgreSQL authority", () => {
         "refundClaimSourceId" varchar(255),
         "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
         "reviewNeeded" boolean NOT NULL DEFAULT false,
-        "reviewNote" varchar(10000)
+        "reviewNote" varchar(10000),
+        "blockedCheckoutRefundRequiredAt" timestamp(3) without time zone,
+        "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone
       );
       REVOKE ALL ON public."StripeWebhookEvent", public."SellerProfile", public."Order" FROM PUBLIC;
       INSERT INTO public."StripeWebhookEvent" (
@@ -63,6 +82,10 @@ describe("Order checkout existing PostgreSQL authority", () => {
         VALUES ('seller-1', 'seller-user');
     `);
     await db.exec(candidate);
+    await db.exec(functionDefinition(
+      blockedCheckoutRefundWitness,
+      "grainline_stripe_checkout_order_existing",
+    ));
   });
 
   after(async () => {
@@ -124,7 +147,8 @@ describe("Order checkout existing PostgreSQL authority", () => {
     await db.exec(`
       UPDATE public."Order"
          SET "reviewNeeded" = true,
-             "reviewNote" = 'Seller is no longer eligible. Order was held for staff review.'
+             "reviewNote" = 'Seller is no longer eligible. Order was held for staff review.',
+             "blockedCheckoutRefundRequiredAt" = CURRENT_TIMESTAMP
        WHERE id = 'order-1'
     `);
     await db.exec("SET ROLE grainline_app_runtime");
@@ -193,6 +217,35 @@ describe("Order checkout existing PostgreSQL authority", () => {
     }
   });
 
+  it("does not treat a released claim or overwritten staff note as completion", async () => {
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRequiredAt" = CURRENT_TIMESTAMP,
+               "blockedCheckoutRefundRecordedAt" = NULL,
+               "sellerRefundId" = NULL,
+               "sellerRefundLockedAt" = NULL,
+               "refundClaimId" = NULL,
+               "refundClaimSource" = NULL,
+               "refundClaimSourceId" = NULL,
+               "reviewNeeded" = false,
+               "reviewNote" = 'Staff replaced the original checkout note'
+         WHERE id = 'order-1'
+      `);
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      assert.deepEqual(await classify(), [{
+        outcome: "retry",
+        order_id: "order-1",
+        retry_reason:
+          "Checkout became ineligible after payment and requires a full refund.",
+        seller_user_ids: ["seller-user"],
+      }]);
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
+  });
+
   it("classifies UTC-stored legacy locks identically in every session timezone", async () => {
     const initialTimezone = (await db.query("SHOW TimeZone")).rows[0].TimeZone;
     try {
@@ -227,6 +280,7 @@ describe("Order checkout existing PostgreSQL authority", () => {
     await db.exec(`
       UPDATE public."Order"
          SET "sellerRefundId" = 're_recorded',
+             "blockedCheckoutRefundRecordedAt" = CURRENT_TIMESTAMP,
              "refundClaimId" = NULL,
              "refundClaimSource" = NULL,
              "refundClaimSourceId" = NULL

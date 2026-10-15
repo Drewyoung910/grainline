@@ -27,14 +27,8 @@ const privateCustomPaidStateCorrection = migrationSource([
     ? `${process.env.RUNNER_TEMP}/order-private-custom-paid-state/migration.sql`
     : null,
 ], "private custom-listing successor");
-const sellerPrivateMigrationRoot =
-  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
-const finalSellerPrivateCallers = fs.readFileSync(
-  path.join(
-    sellerPrivateMigrationRoot,
-    "20261013200000_move_final_seller_private_sql_callers",
-    "migration.sql",
-  ),
+const blockedCheckoutRefundWitness = fs.readFileSync(
+  "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql",
   "utf8",
 );
 const rows = (result) => result.rows;
@@ -100,6 +94,9 @@ describe("Order paid-checkout authority", () => {
     await db.exec(`
       ALTER TABLE public."SellerProfile"
         ADD COLUMN "stripeAccountSupported" boolean NOT NULL DEFAULT true;
+      ALTER TABLE public."Order"
+        ADD COLUMN "blockedCheckoutRefundRequiredAt" timestamp(3) without time zone,
+        ADD COLUMN "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone;
       CREATE TABLE public."SellerProfilePrivate" (
         "sellerProfileId" text PRIMARY KEY REFERENCES public."SellerProfile"(id),
         "stripeAccountId" text,
@@ -121,7 +118,7 @@ describe("Order paid-checkout authority", () => {
              "stripeAccountVersion" = 'legacy';
     `);
     await db.exec(functionDefinition(
-      finalSellerPrivateCallers,
+      blockedCheckoutRefundWitness,
       "grainline_stripe_checkout_order_create",
     ));
   });
@@ -431,6 +428,37 @@ describe("Order paid-checkout authority", () => {
     } finally {
       await db.exec("ROLLBACK");
       await db.exec("RESET ROLE");
+    }
+  });
+
+  it("creates a durable refund witness when a paid checkout becomes ineligible", async () => {
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`UPDATE public."User" SET banned = true WHERE id = 'seller-user'`);
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      const created = await apply("evt_paid_order", 1n);
+      assert.equal(created[0].outcome, "created");
+      assert.match(created[0].invalid_reason, /Seller account was suspended/);
+      await db.exec("RESET ROLE");
+
+      const witness = rows(await db.query(`
+        SELECT
+          "blockedCheckoutRefundRequiredAt" IS NOT NULL AS required,
+          "blockedCheckoutRefundRecordedAt" IS NULL AS unrecorded,
+          "reviewNeeded" AS review_needed,
+          "reviewNote" AS review_note
+        FROM public."Order"
+        WHERE id = $1
+      `, [created[0].order_id]))[0];
+      assert.deepEqual(witness, {
+        required: true,
+        unrecorded: true,
+        review_needed: true,
+        review_note:
+          "Seller account was suspended before payment completion. Order was held for staff review.",
+      });
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
     }
   });
 
