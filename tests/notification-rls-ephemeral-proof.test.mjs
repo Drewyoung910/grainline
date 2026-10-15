@@ -72,6 +72,7 @@ const ORDER_RELEASE_SUCCESSORS = Object.freeze([
 describe("Notification RLS ephemeral PostgreSQL proof", () => {
   const proof = fs.readFileSync("scripts/notification-rls-ephemeral-proof.mjs", "utf8");
   const workflow = fs.readFileSync(".github/workflows/notification-rls-ephemeral-proof.yml", "utf8");
+  const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const recipientSql = fs.readFileSync("docs/rls-drafts/notification-recipient-access.sql", "utf8");
   const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
@@ -81,6 +82,29 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(proof, /current_user: "ci"/);
     assert.match(proof, /productionChanged: false/);
     assert.match(proof, /persistentStagingChanged: false/);
+  });
+
+  it("replays current Notification behavior without reopening retired User table authority", () => {
+    assert.match(
+      proof,
+      /NOTIFICATION_CURRENT_SCHEMA_REPLAY must be absent or true/,
+    );
+    assert.match(
+      proof,
+      /currentSchemaReplay[\s\S]*current_user_force_zero_direct_posture_confirmed[\s\S]*historical_direct_user_block_races_already_proved_before_user_activation/,
+    );
+    assert.match(
+      proof,
+      /historical_user_direct_block_race_posture_confirmed[\s\S]*await proveBlockRaces\(owner\)/,
+    );
+    const currentReplay = ci.match(
+      /- name: Re-prove SellerProfile-touching fixtures on the restored current schema[\s\S]*?(?=\n      - name:)/,
+    )?.[0] ?? "";
+    assert.match(currentReplay, /NOTIFICATION_CURRENT_SCHEMA_REPLAY: "true"/);
+    const historicalProof = ci.match(
+      /- name: Prove predecessor and corrected blocked-checkout notification delivery[\s\S]*?(?=\n      - name:)/,
+    )?.[0] ?? "";
+    assert.doesNotMatch(historicalProof, /NOTIFICATION_CURRENT_SCHEMA_REPLAY/);
   });
 
   it("seeds the payout source with the promoted provider-event invariant", () => {

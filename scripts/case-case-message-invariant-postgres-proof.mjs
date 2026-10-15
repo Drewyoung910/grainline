@@ -234,6 +234,71 @@ async function setConstraintsImmediate(client) {
   await client.query("SET CONSTRAINTS ALL DEFERRED");
 }
 
+async function stageHistoricalActivationFunctionCatalogForProof(client) {
+  const state = await client.query(`
+    SELECT
+      pg_catalog.to_regprocedure(
+        'public.grainline_case_account_deletion_redact(text)'
+      ) IS NOT NULL AS legacy_exists,
+      pg_catalog.has_function_privilege(
+        'grainline_app_runtime',
+        'public.grainline_case_account_deletion_redact(text)',
+        'EXECUTE'
+      ) AS legacy_runtime_execute,
+      pg_catalog.to_regprocedure(
+        'public.grainline_case_account_deletion_redact(text,bigint,uuid)'
+      ) IS NOT NULL AS claimed_successor_exists,
+      pg_catalog.to_regprocedure(
+        'public.grainline_case_account_deletion_redact_post_activation_proof(text,bigint,uuid)'
+      ) IS NOT NULL AS temporary_successor_exists
+  `);
+  const row = state.rows[0];
+  assert.equal(row.legacy_exists, true);
+  assert.equal(row.temporary_successor_exists, false);
+  if (!row.claimed_successor_exists) {
+    assert.equal(row.legacy_runtime_execute, true);
+    return "historical";
+  }
+  assert.equal(row.legacy_runtime_execute, false);
+  await client.query(`
+    ALTER FUNCTION public.grainline_case_account_deletion_redact(
+      text,
+      bigint,
+      uuid
+    ) RENAME TO grainline_case_account_deletion_redact_post_activation_proof;
+    GRANT EXECUTE ON FUNCTION
+      public.grainline_case_account_deletion_redact(text)
+      TO grainline_app_runtime;
+  `);
+  return "current-claimed-successor-isolated";
+}
+
+async function assertHistoricalActivationFunctionCatalogRestored(
+  client,
+  stagedCatalog,
+) {
+  if (stagedCatalog !== "current-claimed-successor-isolated") return;
+  const restored = await client.query(`
+    SELECT
+      pg_catalog.has_function_privilege(
+        'grainline_app_runtime',
+        'public.grainline_case_account_deletion_redact(text)',
+        'EXECUTE'
+      ) AS legacy_runtime_execute,
+      pg_catalog.to_regprocedure(
+        'public.grainline_case_account_deletion_redact(text,bigint,uuid)'
+      ) IS NOT NULL AS claimed_successor_exists,
+      pg_catalog.to_regprocedure(
+        'public.grainline_case_account_deletion_redact_post_activation_proof(text,bigint,uuid)'
+      ) IS NOT NULL AS temporary_successor_exists
+  `);
+  assert.deepEqual(restored.rows[0], {
+    legacy_runtime_execute: false,
+    claimed_successor_exists: true,
+    temporary_successor_exists: false,
+  });
+}
+
 async function insertDisputePaymentEvent(client, {
   id,
   orderId,
@@ -1812,12 +1877,24 @@ async function proveStaffResolutionAuthority(
   await client.query("RESET ROLE");
   await setConstraintsImmediate(client);
 
+  const privateBoundary = await client.query(`
+    SELECT pg_catalog.to_regclass(
+      'public."SellerProfilePrivate"'
+    ) IS NOT NULL AS installed
+  `);
+  const sellerReconciliationProjection = privateBoundary.rows[0].installed
+    ? 'retry_seller_private."manualStripeReconciliationNeeded"'
+    : 'retry_seller."manualStripeReconciliationNeeded"';
+  const sellerPrivateJoin = privateBoundary.rows[0].installed
+    ? `JOIN public."SellerProfilePrivate" AS retry_seller_private
+         ON retry_seller_private."sellerProfileId" = retry_seller.id`
+    : "";
   const reconciliationState = await client.query(`
     SELECT
       retry_claim.status::text AS retry_status,
       retry_order."caseResolutionClaimId" AS retry_lease,
       retry_order."sellerRefundId" AS retry_refund_id,
-      retry_seller."manualStripeReconciliationNeeded"
+      ${sellerReconciliationProjection}
         AS seller_reconciliation_needed,
       release_claim.status::text AS release_status,
       release_claim."reconciliationAction" AS release_action,
@@ -1844,6 +1921,7 @@ async function proveStaffResolutionAuthority(
         ON retry_case.id = retry_claim."caseId"
       JOIN public."SellerProfile" AS retry_seller
         ON retry_seller."userId" = retry_case."sellerId"
+      ${sellerPrivateJoin}
       JOIN public."CaseResolutionClaim" AS release_claim
         ON release_claim.id = $2
       JOIN public."Order" AS release_order
@@ -2521,6 +2599,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
   });
   await client.connect();
   let began = false;
+  let stagedActivationCatalog = "historical";
   try {
     const draftBody = readDraftTransactionBody(INVARIANT_DRAFT);
     const activationBody = readDraftTransactionBody(ACTIVATION_DRAFT);
@@ -2532,6 +2611,8 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await proveLegacyPreflightRejects(client, draftBody);
     await client.query("BEGIN");
     began = true;
+    stagedActivationCatalog =
+      await stageHistoricalActivationFunctionCatalogForProof(client);
     await resetPromotedInvariantForProof(client);
     await client.query(draftBody);
     await seedBaseFixtures(client);
@@ -2556,6 +2637,10 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     );
     await client.query("ROLLBACK");
     began = false;
+    await assertHistoricalActivationFunctionCatalogRestored(
+      client,
+      stagedActivationCatalog,
+    );
     return Object.freeze({
       checks: labelClaimCorrectionExpected
         ? 65

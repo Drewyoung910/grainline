@@ -164,21 +164,52 @@ async function seedFixtures(client) {
     `clerk-${ids.userTwo}`,
     `${ids.userTwo}@example.invalid`,
   ]);
-  await client.query(`
-    INSERT INTO public."SellerProfile" (
-      id, "userId", "displayName", "displayNameNormalized",
-      "stripeAccountId", "createdAt", "updatedAt"
-    ) VALUES
-      ($1, $2, 'Payout proof one', 'payout proof one', $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-      ($4, $5, 'Payout proof two', 'payout proof two', $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-  `, [
-    ids.sellerOne,
-    ids.userOne,
-    ids.accountOne,
-    ids.sellerTwo,
-    ids.userTwo,
-    ids.accountTwo,
-  ]);
+  const privateBoundary = await client.query(`
+    SELECT pg_catalog.to_regclass(
+      'public."SellerProfilePrivate"'
+    ) IS NOT NULL AS installed
+  `);
+  if (privateBoundary.rows[0].installed) {
+    await client.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "createdAt", "updatedAt"
+      ) VALUES
+        ($1, $2, 'Payout proof one', 'payout proof one', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ($3, $4, 'Payout proof two', 'payout proof two', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `, [ids.sellerOne, ids.userOne, ids.sellerTwo, ids.userTwo]);
+    await client.query(`
+      UPDATE public."SellerProfilePrivate"
+         SET "stripeAccountId" = CASE "sellerProfileId"
+               WHEN $1 THEN $3
+               WHEN $2 THEN $4
+             END,
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "sellerProfileId" = ANY($5::text[])
+    `, [
+      ids.sellerOne,
+      ids.sellerTwo,
+      ids.accountOne,
+      ids.accountTwo,
+      [ids.sellerOne, ids.sellerTwo],
+    ]);
+  } else {
+    await client.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "stripeAccountId", "createdAt", "updatedAt"
+      ) VALUES
+        ($1, $2, 'Payout proof one', 'payout proof one', $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ($4, $5, 'Payout proof two', 'payout proof two', $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `, [
+      ids.sellerOne,
+      ids.userOne,
+      ids.accountOne,
+      ids.sellerTwo,
+      ids.userTwo,
+      ids.accountTwo,
+    ]);
+  }
 }
 
 async function verifyCatalog(client) {

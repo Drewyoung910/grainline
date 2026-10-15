@@ -153,6 +153,16 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   );
   assert.match(proof, /CASE_CORRECTNESS_EXPECTED === "1"/);
   assert.match(proof, /CASE_LABEL_CLAIM_CORRECTION_EXPECTED === "1"/);
+  assert.match(
+    proof,
+    /grainline_case_account_deletion_redact_post_activation_proof/,
+  );
+  assert.match(
+    proof,
+    /GRANT EXECUTE ON FUNCTION[\s\S]*?grainline_case_account_deletion_redact\(text\)[\s\S]*?TO grainline_app_runtime/,
+  );
+  assert.match(proof, /assertHistoricalActivationFunctionCatalogRestored/);
+  assert.match(proof, /temporary_successor_exists: false/);
   assert.match(proof, /dismissalWithPendingLabel/);
   assert.match(proof, /releasedWithActiveLabelClaim/);
   assert.match(proof, /provePolicylessActivation/);
@@ -288,10 +298,22 @@ test("promoted invariant proof reconstructs pre-migration state only inside roll
     proof,
     /await resetPromotedInvariantForProof\(client\);\s+await seedBaseFixtures/,
   );
-  assert.match(
-    proof,
-    /await client\.query\("BEGIN"\);\s+began = true;\s+await resetPromotedInvariantForProof\(client\);\s+await client\.query\(draftBody\)/,
+  const beginAt = proof.indexOf('await client.query("BEGIN")', proof.indexOf(
+    "export async function runCaseInvariantPostgresProof",
+  ));
+  const catalogStageAt = proof.indexOf(
+    "await stageHistoricalActivationFunctionCatalogForProof(client)",
+    beginAt,
   );
+  const resetAt = proof.indexOf(
+    "await resetPromotedInvariantForProof(client)",
+    catalogStageAt,
+  );
+  const draftAt = proof.indexOf("await client.query(draftBody)", resetAt);
+  assert.ok(beginAt > 0, "rollback-only proof transaction is missing");
+  assert.ok(catalogStageAt > beginAt, "catalog isolation must run after BEGIN");
+  assert.ok(resetAt > catalogStageAt, "promoted invariant reset must follow catalog isolation");
+  assert.ok(draftAt > resetAt, "invariant draft must follow promoted reset");
   assert.doesNotMatch(proof, /process\.env\.DIRECT_URL/);
 });
 

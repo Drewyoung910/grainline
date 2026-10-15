@@ -9,6 +9,7 @@ const PROOF_ENV = "CASE_SELLER_AGGREGATE_PROOF_DATABASE_URL";
 const DATABASE_NAME = "grainline_ci";
 const PREFIX = "case-seller-aggregate-proof";
 const OLD_TIME = new Date("2025-01-01T00:00:00.000Z");
+const PROOF_RLS_TABLES = Object.freeze(["User", "SellerProfile", "Case"]);
 
 const ids = Object.freeze({
   buyer: `${PREFIX}-buyer`,
@@ -107,6 +108,30 @@ async function seedSeller(
   userId,
   { guildLevel = "NONE", guildMemberApprovedAt = null } = {},
 ) {
+  const privateBoundary = await client.query(`
+    SELECT pg_catalog.to_regclass(
+      'public."SellerProfilePrivate"'
+    ) IS NOT NULL AS installed
+  `);
+  if (privateBoundary.rows[0].installed) {
+    await client.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "guildLevel", "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, $3, $4,
+        $5::public."GuildLevel", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [id, userId, `Seller ${id}`, `seller ${id}`, guildLevel]);
+    await client.query(`
+      UPDATE public."SellerProfilePrivate"
+         SET "guildMemberApprovedAt" = $2,
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "sellerProfileId" = $1
+    `, [id, guildMemberApprovedAt]);
+    return;
+  }
   await client.query(`
     INSERT INTO public."SellerProfile" (
       id, "userId", "displayName", "displayNameNormalized",
@@ -273,25 +298,74 @@ async function fixtureCounts(client) {
   return result.rows[0];
 }
 
-async function setProofRls(client) {
-  for (const table of ["User", "SellerProfile", "Case"]) {
-    await client.query(
-      `ALTER TABLE public."${table}" ENABLE ROW LEVEL SECURITY`,
-    );
-    await client.query(
-      `ALTER TABLE public."${table}" FORCE ROW LEVEL SECURITY`,
-    );
+export function classifyCaseSellerAggregateSourcePosture(rows) {
+  assert.equal(rows.length, PROOF_RLS_TABLES.length);
+  const byTable = new Map(rows.map((row) => [row.relname, row]));
+  for (const table of PROOF_RLS_TABLES) {
+    assert.ok(byTable.has(table), `Case seller aggregate proof is missing ${table}`);
+  }
+  const seller = byTable.get("SellerProfile");
+  assert.equal(seller.relrowsecurity, false);
+  assert.equal(seller.relforcerowsecurity, false);
+  assert.equal(seller.runtime_select, true);
+  const protectedTables = [byTable.get("User"), byTable.get("Case")];
+  const historical = protectedTables.every(
+    (row) => (
+      !row.relrowsecurity
+      && !row.relforcerowsecurity
+      && row.runtime_select
+    ),
+  );
+  const current = protectedTables.every(
+    (row) => (
+      row.relrowsecurity
+      && row.relforcerowsecurity
+      && !row.runtime_select
+    ),
+  );
+  assert.ok(
+    historical || current,
+    "Case seller aggregate proof found an unsupported source RLS posture",
+  );
+  return historical ? "historical-pre-rls" : "current-force";
+}
+
+async function setProofRls(client, originalRows) {
+  const byTable = new Map(originalRows.map((row) => [row.relname, row]));
+  for (const table of PROOF_RLS_TABLES) {
+    const row = byTable.get(table);
+    if (!row.relrowsecurity) {
+      await client.query(
+        `ALTER TABLE public."${table}" ENABLE ROW LEVEL SECURITY`,
+      );
+    }
+    if (!row.relforcerowsecurity) {
+      await client.query(
+        `ALTER TABLE public."${table}" FORCE ROW LEVEL SECURITY`,
+      );
+    }
   }
 }
 
-async function restoreProofRls(client) {
-  for (const table of ["Case", "SellerProfile", "User"]) {
-    await client.query(
-      `ALTER TABLE public."${table}" NO FORCE ROW LEVEL SECURITY`,
-    ).catch(() => {});
-    await client.query(
-      `ALTER TABLE public."${table}" DISABLE ROW LEVEL SECURITY`,
-    ).catch(() => {});
+async function restoreProofRls(client, originalRows) {
+  const byTable = new Map(originalRows.map((row) => [row.relname, row]));
+  for (const table of [...PROOF_RLS_TABLES].reverse()) {
+    const row = byTable.get(table);
+    if (row.relrowsecurity) {
+      await client.query(
+        `ALTER TABLE public."${table}" ENABLE ROW LEVEL SECURITY`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE public."${table}" ${row.relforcerowsecurity ? "FORCE" : "NO FORCE"} ROW LEVEL SECURITY`,
+      ).catch(() => {});
+    } else {
+      await client.query(
+        `ALTER TABLE public."${table}" NO FORCE ROW LEVEL SECURITY`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE public."${table}" DISABLE ROW LEVEL SECURITY`,
+      ).catch(() => {});
+    }
   }
 }
 
@@ -375,7 +449,7 @@ export async function runCaseSellerAggregateProof(env = process.env) {
   const runtime = createClient(databaseUrl, `${PREFIX}-runtime`);
   const contender = createClient(databaseUrl, `${PREFIX}-contender`);
   const checks = [];
-  let rlsChanged = false;
+  let originalRlsRows = null;
   await owner.connect();
   await runtime.connect();
   await contender.connect();
@@ -441,7 +515,15 @@ export async function runCaseSellerAggregateProof(env = process.env) {
     checks.push("catalog-and-grants");
 
     const originalRls = await owner.query(`
-      SELECT relname, relrowsecurity, relforcerowsecurity
+      SELECT
+        relname,
+        relrowsecurity,
+        relforcerowsecurity,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime',
+          oid,
+          'SELECT'
+        ) AS runtime_select
         FROM pg_catalog.pg_class
        WHERE oid IN (
          'public."User"'::pg_catalog.regclass,
@@ -450,15 +532,9 @@ export async function runCaseSellerAggregateProof(env = process.env) {
        )
        ORDER BY relname
     `);
-    assert.equal(
-      originalRls.rows.every(
-        (row) => !row.relrowsecurity && !row.relforcerowsecurity,
-      ),
-      true,
-      "Case seller aggregate proof requires the compatible pre-RLS posture",
-    );
-    rlsChanged = true;
-    await setProofRls(owner);
+    classifyCaseSellerAggregateSourcePosture(originalRls.rows);
+    originalRlsRows = originalRls.rows;
+    await setProofRls(owner, originalRlsRows);
     checks.push("forced-rls-source-posture");
 
     const activeCount = await runtimeQuery(
@@ -534,13 +610,18 @@ export async function runCaseSellerAggregateProof(env = process.env) {
     }
     checks.push("invalid-input-denial");
 
-    for (const table of ["User", "SellerProfile", "Case"]) {
-      const direct = await runtimeQuery(
+    for (const row of originalRlsRows) {
+      const directRead = () => runtimeQuery(
         runtime,
         `SELECT pg_catalog.count(*)::integer AS count
-           FROM public."${table}"`,
+           FROM public."${row.relname}"`,
       );
-      assert.equal(direct.rows[0].count, 0);
+      if (row.runtime_select) {
+        const direct = await directRead();
+        assert.equal(direct.rows[0].count, 0);
+      } else {
+        await expectSqlState(directRead, "42501");
+      }
     }
     checks.push("function-only-forced-rls-read");
 
@@ -612,8 +693,8 @@ export async function runCaseSellerAggregateProof(env = process.env) {
   } finally {
     await runtime.query("ROLLBACK").catch(() => {});
     await contender.query("ROLLBACK").catch(() => {});
-    if (rlsChanged) {
-      await restoreProofRls(owner);
+    if (originalRlsRows) {
+      await restoreProofRls(owner, originalRlsRows);
     }
     await cleanupFixtures(owner).catch(() => {});
     const residue = await fixtureCounts(owner).catch(() => null);

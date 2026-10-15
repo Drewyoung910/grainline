@@ -2,6 +2,8 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import {
@@ -20,6 +22,12 @@ const DATABASE_NAME = "grainline_ci";
 const OWNER_ROLE = "ci";
 const RUNTIME_ROLE = "grainline_app_runtime";
 const PREFIX = "seller-payout-activation-proof";
+const CURRENT_APPLY_IDENTITY =
+  "grainline_seller_payout_event_apply(text,bigint,bigint,text,text,integer,text,text,text)";
+const CURRENT_APPLY_MIGRATION =
+  "20261013180000_move_provider_identity_seller_private_sql_callers";
+const CURRENT_APPLY_MIGRATION_SHA256 =
+  "b00708a8cff7171ac148087a808a928472ea283beb6b67e961e39fb808fb0992";
 
 const ids = Object.freeze({
   userOne: `${PREFIX}-user-1`,
@@ -42,6 +50,33 @@ function safeError(error) {
       /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/giu,
       "$1[redacted-credentials]@",
     );
+}
+
+function sellerPayoutEventCurrentFunctionSourceSha256(root = process.cwd()) {
+  const migration = readFileSync(path.join(
+    root,
+    "prisma",
+    "migrations",
+    CURRENT_APPLY_MIGRATION,
+    "migration.sql",
+  ), "utf8");
+  assert.equal(
+    createHash("sha256").update(migration).digest("hex"),
+    CURRENT_APPLY_MIGRATION_SHA256,
+    "current SellerPayoutEvent apply migration drifted",
+  );
+  const delimiter = "$grainline_seller_payout_event_apply$";
+  const sourceStart = migration.indexOf(`AS ${delimiter}`);
+  assert.notEqual(sourceStart, -1, "current SellerPayoutEvent apply source is missing");
+  const bodyStart = sourceStart + `AS ${delimiter}`.length;
+  const bodyEnd = migration.indexOf(delimiter, bodyStart);
+  assert.notEqual(bodyEnd, -1, "current SellerPayoutEvent apply source is incomplete");
+  return Object.freeze({
+    ...sellerPayoutEventAuthorityFunctionSourceSha256(root),
+    [CURRENT_APPLY_IDENTITY]: createHash("sha256")
+      .update(migration.slice(bodyStart, bodyEnd))
+      .digest("hex"),
+  });
 }
 
 function parseLoopbackUrl(raw, label, expectedRole) {
@@ -128,21 +163,52 @@ async function seedFixtures(owner) {
     `clerk-${ids.userTwo}`,
     `${ids.userTwo}@example.invalid`,
   ]);
-  await owner.query(`
-    INSERT INTO public."SellerProfile" (
-      id, "userId", "displayName", "displayNameNormalized",
-      "stripeAccountId", "createdAt", "updatedAt"
-    ) VALUES
-      ($1, $2, 'Activation proof one', 'activation proof one', $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-      ($4, $5, 'Activation proof two', 'activation proof two', $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-  `, [
-    ids.sellerOne,
-    ids.userOne,
-    ids.accountOne,
-    ids.sellerTwo,
-    ids.userTwo,
-    ids.accountTwo,
-  ]);
+  const privateBoundary = await owner.query(`
+    SELECT pg_catalog.to_regclass(
+      'public."SellerProfilePrivate"'
+    ) IS NOT NULL AS installed
+  `);
+  if (privateBoundary.rows[0].installed) {
+    await owner.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "createdAt", "updatedAt"
+      ) VALUES
+        ($1, $2, 'Activation proof one', 'activation proof one', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ($3, $4, 'Activation proof two', 'activation proof two', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `, [ids.sellerOne, ids.userOne, ids.sellerTwo, ids.userTwo]);
+    await owner.query(`
+      UPDATE public."SellerProfilePrivate"
+         SET "stripeAccountId" = CASE "sellerProfileId"
+               WHEN $1 THEN $3
+               WHEN $2 THEN $4
+             END,
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "sellerProfileId" = ANY($5::text[])
+    `, [
+      ids.sellerOne,
+      ids.sellerTwo,
+      ids.accountOne,
+      ids.accountTwo,
+      [ids.sellerOne, ids.sellerTwo],
+    ]);
+  } else {
+    await owner.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "stripeAccountId", "createdAt", "updatedAt"
+      ) VALUES
+        ($1, $2, 'Activation proof one', 'activation proof one', $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ($4, $5, 'Activation proof two', 'activation proof two', $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `, [
+      ids.sellerOne,
+      ids.userOne,
+      ids.accountOne,
+      ids.sellerTwo,
+      ids.userTwo,
+      ids.accountTwo,
+    ]);
+  }
   await owner.query(`
     INSERT INTO public."StripeWebhookEvent" (
       id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
@@ -163,6 +229,7 @@ export async function proveSellerPayoutEventActivatedCatalog(
   owner,
   expectedOwner = OWNER_ROLE,
   expectedForced = false,
+  currentSchemaReplay = false,
 ) {
   const table = await owner.query(`
     SELECT
@@ -310,7 +377,9 @@ export async function proveSellerPayoutEventActivatedCatalog(
   const expectedByIdentity = new Map(
     SELLER_PAYOUT_EVENT_AUTHORITY_FUNCTIONS.map((entry) => [entry.identity, entry]),
   );
-  const sourceHashes = sellerPayoutEventAuthorityFunctionSourceSha256();
+  const sourceHashes = currentSchemaReplay
+    ? sellerPayoutEventCurrentFunctionSourceSha256()
+    : sellerPayoutEventAuthorityFunctionSourceSha256();
   assert.equal(functions.rows.length, expectedByIdentity.size);
   for (const row of functions.rows) {
     const expected = expectedByIdentity.get(row.identity);
@@ -439,13 +508,30 @@ async function proveRuntimeBoundary(runtime, nowSeconds) {
 export async function runSellerPayoutEventActivationProof(env = process.env) {
   const { ownerUrl, runtimeUrl } =
     parseSellerPayoutEventActivationProofConfig(env);
-  verifySellerPayoutEventActivationRelease();
+  const replayMode = env.SELLER_PAYOUT_EVENT_CURRENT_SCHEMA_REPLAY;
+  assert.ok(
+    replayMode === undefined || replayMode === "true",
+    "SELLER_PAYOUT_EVENT_CURRENT_SCHEMA_REPLAY must be absent or true",
+  );
+  const currentSchemaReplay = replayMode === "true";
+  if (!currentSchemaReplay) {
+    verifySellerPayoutEventActivationRelease();
+  }
   const owner = createClient(ownerUrl, `${PREFIX}-owner`);
   const runtime = createClient(runtimeUrl, `${PREFIX}-runtime`);
-  await owner.connect();
-  await runtime.connect();
+  let ownerConnected = false;
+  let runtimeConnected = false;
   try {
-    await proveSellerPayoutEventActivatedCatalog(owner);
+    await owner.connect();
+    ownerConnected = true;
+    await runtime.connect();
+    runtimeConnected = true;
+    await proveSellerPayoutEventActivatedCatalog(
+      owner,
+      OWNER_ROLE,
+      currentSchemaReplay,
+      currentSchemaReplay,
+    );
     await seedFixtures(owner);
     const now = Number((await owner.query(`
       SELECT pg_catalog.floor(
@@ -484,6 +570,7 @@ export async function runSellerPayoutEventActivationProof(env = process.env) {
     }]);
     return Object.freeze({
       database: DATABASE_NAME,
+      currentSchemaReplay,
       directRuntimeLogin: true,
       directTableOperationsDenied: 4,
       sourcePinnedFunctions: 3,
@@ -493,14 +580,14 @@ export async function runSellerPayoutEventActivationProof(env = process.env) {
       writeFunctionReadOnlyFence: true,
       policyCount: 0,
       rlsEnabled: true,
-      rlsForced: false,
+      rlsForced: currentSchemaReplay,
       residue: 0,
       productionTouched: false,
     });
   } finally {
-    await cleanFixtures(owner).catch(() => {});
-    await runtime.end().catch(() => {});
-    await owner.end().catch(() => {});
+    if (ownerConnected) await cleanFixtures(owner).catch(() => {});
+    if (runtimeConnected) await runtime.end().catch(() => {});
+    if (ownerConnected) await owner.end().catch(() => {});
   }
 }
 

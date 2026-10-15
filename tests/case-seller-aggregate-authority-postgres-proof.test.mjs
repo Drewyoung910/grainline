@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
 import {
+  classifyCaseSellerAggregateSourcePosture,
   parseCaseSellerAggregateProofConfig,
   runCaseSellerAggregateProof,
 } from "../scripts/case-seller-aggregate-authority-postgres-proof.mjs";
@@ -59,6 +60,81 @@ describe("Case seller aggregate PostgreSQL proof", () => {
       /INSERT INTO public\."SellerProfile" \([\s\S]{0,280}"updatedAt"[\s\S]{0,280}CURRENT_TIMESTAMP/,
     );
     assert.doesNotMatch(source, /has_function_privilege\(\s*'PUBLIC'/);
+  });
+
+  it("accepts only historical or current FORCE source posture", () => {
+    const seller = {
+      relname: "SellerProfile",
+      relrowsecurity: false,
+      relforcerowsecurity: false,
+      runtime_select: true,
+    };
+    assert.equal(classifyCaseSellerAggregateSourcePosture([
+      {
+        relname: "Case",
+        relrowsecurity: false,
+        relforcerowsecurity: false,
+        runtime_select: true,
+      },
+      seller,
+      {
+        relname: "User",
+        relrowsecurity: false,
+        relforcerowsecurity: false,
+        runtime_select: true,
+      },
+    ]), "historical-pre-rls");
+    assert.equal(classifyCaseSellerAggregateSourcePosture([
+      {
+        relname: "Case",
+        relrowsecurity: true,
+        relforcerowsecurity: true,
+        runtime_select: false,
+      },
+      seller,
+      {
+        relname: "User",
+        relrowsecurity: true,
+        relforcerowsecurity: true,
+        runtime_select: false,
+      },
+    ]), "current-force");
+    assert.throws(
+      () => classifyCaseSellerAggregateSourcePosture([
+        {
+          relname: "Case",
+          relrowsecurity: true,
+          relforcerowsecurity: false,
+          runtime_select: false,
+        },
+        seller,
+        {
+          relname: "User",
+          relrowsecurity: true,
+          relforcerowsecurity: true,
+          runtime_select: false,
+        },
+      ]),
+      /unsupported source RLS posture/,
+    );
+    assert.throws(
+      () => classifyCaseSellerAggregateSourcePosture([
+        {
+          relname: "Case",
+          relrowsecurity: true,
+          relforcerowsecurity: true,
+          runtime_select: false,
+        },
+        seller,
+        {
+          relname: "User",
+          relrowsecurity: true,
+          relforcerowsecurity: true,
+          runtime_select: true,
+        },
+      ]),
+      /unsupported source RLS posture/,
+    );
   });
 
   const databaseUrl =

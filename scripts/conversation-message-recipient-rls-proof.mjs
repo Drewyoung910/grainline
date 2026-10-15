@@ -24,15 +24,75 @@ const serviceSql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-service-authority.sql",
   "utf8",
 );
-const sellerPrivateMigrationRoot =
-  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
-const sellerPrivateCustomOrderSql = fs.readFileSync(
+
+function readSqlFunctionDefinition(filePath, functionName) {
+  const sql = fs.readFileSync(filePath, "utf8");
+  const start = sql.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+  );
+  assert.notEqual(start, -1, `${functionName} definition is missing`);
+  const bodyStart = sql.slice(start).match(/\bAS (\$[A-Za-z0-9_]*\$)/);
+  assert.ok(bodyStart, `${functionName} body delimiter is missing`);
+  const delimiter = bodyStart[1];
+  const closingAt = sql.indexOf(
+    `${delimiter};`,
+    start + bodyStart.index + bodyStart[0].length,
+  );
+  assert.notEqual(closingAt, -1, `${functionName} body is unterminated`);
+  return sql.slice(start, closingAt + delimiter.length + 1);
+}
+
+const currentUserMigrationRoot =
+  process.env.USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR || "prisma/migrations";
+const currentUserConversationParticipantsSql = readSqlFunctionDefinition(
   path.join(
-    sellerPrivateMigrationRoot,
-    "20261013150000_move_custom_order_seller_private_sql_callers",
+    currentUserMigrationRoot,
+    "20261006030000_prepare_user_relationship_authorities",
     "migration.sql",
   ),
-  "utf8",
+  "grainline_user_conversation_participants",
+);
+const currentConversationInboxSql = readSqlFunctionDefinition(
+  path.join(
+    currentUserMigrationRoot,
+    "20261007160000_converge_user_cross_domain_authorities",
+    "migration.sql",
+  ),
+  "grainline_conversation_inbox",
+);
+const currentAccountDeletionRedactTextSql = readSqlFunctionDefinition(
+  "prisma/migrations/20260729061000_prepare_case_account_deletion_authority/migration.sql",
+  "grainline_account_deletion_redact_text_core",
+);
+const sellerPrivateMigrationRoot =
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR || "prisma/migrations";
+const sellerPrivateConversationListingSql = readSqlFunctionDefinition(
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013130000_move_seller_supported_snapshot_sql_callers",
+    "migration.sql",
+  ),
+  "grainline_conversation_listing_core",
+);
+const sellerPrivateCustomOrderMigrationPath = path.join(
+  sellerPrivateMigrationRoot,
+  "20261013150000_move_custom_order_seller_private_sql_callers",
+  "migration.sql",
+);
+const sellerPrivateCustomOrderSql = [
+  "grainline_message_send_custom_request",
+  "grainline_message_send_custom_order_ready",
+].map((functionName) => readSqlFunctionDefinition(
+  sellerPrivateCustomOrderMigrationPath,
+  functionName,
+)).join("\n");
+const sellerPrivateAccountDeletionSql = readSqlFunctionDefinition(
+  path.join(
+    sellerPrivateMigrationRoot,
+    "20261013210000_move_account_deletion_seller_private_sql_callers",
+    "migration.sql",
+  ),
+  "grainline_message_redact_for_account_deletion",
 );
 
 const fixture = Object.freeze({
@@ -71,6 +131,10 @@ const fixture = Object.freeze({
   raceBlockFirstId: "cm-authority-block-first",
   raceBlockSecondId: "cm-authority-block-second",
 });
+const redactionReplyOriginal = "reply mentions Recipient A in CA, not CAFE";
+const redactionReplyCurrent =
+  "reply mentions [deleted account] in [deleted account], not CAFE"
+    .slice(0, redactionReplyOriginal.length);
 
 const completedChecks = [];
 
@@ -104,6 +168,70 @@ function newClient(applicationName) {
   });
 }
 
+async function proveUserReplayPosture(owner, currentSchemaReplay) {
+  const result = await owner.query(`
+    SELECT
+      relation.relrowsecurity,
+      relation.relforcerowsecurity,
+      pg_catalog.has_table_privilege(
+        'grainline_app_runtime', relation.oid, 'SELECT'
+      ) AS runtime_select,
+      pg_catalog.has_table_privilege(
+        'grainline_app_runtime', relation.oid, 'UPDATE'
+      ) AS runtime_update
+      FROM pg_catalog.pg_class AS relation
+     WHERE relation.oid = 'public."User"'::pg_catalog.regclass
+  `);
+  assert.equal(result.rows.length, 1);
+  const posture = result.rows[0];
+  if (currentSchemaReplay) {
+    assert.deepEqual(posture, {
+      relrowsecurity: true,
+      relforcerowsecurity: true,
+      runtime_select: false,
+      runtime_update: false,
+    });
+    record("current_user_force_zero_direct_posture_confirmed");
+    return;
+  }
+  assert.deepEqual(posture, {
+    relrowsecurity: false,
+    relforcerowsecurity: false,
+    runtime_select: true,
+    runtime_update: true,
+  });
+  record("historical_user_direct_race_posture_confirmed");
+}
+
+async function captureConversationInboxDefinition(owner) {
+  const result = await owner.query(`
+    SELECT
+      pg_catalog.pg_get_functiondef(procedure.oid) AS definition,
+      pg_catalog.md5(procedure.prosrc) AS source_md5
+      FROM pg_catalog.pg_proc AS procedure
+     WHERE procedure.oid = pg_catalog.to_regprocedure(
+       'public.grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)'
+     )
+  `);
+  assert.equal(result.rows.length, 1, "Conversation inbox function is missing");
+  assert.equal(typeof result.rows[0].definition, "string");
+  assert.match(result.rows[0].source_md5, /^[0-9a-f]{32}$/u);
+  return result.rows[0];
+}
+
+async function restoreConversationInboxDefinition(owner, captured) {
+  await owner.query(captured.definition);
+  const restored = await owner.query(`
+    SELECT pg_catalog.md5(procedure.prosrc) AS source_md5
+      FROM pg_catalog.pg_proc AS procedure
+     WHERE procedure.oid = pg_catalog.to_regprocedure(
+       'public.grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)'
+     )
+  `);
+  assert.deepEqual(restored.rows, [{ source_md5: captured.source_md5 }]);
+  record("conversation_inbox_predecessor_restored");
+}
+
 async function expectPgError(operation, expectedCodes, label) {
   try {
     await operation();
@@ -115,6 +243,56 @@ async function expectPgError(operation, expectedCodes, label) {
     return;
   }
   assert.fail(`${label} unexpectedly succeeded`);
+}
+
+async function detectClaimedMessageDeletionSuccessor(owner) {
+  const state = await owner.query(`
+    SELECT
+      pg_catalog.to_regprocedure(
+        'public.grainline_message_redact_for_account_deletion(text)'
+      ) IS NOT NULL AS legacy_exists,
+      pg_catalog.has_function_privilege(
+        '${runtimeRole}',
+        'public.grainline_message_redact_for_account_deletion(text)',
+        'EXECUTE'
+      ) AS legacy_runtime_execute,
+      pg_catalog.to_regprocedure(
+        'public.grainline_message_redact_for_account_deletion(text,text,bigint,uuid)'
+      ) IS NOT NULL AS claimed_successor_exists
+  `);
+  const posture = state.rows[0];
+  assert.equal(posture.legacy_exists, true);
+  if (posture.claimed_successor_exists) {
+    assert.equal(posture.legacy_runtime_execute, false);
+  } else {
+    assert.equal(posture.legacy_runtime_execute, true);
+  }
+  return posture.claimed_successor_exists;
+}
+
+async function restoreClaimedMessageDeletionPosture(owner, claimedSuccessor) {
+  if (!claimedSuccessor) return;
+  await owner.query(sellerPrivateAccountDeletionSql);
+  await owner.query(`
+    REVOKE EXECUTE ON FUNCTION
+      public.grainline_message_redact_for_account_deletion(text)
+      FROM ${runtimeRole}
+  `);
+  const restored = await owner.query(`
+    SELECT
+      pg_catalog.has_function_privilege(
+        '${runtimeRole}',
+        'public.grainline_message_redact_for_account_deletion(text)',
+        'EXECUTE'
+      ) AS legacy_runtime_execute,
+      pg_catalog.to_regprocedure(
+        'public.grainline_message_redact_for_account_deletion(text,text,bigint,uuid)'
+      ) IS NOT NULL AS claimed_successor_exists
+  `);
+  assert.deepEqual(restored.rows[0], {
+    legacy_runtime_execute: false,
+    claimed_successor_exists: true,
+  });
 }
 
 function capturePromiseOutcome(promise) {
@@ -300,26 +478,66 @@ async function seedFixtures(owner) {
       fixture.userEId,
     ],
   );
-  await owner.query(
-    `INSERT INTO public."SellerProfile" (
-       id, "userId", "displayName", "displayNameNormalized",
-       "stripeAccountId", "chargesEnabled", "stripeAccountVersion",
-       "acceptsCustomOrders", "acceptingNewOrders", "vacationMode",
-       "updatedAt"
-     ) VALUES
-       ($1, $3, 'Recipient B Workshop', 'recipient b workshop',
-        'acct_cm_recipient_b', true, 'v2', true, true, false,
-        pg_catalog.clock_timestamp()),
-       ($2, $4, 'Recipient C Workshop', 'recipient c workshop',
-        'acct_cm_recipient_c', true, 'v2', true, true, false,
-        pg_catalog.clock_timestamp())`,
-    [
-      fixture.sellerProfileBId,
-      fixture.sellerProfileCId,
-      fixture.userBId,
-      fixture.userCId,
-    ],
-  );
+  const privateBoundary = await owner.query(`
+    SELECT pg_catalog.to_regclass(
+      'public."SellerProfilePrivate"'
+    ) IS NOT NULL AS installed
+  `);
+  if (privateBoundary.rows[0].installed) {
+    await owner.query(
+      `INSERT INTO public."SellerProfile" (
+         id, "userId", "displayName", "displayNameNormalized",
+         "chargesEnabled", "acceptsCustomOrders", "acceptingNewOrders",
+         "vacationMode", "updatedAt"
+       ) VALUES
+         ($1, $3, 'Recipient B Workshop', 'recipient b workshop',
+          true, true, true, false, pg_catalog.clock_timestamp()),
+         ($2, $4, 'Recipient C Workshop', 'recipient c workshop',
+          true, true, true, false, pg_catalog.clock_timestamp())`,
+      [
+        fixture.sellerProfileBId,
+        fixture.sellerProfileCId,
+        fixture.userBId,
+        fixture.userCId,
+      ],
+    );
+    await owner.query(
+      `UPDATE public."SellerProfilePrivate"
+          SET "stripeAccountId" = CASE "sellerProfileId"
+                WHEN $1 THEN 'acct_cm_recipient_b'
+                WHEN $2 THEN 'acct_cm_recipient_c'
+              END,
+              "stripeAccountVersion" = 'v2',
+              "updatedAt" = pg_catalog.clock_timestamp()
+        WHERE "sellerProfileId" = ANY($3::text[])`,
+      [
+        fixture.sellerProfileBId,
+        fixture.sellerProfileCId,
+        [fixture.sellerProfileBId, fixture.sellerProfileCId],
+      ],
+    );
+  } else {
+    await owner.query(
+      `INSERT INTO public."SellerProfile" (
+         id, "userId", "displayName", "displayNameNormalized",
+         "stripeAccountId", "chargesEnabled", "stripeAccountVersion",
+         "acceptsCustomOrders", "acceptingNewOrders", "vacationMode",
+         "updatedAt"
+       ) VALUES
+         ($1, $3, 'Recipient B Workshop', 'recipient b workshop',
+          'acct_cm_recipient_b', true, 'v2', true, true, false,
+          pg_catalog.clock_timestamp()),
+         ($2, $4, 'Recipient C Workshop', 'recipient c workshop',
+          'acct_cm_recipient_c', true, 'v2', true, true, false,
+          pg_catalog.clock_timestamp())`,
+      [
+        fixture.sellerProfileBId,
+        fixture.sellerProfileCId,
+        fixture.userBId,
+        fixture.userCId,
+      ],
+    );
+  }
   await owner.query(
     `INSERT INTO public."Listing" (
        id, "sellerId", title, description, "priceCents", currency,
@@ -357,7 +575,7 @@ async function seedFixtures(owner) {
        id, "conversationId", "senderId", "recipientId", body, "createdAt"
      ) VALUES
        ($1, $4, $5, $6, 'hello from A', '2026-01-02T00:00:00Z'),
-       ($2, $4, $6, $5, 'reply mentions Recipient A in CA, not CAFE', '2026-01-02T00:00:01Z'),
+       ($2, $4, $6, $5, $10, '2026-01-02T00:00:01Z'),
        ($3, $7, $8, $9, 'foreign thread', '2026-01-02T00:00:00Z')`,
     [
       fixture.messageAB1Id,
@@ -369,6 +587,7 @@ async function seedFixtures(owner) {
       fixture.conversationCEId,
       fixture.userCId,
       fixture.userEId,
+      redactionReplyOriginal,
     ],
   );
   await owner.query(
@@ -409,20 +628,35 @@ async function applyDraft(owner) {
 
   await owner.query(recipientSql);
   await owner.query(serviceSql);
+  await owner.query(currentAccountDeletionRedactTextSql);
   // The historical service draft restores its accepted predecessor function
   // bodies. Reapply the current additive SellerProfile private-boundary
   // successor when Phase 0 is installed. During the historical CI prefix,
   // Phase 0 and every dependent caller migration are deliberately held until
   // all predecessor proofs pass; the reviewed workflow applies them together
   // after restoring the exact migration files.
+  await owner.query(currentUserConversationParticipantsSql);
+  await owner.query(`
+    REVOKE ALL ON FUNCTION
+      public.grainline_user_conversation_participants(text, text)
+      FROM PUBLIC, ${runtimeRole};
+    GRANT EXECUTE ON FUNCTION
+      public.grainline_user_conversation_participants(text, text)
+      TO ${runtimeRole};
+  `);
+  await owner.query(currentConversationInboxSql);
+  record("current_user_conversation_participants_successor_reapplied");
+  record("current_user_conversation_inbox_successor_reapplied");
   const sellerPrivateBoundary = await owner.query(
     `SELECT pg_catalog.to_regclass(
        'public."SellerProfilePrivate"'
      ) IS NOT NULL AS installed`,
   );
   if (sellerPrivateBoundary.rows[0].installed) {
+    await owner.query(sellerPrivateConversationListingSql);
     await owner.query(sellerPrivateCustomOrderSql);
-    record("seller_private_custom_order_successor_reapplied");
+    await owner.query(sellerPrivateAccountDeletionSql);
+    record("seller_private_current_successors_reapplied");
   } else {
     assert.equal(
       process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED,
@@ -670,6 +904,12 @@ async function proveCatalog(owner) {
          'grainline_message_export',
          'grainline_conversation_inbox'
        )
+       AND NOT (
+         procedure.proname = 'grainline_message_redact_for_account_deletion'
+         AND procedure.oid <> pg_catalog.to_regprocedure(
+           'public.grainline_message_redact_for_account_deletion(text)'
+         )
+       )
      ORDER BY procedure.proname
   `);
   assert.equal(functions.rows.length, 25);
@@ -688,6 +928,40 @@ async function proveCatalog(owner) {
     true,
   );
   assert.equal(functions.rows.every((row) => row.public_execute_revoked), true);
+
+  const currentUserParticipantAuthority = await owner.query(`
+    SELECT procedure.prosecdef,
+           procedure.proconfig,
+           owner_role.rolname AS owner_name,
+           pg_catalog.has_function_privilege(
+             '${runtimeRole}', procedure.oid, 'EXECUTE'
+           ) AS runtime_can_execute,
+           NOT EXISTS (
+             SELECT 1
+               FROM pg_catalog.aclexplode(
+                 COALESCE(
+                   procedure.proacl,
+                   pg_catalog.acldefault('f', procedure.proowner)
+                 )
+               ) AS acl
+              WHERE acl.grantee = 0
+                AND acl.privilege_type = 'EXECUTE'
+           ) AS public_execute_revoked
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_roles AS owner_role
+        ON owner_role.oid = procedure.proowner
+     WHERE procedure.oid = pg_catalog.to_regprocedure(
+       'public.grainline_user_conversation_participants(text,text)'
+     )
+  `);
+  assert.deepEqual(currentUserParticipantAuthority.rows, [{
+    prosecdef: true,
+    proconfig: ["search_path=pg_catalog"],
+    owner_name: "ci",
+    runtime_can_execute: true,
+    public_execute_revoked: true,
+  }]);
+  record("current_user_conversation_participants_catalog_preserved");
   assert.deepEqual(
     functions.rows.filter((row) => row.prosecdef).map((row) => row.proname),
     [
@@ -1333,7 +1607,7 @@ async function proveRuntimeIsolation(owner) {
       { id: fixture.messageAB1Id, body: "[Message deleted]" },
       {
         id: fixture.messageAB2Id,
-        body: "reply mentions [deleted account] in [deleted account], not CAFE",
+        body: redactionReplyCurrent,
       },
     ]);
     record("aggregate_only_metrics_and_fixed_account_deletion_redaction");
@@ -1857,8 +2131,16 @@ async function proveArchiveRaces(owner) {
 
 async function main() {
   validateTarget(databaseUrl);
+  const replayMode = process.env.CONVERSATION_MESSAGE_CURRENT_SCHEMA_REPLAY;
+  assert.ok(
+    replayMode === undefined || replayMode === "true",
+    "CONVERSATION_MESSAGE_CURRENT_SCHEMA_REPLAY must be absent or true",
+  );
+  const currentSchemaReplay = replayMode === "true";
   const owner = newClient("cm-recipient-rls-owner");
   await owner.connect();
+  let claimedMessageDeletionSuccessor = false;
+  let conversationInboxPredecessor = null;
   try {
     const identity = await owner.query(
       "SELECT current_user AS current_user_name, current_database() AS database_name",
@@ -1867,19 +2149,50 @@ async function main() {
       current_user_name: "ci",
       database_name: "grainline_ci",
     }]);
+    conversationInboxPredecessor =
+      await captureConversationInboxDefinition(owner);
+    await proveUserReplayPosture(owner, currentSchemaReplay);
+    claimedMessageDeletionSuccessor =
+      await detectClaimedMessageDeletionSuccessor(owner);
     await seedFixtures(owner);
     await applyDraft(owner);
     await proveCompatibilityReadScopeBeforeRls(owner);
     await proveCatalog(owner);
     await proveRuntimeIsolation(owner);
     await proveExactLegacyInspectionQuery(owner);
-    await proveBlockRaces(owner);
-    await proveAccountDeletionRaces(owner);
+    if (currentSchemaReplay) {
+      record("historical_direct_user_races_already_proved_before_user_activation");
+    } else {
+      await proveBlockRaces(owner);
+      await proveAccountDeletionRaces(owner);
+    }
     await proveMarkReadRaces(owner);
     await proveArchiveRaces(owner);
   } finally {
+    let restoreError = null;
     await cleanFixtures(owner).catch(() => {});
+    await restoreClaimedMessageDeletionPosture(
+      owner,
+      claimedMessageDeletionSuccessor,
+    ).catch((error) => {
+      restoreError = error;
+      process.stderr.write(
+        `Conversation/Message proof failed to restore account-deletion posture: ${error.message}\n`,
+      );
+    });
+    if (conversationInboxPredecessor) {
+      await restoreConversationInboxDefinition(
+        owner,
+        conversationInboxPredecessor,
+      ).catch((error) => {
+        restoreError ??= error;
+        process.stderr.write(
+          `Conversation/Message proof failed to restore inbox predecessor: ${error.message}\n`,
+        );
+      });
+    }
     await owner.end();
+    if (restoreError) throw restoreError;
   }
 
   process.stdout.write(`${JSON.stringify({
@@ -1888,6 +2201,7 @@ async function main() {
     ownerRole: "ci",
     effectiveRuntimeRole: runtimeRole,
     proofMode: "ephemeral_owner_session_set_role",
+    currentSchemaReplay,
     completedChecks,
     productionChanged: false,
     persistentStagingChanged: false,

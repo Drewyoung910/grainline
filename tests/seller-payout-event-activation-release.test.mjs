@@ -229,6 +229,48 @@ test("engine proofs require separate loopback owner and runtime logins", () => {
     assert.match(proof, new RegExp(functionName, "u"));
   }
   assert.match(proof, /productionTouched: false/u);
+  assert.match(
+    proof,
+    /SELLER_PAYOUT_EVENT_CURRENT_SCHEMA_REPLAY must be absent or true/u,
+  );
+  assert.match(
+    proof,
+    /if \(!currentSchemaReplay\) \{[\s\S]*verifySellerPayoutEventActivationRelease\(\)/u,
+  );
+  assert.match(
+    proof,
+    /proveSellerPayoutEventActivatedCatalog\([\s\S]*expectedForced = false,[\s\S]*currentSchemaReplay = false[\s\S]*const sourceHashes = currentSchemaReplay/u,
+  );
+  assert.match(
+    proof,
+    /proveSellerPayoutEventActivatedCatalog\([\s\S]*OWNER_ROLE,[\s\S]*currentSchemaReplay,[\s\S]*currentSchemaReplay/u,
+  );
+  assert.match(
+    proof,
+    /20261013180000_move_provider_identity_seller_private_sql_callers[\s\S]*b00708a8cff7171ac148087a808a928472ea283beb6b67e961e39fb808fb0992/u,
+  );
+  assert.match(
+    proof,
+    /const sourceHashes = currentSchemaReplay[\s\S]*sellerPayoutEventCurrentFunctionSourceSha256\(\)[\s\S]*sellerPayoutEventAuthorityFunctionSourceSha256\(\)/u,
+  );
+  assert.match(
+    proof,
+    /let ownerConnected = false;[\s\S]*let runtimeConnected = false;[\s\S]*try \{[\s\S]*await owner\.connect\(\);[\s\S]*ownerConnected = true;[\s\S]*await runtime\.connect\(\);[\s\S]*runtimeConnected = true;[\s\S]*finally \{[\s\S]*if \(ownerConnected\) await cleanFixtures\(owner\)[\s\S]*if \(runtimeConnected\) await runtime\.end\(\)[\s\S]*if \(ownerConnected\) await owner\.end\(\)/u,
+  );
+  const currentReplay = ci.match(
+    /- name: Re-prove SellerProfile-touching fixtures on the restored current schema[\s\S]*?(?=\n      - name:)/u,
+  )?.[0] ?? "";
+  assert.match(
+    currentReplay,
+    /SELLER_PAYOUT_EVENT_CURRENT_SCHEMA_REPLAY: "true"/u,
+  );
+  const historicalProof = ci.match(
+    /- name: Prove SellerPayoutEvent policyless activation through separate logins[\s\S]*?(?=\n      - name:)/u,
+  )?.[0] ?? "";
+  assert.doesNotMatch(
+    historicalProof,
+    /SELLER_PAYOUT_EVENT_CURRENT_SCHEMA_REPLAY/u,
+  );
   assert.match(rollbackProof, /directRuntimeLogin: true/u);
   assert.match(rollbackProof, /productionTouched: false/u);
 });

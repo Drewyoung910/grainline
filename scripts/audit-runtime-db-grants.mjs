@@ -140,12 +140,24 @@ export const SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION =
   "20261015010000_retire_seller_profile_private_predecessor";
 export const SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION_SHA256 =
   "d111e615a40cd0c2936eeb137db23c5fbcc63c7acb81bce27a36d71229963b3a";
+export const SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION =
+  "20261015013000_repair_account_deletion_after_seller_profile_retirement";
+export const SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION_SHA256 =
+  "c2884361016a554b28afebe58776938faf695c39c86fb22c9d40c87949e02368";
+export const SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION =
+  "20261015080000_restore_seller_profile_private_invariants";
+export const SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION_SHA256 =
+  "983c4a52e5390819f7608dd1245c19ce60b4708e85c062f0e9df3556e71ca0ed";
 export const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_profile_private_mirror",
   "grainline_seller_profile_supported_snapshot",
 ]);
 export const SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_profile_private_initialize",
+]);
+export const SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES = Object.freeze([
+  "grainline_seller_profile_private_supported_snapshot_sync",
+  "grainline_seller_profile_supported_snapshot_guard",
 ]);
 export const ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLES = Object.freeze([
   "OrderItem",
@@ -244,6 +256,15 @@ export const ORDER_USER_COMBINED_STAFF_READ_STAGE =
 export const STAFF_READ_STAGE_FLAG_PREFIX = "--staff-read-stage=";
 export const SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV =
   "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED";
+export const USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR_ENV =
+  "USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR";
+export const USER_RELATIONSHIP_AUTHORITY_MIGRATION =
+  "20261006030000_prepare_user_relationship_authorities";
+export const USER_RELATIONSHIP_AUTHORITY_MIGRATION_SHA256 =
+  "eef3833d5bccd93668cc32c5fcbbdda7ece7f6ee786407ea245e760c0c30bdae";
+export const USER_RELATIONSHIP_TEMPORARILY_REAPPLIED_FUNCTIONS = Object.freeze([
+  "grainline_user_conversation_participants",
+]);
 
 const OBJECT_TYPE_TABLE = "r";
 const OBJECT_TYPE_SEQUENCE = "S";
@@ -274,6 +295,47 @@ export function resolveTemporarilyAbsentCiTables(
     );
   }
   return Object.freeze(["SellerProfilePrivate"]);
+}
+
+export function resolveTemporarilyReappliedCiFunctions(
+  env = process.env,
+  { allowLoopbackCi = false } = {},
+) {
+  const migrationsDir = env[USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR_ENV];
+  if (migrationsDir === undefined || migrationsDir === "") {
+    return Object.freeze([]);
+  }
+  if (
+    env.GITHUB_ACTIONS !== "true"
+    || !allowLoopbackCi
+    || !path.isAbsolute(migrationsDir)
+  ) {
+    throw new Error(
+      `${USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR_ENV} is allowed only as an absolute path in loopback GitHub CI`,
+    );
+  }
+  const migrationPath = path.join(
+    migrationsDir,
+    USER_RELATIONSHIP_AUTHORITY_MIGRATION,
+    "migration.sql",
+  );
+  if (!existsSync(migrationPath)) {
+    throw new Error(
+      `${USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR_ENV} is missing the reviewed User relationship migration`,
+    );
+  }
+  const migrationSql = readFileSync(migrationPath, "utf8");
+  if (sha256(migrationSql) !== USER_RELATIONSHIP_AUTHORITY_MIGRATION_SHA256) {
+    throw new Error("reviewed User relationship migration checksum mismatch");
+  }
+  if (!migrationSql.includes(
+    "FUNCTION public.grainline_user_conversation_participants(",
+  )) {
+    throw new Error(
+      "reviewed User relationship migration is missing the Conversation participant helper",
+    );
+  }
+  return USER_RELATIONSHIP_TEMPORARILY_REAPPLIED_FUNCTIONS;
 }
 
 export const SAVED_SEARCH_RLS_POLICIES = Object.freeze({
@@ -383,6 +445,7 @@ const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
 export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_profile_deauthorize_compat",
   ...SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES,
+  ...SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES,
   "grainline_seller_profile_reconciliation_required_compat",
   "grainline_case_resolution_claim_immutable",
   "grainline_case_resolution_claim_lease_valid",
@@ -639,10 +702,39 @@ export function withAppliedSellerProfilePredecessorRetirement(
 export function collectSellerProfilePrivateMigrationOrderIssues({
   preparationApplied,
   retirementApplied,
+  postRetirementRepairApplied = false,
+  invariantsApplied = false,
 }) {
-  return retirementApplied && !preparationApplied
-    ? ["SellerProfile private predecessor retirement is applied without its exact preparation prerequisite"]
-    : [];
+  const issues = [];
+  if (retirementApplied && !preparationApplied) {
+    issues.push(
+      "SellerProfile private predecessor retirement is applied without its exact preparation prerequisite",
+    );
+  }
+  if (postRetirementRepairApplied && !retirementApplied) {
+    issues.push(
+      "SellerProfile post-retirement repair is applied without exact predecessor retirement",
+    );
+  }
+  if (invariantsApplied && (!retirementApplied || !postRetirementRepairApplied)) {
+    issues.push(
+      "SellerProfile private invariants are applied without exact retirement and post-retirement repair prerequisites",
+    );
+  }
+  return issues;
+}
+
+export function withAppliedSellerProfilePrivateInvariants(inventory, applied) {
+  const invariantNames = new Set(SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES);
+  const functions = (inventory?.functions ?? []).filter(
+    (name) => !invariantNames.has(name),
+  );
+  if (applied) functions.push(...SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES);
+  return {
+    ...inventory,
+    functions: sortedUnique(functions),
+    sellerProfilePrivateInvariantsApplied: applied,
+  };
 }
 
 export function collectPublicFunctionExecuteIssues(rows) {
@@ -1447,6 +1539,22 @@ export async function readSellerProfilePrivatePredecessorRetirementState(client)
     migration: SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION,
     checksum: SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION_SHA256,
     label: "SellerProfile private predecessor retirement",
+  });
+}
+
+export async function readSellerProfilePostRetirementRepairState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION,
+    checksum: SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION_SHA256,
+    label: "SellerProfile post-retirement account-deletion repair",
+  });
+}
+
+export async function readSellerProfilePrivateInvariantsState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION,
+    checksum: SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION_SHA256,
+    label: "SellerProfile private invariants",
   });
 }
 
@@ -2883,6 +2991,7 @@ export async function auditLiveDatabase({
   inventory,
   staffReadStage = null,
   temporarilyAbsentTables = [],
+  temporarilyReappliedFunctions = [],
 }) {
   const issues = [];
   const expectedRlsPolicyTables = new Set(inventory.rlsPolicyTables ?? []);
@@ -2931,9 +3040,17 @@ export async function auditLiveDatabase({
   const sellerProfilePrivatePredecessorRetirement =
     await readSellerProfilePrivatePredecessorRetirementState(client);
   issues.push(...sellerProfilePrivatePredecessorRetirement.issues);
+  const sellerProfilePostRetirementRepair =
+    await readSellerProfilePostRetirementRepairState(client);
+  issues.push(...sellerProfilePostRetirementRepair.issues);
+  const sellerProfilePrivateInvariants =
+    await readSellerProfilePrivateInvariantsState(client);
+  issues.push(...sellerProfilePrivateInvariants.issues);
   issues.push(...collectSellerProfilePrivateMigrationOrderIssues({
     preparationApplied: sellerProfilePrivatePreparation.applied,
     retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
+    postRetirementRepairApplied: sellerProfilePostRetirementRepair.applied,
+    invariantsApplied: sellerProfilePrivateInvariants.applied,
   }));
   issues.push(...collectAccountDeletionMigrationOrderIssues({
     claimFenceApplied: accountDeletionClaimFencePreparation.applied,
@@ -2942,21 +3059,24 @@ export async function auditLiveDatabase({
     forceApplied: accountDeletionSideEffectForce.applied,
   }));
   const liveAuthorityInventory = {
-    ...withAppliedSellerProfilePredecessorRetirement(
-      withAppliedSellerProfileCallerAuthority(
-        withAppliedAccountDeletionAuthority(inventory, {
-          claimFenceApplied: accountDeletionClaimFencePreparation.applied,
-          mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
-        }),
+    ...withAppliedSellerProfilePrivateInvariants(
+      withAppliedSellerProfilePredecessorRetirement(
+        withAppliedSellerProfileCallerAuthority(
+          withAppliedAccountDeletionAuthority(inventory, {
+            claimFenceApplied: accountDeletionClaimFencePreparation.applied,
+            mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
+          }),
+          {
+            deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
+            reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
+          },
+        ),
         {
-          deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
-          reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
+          preparationApplied: sellerProfilePrivatePreparation.applied,
+          retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
         },
       ),
-      {
-        preparationApplied: sellerProfilePrivatePreparation.applied,
-        retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
-      },
+      sellerProfilePrivateInvariants.applied,
     ),
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,
@@ -2972,6 +3092,10 @@ export async function auditLiveDatabase({
     accountDeletionSideEffectRlsForceApplied:
       accountDeletionSideEffectForce.applied,
   };
+  liveAuthorityInventory.functions = sortedUnique([
+    ...liveAuthorityInventory.functions,
+    ...temporarilyReappliedFunctions,
+  ]);
 
   const roleResult = await client.query(
     `SELECT
@@ -3924,12 +4048,17 @@ async function main() {
   let expectedDatabaseName;
   let staffReadStage;
   let temporarilyAbsentTables;
+  let temporarilyReappliedFunctions;
   try {
     connectionString = resolveGrantAuditConnection(process.env, argv);
     staffReadStage = resolveStaffReadAuditStage(argv);
     temporarilyAbsentTables = resolveTemporarilyAbsentCiTables(process.env, {
       allowLoopbackCi,
     });
+    temporarilyReappliedFunctions = resolveTemporarilyReappliedCiFunctions(
+      process.env,
+      { allowLoopbackCi },
+    );
     expectedDatabaseName = parseGrantAuditDatabaseIdentity(
       connectionString,
       requireDirectUrl ? "DIRECT_URL" : "grant audit database URL",
@@ -3973,6 +4102,7 @@ async function main() {
       inventory,
       staffReadStage,
       temporarilyAbsentTables,
+      temporarilyReappliedFunctions,
     });
     if (issues.length > 0) {
       await client.query("ROLLBACK");

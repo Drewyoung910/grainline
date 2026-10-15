@@ -252,6 +252,8 @@ jobs:
           tests/seller-profile-private-predecessor-retirement-postgres.test.mjs
           tests/seller-profile-private-app-authorities-correction-production-workflow.test.mjs
           tests/seller-profile-private-predecessor-retirement-production-workflow.test.mjs
+          tests/seller-profile-private-invariants-postgres.test.mjs
+          tests/seller-profile-private-invariants-production-workflow.test.mjs
       - name: Verify post-retirement account-deletion repair source package
         run: >-
           node --test
@@ -355,6 +357,7 @@ jobs:
           tests/account-deletion-timeout-fix.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/conversation-message-pre-rls-audit.test.mjs
+          tests/conversation-message-recipient-rls.test.mjs
       - name: Isolate Clerk webhook event authority until historical release guards pass
         shell: bash
         run: |
@@ -426,7 +429,8 @@ jobs:
             tests/account-deletion-blocker-refund-state.test.mjs \
             tests/account-deletion-timeout-fix.test.mjs \
             tests/round9-account-deletion-pii-guardrails.test.mjs \
-            tests/conversation-message-pre-rls-audit.test.mjs
+            tests/conversation-message-pre-rls-audit.test.mjs \
+            tests/conversation-message-recipient-rls.test.mjs
           do
             mv "$test_file" "$holding/$(basename "$test_file")"
           done
@@ -1128,7 +1132,8 @@ jobs:
             20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
             20261014230000_prepare_seller_profile_private_remaining_app_authorities \
             20261015000000_correct_seller_profile_private_app_authorities \
-            20261015010000_retire_seller_profile_private_predecessor
+            20261015010000_retire_seller_profile_private_predecessor \
+            20261015080000_restore_seller_profile_private_invariants
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -2671,6 +2676,14 @@ jobs:
         run: npm run audit:rls-conversation-message-recipient
         env:
           CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR: ${{ runner.temp }}/user-accumulated-access
+      - name: Admit re-applied User helper during historical grant audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration="$RUNNER_TEMP/user-accumulated-access/20261006030000_prepare_user_relationship_authorities/migration.sql"
+          test "$(sha256sum "$migration" | cut -d ' ' -f 1)" = "eef3833d5bccd93668cc32c5fcbbdda7ece7f6ee786407ea245e760c0c30bdae"
+          echo "USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR=$RUNNER_TEMP/user-accumulated-access" >> "$GITHUB_ENV"
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
@@ -4742,6 +4755,7 @@ jobs:
           test "$(git hash-object tests/user-authority-catalog.test.mjs)" = "ac17d95ad53501515550b2bb967eb5a149f094d9"
           test -d "$holding/20261008010000_enable_user_rls"
           test -d "$holding/20261008020000_force_user_rls"
+          echo "USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR=" >> "$GITHUB_ENV"
       - name: Apply accumulated User access in disposable PostgreSQL
         shell: bash
         run: |
@@ -5709,7 +5723,8 @@ jobs:
             20261014220000_prepare_seller_profile_private_guild_staff_transition_authority \
             20261014230000_prepare_seller_profile_private_remaining_app_authorities \
             20261015000000_correct_seller_profile_private_app_authorities \
-            20261015010000_retire_seller_profile_private_predecessor
+            20261015010000_retire_seller_profile_private_predecessor \
+            20261015080000_restore_seller_profile_private_invariants
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -5872,6 +5887,48 @@ jobs:
             NULL, pg_catalog.clock_timestamp(), 1
           );
           SQL
+      - name: Apply SellerProfile private invariant restoration in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015080000_restore_seller_profile_private_invariants
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'spi-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Re-prove SellerProfile-touching fixtures on the restored current schema
+        shell: bash
+        env:
+          CASE_SELLER_AGGREGATE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CONVERSATION_MESSAGE_CURRENT_SCHEMA_REPLAY: "true"
+          NOTIFICATION_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          NOTIFICATION_CURRENT_SCHEMA_REPLAY: "true"
+          SELLER_PAYOUT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          SELLER_PAYOUT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+          SELLER_PAYOUT_EVENT_CURRENT_SCHEMA_REPLAY: "true"
+        run: |
+          set -euo pipefail
+          npm run audit:rls-case-seller-aggregate
+          npm run audit:rls-case-invariant-drafts
+          npm run audit:rls-conversation-message-recipient
+          npm run audit:rls-notification-ephemeral
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --command="ALTER ROLE grainline_app_runtime PASSWORD 'grainline-ci-runtime-postflight-only'"
+          npm run audit:rls-seller-payout-event-activation-postgres
       - name: Prove complete buyer and seller deletion after retirement
         run: node scripts/account-deletion-post-retirement-postgres-proof.mjs
         env:

@@ -144,6 +144,41 @@ function newClient(applicationName) {
   return new Client({ connectionString: databaseUrl, application_name: applicationName });
 }
 
+async function proveUserReplayPosture(owner, currentSchemaReplay) {
+  const result = await owner.query(`
+    SELECT
+      relation.relrowsecurity,
+      relation.relforcerowsecurity,
+      pg_catalog.has_table_privilege(
+        'grainline_app_runtime', relation.oid, 'SELECT'
+      ) AS runtime_select,
+      pg_catalog.has_table_privilege(
+        'grainline_app_runtime', relation.oid, 'UPDATE'
+      ) AS runtime_update
+      FROM pg_catalog.pg_class AS relation
+     WHERE relation.oid = 'public."User"'::pg_catalog.regclass
+  `);
+  assert.equal(result.rows.length, 1);
+  const posture = result.rows[0];
+  if (currentSchemaReplay) {
+    assert.deepEqual(posture, {
+      relrowsecurity: true,
+      relforcerowsecurity: true,
+      runtime_select: false,
+      runtime_update: false,
+    });
+    record("current_user_force_zero_direct_posture_confirmed");
+    return;
+  }
+  assert.deepEqual(posture, {
+    relrowsecurity: false,
+    relforcerowsecurity: false,
+    runtime_select: true,
+    runtime_update: true,
+  });
+  record("historical_user_direct_block_race_posture_confirmed");
+}
+
 async function expectPgError(operation, expectedCodes, label) {
   try {
     await operation();
@@ -291,26 +326,74 @@ async function seedFixturesInTransaction(owner) {
       WHERE id = $1`,
     [fixture.bannedSellerUserId, fixture.staffUserId],
   );
-  await owner.query(
-    `INSERT INTO public."SellerProfile" (
-       id, "userId", "displayName", "displayNameNormalized", "chargesEnabled",
-       "guildLevel", "guildMemberApprovedAt", "updatedAt"
-     ) VALUES (
-       $1, $2, 'Proof Seller', 'proof seller', true,
-       'GUILD_MEMBER', pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
-     )`,
-    [fixture.sellerProfileId, fixture.sellerUserId],
-  );
-  await owner.query(
-    `INSERT INTO public."SellerProfile" (
-       id, "userId", "displayName", "displayNameNormalized", "guildLevel",
-       "consecutiveMetricFailures", "metricWarningSentAt", "updatedAt"
-     ) VALUES (
-       $1, $2, 'Proof Guild Master', 'proof guild master', 'GUILD_MASTER',
-       1, pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
-     )`,
-    [fixture.guildSystemProfileId, fixture.guildSystemUserId],
-  );
+  const privateBoundary = await owner.query(`
+    SELECT pg_catalog.to_regclass(
+      'public."SellerProfilePrivate"'
+    ) IS NOT NULL AS installed
+  `);
+  if (privateBoundary.rows[0].installed) {
+    await owner.query(
+      `INSERT INTO public."SellerProfile" (
+         id, "userId", "displayName", "displayNameNormalized", "chargesEnabled",
+         "guildLevel", "updatedAt"
+       ) VALUES
+         ($1, $3, 'Proof Seller', 'proof seller', true,
+          'GUILD_MEMBER', pg_catalog.clock_timestamp()),
+         ($2, $4, 'Proof Guild Master', 'proof guild master', false,
+          'GUILD_MASTER', pg_catalog.clock_timestamp())`,
+      [
+        fixture.sellerProfileId,
+        fixture.guildSystemProfileId,
+        fixture.sellerUserId,
+        fixture.guildSystemUserId,
+      ],
+    );
+    await owner.query(
+      `UPDATE public."SellerProfilePrivate"
+          SET "guildMemberApprovedAt" = CASE
+                WHEN "sellerProfileId" = $1
+                  THEN pg_catalog.clock_timestamp()
+                ELSE "guildMemberApprovedAt"
+              END,
+              "consecutiveMetricFailures" = CASE
+                WHEN "sellerProfileId" = $2 THEN 1
+                ELSE "consecutiveMetricFailures"
+              END,
+              "metricWarningSentAt" = CASE
+                WHEN "sellerProfileId" = $2
+                  THEN pg_catalog.clock_timestamp()
+                ELSE "metricWarningSentAt"
+              END,
+              "updatedAt" = pg_catalog.clock_timestamp()
+        WHERE "sellerProfileId" = ANY($3::text[])`,
+      [
+        fixture.sellerProfileId,
+        fixture.guildSystemProfileId,
+        [fixture.sellerProfileId, fixture.guildSystemProfileId],
+      ],
+    );
+  } else {
+    await owner.query(
+      `INSERT INTO public."SellerProfile" (
+         id, "userId", "displayName", "displayNameNormalized", "chargesEnabled",
+         "guildLevel", "guildMemberApprovedAt", "updatedAt"
+       ) VALUES (
+         $1, $2, 'Proof Seller', 'proof seller', true,
+         'GUILD_MEMBER', pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+       )`,
+      [fixture.sellerProfileId, fixture.sellerUserId],
+    );
+    await owner.query(
+      `INSERT INTO public."SellerProfile" (
+         id, "userId", "displayName", "displayNameNormalized", "guildLevel",
+         "consecutiveMetricFailures", "metricWarningSentAt", "updatedAt"
+       ) VALUES (
+         $1, $2, 'Proof Guild Master', 'proof guild master', 'GUILD_MASTER',
+         1, pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+       )`,
+      [fixture.guildSystemProfileId, fixture.guildSystemUserId],
+    );
+  }
   await owner.query(
     `INSERT INTO public."SellerProfile" (
        id, "userId", "displayName", "displayNameNormalized", "updatedAt"
@@ -1243,18 +1326,47 @@ async function configureGuildSystemAction(owner, action, verificationStatus, gui
       WHERE id = $1`,
     [fixture.guildSystemVerificationId, verificationStatus],
   );
-  await owner.query(
-    `UPDATE public."SellerProfile"
-        SET "guildLevel" = $2::public."GuildLevel",
-            "consecutiveMetricFailures" = CASE WHEN $3 = 'WARN_GUILD_MASTER_METRICS' THEN 1 ELSE 0 END,
-            "metricWarningSentAt" = CASE
-              WHEN $3 = 'WARN_GUILD_MASTER_METRICS' THEN pg_catalog.clock_timestamp()
-              ELSE NULL
-            END,
-            "updatedAt" = pg_catalog.clock_timestamp()
-      WHERE id = $1`,
-    [fixture.guildSystemProfileId, guildLevel, action],
-  );
+  const privateBoundary = await owner.query(`
+    SELECT pg_catalog.to_regclass(
+      'public."SellerProfilePrivate"'
+    ) IS NOT NULL AS installed
+  `);
+  if (privateBoundary.rows[0].installed) {
+    await owner.query(
+      `UPDATE public."SellerProfile"
+          SET "guildLevel" = $2::public."GuildLevel",
+              "updatedAt" = pg_catalog.clock_timestamp()
+        WHERE id = $1`,
+      [fixture.guildSystemProfileId, guildLevel],
+    );
+    await owner.query(
+      `UPDATE public."SellerProfilePrivate"
+          SET "consecutiveMetricFailures" = CASE
+                WHEN $2 = 'WARN_GUILD_MASTER_METRICS' THEN 1 ELSE 0
+              END,
+              "metricWarningSentAt" = CASE
+                WHEN $2 = 'WARN_GUILD_MASTER_METRICS'
+                  THEN pg_catalog.clock_timestamp()
+                ELSE NULL
+              END,
+              "updatedAt" = pg_catalog.clock_timestamp()
+        WHERE "sellerProfileId" = $1`,
+      [fixture.guildSystemProfileId, action],
+    );
+  } else {
+    await owner.query(
+      `UPDATE public."SellerProfile"
+          SET "guildLevel" = $2::public."GuildLevel",
+              "consecutiveMetricFailures" = CASE WHEN $3 = 'WARN_GUILD_MASTER_METRICS' THEN 1 ELSE 0 END,
+              "metricWarningSentAt" = CASE
+                WHEN $3 = 'WARN_GUILD_MASTER_METRICS' THEN pg_catalog.clock_timestamp()
+                ELSE NULL
+              END,
+              "updatedAt" = pg_catalog.clock_timestamp()
+        WHERE id = $1`,
+      [fixture.guildSystemProfileId, guildLevel, action],
+    );
+  }
 }
 
 async function configureListingReviewAudit(owner, action, finalStatus = null, reason = null) {
@@ -2375,16 +2487,27 @@ async function proveBlockRaces(owner) {
 
 async function main() {
   validateTarget(databaseUrl);
+  const replayMode = process.env.NOTIFICATION_CURRENT_SCHEMA_REPLAY;
+  assert.ok(
+    replayMode === undefined || replayMode === "true",
+    "NOTIFICATION_CURRENT_SCHEMA_REPLAY must be absent or true",
+  );
+  const currentSchemaReplay = replayMode === "true";
   const owner = newClient("notification-proof-owner");
   await owner.connect();
   try {
+    await proveUserReplayPosture(owner, currentSchemaReplay);
     await proveCatalog(owner);
     await seedFixtures(owner);
     await proveRecipientIsolation(owner);
     await proveServiceAuthority(owner);
     await proveCreationFamilyMatrix(owner);
     await proveBackInStockClaim(owner);
-    await proveBlockRaces(owner);
+    if (currentSchemaReplay) {
+      record("historical_direct_user_block_races_already_proved_before_user_activation");
+    } else {
+      await proveBlockRaces(owner);
+    }
     await cleanFixtures(owner);
   } finally {
     await owner.end();
@@ -2393,6 +2516,7 @@ async function main() {
   process.stdout.write(`${JSON.stringify({
     generatedAt: new Date().toISOString(),
     proofMode: "ephemeral-loopback-ci-set-role",
+    currentSchemaReplay,
     productionChanged: false,
     persistentStagingChanged: false,
     status: "passed",
