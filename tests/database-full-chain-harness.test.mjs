@@ -128,7 +128,10 @@ test("full-chain runner retries only reviewed historical role convergence refusa
       ) {
         injectedFailures.add("direct-upload");
         throw Object.assign(
-          new Error("grainline_direct_upload_cleanup_v2 posture is not DirectUpload-safe"),
+          new Error(
+            "DirectUpload function source, mode, owner or ACL drifted: " +
+              "grainline_direct_upload_cleanup_lease",
+          ),
           { code: "P0001" },
         );
       }

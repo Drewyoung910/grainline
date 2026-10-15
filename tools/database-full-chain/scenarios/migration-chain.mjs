@@ -14,7 +14,7 @@ const ROLE_CONVERGENCE_RETRY_ERRORS = new Map([
   [
     "20260801194000_enable_direct_upload_rls",
     Object.freeze([
-      "grainline_direct_upload_cleanup_v2 posture is not DirectUpload-safe",
+      "DirectUpload function source, mode, owner or ACL drifted: grainline_direct_upload_cleanup_lease",
     ]),
   ],
   [

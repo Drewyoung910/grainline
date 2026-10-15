@@ -66,8 +66,8 @@ Two historical activation migrations need role scripts to converge immediately
 before their first successful application. The runner retries only these exact
 refusals:
 
-- `20260801194000_enable_direct_upload_rls` when the cleanup-role posture is not
-  ready;
+- `20260801194000_enable_direct_upload_rls` when the cleanup lease function's
+  reviewed owner or ACL has not converged;
 - `20260927090000_enable_order_rls` when the staff-function authority is not
   ready.
 
