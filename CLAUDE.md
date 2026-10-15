@@ -60,6 +60,20 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 ### Pass sizing and verification
 
 - Bigger passes are acceptable when the scope is cohesive, but never commit known-broken code.
+- Choose verification by risk rather than diff size:
+  - Always require a behavior regression that fails on current `main` and passes
+    with the fix for money, cases, account deletion/privacy, access control,
+    database security, migrations, and SQL functions. When one of these paths
+    depends on the database, its acceptance run must use the full migrated
+    PostgreSQL 16 schema; isolated unit tests may supplement that proof.
+  - Usually require a behavior test that executes the affected code for forms,
+    discovery, notifications, email, and other user-facing logic.
+  - Copy, styling, and documentation changes normally need review by eye or a
+    screenshot, with no new automated test unless they alter behavior.
+- Source-text assertions are guardrails for stable source constraints, such as
+  forbidden calls or required wiring. They do not count as behavior evidence.
+- For audit fixes, record the failing current-`main` reproduction and the passing
+  fixed run. A test that never failed on current `main` does not prove the fix.
 - Run focused tests after meaningful code changes in the touched area. Batch expensive full checks (`npm test`, `npm run lint`, `npm run build`) for the end of a cohesive pass when the user asks for speed, but always run them before a production deploy or broad merge.
 - If CI or Vercel fails, stop broadening scope and fix the build first. Do not continue piling new fixes on top of a red pipeline.
 - For docs-only audit closure, `git diff --check` is usually enough before commit.

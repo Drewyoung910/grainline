@@ -21,8 +21,6 @@ installation, output logs, credentials, or machine-specific paths.
   public fields into `SellerProfile`, requires the initializer to create
   `SellerProfilePrivate`, then writes private provider and shipping state only
   to the private table.
-- `tools/database-full-chain/pglite/adapter.mjs` accepts an existing PGlite
-  instance. It does not install PGlite or load a generated snapshot.
 - `tools/database-full-chain/postgres16/adapter.mjs` accepts an existing
   `pg.Client` connected as `ci` to a loopback `grainline_ci` database. It keeps
   real `CONCURRENTLY` statements outside a multi-statement implicit
@@ -56,15 +54,20 @@ PostgreSQL adapter accepts loopback hosts only, database `grainline_ci`, owner
 `ci`, and PostgreSQL major version 16. Callers supply credentials at runtime;
 no URL or password belongs in this tree.
 
-The PGlite plan records these source-preserving deviations:
+The PostgreSQL 16 plan records one source-preserving deviation:
 
-1. `CREATE/DROP INDEX CONCURRENTLY` loses `CONCURRENTLY`, because PGlite runs a
-   multi-statement migration in one implicit transaction.
-2. Migration `20260905180000_correct_order_banned_buyer_completion` has four
+1. Migration `20260905180000_correct_order_banned_buyer_completion` has four
    reviewed `neondb_owner` literals. The disposable CI copy replaces those four
    literals with `ci`, while the ledger keeps the original file checksum.
 
 Every deviation fails closed if the expected source shape changes.
+
+The main CI job runs this harness against its real `postgres:16` service before
+the rest of the database suite. It then recreates the disposable `grainline_ci`
+database so the existing Prisma migration and behavior suites still start from
+a blank database. The harness test skips in ordinary local `npm test` runs when
+`DATABASE_FULL_CHAIN_PROOF_DATABASE_URL` is absent; that skip is not acceptance.
+The passing PostgreSQL 16 CI step is the acceptance evidence.
 
 ## Intentionally deferred from Claude's preserved scratch tree
 

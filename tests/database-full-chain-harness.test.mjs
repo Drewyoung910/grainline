@@ -60,7 +60,7 @@ test("migration plan covers current main and pins the reviewed CI deviations", (
   const concurrentArtifact = artifacts.find(({ sql }) => containsConcurrentIndex(sql));
   assert.ok(concurrentArtifact);
   assert.match(prepareMigrationSql(concurrentArtifact, "postgres16").sql, /CONCURRENTLY/iu);
-  assert.doesNotMatch(prepareMigrationSql(concurrentArtifact, "pglite").sql, /CONCURRENTLY/iu);
+  assert.throws(() => prepareMigrationSql(concurrentArtifact, "pglite"), /unsupported/u);
 });
 
 test("repository schema and retirement migration retain the post-retirement seller layout", () => {
@@ -85,6 +85,21 @@ test("repository schema and retirement migration retain the post-retirement sell
   );
   assert.match(retirement, /CREATE TRIGGER "SellerProfile_private_initialize"/u);
   assert.match(retirement, /INSERT INTO public\."SellerProfilePrivate"/u);
+});
+
+test("main CI proves the full chain before recreating the disposable database", () => {
+  const workflow = fs.readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+  const proof = workflow.indexOf("      - name: Prove full migration chain on PostgreSQL 16\n");
+  const reset = workflow.indexOf("      - name: Reset disposable database after full-chain proof\n");
+  const existingSuite = workflow.indexOf("      - run: npx prisma generate\n");
+  assert.ok(proof >= 0);
+  assert.ok(reset > proof);
+  assert.ok(existingSuite > reset);
+  assert.match(
+    workflow.slice(proof, reset),
+    /DATABASE_FULL_CHAIN_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/u,
+  );
+  assert.match(workflow.slice(reset, existingSuite), /dropdb[\s\S]*createdb/u);
 });
 
 test("full-chain runner applies every artifact and retries only after role convergence", async () => {

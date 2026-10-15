@@ -57,7 +57,7 @@ export function prepareMigrationSql(artifact, engine) {
   if (!artifact?.name || typeof artifact.sql !== "string") {
     throw new TypeError("a migration artifact with name and sql is required");
   }
-  if (engine !== "pglite" && engine !== "postgres16") {
+  if (engine !== "postgres16") {
     throw new Error(`unsupported full-chain engine: ${engine}`);
   }
 
@@ -77,17 +77,6 @@ export function prepareMigrationSql(artifact, engine) {
       originalChecksum: artifact.checksum,
       preparedChecksum: sha256(sql),
     });
-  }
-
-  if (engine === "pglite") {
-    const before = sql;
-    sql = sql.replace(
-      /\b(CREATE\s+(?:UNIQUE\s+)?INDEX|DROP\s+INDEX)\s+CONCURRENTLY\b/giu,
-      "$1",
-    );
-    if (sql !== before) {
-      deviations.push({ kind: "pglite-concurrently-removal" });
-    }
   }
 
   return Object.freeze({ sql, deviations });
