@@ -68,6 +68,16 @@ async function runBindingScript({
     },
     {
       id: 203,
+      name: "Notification RLS FORCE Proof",
+      path: ".github/workflows/notification-rls-ephemeral-proof.yml",
+      event: "push",
+      head_branch: "main",
+      head_sha: releaseSha,
+      status: "completed",
+      conclusion: "success",
+    },
+    {
+      id: 204,
       name: "Auxiliary proof",
       path: ".github/workflows/account-deletion-worker-bootstrap-proof.yml",
       event: "push",
@@ -77,7 +87,7 @@ async function runBindingScript({
       conclusion: auxiliaryConclusion,
     },
     {
-      id: 204,
+      id: 205,
       name: "Order Staff Bootstrap Proof",
       path: ".github/workflows/order-staff-bootstrap-proof.yml",
       event: "push",
@@ -87,7 +97,7 @@ async function runBindingScript({
       conclusion: "success",
     },
     {
-      id: 205,
+      id: 206,
       name: "Order Paid Repair Lock Proof",
       path: ".github/workflows/order-paid-repair-lock-proof.yml",
       event: "push",
@@ -97,7 +107,7 @@ async function runBindingScript({
       conclusion: "success",
     },
     {
-      id: 206,
+      id: 207,
       name: "Order Account Deletion Concurrency Proof",
       path: ".github/workflows/order-account-deletion-concurrency-proof.yml",
       event: "push",
@@ -218,7 +228,7 @@ test("Production binding rejects a failed auxiliary exact-main workflow", async 
 test("Production binding rejects an absent required exact-main workflow", async () => {
   await assert.rejects(
     runBindingScript({
-      omitRequiredPath: ".github/workflows/order-paid-repair-lock-proof.yml",
+      omitRequiredPath: ".github/workflows/notification-rls-ephemeral-proof.yml",
     }),
     /Required exact-main push workflows are absent/u,
   );

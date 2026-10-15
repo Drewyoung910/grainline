@@ -159,6 +159,7 @@ jobs:
             const requiredPushWorkflowPaths = new Set([
               '.github/workflows/ci.yml',
               '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
               '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
               '.github/workflows/order-staff-bootstrap-proof.yml',
               '.github/workflows/order-paid-repair-lock-proof.yml',
