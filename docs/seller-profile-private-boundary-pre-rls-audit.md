@@ -902,3 +902,44 @@ Before every later inspection, ENABLE, or FORCE dispatch, compare the newest
 Claude findings since this checkpoint to exact main and current Production.
 Append the verified, stale, deferred, and unrelated outcomes here before
 proceeding. Claude status text alone cannot close or block a finding.
+
+### 2026-10-15 repair completion and final private-table integrity gate
+
+The incident window above is closed. Exact main
+`e46c45ed7e24b29f6ae2673d96649d2e1ac3ab61` passed push CI
+`38679357645` and is live on all five canonical aliases as deployment
+`dpl_7kfJ9HCWtJBiHhZDhbCBbwNGts5m`. Protected Production run
+`38697452638` applied only
+`20261015013000_repair_account_deletion_after_seller_profile_retirement`.
+Its read-only preflight and postflight found no account-deletion backlog, no
+missing private companion, no retired-column reference in live functions, and
+no global grant drift. The public and private SellerProfile tables still have
+RLS off. This completes the post-retirement account-deletion repair; it is no
+longer a SellerProfilePrivate activation blocker.
+
+Findings #653 and #682 were independently reproduced and are addressed by the
+next bounded release candidate:
+
+- `20261015080000_restore_seller_profile_private_invariants` restores an
+  E.164 constraint on `SellerProfilePrivate.shipFromPhone`, derives the public
+  `stripeAccountSupported` snapshot from private `stripeAccountVersion` in
+  both directions, denies direct execution of both trigger helpers, and
+  leaves RLS and table grants unchanged.
+- The Case, Conversation/Message, Notification and SellerPayoutEvent proof
+  fixtures now detect the installed private boundary and seed or read the
+  private companion on the current schema while retaining an explicit
+  historical-prefix branch. Main CI reruns those five proof families after
+  all SellerProfile migrations are restored, so held-out predecessor tests can
+  no longer mask a current-schema `42703` failure.
+- The protected invariant workflow admits only the exact migration after the
+  exact retirement and account-deletion repair ledgers, validates zero bad
+  phones, zero snapshot mismatches and zero missing companions, proves the
+  trigger/constraint/ACL catalog, and stores sanitized count-only evidence.
+
+This candidate is compatible preparation only. After it merges and the
+protected invariant run succeeds, `SellerProfilePrivate` can proceed to a
+small policyless ENABLE release and a separate FORCE release because the
+ordinary runtime and `PUBLIC` already have zero direct table authority and no
+row policy is needed. Public `SellerProfile` remains a separate design: its
+conditional exact coordinates and public catalog reads require bounded
+projections and grant conversion before its own RLS activation.

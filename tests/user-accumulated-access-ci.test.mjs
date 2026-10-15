@@ -44,6 +44,7 @@ const heldTests = [
   "account-deletion-timeout-fix.test.mjs",
   "round9-account-deletion-pii-guardrails.test.mjs",
   "conversation-message-pre-rls-audit.test.mjs",
+  "conversation-message-recipient-rls.test.mjs",
 ];
 const packageOwnedTests = [
   "user-clerk-identity-authority-postgres.test.mjs",

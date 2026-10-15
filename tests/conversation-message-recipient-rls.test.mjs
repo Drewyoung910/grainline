@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
+import { resolveTemporarilyReappliedCiFunctions } from "../scripts/audit-runtime-db-grants.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const recipientSql = fs.readFileSync(
@@ -19,9 +21,33 @@ const authorityPreparationSql = fs.readFileSync(
   "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
   "utf8",
 );
+const userRelationshipSql = fs.readFileSync(
+  "prisma/migrations/20261006030000_prepare_user_relationship_authorities/migration.sql",
+  "utf8",
+);
+const userCrossDomainSql = fs.readFileSync(
+  "prisma/migrations/20261007160000_converge_user_cross_domain_authorities/migration.sql",
+  "utf8",
+);
+const caseAccountDeletionSql = fs.readFileSync(
+  "prisma/migrations/20260729061000_prepare_case_account_deletion_authority/migration.sql",
+  "utf8",
+);
+const sellerPrivateSupportedSnapshotSql = fs.readFileSync(
+  sellerProfilePrivateMigrationPath(
+    "20261013130000_move_seller_supported_snapshot_sql_callers",
+  ),
+  "utf8",
+);
 const sellerPrivateCustomOrderSql = fs.readFileSync(
   sellerProfilePrivateMigrationPath(
     "20261013150000_move_custom_order_seller_private_sql_callers",
+  ),
+  "utf8",
+);
+const sellerPrivateAccountDeletionSql = fs.readFileSync(
+  sellerProfilePrivateMigrationPath(
+    "20261013210000_move_account_deletion_seller_private_sql_callers",
   ),
   "utf8",
 );
@@ -70,6 +96,32 @@ function sqlFunctionDefinition(source, functionName) {
 }
 
 describe("Conversation and Message recipient RLS draft", () => {
+  it("admits the temporarily re-applied User helper only from exact loopback CI source", () => {
+    assert.deepEqual(resolveTemporarilyReappliedCiFunctions({}), []);
+    const migrationsDir = path.join(process.cwd(), "prisma", "migrations");
+    const acceptedEnv = {
+      GITHUB_ACTIONS: "true",
+      USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR: migrationsDir,
+    };
+    assert.deepEqual(
+      resolveTemporarilyReappliedCiFunctions(
+        acceptedEnv,
+        { allowLoopbackCi: true },
+      ),
+      ["grainline_user_conversation_participants"],
+    );
+    assert.throws(() => resolveTemporarilyReappliedCiFunctions(
+      acceptedEnv,
+      { allowLoopbackCi: false },
+    ));
+    assert.throws(() => resolveTemporarilyReappliedCiFunctions({
+      USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR: migrationsDir,
+    }, { allowLoopbackCi: true }));
+    assert.throws(() => resolveTemporarilyReappliedCiFunctions({
+      GITHUB_ACTIONS: "true",
+      USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR: "prisma/migrations",
+    }, { allowLoopbackCi: true }));
+  });
   it("promotes the recipient catalog and exact initial policies separately", () => {
     const migrationSql = fs
       .readdirSync("prisma/migrations", { withFileTypes: true })
@@ -101,10 +153,81 @@ describe("Conversation and Message recipient RLS draft", () => {
     );
   });
 
-  it("reapplies the current custom-order seller private boundary after the historical draft", () => {
+  it("reapplies current seller-private successors after the historical draft", () => {
     assert.match(
       proof,
-      /await owner\.query\(serviceSql\);[\s\S]*to_regclass\([\s\S]*SellerProfilePrivate[\s\S]*if \(sellerPrivateBoundary\.rows\[0\]\.installed\) \{[\s\S]*await owner\.query\(sellerPrivateCustomOrderSql\);/,
+      /USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR \|\| "prisma\/migrations"[\s\S]*20261006030000_prepare_user_relationship_authorities[\s\S]*20261007160000_converge_user_cross_domain_authorities/,
+    );
+    assert.match(
+      ci,
+      /Prove FORCE-hardened Conversation and Message authority[\s\S]*USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR: \$\{\{ runner\.temp \}\}\/user-accumulated-access/,
+    );
+    const proofStep = ci.indexOf(
+      "      - name: Prove FORCE-hardened Conversation and Message authority in ephemeral PostgreSQL\n",
+    );
+    const admissionStep = ci.indexOf(
+      "      - name: Admit re-applied User helper during historical grant audits\n",
+    );
+    const firstGrantAudit = ci.indexOf(
+      "      - name: Audit locked Order item and quote runtime grants\n",
+    );
+    const restoreStep = ci.indexOf(
+      "      - name: Restore accumulated User access source package\n",
+    );
+    assert.ok(proofStep < admissionStep);
+    assert.ok(admissionStep < firstGrantAudit);
+    assert.ok(firstGrantAudit < restoreStep);
+    const admissionEnd = ci.indexOf("\n      - name:", admissionStep + 1);
+    const admission = ci.slice(admissionStep, admissionEnd);
+    assert.match(admission, /eef3833d5bccd93668cc32c5fcbbdda7ece7f6ee786407ea245e760c0c30bdae/);
+    assert.match(
+      admission,
+      /USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR=\$RUNNER_TEMP\/user-accumulated-access/,
+    );
+    const restoreEnd = ci.indexOf("\n      - name:", restoreStep + 1);
+    const restore = ci.slice(restoreStep, restoreEnd);
+    assert.match(restore, /USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR=/);
+    assert.match(
+      proof,
+      /SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR \|\| "prisma\/migrations"/,
+    );
+    assert.match(
+      proof,
+      /await owner\.query\(serviceSql\);[\s\S]*await owner\.query\(currentAccountDeletionRedactTextSql\);[\s\S]*await owner\.query\(currentUserConversationParticipantsSql\);[\s\S]*REVOKE ALL ON FUNCTION[\s\S]*grainline_user_conversation_participants\(text, text\)[\s\S]*await owner\.query\(currentConversationInboxSql\);[\s\S]*to_regclass\([\s\S]*SellerProfilePrivate[\s\S]*if \(sellerPrivateBoundary\.rows\[0\]\.installed\) \{[\s\S]*await owner\.query\(sellerPrivateConversationListingSql\);[\s\S]*await owner\.query\(sellerPrivateCustomOrderSql\);[\s\S]*await owner\.query\(sellerPrivateAccountDeletionSql\);/,
+    );
+    const currentParticipants = sqlFunctionDefinition(
+      userRelationshipSql,
+      "grainline_user_conversation_participants",
+    );
+    assert.match(currentParticipants, /SECURITY DEFINER/);
+    assert.match(currentParticipants, /SET search_path = pg_catalog/);
+    assert.match(currentParticipants, /public\."User"/);
+    assert.match(
+      proof,
+      /current_user_conversation_participants_catalog_preserved/,
+    );
+    assert.match(
+      proof,
+      /captureConversationInboxDefinition[\s\S]*pg_get_functiondef[\s\S]*restoreConversationInboxDefinition[\s\S]*conversation_inbox_predecessor_restored/,
+    );
+    assert.match(
+      proof,
+      /currentSchemaReplay[\s\S]*current_user_force_zero_direct_posture_confirmed[\s\S]*historical_direct_user_races_already_proved_before_user_activation/,
+    );
+    const historicalProofStep = ci.slice(proofStep, admissionStep);
+    assert.doesNotMatch(
+      historicalProofStep,
+      /CONVERSATION_MESSAGE_CURRENT_SCHEMA_REPLAY/,
+    );
+    const currentReplayStep = ci.indexOf(
+      "      - name: Re-prove SellerProfile-touching fixtures on the restored current schema\n",
+    );
+    assert.ok(currentReplayStep > restoreStep);
+    const currentReplayEnd = ci.indexOf("\n      - name:", currentReplayStep + 1);
+    const currentReplay = ci.slice(currentReplayStep, currentReplayEnd);
+    assert.match(
+      currentReplay,
+      /CONVERSATION_MESSAGE_CURRENT_SCHEMA_REPLAY: "true"/,
     );
     assert.match(
       proof,
@@ -131,6 +254,64 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.doesNotMatch(
       sellerPrivateCustomOrderSql,
       /seller\."stripeAccount(?:Id|Version)"/,
+    );
+    const currentInbox = sqlFunctionDefinition(
+      userCrossDomainSql,
+      "grainline_conversation_inbox",
+    );
+    assert.match(currentInbox, /grainline_user_conversation_participants/);
+    const currentRedactText = sqlFunctionDefinition(
+      caseAccountDeletionSql,
+      "grainline_account_deletion_redact_text_core",
+    );
+    assert.match(currentRedactText, /\(\?<!\[\[:alnum:\]\]\)/);
+    assert.match(
+      currentRedactText,
+      /RETURN pg_catalog\.left\(redacted, pg_catalog\.char_length\(p_body\)\)/,
+    );
+    assert.match(
+      proof,
+      /redactionReplyCurrent[\s\S]*\.slice\(0, redactionReplyOriginal\.length\)/,
+    );
+    const currentListingCore = sqlFunctionDefinition(
+      sellerPrivateSupportedSnapshotSql,
+      "grainline_conversation_listing_core",
+    );
+    assert.match(currentListingCore, /seller\."stripeAccountSupported"/);
+    assert.doesNotMatch(
+      currentListingCore,
+      /seller\."stripeAccount(?:Id|Version)"/,
+    );
+    for (const functionName of [
+      "grainline_user_account_deletion_snapshot",
+      "grainline_message_redact_for_account_deletion",
+      "grainline_case_account_deletion_redact",
+    ]) {
+      assert.match(
+        sellerPrivateAccountDeletionSql,
+        new RegExp(`CREATE OR REPLACE FUNCTION public\\.${functionName}\\(`),
+      );
+    }
+    assert.match(sellerPrivateAccountDeletionSql, /public\."SellerProfilePrivate"/);
+    const currentMessageRedaction = sqlFunctionDefinition(
+      sellerPrivateAccountDeletionSql,
+      "grainline_message_redact_for_account_deletion",
+    );
+    assert.doesNotMatch(
+      currentMessageRedaction,
+      /seller\."shipFrom(?:Name|Line1|Line2|City|State|PostalCode|Country|Phone)"/,
+    );
+    assert.match(
+      proof,
+      /detectClaimedMessageDeletionSuccessor[\s\S]*grainline_message_redact_for_account_deletion\(text,text,bigint,uuid\)/,
+    );
+    assert.match(
+      proof,
+      /restoreClaimedMessageDeletionPosture[\s\S]*REVOKE EXECUTE ON FUNCTION[\s\S]*grainline_message_redact_for_account_deletion\(text\)[\s\S]*FROM \$\{runtimeRole\}/,
+    );
+    assert.match(
+      proof,
+      /procedure\.proname = 'grainline_message_redact_for_account_deletion'[\s\S]*procedure\.oid <> pg_catalog\.to_regprocedure/,
     );
   });
 
@@ -251,7 +432,7 @@ describe("Conversation and Message recipient RLS draft", () => {
           /relforcerowsecurity: true/g,
         ) ?? []
       ).length,
-      2,
+      3,
     );
     assert.match(proof, /directWithoutContext/);
     assert.match(proof, /contextCleared/);

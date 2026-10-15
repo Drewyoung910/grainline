@@ -94,6 +94,10 @@ const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = [
 const SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES = [
   "grainline_seller_profile_private_initialize",
 ];
+const SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES = [
+  "grainline_seller_profile_private_supported_snapshot_sync",
+  "grainline_seller_profile_supported_snapshot_guard",
+];
 const SELLER_PROFILE_PRIVATE_APP_AUTHORITY_GROUPS = [
   {
     migration: "20261014120000_prepare_seller_profile_private_stripe_app_authorities",
@@ -241,6 +245,10 @@ const {
   SELLER_PROFILE_PRIVATE_PREPARATION_MIGRATION_SHA256,
   SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION,
   SELLER_PROFILE_PRIVATE_PREDECESSOR_RETIREMENT_MIGRATION_SHA256,
+  SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION,
+  SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION_SHA256,
+  SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION,
+  SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION_SHA256,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
@@ -308,6 +316,8 @@ const {
   readSellerProfileDeauthorizeCompatState,
   readSellerProfilePrivatePreparationState,
   readSellerProfilePrivatePredecessorRetirementState,
+  readSellerProfilePostRetirementRepairState,
+  readSellerProfilePrivateInvariantsState,
   readSellerProfileReconciliationCompatState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
@@ -315,6 +325,7 @@ const {
   resolveTemporarilyAbsentCiTables,
   withAppliedAccountDeletionAuthority,
   withAppliedSellerProfileCallerAuthority,
+  withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
@@ -2728,6 +2739,14 @@ describe("database grant inventory guardrails", () => {
       source(sellerProfilePrivateRetirementMigrationPath).includes(
         `FUNCTION public.${functionName}()`,
       ));
+    const sellerProfilePrivateInvariantsMigrationPath =
+      "prisma/migrations/20261015080000_restore_seller_profile_private_invariants/migration.sql";
+    const sellerProfilePrivateInvariantsMigrationPresent = existsSync(
+      sellerProfilePrivateInvariantsMigrationPath,
+    ) && SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES.every((functionName) =>
+      source(sellerProfilePrivateInvariantsMigrationPath).includes(
+        `FUNCTION public.${functionName}()`,
+      ));
     const sellerProfilePrivateBoundaryFunctionNames =
       sellerProfilePrivateRetirementMigrationPresent
         ? SELLER_PROFILE_PRIVATE_RETIREMENT_FUNCTION_NAMES
@@ -2917,6 +2936,9 @@ describe("database grant inventory guardrails", () => {
         ? sellerProfilePrivateCallerTransitionFunctionNames
         : []),
       ...sellerProfilePrivateBoundaryFunctionNames,
+      ...(sellerProfilePrivateInvariantsMigrationPresent
+        ? SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES
+        : []),
       ...sellerProfilePrivateAppAuthorityFunctionNames,
       ...sellerProfilePrivateStaffReadFunctionNames,
       ...(listingHideDeleteMigrationPresent
@@ -2993,6 +3015,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (sellerProfilePrivateRetirementMigrationPresent
           ? 3 // initializer plus reasserted compat-helper revokes
+          : 0)
+        + (sellerProfilePrivateInvariantsMigrationPresent
+          ? SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES.length
           : 0)
         + sellerProfilePrivateAppAuthorityFunctionNames.length
         + sellerProfilePrivateStaffReadFunctionNames.length
@@ -4016,6 +4041,20 @@ describe("database grant inventory guardrails", () => {
       )),
       { applied: true, issues: [] },
     );
+    assert.deepEqual(
+      await readSellerProfilePostRetirementRepairState(exactClient(
+        SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION,
+        SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readSellerProfilePrivateInvariantsState(exactClient(
+        SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION,
+        SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
 
     const sourceInventory = {
       functions: [
@@ -4056,6 +4095,27 @@ describe("database grant inventory guardrails", () => {
       { preparationApplied: true, retirementApplied: true },
     );
     assert.deepEqual(retired.functions, sourceInventory.functions);
+    const invariantSourceInventory = {
+      functions: [
+        ...retired.functions,
+        ...SELLER_PROFILE_PRIVATE_INVARIANT_FUNCTION_NAMES,
+      ],
+    };
+    assert.deepEqual(
+      withAppliedSellerProfilePrivateInvariants(
+        invariantSourceInventory,
+        false,
+      ).functions,
+      retired.functions,
+    );
+    assert.deepEqual(
+      withAppliedSellerProfilePrivateInvariants(
+        invariantSourceInventory,
+        true,
+      ).functions,
+      invariantSourceInventory.functions.slice().sort((left, right) =>
+        left.localeCompare(right)),
+    );
     assert.deepEqual(collectSellerProfilePrivateMigrationOrderIssues({
       preparationApplied: true,
       retirementApplied: true,
@@ -4065,6 +4125,21 @@ describe("database grant inventory guardrails", () => {
       retirementApplied: true,
     }), [
       "SellerProfile private predecessor retirement is applied without its exact preparation prerequisite",
+    ]);
+    assert.deepEqual(collectSellerProfilePrivateMigrationOrderIssues({
+      preparationApplied: true,
+      retirementApplied: false,
+      postRetirementRepairApplied: true,
+    }), [
+      "SellerProfile post-retirement repair is applied without exact predecessor retirement",
+    ]);
+    assert.deepEqual(collectSellerProfilePrivateMigrationOrderIssues({
+      preparationApplied: true,
+      retirementApplied: true,
+      postRetirementRepairApplied: false,
+      invariantsApplied: true,
+    }), [
+      "SellerProfile private invariants are applied without exact retirement and post-retirement repair prerequisites",
     ]);
   });
 
