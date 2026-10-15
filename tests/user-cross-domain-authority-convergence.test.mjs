@@ -273,12 +273,26 @@ test("historical FORCE proofs hold all User pre-enable successors together", () 
   ];
   for (const workflowPath of historicalProofPaths) {
     const workflow = readFileSync(workflowPath, "utf8");
+    const isolateStart = workflow.indexOf(
+      "      - name: Isolate reviewed Order release successors from historical proof\n",
+    );
+    const isolateEnd = workflow.indexOf("\n      - name:", isolateStart + 1);
+    const isolate = workflow.slice(isolateStart, isolateEnd);
+    const manifest = isolate.match(
+      /done <<'MIGRATIONS'\n([\s\S]*?)\n\s+MIGRATIONS/u,
+    )?.[1];
+    assert.ok(manifest, `${workflowPath} must retain the isolation manifest`);
+    const restoreStart = workflow.indexOf(
+      "      - name: Restore reviewed Order release successors\n",
+    );
+    const restoreEnd = workflow.indexOf("\n      - name:", restoreStart + 1);
+    const restore = workflow.slice(restoreStart, restoreEnd);
     for (const [digest, migration] of held) {
-      assert.match(workflow, new RegExp(`${digest} ${migration}`, "u"));
-      assert.equal(
-        (workflow.match(new RegExp(migration, "gu")) ?? []).length,
-        2,
-        `${workflowPath} must isolate and restore ${migration}`,
+      assert.match(manifest, new RegExp(`${digest} ${migration}`, "u"));
+      assert.match(
+        restore,
+        new RegExp(`\\s${migration}(?: \\\\|\\n)`, "u"),
+        `${workflowPath} must restore ${migration}`,
       );
     }
   }
