@@ -2525,10 +2525,6 @@ jobs:
           npm run audit:db-grants --
           --allow-loopback-ci
           --staff-read-stage=order-zero-direct-private
-      - name: Prove Order/payment/shipping legacy inspection SQL after label claim preparation
-        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
-        env:
-          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove complete Order zero-direct prefix in disposable PostgreSQL
         run: npm run audit:order-zero-direct-compatible-prefix-postgres
         env:
@@ -5884,6 +5880,10 @@ jobs:
         run: node scripts/seller-profile-retired-function-reference-postgres-proof.mjs
         env:
           SELLER_PROFILE_RETIRED_FUNCTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Order/payment/shipping legacy inspection SQL after label claim preparation
+        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
+        env:
+          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Converge runtime grants after SellerProfile private boundary
         run: >-
           psql "$DIRECT_URL"

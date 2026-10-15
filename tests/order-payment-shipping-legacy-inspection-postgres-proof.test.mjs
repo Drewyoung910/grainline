@@ -106,11 +106,19 @@ describe("Order/payment/shipping legacy inspection PostgreSQL proof", () => {
     const compatibleApply = ci.indexOf(
       "Apply compatible Order participant authority",
     );
+    const sellerProfileRetirement = ci.indexOf(
+      "Apply SellerProfile private predecessor retirement in disposable PostgreSQL",
+    );
+    const accountDeletionRepair = ci.indexOf(
+      "Apply account-deletion post-retirement repair in disposable PostgreSQL",
+    );
     assert.ok(
       forceAudit >= 0
       && forceAudit < compatibleApply
-      && compatibleApply < inspection,
-      "legacy inspection requires the compatible schema containing label claim columns",
+      && compatibleApply < sellerProfileRetirement
+      && sellerProfileRetirement < accountDeletionRepair
+      && accountDeletionRepair < inspection,
+      "legacy inspection requires the compatible label-claim and SellerProfilePrivate schemas",
     );
     assert.match(
       ci,
