@@ -382,6 +382,10 @@ test("signature-keyed catalog scan rejects retired public SellerProfile referenc
 
 test("CI proves the repair on PostgreSQL after retirement and before convergence", () => {
   const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+  const proof = readFileSync(
+    "scripts/account-deletion-post-retirement-postgres-proof.mjs",
+    "utf8",
+  );
   const retirement = ci.indexOf(
     "Apply SellerProfile private predecessor retirement in disposable PostgreSQL",
   );
@@ -415,6 +419,16 @@ test("CI proves the repair on PostgreSQL after retirement and before convergence
     ci,
     /SELLER_PROFILE_RETIRED_FUNCTION_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/u,
   );
+  for (const table of ["User", "SellerProfile", "AccountDeletionSideEffect"]) {
+    assert.match(
+      proof,
+      new RegExp(
+        `INSERT INTO public\\."${table}" \\([\\s\\S]*?"updatedAt"[\\s\\S]*?clock_timestamp\\(\\) AT TIME ZONE 'UTC'`,
+        "u",
+      ),
+      `${table} proof fixture must provide its required updatedAt value`,
+    );
+  }
 });
 
 test("production inspector pins the exact repair and retains aggregate evidence only", () => {

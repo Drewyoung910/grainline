@@ -19,8 +19,12 @@ async function proveDeletion(client, fixture) {
   await client.query(
     `INSERT INTO public."User" (
        id, "clerkId", email, name, "shippingName", "shippingLine1",
-       "shippingCity", "shippingState", "shippingPostalCode", "shippingPhone"
-     ) VALUES ($1, $2, $3, $4, $4, '1 Proof Lane', 'Austin', 'TX', '78701', '+15125550101')`,
+       "shippingCity", "shippingState", "shippingPostalCode", "shippingPhone",
+       "updatedAt"
+     ) VALUES (
+       $1, $2, $3, $4, $4, '1 Proof Lane', 'Austin', 'TX', '78701',
+       '+15125550101', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+     )`,
     [userId, `clerk_${userId}`, `${userId}@example.test`, fixture.name],
   );
 
@@ -28,8 +32,11 @@ async function proveDeletion(client, fixture) {
     await client.query(
       `INSERT INTO public."SellerProfile" (
          id, "userId", "displayName", "displayNameNormalized", city, state,
-         tagline
-       ) VALUES ($1, $2, $3, $4, 'Austin', 'TX', 'Proof seller tagline')`,
+         tagline, "updatedAt"
+       ) VALUES (
+         $1, $2, $3, $4, 'Austin', 'TX', 'Proof seller tagline',
+         pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+       )`,
       [sellerProfileId, userId, `${fixture.name} Shop`, `${fixture.name.toLowerCase()} shop`],
     );
     const privateUpdate = await client.query(
@@ -50,8 +57,11 @@ async function proveDeletion(client, fixture) {
 
   await client.query(
     `INSERT INTO public."AccountDeletionSideEffect" (
-       id, "userId", kind, "dedupKey", payload, status
-     ) VALUES ($1, $2, 'LOCAL_ANONYMIZE', $3, '{}'::jsonb, 'PENDING')`,
+       id, "userId", kind, "dedupKey", payload, status, "updatedAt"
+     ) VALUES (
+       $1, $2, 'LOCAL_ANONYMIZE', $3, '{}'::jsonb, 'PENDING',
+       pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+     )`,
     [sideEffectId, userId, `account-delete:local:${userId}`],
   );
 
