@@ -819,28 +819,28 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       pg_catalog.count(item.id) FILTER (
         WHERE item.quantity > 0
           AND COALESCE(
-            listing."packagedWeightGrams", seller."defaultPkgWeightGrams"
+            listing."packagedWeightGrams", seller_private."defaultPkgWeightGrams"
           ) > 0
           AND COALESCE(
-            listing."packagedWeightGrams", seller."defaultPkgWeightGrams"
+            listing."packagedWeightGrams", seller_private."defaultPkgWeightGrams"
           ) <= 500000
           AND COALESCE(
-            listing."packagedLengthCm", seller."defaultPkgLengthCm"
+            listing."packagedLengthCm", seller_private."defaultPkgLengthCm"
           ) > 0
           AND COALESCE(
-            listing."packagedLengthCm", seller."defaultPkgLengthCm"
+            listing."packagedLengthCm", seller_private."defaultPkgLengthCm"
           ) <= 1000
           AND COALESCE(
-            listing."packagedWidthCm", seller."defaultPkgWidthCm"
+            listing."packagedWidthCm", seller_private."defaultPkgWidthCm"
           ) > 0
           AND COALESCE(
-            listing."packagedWidthCm", seller."defaultPkgWidthCm"
+            listing."packagedWidthCm", seller_private."defaultPkgWidthCm"
           ) <= 1000
           AND COALESCE(
-            listing."packagedHeightCm", seller."defaultPkgHeightCm"
+            listing."packagedHeightCm", seller_private."defaultPkgHeightCm"
           ) > 0
           AND COALESCE(
-            listing."packagedHeightCm", seller."defaultPkgHeightCm"
+            listing."packagedHeightCm", seller_private."defaultPkgHeightCm"
           ) <= 1000
       )::integer AS live_items,
       pg_catalog.sum(
@@ -873,22 +873,36 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
           ELSE NULL END
       ) AS snapshot_height,
       pg_catalog.sum(
-        COALESCE(listing."packagedWeightGrams", seller."defaultPkgWeightGrams")::numeric
+        COALESCE(
+          listing."packagedWeightGrams",
+          seller_private."defaultPkgWeightGrams"
+        )::numeric
           * item.quantity
       ) AS live_weight,
       pg_catalog.max(
-        COALESCE(listing."packagedLengthCm", seller."defaultPkgLengthCm")::numeric
+        COALESCE(
+          listing."packagedLengthCm",
+          seller_private."defaultPkgLengthCm"
+        )::numeric
       ) AS live_length,
       pg_catalog.max(
-        COALESCE(listing."packagedWidthCm", seller."defaultPkgWidthCm")::numeric
+        COALESCE(
+          listing."packagedWidthCm",
+          seller_private."defaultPkgWidthCm"
+        )::numeric
       ) AS live_width,
       pg_catalog.max(
-        COALESCE(listing."packagedHeightCm", seller."defaultPkgHeightCm")::numeric
+        COALESCE(
+          listing."packagedHeightCm",
+          seller_private."defaultPkgHeightCm"
+        )::numeric
       ) AS live_height
     FROM label_package_candidates AS candidate
     JOIN public."Order" AS orders ON orders.id = candidate.order_id
     JOIN public."SellerProfile" AS seller
       ON seller.id = orders."sellerProfileId"
+    JOIN public."SellerProfilePrivate" AS seller_private
+      ON seller_private."sellerProfileId" = seller.id
     LEFT JOIN public."OrderItem" AS item
       ON item."orderId" = candidate.order_id
     LEFT JOIN public."Listing" AS listing ON listing.id = item."listingId"
