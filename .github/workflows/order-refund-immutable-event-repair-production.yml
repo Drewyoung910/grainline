@@ -1,0 +1,410 @@
+name: Order Refund Immutable Event Repair Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-refund-immutable-event-repair
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed immutable refund-event repair
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-order-refund-immutable-event-repair'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind release to exact main and completed push CI
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Immutable refund-event release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Immutable refund-event main/CI readback drifted');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {
+                ...context.repo,
+                branch: 'main',
+                event: 'push',
+                head_sha: sha,
+                per_page: 100,
+              },
+            );
+            const latestByWorkflow = new Map();
+            for (const exactRun of exactPushRuns) {
+              if (exactRun.head_sha !== sha || exactRun.head_branch !== 'main' ||
+                  exactRun.event !== 'push') continue;
+              const key = exactRun.path || exactRun.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(exactRun.id) > Number(previous.id)) {
+                latestByWorkflow.set(key, exactRun);
+              }
+            }
+            const requiredPushWorkflowPaths = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missingPushWorkflows = [...requiredPushWorkflowPaths]
+              .filter((path) => !latestByWorkflow.has(path));
+            if (missingPushWorkflows.length !== 0) {
+              throw new Error(
+                `Required exact-main push workflows are absent: ${missingPushWorkflows.join(', ')}`,
+              );
+            }
+            const unacceptablePushRuns = [...latestByWorkflow.values()]
+              .filter((exactRun) => exactRun.status !== 'completed' ||
+                exactRun.conclusion !== 'success');
+            if (unacceptablePushRuns.length !== 0) {
+              throw new Error(
+                `Exact-main push workflows are not all green: ${unacceptablePushRuns
+                  .map((exactRun) =>
+                    `${exactRun.name}:${exactRun.status}/${exactRun.conclusion}`)
+                  .join(', ')}`,
+              );
+            }
+      - name: Verify exact candidate bytes and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015020000_repair_immutable_order_refund_recording
+          test -f "prisma/migrations/$migration/migration.sql"
+          echo "765d6d8bc128759dbc2710bfa856f1dd8b0c627efaabf43e3cab9c01ad9a9ebf  prisma/migrations/$migration/migration.sql" \
+            | sha256sum --check --status
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
+            --experimental-strip-types --test --test-concurrency=1 \
+            tests/order-refund-record-authority.test.mjs \
+            tests/order-refund-record-authority-postgres.test.mjs \
+            tests/order-refund-immutable-event-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect exact predecessor and restart state read-only
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {appendFileSync, readFileSync, readdirSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const migration = '20261015020000_repair_immutable_order_refund_recording';
+          const checksum = '765d6d8bc128759dbc2710bfa856f1dd8b0c627efaabf43e3cab9c01ad9a9ebf';
+          const identities = [
+            'public.grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)',
+            'public.grainline_seller_refund_record(text,text,bigint,text,text,text,integer)',
+          ];
+          const directories = readdirSync('prisma/migrations', {withFileTypes: true})
+            .filter((entry) => entry.isDirectory() && /^[0-9]{14}_[a-z0-9_]+$/u.test(entry.name))
+            .map((entry) => entry.name).sort();
+          assert.ok(directories.includes(migration), 'candidate migration is missing');
+          const peers = directories.filter((name) => name !== migration);
+          const digest = (name) => createHash('sha256').update(readFileSync(
+            `prisma/migrations/${name}/migration.sql`,
+          )).digest('hex');
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = await client.query(`SELECT migration_name, checksum, finished_at,
+              rolled_back_at, applied_steps_count FROM public._prisma_migrations
+              WHERE migration_name = ANY($1::text[]) ORDER BY migration_name`, [directories]);
+            const byName = new Map();
+            for (const row of ledger.rows) {
+              const rows = byName.get(row.migration_name) ?? [];
+              rows.push(row);
+              byName.set(row.migration_name, rows);
+            }
+            for (const peer of peers) {
+              const rows = byName.get(peer) ?? [];
+              assert.equal(rows.length, 1, `peer ledger count drifted: ${peer}`);
+              const row = rows[0];
+              assert.equal(row.checksum, digest(peer), `peer bytes drifted: ${peer}`);
+              assert.ok(row.finished_at, `peer is unfinished: ${peer}`);
+              assert.equal(row.rolled_back_at, null, `peer was rolled back: ${peer}`);
+              assert.equal(Number(row.applied_steps_count), 1, `peer step count drifted: ${peer}`);
+            }
+            const candidateRows = byName.get(migration) ?? [];
+            assert.ok(candidateRows.length <= 1, 'candidate ledger is duplicated');
+            const candidate = candidateRows[0] ?? null;
+            if (candidate) {
+              assert.equal(candidate.checksum, checksum);
+              assert.ok(candidate.finished_at);
+              assert.equal(candidate.rolled_back_at, null);
+              assert.equal(Number(candidate.applied_steps_count), 1);
+            }
+            const functions = await client.query(`WITH requested AS (
+                SELECT identity, pg_catalog.to_regprocedure(identity) AS oid
+                  FROM pg_catalog.unnest($1::text[]) AS identity)
+              SELECT requested.identity, requested.oid::text AS resolved,
+                     pg_catalog.pg_get_userbyid(routine.proowner) AS owner,
+                     routine.prosrc, routine.prosecdef, routine.provolatile,
+                     routine.proparallel, routine.proconfig,
+                     pg_catalog.has_function_privilege('grainline_app_runtime', routine.oid, 'EXECUTE') AS runtime_execute,
+                     pg_catalog.has_function_privilege(0, routine.oid, 'EXECUTE') AS public_execute
+                FROM requested LEFT JOIN pg_catalog.pg_proc AS routine ON routine.oid = requested.oid
+               ORDER BY requested.identity`, [identities]);
+            assert.equal(functions.rows.length, 2);
+            for (const row of functions.rows) {
+              assert.ok(row.resolved, `missing predecessor ${row.identity}`);
+              assert.equal(row.owner, 'neondb_owner');
+              assert.equal(row.prosecdef, true);
+              assert.equal(row.provolatile, 'v');
+              assert.equal(row.proparallel, 'u');
+              assert.deepEqual(row.proconfig, ['search_path=pg_catalog']);
+              assert.equal(row.public_execute, false);
+              assert.equal(row.runtime_execute,
+                row.identity.includes('seller_refund_record'));
+            }
+            const acl = await client.query(`WITH requested AS (
+                SELECT identity, pg_catalog.to_regprocedure(identity) AS oid
+                  FROM pg_catalog.unnest($1::text[]) AS identity)
+              SELECT requested.identity,
+                     CASE WHEN expanded.grantee = 0 THEN 'PUBLIC'
+                          ELSE pg_catalog.pg_get_userbyid(expanded.grantee) END AS grantee,
+                     pg_catalog.pg_get_userbyid(expanded.grantor) AS grantor,
+                     expanded.privilege_type, expanded.is_grantable
+                FROM requested JOIN pg_catalog.pg_proc AS routine ON routine.oid = requested.oid
+                CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+                  routine.proacl, pg_catalog.acldefault('f', routine.proowner)
+                )) AS expanded
+               ORDER BY requested.identity, grantee, grantor,
+                        expanded.privilege_type, expanded.is_grantable`, [identities]);
+            const paymentEvent = await client.query(`SELECT
+                table_class.relrowsecurity, table_class.relforcerowsecurity,
+                table_class.relacl::text,
+                trigger.tgname, trigger.tgenabled,
+                pg_catalog.pg_get_triggerdef(trigger.oid) AS trigger_definition,
+                trigger_function.prosrc AS trigger_source
+              FROM pg_catalog.pg_class AS table_class
+              JOIN pg_catalog.pg_trigger AS trigger
+                ON trigger.tgrelid = table_class.oid AND NOT trigger.tgisinternal
+              JOIN pg_catalog.pg_proc AS trigger_function
+                ON trigger_function.oid = trigger.tgfoid
+              WHERE table_class.oid = 'public."OrderPaymentEvent"'::regclass
+                AND trigger.tgname = 'grainline_order_payment_event_immutable'`);
+            assert.equal(paymentEvent.rows.length, 1);
+            writeFileSync(`${process.env.RUNNER_TEMP}/immutable-refund-event-preflight.json`,
+              JSON.stringify({functions: functions.rows, acl: acl.rows,
+                paymentEvent: paymentEvent.rows}), {mode: 0o600, flag: 'wx'});
+            appendFileSync(process.env.GITHUB_OUTPUT,
+              `state=${candidate ? 'applied' : 'pending'}\n`);
+            await client.query('COMMIT');
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require every peer applied and exactly candidate pending
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261015020000_repair_immutable_order_refund_recording
+          if [[ "$MIGRATION_STATE" == "pending" ]]; then
+            REVIEWED_PENDING_MIGRATIONS="$migration" node scripts/assert-reviewed-pending-migrations.mjs
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            REVIEWED_PENDING_MIGRATIONS="" node scripts/assert-reviewed-pending-migrations.mjs
+            npx prisma migrate status
+          else
+            echo "Unexpected immutable refund-event migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed immutable refund-event repair
+        if: steps.preflight.outputs.state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact functions, ACLs, trigger, and ledger
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync, writeFileSync} from 'node:fs';
+          import pg from 'pg';
+
+          const migration = '20261015020000_repair_immutable_order_refund_recording';
+          const checksum = '765d6d8bc128759dbc2710bfa856f1dd8b0c627efaabf43e3cab9c01ad9a9ebf';
+          const sql = readFileSync(`prisma/migrations/${migration}/migration.sql`, 'utf8');
+          function source(name) {
+            const delimiter = `$${name}$`;
+            const marker = `AS ${delimiter}`;
+            const start = sql.indexOf(marker);
+            assert.ok(start >= 0, `missing ${name}`);
+            const bodyStart = start + marker.length;
+            const end = sql.indexOf(`${delimiter};`, bodyStart);
+            assert.ok(end > bodyStart, `unterminated ${name}`);
+            return sql.slice(bodyStart, end);
+          }
+          const expected = new Map([
+            ['public.grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)',
+              source('grainline_blocked_checkout_refund_record_core')],
+            ['public.grainline_seller_refund_record(text,text,bigint,text,text,text,integer)',
+              source('grainline_seller_refund_record')],
+          ]);
+          const before = JSON.parse(readFileSync(
+            `${process.env.RUNNER_TEMP}/immutable-refund-event-preflight.json`, 'utf8'));
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = await client.query(`SELECT checksum, finished_at, rolled_back_at,
+              applied_steps_count FROM public._prisma_migrations WHERE migration_name = $1`, [migration]);
+            assert.equal(ledger.rows.length, 1);
+            assert.equal(ledger.rows[0].checksum, checksum);
+            assert.ok(ledger.rows[0].finished_at);
+            assert.equal(ledger.rows[0].rolled_back_at, null);
+            assert.equal(Number(ledger.rows[0].applied_steps_count), 1);
+            const functions = await client.query(`WITH requested AS (
+                SELECT identity, pg_catalog.to_regprocedure(identity) AS oid
+                  FROM pg_catalog.unnest($1::text[]) AS identity)
+              SELECT requested.identity, requested.oid::text AS resolved,
+                     pg_catalog.pg_get_userbyid(routine.proowner) AS owner,
+                     routine.prosrc, routine.prosecdef, routine.provolatile,
+                     routine.proparallel, routine.proconfig,
+                     pg_catalog.has_function_privilege('grainline_app_runtime', routine.oid, 'EXECUTE') AS runtime_execute,
+                     pg_catalog.has_function_privilege(0, routine.oid, 'EXECUTE') AS public_execute
+                FROM requested JOIN pg_catalog.pg_proc AS routine ON routine.oid = requested.oid
+               ORDER BY requested.identity`, [[...expected.keys()]]);
+            assert.equal(functions.rows.length, 2);
+            for (const row of functions.rows) {
+              assert.equal(row.owner, 'neondb_owner');
+              assert.equal(row.prosrc, expected.get(row.identity));
+              assert.equal(row.prosecdef, true);
+              assert.equal(row.provolatile, 'v');
+              assert.equal(row.proparallel, 'u');
+              assert.deepEqual(row.proconfig, ['search_path=pg_catalog']);
+              assert.equal(row.public_execute, false);
+              assert.equal(row.runtime_execute,
+                row.identity.includes('seller_refund_record'));
+            }
+            const acl = await client.query(`WITH requested AS (
+                SELECT identity, pg_catalog.to_regprocedure(identity) AS oid
+                  FROM pg_catalog.unnest($1::text[]) AS identity)
+              SELECT requested.identity,
+                     CASE WHEN expanded.grantee = 0 THEN 'PUBLIC'
+                          ELSE pg_catalog.pg_get_userbyid(expanded.grantee) END AS grantee,
+                     pg_catalog.pg_get_userbyid(expanded.grantor) AS grantor,
+                     expanded.privilege_type, expanded.is_grantable
+                FROM requested JOIN pg_catalog.pg_proc AS routine ON routine.oid = requested.oid
+                CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+                  routine.proacl, pg_catalog.acldefault('f', routine.proowner)
+                )) AS expanded
+               ORDER BY requested.identity, grantee, grantor,
+                        expanded.privilege_type, expanded.is_grantable`, [[...expected.keys()]]);
+            assert.deepEqual(acl.rows, before.acl);
+            const paymentEvent = await client.query(`SELECT
+                table_class.relrowsecurity, table_class.relforcerowsecurity,
+                table_class.relacl::text,
+                trigger.tgname, trigger.tgenabled,
+                pg_catalog.pg_get_triggerdef(trigger.oid) AS trigger_definition,
+                trigger_function.prosrc AS trigger_source
+              FROM pg_catalog.pg_class AS table_class
+              JOIN pg_catalog.pg_trigger AS trigger
+                ON trigger.tgrelid = table_class.oid AND NOT trigger.tgisinternal
+              JOIN pg_catalog.pg_proc AS trigger_function
+                ON trigger_function.oid = trigger.tgfoid
+              WHERE table_class.oid = 'public."OrderPaymentEvent"'::regclass
+                AND trigger.tgname = 'grainline_order_payment_event_immutable'`);
+            assert.deepEqual(paymentEvent.rows, before.paymentEvent);
+            await client.query('COMMIT');
+            writeFileSync(`${process.env.RUNNER_TEMP}/immutable-refund-event-postflight.json`,
+              JSON.stringify({status: 'passed', releaseCommit: process.env.GITHUB_SHA,
+                migration, issueCount: 0}), {mode: 0o600, flag: 'wx'});
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Require no pending migrations after apply
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ""
+        run: |
+          node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate status
+      - name: Audit global grants after immutable refund-event repair
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized immutable refund-event release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: immutable-refund-event-production-${{ github.run_id }}
+          path: ${{ runner.temp }}/immutable-refund-event-postflight.json
+          if-no-files-found: warn
+          retention-days: 30
+          include-hidden-files: false

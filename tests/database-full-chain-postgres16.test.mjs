@@ -17,6 +17,7 @@ import {
   assertSellerProfilePrivateLayout,
   seedSellerProfilePrivateFixture,
 } from "../tools/database-full-chain/scenarios/seller-profile-private-fixture.mjs";
+import { proveImmutableRefundRepair } from "../tools/database-full-chain/scenarios/order-refund-immutable-event.mjs";
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
 
@@ -88,6 +89,11 @@ test(
         stripe_account_id: fixture.stripeAccountId,
         ship_from_phone: "+15125550100",
       }]);
+      await proveImmutableRefundRepair({
+        database: adapter,
+        repositoryRoot,
+        seller: fixture,
+      });
     } finally {
       await client.end();
     }
