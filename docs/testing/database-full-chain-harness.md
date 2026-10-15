@@ -62,6 +62,18 @@ The PostgreSQL 16 plan records one source-preserving deviation:
 
 Every deviation fails closed if the expected source shape changes.
 
+Two historical activation migrations need role scripts to converge immediately
+before their first successful application. The runner retries only these exact
+refusals:
+
+- `20260801194000_enable_direct_upload_rls` when the cleanup-role posture is not
+  ready;
+- `20260927090000_enable_order_rls` when the staff-function authority is not
+  ready.
+
+Every other migration error fails immediately. A SQLSTATE or message change at
+either reviewed boundary also fails instead of broadening the exception.
+
 The main CI job runs this harness against its real `postgres:16` service before
 the rest of the database suite. It then recreates the disposable `grainline_ci`
 database so the existing Prisma migration and behavior suites still start from

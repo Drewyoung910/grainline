@@ -61,6 +61,13 @@ test(
       assert.equal(summary.applied.length, artifacts.length);
       assert.deepEqual(summary.applied, artifacts.map(({ name }) => name));
       assert.equal(summary.applied.at(-1), artifacts.at(-1).name);
+      assert.deepEqual(
+        summary.roleConvergenceRetries.map(({ migration }) => migration),
+        [
+          "20260801194000_enable_direct_upload_rls",
+          "20260927090000_enable_order_rls",
+        ],
+      );
 
       await assertSellerProfilePrivateLayout(adapter);
       const fixture = await seedSellerProfilePrivateFixture(adapter);

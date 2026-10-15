@@ -10,6 +10,20 @@ const OWNER_LITERAL_MIGRATION =
 const OWNER_LITERAL = "'neondb_owner'";
 const CI_OWNER_LITERAL = "'ci'";
 const EXPECTED_OWNER_LITERAL_COUNT = 4;
+const ROLE_CONVERGENCE_RETRY_ERRORS = new Map([
+  [
+    "20260801194000_enable_direct_upload_rls",
+    Object.freeze([
+      "grainline_direct_upload_cleanup_v2 posture is not DirectUpload-safe",
+    ]),
+  ],
+  [
+    "20260927090000_enable_order_rls",
+    Object.freeze([
+      "Core Order activation staff-function authority drifted",
+    ]),
+  ],
+]);
 
 export function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -82,6 +96,11 @@ export function prepareMigrationSql(artifact, engine) {
   }
 
   return Object.freeze({ sql, deviations });
+}
+
+function acceptsRoleConvergenceRetry(artifact, error) {
+  const acceptedMessages = ROLE_CONVERGENCE_RETRY_ERRORS.get(artifact.name) ?? [];
+  return error?.code === "P0001" && acceptedMessages.includes(error.message);
 }
 
 export function containsConcurrentIndex(sql) {
@@ -208,6 +227,7 @@ export async function applyFullMigrationChain({
     migrationCount: artifacts.length,
     applied: [],
     deviations: [],
+    roleConvergenceRetries: [],
   };
 
   for (const artifact of artifacts) {
@@ -224,14 +244,28 @@ export async function applyFullMigrationChain({
     try {
       await adapter.executeMigration(sql, {
         containsConcurrentIndex: containsConcurrentIndex(sql),
+        migrationName: artifact.name,
       });
     } catch (error) {
       firstError = error;
       await adapter.resetOwner();
+      if (!acceptsRoleConvergenceRetry(artifact, error)) {
+        await adapter.query(
+          `UPDATE public."_prisma_migrations" SET logs = $2 WHERE id = $1`,
+          [id, `[${error.code ?? "unknown"}] ${error.message}`],
+        );
+        throw error;
+      }
+      summary.roleConvergenceRetries.push({
+        migration: artifact.name,
+        code: error.code,
+        message: error.message,
+      });
       await convergeRoles(adapter, repositoryRoot, { migration: artifact.name, error });
       try {
         await adapter.executeMigration(sql, {
           containsConcurrentIndex: containsConcurrentIndex(sql),
+          migrationName: artifact.name,
         });
       } catch (retryError) {
         await adapter.resetOwner();

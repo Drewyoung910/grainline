@@ -111,20 +111,36 @@ test("main CI proves the full chain before recreating the disposable database", 
   );
 });
 
-test("full-chain runner applies every artifact and retries only after role convergence", async () => {
+test("full-chain runner retries only reviewed historical role convergence refusals", async () => {
   const artifacts = listMigrationArtifacts(root, migrationOptions);
   const events = [];
-  let injectedFailure = true;
+  const injectedFailures = new Set();
   const adapter = {
     query: async (sql, params = []) => {
       events.push({ kind: "query", sql, params });
       return { rows: [] };
     },
-    executeMigration: async (sql) => {
+    executeMigration: async (sql, { migrationName }) => {
       events.push({ kind: "migration", sql });
-      if (injectedFailure) {
-        injectedFailure = false;
-        throw Object.assign(new Error("grant not converged"), { code: "42501" });
+      if (
+        migrationName === "20260801194000_enable_direct_upload_rls" &&
+        !injectedFailures.has("direct-upload")
+      ) {
+        injectedFailures.add("direct-upload");
+        throw Object.assign(
+          new Error("grainline_direct_upload_cleanup_v2 posture is not DirectUpload-safe"),
+          { code: "P0001" },
+        );
+      }
+      if (
+        migrationName === "20260927090000_enable_order_rls" &&
+        !injectedFailures.has("order")
+      ) {
+        injectedFailures.add("order");
+        throw Object.assign(
+          new Error("Core Order activation staff-function authority drifted"),
+          { code: "P0001" },
+        );
       }
     },
     resetOwner: async () => events.push({ kind: "reset" }),
@@ -142,11 +158,49 @@ test("full-chain runner applies every artifact and retries only after role conve
   assert.equal(summary.applied.length, artifacts.length);
   assert.equal(summary.applied[0], artifacts[0].name);
   assert.equal(summary.applied.at(-1), artifacts.at(-1).name);
-  assert.deepEqual(callbacks, ["bootstrap", artifacts[0].name, "final"]);
+  assert.deepEqual(callbacks, [
+    "bootstrap",
+    "20260801194000_enable_direct_upload_rls",
+    "20260927090000_enable_order_rls",
+    "final",
+  ]);
+  assert.deepEqual(
+    summary.roleConvergenceRetries.map(({ migration }) => migration),
+    [
+      "20260801194000_enable_direct_upload_rls",
+      "20260927090000_enable_order_rls",
+    ],
+  );
   assert.equal(
     events.filter(({ kind }) => kind === "migration").length,
-    artifacts.length + 1,
+    artifacts.length + 2,
   );
+});
+
+test("full-chain runner does not retry an unexpected migration failure", async () => {
+  let attempts = 0;
+  const adapter = {
+    query: async () => ({ rows: [] }),
+    executeMigration: async () => {
+      attempts += 1;
+      throw Object.assign(new Error("unexpected migration defect"), { code: "42601" });
+    },
+    resetOwner: async () => {},
+  };
+  const callbacks = [];
+  await assert.rejects(
+    applyFullMigrationChain({
+      adapter,
+      repositoryRoot: root,
+      migrationRoot,
+      engine: "postgres16",
+      bootstrapRoles: async () => callbacks.push("bootstrap"),
+      convergeRoles: async () => callbacks.push("converge"),
+    }),
+    /unexpected migration defect/u,
+  );
+  assert.equal(attempts, 1);
+  assert.deepEqual(callbacks, ["bootstrap"]);
 });
 
 test("SQL splitting keeps function bodies intact while isolating concurrent statements", () => {
