@@ -943,3 +943,34 @@ ordinary runtime and `PUBLIC` already have zero direct table authority and no
 row policy is needed. Public `SellerProfile` remains a separate design: its
 conditional exact coordinates and public catalog reads require bounded
 projections and grant conversion before its own RLS activation.
+
+### 2026-10-15 local policyless ENABLE successor
+
+The next release has been prepared locally from invariant candidate commit
+`85d3ced172a502ad40a5e5cbae5caa57aa79552c`. It remains deliberately
+unpublished and cannot be dispatched until the invariant candidate merges and
+its protected Production workflow succeeds.
+
+- Migration `20261015100000_enable_seller_profile_private_rls`, SHA-256
+  `3a5d128c6a5d5a7bd4bc768fe0d57d674b24a35a07ae776e442722481f26426c`,
+  enables RLS on `SellerProfilePrivate`, explicitly leaves FORCE off, creates
+  no policy or function, changes no row, and re-revokes direct table authority.
+- Preflight requires the exact retirement, deletion-repair, and invariant
+  ledgers; zero policies; zero nonowner table or column grants; the exact phone
+  constraint and snapshot triggers; zero invalid phones, missing companions,
+  or snapshot mismatches; and RLS off on both public and private tables.
+- Postflight requires policyless ENABLE only on the private table and proves
+  public `SellerProfile` remained outside this release. A database-first
+  rollback disables private-table RLS while preserving zero grants and zero
+  policies.
+- Main CI applies the invariant migration first, stages its exact ledger,
+  applies ENABLE, stages the exact ENABLE ledger, and then replays every
+  SellerProfile-touching current-schema proof. The protected workflow is also
+  bound to an accepted exact invariant workflow run and permits only this one
+  reviewed pending migration.
+
+Focused validation passes 53 tests with zero failures and one expected
+GitHub-PostgreSQL skip. This is source-preparation evidence only:
+`SellerProfilePrivate` RLS is still off in Production, no ENABLE workflow has
+run, and FORCE remains a separate later release. Public `SellerProfile` also
+remains a separate design and is not changed by this successor.

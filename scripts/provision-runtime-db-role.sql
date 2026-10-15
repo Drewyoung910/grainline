@@ -2229,8 +2229,9 @@ REVOKE EXECUTE ON FUNCTION
 \unset checkout_stock_reservation_rls_active
 
 -- These private ledgers have no runtime/PUBLIC table authority. Most sit
--- behind fixed functions with policyless FORCE RLS; SellerProfilePrivate is
--- an additive pre-RLS companion whose function conversion happens later.
+-- behind fixed functions with policyless FORCE RLS. SellerProfilePrivate also
+-- stays zero-direct through its pre-RLS, policyless ENABLE and later FORCE
+-- postures; its fixed-function conversion has already completed.
 SELECT format(
   'REVOKE ALL ON TABLE public.%I FROM PUBLIC, %I',
   private_table.table_name,
