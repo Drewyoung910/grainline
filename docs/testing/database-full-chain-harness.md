@@ -65,7 +65,10 @@ Every deviation fails closed if the expected source shape changes.
 The main CI job runs this harness against its real `postgres:16` service before
 the rest of the database suite. It then recreates the disposable `grainline_ci`
 database so the existing Prisma migration and behavior suites still start from
-a blank database. The harness test skips in ordinary local `npm test` runs when
+a blank database. Before later release tests move migration directories aside,
+CI preserves a source-only copy under `RUNNER_TEMP`; the harness unit tests use
+that copy so they continue to verify the complete plan during the normal test
+step. The harness test skips in ordinary local `npm test` runs when
 `DATABASE_FULL_CHAIN_PROOF_DATABASE_URL` is absent; that skip is not acceptance.
 The passing PostgreSQL 16 CI step is the acceptance evidence.
 
@@ -87,7 +90,6 @@ source in this first pass:
 
 The post-retirement seed source in `agents/regress_a343` was reviewed while
 building `seller-profile-private-fixture.mjs`. Its full source and checksums
-remain in the preserved tree for later scenario-by-scenario ports. The next
-tracked pass should exercise one real PostgreSQL 16 current-schema smoke
-scenario and reconcile the full-chain order with the staged CI release graph
-before any CI workflow is changed.
+remain in the preserved tree for later scenario-by-scenario ports. Additional
+flows should be ported one scenario at a time when their risk justifies the
+extra full-chain behavior coverage.

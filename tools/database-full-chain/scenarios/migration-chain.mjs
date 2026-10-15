@@ -33,13 +33,15 @@ export function findRepositoryRoot(from = process.cwd()) {
   }
 }
 
-export function listMigrationArtifacts(repositoryRoot) {
-  const migrationRoot = path.join(repositoryRoot, "prisma", "migrations");
+export function listMigrationArtifacts(repositoryRoot, { migrationRoot } = {}) {
+  const resolvedMigrationRoot = path.resolve(
+    migrationRoot ?? path.join(repositoryRoot, "prisma", "migrations"),
+  );
   return fs
-    .readdirSync(migrationRoot, { withFileTypes: true })
+    .readdirSync(resolvedMigrationRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => {
-      const file = path.join(migrationRoot, entry.name, "migration.sql");
+      const file = path.join(resolvedMigrationRoot, entry.name, "migration.sql");
       if (!fs.existsSync(file)) return null;
       const bytes = fs.readFileSync(file);
       return Object.freeze({
@@ -185,6 +187,7 @@ CREATE TABLE IF NOT EXISTS public."_prisma_migrations" (
 export async function applyFullMigrationChain({
   adapter,
   repositoryRoot = findRepositoryRoot(),
+  migrationRoot,
   engine,
   bootstrapRoles,
   convergeRoles,
@@ -199,7 +202,7 @@ export async function applyFullMigrationChain({
 
   await bootstrapRoles(adapter, repositoryRoot);
   await adapter.query(LEDGER_DDL);
-  const artifacts = listMigrationArtifacts(repositoryRoot);
+  const artifacts = listMigrationArtifacts(repositoryRoot, { migrationRoot });
   const summary = {
     engine,
     migrationCount: artifacts.length,

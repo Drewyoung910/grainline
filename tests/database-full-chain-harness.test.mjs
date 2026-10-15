@@ -23,6 +23,11 @@ import { assertDisposablePostgres16Target } from "../tools/database-full-chain/p
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = findRepositoryRoot(here);
 const harnessRoot = path.join(root, "tools", "database-full-chain");
+const migrationRoot = path.resolve(
+  process.env.DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR ??
+    path.join(root, "prisma", "migrations"),
+);
+const migrationOptions = { migrationRoot };
 
 function allFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -42,7 +47,7 @@ test("tracked harness source contains no scratch paths, URLs with credentials, o
 });
 
 test("migration plan covers current main and pins the reviewed CI deviations", () => {
-  const artifacts = listMigrationArtifacts(root);
+  const artifacts = listMigrationArtifacts(root, migrationOptions);
   assert.ok(artifacts.length > 300);
   assert.ok(
     artifacts.some(
@@ -75,9 +80,7 @@ test("repository schema and retirement migration retain the post-retirement sell
   }
   const retirement = fs.readFileSync(
     path.join(
-      root,
-      "prisma",
-      "migrations",
+      migrationRoot,
       "20261015010000_retire_seller_profile_private_predecessor",
       "migration.sql",
     ),
@@ -91,19 +94,25 @@ test("main CI proves the full chain before recreating the disposable database", 
   const workflow = fs.readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
   const proof = workflow.indexOf("      - name: Prove full migration chain on PostgreSQL 16\n");
   const reset = workflow.indexOf("      - name: Reset disposable database after full-chain proof\n");
+  const preserve = workflow.indexOf("      - name: Preserve full-chain sources for post-isolation tests\n");
   const existingSuite = workflow.indexOf("      - run: npx prisma generate\n");
   assert.ok(proof >= 0);
   assert.ok(reset > proof);
-  assert.ok(existingSuite > reset);
+  assert.ok(preserve > reset);
+  assert.ok(existingSuite > preserve);
   assert.match(
     workflow.slice(proof, reset),
     /DATABASE_FULL_CHAIN_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/u,
   );
   assert.match(workflow.slice(reset, existingSuite), /dropdb[\s\S]*createdb/u);
+  assert.match(
+    workflow,
+    /DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR: \$\{\{ runner\.temp \}\}\/database-full-chain-source\/migrations/u,
+  );
 });
 
 test("full-chain runner applies every artifact and retries only after role convergence", async () => {
-  const artifacts = listMigrationArtifacts(root);
+  const artifacts = listMigrationArtifacts(root, migrationOptions);
   const events = [];
   let injectedFailure = true;
   const adapter = {
@@ -124,6 +133,7 @@ test("full-chain runner applies every artifact and retries only after role conve
   const summary = await applyFullMigrationChain({
     adapter,
     repositoryRoot: root,
+    migrationRoot,
     engine: "postgres16",
     bootstrapRoles: async () => callbacks.push("bootstrap"),
     convergeRoles: async (_adapter, _root, context) =>

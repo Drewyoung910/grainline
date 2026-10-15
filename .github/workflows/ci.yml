@@ -100,6 +100,10 @@ jobs:
         run: |
           dropdb --host=localhost --username=ci --force grainline_ci
           createdb --host=localhost --username=ci --owner=ci grainline_ci
+      - name: Preserve full-chain sources for post-isolation tests
+        run: |
+          mkdir -p "$RUNNER_TEMP/database-full-chain-source"
+          cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - run: npx prisma generate
       - name: Verify User Clerk identity authority source package
         run: >-
@@ -2729,6 +2733,7 @@ jobs:
           done
       - name: Tests
         env:
+          DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR: ${{ runner.temp }}/database-full-chain-source/migrations
           USER_CLERK_IDENTITY_MIGRATION_PATH: ${{ runner.temp }}/user-clerk-identity-authority/migration/migration.sql
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
