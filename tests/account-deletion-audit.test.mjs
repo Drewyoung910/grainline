@@ -35,7 +35,7 @@ describe("account deletion audit metadata redaction", () => {
         counts: [1, 2, 3],
         redactedForAccountDeletion: true,
       },
-      notes: ["approved by admin", ACCOUNT_DELETION_AUDIT_REDACTION],
+      notes: ["approved by admin", `clerk:${ACCOUNT_DELETION_AUDIT_REDACTION}`],
       redactedForAccountDeletion: true,
     });
   });
@@ -48,7 +48,7 @@ describe("account deletion audit metadata redaction", () => {
     assert.deepEqual(result.metadata, metadata);
   });
 
-  it("does not redact embedded short names inside unrelated metadata words", () => {
+  it("preserves word fragments while redacting bounded short values", () => {
     const unrelated = redactAccountDeletionAuditMetadata(
       { action: "listing approved", reason: "listing remains visible" },
       ["Li"],
@@ -65,7 +65,18 @@ describe("account deletion audit metadata redaction", () => {
     );
     assert.equal(related.changed, true);
     assert.deepEqual(related.metadata, {
-      note: ACCOUNT_DELETION_AUDIT_REDACTION,
+      note: `${ACCOUNT_DELETION_AUDIT_REDACTION} approved this listing`,
+      redactedForAccountDeletion: true,
+    });
+
+    const bounded = redactAccountDeletionAuditMetadata(
+      { status: "REJECTED", note: "Ted approved this listing" },
+      ["Ted"],
+    );
+    assert.equal(bounded.changed, true);
+    assert.deepEqual(bounded.metadata, {
+      status: "REJECTED",
+      note: `${ACCOUNT_DELETION_AUDIT_REDACTION} approved this listing`,
       redactedForAccountDeletion: true,
     });
   });
@@ -100,25 +111,25 @@ describe("account deletion audit metadata redaction", () => {
     assert.equal(short.changed, true);
     assert.equal(short.text, `${ACCOUNT_DELETION_TEXT_REDACTION} sent a note about a listing.`);
 
-    const embedded = redactAccountDeletionText("The listing is ready.", ["li"]);
+    const embedded = redactAccountDeletionText("The rejected listing is ready.", ["Ted"]);
     assert.equal(embedded.changed, false);
-    assert.equal(embedded.text, "The listing is ready.");
+    assert.equal(embedded.text, "The rejected listing is ready.");
   });
 
   it("caps redacted database text by Unicode character count", () => {
-    const closure = `Shipped replacement to AK. ${"x".repeat(3973)}`;
+    const closure = `Shipped replacement to Alaska. ${"x".repeat(3969)}`;
     assert.equal(Array.from(closure).length, 4000);
     const result = redactAccountDeletionText(
       closure,
-      ["AK"],
+      ["Alaska"],
       ACCOUNT_DELETION_TEXT_REDACTION,
       4000,
     );
     assert.equal(result.changed, true);
     assert.equal(Array.from(result.text).length, 4000);
-    assert.doesNotMatch(result.text, /\bAK\b/u);
+    assert.doesNotMatch(result.text, /\bAlaska\b/u);
 
-    const unicode = redactAccountDeletionText("TX🧵", ["TX"], "deleted", 8);
+    const unicode = redactAccountDeletionText("Texas🧵", ["Texas"], "deleted", 8);
     assert.equal(Array.from(unicode.text).length, 8);
     assert.equal(unicode.text, "deleted🧵");
     assert.throws(

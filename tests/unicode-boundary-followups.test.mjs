@@ -43,7 +43,14 @@ describe("unicode boundary follow-ups", () => {
     const caseRedaction = source(
       "prisma/migrations/20260729061000_prepare_case_account_deletion_authority/migration.sql",
     );
-    assert.match(deletion, /Array\.from\(item\)\.length >= 2/);
+    assert.match(
+      deletion,
+      /const ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH = 3/,
+    );
+    assert.match(
+      deletion,
+      /Array\.from\(value\)\.length >= ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH/,
+    );
     assert.match(
       caseRedaction,
       /pg_catalog\.char_length\(\s*pg_catalog\.lower\(pg_catalog\.btrim\(value\)\)\s*\)\s*>= 2/,

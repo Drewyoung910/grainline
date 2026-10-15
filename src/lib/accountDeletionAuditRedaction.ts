@@ -26,11 +26,12 @@ function redactValue(
   needles: string[],
 ): { value: AuditJsonValue; changed: boolean } {
   if (typeof value === "string") {
-    const normalized = value.toLowerCase();
-    const shouldRedact = needles.some((needle) => accountDeletionAuditValueContainsNeedle(normalized, needle));
-    return shouldRedact
-      ? { value: ACCOUNT_DELETION_AUDIT_REDACTION, changed: true }
-      : { value, changed: false };
+    const redacted = redactTextWithNeedles(
+      value,
+      needles,
+      ACCOUNT_DELETION_AUDIT_REDACTION,
+    );
+    return { value: redacted, changed: redacted !== value };
   }
 
   if (Array.isArray(value)) {
@@ -64,15 +65,15 @@ function escapeRegExp(value: string) {
 
 function redactionPatternForNeedle(needle: string) {
   const escaped = escapeRegExp(needle);
-  if (Array.from(needle).length >= 3) {
-    return new RegExp(escaped, "gi");
-  }
   return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "giu");
 }
 
-function accountDeletionAuditValueContainsNeedle(normalizedValue: string, needle: string) {
-  if (Array.from(needle).length >= 3) return normalizedValue.includes(needle);
-  return redactionPatternForNeedle(needle).test(normalizedValue);
+function redactTextWithNeedles(text: string, needles: string[], replacement: string) {
+  let redacted = text;
+  for (const needle of needles.sort((a, b) => b.length - a.length)) {
+    redacted = redacted.replace(redactionPatternForNeedle(needle), replacement);
+  }
+  return redacted;
 }
 
 export function redactAccountDeletionAuditMetadata(
@@ -123,10 +124,7 @@ export function redactAccountDeletionText(
     return { text: bounded, changed: bounded !== text };
   }
 
-  let redacted = text;
-  for (const needle of needles.sort((a, b) => b.length - a.length)) {
-    redacted = redacted.replace(redactionPatternForNeedle(needle), replacement);
-  }
+  const redacted = redactTextWithNeedles(text, needles, replacement);
 
   const bounded = maxLength === undefined
     ? redacted
