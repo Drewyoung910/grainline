@@ -45,6 +45,7 @@ const immutableRefundRecordRepair = readFileSync(
   "utf8",
 );
 const blockedCheckoutRefundWitness = readFileSync(
+  process.env.BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH ||
   "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql",
   "utf8",
 );

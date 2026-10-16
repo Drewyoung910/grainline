@@ -1,6 +1,6 @@
 # Blocked-checkout refund witness (#664)
 
-Status: isolated source candidate. No migration, deployment, or Stripe action
+Status: reviewed release candidate. No migration, deployment, or Stripe action
 has run.
 
 Candidate migration:
@@ -50,5 +50,16 @@ outstanding.
 This is an additive database and Prisma-schema change. It does not enable or
 alter RLS, change table grants, call Stripe, or repair a missing provider refund.
 Before publication it requires focused database behavior proof, an independent
-money-path review, and a protected exact-main/exact-CI migration lane. RLS
-expansion remains paused through this and the other named money blockers.
+money-path review, a full-chain PostgreSQL 16 run, and protected read-only
+counts for the historical backfill and index-build population. Those counts
+run through
+`.github/workflows/blocked-checkout-refund-witness-inventory-production.yml`
+and contain aggregates only. The separately protected migration workflow
+requires the successful inventory run from the same exact main commit, the
+exact successful main CI run, every required exact-main proof workflow, and
+exact candidate bytes before allowing one pending migration. The migration
+binds all five predecessor
+function bodies and their owners, modes, search paths and ACLs before changing
+the table, then verifies the two columns, constraint, partial index, immutable
+trigger and six installed function bodies before commit. RLS expansion remains
+paused through this and the other named money blockers.

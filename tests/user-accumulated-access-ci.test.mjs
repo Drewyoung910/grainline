@@ -66,6 +66,8 @@ const accountDeletionSuccessorMigrations = [
 ];
 const accountDeletionPostRetirementRepair =
   "20261015013000_repair_account_deletion_after_seller_profile_retirement";
+const blockedCheckoutRefundWitness =
+  "20261015030000_preserve_blocked_checkout_refund_witness";
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -141,6 +143,26 @@ function accountDeletionPostRetirementRepairPath() {
   return stagedPath;
 }
 
+function blockedCheckoutRefundWitnessSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    blockedCheckoutRefundWitness,
+  );
+  if (existsSync(livePath)) return livePath;
+  const isolatedMigrationPath =
+    process.env.BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH;
+  assert.ok(
+    isolatedMigrationPath && path.isAbsolute(isolatedMigrationPath),
+    "missing absolute isolated blocked-checkout refund witness migration path",
+  );
+  assert.ok(
+    existsSync(isolatedMigrationPath),
+    "missing isolated blocked-checkout refund witness migration",
+  );
+  return path.dirname(isolatedMigrationPath);
+}
+
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
   const omitted = [];
   for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
@@ -165,6 +187,12 @@ test("new User families are proved then isolated until historical prerequisites 
   const apply = "Apply accumulated User access in disposable PostgreSQL";
   const audit = "Audit runtime grants after accumulated User access";
   const converge = "Converge accumulated User and Order isolated staff grants";
+  const isolateWitness =
+    "Isolate blocked-checkout refund witness until immutable refund repair passes";
+  const restoreWitness =
+    "Restore blocked-checkout refund witness after immutable refund repair";
+  const applyWitness =
+    "Apply blocked-checkout refund witness after immutable refund repair";
   assert.ok(workflow.indexOf(verify) < workflow.indexOf(isolate));
   assert.ok(workflow.indexOf(isolate) < workflow.indexOf("Isolate User public-identity first package"));
   assert.ok(workflow.indexOf(restore) > workflow.indexOf("Audit runtime grants after User public seller-state snapshot"));
@@ -173,6 +201,21 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.ok(workflow.indexOf(apply) < workflow.indexOf(converge));
   assert.ok(workflow.indexOf(converge) < workflow.indexOf(audit));
   assert.ok(workflow.indexOf(audit) < workflow.indexOf("Production build"));
+  assert.ok(workflow.indexOf(isolateWitness) < workflow.indexOf(
+    "Isolate immutable Order refund-event repair until current Production predecessors pass",
+  ));
+  assert.ok(workflow.indexOf(isolateWitness) < workflow.indexOf(restore));
+  assert.ok(workflow.indexOf(restoreWitness) > workflow.indexOf(
+    "Apply immutable Order refund-event repair after current Production predecessors",
+  ));
+  assert.ok(workflow.indexOf(restoreWitness) < workflow.indexOf(applyWitness));
+  assert.ok(step(isolateWitness).includes(blockedCheckoutRefundWitness));
+  assert.match(
+    step(isolateWitness),
+    /BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH=\$holding\/\$migration\/migration\.sql/,
+  );
+  assert.ok(step(restoreWitness).includes(blockedCheckoutRefundWitness));
+  assert.ok(step(applyWitness).includes(blockedCheckoutRefundWitness));
   for (const migration of migrations) {
     for (const name of [isolate, restore, apply]) assert.ok(step(name).includes(migration), `${name}: ${migration}`);
   }
@@ -275,6 +318,19 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     if (!existsSync(repairTarget)) {
       cpSync(accountDeletionPostRetirementRepairPath(), repairTarget, { recursive: true });
     }
+    const blockedCheckoutRefundWitnessTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      blockedCheckoutRefundWitness,
+    );
+    if (!existsSync(blockedCheckoutRefundWitnessTarget)) {
+      cpSync(
+        blockedCheckoutRefundWitnessSourcePath(),
+        blockedCheckoutRefundWitnessTarget,
+        { recursive: true },
+      );
+    }
     for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
     for (const file of accountDeletionSuccessorTests) {
       cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
@@ -285,10 +341,13 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     const postRetirementRepairPath =
       `prisma/migrations/${accountDeletionPostRetirementRepair}/migration.sql`;
+    const blockedCheckoutRefundWitnessPath =
+      `prisma/migrations/${blockedCheckoutRefundWitness}/migration.sql`;
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
       postRetirementRepairPath,
+      blockedCheckoutRefundWitnessPath,
       staffScript,
       grantAuditScript,
       runtimeProvisionScript,
@@ -306,9 +365,11 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SellerProfile private-boundary migration from historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate blocked-checkout refund witness until immutable refund repair passes")], { cwd: root, env: scriptEnv });
     assert.ok(heldPaths.every((relative) => !existsSync(path.join(root, relative))));
     assert.ok(sellerProfilePrivateBoundaryPaths.every((relative) => !existsSync(path.join(root, relative))));
     assert.equal(existsSync(path.join(root, postRetirementRepairPath)), false);
+    assert.equal(existsSync(path.join(root, blockedCheckoutRefundWitnessPath)), false);
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
     assert.doesNotMatch(historicalStaff, /grainline_user_staff_/);
     assert.equal(execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(), historicalStaffBlob);
@@ -349,6 +410,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore SellerProfile private-boundary migration after all predecessors")], { cwd: root, env: scriptEnv });
     assert.equal(existsSync(path.join(root, postRetirementRepairPath)), false);
     execFileSync("bash", ["-c", bashBody("Restore post-retirement account-deletion repair after all predecessors")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore blocked-checkout refund witness after immutable refund repair")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }

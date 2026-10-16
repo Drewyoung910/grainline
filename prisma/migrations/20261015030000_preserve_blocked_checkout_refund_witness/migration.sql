@@ -4,6 +4,143 @@
 
 BEGIN;
 
+DO $grainline_blocked_checkout_refund_witness_preflight$
+DECLARE
+  order_owner oid;
+  runtime_role oid;
+  accepted_functions integer;
+BEGIN
+  SELECT table_row.relowner
+    INTO order_owner
+    FROM pg_catalog.pg_class AS table_row
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = table_row.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND table_row.relname = 'Order'
+     AND table_row.relkind = 'r';
+  SELECT role_row.oid
+    INTO runtime_role
+    FROM pg_catalog.pg_roles AS role_row
+   WHERE role_row.rolname = 'grainline_app_runtime';
+  IF order_owner IS NULL OR runtime_role IS NULL THEN
+    RAISE EXCEPTION
+      'Blocked-checkout refund witness roles or Order table are missing';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_attribute AS attribute
+     WHERE attribute.attrelid = 'public."Order"'::pg_catalog.regclass
+       AND attribute.attname IN (
+         'blockedCheckoutRefundRequiredAt',
+         'blockedCheckoutRefundRecordedAt'
+       )
+       AND attribute.attnum > 0
+       AND NOT attribute.attisdropped
+  )
+  OR pg_catalog.to_regprocedure(
+       'public.grainline_order_blocked_checkout_refund_witness_immutable()'
+     ) IS NOT NULL
+  OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_constraint AS constraint_row
+     WHERE constraint_row.conrelid = 'public."Order"'::pg_catalog.regclass
+       AND constraint_row.conname = 'Order_blockedCheckoutRefundWitness_check'
+  )
+  OR pg_catalog.to_regclass(
+       'public."Order_blockedCheckoutRefundOutstanding_idx"'
+     ) IS NOT NULL
+  OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger AS trigger_row
+     WHERE trigger_row.tgrelid = 'public."Order"'::pg_catalog.regclass
+       AND trigger_row.tgname =
+             'grainline_order_blocked_checkout_refund_witness_immutable'
+       AND NOT trigger_row.tgisinternal
+  ) THEN
+    RAISE EXCEPTION
+      'Blocked-checkout refund witness objects already exist';
+  END IF;
+
+  WITH expected(
+    function_identity,
+    source_md5,
+    language_name,
+    security_definer,
+    volatility,
+    parallel_mode,
+    runtime_execute
+  ) AS (
+    VALUES
+      (
+        'public.grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)',
+        '40526540c1a893e3a886dc95d42090b5',
+        'plpgsql', true, 'v', 'u', true
+      ),
+      (
+        'public.grainline_stripe_checkout_order_existing(text,bigint,text)',
+        'ad7e1062ed3590cff2b33c2aa2196bf6',
+        'plpgsql', true, 'v', 'u', true
+      ),
+      (
+        'public.grainline_stripe_checkout_postpayment(text,bigint,text)',
+        '29bf0946a48fe5b42f6ebe9e1a2cadd2',
+        'plpgsql', true, 'v', 'u', true
+      ),
+      (
+        'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
+        '5d1e44442aad1df2fdd631243291f912',
+        'sql', false, 's', 's', false
+      ),
+      (
+        'public.grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)',
+        'eb55c5fc48cd5e96c6516c134d75df87',
+        'plpgsql', true, 'v', 'u', false
+      )
+  )
+  SELECT pg_catalog.count(*)::integer
+    INTO accepted_functions
+    FROM expected
+    JOIN pg_catalog.pg_proc AS procedure
+      ON procedure.oid = pg_catalog.to_regprocedure(expected.function_identity)
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+    JOIN pg_catalog.pg_language AS language
+      ON language.oid = procedure.prolang
+   WHERE namespace.nspname = 'public'
+     AND language.lanname = expected.language_name
+     AND procedure.prokind = 'f'
+     AND procedure.proowner = order_owner
+     AND procedure.prosecdef = expected.security_definer
+     AND NOT procedure.proleakproof
+     AND procedure.provolatile = expected.volatility
+     AND procedure.proparallel = expected.parallel_mode
+     AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+     AND pg_catalog.md5(procedure.prosrc) = expected.source_md5
+     AND pg_catalog.has_function_privilege(
+           runtime_role,
+           procedure.oid,
+           'EXECUTE'
+         ) = expected.runtime_execute
+     AND NOT pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
+     AND (
+       SELECT pg_catalog.count(*)
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             procedure.proacl,
+             pg_catalog.acldefault('f', procedure.proowner)
+           )
+         ) AS acl
+        WHERE acl.grantee <> procedure.proowner
+     ) = CASE WHEN expected.runtime_execute THEN 1 ELSE 0 END;
+  IF accepted_functions <> 5 THEN
+    RAISE EXCEPTION
+      'Blocked-checkout refund witness predecessor catalog drifted: accepted=%',
+      accepted_functions;
+  END IF;
+END
+$grainline_blocked_checkout_refund_witness_preflight$;
+
 ALTER TABLE public."Order"
   ADD COLUMN "blockedCheckoutRefundRequiredAt" timestamp(3) without time zone,
   ADD COLUMN "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone;
@@ -1851,5 +1988,201 @@ IS 'Immutable witness that an ineligible paid checkout requires a provider refun
 
 COMMENT ON COLUMN public."Order"."blockedCheckoutRefundRecordedAt"
 IS 'Immutable completion witness backed by a BLOCKED_CHECKOUT_REFUND_RECORDED payment event.';
+
+DO $grainline_blocked_checkout_refund_witness_postflight$
+DECLARE
+  order_owner oid;
+  runtime_role oid;
+  accepted_columns integer;
+  accepted_functions integer;
+  accepted_constraint integer;
+  accepted_index integer;
+  accepted_trigger integer;
+BEGIN
+  SELECT table_row.relowner
+    INTO order_owner
+    FROM pg_catalog.pg_class AS table_row
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = table_row.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND table_row.relname = 'Order'
+     AND table_row.relkind = 'r';
+  SELECT role_row.oid
+    INTO runtime_role
+    FROM pg_catalog.pg_roles AS role_row
+   WHERE role_row.rolname = 'grainline_app_runtime';
+
+  SELECT pg_catalog.count(*)::integer
+    INTO accepted_columns
+    FROM pg_catalog.pg_attribute AS attribute
+   WHERE attribute.attrelid = 'public."Order"'::pg_catalog.regclass
+     AND attribute.attname IN (
+       'blockedCheckoutRefundRequiredAt',
+       'blockedCheckoutRefundRecordedAt'
+     )
+     AND attribute.atttypid =
+           'timestamp without time zone'::pg_catalog.regtype
+     AND attribute.atttypmod = 3
+     AND NOT attribute.attnotnull
+     AND attribute.attnum > 0
+     AND NOT attribute.attisdropped
+     AND NOT attribute.atthasdef
+     AND attribute.attgenerated = '';
+  IF accepted_columns <> 2 THEN
+    RAISE EXCEPTION
+      'Blocked-checkout refund witness columns drifted: accepted=%',
+      accepted_columns;
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO accepted_constraint
+    FROM pg_catalog.pg_constraint AS constraint_row
+   WHERE constraint_row.conrelid = 'public."Order"'::pg_catalog.regclass
+     AND constraint_row.conname = 'Order_blockedCheckoutRefundWitness_check'
+     AND constraint_row.contype = 'c'
+     AND constraint_row.convalidated
+     AND NOT constraint_row.condeferrable
+     AND NOT constraint_row.condeferred
+     AND pg_catalog.array_length(constraint_row.conkey, 1) = 2
+     AND constraint_row.conkey @> ARRAY[
+           (
+             SELECT attribute.attnum
+               FROM pg_catalog.pg_attribute AS attribute
+              WHERE attribute.attrelid = 'public."Order"'::pg_catalog.regclass
+                AND attribute.attname = 'blockedCheckoutRefundRequiredAt'
+                AND NOT attribute.attisdropped
+           ),
+           (
+             SELECT attribute.attnum
+               FROM pg_catalog.pg_attribute AS attribute
+              WHERE attribute.attrelid = 'public."Order"'::pg_catalog.regclass
+                AND attribute.attname = 'blockedCheckoutRefundRecordedAt'
+                AND NOT attribute.attisdropped
+           )
+         ]::smallint[];
+  IF accepted_constraint <> 1 THEN
+    RAISE EXCEPTION 'Blocked-checkout refund witness constraint drifted';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO accepted_index
+    FROM pg_catalog.pg_class AS index_row
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = index_row.relnamespace
+    JOIN pg_catalog.pg_index AS index_catalog
+      ON index_catalog.indexrelid = index_row.oid
+   WHERE namespace.nspname = 'public'
+     AND index_row.relname = 'Order_blockedCheckoutRefundOutstanding_idx'
+     AND index_row.relkind = 'i'
+     AND index_row.relowner = order_owner
+     AND index_catalog.indrelid = 'public."Order"'::pg_catalog.regclass
+     AND index_catalog.indisvalid
+     AND index_catalog.indisready
+     AND NOT index_catalog.indisunique
+     AND index_catalog.indnkeyatts = 2
+     AND index_catalog.indpred IS NOT NULL;
+  IF accepted_index <> 1 THEN
+    RAISE EXCEPTION 'Blocked-checkout refund witness index drifted';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO accepted_trigger
+    FROM pg_catalog.pg_trigger AS trigger_row
+   WHERE trigger_row.tgrelid = 'public."Order"'::pg_catalog.regclass
+     AND trigger_row.tgname =
+           'grainline_order_blocked_checkout_refund_witness_immutable'
+     AND trigger_row.tgfoid = pg_catalog.to_regprocedure(
+           'public.grainline_order_blocked_checkout_refund_witness_immutable()'
+         )
+     AND trigger_row.tgenabled = 'O'
+     AND trigger_row.tgtype = 19
+     AND NOT trigger_row.tgisinternal;
+  IF accepted_trigger <> 1 THEN
+    RAISE EXCEPTION 'Blocked-checkout refund witness trigger drifted';
+  END IF;
+
+  WITH expected(
+    function_identity,
+    source_md5,
+    language_name,
+    security_definer,
+    volatility,
+    parallel_mode,
+    runtime_execute
+  ) AS (
+    VALUES
+      (
+        'public.grainline_order_blocked_checkout_refund_witness_immutable()',
+        '32e59879ff050dfeda5bd73ac5b866b2',
+        'plpgsql', false, 'v', 'u', false
+      ),
+      (
+        'public.grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)',
+        '1de0b7b0f4ec0871ad5dfceb354ba0b1',
+        'plpgsql', true, 'v', 'u', true
+      ),
+      (
+        'public.grainline_stripe_checkout_order_existing(text,bigint,text)',
+        '52a4d5cc1ad6cdfdb2555315f62ae1b5',
+        'plpgsql', true, 'v', 'u', true
+      ),
+      (
+        'public.grainline_stripe_checkout_postpayment(text,bigint,text)',
+        'b48cadd3f5dd4d2a83d5146282ec12be',
+        'plpgsql', true, 'v', 'u', true
+      ),
+      (
+        'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
+        'bdbbca2e9595d644e08a310af35bed69',
+        'sql', false, 's', 's', false
+      ),
+      (
+        'public.grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)',
+        '137aed9785f7db03a0d9980cd2619dac',
+        'plpgsql', true, 'v', 'u', false
+      )
+  )
+  SELECT pg_catalog.count(*)::integer
+    INTO accepted_functions
+    FROM expected
+    JOIN pg_catalog.pg_proc AS procedure
+      ON procedure.oid = pg_catalog.to_regprocedure(expected.function_identity)
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+    JOIN pg_catalog.pg_language AS language
+      ON language.oid = procedure.prolang
+   WHERE namespace.nspname = 'public'
+     AND language.lanname = expected.language_name
+     AND procedure.prokind = 'f'
+     AND procedure.proowner = order_owner
+     AND procedure.prosecdef = expected.security_definer
+     AND NOT procedure.proleakproof
+     AND procedure.provolatile = expected.volatility
+     AND procedure.proparallel = expected.parallel_mode
+     AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+     AND pg_catalog.md5(procedure.prosrc) = expected.source_md5
+     AND pg_catalog.has_function_privilege(
+           runtime_role,
+           procedure.oid,
+           'EXECUTE'
+         ) = expected.runtime_execute
+     AND NOT pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
+     AND (
+       SELECT pg_catalog.count(*)
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             procedure.proacl,
+             pg_catalog.acldefault('f', procedure.proowner)
+           )
+         ) AS acl
+        WHERE acl.grantee <> procedure.proowner
+     ) = CASE WHEN expected.runtime_execute THEN 1 ELSE 0 END;
+  IF accepted_functions <> 6 THEN
+    RAISE EXCEPTION
+      'Blocked-checkout refund witness installed catalog drifted: accepted=%',
+      accepted_functions;
+  END IF;
+END
+$grainline_blocked_checkout_refund_witness_postflight$;
 
 COMMIT;
