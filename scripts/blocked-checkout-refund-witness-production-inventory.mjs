@@ -14,8 +14,10 @@ export const CANDIDATE_MIGRATION =
 
 const summaryKeys = [
   "active_claim_order_count",
+  "audit_log_order_count",
   "backfill_recorded_order_count",
   "backfill_required_order_count",
+  "outstanding_with_refund_evidence_order_count",
   "projected_outstanding_order_count",
   "reconciliation_order_count",
   "recorded_event_order_count",
@@ -57,6 +59,15 @@ export function assertPrivateSafeBlockedCheckoutWitnessInventory(summary) {
   assert.ok(
     BigInt(summary.backfill_required_order_count) <= BigInt(summary.total_order_count),
     "required witness count cannot exceed total orders",
+  );
+  assert.ok(
+    BigInt(summary.audit_log_order_count) <= BigInt(summary.backfill_required_order_count),
+    "audit-log witness count cannot exceed required witnesses",
+  );
+  assert.ok(
+    BigInt(summary.outstanding_with_refund_evidence_order_count)
+      <= BigInt(summary.projected_outstanding_order_count),
+    "already-refunded outstanding count cannot exceed outstanding witnesses",
   );
 }
 

@@ -116,9 +116,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "b0aeb747fff4c627c09077e853ab91392378e6afdea2dbab25f45f81f3ca4828  scripts/blocked-checkout-refund-witness-production-inventory.sql" \
+          echo "9a9b6469931e936d237fb328a8275c0f87a973cca274a445d5d43477126a26a7  scripts/blocked-checkout-refund-witness-production-inventory.sql" \
             | sha256sum --check --status
-          echo "848f8843ea59e9cb4d1da303f4d6fcef7dc83d28bd9573bade5c9efd971a0f06  scripts/blocked-checkout-refund-witness-production-inventory.mjs" \
+          echo "571261416694c7b66b98966bb537012101d663d9267b5cf43b6110242e3f6156  scripts/blocked-checkout-refund-witness-production-inventory.mjs" \
             | sha256sum --check --status
           node --test tests/blocked-checkout-refund-witness-production.test.mjs
       - name: Verify owner connection boundary

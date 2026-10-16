@@ -35,7 +35,9 @@ async function createDatabase() {
     CREATE TABLE public."Order" (
       id text PRIMARY KEY,
       "refundClaimSource" text,
-      "reviewNote" text
+      "reviewNote" text,
+      "sellerRefundId" text,
+      "paymentRefundBlocked" boolean NOT NULL DEFAULT false
     );
     CREATE TABLE public."OrderRefundReconciliation" (
       id text PRIMARY KEY,
@@ -45,26 +47,54 @@ async function createDatabase() {
     CREATE TABLE public."OrderPaymentEvent" (
       id text PRIMARY KEY,
       "orderId" text NOT NULL REFERENCES public."Order"(id),
+      "eventType" text NOT NULL,
+      status text,
       metadata jsonb NOT NULL DEFAULT '{}'::jsonb
     );
-    INSERT INTO public."Order" (id, "refundClaimSource", "reviewNote") VALUES
-      ('normal', NULL, NULL),
-      ('claim', 'BLOCKED_CHECKOUT', NULL),
-      ('note', NULL, 'Order was held for staff review.'),
-      ('reconciliation', NULL, NULL),
-      ('recorded', NULL, NULL),
+    CREATE TABLE public."SystemAuditLog" (
+      id text PRIMARY KEY,
+      action text NOT NULL,
+      "targetType" text NOT NULL,
+      "targetId" text NOT NULL,
+      reason text
+    );
+    INSERT INTO public."Order" (
+      id, "refundClaimSource", "reviewNote", "sellerRefundId"
+    ) VALUES
+      ('normal', NULL, NULL, NULL),
+      ('claim', 'BLOCKED_CHECKOUT', NULL, NULL),
+      ('note', NULL, 'Order was held for staff review.', NULL),
+      ('reconciliation', NULL, NULL, NULL),
+      ('recorded', NULL, NULL, NULL),
+      ('audit-only', NULL, 'Dispute replaced the checkout note.', NULL),
+      ('refunded-outstanding', 'BLOCKED_CHECKOUT', NULL, NULL),
+      ('legacy-refunded-outstanding', NULL, NULL, 're_legacy'),
       ('overlap', 'BLOCKED_CHECKOUT',
-        'Later context. Order was held for staff review.');
+        'Later context. Order was held for staff review.', NULL);
     INSERT INTO public."OrderRefundReconciliation" (
       id, "orderId", "claimSource"
     ) VALUES
       ('reconciliation-row', 'reconciliation', 'BLOCKED_CHECKOUT'),
       ('overlap-row', 'overlap', 'BLOCKED_CHECKOUT');
-    INSERT INTO public."OrderPaymentEvent" (id, "orderId", metadata) VALUES
-      ('recorded-event', 'recorded',
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "eventType", status, metadata
+    ) VALUES
+      ('recorded-event', 'recorded', 'REFUND', 'succeeded',
         '{"localAction":"BLOCKED_CHECKOUT_REFUND_RECORDED"}'::jsonb),
-      ('overlap-event', 'overlap',
-        '{"localAction":"BLOCKED_CHECKOUT_REFUND_RECORDED"}'::jsonb);
+      ('overlap-event', 'overlap', 'REFUND', 'succeeded',
+        '{"localAction":"BLOCKED_CHECKOUT_REFUND_RECORDED"}'::jsonb),
+      ('external-refund', 'refunded-outstanding', 'REFUND', 'succeeded',
+        '{}'::jsonb);
+    INSERT INTO public."SystemAuditLog" (
+      id, action, "targetType", "targetId", reason
+    ) VALUES
+      ('audit-blocked', 'STRIPE_CHECKOUT_ORDER_CREATED', 'ORDER',
+        'audit-only', 'Seller was blocked before checkout completed.'),
+      ('audit-legacy-refund', 'STRIPE_CHECKOUT_ORDER_CREATED', 'ORDER',
+        'legacy-refunded-outstanding',
+        'Seller was blocked before checkout completed.'),
+      ('audit-orphan', 'STRIPE_CHECKOUT_ORDER_CREATED', 'ORDER',
+        'deleted-order', 'Historical audit row for a deleted order.');
   `);
   return database;
 }
@@ -78,14 +108,16 @@ test("aggregate inventory mirrors the migration backfill and projected index pop
       ([key, value]) => [key, Number(value)],
     ));
     assert.deepEqual(normalized, {
-      total_order_count: 6,
-      active_claim_order_count: 2,
+      total_order_count: 9,
+      active_claim_order_count: 3,
       review_note_order_count: 2,
       reconciliation_order_count: 2,
       recorded_event_order_count: 2,
-      backfill_required_order_count: 5,
+      audit_log_order_count: 2,
+      backfill_required_order_count: 8,
       backfill_recorded_order_count: 2,
-      projected_outstanding_order_count: 3,
+      projected_outstanding_order_count: 6,
+      outstanding_with_refund_evidence_order_count: 2,
       review_note_only_order_count: 1,
     });
     assertPrivateSafeBlockedCheckoutWitnessInventory(rows[0]);
@@ -112,14 +144,16 @@ test("complete inventory script is read-only", async () => {
 
 test("aggregate validation rejects identifiers and inconsistent counts", () => {
   const summary = {
-    total_order_count: "6",
-    active_claim_order_count: "2",
+    total_order_count: "9",
+    active_claim_order_count: "3",
     review_note_order_count: "2",
     reconciliation_order_count: "2",
     recorded_event_order_count: "2",
-    backfill_required_order_count: "5",
+    audit_log_order_count: "2",
+    backfill_required_order_count: "8",
     backfill_recorded_order_count: "2",
-    projected_outstanding_order_count: "3",
+    projected_outstanding_order_count: "6",
+    outstanding_with_refund_evidence_order_count: "2",
     review_note_only_order_count: "1",
   };
   assert.doesNotThrow(() =>
