@@ -271,6 +271,8 @@ jobs:
           tests/seller-profile-private-invariants-production-workflow.test.mjs
           tests/seller-profile-private-enable-postgres.test.mjs
           tests/seller-profile-private-enable-production-workflow.test.mjs
+          tests/seller-profile-private-force-postgres.test.mjs
+          tests/seller-profile-private-force-production-workflow.test.mjs
       - name: Verify post-retirement account-deletion repair source package
         run: >-
           node --test
@@ -1151,7 +1153,8 @@ jobs:
             20261015000000_correct_seller_profile_private_app_authorities \
             20261015010000_retire_seller_profile_private_predecessor \
             20261015080000_restore_seller_profile_private_invariants \
-            20261015100000_enable_seller_profile_private_rls
+            20261015100000_enable_seller_profile_private_rls \
+            20261015120000_force_seller_profile_private_rls
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
@@ -5744,7 +5747,8 @@ jobs:
             20261015000000_correct_seller_profile_private_app_authorities \
             20261015010000_retire_seller_profile_private_predecessor \
             20261015080000_restore_seller_profile_private_invariants \
-            20261015100000_enable_seller_profile_private_rls
+            20261015100000_enable_seller_profile_private_rls \
+            20261015120000_force_seller_profile_private_rls
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
@@ -5943,6 +5947,26 @@ jobs:
             rolled_back_at, started_at, applied_steps_count
           ) VALUES (
             'spe-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Apply SellerProfilePrivate policyless FORCE in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015120000_force_seller_profile_private_rls
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'spf-' || pg_catalog.md5(:'migration'), :'checksum',
             pg_catalog.clock_timestamp(), :'migration', NULL,
             NULL, pg_catalog.clock_timestamp(), 1
           );

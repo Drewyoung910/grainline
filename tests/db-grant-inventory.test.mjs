@@ -2625,6 +2625,9 @@ describe("database grant inventory guardrails", () => {
     ) && source(orderItemQuoteRuntimeLockMigrationPath).includes(
       'REVOKE ALL ON TABLE\n  public."OrderItem",\n  public."OrderShippingRateQuote"\nFROM PUBLIC, grainline_app_runtime;',
     );
+    const sellerProfilePrivateForceMigrationPresent = existsSync(
+      "prisma/migrations/20261015120000_force_seller_profile_private_rls/migration.sql",
+    );
     const postForceCheckoutSuccessorRevokePresent = [
       "prisma/migrations/20260930031000_mark_paid_private_listing_sold/migration.sql",
       "prisma/migrations/20260930032000_block_checkout_user_pairs/migration.sql",
@@ -3443,6 +3446,9 @@ describe("database grant inventory guardrails", () => {
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
+        ...(sellerProfilePrivateForceMigrationPresent
+          ? ["SellerProfilePrivate"]
+          : []),
         "StripeWebhookEvent",
         ...(userRlsForceExpected(inventory) ? [USER_TABLE] : []),
         ...(userEmailAddressRlsForceExpected(inventory)
@@ -4157,12 +4163,41 @@ describe("database grant inventory guardrails", () => {
     }), [
       "SellerProfilePrivate RLS ENABLE is applied without its exact invariant prerequisite",
     ]);
+    assert.deepEqual(collectSellerProfilePrivateMigrationOrderIssues({
+      preparationApplied: true,
+      retirementApplied: true,
+      postRetirementRepairApplied: true,
+      invariantsApplied: true,
+      enableApplied: false,
+      forceApplied: true,
+    }), [
+      "SellerProfilePrivate RLS FORCE is applied without its exact ENABLE prerequisite",
+    ]);
     assert.equal(
       policylessServiceRlsTableNames({
         sellerProfilePrivateRlsEnabled: true,
       }).includes("SellerProfilePrivate"),
       true,
     );
+    const sellerPrivateForcedInventory = {
+      tables: ["SellerProfilePrivate"],
+      sellerProfilePrivateRlsEnabled: true,
+      sellerProfilePrivateRlsForced: true,
+    };
+    assert.deepEqual(collectPolicylessServiceRlsIssues([{
+      table_name: "SellerProfilePrivate",
+      rls_enabled: true,
+      rls_forced: true,
+      policy_count: 0,
+    }], sellerPrivateForcedInventory), []);
+    assert.deepEqual(collectPolicylessServiceRlsIssues([{
+      table_name: "SellerProfilePrivate",
+      rls_enabled: true,
+      rls_forced: false,
+      policy_count: 0,
+    }], sellerPrivateForcedInventory), [
+      "service-only table SellerProfilePrivate must have FORCE ROW LEVEL SECURITY enabled",
+    ]);
   });
 
   it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {
