@@ -974,3 +974,55 @@ GitHub-PostgreSQL skip. This is source-preparation evidence only:
 `SellerProfilePrivate` RLS is still off in Production, no ENABLE workflow has
 run, and FORCE remains a separate later release. Public `SellerProfile` also
 remains a separate design and is not changed by this successor.
+
+### 2026-10-15 policyless ENABLE acceptance and FORCE candidate
+
+The private table's policyless ENABLE release is accepted in Production. PR
+#584 merged unchanged as exact main
+`faed352bf0baa5bff8727539bdaec36eb18370ac`; exact merged-main CI
+`38813143503` and every required auxiliary push proof passed. Protected run
+`38825901687` applied only
+`20261015100000_enable_seller_profile_private_rls`. Sanitized evidence artifact
+`seller-profile-private-enable-production-38825901687` has GitHub digest
+`sha256:fb175f4a803436b0ed3a713d7d17d587a59dad53dfe3724727d9d67ac1562aa7`.
+Its readback proved `SellerProfilePrivate` has RLS enabled, FORCE disabled,
+zero policies, zero nonowner table authority, zero runtime/staff column
+authority, zero invalid phones, zero missing companions and zero snapshot
+mismatches. Public `SellerProfile` remains RLS-disabled and unchanged.
+
+The two final pre-ENABLE allegations were resolved before that run. #693 was a
+real workflow-wiring defect: the Conversation/Message proof now receives the
+preserved migration directory and passes on pull requests and exact main. #694
+was a real brittle-catalog defect: the private phone check is compared against
+the exact PostgreSQL definition for the real `varchar(30)` column, including
+its `::text` casts, and the full migrated PostgreSQL 16 chain now runs at the
+start of CI. Neither allegation is carried into FORCE as an unresolved gate.
+
+The final isolated successor is
+`20261015120000_force_seller_profile_private_rls`. It is posture-only:
+
+- its preflight requires the exact accepted ENABLE ledger and policyless
+  ENABLE catalog, exact owner and restricted-role posture, zero nonowner table
+  or column grants, the exact phone constraint and trigger catalog, and zero
+  data mismatches;
+- its only posture mutation is `ALTER TABLE public."SellerProfilePrivate"
+  FORCE ROW LEVEL SECURITY`, followed by a defensive grant re-revoke;
+- it creates no policy or function, writes no row, drops no column or object,
+  and leaves public `SellerProfile` RLS off;
+- its database-first rollback performs only `NO FORCE ROW LEVEL SECURITY`,
+  retaining ENABLE, zero policies and zero direct authority; and
+- its protected operator binds exact main and all required push proofs to the
+  successful ENABLE run, admits only the reviewed pending FORCE migration,
+  reads the catalog back, runs the global grant audit and stores count-only
+  evidence.
+
+Focused behavior and workflow tests cover the transition, fail-closed drift,
+rollback, exact-run binding, migration ordering and grant-audit expectations.
+The full migrated PostgreSQL 16 chain remains the exact-head CI gate. This
+paragraph records source preparation only until the FORCE PR merges unchanged,
+its merged-main gates pass, and Drew separately approves the named protected
+Production run. After FORCE, work moves to #648/#688 and the blocked-checkout
+repair, then the Case-refund cluster, #664 and #662. No new RLS table begins
+before those money/case fixes. Public `SellerProfile` will start with an
+options comparison and Drew's sign-off; no further column deletion is part of
+that security design.
