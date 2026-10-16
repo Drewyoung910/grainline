@@ -17,7 +17,10 @@ import {
   assertSellerProfilePrivateLayout,
   seedSellerProfilePrivateFixture,
 } from "../tools/database-full-chain/scenarios/seller-profile-private-fixture.mjs";
-import { proveImmutableRefundRepair } from "../tools/database-full-chain/scenarios/order-refund-immutable-event.mjs";
+import {
+  proveImmutableRefundRepair,
+  proveOrderRefund648Inventory,
+} from "../tools/database-full-chain/scenarios/order-refund-immutable-event.mjs";
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
 
@@ -93,6 +96,10 @@ test(
         database: adapter,
         repositoryRoot,
         seller: fixture,
+      });
+      await proveOrderRefund648Inventory({
+        database: adapter,
+        repositoryRoot,
       });
     } finally {
       await client.end();

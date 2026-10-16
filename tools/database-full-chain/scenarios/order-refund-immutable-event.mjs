@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+import { executeOrderRefund648Inventory } from "../../../scripts/order-refund-648-production-inventory.mjs";
+
 const PREDECESSOR =
   "20261013190000_move_reconciliation_seller_private_sql_callers";
 const REPAIR = "20261015020000_repair_immutable_order_refund_recording";
@@ -228,4 +230,23 @@ export async function proveImmutableRefundRepair({
 
   await database.query(repairSql);
   await proveInstalledRepair(database, seller, fixture, claim);
+}
+
+export async function proveOrderRefund648Inventory({
+  database,
+  repositoryRoot,
+}) {
+  const counts = async () => (await database.query(`
+    SELECT
+      (SELECT pg_catalog.count(*)::integer FROM public."Order") AS orders,
+      (SELECT pg_catalog.count(*)::integer
+         FROM public."OrderPaymentEvent") AS payment_events,
+      (SELECT pg_catalog.count(*)::integer
+         FROM public."StripeWebhookEvent") AS webhook_events
+  `)).rows[0];
+  const before = await counts();
+  const evidence = await executeOrderRefund648Inventory(database, repositoryRoot);
+  assert.ok(Array.isArray(evidence.claimSummary));
+  assert.ok(Array.isArray(evidence.lostClaimSummary));
+  assert.deepEqual(await counts(), before);
 }
