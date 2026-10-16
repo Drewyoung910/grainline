@@ -2862,10 +2862,38 @@ jobs:
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20260926010000_correct_order_provider_terminal_reconciliation/migration.sql
       # The successor package above was previously restored for source tests but
-      # these five reviewed migrations were never applied to the shared
-      # disposable database. Later corrections replace only part of this
-      # catalog, so OrderItem's final exact-function preflight observed an old
-      # seller-detail body even though Production already had the successor.
+      # the Production-owner banned-buyer correction and these five reviewed
+      # migrations were never applied to the shared disposable database. Adapt
+      # the one owner-pinned migration through the same exact-count transform as
+      # the full-chain harness before applying the remaining successors.
+      - name: Apply CI-adapted Order banned-buyer correction in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260905180000_correct_order_banned_buyer_completion
+          output="$RUNNER_TEMP/$migration-ci.sql"
+          MIGRATION="$migration" OUTPUT="$output" node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync, writeFileSync} from 'node:fs';
+          import {prepareMigrationSql, sha256} from './tools/database-full-chain/scenarios/migration-chain.mjs';
+
+          const name = process.env.MIGRATION;
+          const source = readFileSync(`prisma/migrations/${name}/migration.sql`, 'utf8');
+          const prepared = prepareMigrationSql({
+            name,
+            sql: source,
+            checksum: sha256(source),
+          }, 'postgres16');
+          assert.deepEqual(
+            prepared.deviations.map(({kind, count}) => ({kind, count})),
+            [{kind: 'ci-owner-literal', count: 4}],
+          );
+          writeFileSync(process.env.OUTPUT, prepared.sql, {mode: 0o600, flag: 'wx'});
+          NODE
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on --file="$output"
+      # Later corrections replace only part of this catalog, so omitting the
+      # banned-buyer correction leaves an old completion body even though
+      # Production already has the reviewed successor.
       - name: Apply remaining reviewed Order successors in disposable PostgreSQL
         shell: bash
         run: |

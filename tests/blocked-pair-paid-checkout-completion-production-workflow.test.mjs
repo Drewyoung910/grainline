@@ -138,6 +138,12 @@ test("CI isolates the candidate, then restores and proves it after its live pred
     "name: Isolate blocked-pair paid-checkout completion until refund witness passes",
   );
   const tests = ciWorkflow.indexOf("name: Tests");
+  const bannedBuyer = ciWorkflow.indexOf(
+    "name: Apply CI-adapted Order banned-buyer correction in disposable PostgreSQL",
+  );
+  const remainingOrderSuccessors = ciWorkflow.indexOf(
+    "name: Apply remaining reviewed Order successors in disposable PostgreSQL",
+  );
   const predecessor = ciWorkflow.indexOf(
     "name: Apply blocked-checkout refund witness after immutable refund repair",
   );
@@ -153,10 +159,19 @@ test("CI isolates the candidate, then restores and proves it after its live pred
   const build = ciWorkflow.indexOf("name: Production build");
 
   assert.ok(verify >= 0 && verify < isolate && isolate < tests);
-  assert.ok(tests < predecessor && predecessor < restore);
+  assert.ok(
+    tests < bannedBuyer &&
+      bannedBuyer < remainingOrderSuccessors &&
+      remainingOrderSuccessors < predecessor &&
+      predecessor < restore,
+  );
   assert.ok(restore < apply && apply < prove && prove < build);
   assert.match(
     ciWorkflow.slice(isolate, tests),
     /BLOCKED_PAIR_PAID_CHECKOUT_COMPLETION_MIGRATION_PATH/u,
+  );
+  assert.match(
+    ciWorkflow.slice(bannedBuyer, remainingOrderSuccessors),
+    /prepareMigrationSql[\s\S]*?ci-owner-literal[\s\S]*?count: 4[\s\S]*?psql "\$DIRECT_URL"/u,
   );
 });
