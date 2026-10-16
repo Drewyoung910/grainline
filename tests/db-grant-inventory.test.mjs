@@ -2697,6 +2697,13 @@ describe("database grant inventory guardrails", () => {
       source(blockedCheckoutRefundWitnessMigrationPath).includes(
         `CREATE FUNCTION public.${functionName}(`,
       ));
+    const blockedPairCheckoutCompletionMigrationPath =
+      "prisma/migrations/20261016000000_correct_blocked_pair_paid_checkout_completion/migration.sql";
+    const blockedPairCheckoutCompletionMigrationPresent = existsSync(
+      blockedPairCheckoutCompletionMigrationPath,
+    ) && source(blockedPairCheckoutCompletionMigrationPath).includes(
+      "CREATE OR REPLACE FUNCTION public.grainline_checkout_reservation_complete(",
+    );
     const clerkWebhookAuthorityMigrationPath =
       "prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql";
     const clerkWebhookAuthorityPrepared = existsSync(
@@ -3012,6 +3019,7 @@ describe("database grant inventory guardrails", () => {
           ? blockedCheckoutRefundWitnessFunctionNames.length
             + 3 // reasserted checkout create/existing/postpayment PUBLIC/runtime revokes
           : 0)
+        + (blockedPairCheckoutCompletionMigrationPresent ? 1 : 0)
         + (clerkWebhookAuthorityPrepared
           ? clerkWebhookAuthorityFunctionNames.length
           : 0)

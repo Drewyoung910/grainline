@@ -122,6 +122,22 @@ jobs:
           tests/order-fulfillment-authority-postgres.test.mjs
           tests/order-paid-checkout-authority-postgres.test.mjs
           tests/db-grant-inventory.test.mjs
+      - name: Verify blocked-pair paid-checkout completion source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/blocked-pair-checkout-sessions.test.mjs
+          tests/blocked-pair-paid-checkout-completion-production-workflow.test.mjs
+          tests/db-grant-inventory.test.mjs
+      - name: Isolate blocked-pair paid-checkout completion until refund witness passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/blocked-pair-paid-checkout-completion"
+          mkdir "$holding"
+          migration=20261016000000_correct_blocked_pair_paid_checkout_completion
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          echo "BLOCKED_PAIR_PAID_CHECKOUT_COMPLETION_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate blocked-checkout refund witness until immutable refund repair passes
         shell: bash
         run: |
@@ -2846,10 +2862,38 @@ jobs:
           --set=ON_ERROR_STOP=on
           --file=prisma/migrations/20260926010000_correct_order_provider_terminal_reconciliation/migration.sql
       # The successor package above was previously restored for source tests but
-      # these five reviewed migrations were never applied to the shared
-      # disposable database. Later corrections replace only part of this
-      # catalog, so OrderItem's final exact-function preflight observed an old
-      # seller-detail body even though Production already had the successor.
+      # the Production-owner banned-buyer correction and these five reviewed
+      # migrations were never applied to the shared disposable database. Adapt
+      # the one owner-pinned migration through the same exact-count transform as
+      # the full-chain harness before applying the remaining successors.
+      - name: Apply CI-adapted Order banned-buyer correction in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20260905180000_correct_order_banned_buyer_completion
+          output="$RUNNER_TEMP/$migration-ci.sql"
+          MIGRATION="$migration" OUTPUT="$output" node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync, writeFileSync} from 'node:fs';
+          import {prepareMigrationSql, sha256} from './tools/database-full-chain/scenarios/migration-chain.mjs';
+
+          const name = process.env.MIGRATION;
+          const source = readFileSync(`prisma/migrations/${name}/migration.sql`, 'utf8');
+          const prepared = prepareMigrationSql({
+            name,
+            sql: source,
+            checksum: sha256(source),
+          }, 'postgres16');
+          assert.deepEqual(
+            prepared.deviations.map(({kind, count}) => ({kind, count})),
+            [{kind: 'ci-owner-literal', count: 4}],
+          );
+          writeFileSync(process.env.OUTPUT, prepared.sql, {mode: 0o600, flag: 'wx'});
+          NODE
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on --file="$output"
+      # Later corrections replace only part of this catalog, so omitting the
+      # banned-buyer correction leaves an old completion body even though
+      # Production already has the reviewed successor.
       - name: Apply remaining reviewed Order successors in disposable PostgreSQL
         shell: bash
         run: |
@@ -6102,7 +6146,61 @@ jobs:
             NULL, pg_catalog.clock_timestamp(), 1
           );
           SQL
-      - name: Audit runtime grants after blocked-checkout refund witness
+      - name: Restore blocked-pair paid-checkout completion after refund witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/blocked-pair-paid-checkout-completion"
+          migration=20261016000000_correct_blocked_pair_paid_checkout_completion
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          rmdir "$holding"
+          echo "BLOCKED_PAIR_PAID_CHECKOUT_COMPLETION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Re-verify blocked-pair paid-checkout completion source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/blocked-pair-checkout-sessions.test.mjs
+          tests/blocked-pair-paid-checkout-completion-production-workflow.test.mjs
+          tests/db-grant-inventory.test.mjs
+      - name: Apply blocked-pair paid-checkout completion after refund witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261016000000_correct_blocked_pair_paid_checkout_completion
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'bpc-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Prove blocked-pair paid-checkout completion in current Production order
+        run: |
+          node --input-type=module - <<'NODE'
+          import pg from 'pg';
+          import {proveBlockedPairPaidCheckoutCompletion} from './tools/database-full-chain/scenarios/paid-checkout-block-race.mjs';
+          import {seedSellerProfilePrivateFixture} from './tools/database-full-chain/scenarios/seller-profile-private-fixture.mjs';
+
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            const seller = await seedSellerProfilePrivateFixture(client, {
+              suffix: 'blocked_pair_current_production_order',
+            });
+            await proveBlockedPairPaidCheckoutCompletion({database: client, seller});
+          } finally {
+            await client.end();
+          }
+          NODE
+      - name: Audit runtime grants after blocked-pair paid-checkout completion
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime

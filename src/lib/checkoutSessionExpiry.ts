@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { restoreSellerExpiredCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
 import { expireClosedSellerAccountSessions } from "@/lib/orderSellerClosureSessions";
+import { expireBlockedPairCheckoutSessions } from "@/lib/blockedPairCheckoutSessions";
 export { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
 
 export type ExpireOpenCheckoutSessionsResult = {
@@ -32,6 +33,47 @@ export async function expireCheckoutSessionsForClosedAccount(input: {
       sessionId: session.id,
       metadata: session.metadata ?? {},
     }),
+  });
+}
+
+export async function expireOpenCheckoutSessionsForBlockedPair(input: {
+  firstUserId: string;
+  secondUserId: string;
+  source: string;
+}) {
+  const sellers = await prisma.sellerProfile.findMany({
+    where: { userId: { in: [input.firstUserId, input.secondUserId] } },
+    select: { id: true, userId: true },
+  });
+  const sellerByUserId = new Map(sellers.map((seller) => [seller.userId, seller.id]));
+  const targets = [
+    sellerByUserId.get(input.secondUserId)
+      ? { buyerId: input.firstUserId, sellerId: sellerByUserId.get(input.secondUserId)! }
+      : null,
+    sellerByUserId.get(input.firstUserId)
+      ? { buyerId: input.secondUserId, sellerId: sellerByUserId.get(input.firstUserId)! }
+      : null,
+  ].filter((target): target is { buyerId: string; sellerId: string } => target !== null);
+
+  return expireBlockedPairCheckoutSessions<Stripe.Checkout.Session>({
+    targets,
+    nowSeconds: Math.floor(Date.now() / 1000),
+  }, {
+    list: async (params) => stripe.checkout.sessions.list(params),
+    expire: async (id) => stripe.checkout.sessions.expire(id),
+    restore: async (session, sellerId) => restoreSellerExpiredCheckoutStockOnce({
+      sellerProfileId: sellerId,
+      sessionId: session.id,
+      metadata: session.metadata ?? {},
+    }),
+    report: (error, context) => {
+      Sentry.captureException(error, {
+        tags: {
+          source: `${input.source}_checkout_session_${context.stage}`,
+        },
+        extra: context,
+      });
+    },
   });
 }
 

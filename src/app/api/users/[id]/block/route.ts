@@ -7,6 +7,8 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { createUserBlock, deleteUserBlock } from "@/lib/blockMutationAccess";
+import { expireOpenCheckoutSessionsForBlockedPair } from "@/lib/checkoutSessionExpiry";
+import { after } from "next/server";
 
 export async function POST(
   req: Request,
@@ -38,6 +40,32 @@ export async function POST(
 
   const blockCreated = await createUserBlock(me.id, blockedId);
   if (!blockCreated) return privateJson({ error: "User not found" }, { status: 404 });
+
+  after(async () => {
+    try {
+      const expiry = await expireOpenCheckoutSessionsForBlockedPair({
+        firstUserId: me.id,
+        secondUserId: blockedId,
+        source: "user_block",
+      });
+      if (expiry.failed > 0) {
+        logServerError(new Error("Some blocked-pair checkout sessions could not be expired"), {
+          source: "block_checkout_session_expiry",
+          level: "warning",
+          extra: { blockerId: me.id, blockedId, ...expiry },
+        });
+      }
+    } catch (error) {
+      // The Block remains authoritative even if Stripe is unavailable. The
+      // signed paid-checkout writer revalidates the pair and refunds any payment
+      // that wins this race.
+      logServerError(error, {
+        source: "block_checkout_session_expiry",
+        level: "warning",
+        extra: { blockerId: me.id, blockedId },
+      });
+    }
+  });
 
   // Remove reciprocal Follow rows (both directions)
   try {

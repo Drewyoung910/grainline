@@ -2,9 +2,41 @@
 
 Last updated: 2026-10-16
 
+## 2026-10-16 — Blocked-pair paid-checkout completion
+
+- **[#702 VERIFIED/FIX PREPARED; NOT YET MERGED OR PRODUCTION]** The signed
+  paid-checkout writer already classified a reciprocal buyer/seller Block as an
+  ineligible payment, detached the buyer, purged buyer PII, and prepared the
+  durable review/refund Order. Its reservation finalizer accepted that
+  buyerless Order only when the buyer was missing, suspended, or deleted. With
+  a still-active blocked buyer, the finalizer raised after `Order` creation and
+  PostgreSQL rolled the entire statement back, so Stripe could charge the
+  buyer while every webhook retry produced no Order and no automatic refund.
+  A failing-first PostgreSQL 16 proof reproduced the exact
+  `Checkout completion is missing its durable order` failure on all 345
+  predecessor migrations. The candidate forward migration aligns the
+  finalizer with the writer's reciprocal-Block predicate while preserving the
+  function owner, `SECURITY DEFINER`, pinned search path, narrow runtime grant,
+  and exact predecessor/replacement source hashes. The corrected full-chain
+  proof passes all 346 migrations and both Block directions. Creating a Block
+  also best-effort expires only open Checkout Sessions whose server-written
+  buyer and seller metadata match that exact pair in either marketplace
+  direction, then invokes idempotent reservation restoration; unrelated
+  sessions remain untouched. Provider expiry failure does not undo the Block,
+  because the corrected signed webhook path remains the durable refund
+  backstop. Focused checkout behavior tests pass 21/21, the new pair-expiry
+  behavior tests pass 2/2, and TypeScript plus focused lint pass. The protected
+  Production workflow is prepared but not dispatched: it binds the candidate
+  to exact main, the named successful CI run, every required exact-main push
+  workflow, the exact migration checksum, the complete peer-migration ledger,
+  and the exact predecessor/replacement function catalog before applying only
+  this migration. Dependency audit reports no unreviewed high or critical
+  vulnerability, and the production build passes against the disposable
+  full-chain PostgreSQL 16 database. Exact-head hosted CI remains pending.
+
 ## 2026-10-16 — Blocked-checkout refund durability
 
-- **[#664 VERIFIED/FIX PREPARED; NOT YET PRODUCTION]** A paid checkout that
+- **[#664 VERIFIED/FIXED/PRODUCTION LIVE]** A paid checkout that
   became ineligible could lose its only durable refund blocker after staff
   reconciliation replaced the mutable review note and released the temporary
   claim. A later webhook replay could then classify the charged order as
@@ -22,9 +54,15 @@ Last updated: 2026-10-16
   audit evidence as a fifth backfill source, finishes replay only when
   non-failed refund evidence exists without an active claim, and inventories
   already-refunded outstanding witnesses separately. The first incomplete
-  inventory dispatch was cancelled before its job started. No Production SQL
-  or Stripe effect ran; the corrected exact-main inventory and migration remain
-  pending review and release.
+  inventory dispatch was cancelled before its job started. PR #593 then merged
+  exact head `8ba195ea4fb25e8189bef26da848fcc837eaca6c` as main
+  `f83eb9d9cd08140aa690e545f3f4a2c32ca33ad2`; exact-main CI run
+  `38946944548` passed. Read-only Production inventory run `38952207430`
+  reported zero required, recorded, or outstanding historical witnesses.
+  Protected migration run `38956619452` applied only
+  `20261015030000_preserve_blocked_checkout_refund_witness`, and its catalog,
+  ledger, behavior, and population postflight passed with `issueCount=0` and
+  zero outstanding witnesses. The migration performed no live Stripe call.
 
 ## 2026-10-13 — Claude session #361 seller listing Hide/Delete
 
