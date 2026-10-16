@@ -21,6 +21,7 @@ import {
   proveImmutableRefundRepair,
   proveOrderRefund648Inventory,
 } from "../tools/database-full-chain/scenarios/order-refund-immutable-event.mjs";
+import { proveBlockedPairPaidCheckoutCompletion } from "../tools/database-full-chain/scenarios/paid-checkout-block-race.mjs";
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
 
@@ -100,6 +101,10 @@ test(
       await proveOrderRefund648Inventory({
         database: adapter,
         repositoryRoot,
+      });
+      await proveBlockedPairPaidCheckoutCompletion({
+        database: adapter,
+        seller: fixture,
       });
     } finally {
       await client.end();
