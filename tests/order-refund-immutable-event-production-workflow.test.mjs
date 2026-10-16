@@ -119,7 +119,8 @@ test("release is exact-main, exact-CI, exact-candidate and restart safe", () => 
   assert.match(workflow, /github\.run_attempt == 1/u);
   assert.match(workflow, /main\.commit\.sha !== sha[\s\S]*run\.event !== 'push'[\s\S]*run\.head_branch !== 'main'[\s\S]*run\.head_sha !== sha[\s\S]*run\.conclusion !== 'success'/u);
   assert.match(workflow, /directories\.includes\(migration\)/u);
-  assert.match(workflow, /peer ledger count drifted/u);
+  assert.match(workflow, /assertReviewedPeerMigrationLedger/u);
+  assert.match(workflow, /order-refund-immutable-event-production-ledger\.mjs/u);
   assert.doesNotMatch(workflow, /candidate is not the exact latest migration/u);
   assert.match(workflow, /REVIEWED_PENDING_MIGRATIONS="\$migration" node scripts\/assert-reviewed-pending-migrations\.mjs/u);
   assert.equal((workflow.match(/\bnpx prisma migrate deploy\b/gu) ?? []).length, 1);

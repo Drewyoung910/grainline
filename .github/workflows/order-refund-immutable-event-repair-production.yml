@@ -155,6 +155,8 @@ jobs:
           import {createHash} from 'node:crypto';
           import {appendFileSync, readFileSync, readdirSync, writeFileSync} from 'node:fs';
           import pg from 'pg';
+          import {assertReviewedPeerMigrationLedger} from
+            './scripts/order-refund-immutable-event-production-ledger.mjs';
 
           const migration = '20261015020000_repair_immutable_order_refund_recording';
           const checksum = '765d6d8bc128759dbc2710bfa856f1dd8b0c627efaabf43e3cab9c01ad9a9ebf';
@@ -185,12 +187,11 @@ jobs:
             }
             for (const peer of peers) {
               const rows = byName.get(peer) ?? [];
-              assert.equal(rows.length, 1, `peer ledger count drifted: ${peer}`);
-              const row = rows[0];
-              assert.equal(row.checksum, digest(peer), `peer bytes drifted: ${peer}`);
-              assert.ok(row.finished_at, `peer is unfinished: ${peer}`);
-              assert.equal(row.rolled_back_at, null, `peer was rolled back: ${peer}`);
-              assert.equal(Number(row.applied_steps_count), 1, `peer step count drifted: ${peer}`);
+              assertReviewedPeerMigrationLedger({
+                migrationName: peer,
+                repositoryChecksum: digest(peer),
+                rows,
+              });
             }
             const candidateRows = byName.get(migration) ?? [];
             assert.ok(candidateRows.length <= 1, 'candidate ledger is duplicated');
