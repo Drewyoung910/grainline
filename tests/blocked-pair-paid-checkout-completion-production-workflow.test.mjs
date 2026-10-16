@@ -10,7 +10,7 @@ const workflow = readFileSync(
 );
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const migration = readFileSync(
-  process.env.BLOCKED_PAIR_PAID_CHECKOUT_COMPLETION_MIGRATION_PATH ??
+  process.env.BLOCKED_PAIR_PAID_CHECKOUT_COMPLETION_MIGRATION_PATH?.trim() ||
     "prisma/migrations/20261016000000_correct_blocked_pair_paid_checkout_completion/migration.sql",
   "utf8",
 );
