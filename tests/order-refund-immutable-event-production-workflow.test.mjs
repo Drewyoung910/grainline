@@ -20,7 +20,7 @@ const bindingScript = parsedWorkflow.jobs.apply.steps.find(
 ).with.script;
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
-async function runBindingScript({ omitRequiredPath, auxiliaryConclusion = "success" } = {}) {
+async function runBindingScript({ omitPath, failingPath } = {}) {
   const releaseSha = "a".repeat(40);
   const ciRunId = 101;
   const runs = [
@@ -39,10 +39,8 @@ async function runBindingScript({ omitRequiredPath, auxiliaryConclusion = "succe
     head_branch: "main",
     head_sha: releaseSha,
     status: "completed",
-    conclusion: path === ".github/workflows/order-paid-repair-lock-proof.yml"
-      ? auxiliaryConclusion
-      : "success",
-  })).filter((run) => run.path !== omitRequiredPath);
+    conclusion: path === failingPath ? "failure" : "success",
+  })).filter((run) => run.path !== omitPath);
   const listWorkflowRunsForRepo = () => {};
   const github = {
     rest: {
@@ -90,13 +88,29 @@ test("immutable refund-event release has one protected Production boundary", () 
 test("Production binding accepts only an all-green exact-main workflow set", async () => {
   await assert.doesNotReject(runBindingScript());
   await assert.rejects(
-    runBindingScript({ auxiliaryConclusion: "failure" }),
+    runBindingScript({
+      failingPath: ".github/workflows/order-paid-repair-lock-proof.yml",
+    }),
     /Exact-main push workflows are not all green/u,
   );
   await assert.rejects(
-    runBindingScript({ omitRequiredPath: ".github/workflows/notification-rls-ephemeral-proof.yml" }),
+    runBindingScript({
+      failingPath: ".github/workflows/notification-rls-ephemeral-proof.yml",
+    }),
+    /Exact-main push workflows are not all green/u,
+  );
+  await assert.rejects(
+    runBindingScript({
+      omitPath: ".github/workflows/account-deletion-worker-bootstrap-proof.yml",
+    }),
     /Required exact-main push workflows are absent/u,
   );
+  for (const optionalPath of [
+    ".github/workflows/conversation-message-force-proof.yml",
+    ".github/workflows/notification-rls-ephemeral-proof.yml",
+  ]) {
+    await assert.doesNotReject(runBindingScript({ omitPath: optionalPath }));
+  }
 });
 
 test("inline catalog programs are syntactically valid modules", () => {
