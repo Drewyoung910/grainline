@@ -6,6 +6,11 @@ const migration = readFileSync(
   "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
   "utf8",
 );
+const immutableEventRepair = readFileSync(
+  process.env.ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH ??
+    "prisma/migrations/20261015020000_repair_immutable_order_refund_recording/migration.sql",
+  "utf8",
+);
 const sellerRoute = readFileSync(
   "src/app/api/orders/[id]/refund/route.ts",
   "utf8",
@@ -34,6 +39,16 @@ const marketplaceRefunds = readFileSync(
   "src/lib/marketplaceRefunds.ts",
   "utf8",
 );
+
+function repairFunction(name) {
+  const start = immutableEventRepair.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${name}(`,
+  );
+  const endMarker = `$${name}$;`;
+  const end = immutableEventRepair.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, `missing repaired ${name}`);
+  return immutableEventRepair.slice(start, end + endMarker.length);
+}
 test("adds three pinned runtime entrypoints and one owner-private record core without changing RLS or table grants", () => {
   for (const name of [
     "grainline_blocked_checkout_refund_claim_resume",
@@ -263,4 +278,34 @@ test("provider evidence rejects ambiguous or terminally unsuccessful results", (
     migration,
     /Blocked-checkout refund reversal evidence is missing or mismatched/,
   );
+});
+
+test("forward repair writes the final stock count in each immutable payment-event insert", () => {
+  for (const name of [
+    "grainline_blocked_checkout_refund_record_core",
+    "grainline_seller_refund_record",
+  ]) {
+    const body = repairFunction(name);
+    const stockRestoreIndex = body.indexOf('UPDATE public."Listing" AS listing');
+    const countMetadataIndex = body.indexOf(
+      "event_metadata := event_metadata || pg_catalog.jsonb_build_object(",
+    );
+    const paymentInsertIndex = body.indexOf('INSERT INTO public."OrderPaymentEvent"');
+
+    assert.ok(stockRestoreIndex >= 0, `${name} must retain stock restoration`);
+    assert.ok(countMetadataIndex > stockRestoreIndex, `${name} must derive the final count after restoration`);
+    assert.ok(paymentInsertIndex > countMetadataIndex, `${name} must insert immutable evidence last`);
+    assert.match(
+      body,
+      /'restoredActiveListingCount', restored_active_listing_count/,
+    );
+    assert.doesNotMatch(body, /UPDATE public\."OrderPaymentEvent"/);
+  }
+
+  assert.equal(
+    (immutableEventRepair.match(/CREATE OR REPLACE FUNCTION public\./gu) ?? []).length,
+    2,
+  );
+  assert.doesNotMatch(immutableEventRepair, /ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/);
+  assert.doesNotMatch(immutableEventRepair, /\bGRANT\b|\bREVOKE\b/);
 });

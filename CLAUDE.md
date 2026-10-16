@@ -108,6 +108,13 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
   must not be written as provider failure. The isolated clock draft and pending
   release proofs are recorded in `docs/order-label-clawback-replay-correction.md`.
 
+- Seller and blocked-checkout refund recording treats `OrderPaymentEvent` as
+  append-only. Compute stock-restoration metadata before the event insert and
+  include it in that insert; never update the event afterward. Migration
+  `20261015020000_repair_immutable_order_refund_recording` is the forward repair
+  for audit #648, and its full-chain proof must continue to reproduce the
+  predecessor failure before accepting the replacement.
+
 - Terminal Stripe seller-account closure uses the account-specific throwing
   `expireCheckoutSessionsForClosedAccount` adapter, not the best-effort
   vacation/listing sweeps. Both Checkout families write `sellerStripeAccountId`

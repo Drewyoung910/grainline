@@ -16,6 +16,11 @@ const compositionCorrection = readFileSync(
   "docs/rls-drafts/order-authority-composition-correction.sql",
   "utf8",
 );
+const paymentEventInvariantMigration = readFileSync(
+  process.env.ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION_PATH ??
+    "prisma/migrations/20260829010000_prepare_order_payment_event_invariants/migration.sql",
+  "utf8",
+);
 const sellerPrivateMigrationRoot =
   process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
 const sellerPrivateReconciliationMigration = readFileSync(
@@ -34,6 +39,11 @@ const sellerPrivateReconciliationTargetCorrection = readFileSync(
   ),
   "utf8",
 );
+const immutableRefundRecordRepair = readFileSync(
+  process.env.ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH ??
+    "prisma/migrations/20261015020000_repair_immutable_order_refund_recording/migration.sql",
+  "utf8",
+);
 
 function correctedFunction(name) {
   const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
@@ -41,6 +51,17 @@ function correctedFunction(name) {
   const end = compositionCorrection.indexOf(endMarker, start);
   assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
   return compositionCorrection.slice(start, end + endMarker.length);
+}
+
+function immutablePaymentEventTrigger() {
+  const start = paymentEventInvariantMigration.indexOf(
+    "CREATE FUNCTION public.grainline_order_payment_event_immutable()",
+  );
+  const endMarker =
+    "EXECUTE FUNCTION public.grainline_order_payment_event_immutable();";
+  const end = paymentEventInvariantMigration.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, "missing immutable payment-event trigger");
+  return paymentEventInvariantMigration.slice(start, end + endMarker.length);
 }
 
 async function createDatabase() {
@@ -184,9 +205,11 @@ async function createDatabase() {
   await database.exec(recordMigration);
   await database.exec(correctedFunction("grainline_blocked_checkout_refund_claim"));
   await database.exec(correctedFunction("grainline_blocked_checkout_refund_record_core"));
+  await database.exec(immutablePaymentEventTrigger());
   await database.exec("SET check_function_bodies = off");
   await database.exec(sellerPrivateReconciliationMigration);
   await database.exec(sellerPrivateReconciliationTargetCorrection);
+  await database.exec(immutableRefundRecordRepair);
   await database.exec("SET check_function_bodies = on");
   await database.exec(`
     INSERT INTO public."User" (id) VALUES

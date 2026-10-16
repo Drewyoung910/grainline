@@ -105,6 +105,21 @@ jobs:
           mkdir -p "$RUNNER_TEMP/database-full-chain-source"
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - run: npx prisma generate
+      - name: Verify immutable Order refund-event repair source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/order-refund-record-authority.test.mjs
+          tests/order-refund-record-authority-postgres.test.mjs
+          tests/order-refund-immutable-event-production-workflow.test.mjs
+      - name: Isolate immutable Order refund-event repair until current Production predecessors pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-refund-immutable-event-repair"
+          mkdir "$holding"
+          migration=20261015020000_repair_immutable_order_refund_recording
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          echo "ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify User Clerk identity authority source package
         run: >-
           node --test
@@ -1952,6 +1967,8 @@ jobs:
       - name: Audit Order refund record grants and retained RLS posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove atomic Order refund finalization in disposable PostgreSQL
+        env:
+          ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION_PATH: ${{ runner.temp }}/order-payment-event-invariants-release/migration.sql
         run: >-
           node --test
           tests/order-refund-record-authority.test.mjs
@@ -5971,6 +5988,57 @@ jobs:
             NULL, pg_catalog.clock_timestamp(), 1
           );
           SQL
+      - name: Restore immutable Order refund-event repair after current Production predecessors
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/order-refund-immutable-event-repair"
+          migration=20261015020000_repair_immutable_order_refund_recording
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          rmdir "$holding"
+          echo "ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Apply immutable Order refund-event repair after current Production predecessors
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015020000_repair_immutable_order_refund_recording
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'oir-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Prove immutable Order refund-event repair in current Production order
+        run: |
+          node --input-type=module - <<'NODE'
+          import pg from 'pg';
+          import {proveInstalledImmutableRefundRepair} from './tools/database-full-chain/scenarios/order-refund-immutable-event.mjs';
+          import {seedSellerProfilePrivateFixture} from './tools/database-full-chain/scenarios/seller-profile-private-fixture.mjs';
+
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            const seller = await seedSellerProfilePrivateFixture(client, {
+              suffix: 'refund_current_production_order',
+            });
+            await proveInstalledImmutableRefundRepair({
+              database: client,
+              seller,
+              suffix: 'current_production_order',
+            });
+          } finally {
+            await client.end();
+          }
+          NODE
       - name: Re-prove SellerProfile-touching fixtures on the restored current schema
         shell: bash
         env:
