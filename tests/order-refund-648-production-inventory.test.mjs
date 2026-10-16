@@ -3,27 +3,28 @@ import fs from "node:fs";
 import test from "node:test";
 
 import { PGlite } from "@electric-sql/pglite";
+import yaml from "js-yaml";
+import {
+  assertPrivateSafeOrderRefund648Inventory,
+  extractOrderRefund648InventoryQueries,
+} from "../scripts/order-refund-648-production-inventory.mjs";
 
 const inventory = fs.readFileSync(
   "scripts/order-refund-648-production-inventory.sql",
   "utf8",
 );
-
-function queryBetween(startMarker, endMarker) {
-  const start = inventory.indexOf(startMarker);
-  const end = inventory.indexOf(endMarker, start + startMarker.length);
-  assert.ok(start >= 0 && end > start, `${startMarker} query must exist`);
-  return inventory.slice(start + startMarker.length, end).trim().replace(/;$/u, "");
-}
-
-const claimSummary = queryBetween(
-  "-- @query claim-summary",
-  "-- @query lost-claim-summary",
+const productionWorkflow = fs.readFileSync(
+  ".github/workflows/order-refund-648-historical-inventory-production.yml",
+  "utf8",
 );
-const lostClaimSummary = queryBetween(
-  "-- @query lost-claim-summary",
-  "ROLLBACK;",
-);
+const parsedProductionWorkflow = yaml.load(productionWorkflow, {
+  schema: yaml.JSON_SCHEMA,
+});
+
+const {
+  claimSummary,
+  lostClaimSummary,
+} = extractOrderRefund648InventoryQueries(inventory);
 
 async function createDatabase() {
   const database = new PGlite();
@@ -172,4 +173,115 @@ test("the complete inventory script executes without mutating rows", async () =>
   } finally {
     await database.close();
   }
+});
+
+test("aggregate evidence rejects identifier-shaped or otherwise unexpected fields", () => {
+  assert.doesNotThrow(() => assertPrivateSafeOrderRefund648Inventory({
+    claimSummary: [{
+      repair_class: "A_RECORD_EXISTING_STRIPE_REFUND",
+      claim_source: "SELLER",
+      claim_state: "PENDING",
+      provider_window: "LT_23H",
+      inside_648_window: true,
+      source_event_failed_with_648: false,
+      orders: 1,
+      claim_cents: "1000",
+      provider_refunded_cents: "1000",
+      provider_ledger_rows: "1",
+    }],
+    lostClaimSummary: [],
+  }));
+  assert.throws(() => assertPrivateSafeOrderRefund648Inventory({
+    claimSummary: [{
+      repair_class: "A_RECORD_EXISTING_STRIPE_REFUND",
+      claim_source: "SELLER",
+      claim_state: "PENDING",
+      provider_window: "LT_23H",
+      inside_648_window: true,
+      source_event_failed_with_648: false,
+      orders: 1,
+      claim_cents: "1000",
+      provider_refunded_cents: "1000",
+      provider_ledger_rows: "1",
+      order_id: "private-order-id",
+    }],
+    lostClaimSummary: [],
+  }), /unexpected fields/u);
+});
+
+test("Production workflow binds exact main and preserves aggregate evidence without logging it", () => {
+  const workflow = productionWorkflow;
+  assert.ok(parsedProductionWorkflow.on.workflow_dispatch);
+  assert.equal(parsedProductionWorkflow.jobs.inspect.environment, "Production");
+  assert.match(workflow, /environment: Production/u);
+  assert.match(workflow, /Bind inspection to exact main and completed push CI/u);
+  assert.match(workflow, /run-read-only-order-refund-648-inventory/u);
+  assert.match(workflow, /scripts\/order-refund-648-production-inventory\.mjs/u);
+  assert.match(workflow, /production-database-inspections/u);
+  assert.match(workflow, /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/u);
+  assert.doesNotMatch(workflow, /cat .*order-refund-648-production-inventory/u);
+  assert.doesNotMatch(workflow, /prisma migrate deploy/u);
+});
+
+test("Production binding rejects a non-green required exact-main workflow", async () => {
+  const script = parsedProductionWorkflow.jobs.inspect.steps.find(
+    (step) => step.name === "Bind inspection to exact main and completed push CI",
+  ).with.script;
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const sha = "a".repeat(40);
+  const runs = [
+    [201, "CI", ".github/workflows/ci.yml", "success"],
+    [202, "Account Deletion Worker Bootstrap Proof", ".github/workflows/account-deletion-worker-bootstrap-proof.yml", "success"],
+    [203, "Order Staff Bootstrap Proof", ".github/workflows/order-staff-bootstrap-proof.yml", "success"],
+    [204, "Order Paid Repair Lock Proof", ".github/workflows/order-paid-repair-lock-proof.yml", "failure"],
+    [205, "Order Account Deletion Concurrency Proof", ".github/workflows/order-account-deletion-concurrency-proof.yml", "success"],
+  ].map(([id, name, workflowPath, conclusion]) => ({
+    id,
+    name,
+    path: workflowPath,
+    event: "push",
+    head_branch: "main",
+    head_sha: sha,
+    status: "completed",
+    conclusion,
+  }));
+  const github = {
+    rest: {
+      repos: { getBranch: async () => ({ data: { commit: { sha } } }) },
+      actions: {
+        getWorkflowRun: async () => ({ data: {
+          name: "CI",
+          event: "push",
+          head_branch: "main",
+          head_sha: sha,
+          status: "completed",
+          conclusion: "success",
+        } }),
+        listWorkflowRunsForRepo: () => {},
+      },
+    },
+    paginate: async () => runs,
+  };
+  await assert.rejects(
+    new AsyncFunction("github", "context", "process", script)(
+      github,
+      { sha, repo: { owner: "test", repo: "grainline" } },
+      { env: {
+        REVIEWED_RELEASE_COMMIT: sha,
+        REVIEWED_MAIN_CI_RUN_ID: "101",
+      } },
+    ),
+    /Exact-main push workflows are not all green/u,
+  );
+  runs[3].conclusion = "success";
+  await assert.doesNotReject(
+    new AsyncFunction("github", "context", "process", script)(
+      github,
+      { sha, repo: { owner: "test", repo: "grainline" } },
+      { env: {
+        REVIEWED_RELEASE_COMMIT: sha,
+        REVIEWED_MAIN_CI_RUN_ID: "101",
+      } },
+    ),
+  );
 });

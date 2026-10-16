@@ -1,6 +1,6 @@
 # Audit #648 historical refund inventory
 
-Status: reviewed read-only source candidate. It has not run against Production.
+Status: protected read-only source candidate. It has not run against Production.
 
 The aggregate inventory is
 `scripts/order-refund-648-production-inventory.sql`. Run it only after migration
@@ -25,3 +25,12 @@ must not be written to a public GitHub log or artifact.
 This inventory does not call Stripe, record a refund, restore stock, send email,
 or mutate the database. Any repair requires a separate reviewed procedure and a
 new Production approval.
+
+The protected operator is
+`.github/workflows/order-refund-648-historical-inventory-production.yml`. It
+binds the inspection to an unchanged main commit and that commit's completed
+push CI, verifies the exact source bytes, re-runs the focused behavior proof,
+requires the installed #648 migration ledger row, and executes through a
+repeatable-read transaction whose PostgreSQL `transaction_read_only` state is
+checked before either query. The workflow does not print results. It uploads a
+mode-0600 JSON artifact containing only the allowlisted aggregate fields above.
