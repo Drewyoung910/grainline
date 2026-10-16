@@ -40,10 +40,17 @@ payment event.
 
 The migration conservatively marks existing orders when any retained evidence
 identifies a blocked checkout: an active blocked-checkout claim, the historical
-review-note marker, a blocked-checkout reconciliation row, or an immutable
-blocked-checkout refund event. Existing immutable refund events also populate
+review-note marker, its immutable checkout-creation audit reason, a
+blocked-checkout reconciliation row, or an immutable blocked-checkout refund
+event. Existing immutable tagged refund events also populate
 the recorded witness, so already recorded refunds do not remain falsely
 outstanding.
+
+If a seller, Stripe-dashboard operator, or legacy application path already
+settled the payment, checkout replay may finish once no refund claim remains
+active. The outstanding witness still blocks every fulfillment consumer until
+staff records the supported completion evidence. The aggregate inventory
+separately reports those already-refunded outstanding rows for reconciliation.
 
 ## Release boundary
 

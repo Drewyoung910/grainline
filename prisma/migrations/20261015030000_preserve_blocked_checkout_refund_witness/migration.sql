@@ -170,6 +170,14 @@ WITH blocked_evidence AS (
            COALESCE(orders."reviewNote", ''),
            'Order was held for staff review.'
          ) > 0
+      OR EXISTS (
+           SELECT 1
+             FROM public."SystemAuditLog" AS source_audit
+            WHERE source_audit."targetType" = 'ORDER'
+              AND source_audit."targetId" = orders.id
+              AND source_audit.action = 'STRIPE_CHECKOUT_ORDER_CREATED'
+              AND source_audit.reason IS NOT NULL
+         )
       OR blocked_evidence."orderId" IS NOT NULL
    GROUP BY orders.id, orders."createdAt"
 )
@@ -1111,6 +1119,7 @@ DECLARE
   source_seller_user_id text;
   source_refund_lock_stale boolean;
   source_blocked_checkout_refund_required boolean;
+  source_has_refund_evidence boolean;
 BEGIN
   IF p_event_id IS NULL OR p_event_id = '' OR pg_catalog.length(p_event_id) > 255
      OR p_claim_generation IS NULL OR p_claim_generation <= 0
@@ -1180,20 +1189,44 @@ BEGIN
           pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
         ) - INTERVAL '15 minutes'
       );
-    IF source_order."paymentRefundBlocked" THEN
-      outcome := 'processing';
-    ELSIF source_order."refundClaimId" IS NOT NULL THEN
-      IF source_order."sellerRefundId" = 'pending'
+    SELECT source_order."paymentRefundBlocked"
+      OR (
+        source_order."sellerRefundId" IS NOT NULL
+        AND source_order."sellerRefundId" NOT IN (
+          'pending', 'ambiguous_refund_pending_reconciliation'
+        )
+      )
+      OR EXISTS (
+        SELECT 1
+          FROM public."OrderPaymentEvent" AS payment_event
+         WHERE payment_event."orderId" = source_order.id
+           AND payment_event."eventType" = 'REFUND'
+           AND (
+             payment_event.status IS NULL
+             OR pg_catalog.lower(payment_event.status)
+               NOT IN ('failed', 'canceled', 'cancelled')
+           )
+      )
+      INTO source_has_refund_evidence;
+    IF source_order."refundClaimId" IS NOT NULL THEN
+      IF source_order."paymentRefundBlocked" THEN
+        outcome := 'processing';
+      ELSIF source_order."sellerRefundId" = 'pending'
          AND source_order."refundClaimSource" = 'BLOCKED_CHECKOUT'
          AND source_order."refundClaimSourceId" = p_event_id THEN
         outcome := 'retry';
       ELSE
         outcome := 'processing';
       END IF;
-    ELSIF source_order."sellerRefundId" IS NULL OR source_refund_lock_stale THEN
-      outcome := 'retry';
     ELSIF source_order."sellerRefundId" = 'pending' THEN
+      outcome := CASE WHEN source_refund_lock_stale THEN 'retry' ELSE 'processing' END;
+    ELSIF source_order."sellerRefundId"
+          = 'ambiguous_refund_pending_reconciliation' THEN
       outcome := 'processing';
+    ELSIF source_has_refund_evidence THEN
+      outcome := 'complete';
+    ELSIF source_order."sellerRefundId" IS NULL THEN
+      outcome := 'retry';
     ELSE
       outcome := 'processing';
     END IF;
@@ -2123,7 +2156,7 @@ BEGIN
       ),
       (
         'public.grainline_stripe_checkout_order_existing(text,bigint,text)',
-        '52a4d5cc1ad6cdfdb2555315f62ae1b5',
+        '4bd7580c27318ff118ea9640c3dd72b0',
         'plpgsql', true, 'v', 'u', true
       ),
       (

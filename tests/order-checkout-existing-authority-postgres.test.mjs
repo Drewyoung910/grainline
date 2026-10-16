@@ -72,6 +72,12 @@ describe("Order checkout existing PostgreSQL authority", () => {
         "blockedCheckoutRefundRequiredAt" timestamp(3) without time zone,
         "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone
       );
+      CREATE TABLE public."OrderPaymentEvent" (
+        id text PRIMARY KEY,
+        "orderId" text NOT NULL REFERENCES public."Order"(id),
+        "eventType" text NOT NULL,
+        status text
+      );
       REVOKE ALL ON public."StripeWebhookEvent", public."SellerProfile", public."Order" FROM PUBLIC;
       INSERT INTO public."StripeWebhookEvent" (
         id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
@@ -242,6 +248,51 @@ describe("Order checkout existing PostgreSQL authority", () => {
           "Checkout became ineligible after payment and requires a full refund.",
         seller_user_ids: ["seller-user"],
       }]);
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
+  });
+
+  it("completes replay after a dashboard or legacy refund already settled the payment", async () => {
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRequiredAt" = CURRENT_TIMESTAMP,
+               "blockedCheckoutRefundRecordedAt" = NULL,
+               "sellerRefundId" = 're_dashboard',
+               "sellerRefundLockedAt" = NULL,
+               "refundClaimId" = NULL,
+               "refundClaimSource" = NULL,
+               "refundClaimSourceId" = NULL,
+               "paymentRefundBlocked" = true
+         WHERE id = 'order-1'
+      `);
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      assert.equal((await classify())[0].outcome, "complete");
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
+
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRequiredAt" = CURRENT_TIMESTAMP,
+               "blockedCheckoutRefundRecordedAt" = NULL,
+               "sellerRefundId" = NULL,
+               "sellerRefundLockedAt" = NULL,
+               "refundClaimId" = NULL,
+               "refundClaimSource" = NULL,
+               "refundClaimSourceId" = NULL,
+               "paymentRefundBlocked" = false
+         WHERE id = 'order-1';
+        INSERT INTO public."OrderPaymentEvent" (
+          id, "orderId", "eventType", status
+        ) VALUES ('legacy-refund', 'order-1', 'REFUND', 'succeeded');
+      `);
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      assert.equal((await classify())[0].outcome, "complete");
     } finally {
       await db.exec("ROLLBACK").catch(() => {});
     }

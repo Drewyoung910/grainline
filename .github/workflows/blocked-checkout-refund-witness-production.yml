@@ -138,7 +138,7 @@ jobs:
         run: |
           set -euo pipefail
           migration=20261015030000_preserve_blocked_checkout_refund_witness
-          echo "47b41a3413464d0bad54fdbc9aa37da900d07084969e8d0ffc882031095b0ea1  prisma/migrations/$migration/migration.sql" \
+          echo "e1cd5df8ac6f1b15c54fb1000920a0fc4c7219adc6093b1e3552a2758acb3e36  prisma/migrations/$migration/migration.sql" \
             | sha256sum --check --status
           node --test \
             tests/blocked-checkout-refund-witness-release.test.mjs \
@@ -215,7 +215,7 @@ jobs:
           import {writeFileSync} from 'node:fs';
           import pg from 'pg';
           const migration = '20261015030000_preserve_blocked_checkout_refund_witness';
-          const checksum = '47b41a3413464d0bad54fdbc9aa37da900d07084969e8d0ffc882031095b0ea1';
+          const checksum = 'e1cd5df8ac6f1b15c54fb1000920a0fc4c7219adc6093b1e3552a2758acb3e36';
           const identities = [
             'public.grainline_order_blocked_checkout_refund_witness_immutable()',
             'public.grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)',

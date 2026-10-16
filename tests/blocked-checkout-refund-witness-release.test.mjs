@@ -52,6 +52,13 @@ function doBlock(name) {
   return migration.slice(start, end + delimiter.length + 1);
 }
 
+function migrationSlice(startMarker, endMarker) {
+  const start = migration.indexOf(startMarker);
+  const end = migration.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start, `${startMarker} slice must exist`);
+  return migration.slice(start, end);
+}
+
 const predecessors = [
   [
     "grainline_stripe_checkout_order_create",
@@ -86,7 +93,7 @@ const installed = [
     "32e59879ff050dfeda5bd73ac5b866b2",
   ],
   ["grainline_stripe_checkout_order_create", "1de0b7b0f4ec0871ad5dfceb354ba0b1"],
-  ["grainline_stripe_checkout_order_existing", "52a4d5cc1ad6cdfdb2555315f62ae1b5"],
+  ["grainline_stripe_checkout_order_existing", "4bd7580c27318ff118ea9640c3dd72b0"],
   ["grainline_stripe_checkout_postpayment", "b48cadd3f5dd4d2a83d5146282ec12be"],
   ["grainline_order_refund_blocks_fulfillment", "bdbbca2e9595d644e08a310af35bed69"],
   ["grainline_blocked_checkout_refund_record_core", "137aed9785f7db03a0d9980cd2619dac"],
@@ -159,6 +166,63 @@ test("timestamp(3) witness columns use PostgreSQL precision typmod 3", async () 
       { attname: "blockedCheckoutRefundRecordedAt", atttypmod: 3 },
       { attname: "blockedCheckoutRefundRequiredAt", atttypmod: 3 },
     ]);
+  } finally {
+    await database.close();
+  }
+});
+
+test("historical backfill retains blocked-checkout evidence after the mutable note changes", async () => {
+  const database = new PGlite();
+  try {
+    await database.exec(`
+      CREATE TABLE public."Order" (
+        id text PRIMARY KEY,
+        "createdAt" timestamp(3) without time zone NOT NULL,
+        "refundClaimSource" text,
+        "reviewNote" text
+      );
+      CREATE TABLE public."OrderPaymentEvent" (
+        id text PRIMARY KEY,
+        "orderId" text NOT NULL,
+        "createdAt" timestamp(3) without time zone NOT NULL,
+        metadata jsonb NOT NULL DEFAULT '{}'::jsonb
+      );
+      CREATE TABLE public."OrderRefundReconciliation" (
+        id text PRIMARY KEY,
+        "orderId" text NOT NULL,
+        "claimSource" text NOT NULL,
+        "createdAt" timestamp(3) without time zone NOT NULL
+      );
+      CREATE TABLE public."SystemAuditLog" (
+        id text PRIMARY KEY,
+        action text NOT NULL,
+        "targetType" text NOT NULL,
+        "targetId" text NOT NULL,
+        reason text,
+        "createdAt" timestamp(3) without time zone NOT NULL
+      );
+      INSERT INTO public."Order" (
+        id, "createdAt", "refundClaimSource", "reviewNote"
+      ) VALUES (
+        'audit-only', '2026-01-01', NULL, 'Dispute replaced the checkout note.'
+      );
+      INSERT INTO public."SystemAuditLog" (
+        id, action, "targetType", "targetId", reason, "createdAt"
+      ) VALUES (
+        'checkout-created', 'STRIPE_CHECKOUT_ORDER_CREATED', 'ORDER',
+        'audit-only', 'Seller was blocked before checkout completed.', '2026-01-01'
+      );
+    `);
+    await database.exec(migrationSlice(
+      'ALTER TABLE public."Order"\n  ADD COLUMN "blockedCheckoutRefundRequiredAt"',
+      'ALTER TABLE public."Order"\n  ADD CONSTRAINT "Order_blockedCheckoutRefundWitness_check"',
+    ));
+    const order = (await database.query(`
+      SELECT "blockedCheckoutRefundRequiredAt" AS required_at
+        FROM public."Order"
+       WHERE id = 'audit-only'
+    `)).rows[0];
+    assert.ok(order.required_at instanceof Date);
   } finally {
     await database.close();
   }

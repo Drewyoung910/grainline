@@ -13,9 +13,18 @@ Last updated: 2026-10-16
   keeps replay and every shared fulfillment consumer blocked while the witness
   is outstanding, and permits completion only with immutable payment-event
   evidence in the same transaction. The migration is additive and changes no
-  RLS or grants. Focused release and PostgreSQL behavior coverage passes 46/46.
-  Protected aggregate-only inventory and exact-main migration workflows are
-  prepared; neither has run, and no Production state or Stripe object changed.
+  RLS or grants. Focused release and PostgreSQL behavior coverage passes 49/49,
+  and the PostgreSQL 16 full-chain proof applies all 345 migrations successfully.
+  Independent review then found two pre-Production edge cases: webhook replay
+  could remain permanently retryable after another refund path settled the
+  payment, and an overwritten review note could hide a historical blocked
+  checkout from the backfill. The follow-up uses immutable checkout-creation
+  audit evidence as a fifth backfill source, finishes replay only when
+  non-failed refund evidence exists without an active claim, and inventories
+  already-refunded outstanding witnesses separately. The first incomplete
+  inventory dispatch was cancelled before its job started. No Production SQL
+  or Stripe effect ran; the corrected exact-main inventory and migration remain
+  pending review and release.
 
 ## 2026-10-13 — Claude session #361 seller listing Hide/Delete
 
