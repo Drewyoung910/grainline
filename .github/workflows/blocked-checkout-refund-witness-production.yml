@@ -1,0 +1,286 @@
+name: Blocked Checkout Refund Witness Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      inventory_run_id:
+        description: Successful read-only inventory run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-blocked-checkout-refund-witness
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed blocked-checkout refund witness
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-blocked-checkout-refund-witness'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind release to exact main, completed push CI, and read-only inventory
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_INVENTORY_RUN_ID: ${{ inputs.inventory_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const inventoryValue = process.env.REVIEWED_INVENTORY_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(inventoryValue ?? '')) {
+              throw new Error('Blocked-checkout witness release binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const inventoryRunId = Number(inventoryValue);
+            if (!Number.isSafeInteger(ciRunId) || !Number.isSafeInteger(inventoryRunId)) {
+              throw new Error('Release run id is unsafe');
+            }
+            const [{data: main}, {data: ciRun}, {data: inventoryRun}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: inventoryRunId}),
+            ]);
+            if (main.commit.sha !== sha || ciRun.name !== 'CI' ||
+                ciRun.event !== 'push' || ciRun.head_branch !== 'main' ||
+                ciRun.head_sha !== sha || ciRun.status !== 'completed' ||
+                ciRun.conclusion !== 'success') {
+              throw new Error('Blocked-checkout witness main/CI readback drifted');
+            }
+            if (inventoryRun.name !==
+                  'Blocked Checkout Refund Witness Inventory Production' ||
+                inventoryRun.event !== 'workflow_dispatch' ||
+                inventoryRun.head_branch !== 'main' ||
+                inventoryRun.head_sha !== sha || inventoryRun.run_attempt !== 1 ||
+                inventoryRun.status !== 'completed' ||
+                inventoryRun.conclusion !== 'success') {
+              throw new Error('Blocked-checkout witness inventory run drifted');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {...context.repo, branch: 'main', event: 'push', head_sha: sha, per_page: 100},
+            );
+            const latestByWorkflow = new Map();
+            for (const exactRun of exactPushRuns) {
+              if (exactRun.head_sha !== sha || exactRun.head_branch !== 'main' ||
+                  exactRun.event !== 'push') continue;
+              const key = exactRun.path || exactRun.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(exactRun.id) > Number(previous.id)) {
+                latestByWorkflow.set(key, exactRun);
+              }
+            }
+            const required = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missing = [...required].filter((path) => !latestByWorkflow.has(path));
+            if (missing.length !== 0) {
+              throw new Error(`Required exact-main push workflows are absent: ${missing.join(', ')}`);
+            }
+            const unacceptable = [...latestByWorkflow.values()].filter((exactRun) =>
+              exactRun.status !== 'completed' || exactRun.conclusion !== 'success');
+            if (unacceptable.length !== 0) {
+              throw new Error(`Exact-main push workflows are not all green: ${unacceptable
+                .map((exactRun) => `${exactRun.name}:${exactRun.status}/${exactRun.conclusion}`)
+                .join(', ')}`);
+            }
+      - name: Verify exact candidate bytes and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015030000_preserve_blocked_checkout_refund_witness
+          echo "47b41a3413464d0bad54fdbc9aa37da900d07084969e8d0ffc882031095b0ea1  prisma/migrations/$migration/migration.sql" \
+            | sha256sum --check --status
+          node --test \
+            tests/blocked-checkout-refund-witness-release.test.mjs \
+            tests/blocked-checkout-refund-witness-production.test.mjs \
+            tests/order-checkout-existing-authority-postgres.test.mjs \
+            tests/order-checkout-postpayment-authority-postgres.test.mjs \
+            tests/order-fulfillment-authority-postgres.test.mjs \
+            tests/order-paid-checkout-authority-postgres.test.mjs \
+            tests/order-refund-record-authority-postgres.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Require every predecessor applied and exactly the reviewed candidate pending
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: 20261015030000_preserve_blocked_checkout_refund_witness
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Verify prerequisite ledger and absent candidate objects read-only
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import pg from 'pg';
+          const prerequisite = '20261015020000_repair_immutable_order_refund_recording';
+          const candidate = '20261015030000_preserve_blocked_checkout_refund_witness';
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = (await client.query(`SELECT migration_name, checksum,
+              finished_at, rolled_back_at, applied_steps_count
+              FROM public._prisma_migrations
+              WHERE migration_name = ANY($1::text[]) ORDER BY migration_name`,
+              [[prerequisite, candidate]])).rows;
+            assert.equal(ledger.length, 1);
+            assert.equal(ledger[0].migration_name, prerequisite);
+            assert.equal(ledger[0].checksum,
+              '765d6d8bc128759dbc2710bfa856f1dd8b0c627efaabf43e3cab9c01ad9a9ebf');
+            assert.ok(ledger[0].finished_at);
+            assert.equal(ledger[0].rolled_back_at, null);
+            assert.equal(Number(ledger[0].applied_steps_count), 1);
+            const objects = (await client.query(`SELECT
+              pg_catalog.to_regclass('public."Order_blockedCheckoutRefundOutstanding_idx"')
+                IS NOT NULL AS index_exists,
+              pg_catalog.to_regprocedure(
+                'public.grainline_order_blocked_checkout_refund_witness_immutable()'
+              ) IS NOT NULL AS trigger_function_exists,
+              EXISTS (SELECT 1 FROM pg_catalog.pg_attribute AS attribute
+                WHERE attribute.attrelid = 'public."Order"'::regclass
+                  AND attribute.attname IN ('blockedCheckoutRefundRequiredAt',
+                    'blockedCheckoutRefundRecordedAt')
+                  AND attribute.attnum > 0 AND NOT attribute.attisdropped)
+                AS columns_exist`)).rows[0];
+            assert.deepEqual(objects, {index_exists: false,
+              trigger_function_exists: false, columns_exist: false});
+            await client.query('COMMIT');
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Apply only the reviewed blocked-checkout refund witness
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact witness catalog, ledger, and aggregate population
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          import pg from 'pg';
+          const migration = '20261015030000_preserve_blocked_checkout_refund_witness';
+          const checksum = '47b41a3413464d0bad54fdbc9aa37da900d07084969e8d0ffc882031095b0ea1';
+          const identities = [
+            'public.grainline_order_blocked_checkout_refund_witness_immutable()',
+            'public.grainline_stripe_checkout_order_create(text,bigint,text,text,timestamp without time zone,jsonb)',
+            'public.grainline_stripe_checkout_order_existing(text,bigint,text)',
+            'public.grainline_stripe_checkout_postpayment(text,bigint,text)',
+            'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
+            'public.grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)',
+          ];
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            const ledger = (await client.query(`SELECT checksum, finished_at,
+              rolled_back_at, applied_steps_count FROM public._prisma_migrations
+              WHERE migration_name = $1`, [migration])).rows;
+            assert.equal(ledger.length, 1);
+            assert.equal(ledger[0].checksum, checksum);
+            assert.ok(ledger[0].finished_at);
+            assert.equal(ledger[0].rolled_back_at, null);
+            assert.equal(Number(ledger[0].applied_steps_count), 1);
+            const catalog = (await client.query(`SELECT
+              (SELECT count(*)::integer FROM pg_catalog.pg_attribute AS attribute
+                WHERE attribute.attrelid = 'public."Order"'::regclass
+                  AND attribute.attname IN ('blockedCheckoutRefundRequiredAt',
+                    'blockedCheckoutRefundRecordedAt')
+                  AND attribute.atttypid = 'timestamp without time zone'::regtype
+                  AND attribute.atttypmod = 3 AND NOT attribute.attnotnull
+                  AND attribute.attnum > 0 AND NOT attribute.attisdropped) AS columns,
+              pg_catalog.to_regclass('public."Order_blockedCheckoutRefundOutstanding_idx"')
+                IS NOT NULL AS index_exists,
+              EXISTS (SELECT 1 FROM pg_catalog.pg_trigger AS trigger
+                WHERE trigger.tgrelid = 'public."Order"'::regclass
+                  AND trigger.tgname =
+                    'grainline_order_blocked_checkout_refund_witness_immutable'
+                  AND trigger.tgenabled = 'O' AND NOT trigger.tgisinternal)
+                AS trigger_exists,
+              (SELECT count(*)::integer FROM pg_catalog.unnest($1::text[]) AS identity
+                WHERE pg_catalog.to_regprocedure(identity) IS NOT NULL) AS functions`,
+              [identities])).rows[0];
+            assert.deepEqual(catalog, {columns: 2, index_exists: true,
+              trigger_exists: true, functions: 6});
+            const population = (await client.query(`SELECT
+              count(*) FILTER (WHERE "blockedCheckoutRefundRequiredAt" IS NOT NULL)::bigint
+                AS required,
+              count(*) FILTER (WHERE "blockedCheckoutRefundRecordedAt" IS NOT NULL)::bigint
+                AS recorded,
+              count(*) FILTER (WHERE "blockedCheckoutRefundRequiredAt" IS NOT NULL
+                AND "blockedCheckoutRefundRecordedAt" IS NULL)::bigint AS outstanding
+              FROM public."Order"`)).rows[0];
+            assert.equal(BigInt(population.required),
+              BigInt(population.recorded) + BigInt(population.outstanding));
+            writeFileSync(`${process.env.RUNNER_TEMP}/blocked-checkout-refund-witness-production.json`,
+              JSON.stringify({status: 'passed', releaseCommit: process.env.GITHUB_SHA,
+                migration, issueCount: 0, population}), {mode: 0o600, flag: 'wx'});
+            await client.query('COMMIT');
+          } finally {
+            try { await client.query('ROLLBACK'); } catch {}
+            await client.end();
+          }
+          NODE
+      - name: Preserve sanitized blocked-checkout witness evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: blocked-checkout-refund-witness-production-${{ github.run_id }}
+          path: ${{ runner.temp }}/blocked-checkout-refund-witness-production.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

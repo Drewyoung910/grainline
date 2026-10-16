@@ -1,6 +1,21 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-10-13
+Last updated: 2026-10-16
+
+## 2026-10-16 — Blocked-checkout refund durability
+
+- **[#664 VERIFIED/FIX PREPARED; NOT YET PRODUCTION]** A paid checkout that
+  became ineligible could lose its only durable refund blocker after staff
+  reconciliation replaced the mutable review note and released the temporary
+  claim. A later webhook replay could then classify the charged order as
+  complete and fulfillment could proceed without the required buyer refund.
+  The candidate adds immutable required/recorded refund-witness timestamps,
+  keeps replay and every shared fulfillment consumer blocked while the witness
+  is outstanding, and permits completion only with immutable payment-event
+  evidence in the same transaction. The migration is additive and changes no
+  RLS or grants. Focused release and PostgreSQL behavior coverage passes 46/46.
+  Protected aggregate-only inventory and exact-main migration workflows are
+  prepared; neither has run, and no Production state or Stripe object changed.
 
 ## 2026-10-13 — Claude session #361 seller listing Hide/Delete
 

@@ -9,9 +9,27 @@ const candidate = fs.readFileSync(
   "docs/rls-drafts/order-checkout-postpayment-authority.sql",
   "utf8",
 );
+const blockedCheckoutRefundWitness = fs.readFileSync(
+  process.env.BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH ||
+  "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql",
+  "utf8",
+);
 const rows = (result) => result.rows;
 let db;
 let dataDirectory;
+
+function functionDefinition(source, name) {
+  const start = source.search(
+    new RegExp(`CREATE OR REPLACE FUNCTION\\s+public\\.${name}\\(`, "u"),
+  );
+  assert.ok(start >= 0, `${name} definition must exist`);
+  const delimiter = source.slice(start).match(/\nAS (\$[A-Za-z0-9_]*\$)/u)?.[1];
+  assert.ok(delimiter, `${name} body delimiter must exist`);
+  const marker = `${delimiter};`;
+  const end = source.indexOf(marker, start);
+  assert.ok(end > start, `${name} definition must be complete`);
+  return source.slice(start, end + marker.length);
+}
 
 const snapshot = {
   title: "Proof item",
@@ -76,6 +94,8 @@ describe("Order checkout post-payment PostgreSQL authority", () => {
         "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
         "reviewNeeded" boolean NOT NULL DEFAULT false,
         "reviewNote" varchar(10000),
+        "blockedCheckoutRefundRequiredAt" timestamp(3) without time zone,
+        "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone,
         "itemsSubtotalCents" integer NOT NULL DEFAULT 0,
         "shippingAmountCents" integer NOT NULL DEFAULT 0,
         "taxAmountCents" integer NOT NULL DEFAULT 0,
@@ -129,6 +149,10 @@ describe("Order checkout post-payment PostgreSQL authority", () => {
       ) VALUES ('item-1', 'order-1', 'listing-1', 'seller-1', 1, 500, $1::jsonb)
     `, [JSON.stringify(snapshot)]);
     await db.exec(candidate);
+    await db.exec(functionDefinition(
+      blockedCheckoutRefundWitness,
+      "grainline_stripe_checkout_postpayment",
+    ));
   });
 
   after(async () => {
@@ -185,6 +209,29 @@ describe("Order checkout post-payment PostgreSQL authority", () => {
       await db.exec("RESET ROLE");
     }
     await db.exec(`UPDATE public."Order" SET "paymentRefundBlocked" = false WHERE id = 'order-1'`);
+  });
+
+  it("keeps post-payment projection blocked after mutable review state is cleared", async () => {
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRequiredAt" = CURRENT_TIMESTAMP,
+               "blockedCheckoutRefundRecordedAt" = NULL,
+               "paymentRefundBlocked" = false,
+               "reviewNeeded" = false,
+               "reviewNote" = 'Unrelated later staff note'
+         WHERE id = 'order-1'
+      `);
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      assert.deepEqual(await project(), [{
+        outcome: "blocked",
+        order_id: "order-1",
+        projection: null,
+      }]);
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
   });
 
   it("selects the earliest legitimate sale among visible committed orders", async () => {

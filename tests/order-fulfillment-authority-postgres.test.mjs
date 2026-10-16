@@ -23,6 +23,11 @@ const partialRefundCorrection = readFileSync(
   partialRefundCorrectionPath,
   "utf8",
 );
+const blockedCheckoutRefundWitness = readFileSync(
+  process.env.BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH ||
+  "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql",
+  "utf8",
+);
 
 function functionSql(source, name) {
   const delimiter = `$${name}$`;
@@ -99,7 +104,9 @@ async function createDatabase() {
       "reviewNote" text,
       "sellerDeauthorizedAt" timestamp(3) without time zone,
       "labelStatus" public."LabelStatus",
-      "buyerDataPurgedAt" timestamp(3) without time zone
+      "buyerDataPurgedAt" timestamp(3) without time zone,
+      "blockedCheckoutRefundRequiredAt" timestamp(3) without time zone,
+      "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone
     );
     CREATE TABLE public."Case" (
       id text PRIMARY KEY,
@@ -160,6 +167,63 @@ async function asRuntime(database, sql) {
 }
 
 describe("Order fulfillment fixed authority in PostgreSQL", () => {
+  it("blocks fulfillment on the durable witness until provider recording completes", async () => {
+    const database = await createDatabase();
+    try {
+      await database.exec(partialRefundFulfillmentCorrection);
+      await database.exec(functionSql(
+        blockedCheckoutRefundWitness,
+        "grainline_order_refund_blocks_fulfillment",
+      ));
+      assert.deepEqual((await database.query(`
+        SELECT
+          pg_catalog.has_function_privilege(
+            'public',
+            'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
+            'EXECUTE'
+          ) AS public_execute,
+          pg_catalog.has_function_privilege(
+            'grainline_app_runtime',
+            'public.grainline_order_refund_blocks_fulfillment(text,text,timestamp without time zone,boolean,integer,integer)',
+            'EXECUTE'
+          ) AS runtime_execute
+      `)).rows, [{
+        public_execute: false,
+        runtime_execute: false,
+      }]);
+      await database.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRequiredAt" = CURRENT_TIMESTAMP,
+               "reviewNeeded" = false,
+               "reviewNote" = 'Staff replaced the original checkout note'
+         WHERE id = 'notes-order'
+      `);
+      const blocked = await asRuntime(database, `
+        SELECT public.grainline_order_seller_fulfillment_transition(
+          'seller-user-1', 'notes-order', 'shipped', 'UPS', '1Z999AA10123456784'
+        ) AS result
+      `);
+      assert.deepEqual(blocked.rows[0].result, {
+        outcome: "conflict",
+        reason: "refunded",
+      });
+
+      await database.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRecordedAt" = CURRENT_TIMESTAMP
+         WHERE id = 'notes-order'
+      `);
+      const shipped = await asRuntime(database, `
+        SELECT public.grainline_order_seller_fulfillment_transition(
+          'seller-user-1', 'notes-order', 'shipped', 'UPS', '1Z999AA10123456784'
+        ) AS result
+      `);
+      assert.equal(shipped.rows[0].result.outcome, "changed");
+    } finally {
+      await database.close();
+    }
+  });
+
   it("keeps a seller deauthorization hold after staff edits the mutable review fields", async () => {
     const database = await createDatabase();
     try {

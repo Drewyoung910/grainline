@@ -111,6 +111,26 @@ jobs:
           tests/order-refund-record-authority.test.mjs
           tests/order-refund-record-authority-postgres.test.mjs
           tests/order-refund-immutable-event-production-workflow.test.mjs
+      - name: Verify blocked-checkout refund witness source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/blocked-checkout-refund-witness-release.test.mjs
+          tests/blocked-checkout-refund-witness-production.test.mjs
+          tests/order-refund-record-authority-postgres.test.mjs
+          tests/order-checkout-existing-authority-postgres.test.mjs
+          tests/order-checkout-postpayment-authority-postgres.test.mjs
+          tests/order-fulfillment-authority-postgres.test.mjs
+          tests/order-paid-checkout-authority-postgres.test.mjs
+          tests/db-grant-inventory.test.mjs
+      - name: Isolate blocked-checkout refund witness until immutable refund repair passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/blocked-checkout-refund-witness"
+          mkdir "$holding"
+          migration=20261015030000_preserve_blocked_checkout_refund_witness
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          echo "BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate immutable Order refund-event repair until current Production predecessors pass
         shell: bash
         run: |
@@ -6039,6 +6059,55 @@ jobs:
             await client.end();
           }
           NODE
+      - name: Restore blocked-checkout refund witness after immutable refund repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/blocked-checkout-refund-witness"
+          migration=20261015030000_preserve_blocked_checkout_refund_witness
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          rmdir "$holding"
+          echo "BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Re-verify blocked-checkout refund witness source package
+        env:
+          ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH: prisma/migrations/20261015020000_repair_immutable_order_refund_recording/migration.sql
+          SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR: prisma/migrations
+        run: >-
+          node --test --test-concurrency=1
+          tests/blocked-checkout-refund-witness-release.test.mjs
+          tests/blocked-checkout-refund-witness-production.test.mjs
+          tests/order-refund-record-authority-postgres.test.mjs
+          tests/order-checkout-existing-authority-postgres.test.mjs
+          tests/order-checkout-postpayment-authority-postgres.test.mjs
+          tests/order-fulfillment-authority-postgres.test.mjs
+          tests/order-paid-checkout-authority-postgres.test.mjs
+          tests/db-grant-inventory.test.mjs
+      - name: Apply blocked-checkout refund witness after immutable refund repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261015030000_preserve_blocked_checkout_refund_witness
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+          checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'bcw-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+      - name: Audit runtime grants after blocked-checkout refund witness
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Re-prove SellerProfile-touching fixtures on the restored current schema
         shell: bash
         env:

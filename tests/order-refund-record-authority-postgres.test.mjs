@@ -44,13 +44,22 @@ const immutableRefundRecordRepair = readFileSync(
     "prisma/migrations/20261015020000_repair_immutable_order_refund_recording/migration.sql",
   "utf8",
 );
+const blockedCheckoutRefundWitness = readFileSync(
+  process.env.BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH ||
+  "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql",
+  "utf8",
+);
+
+function functionDefinition(source, name) {
+  const start = source.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  const endMarker = `$${name}$;`;
+  const end = source.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
+  return source.slice(start, end + endMarker.length);
+}
 
 function correctedFunction(name) {
-  const start = compositionCorrection.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
-  const endMarker = `$${name}$;`;
-  const end = compositionCorrection.indexOf(endMarker, start);
-  assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
-  return compositionCorrection.slice(start, end + endMarker.length);
+  return functionDefinition(compositionCorrection, name);
 }
 
 function immutablePaymentEventTrigger() {
@@ -62,6 +71,17 @@ function immutablePaymentEventTrigger() {
   const end = paymentEventInvariantMigration.indexOf(endMarker, start);
   assert.ok(start >= 0 && end > start, "missing immutable payment-event trigger");
   return paymentEventInvariantMigration.slice(start, end + endMarker.length);
+}
+
+function blockedCheckoutWitnessTrigger() {
+  const start = blockedCheckoutRefundWitness.indexOf(
+    "CREATE FUNCTION public.grainline_order_blocked_checkout_refund_witness_immutable()",
+  );
+  const endMarker =
+    "EXECUTE FUNCTION public.grainline_order_blocked_checkout_refund_witness_immutable();";
+  const end = blockedCheckoutRefundWitness.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, "missing blocked-checkout witness trigger");
+  return blockedCheckoutRefundWitness.slice(start, end + endMarker.length);
 }
 
 async function createDatabase() {
@@ -210,6 +230,22 @@ async function createDatabase() {
   await database.exec(sellerPrivateReconciliationMigration);
   await database.exec(sellerPrivateReconciliationTargetCorrection);
   await database.exec(immutableRefundRecordRepair);
+  await database.exec(`
+    ALTER TABLE public."Order"
+      ADD COLUMN "blockedCheckoutRefundRequiredAt" timestamp(3) without time zone,
+      ADD COLUMN "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone;
+    ALTER TABLE public."Order"
+      ADD CONSTRAINT "Order_blockedCheckoutRefundWitness_check"
+      CHECK (
+        "blockedCheckoutRefundRecordedAt" IS NULL
+        OR "blockedCheckoutRefundRequiredAt" IS NOT NULL
+      );
+  `);
+  await database.exec(blockedCheckoutWitnessTrigger());
+  await database.exec(functionDefinition(
+    blockedCheckoutRefundWitness,
+    "grainline_blocked_checkout_refund_record_core",
+  ));
   await database.exec("SET check_function_bodies = on");
   await database.exec(`
     INSERT INTO public."User" (id) VALUES
@@ -228,6 +264,7 @@ async function seedOrder(database, {
   sessionId = null,
   transferId = "tr_test",
   listingId = `${id}-listing`,
+  blockedCheckoutRefundRequired = false,
 } = {}) {
   await database.query(`
     INSERT INTO public."Listing" (
@@ -239,12 +276,14 @@ async function seedOrder(database, {
       id, "buyerId", "sellerProfileId", "paidAt", "stripeSessionId",
       "stripePaymentIntentId", "stripeTransferId", currency,
       "itemsSubtotalCents", "shippingAmountCents",
-      "giftWrappingPriceCents", "taxAmountCents"
+      "giftWrappingPriceCents", "taxAmountCents",
+      "blockedCheckoutRefundRequiredAt"
     ) VALUES (
       $1, 'buyer-user', 'seller-profile', CURRENT_TIMESTAMP, $2,
-      $3, $4, 'usd', 1000, 200, 50, 75
+      $3, $4, 'usd', 1000, 200, 50, 75,
+      CASE WHEN $5 THEN CURRENT_TIMESTAMP ELSE NULL END
     )
-  `, [id, sessionId, `pi_${id}`, transferId]);
+  `, [id, sessionId, `pi_${id}`, transferId, blockedCheckoutRefundRequired]);
   await database.query(`
     INSERT INTO public."OrderItem" (id, "orderId", "listingId", quantity)
     VALUES ($1, $2, $3, 2)
@@ -350,6 +389,7 @@ test("blocked-checkout claim hands off to a later signed lease and records once"
       id: "order-blocked",
       sessionId: "cs_blocked",
       transferId: null,
+      blockedCheckoutRefundRequired: true,
     });
     await database.exec(`
       INSERT INTO public."StripeWebhookEvent" (
@@ -406,6 +446,15 @@ test("blocked-checkout claim hands off to a later signed lease and records once"
        WHERE id = 'evt_blocked'
     `);
 
+    await assert.rejects(
+      database.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRecordedAt" = CURRENT_TIMESTAMP
+         WHERE id = 'order-blocked'
+      `),
+      /lacks immutable payment evidence/,
+    );
+
     const recorded = (await database.query(`
       SELECT public.grainline_blocked_checkout_refund_record(
         'evt_blocked', 2, $1, $2, 're_blocked', 'succeeded', NULL, NULL
@@ -413,6 +462,42 @@ test("blocked-checkout claim hands off to a later signed lease and records once"
     `, [resumedClaim.claimId, resumedClaim.claimGeneration])).rows[0].result;
     assert.equal(recorded.action, "recorded");
     assert.equal(recorded.restoredActiveListingCount, 1);
+    const witness = (await database.query(`
+      SELECT
+        "blockedCheckoutRefundRequiredAt" IS NOT NULL AS required,
+        "blockedCheckoutRefundRecordedAt" IS NOT NULL AS recorded,
+        EXISTS (
+          SELECT 1
+            FROM public."OrderPaymentEvent" AS payment_event
+           WHERE payment_event."orderId" = orders.id
+             AND payment_event."stripeObjectId" = orders."sellerRefundId"
+             AND payment_event.metadata->>'localAction'
+                   = 'BLOCKED_CHECKOUT_REFUND_RECORDED'
+        ) AS immutable_evidence
+      FROM public."Order" AS orders
+      WHERE orders.id = 'order-blocked'
+    `)).rows[0];
+    assert.deepEqual(witness, {
+      required: true,
+      recorded: true,
+      immutable_evidence: true,
+    });
+    await assert.rejects(
+      database.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRequiredAt" = NULL
+         WHERE id = 'order-blocked'
+      `),
+      /requirement witness is immutable/,
+    );
+    await assert.rejects(
+      database.exec(`
+        UPDATE public."Order"
+           SET "blockedCheckoutRefundRecordedAt" = NULL
+         WHERE id = 'order-blocked'
+      `),
+      /record witness is immutable/,
+    );
     const reconciliation = (await database.query(`
       SELECT
         seller."manualStripeReconciliationNeeded" AS public_needed,
@@ -614,6 +699,7 @@ test("blocked-checkout refund stays fenced from fulfillment and label state", as
       id: "order-record-race",
       sessionId: "cs_record_race",
       transferId: null,
+      blockedCheckoutRefundRequired: true,
     });
     await database.exec(`
       INSERT INTO public."StripeWebhookEvent" (
@@ -776,6 +862,7 @@ test("refund record functions reject drift and expose only the reviewed runtime 
       id: "order-blocked-status",
       sessionId: "cs_blocked_status",
       transferId: null,
+      blockedCheckoutRefundRequired: true,
     });
     await database.exec(`
       INSERT INTO public."StripeWebhookEvent" (

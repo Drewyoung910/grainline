@@ -2686,6 +2686,17 @@ describe("database grant inventory guardrails", () => {
     ) && source(partialRefundFulfillmentMigrationPath).includes(
       "CREATE FUNCTION public.grainline_order_refund_blocks_fulfillment(",
     );
+    const blockedCheckoutRefundWitnessMigrationPath =
+      "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql";
+    const blockedCheckoutRefundWitnessFunctionNames = [
+      "grainline_order_blocked_checkout_refund_witness_immutable",
+    ];
+    const blockedCheckoutRefundWitnessMigrationPresent = existsSync(
+      blockedCheckoutRefundWitnessMigrationPath,
+    ) && blockedCheckoutRefundWitnessFunctionNames.every((functionName) =>
+      source(blockedCheckoutRefundWitnessMigrationPath).includes(
+        `CREATE FUNCTION public.${functionName}(`,
+      ));
     const clerkWebhookAuthorityMigrationPath =
       "prisma/migrations/20261008120000_prepare_clerk_webhook_event_authority/migration.sql";
     const clerkWebhookAuthorityPrepared = existsSync(
@@ -2916,6 +2927,9 @@ describe("database grant inventory guardrails", () => {
       ...(partialRefundFulfillmentMigrationPresent
         ? ["grainline_order_refund_blocks_fulfillment"]
         : []),
+      ...(blockedCheckoutRefundWitnessMigrationPresent
+        ? blockedCheckoutRefundWitnessFunctionNames
+        : []),
       ...ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
@@ -2994,6 +3008,10 @@ describe("database grant inventory guardrails", () => {
         + (disputeRecoveryMigrationPresent ? 5 : 0) // table plus four functions
         + (caseRefundProviderRecoveryMigrationPresent ? 5 : 0)
         + (partialRefundFulfillmentMigrationPresent ? 1 : 0)
+        + (blockedCheckoutRefundWitnessMigrationPresent
+          ? blockedCheckoutRefundWitnessFunctionNames.length
+            + 3 // reasserted checkout create/existing/postpayment PUBLIC/runtime revokes
+          : 0)
         + (clerkWebhookAuthorityPrepared
           ? clerkWebhookAuthorityFunctionNames.length
           : 0)
@@ -3109,6 +3127,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(partialRefundFulfillmentMigrationPresent
         ? ["grainline_order_refund_blocks_fulfillment"]
+        : []),
+      ...(blockedCheckoutRefundWitnessMigrationPresent
+        ? blockedCheckoutRefundWitnessFunctionNames
         : []),
       ...(clerkWebhookAuthorityPrepared
         ? clerkWebhookAuthorityFunctionNames

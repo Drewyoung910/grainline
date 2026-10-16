@@ -494,6 +494,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
   ...ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS.map(([name]) => name),
   "grainline_order_refund_blocks_fulfillment",
+  "grainline_order_blocked_checkout_refund_witness_immutable",
   // These projections belong only to the separately authenticated bounded
   // staff-read login. Ordinary application runtime must never inherit them.
   "grainline_order_staff_detail_v2",
