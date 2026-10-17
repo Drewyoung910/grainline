@@ -22,6 +22,11 @@ import {
   proveOrderRefund648Inventory,
 } from "../tools/database-full-chain/scenarios/order-refund-immutable-event.mjs";
 import { proveBlockedPairPaidCheckoutCompletion } from "../tools/database-full-chain/scenarios/paid-checkout-block-race.mjs";
+import {
+  proveCaseRefundRecoveryFindings,
+  seedHistoricalAmbiguousMarkerDamage,
+} from "../tools/database-full-chain/scenarios/case-refund-recovery.mjs";
+import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-followup-correction.mjs";
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
 
@@ -47,12 +52,24 @@ test(
       const repositoryRoot = findRepositoryRoot();
       const adapter = createPostgres16Adapter(client);
       const roles = createCiRoleScriptCallbacks();
+      let fixture;
+      let historicalCaseRefundDamage;
       const summary = await applyFullMigrationChain({
         adapter,
         repositoryRoot,
         engine: "postgres16",
         bootstrapRoles: roles.bootstrapRoles,
         convergeRoles: roles.convergeRoles,
+        beforeMigration: async ({ artifact }) => {
+          if (artifact.name !== CASE_REFUND_FOLLOWUP_MIGRATION) return;
+          fixture = await seedSellerProfilePrivateFixture(adapter);
+          historicalCaseRefundDamage =
+            await seedHistoricalAmbiguousMarkerDamage({
+              database: adapter,
+              seller: fixture,
+              scenarioNamespace: "migration_chain",
+            });
+        },
         onProgress: ({ index, total, name, retried }) => {
           if (index === total || index % 50 === 0 || retried) {
             process.stderr.write(
@@ -75,7 +92,11 @@ test(
       );
 
       await assertSellerProfilePrivateLayout(adapter);
-      const fixture = await seedSellerProfilePrivateFixture(adapter);
+      assert.ok(fixture, "seller fixture must be seeded before Case follow-up");
+      assert.ok(
+        historicalCaseRefundDamage,
+        "#710 damage must be seeded by the predecessor before Case follow-up",
+      );
       const seller = (await adapter.query(
         `SELECT seller.id,
                 seller."stripeAccountSupported" AS supported,
@@ -105,6 +126,13 @@ test(
       await proveBlockedPairPaidCheckoutCompletion({
         database: adapter,
         seller: fixture,
+      });
+      await proveCaseRefundRecoveryFindings({
+        database: adapter,
+        seller: fixture,
+        historicalDamage: historicalCaseRefundDamage,
+        requireHistoricalDamage: true,
+        scenarioNamespace: "migration_chain",
       });
     } finally {
       await client.end();
