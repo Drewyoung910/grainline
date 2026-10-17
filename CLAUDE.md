@@ -114,6 +114,15 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
   `20261015020000_repair_immutable_order_refund_recording` is the forward repair
   for audit #648, and its full-chain proof must continue to reproduce the
   predecessor failure before accepting the replacement.
+- A signed refund event may set `paymentRefundBlocked` after Stripe completed a
+  blocked-checkout refund but before Grainline recorded it. Existing-order
+  checkout replay must resume only the exact provider-authorized pending claim;
+  it must not classify that state as complete or create another provider
+  refund. ADMIN reconciliation may inherit a later checkout-event generation
+  only from immutable reconciliation evidence while the exact claim, session,
+  idempotency scope, provider authorization, and outstanding refund witness all
+  still match. Preserve one immutable refund event and one stock restoration.
+  See `docs/blocked-checkout-refund-recovery.md` for #688 and its release gate.
 
 - Terminal Stripe seller-account closure uses the account-specific throwing
   `expireCheckoutSessionsForClosedAccount` adapter, not the best-effort

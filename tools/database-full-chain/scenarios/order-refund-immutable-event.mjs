@@ -7,6 +7,8 @@ import { executeOrderRefund648Inventory } from "../../../scripts/order-refund-64
 const PREDECESSOR =
   "20261013190000_move_reconciliation_seller_private_sql_callers";
 const REPAIR = "20261015020000_repair_immutable_order_refund_recording";
+const CURRENT_BLOCKED_CHECKOUT_WITNESS =
+  "20261015030000_preserve_blocked_checkout_refund_witness";
 
 function functionStatement(sql, name) {
   const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
@@ -188,6 +190,14 @@ export async function proveImmutableRefundRepair({
     path.join(migrationRoot, REPAIR, "migration.sql"),
     "utf8",
   );
+  const currentWitnessSql = fs.readFileSync(
+    path.join(
+      migrationRoot,
+      CURRENT_BLOCKED_CHECKOUT_WITNESS,
+      "migration.sql",
+    ),
+    "utf8",
+  );
 
   for (const name of [
     "grainline_blocked_checkout_refund_record_core",
@@ -230,6 +240,14 @@ export async function proveImmutableRefundRepair({
 
   await database.query(repairSql);
   await proveInstalledRepair(database, seller, fixture, claim);
+
+  // This scenario deliberately rewinds two functions to prove #648 failing
+  // first. Restore the later #664 blocked-checkout witness successor before
+  // returning so subsequent scenarios exercise the actual final schema.
+  await database.query(functionStatement(
+    currentWitnessSql,
+    "grainline_blocked_checkout_refund_record_core",
+  ));
 }
 
 export async function proveOrderRefund648Inventory({
