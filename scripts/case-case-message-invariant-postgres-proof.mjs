@@ -1202,6 +1202,7 @@ async function proveStaffResolutionAuthority(
   {
     correctnessExpected = false,
     labelClaimCorrectionExpected = false,
+    refundRecoveryCorrectionExpected = false,
   } = {},
 ) {
   const staffResolutionFixtures = [
@@ -1837,6 +1838,34 @@ async function proveStaffResolutionAuthority(
       NULL, NULL, false, false
     )
   `, [ids.staff, releaseClaimId]);
+  if (refundRecoveryCorrectionExpected) {
+    await expectPostgresError(
+      client,
+      "case_reconciliation_release_before_safety_wait",
+      () => client.query(`
+        SELECT public.grainline_case_staff_resolution_reconcile(
+          $1,
+          $2,
+          'CONFIRMED_NO_PROVIDER_EFFECT',
+          'Disposable proof rejects an early no-effect release.'
+        )
+      `, [ids.staff, releaseClaimId]),
+      /Case reconciliation release is not yet safe/,
+    );
+    await client.query("RESET ROLE");
+    // The production trigger correctly makes createdAt immutable. This proof
+    // runs only as the disposable PostgreSQL superuser and is already inside a
+    // rollback-only transaction, so bypass triggers for this one time-travel
+    // update and restore normal trigger execution immediately afterward.
+    await client.query("SET LOCAL session_replication_role = replica");
+    await client.query(`
+      UPDATE public."CaseResolutionClaim"
+         SET "createdAt" = pg_catalog.clock_timestamp() - INTERVAL '26 hours'
+       WHERE id = $1
+    `, [releaseClaimId]);
+    await client.query("SET LOCAL session_replication_role = origin");
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+  }
   if (labelClaimCorrectionExpected) {
     await client.query("RESET ROLE");
     await client.query(`
@@ -2622,9 +2651,12 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     const correctnessExpected = env.CASE_CORRECTNESS_EXPECTED === "1";
     const labelClaimCorrectionExpected =
       env.CASE_LABEL_CLAIM_CORRECTION_EXPECTED === "1";
+    const refundRecoveryCorrectionExpected =
+      env.CASE_REFUND_RECOVERY_CORRECTION_EXPECTED === "1";
     await proveStaffResolutionAuthority(client, {
       correctnessExpected,
       labelClaimCorrectionExpected,
+      refundRecoveryCorrectionExpected,
     });
     await proveClaimLedger(client);
     await provePrivatePosture(client);
@@ -2642,11 +2674,13 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
       stagedActivationCatalog,
     );
     return Object.freeze({
-      checks: labelClaimCorrectionExpected
-        ? 65
-        : correctnessExpected
-          ? 57
-          : 55,
+      checks:
+        (labelClaimCorrectionExpected
+          ? 65
+          : correctnessExpected
+            ? 57
+            : 55)
+        + (refundRecoveryCorrectionExpected ? 1 : 0),
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

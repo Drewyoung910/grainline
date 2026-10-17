@@ -105,6 +105,28 @@ jobs:
           mkdir -p "$RUNNER_TEMP/database-full-chain-source"
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - run: npx prisma generate
+      - name: Verify Case refund recovery source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/case-refund-followup-correction.test.mjs
+          tests/case-refund-provider-continuity.test.mjs
+          tests/case-refund-provider-recovery.test.mjs
+          tests/case-staff-resolution-app-authority.test.mjs
+      - name: Isolate Case refund recovery until earlier money corrections pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/case-refund-recovery"
+          mkdir "$holding"
+          for migration in \
+            20261016010000_correct_case_refund_recovery_core \
+            20261016011000_correct_case_refund_followup_deadends
+          do
+            mv "prisma/migrations/$migration" "$holding/$migration"
+          done
+          echo "CASE_REFUND_RECOVERY_CORE_MIGRATION_PATH=$holding/20261016010000_correct_case_refund_recovery_core/migration.sql" >> "$GITHUB_ENV"
+          echo "CASE_REFUND_FOLLOWUP_MIGRATION_PATH=$holding/20261016011000_correct_case_refund_followup_deadends/migration.sql" >> "$GITHUB_ENV"
       - name: Verify immutable Order refund-event repair source package
         run: >-
           node --test --test-concurrency=1
@@ -3223,6 +3245,7 @@ jobs:
           mv \
             "$RUNNER_TEMP/order-ops-health" \
             prisma/migrations/20260930033000_order_ops_health_summary
+          echo "ORDER_OPS_HEALTH_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Re-verify Order ops-health source package
         run: >-
           node --test
@@ -6275,6 +6298,81 @@ jobs:
             await client.end();
           }
           NODE
+      - name: Restore Case refund recovery after earlier money corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/case-refund-recovery"
+          for migration in \
+            20261016010000_correct_case_refund_recovery_core \
+            20261016011000_correct_case_refund_followup_deadends
+          do
+            mv "$holding/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$holding"
+          echo "CASE_REFUND_RECOVERY_CORE_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "CASE_REFUND_FOLLOWUP_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Re-verify Case refund recovery source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/case-refund-followup-correction.test.mjs
+          tests/case-refund-provider-continuity.test.mjs
+          tests/case-refund-provider-recovery.test.mjs
+          tests/case-staff-resolution-app-authority.test.mjs
+      - name: Apply Case refund recovery in reviewed order
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in \
+            20261016010000_correct_case_refund_recovery_core \
+            20261016011000_correct_case_refund_followup_deadends
+          do
+            psql "$DIRECT_URL" \
+              --set=ON_ERROR_STOP=on \
+              --file="prisma/migrations/$migration/migration.sql"
+            checksum="$(sha256sum "prisma/migrations/$migration/migration.sql" | cut -d ' ' -f 1)"
+            psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+              --set=migration="$migration" --set=checksum="$checksum" <<'SQL'
+          INSERT INTO public._prisma_migrations (
+            id, checksum, finished_at, migration_name, logs,
+            rolled_back_at, started_at, applied_steps_count
+          ) VALUES (
+            'crr-' || pg_catalog.md5(:'migration'), :'checksum',
+            pg_catalog.clock_timestamp(), :'migration', NULL,
+            NULL, pg_catalog.clock_timestamp(), 1
+          );
+          SQL
+          done
+      - name: Prove Case refund recovery on the restored current schema
+        run: |
+          node --input-type=module - <<'NODE'
+          import pg from 'pg';
+          import {proveCaseRefundRecoveryFindings} from './tools/database-full-chain/scenarios/case-refund-recovery.mjs';
+          import {seedSellerProfilePrivateFixture} from './tools/database-full-chain/scenarios/seller-profile-private-fixture.mjs';
+
+          const client = new pg.Client({connectionString: process.env.DIRECT_URL});
+          try {
+            await client.connect();
+            const seller = await seedSellerProfilePrivateFixture(client, {
+              suffix: 'case_refund_current_production_order',
+            });
+            await proveCaseRefundRecoveryFindings({
+              database: client,
+              seller,
+              requireHistoricalDamage: false,
+              scenarioNamespace: 'restored_current_schema',
+            });
+          } finally {
+            await client.end();
+          }
+          NODE
+      - name: Audit runtime grants after Case refund recovery
+        run: >-
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
+          RUNTIME_DB_ROLE=grainline_app_runtime
+          MIGRATION_DB_ROLE=ci
+          npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Audit runtime grants after blocked-pair paid-checkout completion
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
@@ -6286,6 +6384,7 @@ jobs:
         env:
           CASE_SELLER_AGGREGATE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_REFUND_RECOVERY_CORRECTION_EXPECTED: "1"
           CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           CONVERSATION_MESSAGE_CURRENT_SCHEMA_REPLAY: "true"
           NOTIFICATION_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}

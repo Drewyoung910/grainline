@@ -210,6 +210,7 @@ export async function applyFullMigrationChain({
   engine,
   bootstrapRoles,
   convergeRoles,
+  beforeMigration,
   onProgress = () => {},
 }) {
   if (!adapter?.query || !adapter?.executeMigration || !adapter?.resetOwner) {
@@ -217,6 +218,9 @@ export async function applyFullMigrationChain({
   }
   if (typeof bootstrapRoles !== "function" || typeof convergeRoles !== "function") {
     throw new TypeError("bootstrapRoles and convergeRoles callbacks are required");
+  }
+  if (beforeMigration != null && typeof beforeMigration !== "function") {
+    throw new TypeError("beforeMigration must be a function when provided");
   }
 
   await bootstrapRoles(adapter, repositoryRoot);
@@ -231,6 +235,12 @@ export async function applyFullMigrationChain({
   };
 
   for (const artifact of artifacts) {
+    await beforeMigration?.({
+      adapter,
+      artifact,
+      applied: [...summary.applied],
+      total: artifacts.length,
+    });
     const { sql, deviations } = prepareMigrationSql(artifact, engine);
     const id = crypto.randomUUID();
     await adapter.query(
