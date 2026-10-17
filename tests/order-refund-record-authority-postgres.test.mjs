@@ -12,8 +12,15 @@ const recordMigration = readFileSync(
   "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
   "utf8",
 );
+const reconciliationMigrationsRoot =
+  process.env.ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATIONS_DIR ??
+  "prisma/migrations";
 const reconciliationMigration = readFileSync(
-  "prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority/migration.sql",
+  path.join(
+    reconciliationMigrationsRoot,
+    "20260824040000_prepare_order_refund_reconciliation_authority",
+    "migration.sql",
+  ),
   "utf8",
 );
 const compositionCorrection = readFileSync(

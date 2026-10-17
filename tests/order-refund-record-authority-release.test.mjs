@@ -102,6 +102,7 @@ test("CI isolates the record release, replays the sealed claim, then proves the 
   const restoreRecord = ci.indexOf("Restore Order refund record authority release");
   const applyRecord = ci.indexOf("Apply Order refund record authority preparation");
   const proveRecord = ci.indexOf("Prove atomic Order refund finalization in disposable PostgreSQL");
+  const restoreSigned = ci.indexOf("Restore Order payment signed authority release");
   assert.ok(verifyRecord >= 0);
   assert.ok(verifyRecord < isolateRecord);
   assert.ok(isolateRecord < verifyClaim);
@@ -109,14 +110,20 @@ test("CI isolates the record release, replays the sealed claim, then proves the 
   assert.ok(restoreClaim < restoreRecord);
   assert.ok(restoreRecord < applyRecord);
   assert.ok(applyRecord < proveRecord);
+  assert.ok(proveRecord < restoreSigned);
   assert.equal(
     pkg.scripts["audit:order-refund-record-authority-release"],
     "node scripts/verify-order-refund-record-authority-release.mjs",
   );
-  assert.doesNotMatch(
+  assert.match(
     postgresProof,
-    /202608240[3-9][0-9]{4}_/,
-    "record-authority proof must not read a later migration hidden by CI",
+    /process\.env\.ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATIONS_DIR/u,
+    "record-authority proof must read the reconciliation predecessor from CI's preserved source",
+  );
+  assert.match(
+    ci.slice(proveRecord, restoreSigned),
+    /ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATIONS_DIR: \$\{\{ runner\.temp \}\}\/database-full-chain-source\/migrations/u,
+    "record-authority CI proof must bind the preserved full-chain migration source",
   );
   const production = readFileSync(
     "tests/fixtures/order-handoff/historical-production-migrations.yml.txt",

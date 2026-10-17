@@ -2021,6 +2021,7 @@ jobs:
       - name: Prove atomic Order refund finalization in disposable PostgreSQL
         env:
           ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION_PATH: ${{ runner.temp }}/order-payment-event-invariants-release/migration.sql
+          ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATIONS_DIR: ${{ runner.temp }}/database-full-chain-source/migrations
         run: >-
           node --test
           tests/order-refund-record-authority.test.mjs
