@@ -7,7 +7,7 @@ const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 const REVIEWED_DEV_ONLY_ADVISORY_EXCEPTIONS = Object.freeze({
   "1240992": Object.freeze({
     ghsa: "GHSA-vfj7-8cjw-p6xm",
-    expiresAt: "2026-10-17T00:00:00.000Z",
+    expiresAt: "2026-10-24T00:00:00.000Z",
     packages: Object.freeze([
       "@next/eslint-plugin-next",
       "braces",
