@@ -371,7 +371,7 @@ BEGIN
        AND orders."blockedCheckoutRefundRecordedAt" IS NULL;
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Blocked-checkout reconciliation generation inheritance raced'
-        USING ERRCODE = 'object_not_in_prerequisite_state';
+        USING ERRCODE = 'G6881';
     END IF;
   END IF;
 
@@ -454,7 +454,7 @@ BEGIN
       ),
       (
         'public.grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)',
-        '68d493ab39967224cb2958e36e243c71'
+        '64f4a2c7f9abfe7b30bc3365c1db38f6'
       )
   )
   SELECT pg_catalog.count(*)::integer

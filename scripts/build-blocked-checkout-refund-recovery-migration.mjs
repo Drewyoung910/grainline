@@ -155,7 +155,7 @@ export function buildReconciliationSuccessor(predecessor) {
        AND orders."blockedCheckoutRefundRecordedAt" IS NULL;
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Blocked-checkout reconciliation generation inheritance raced'
-        USING ERRCODE = 'object_not_in_prerequisite_state';
+        USING ERRCODE = 'G6881';
     END IF;
   END IF;
 

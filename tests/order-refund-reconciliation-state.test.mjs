@@ -20,7 +20,7 @@ const claim = { providerAuthorizedAtSeconds: 1_000_000 };
 
 test("only a stale blocked-checkout reconciliation is non-retryable", () => {
   assert.equal(
-    isStaleBlockedCheckoutRefundReconciliation("BLOCKED_CHECKOUT", "55000"),
+    isStaleBlockedCheckoutRefundReconciliation("BLOCKED_CHECKOUT", "G6881"),
     true,
   );
   assert.equal(
@@ -28,7 +28,11 @@ test("only a stale blocked-checkout reconciliation is non-retryable", () => {
     false,
   );
   assert.equal(
-    isStaleBlockedCheckoutRefundReconciliation("SELLER", "55000"),
+    isStaleBlockedCheckoutRefundReconciliation("BLOCKED_CHECKOUT", "55000"),
+    false,
+  );
+  assert.equal(
+    isStaleBlockedCheckoutRefundReconciliation("SELLER", "G6881"),
     false,
   );
 });

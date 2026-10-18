@@ -1002,7 +1002,7 @@ test("stale ADMIN reconciliation is non-retryable and fresh preparation sees the
         refundId: "re_stalegeneration",
       }),
       (error) => {
-        assert.equal(error.code, "55000");
+        assert.equal(error.code, "G6881");
         assert.match(error.message, /generation inheritance raced/);
         return true;
       },

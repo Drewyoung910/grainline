@@ -13,7 +13,7 @@ export function isStaleBlockedCheckoutRefundReconciliation(
   claimSource: "SELLER" | "BLOCKED_CHECKOUT",
   sqlState: string | null,
 ) {
-  return claimSource === "BLOCKED_CHECKOUT" && sqlState === "55000";
+  return claimSource === "BLOCKED_CHECKOUT" && sqlState === "G6881";
 }
 
 const RETRY_WINDOW_SECONDS = 23 * 60 * 60;

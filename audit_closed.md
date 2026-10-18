@@ -19678,7 +19678,7 @@ is byte-equal to the migration.
 Independent review also identified a permanent stale-reconciliation branch
 misclassified as retryable `40001`. A failing-first PostgreSQL test reproduces
 the old code when another recovery has already moved the claim to the current
-event generation. The candidate now returns `55000`, skips the same-request
+event generation. The candidate now returns dedicated SQLSTATE `G6881`, skips the same-request
 blind retry and tells staff to refresh. The next submission runs the ordinary
 prepare and provider-inspection sequence against the current generation; no
 provider evidence is reused across that boundary.
