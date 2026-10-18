@@ -149,10 +149,15 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /replayedAfterTerminal/);
   assert.match(
     proof,
-    /checks: labelClaimCorrectionExpected[\s\S]*?\? 65[\s\S]*?correctnessExpected[\s\S]*?\? 57[\s\S]*?: 55/,
+    /checks:[\s\S]*?labelClaimCorrectionExpected[\s\S]*?\? 65[\s\S]*?correctnessExpected[\s\S]*?\? 57[\s\S]*?: 55[\s\S]*?refundRecoveryCorrectionExpected \? 1 : 0/,
   );
   assert.match(proof, /CASE_CORRECTNESS_EXPECTED === "1"/);
   assert.match(proof, /CASE_LABEL_CLAIM_CORRECTION_EXPECTED === "1"/);
+  assert.match(proof, /CASE_REFUND_RECOVERY_CORRECTION_EXPECTED === "1"/);
+  assert.match(
+    proof,
+    /case_reconciliation_release_before_safety_wait[\s\S]*?Case reconciliation release is not yet safe[\s\S]*?session_replication_role = replica[\s\S]*?INTERVAL '26 hours'[\s\S]*?session_replication_role = origin/,
+  );
   assert.match(
     proof,
     /grainline_case_account_deletion_redact_post_activation_proof/,
@@ -339,6 +344,10 @@ test("main CI runs the proof after migrations and grant convergence", () => {
   assert.match(
     workflow,
     /CASE_INVARIANT_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/,
+  );
+  assert.match(
+    workflow,
+    /Re-prove SellerProfile-touching fixtures on the restored current schema[\s\S]*?CASE_REFUND_RECOVERY_CORRECTION_EXPECTED: "1"/,
   );
   assert.doesNotMatch(
     proof,

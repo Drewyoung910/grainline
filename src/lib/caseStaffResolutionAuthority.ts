@@ -71,6 +71,7 @@ export type FinalizedCaseStaffResolution = {
   currency: string;
   resolutionMessageId: string;
   stockStatusRestoredCount: number;
+  skippedStockRestoreCount: number;
   status: "FINALIZED";
   action: "finalized" | "replay";
 };
@@ -523,6 +524,13 @@ function validateFinalizedResult(
       "Case staff-resolution restored listing count",
       { min: 0 },
     ),
+    skippedStockRestoreCount: row.skippedStockRestoreCount == null
+      ? 0
+      : requireInteger(
+        row.skippedStockRestoreCount,
+        "Case staff-resolution skipped stock count",
+        { min: 0 },
+      ),
     status: requireOneOf(
       row.status,
       ["FINALIZED"] as const,

@@ -4013,3 +4013,9 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 **Batch J (low-risk cleanup):**
 - #113-124
+
+## 2026-10-16 — Case refund recovery candidate (not merged or live)
+
+- **#659, #660, #676–#680, #655, #657, #665:** candidate forward migration `20261016010000_correct_case_refund_recovery_core` is byte-derived from the independently exercised Case recovery prototype and retains the existing function signatures and catalog posture. Keep these findings open until exact-head review, merge, protected Production application, and postflight all pass.
+- **#710–#714:** candidate forward migration `20261016011000_correct_case_refund_followup_deadends` has failing-current-head/passing-candidate PostgreSQL 16 full-chain behavior evidence for ambiguous-marker preservation and repair, original-actor replay, Case-lock preservation, listing-type stock-plan drift, and same-second won-dispute projection. The #710 historical proof now creates the damaged ledger/order state with the actual predecessor function before applying the successor. The protected two-migration workflow runs the aggregate-only, repeatable-read Production inventory first, preserves repairable/unrepairable counts and cents without identifiers, and stops before SQL if any stuck claim lacks the exact signed repair witness. The application accepts the predecessor finalization result until the migration lands. Keep these findings open through exact-head re-review, merge, protected Production application, and postflight.
+- **Still open and deliberately outside this candidate:** #338, #428, #662, #703–#705, and #715. The candidate only retains a staff-visible conflict when same-second dispute creation would otherwise lose its Case/alert; it does not close #662. The Case/dispute lifecycle findings require their own behavior-first correction after this recovery core; no RLS expansion resumes before the named launch-blocking money work is merged and live.
