@@ -173,6 +173,19 @@ test("Production workflow binds one migration to exact main and every green push
   );
 });
 
+test("Production workflow pins the exact reviewed migration bytes", () => {
+  const verifyBytesStep = parsedWorkflow.jobs.apply.steps.find(
+    (step) => step.name === "Verify exact candidate bytes and focused behavior",
+  );
+  const pinnedDigest = verifyBytesStep.run.match(
+    /echo "([0-9a-f]{64})  prisma\/migrations\/\$migration\/migration\.sql"/u,
+  )?.[1];
+  assert.equal(
+    pinnedDigest,
+    createHash("sha256").update(migration).digest("hex"),
+  );
+});
+
 test("Production workflow is restart-safe, database-only, and postflights exact state", () => {
   assert.match(
     workflow,
