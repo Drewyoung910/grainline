@@ -27,7 +27,12 @@ import {
   proveCaseRefundRecoveryFindings,
   seedHistoricalAmbiguousMarkerDamage,
 } from "../tools/database-full-chain/scenarios/case-refund-recovery.mjs";
+import {
+  proveDisputeFirstEventCaseCorrection,
+  seedDisputeFirstEventPredecessorGap,
+} from "../tools/database-full-chain/scenarios/dispute-first-event-case.mjs";
 import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-followup-correction.mjs";
+import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-first-event-case-correction.mjs";
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
 
@@ -55,6 +60,7 @@ test(
       const roles = createCiRoleScriptCallbacks();
       let fixture;
       let historicalCaseRefundDamage;
+      let historicalDisputeFirstEventGap;
       const summary = await applyFullMigrationChain({
         adapter,
         repositoryRoot,
@@ -62,14 +68,24 @@ test(
         bootstrapRoles: roles.bootstrapRoles,
         convergeRoles: roles.convergeRoles,
         beforeMigration: async ({ artifact }) => {
-          if (artifact.name !== CASE_REFUND_FOLLOWUP_MIGRATION) return;
-          fixture = await seedSellerProfilePrivateFixture(adapter);
-          historicalCaseRefundDamage =
-            await seedHistoricalAmbiguousMarkerDamage({
-              database: adapter,
-              seller: fixture,
-              scenarioNamespace: "migration_chain",
-            });
+          if (artifact.name === CASE_REFUND_FOLLOWUP_MIGRATION) {
+            fixture = await seedSellerProfilePrivateFixture(adapter);
+            historicalCaseRefundDamage =
+              await seedHistoricalAmbiguousMarkerDamage({
+                database: adapter,
+                seller: fixture,
+                scenarioNamespace: "migration_chain",
+              });
+          }
+          if (artifact.name === DISPUTE_FIRST_EVENT_CASE_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before #662 predecessor proof");
+            historicalDisputeFirstEventGap =
+              await seedDisputeFirstEventPredecessorGap({
+                database: adapter,
+                seller: fixture,
+                scenarioNamespace: "migration_chain",
+              });
+          }
         },
         onProgress: ({ index, total, name, retried }) => {
           if (index === total || index % 50 === 0 || retried) {
@@ -138,6 +154,17 @@ test(
         seller: fixture,
         historicalDamage: historicalCaseRefundDamage,
         requireHistoricalDamage: true,
+        expectDisputeFirstEventCase: true,
+        scenarioNamespace: "migration_chain",
+      });
+      assert.ok(
+        historicalDisputeFirstEventGap,
+        "#662 predecessor gap must be seeded before its correction migration",
+      );
+      await proveDisputeFirstEventCaseCorrection({
+        database: adapter,
+        seller: fixture,
+        historicalGap: historicalDisputeFirstEventGap,
         scenarioNamespace: "migration_chain",
       });
     } finally {

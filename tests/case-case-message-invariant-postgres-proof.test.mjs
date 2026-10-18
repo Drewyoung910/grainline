@@ -332,7 +332,7 @@ test("Case invariant proof flushes deferred triggers before the later FORCE rele
   assert.ok(forceAt > flushAt, "FORCE runs before deferred triggers are flushed");
 });
 
-test("main CI runs the proof after migrations and grant convergence", () => {
+test("main CI keeps the historical proof before current Case corrections", () => {
   assert.equal(
     packageJson.scripts["audit:rls-case-invariant-drafts"],
     "node scripts/case-case-message-invariant-postgres-proof.mjs",
@@ -345,9 +345,31 @@ test("main CI runs the proof after migrations and grant convergence", () => {
     workflow,
     /CASE_INVARIANT_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/,
   );
+  const historicalProof = workflow.indexOf(
+    "name: Prove Case invariant drafts in rollback-only PostgreSQL",
+  );
+  const currentProof = workflow.indexOf(
+    "name: Prove Case refund recovery on the restored current schema",
+  );
+  const lateReplay = workflow.indexOf(
+    "name: Re-prove SellerProfile-touching fixtures on the restored current schema",
+  );
+  const lateReplayEnd = workflow.indexOf(
+    "name: Prove complete buyer and seller deletion after retirement",
+    lateReplay,
+  );
+  assert.ok(
+    historicalProof >= 0
+      && historicalProof < currentProof
+      && currentProof < lateReplay,
+  );
   assert.match(
-    workflow,
-    /Re-prove SellerProfile-touching fixtures on the restored current schema[\s\S]*?CASE_REFUND_RECOVERY_CORRECTION_EXPECTED: "1"/,
+    workflow.slice(currentProof, lateReplay),
+    /expectDisputeFirstEventCase: true/u,
+  );
+  assert.doesNotMatch(
+    workflow.slice(lateReplay, lateReplayEnd),
+    /audit:rls-case-invariant-drafts|CASE_INVARIANT_PROOF_DATABASE_URL/u,
   );
   assert.doesNotMatch(
     proof,

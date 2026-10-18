@@ -141,6 +141,8 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
       "'disputeId'",
       "'stripeEventType'",
       "'stripeEventCreated'",
+      "'orderingAction'",
+      "'applied'",
       "$4::text",
     ]) {
       assert.ok(
@@ -157,6 +159,16 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
       proof,
       /sourceId: fixture\.orderDisputeStripeEventId/,
       "the notification source must use the same canonical event id as the payment fixture",
+    );
+    assert.match(
+      proof,
+      /if \(currentSchemaReplay\) \{[\s\S]*?grainline_case_stripe_dispute_apply\(\$1\)[\s\S]*?current_dispute_notification_source_authority_seeded/,
+      "current-schema replay must seed the dispute notification through its durable Case authority",
+    );
+    assert.match(
+      proof,
+      /'cs_notification_proof_dispute', \$4[\s\S]*?fixture\.orderDisputeStripeChargeId/,
+      "the current Case authority must receive the signed dispute charge identity",
     );
   });
 

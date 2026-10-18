@@ -677,6 +677,7 @@ async function proveSameSecondCreatedDisputeRemainsVisible(
   seller,
   _adminId,
   namespace,
+  expectDisputeFirstEventCase = false,
 ) {
   const fixture = await seedCaseOrder(database, seller, {
     label: scenarioId("audit_662_visibility", namespace),
@@ -700,7 +701,10 @@ async function proveSameSecondCreatedDisputeRemainsVisible(
     status: "needs_response",
     createdSeconds,
   });
-  assert.equal(created.action, "conflict_recorded");
+  assert.equal(
+    created.action,
+    expectDisputeFirstEventCase ? "same_second_recorded" : "conflict_recorded",
+  );
 
   const state = (await database.query(
     `SELECT orders."reviewNeeded" AS review_needed,
@@ -715,8 +719,13 @@ async function proveSameSecondCreatedDisputeRemainsVisible(
     [fixture.orderId],
   )).rows[0];
   assert.equal(state.review_needed, true);
-  assert.match(state.review_note, /conflicting dispute states/u);
-  assert.equal(state.case_count, 0);
+  if (expectDisputeFirstEventCase) {
+    assert.doesNotMatch(state.review_note, /conflicting dispute states/u);
+    assert.equal(state.case_count, 1);
+  } else {
+    assert.match(state.review_note, /conflicting dispute states/u);
+    assert.equal(state.case_count, 0);
+  }
 }
 
 export async function proveCaseRefundRecoveryFindings({
@@ -724,6 +733,7 @@ export async function proveCaseRefundRecoveryFindings({
   seller,
   historicalDamage,
   requireHistoricalDamage = false,
+  expectDisputeFirstEventCase = false,
   scenarioNamespace,
 }) {
   const namespace = scenarioNamespace;
@@ -743,7 +753,14 @@ export async function proveCaseRefundRecoveryFindings({
     ["#714 same-second won dispute", proveSameSecondWonDispute],
     [
       "#662 same-second dispute creation remains visible",
-      proveSameSecondCreatedDisputeRemainsVisible,
+      (sourceDatabase, sourceSeller, sourceAdminId, sourceNamespace) =>
+        proveSameSecondCreatedDisputeRemainsVisible(
+          sourceDatabase,
+          sourceSeller,
+          sourceAdminId,
+          sourceNamespace,
+          expectDisputeFirstEventCase,
+        ),
     ],
   ];
   if (historicalDamage) {
