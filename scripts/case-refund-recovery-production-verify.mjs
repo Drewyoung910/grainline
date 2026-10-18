@@ -19,6 +19,9 @@ export const CASE_REFUND_RECOVERY_CORE_SHA256 =
 export const CASE_REFUND_FOLLOWUP_SHA256 =
   "71ae9d866d67b181b28cb0eca1ede74e032ac7c57de398bde95a9e6d95b7619e";
 
+const CASE_REFUND_OPS_HEALTH_IDENTITY =
+  "public.grainline_order_ops_health_summary()";
+
 const summaryKeys = [
   "repairable_claims",
   "repairable_refund_amount_cents",
@@ -109,6 +112,22 @@ function runtimeExecuteMap(corePredecessor, followupPredecessor) {
   return result;
 }
 
+function functionExecutionPostureMap(identities) {
+  const result = new Map([...identities].map((identity) => [
+    identity,
+    { parallel: "u", volatility: "v" },
+  ]));
+  assert.ok(
+    result.has(CASE_REFUND_OPS_HEALTH_IDENTITY),
+    "Case refund ops-health function must be present",
+  );
+  result.set(CASE_REFUND_OPS_HEALTH_IDENTITY, {
+    parallel: "s",
+    volatility: "s",
+  });
+  return result;
+}
+
 export function caseRefundReleaseSpecs(root) {
   const coreSource = fs.readFileSync(
     caseRefundMigrationPath(root, CASE_REFUND_RECOVERY_CORE_MIGRATION),
@@ -146,6 +165,7 @@ export function caseRefundReleaseSpecs(root) {
   }
   return {
     beforeCore,
+    executionPosture: functionExecutionPostureMap(finalSuccessor.keys()),
     afterCore,
     finalSuccessor,
     runtimeExecute: runtimeExecuteMap(corePredecessorRaw, followupPredecessorRaw),
@@ -244,10 +264,17 @@ function expectedSourcesForState(specs, coreState, followupState) {
   return specs.finalSuccessor;
 }
 
-function assertFunctionCatalog(rows, expectedSources, runtimeExecute) {
+function assertFunctionCatalog(
+  rows,
+  expectedSources,
+  runtimeExecute,
+  expectedExecutionPosture,
+) {
   assert.equal(rows.length, expectedSources.size);
   for (const row of rows) {
+    const executionPosture = expectedExecutionPosture.get(row.identity);
     assert.ok(row.resolved, `missing ${row.identity}`);
+    assert.ok(executionPosture, `missing catalog posture for ${row.identity}`);
     assert.equal(
       sha256(row.prosrc),
       expectedSources.get(row.identity),
@@ -256,8 +283,16 @@ function assertFunctionCatalog(rows, expectedSources, runtimeExecute) {
     assert.equal(row.owner, "neondb_owner");
     assert.equal(row.prosecdef, true);
     assert.equal(row.proleakproof, false);
-    assert.equal(row.provolatile, "v");
-    assert.equal(row.proparallel, "u");
+    assert.equal(
+      row.provolatile,
+      executionPosture.volatility,
+      `${row.identity} volatility drifted`,
+    );
+    assert.equal(
+      row.proparallel,
+      executionPosture.parallel,
+      `${row.identity} parallel posture drifted`,
+    );
     assert.deepEqual(row.proconfig, ["search_path=pg_catalog"]);
     assert.equal(row.runtime_execute, runtimeExecute.get(row.identity));
     assert.equal(row.public_execute, false);
@@ -334,6 +369,7 @@ async function verify(mode) {
       functions,
       expectedSourcesForState(specs, coreState, followupState),
       specs.runtimeExecute,
+      specs.executionPosture,
     );
     const acl = await readFunctionAcl(client, identities);
     if (mode === "preflight") {
