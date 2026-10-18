@@ -256,6 +256,11 @@ defect. Each remaining path is classified:
   proves the exact signed source and paid Order binding plus replay/conflict/
   late-refund fences, and removes only its synthetic rows. It is CI proof, not
   production evidence and not a new direct application table-access path.
+- `scripts/build-blocked-checkout-refund-recovery-migration.mjs` is an offline
+  deterministic SQL generator and byte verifier. Its embedded direct
+  `StripeWebhookEvent` references are the reviewed function bodies and catalog
+  attestations written into the migration; the script opens no database or
+  provider connection and cannot exercise runtime table authority.
 - `scripts/build-blocked-checkout-transfer-binding-migration.mjs` is an
   offline deterministic SQL generator and byte verifier. Its embedded direct
   table references are the reviewed function body written into a migration;

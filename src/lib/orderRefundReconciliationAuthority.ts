@@ -10,6 +10,7 @@ import {
 
 export {
   chooseOrderRefundReconciliationAction,
+  isStaleBlockedCheckoutRefundReconciliation,
   ORDER_REFUND_RECONCILIATION_WINDOWS,
 } from "@/lib/orderRefundReconciliationState";
 export type {

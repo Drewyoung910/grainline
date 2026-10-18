@@ -9,6 +9,13 @@ export type OrderRefundReconciliationAction =
   | "CONFIRMED_PROVIDER_EFFECT"
   | "CONFIRMED_NO_PROVIDER_EFFECT";
 
+export function isStaleBlockedCheckoutRefundReconciliation(
+  claimSource: "SELLER" | "BLOCKED_CHECKOUT",
+  sqlState: string | null,
+) {
+  return claimSource === "BLOCKED_CHECKOUT" && sqlState === "G6881";
+}
+
 const RETRY_WINDOW_SECONDS = 23 * 60 * 60;
 const RELEASE_WINDOW_SECONDS = 25 * 60 * 60;
 

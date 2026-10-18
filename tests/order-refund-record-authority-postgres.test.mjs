@@ -12,6 +12,17 @@ const recordMigration = readFileSync(
   "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
   "utf8",
 );
+const reconciliationMigrationsRoot =
+  process.env.ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATIONS_DIR ??
+  "prisma/migrations";
+const reconciliationMigration = readFileSync(
+  path.join(
+    reconciliationMigrationsRoot,
+    "20260824040000_prepare_order_refund_reconciliation_authority",
+    "migration.sql",
+  ),
+  "utf8",
+);
 const compositionCorrection = readFileSync(
   "docs/rls-drafts/order-authority-composition-correction.sql",
   "utf8",
@@ -22,7 +33,7 @@ const paymentEventInvariantMigration = readFileSync(
   "utf8",
 );
 const sellerPrivateMigrationRoot =
-  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR || "prisma/migrations";
 const sellerPrivateReconciliationMigration = readFileSync(
   path.join(
     sellerPrivateMigrationRoot,
@@ -40,7 +51,7 @@ const sellerPrivateReconciliationTargetCorrection = readFileSync(
   "utf8",
 );
 const immutableRefundRecordRepair = readFileSync(
-  process.env.ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH ??
+  process.env.ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH ||
     "prisma/migrations/20261015020000_repair_immutable_order_refund_recording/migration.sql",
   "utf8",
 );
@@ -49,18 +60,54 @@ const blockedCheckoutRefundWitness = readFileSync(
   "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql",
   "utf8",
 );
+const blockedCheckoutRefundRecovery = readFileSync(
+  process.env.BLOCKED_CHECKOUT_REFUND_RECOVERY_MIGRATION_PATH ||
+    "prisma/migrations/20261015040000_repair_blocked_checkout_refund_recovery/migration.sql",
+  "utf8",
+);
 
 function functionDefinition(source, name) {
-  const start = source.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
-  const endMarker = `$${name}$;`;
+  const match = new RegExp(
+    `CREATE (?:OR REPLACE )?FUNCTION public\\.${name}\\(`,
+    "u",
+  ).exec(source);
+  const start = match?.index ?? -1;
+  assert.ok(start >= 0, `missing corrected ${name}`);
+  const delimiter = source.slice(start).match(/\nAS (\$[A-Za-z0-9_]*\$)/u)?.[1];
+  assert.ok(delimiter, `missing corrected ${name} body delimiter`);
+  const endMarker = `${delimiter};`;
   const end = source.indexOf(endMarker, start);
-  assert.ok(start >= 0 && end > start, `missing corrected ${name}`);
+  assert.ok(end > start, `missing corrected ${name}`);
   return source.slice(start, end + endMarker.length);
 }
 
 function correctedFunction(name) {
   return functionDefinition(compositionCorrection, name);
 }
+
+function replaceFunctionDefinition(source, name) {
+  return functionDefinition(source, name).replace(
+    /^CREATE FUNCTION/u,
+    "CREATE OR REPLACE FUNCTION",
+  );
+}
+
+function dollarBlock(source, tag) {
+  const start = source.indexOf(`DO $${tag}$`);
+  const endMarker = `\n$${tag}$;`;
+  const end = source.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start, `missing ${tag}`);
+  return source.slice(start, end + endMarker.length);
+}
+
+const recoveryPreflight = dollarBlock(
+  blockedCheckoutRefundRecovery,
+  "grainline_blocked_checkout_refund_recovery_preflight",
+);
+const recoveryPostflight = dollarBlock(
+  blockedCheckoutRefundRecovery,
+  "grainline_blocked_checkout_refund_recovery_postflight",
+);
 
 function immutablePaymentEventTrigger() {
   const start = paymentEventInvariantMigration.indexOf(
@@ -88,6 +135,7 @@ async function createDatabase() {
   const database = new PGlite();
   await database.exec(`
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
+    CREATE TYPE public."Role" AS ENUM ('USER', 'EMPLOYEE', 'ADMIN');
     CREATE TYPE public."ListingStatus" AS ENUM (
       'DRAFT', 'ACTIVE', 'SOLD', 'SOLD_OUT', 'HIDDEN',
       'PENDING_REVIEW', 'REJECTED'
@@ -95,6 +143,7 @@ async function createDatabase() {
     CREATE TYPE public."ListingType" AS ENUM ('MADE_TO_ORDER', 'IN_STOCK');
     CREATE TABLE public."User" (
       id text PRIMARY KEY,
+      role public."Role" NOT NULL DEFAULT 'USER',
       "deletedAt" timestamp(3) without time zone,
       banned boolean NOT NULL DEFAULT false
     );
@@ -118,6 +167,7 @@ async function createDatabase() {
       "claimGeneration" bigint NOT NULL DEFAULT 0,
       "processingStartedAt" timestamp(3) without time zone,
       "processedAt" timestamp(3) without time zone,
+      "lastError" text,
       "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -191,6 +241,24 @@ async function createDatabase() {
       metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
       "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE public."OrderRefundReconciliation" (
+      id text PRIMARY KEY,
+      "orderId" text NOT NULL REFERENCES public."Order"(id),
+      "claimId" varchar(255) NOT NULL,
+      "claimGeneration" bigint NOT NULL,
+      "claimSource" varchar(32) NOT NULL,
+      "claimSourceId" varchar(255) NOT NULL,
+      "claimSourceGeneration" bigint,
+      "idempotencyScope" varchar(255) NOT NULL,
+      action varchar(64) NOT NULL,
+      "actorUserId" text NOT NULL REFERENCES public."User"(id),
+      "providerInspectedAt" timestamp(3) without time zone NOT NULL,
+      "providerDisposition" varchar(64) NOT NULL,
+      "providerEvidenceSha256" varchar(64) NOT NULL,
+      reason varchar(1000) NOT NULL,
+      "auditLogId" text NOT NULL,
+      "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE FUNCTION public.grainline_case_seller_refund_apply(
       p_actor_user_id text,
       p_order_payment_event_id text
@@ -233,7 +301,8 @@ async function createDatabase() {
   await database.exec(`
     ALTER TABLE public."Order"
       ADD COLUMN "blockedCheckoutRefundRequiredAt" timestamp(3) without time zone,
-      ADD COLUMN "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone;
+      ADD COLUMN "blockedCheckoutRefundRecordedAt" timestamp(3) without time zone,
+      ADD COLUMN "paymentRefundBlocked" boolean NOT NULL DEFAULT false;
     ALTER TABLE public."Order"
       ADD CONSTRAINT "Order_blockedCheckoutRefundWitness_check"
       CHECK (
@@ -246,11 +315,36 @@ async function createDatabase() {
     blockedCheckoutRefundWitness,
     "grainline_blocked_checkout_refund_record_core",
   ));
+  await database.exec(functionDefinition(
+    blockedCheckoutRefundWitness,
+    "grainline_stripe_checkout_order_existing",
+  ));
+  await database.exec(functionDefinition(
+    reconciliationMigration,
+    "grainline_blocked_checkout_refund_reconciliation_record",
+  ));
+  await database.exec(`
+    REVOKE ALL ON FUNCTION public.grainline_stripe_checkout_order_existing(
+      text, bigint, text
+    ) FROM PUBLIC, grainline_app_runtime;
+    GRANT EXECUTE ON FUNCTION public.grainline_stripe_checkout_order_existing(
+      text, bigint, text
+    ) TO grainline_app_runtime;
+    REVOKE ALL ON FUNCTION public.grainline_blocked_checkout_refund_reconciliation_record(
+      text, text, bigint, text, text, text, integer
+    ) FROM PUBLIC, grainline_app_runtime;
+    GRANT EXECUTE ON FUNCTION public.grainline_blocked_checkout_refund_reconciliation_record(
+      text, text, bigint, text, text, text, integer
+    ) TO grainline_app_runtime;
+  `);
+  await database.exec(blockedCheckoutRefundRecovery);
   await database.exec("SET check_function_bodies = on");
   await database.exec(`
-    INSERT INTO public."User" (id) VALUES
-      ('seller-user'),
-      ('buyer-user');
+    INSERT INTO public."User" (id, role) VALUES
+      ('seller-user', 'USER'),
+      ('buyer-user', 'USER'),
+      ('admin-user', 'ADMIN'),
+      ('employee-user', 'EMPLOYEE');
     INSERT INTO public."SellerProfile" (id, "userId")
       VALUES ('seller-profile', 'seller-user');
     INSERT INTO public."SellerProfilePrivate" ("sellerProfileId")
@@ -317,6 +411,214 @@ async function blockedClaim(database, {
     ) AS claim
   `, [eventId, eventGeneration, sessionId, orderId])).rows[0].claim;
 }
+
+async function seedBlockedReconciliation(database, {
+  orderId,
+  eventId,
+  sessionId,
+  reconciliationId,
+  actorUserId = "admin-user",
+  claimSource = "BLOCKED_CHECKOUT",
+  eventType = "checkout.session.completed",
+}) {
+  const listingId = await seedOrder(database, {
+    id: orderId,
+    sessionId,
+    blockedCheckoutRefundRequired: true,
+  });
+  await database.query(`
+    INSERT INTO public."StripeWebhookEvent" (
+      id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+    ) VALUES ($1, $2, $3, 1, CURRENT_TIMESTAMP)
+  `, [eventId, eventType, sessionId]);
+  const claim = await blockedClaim(database, {
+    eventId,
+    eventGeneration: 1,
+    sessionId,
+    orderId,
+  });
+  await database.query(`
+    UPDATE public."Order"
+       SET "paymentRefundBlocked" = true
+     WHERE id = $1
+  `, [orderId]);
+  await database.query(`
+    INSERT INTO public."OrderRefundReconciliation" (
+      id, "orderId", "claimId", "claimGeneration", "claimSource",
+      "claimSourceId", "claimSourceGeneration", "idempotencyScope", action,
+      "actorUserId", "providerInspectedAt", "providerDisposition",
+      "providerEvidenceSha256", reason, "auditLogId"
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, 1, $7, 'CONFIRMED_PROVIDER_EFFECT',
+      $8, CURRENT_TIMESTAMP, 'USABLE_REFUND', repeat('a', 64),
+      'Verified the exact existing provider refund.', $9
+    )
+  `, [
+    reconciliationId,
+    orderId,
+    claim.claimId,
+    claim.claimGeneration,
+    claimSource,
+    eventId,
+    claim.idempotencyScope,
+    actorUserId,
+    `${reconciliationId}:audit`,
+  ]);
+  return { claim, listingId };
+}
+
+async function reconcileBlockedRefund(database, {
+  reconciliationId,
+  claim,
+  refundId,
+}) {
+  await database.exec("SET ROLE grainline_app_runtime");
+  try {
+    return (await database.query(`
+      SELECT public.grainline_blocked_checkout_refund_reconciliation_record(
+        $1, $2, $3, $4, 'succeeded', 'trr_existing', 1200
+      ) AS result
+    `, [
+      reconciliationId,
+      claim.claimId,
+      claim.claimGeneration,
+      refundId,
+    ])).rows[0].result;
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+  }
+}
+
+test("blocked-checkout refund recovery preflight accepts only exact predecessor metadata and source", async () => {
+  const database = await createDatabase();
+  try {
+    await database.exec(replaceFunctionDefinition(
+      blockedCheckoutRefundWitness,
+      "grainline_stripe_checkout_order_existing",
+    ));
+    await database.exec(replaceFunctionDefinition(
+      reconciliationMigration,
+      "grainline_blocked_checkout_refund_reconciliation_record",
+    ));
+    await database.exec(`
+      ALTER FUNCTION public.grainline_stripe_checkout_order_existing(
+        text, bigint, text
+      ) PARALLEL UNSAFE;
+      ALTER FUNCTION public.grainline_blocked_checkout_refund_reconciliation_record(
+        text, text, bigint, text, text, text, integer
+      ) PARALLEL UNSAFE;
+      REVOKE ALL ON FUNCTION public.grainline_stripe_checkout_order_existing(
+        text, bigint, text
+      ) FROM PUBLIC, grainline_app_runtime;
+      GRANT EXECUTE ON FUNCTION public.grainline_stripe_checkout_order_existing(
+        text, bigint, text
+      ) TO grainline_app_runtime;
+      REVOKE ALL ON FUNCTION public.grainline_blocked_checkout_refund_reconciliation_record(
+        text, text, bigint, text, text, text, integer
+      ) FROM PUBLIC, grainline_app_runtime;
+      GRANT EXECUTE ON FUNCTION public.grainline_blocked_checkout_refund_reconciliation_record(
+        text, text, bigint, text, text, text, integer
+      ) TO grainline_app_runtime;
+    `);
+    await database.exec(recoveryPreflight);
+
+    await database.exec(`
+      ALTER FUNCTION public.grainline_stripe_checkout_order_existing(
+        text, bigint, text
+      ) PARALLEL SAFE
+    `);
+    await assert.rejects(
+      database.exec(recoveryPreflight),
+      /predecessor catalog drifted/,
+    );
+    await database.exec(`
+      ALTER FUNCTION public.grainline_stripe_checkout_order_existing(
+        text, bigint, text
+      ) PARALLEL UNSAFE
+    `);
+
+    const driftedPredecessor = replaceFunctionDefinition(
+      reconciliationMigration,
+      "grainline_blocked_checkout_refund_reconciliation_record",
+    ).replace(
+      "Blocked-checkout reconciliation record input is invalid",
+      "Blocked-checkout reconciliation record input drifted",
+    );
+    assert.notEqual(
+      driftedPredecessor,
+      functionDefinition(
+        reconciliationMigration,
+        "grainline_blocked_checkout_refund_reconciliation_record",
+      ),
+    );
+    await database.exec(driftedPredecessor);
+    await assert.rejects(
+      database.exec(recoveryPreflight),
+      /predecessor catalog drifted/,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("blocked-checkout refund recovery postflight rejects source, metadata, and ACL drift", async () => {
+  const database = await createDatabase();
+  try {
+    await database.exec(recoveryPostflight);
+
+    await database.exec(`
+      ALTER FUNCTION public.grainline_stripe_checkout_order_existing(
+        text, bigint, text
+      ) PARALLEL SAFE
+    `);
+    await assert.rejects(
+      database.exec(recoveryPostflight),
+      /postflight catalog drifted/,
+    );
+    await database.exec(`
+      ALTER FUNCTION public.grainline_stripe_checkout_order_existing(
+        text, bigint, text
+      ) PARALLEL UNSAFE
+    `);
+
+    await database.exec(`
+      REVOKE EXECUTE ON FUNCTION public.grainline_blocked_checkout_refund_reconciliation_record(
+        text, text, bigint, text, text, text, integer
+      ) FROM grainline_app_runtime
+    `);
+    await assert.rejects(
+      database.exec(recoveryPostflight),
+      /postflight catalog drifted/,
+    );
+    await database.exec(`
+      GRANT EXECUTE ON FUNCTION public.grainline_blocked_checkout_refund_reconciliation_record(
+        text, text, bigint, text, text, text, integer
+      ) TO grainline_app_runtime
+    `);
+
+    const driftedSuccessor = functionDefinition(
+      blockedCheckoutRefundRecovery,
+      "grainline_blocked_checkout_refund_reconciliation_record",
+    ).replace(
+      "Blocked-checkout reconciliation completion raced",
+      "Blocked-checkout reconciliation completion source drifted",
+    );
+    assert.notEqual(
+      driftedSuccessor,
+      functionDefinition(
+        blockedCheckoutRefundRecovery,
+        "grainline_blocked_checkout_refund_reconciliation_record",
+      ),
+    );
+    await database.exec(driftedSuccessor);
+    await assert.rejects(
+      database.exec(recoveryPostflight),
+      /postflight catalog drifted/,
+    );
+  } finally {
+    await database.close();
+  }
+});
 
 test("fixed seller refund record atomically finalizes payment, stock, audit, and replay", async () => {
   const database = await createDatabase();
@@ -535,6 +837,312 @@ test("blocked-checkout claim hands off to a later signed lease and records once"
         FROM public."Listing" WHERE id = $1
       `, [listingId])).rows[0],
       { stockQuantity: 2, status: "ACTIVE" },
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("ADMIN reconciliation records an existing refund from a processed event and replays once", async () => {
+  const database = await createDatabase();
+  const reconciliationId =
+    "order-refund-reconcile:11111111-1111-1111-1111-111111111111";
+  try {
+    const { claim, listingId } = await seedBlockedReconciliation(database, {
+      orderId: "order-reconcile-processed",
+      eventId: "evt_reconcile_processed",
+      sessionId: "cs_reconcile_processed",
+      reconciliationId,
+    });
+    await database.exec(`
+      UPDATE public."StripeWebhookEvent"
+         SET "processingStartedAt" = NULL,
+             "processedAt" = CURRENT_TIMESTAMP
+       WHERE id = 'evt_reconcile_processed'
+    `);
+
+    const recorded = await reconcileBlockedRefund(database, {
+      reconciliationId,
+      claim,
+      refundId: "re_existing1",
+    });
+    assert.equal(recorded.action, "recorded");
+    assert.equal(recorded.refundId, "re_existing1");
+    assert.deepEqual(
+      (await database.query(`
+        SELECT "sellerRefundId" AS refund_id,
+               "refundClaimId" AS claim_id,
+               "blockedCheckoutRefundRequiredAt" IS NOT NULL AS required,
+               "blockedCheckoutRefundRecordedAt" IS NOT NULL AS recorded
+          FROM public."Order"
+         WHERE id = 'order-reconcile-processed'
+      `)).rows[0],
+      {
+        refund_id: "re_existing1",
+        claim_id: null,
+        required: true,
+        recorded: true,
+      },
+    );
+    assert.deepEqual(
+      (await database.query(`
+        SELECT "stockQuantity" AS stock, status::text AS status
+          FROM public."Listing" WHERE id = $1
+      `, [listingId])).rows[0],
+      { stock: 2, status: "ACTIVE" },
+    );
+    assert.equal(
+      (await database.query(`
+        SELECT count(*)::integer AS count
+          FROM public."OrderPaymentEvent"
+         WHERE "stripeObjectId" = 're_existing1'
+           AND metadata->>'localAction' = 'BLOCKED_CHECKOUT_REFUND_RECORDED'
+      `)).rows[0].count,
+      1,
+    );
+
+    const replay = await reconcileBlockedRefund(database, {
+      reconciliationId,
+      claim,
+      refundId: "re_existing1",
+    });
+    assert.equal(replay.action, "replay");
+    assert.equal(
+      (await database.query(`
+        SELECT count(*)::integer AS count
+          FROM public."OrderPaymentEvent"
+         WHERE "stripeObjectId" = 're_existing1'
+      `)).rows[0].count,
+      1,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("ADMIN reconciliation inherits a later processed event generation", async () => {
+  const database = await createDatabase();
+  const reconciliationId =
+    "order-refund-reconcile:22222222-2222-2222-2222-222222222222";
+  try {
+    const { claim } = await seedBlockedReconciliation(database, {
+      orderId: "order-reconcile-generation",
+      eventId: "evt_reconcile_generation",
+      sessionId: "cs_reconcile_generation",
+      reconciliationId,
+    });
+    await database.exec(`
+      UPDATE public."StripeWebhookEvent"
+         SET "claimGeneration" = 2,
+             "processingStartedAt" = NULL,
+             "processedAt" = CURRENT_TIMESTAMP
+       WHERE id = 'evt_reconcile_generation'
+    `);
+
+    const recorded = await reconcileBlockedRefund(database, {
+      reconciliationId,
+      claim,
+      refundId: "re_generation2",
+    });
+    assert.equal(recorded.action, "recorded");
+    assert.equal(
+      (await database.query(`
+        SELECT metadata->>'refundClaimSourceGeneration' AS source_generation
+          FROM public."OrderPaymentEvent"
+         WHERE "stripeObjectId" = 're_generation2'
+      `)).rows[0].source_generation,
+      "2",
+    );
+
+    const replay = await reconcileBlockedRefund(database, {
+      reconciliationId,
+      claim,
+      refundId: "re_generation2",
+    });
+    assert.equal(replay.action, "replay");
+    assert.equal(
+      (await database.query(`
+        SELECT count(*)::integer AS count
+          FROM public."OrderPaymentEvent"
+         WHERE "stripeObjectId" = 're_generation2'
+      `)).rows[0].count,
+      1,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("stale ADMIN reconciliation is non-retryable and fresh preparation sees the current generation", async () => {
+  const database = await createDatabase();
+  const reconciliationId =
+    "order-refund-reconcile:77777777-7777-7777-7777-777777777777";
+  try {
+    const { claim } = await seedBlockedReconciliation(database, {
+      orderId: "order-reconcile-stale-generation",
+      eventId: "evt_reconcile_stale_generation",
+      sessionId: "cs_reconcile_stale_generation",
+      reconciliationId,
+    });
+    await database.exec(`
+      UPDATE public."StripeWebhookEvent"
+         SET "claimGeneration" = 2,
+             "processingStartedAt" = NULL,
+             "processedAt" = CURRENT_TIMESTAMP
+       WHERE id = 'evt_reconcile_stale_generation';
+      UPDATE public."Order"
+         SET "refundClaimSourceGeneration" = 2
+       WHERE id = 'order-reconcile-stale-generation'
+    `);
+
+    await assert.rejects(
+      reconcileBlockedRefund(database, {
+        reconciliationId,
+        claim,
+        refundId: "re_stalegeneration",
+      }),
+      (error) => {
+        assert.equal(error.code, "G6881");
+        assert.match(error.message, /generation inheritance raced/);
+        return true;
+      },
+    );
+
+    await database.exec(replaceFunctionDefinition(
+      reconciliationMigration,
+      "grainline_order_refund_reconciliation_prepare",
+    ));
+    const prepared = (await database.query(`
+      SELECT public.grainline_order_refund_reconciliation_prepare(
+        'admin-user', 'order-reconcile-stale-generation'
+      ) AS claim
+    `)).rows[0].claim;
+    assert.equal(prepared.claimSourceGeneration, 2);
+    assert.equal(prepared.claimId, claim.claimId);
+    assert.equal(prepared.claimGeneration, claim.claimGeneration);
+    assert.equal(
+      (await database.query(`
+        SELECT count(*)::integer AS count
+          FROM public."OrderPaymentEvent"
+         WHERE "stripeObjectId" = 're_stalegeneration'
+      `)).rows[0].count,
+      0,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("ADMIN reconciliation refuses an active event lease without recording", async () => {
+  const database = await createDatabase();
+  const reconciliationId =
+    "order-refund-reconcile:33333333-3333-3333-3333-333333333333";
+  try {
+    const { claim } = await seedBlockedReconciliation(database, {
+      orderId: "order-reconcile-active",
+      eventId: "evt_reconcile_active",
+      sessionId: "cs_reconcile_active",
+      reconciliationId,
+    });
+    await assert.rejects(
+      reconcileBlockedRefund(database, {
+        reconciliationId,
+        claim,
+        refundId: "re_activelease",
+      }),
+      /source event is not recoverable/,
+    );
+    assert.deepEqual(
+      (await database.query(`
+        SELECT "refundClaimId" AS claim_id,
+               "blockedCheckoutRefundRecordedAt" AS recorded_at
+          FROM public."Order" WHERE id = 'order-reconcile-active'
+      `)).rows[0],
+      { claim_id: claim.claimId, recorded_at: null },
+    );
+    assert.equal(
+      (await database.query(`
+        SELECT count(*)::integer AS count
+          FROM public."OrderPaymentEvent"
+         WHERE "stripeObjectId" = 're_activelease'
+      `)).rows[0].count,
+      0,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
+test("blocked-checkout reconciliation rejects wrong actor, authority, and event source", async () => {
+  const database = await createDatabase();
+  try {
+    const employeeReconciliation =
+      "order-refund-reconcile:44444444-4444-4444-4444-444444444444";
+    const employee = await seedBlockedReconciliation(database, {
+      orderId: "order-reconcile-employee",
+      eventId: "evt_reconcile_employee",
+      sessionId: "cs_reconcile_employee",
+      reconciliationId: employeeReconciliation,
+      actorUserId: "employee-user",
+    });
+    await database.exec(`
+      UPDATE public."StripeWebhookEvent"
+         SET "processingStartedAt" = NULL
+       WHERE id = 'evt_reconcile_employee'
+    `);
+    await assert.rejects(
+      reconcileBlockedRefund(database, {
+        reconciliationId: employeeReconciliation,
+        claim: employee.claim,
+        refundId: "re_employee",
+      }),
+      /requires a current ADMIN/,
+    );
+
+    const wrongSourceReconciliation =
+      "order-refund-reconcile:55555555-5555-5555-5555-555555555555";
+    const wrongSource = await seedBlockedReconciliation(database, {
+      orderId: "order-reconcile-source",
+      eventId: "evt_reconcile_source",
+      sessionId: "cs_reconcile_source",
+      reconciliationId: wrongSourceReconciliation,
+      claimSource: "SELLER",
+    });
+    await database.exec(`
+      UPDATE public."StripeWebhookEvent"
+         SET "processingStartedAt" = NULL
+       WHERE id = 'evt_reconcile_source'
+    `);
+    await assert.rejects(
+      reconcileBlockedRefund(database, {
+        reconciliationId: wrongSourceReconciliation,
+        claim: wrongSource.claim,
+        refundId: "re_wrongsource",
+      }),
+      /authority is invalid/,
+    );
+
+    const wrongEventReconciliation =
+      "order-refund-reconcile:66666666-6666-6666-6666-666666666666";
+    const wrongEvent = await seedBlockedReconciliation(database, {
+      orderId: "order-reconcile-event",
+      eventId: "evt_reconcile_event",
+      sessionId: "cs_reconcile_event",
+      reconciliationId: wrongEventReconciliation,
+    });
+    await database.exec(`
+      UPDATE public."StripeWebhookEvent"
+         SET type = 'charge.refunded',
+             "processingStartedAt" = NULL
+       WHERE id = 'evt_reconcile_event'
+    `);
+    await assert.rejects(
+      reconcileBlockedRefund(database, {
+        reconciliationId: wrongEventReconciliation,
+        claim: wrongEvent.claim,
+        refundId: "re_wrongevent",
+      }),
+      /source event is not recoverable/,
     );
   } finally {
     await database.close();
@@ -907,6 +1515,11 @@ test("refund record functions reject drift and expose only the reviewed runtime 
         ) AS resume_runtime,
         pg_catalog.has_function_privilege(
           'grainline_app_runtime',
+          'public.grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)',
+          'EXECUTE'
+        ) AS reconciliation_runtime,
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
           'public.grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)',
           'EXECUTE'
         ) AS core_runtime,
@@ -919,15 +1532,22 @@ test("refund record functions reject drift and expose only the reviewed runtime 
           'public',
           'public.grainline_seller_refund_record(text,text,bigint,text,text,text,integer)',
           'EXECUTE'
-        ) AS seller_public
+        ) AS seller_public,
+        pg_catalog.has_function_privilege(
+          'public',
+          'public.grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)',
+          'EXECUTE'
+        ) AS reconciliation_public
     `)).rows[0];
     assert.deepEqual(privileges, {
       seller_runtime: true,
       blocked_runtime: true,
       resume_runtime: true,
+      reconciliation_runtime: true,
       core_runtime: false,
       core_public: false,
       seller_public: false,
+      reconciliation_public: false,
     });
   } finally {
     await database.close();

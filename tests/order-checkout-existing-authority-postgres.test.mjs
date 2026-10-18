@@ -9,9 +9,9 @@ const candidate = fs.readFileSync(
   "docs/rls-drafts/order-checkout-existing-authority.sql",
   "utf8",
 );
-const blockedCheckoutRefundWitness = fs.readFileSync(
-  process.env.BLOCKED_CHECKOUT_REFUND_WITNESS_MIGRATION_PATH ||
-  "prisma/migrations/20261015030000_preserve_blocked_checkout_refund_witness/migration.sql",
+const blockedCheckoutRefundRecovery = fs.readFileSync(
+  process.env.BLOCKED_CHECKOUT_REFUND_RECOVERY_MIGRATION_PATH ||
+  "prisma/migrations/20261015040000_repair_blocked_checkout_refund_recovery/migration.sql",
   "utf8",
 );
 const rows = (result) => result.rows;
@@ -66,6 +66,8 @@ describe("Order checkout existing PostgreSQL authority", () => {
         "refundClaimId" varchar(255),
         "refundClaimSource" varchar(32),
         "refundClaimSourceId" varchar(255),
+        "refundClaimSourceGeneration" bigint,
+        "refundClaimProviderAuthorizedAt" timestamp(3) without time zone,
         "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
         "reviewNeeded" boolean NOT NULL DEFAULT false,
         "reviewNote" varchar(10000),
@@ -90,7 +92,7 @@ describe("Order checkout existing PostgreSQL authority", () => {
     `);
     await db.exec(candidate);
     await db.exec(functionDefinition(
-      blockedCheckoutRefundWitness,
+      blockedCheckoutRefundRecovery,
       "grainline_stripe_checkout_order_existing",
     ));
   });
@@ -178,7 +180,9 @@ describe("Order checkout existing PostgreSQL authority", () => {
              "sellerRefundLockedAt" = clock_timestamp() AT TIME ZONE 'UTC',
              "refundClaimId" = NULL,
              "refundClaimSource" = NULL,
-             "refundClaimSourceId" = NULL
+             "refundClaimSourceId" = NULL,
+             "refundClaimSourceGeneration" = NULL,
+             "refundClaimProviderAuthorizedAt" = NULL
        WHERE id = 'order-1'
     `);
     await db.exec("SET ROLE grainline_app_runtime");
@@ -203,7 +207,10 @@ describe("Order checkout existing PostgreSQL authority", () => {
          SET "sellerRefundLockedAt" = clock_timestamp() AT TIME ZONE 'UTC',
              "refundClaimId" = 'claim-1',
              "refundClaimSource" = 'BLOCKED_CHECKOUT',
-             "refundClaimSourceId" = 'evt-existing'
+             "refundClaimSourceId" = 'evt-existing',
+             "refundClaimSourceGeneration" = 1,
+             "refundClaimProviderAuthorizedAt" = CURRENT_TIMESTAMP,
+             "paymentRefundBlocked" = true
        WHERE id = 'order-1'
     `);
     await db.exec("SET ROLE grainline_app_runtime");
@@ -222,6 +229,16 @@ describe("Order checkout existing PostgreSQL authority", () => {
     } finally {
       await db.exec("RESET ROLE");
     }
+    await db.exec(`
+      UPDATE public."Order"
+         SET "paymentRefundBlocked" = false,
+             "refundClaimId" = NULL,
+             "refundClaimSource" = NULL,
+             "refundClaimSourceId" = NULL,
+             "refundClaimSourceGeneration" = NULL,
+             "refundClaimProviderAuthorizedAt" = NULL
+       WHERE id = 'order-1'
+    `);
   });
 
   it("does not treat a released claim or overwritten staff note as completion", async () => {

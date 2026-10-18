@@ -19641,3 +19641,57 @@ Current running tally after Entry 572: verified fixed/reduced 1105, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 86,
 approximate raw allegations left from current max #1126: 0. The raw Claude
 finding remains preserved in its source ledger.
+
+### Entry 573 - Claude finding #688 blocked-checkout refund recovery
+
+Entry 573 independently verifies finding #688 as real and prepares its exact
+source correction. If Stripe completed a blocked-checkout refund and a signed
+`charge.refunded` event arrived before Grainline's local refund-record
+transaction committed, the signed projection set `paymentRefundBlocked` while
+the exact provider-authorized claim remained pending. Existing-order checkout
+replay then returned `processing` forever. The buyer was refunded, but the
+order's refund witness, claim, stock, and local payment evidence never
+converged. The existing ADMIN reconciliation wrapper also rejected a failed,
+processed, or later-generation checkout event even when immutable
+reconciliation evidence proved the same provider refund.
+
+Candidate migration
+`20261015040000_repair_blocked_checkout_refund_recovery` changes exactly two
+functions. Checkout replay resumes only the exact provider-authorized pending
+claim. ADMIN reconciliation can inherit the locked current checkout-event
+generation only while the exact active claim, session, idempotency scope,
+provider authorization, and outstanding witness all still match, then delegates
+to the existing append-only refund-record core. It never calls Stripe or creates
+a second refund.
+
+The failing-first PostgreSQL 16 proof uses the complete 347-migration schema. It
+reproduces the stuck `processing` result and later-generation reconciliation
+denial on the exact predecessors, then proves retry, one immutable refund event,
+one stock restoration, one completion witness, and stable replay after the
+candidate. That work also found a harness-composition defect: the #648 scenario
+rewound the blocked-checkout record core but did not restore its later #664
+successor. The scenario now restores the exact #664 body before returning, so
+subsequent proofs exercise the actual final schema. A deterministic builder
+derives both #688 successors from their exact live predecessor migrations and
+is byte-equal to the migration.
+
+Independent review also identified a permanent stale-reconciliation branch
+misclassified as retryable `40001`. A failing-first PostgreSQL test reproduces
+the old code when another recovery has already moved the claim to the current
+event generation. The candidate now returns dedicated SQLSTATE `G6881`, skips the same-request
+blind retry and tells staff to refresh. The next submission runs the ordinary
+prepare and provider-inspection sequence against the current generation; no
+provider evidence is reused across that boundary.
+
+The source candidate includes a database-only protected workflow bound to the
+exact independently reviewed main commit, exact successful push CI, every green
+exact-main push workflow, the sole-pending migration, exact function/ACL
+preflight and postflight, unchanged `OrderPaymentEvent` immutability posture,
+and the global grant audit. Production remains unchanged. Independent review,
+merge, exact-head CI, and a separately authorized Production dispatch remain
+open release gates; historical refund repair remains a separate operation.
+
+Current running tally after Entry 573: verified fixed/reduced 1106, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 86,
+approximate raw allegations left from current max #1126: 0. The raw Claude
+finding remains preserved in its source ledger.
