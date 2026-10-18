@@ -202,10 +202,29 @@ test("Production verifier composes the core and follow-up source states", () => 
   assert.equal(specs.beforeCore.size, 15);
   assert.equal(specs.afterCore.size, 15);
   assert.equal(specs.finalSuccessor.size, 15);
+  assert.equal(specs.executionPosture.size, 15);
   assert.equal(specs.runtimeExecute.size, 15);
   assert.equal(
     [...specs.runtimeExecute.values()].filter((value) => value === false).length,
     1,
+  );
+  assert.deepEqual(
+    specs.executionPosture.get(
+      "public.grainline_order_ops_health_summary()",
+    ),
+    { parallel: "s", volatility: "s" },
+  );
+  assert.equal(
+    [...specs.executionPosture.values()].filter(
+      (posture) => posture.volatility === "s" && posture.parallel === "s",
+    ).length,
+    1,
+  );
+  assert.equal(
+    [...specs.executionPosture.values()].filter(
+      (posture) => posture.volatility === "v" && posture.parallel === "u",
+    ).length,
+    14,
   );
 });
 
