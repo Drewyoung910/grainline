@@ -132,7 +132,7 @@ jobs:
           set -euo pipefail
           migration=20261015040000_repair_blocked_checkout_refund_recovery
           test -f "prisma/migrations/$migration/migration.sql"
-          echo "9e9f3456787832e6b89ee10d4de0a446047679c886d400c6dd5d164f44734111  prisma/migrations/$migration/migration.sql" \
+          echo "e2cfb6668d4ec075e0317916be851b5c304f8f7d70ffe2865da5040f578a05d0  prisma/migrations/$migration/migration.sql" \
             | sha256sum --check --status
           node scripts/build-blocked-checkout-refund-recovery-migration.mjs --verify
           node --test --test-concurrency=1 \
