@@ -14,11 +14,13 @@ import { sanitizeText } from "@/lib/sanitize";
 import { logServerError } from "@/lib/serverErrorLogger";
 import {
   chooseOrderRefundReconciliationAction,
+  isStaleBlockedCheckoutRefundReconciliation,
   markOrderRefundClaimAmbiguous,
   orderRefundReconciliationCommitted,
   prepareOrderRefundReconciliation,
   reconcileOrderRefundClaim,
 } from "@/lib/orderRefundReconciliationAuthority";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import {
   inspectOrderRefundProviderEffect,
   resolveOrderRefundProviderOutcome,
@@ -90,6 +92,12 @@ async function finalizePreparedRefund(
   try {
     return await finalize();
   } catch (firstError) {
+    if (isStaleBlockedCheckoutRefundReconciliation(
+      claim.source,
+      getPrismaRawSqlState(firstError),
+    )) {
+      throw firstError;
+    }
     logServerError(firstError, {
       source: "admin_order_refund_reconciliation_finalize_retry",
       extra: { orderId, claimSource: claim.source },
@@ -190,6 +198,23 @@ export async function reconcileAmbiguousOrderRefund(
         : "The still-safe idempotency scope was retried and the resulting refund was recorded.",
     };
   } catch (error) {
+    if (
+      preparedClaim
+      && isStaleBlockedCheckoutRefundReconciliation(
+        preparedClaim.source,
+        getPrismaRawSqlState(error),
+      )
+    ) {
+      logServerError(error, {
+        source: "admin_order_refund_reconciliation_stale",
+        extra: { orderId, claimSource: preparedClaim.source },
+      });
+      return {
+        ok: false,
+        error:
+          "The checkout refund changed while reconciliation was being recorded. Refresh and run reconciliation again so the current claim is prepared before Stripe is inspected.",
+      };
+    }
     if (preparedClaim) {
       try {
         await markOrderRefundClaimAmbiguous({

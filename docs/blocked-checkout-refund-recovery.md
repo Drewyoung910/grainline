@@ -44,6 +44,12 @@ witness all still match. It then delegates to the existing immutable refund
 record core. Record and replay retain one `OrderPaymentEvent`, one refund id,
 one stock restoration, and the durable completion witness.
 
+If another recovery has already moved the claim to the current event generation,
+the older immutable reconciliation is permanently stale. That condition returns
+non-retryable SQLSTATE `55000`; the admin action does not repeat the same doomed
+finalization or rewrite the claim. A refreshed submission prepares the current
+claim and inspects Stripe again before creating new reconciliation evidence.
+
 A processed Stripe event cannot later acquire another claim generation:
 `grainline_stripe_webhook_begin` returns `processed` before the generation
 increment. That makes replay at the recorded generation stable without
@@ -63,7 +69,9 @@ temporarily reinstalls the exact two predecessors and proves:
 5. the later-generation reconciliation records the existing refund exactly
    once, restores stock once, reactivates the eligible listing, records the
    witness, and replays the same immutable event; and
-6. the preceding #648 proof restores the later #664 core before this scenario,
+6. a reconciliation whose generation was already superseded returns `55000`
+   without recording, while fresh preparation reads the current generation; and
+7. the preceding #648 proof restores the later #664 core before this scenario,
    so the run exercises the actual final migration order rather than stale
    harness state.
 

@@ -13,7 +13,7 @@ import {
 } from "./order-refund-immutable-event-production-ledger.mjs";
 
 const MIGRATION_SHA256 =
-  "9e9f3456787832e6b89ee10d4de0a446047679c886d400c6dd5d164f44734111";
+  "bc484f39ab676f9dba8d56dd5a810d9675e806707915aa1214bdc7f2c22779e6";
 const IDENTITIES = [
   "public.grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)",
   "public.grainline_stripe_checkout_order_existing(text,bigint,text)",

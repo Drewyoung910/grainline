@@ -973,6 +973,66 @@ test("ADMIN reconciliation inherits a later processed event generation", async (
   }
 });
 
+test("stale ADMIN reconciliation is non-retryable and fresh preparation sees the current generation", async () => {
+  const database = await createDatabase();
+  const reconciliationId =
+    "order-refund-reconcile:77777777-7777-7777-7777-777777777777";
+  try {
+    const { claim } = await seedBlockedReconciliation(database, {
+      orderId: "order-reconcile-stale-generation",
+      eventId: "evt_reconcile_stale_generation",
+      sessionId: "cs_reconcile_stale_generation",
+      reconciliationId,
+    });
+    await database.exec(`
+      UPDATE public."StripeWebhookEvent"
+         SET "claimGeneration" = 2,
+             "processingStartedAt" = NULL,
+             "processedAt" = CURRENT_TIMESTAMP
+       WHERE id = 'evt_reconcile_stale_generation';
+      UPDATE public."Order"
+         SET "refundClaimSourceGeneration" = 2
+       WHERE id = 'order-reconcile-stale-generation'
+    `);
+
+    await assert.rejects(
+      reconcileBlockedRefund(database, {
+        reconciliationId,
+        claim,
+        refundId: "re_stalegeneration",
+      }),
+      (error) => {
+        assert.equal(error.code, "55000");
+        assert.match(error.message, /generation inheritance raced/);
+        return true;
+      },
+    );
+
+    await database.exec(replaceFunctionDefinition(
+      reconciliationMigration,
+      "grainline_order_refund_reconciliation_prepare",
+    ));
+    const prepared = (await database.query(`
+      SELECT public.grainline_order_refund_reconciliation_prepare(
+        'admin-user', 'order-reconcile-stale-generation'
+      ) AS claim
+    `)).rows[0].claim;
+    assert.equal(prepared.claimSourceGeneration, 2);
+    assert.equal(prepared.claimId, claim.claimId);
+    assert.equal(prepared.claimGeneration, claim.claimGeneration);
+    assert.equal(
+      (await database.query(`
+        SELECT count(*)::integer AS count
+          FROM public."OrderPaymentEvent"
+         WHERE "stripeObjectId" = 're_stalegeneration'
+      `)).rows[0].count,
+      0,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
 test("ADMIN reconciliation refuses an active event lease without recording", async () => {
   const database = await createDatabase();
   const reconciliationId =

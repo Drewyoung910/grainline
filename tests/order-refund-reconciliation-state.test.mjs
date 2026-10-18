@@ -3,6 +3,7 @@ import test from "node:test";
 
 const {
   chooseOrderRefundReconciliationAction,
+  isStaleBlockedCheckoutRefundReconciliation,
   ORDER_REFUND_RECONCILIATION_WINDOWS,
 } = await import("../src/lib/orderRefundReconciliationState.ts");
 
@@ -16,6 +17,21 @@ function inspection(disposition, ageSeconds) {
 }
 
 const claim = { providerAuthorizedAtSeconds: 1_000_000 };
+
+test("only a stale blocked-checkout reconciliation is non-retryable", () => {
+  assert.equal(
+    isStaleBlockedCheckoutRefundReconciliation("BLOCKED_CHECKOUT", "55000"),
+    true,
+  );
+  assert.equal(
+    isStaleBlockedCheckoutRefundReconciliation("BLOCKED_CHECKOUT", "40001"),
+    false,
+  );
+  assert.equal(
+    isStaleBlockedCheckoutRefundReconciliation("SELLER", "55000"),
+    false,
+  );
+});
 
 test("refund reconciliation retries only an absent claim before 23 hours", () => {
   assert.deepEqual(
