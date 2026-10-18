@@ -33,7 +33,7 @@ const paymentEventInvariantMigration = readFileSync(
   "utf8",
 );
 const sellerPrivateMigrationRoot =
-  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR ?? "prisma/migrations";
+  process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR || "prisma/migrations";
 const sellerPrivateReconciliationMigration = readFileSync(
   path.join(
     sellerPrivateMigrationRoot,
@@ -51,7 +51,7 @@ const sellerPrivateReconciliationTargetCorrection = readFileSync(
   "utf8",
 );
 const immutableRefundRecordRepair = readFileSync(
-  process.env.ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH ??
+  process.env.ORDER_REFUND_IMMUTABLE_EVENT_MIGRATION_PATH ||
     "prisma/migrations/20261015020000_repair_immutable_order_refund_recording/migration.sql",
   "utf8",
 );
