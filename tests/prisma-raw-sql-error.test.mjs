@@ -18,6 +18,10 @@ describe("Prisma raw SQL error classification", () => {
       "42501",
     );
     assert.equal(
+      getPrismaRawSqlState(knownError("P2010", { code: "G6881" })),
+      "G6881",
+    );
+    assert.equal(
       getPrismaRawSqlState(knownError("P2002", { code: "23505" })),
       null,
     );
@@ -76,6 +80,15 @@ describe("Prisma raw SQL error classification", () => {
     });
 
     assert.equal(getPrismaRawSqlState(knownAdapterError), "23514");
+    assert.equal(
+      getPrismaRawSqlState(knownError("P2010", {
+        driverAdapterError: {
+          ...adapterError,
+          cause: { ...adapterError.cause, originalCode: "G6881" },
+        },
+      })),
+      "G6881",
+    );
     assert.equal(
       getPrismaRawSqlState(knownError("P2002", { driverAdapterError: adapterError })),
       null,
