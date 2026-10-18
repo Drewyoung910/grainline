@@ -64,7 +64,9 @@ test("#710 Production inventory is aggregate and read-only", () => {
   );
   assert.match(inventory, /pendingLocalRefundLock' = 'false'/u);
   assert.match(inventory, /refund_event\."createdAt" >= claim\."createdAt"/u);
-  assert.match(inventory, /pg_catalog\.count\(\*\)::integer AS claims/u);
+  assert.match(inventory, /AS repairable_claims/u);
+  assert.match(inventory, /AS unrepairable_claims/u);
+  assert.match(inventory, /FILTER \(WHERE NOT stuck\.repairable\)/u);
   assert.doesNotMatch(
     inventory,
     /\b(?:INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|TRUNCATE|GRANT|REVOKE)\b/iu,

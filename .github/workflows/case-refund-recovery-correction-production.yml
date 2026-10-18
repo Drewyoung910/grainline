@@ -1,0 +1,212 @@
+name: Case Refund Recovery Correction Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact independently reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-case-refund-recovery-correction
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed Case refund recovery correction
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-case-refund-recovery-correction'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind release to exact main and completed push workflows
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Case refund recovery release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.event !== 'push' || run.head_branch !== 'main' ||
+                run.head_sha !== sha || run.status !== 'completed' ||
+                run.conclusion !== 'success') {
+              throw new Error('Case refund recovery main/CI readback drifted');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {
+                ...context.repo,
+                branch: 'main',
+                event: 'push',
+                head_sha: sha,
+                per_page: 100,
+              },
+            );
+            const latestByWorkflow = new Map();
+            for (const exactRun of exactPushRuns) {
+              if (exactRun.head_sha !== sha || exactRun.head_branch !== 'main' ||
+                  exactRun.event !== 'push') continue;
+              const key = exactRun.path || exactRun.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(exactRun.id) > Number(previous.id)) {
+                latestByWorkflow.set(key, exactRun);
+              }
+            }
+            const requiredPushWorkflowPaths = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missingPushWorkflows = [...requiredPushWorkflowPaths]
+              .filter((path) => !latestByWorkflow.has(path));
+            if (missingPushWorkflows.length !== 0) {
+              throw new Error(
+                `Required exact-main push workflows are absent: ${missingPushWorkflows.join(', ')}`,
+              );
+            }
+            const unacceptablePushRuns = [...latestByWorkflow.values()]
+              .filter((exactRun) => exactRun.status !== 'completed' ||
+                exactRun.conclusion !== 'success');
+            if (unacceptablePushRuns.length !== 0) {
+              throw new Error(
+                `Exact-main push workflows are not all green: ${unacceptablePushRuns
+                  .map((exactRun) =>
+                    `${exactRun.name}:${exactRun.status}/${exactRun.conclusion}`)
+                  .join(', ')}`,
+              );
+            }
+      - name: Verify exact candidate bytes and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=20261016010000_correct_case_refund_recovery_core
+          followup=20261016011000_correct_case_refund_followup_deadends
+          echo "c7e3e7f259c9f721ca7f46e20f7af92a12c302e496b2c37a130f3be3004a3f27  prisma/migrations/$core/migration.sql" \
+            | sha256sum --check --status
+          echo "71ae9d866d67b181b28cb0eca1ede74e032ac7c57de398bde95a9e6d95b7619e  prisma/migrations/$followup/migration.sql" \
+            | sha256sum --check --status
+          node --test --test-concurrency=1 \
+            tests/case-refund-followup-correction.test.mjs \
+            tests/case-refund-recovery-production-release.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect exact predecessor, inventory, and restart state read-only
+        id: preflight
+        run: node scripts/case-refund-recovery-production-verify.mjs preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Require safe inventory and exactly the reviewed pending suffix
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          CORE_STATE: ${{ steps.preflight.outputs.core_state }}
+          FOLLOWUP_STATE: ${{ steps.preflight.outputs.followup_state }}
+          UNREPAIRABLE_CLAIMS: ${{ steps.preflight.outputs.unrepairable_claims }}
+        run: |
+          set -euo pipefail
+          core=20261016010000_correct_case_refund_recovery_core
+          followup=20261016011000_correct_case_refund_followup_deadends
+          if [[ "$CORE_STATE" == "pending" && "$FOLLOWUP_STATE" == "pending" ]]; then
+            test "$UNREPAIRABLE_CLAIMS" = "0"
+            REVIEWED_PENDING_MIGRATIONS="$core,$followup" \
+              node scripts/assert-reviewed-pending-migrations.mjs
+          elif [[ "$CORE_STATE" == "applied" && "$FOLLOWUP_STATE" == "pending" ]]; then
+            test "$UNREPAIRABLE_CLAIMS" = "0"
+            REVIEWED_PENDING_MIGRATIONS="$followup" \
+              node scripts/assert-reviewed-pending-migrations.mjs
+          elif [[ "$CORE_STATE" == "applied" && "$FOLLOWUP_STATE" == "applied" ]]; then
+            REVIEWED_PENDING_MIGRATIONS="" \
+              node scripts/assert-reviewed-pending-migrations.mjs
+            npx prisma migrate status
+          else
+            echo "Unexpected Case refund recovery migration state" >&2
+            exit 1
+          fi
+      - name: Apply only the reviewed Case refund recovery suffix
+        if: >-
+          steps.preflight.outputs.core_state == 'pending' ||
+          steps.preflight.outputs.followup_state == 'pending'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Read back exact functions, ACLs, ledger, and evidence
+        run: node scripts/case-refund-recovery-production-verify.mjs postflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Require no pending migrations after apply
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ""
+        run: |
+          node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate status
+      - name: Audit global grants after Case refund recovery
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized Case refund recovery evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: case-refund-recovery-production-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/case-refund-recovery-preflight.json
+            ${{ runner.temp }}/case-refund-recovery-postflight.json
+          if-no-files-found: warn
+          retention-days: 30
+          include-hidden-files: false

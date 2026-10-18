@@ -7,24 +7,12 @@ SET LOCAL statement_timeout = '30s';
 SET LOCAL lock_timeout = '5s';
 SET LOCAL idle_in_transaction_session_timeout = '60s';
 
-WITH candidate AS (
+-- @query summary
+WITH stuck AS (
   SELECT
     claim.id,
-    claim."refundAmountCents" AS refund_amount_cents
-  FROM public."CaseResolutionClaim" AS claim
-  JOIN public."Order" AS orders
-    ON orders.id = claim."orderId"
-   AND orders."caseResolutionClaimId" = claim.id
-  WHERE claim.status =
-          'RECONCILIATION_REQUIRED'::public."CaseResolutionClaimStatus"
-    AND claim."orderPaymentEventId" IS NULL
-    AND orders."sellerRefundId" IS NOT NULL
-    AND orders."sellerRefundId" NOT IN (
-      'pending',
-      'ambiguous_refund_pending_reconciliation'
-    )
-    AND orders."sellerRefundLockedAt" IS NULL
-    AND EXISTS (
+    claim."refundAmountCents" AS refund_amount_cents,
+    EXISTS (
       SELECT 1
       FROM public."OrderPaymentEvent" AS refund_event
       WHERE refund_event."orderId" = orders.id
@@ -43,12 +31,36 @@ WITH candidate AS (
           OR pg_catalog.lower(refund_event.status)
                NOT IN ('failed', 'canceled', 'cancelled')
         )
+    ) AS repairable
+  FROM public."CaseResolutionClaim" AS claim
+  JOIN public."Order" AS orders
+    ON orders.id = claim."orderId"
+   AND orders."caseResolutionClaimId" = claim.id
+  WHERE claim.status =
+          'RECONCILIATION_REQUIRED'::public."CaseResolutionClaimStatus"
+    AND claim."orderPaymentEventId" IS NULL
+    AND orders."sellerRefundId" IS NOT NULL
+    AND orders."sellerRefundId" NOT IN (
+      'pending',
+      'ambiguous_refund_pending_reconciliation'
     )
+    AND orders."sellerRefundLockedAt" IS NULL
 )
 SELECT
-  pg_catalog.count(*)::integer AS claims,
-  COALESCE(pg_catalog.sum(candidate.refund_amount_cents), 0)::bigint
-    AS refund_amount_cents
-FROM candidate;
+  pg_catalog.count(*) FILTER (WHERE stuck.repairable)::integer
+    AS repairable_claims,
+  COALESCE(
+    pg_catalog.sum(stuck.refund_amount_cents)
+      FILTER (WHERE stuck.repairable),
+    0
+  )::bigint AS repairable_refund_amount_cents,
+  pg_catalog.count(*) FILTER (WHERE NOT stuck.repairable)::integer
+    AS unrepairable_claims,
+  COALESCE(
+    pg_catalog.sum(stuck.refund_amount_cents)
+      FILTER (WHERE NOT stuck.repairable),
+    0
+  )::bigint AS unrepairable_refund_amount_cents
+FROM stuck;
 
 ROLLBACK;
