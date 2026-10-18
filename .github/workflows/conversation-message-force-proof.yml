@@ -23,21 +23,6 @@ on:
     branches:
       - agent/conversation-message-force-20260726
       - main
-    paths:
-      - .github/workflows/conversation-message-force-proof.yml
-      - package.json
-      - package-lock.json
-      - prisma/**
-      - scripts/audit-runtime-db-grants.mjs
-      - scripts/conversation-message-force-rollback-proof.mjs
-      - scripts/conversation-message-recipient-rls-proof.mjs
-      - scripts/guard-saved-search-rls-deploy.mjs
-      - scripts/prepare-ci-rls-runtime-role.sql
-      - scripts/provision-direct-upload-cleanup-role.sql
-      - scripts/provision-runtime-db-role.sql
-      - scripts/verify-conversation-message-activation-release.mjs
-      - scripts/verify-conversation-message-force-release.mjs
-      - tests/conversation-message-recipient-rls.test.mjs
   workflow_dispatch:
 
 permissions:

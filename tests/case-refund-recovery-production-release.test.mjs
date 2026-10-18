@@ -23,6 +23,14 @@ const workflow = fs.readFileSync(
   "utf8",
 );
 const parsedWorkflow = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
+const conversationProofWorkflow = fs.readFileSync(
+  ".github/workflows/conversation-message-force-proof.yml",
+  "utf8",
+);
+const parsedConversationProofWorkflow = yaml.load(
+  conversationProofWorkflow,
+  { schema: yaml.JSON_SCHEMA },
+);
 const bindingScript = parsedWorkflow.jobs.apply.steps.find(
   (step) => step.name === "Bind release to exact main and completed push workflows",
 ).with.script;
@@ -242,6 +250,11 @@ test("Production workflow requires all exact-main push workflows green", async (
     }),
     /Required exact-main push workflows are absent/u,
   );
+});
+
+test("required Conversation proof runs on every main push", () => {
+  assert.ok(parsedConversationProofWorkflow.on.push.branches.includes("main"));
+  assert.equal(parsedConversationProofWorkflow.on.push.paths, undefined);
 });
 
 test("Production workflow gates SQL on inventory and exact pending suffix", () => {
