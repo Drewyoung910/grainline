@@ -30,9 +30,12 @@ A machine-checked manifest now assigns all 100 to their public-profile,
 eligibility, exact-map, owner, participant, staff, service and transaction
 contracts. The full-chain PostgreSQL 16 catalog also records 130 matching
 security-definer functions, six direct table triggers, 16 incoming foreign
-keys and the exact function execute-principal split. Next classify those
-database objects, resolve relevant opaque source shapes, define exact
-fields/predicates, reconcile seller, location, visibility, deletion, Guild and
+keys and the exact function execute-principal split. The manifest also
+reconciles every reported opaque source shape, and the catalog now classifies
+98 retained fixed authorities, 32 internal-support functions and all six
+direct table triggers. Next define exact fields/predicates, map retained
+authorities to behavior evidence, reconcile seller, location,
+visibility, deletion, Guild and
 staff findings, and make the domain go/no-go decision. No public-table view,
 function, policy, grant or migration implementation begins until that audit
 closes. Keep `CommissionRequest` as a separate RLS release.

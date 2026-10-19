@@ -82,14 +82,19 @@ AST scanner exposed as `npm run audit:seller-profile-public-access`. It scans
   function bodies that reference `SellerProfile`, including 91 existing
   runtime-executable fixed authorities; 24 dependent triggers, six directly on
   the table; 16 incoming foreign keys; and no existing view. Those database
-  objects form a separate retained-authority classification queue.
+  objects are now classified as 98 retained fixed authorities (91 app runtime,
+  7 staff read), 32 owner/internal support functions, and six internal-support
+  table triggers. No matching installed function is public-executable or
+  classified for retirement merely for this RLS conversion.
 
 The earlier regex estimate of 73 direct calls in 52 files counted only literal
 `prisma.sellerProfile` expressions and missed `tx`, `client`, and `db`
 receivers. Its 106-file relation estimate mixed real and false-positive
-relations. It is retired in favor of the schema-aware inventory. The scanner
-also reports unresolved generic query shapes for manual triage; those are an
-audit queue, not assumed `SellerProfile` accesses.
+relations. It is retired in favor of the schema-aware inventory. The scanner's
+218 opaque generic shapes and 12 typed factory shapes have also been
+reconciled by the machine-checked manifest: the target-model cases are known
+visibility predicates, while the remaining calls/fragments are reviewed
+non-target shapes. Drift now fails the audit command.
 
 ## Required product and security invariants
 

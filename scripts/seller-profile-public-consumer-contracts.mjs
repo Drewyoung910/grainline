@@ -131,6 +131,47 @@ const WRITE_METHODS = new Set([
   "deleteMany",
 ]);
 
+const REVIEWED_TARGET_PREDICATE_CALLS = new Set([
+  "activeSellerProfileWhere",
+  "baseWhere",
+  "visibleSellerProfileWhere",
+]);
+
+const REVIEWED_NON_TARGET_QUERY_FACTORIES = new Set([
+  "claimableAccountDeletionSideEffectWhere",
+  "openCommissionMutationWhere",
+  "openCommissionWhere",
+  "ownerCartItemWhere",
+  "ownerCartWhere",
+  "ownerSavedBlogPostWhere",
+  "ownerSavedSearchWhere",
+  "publicBlogPostWhere",
+  "publicCommissionInterestWhere",
+  "publicListingDetailWhere",
+  "publicListingWhere",
+  "savedListingFavoriteWhere",
+  "supportRequestAccountExportWhere",
+  "timestampCursorWhere",
+  "viewerBlogPostWhere",
+  "visibleBlogCommentWhere",
+]);
+
+const REVIEWED_FACTORY_FUNCTIONS = new Set([
+  "openCommissionMutationWhere",
+  "openCommissionWhere",
+  "ownerCartItemWhere",
+  "ownerCartWhere",
+  "ownerSavedBlogPostWhere",
+  "publicBlogPostWhere",
+  "publicListingDetailWhere",
+  "publicListingWhere",
+  "savedListingFavoriteWhere",
+]);
+
+function expressionHead(expression) {
+  return /^([\w$.]+)/u.exec(expression.replace(/\s+/gu, " ").trim())?.[1] ?? "";
+}
+
 function sorted(values) {
   return [...values].sort();
 }
@@ -192,10 +233,47 @@ export function verifySellerProfilePublicConsumerContracts(root) {
         .filter((contracts) => contracts.includes(contract)).length,
     ]),
   );
+
+  const targetOpaqueShapes = audit.opaqueShapes.filter(({ model }) => model === "SellerProfile");
+  const unknownTargetOpaqueShapes = targetOpaqueShapes.filter(
+    ({ expression }) => !REVIEWED_TARGET_PREDICATE_CALLS.has(expressionHead(expression)),
+  );
+  if (unknownTargetOpaqueShapes.length) {
+    throw new Error(`Unreviewed SellerProfile query shapes: ${JSON.stringify(unknownTargetOpaqueShapes)}`);
+  }
+  const nonTargetOpaqueShapes = audit.opaqueShapes.filter(({ model }) => model !== "SellerProfile");
+  const reviewedNonTargetFactoryCalls = nonTargetOpaqueShapes.filter(
+    ({ expression }) => REVIEWED_NON_TARGET_QUERY_FACTORIES.has(expressionHead(expression)),
+  );
+  const reviewedNonTargetResiduals = nonTargetOpaqueShapes.filter(
+    ({ expression }) => !REVIEWED_NON_TARGET_QUERY_FACTORIES.has(expressionHead(expression)),
+  );
+  if (reviewedNonTargetResiduals.some(({ model }) => model === "SellerProfile")) {
+    throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
+  }
+  if (targetOpaqueShapes.length !== 47
+      || reviewedNonTargetFactoryCalls.length !== 149
+      || reviewedNonTargetResiduals.length !== 22) {
+    throw new Error(
+      `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
+      + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,
+    );
+  }
+  const unknownOpaqueFactories = audit.opaqueFactoryShapes.filter(
+    ({ function: functionName }) => !REVIEWED_FACTORY_FUNCTIONS.has(functionName),
+  );
+  if (unknownOpaqueFactories.length || audit.opaqueFactoryShapes.length !== 12) {
+    throw new Error(`SellerProfile typed factory review drifted: ${JSON.stringify(unknownOpaqueFactories)}`);
+  }
   return {
     consumerFiles: currentFiles.size,
     directWrites: directWrites.length,
     coordinateFiles: coordinateFiles.size,
+    reviewedOpaqueShapes: audit.opaqueShapes.length,
+    reviewedOpaqueFactoryShapes: audit.opaqueFactoryShapes.length,
+    opaqueTargetPredicates: targetOpaqueShapes.length,
+    opaqueNonTargetFactoryCalls: reviewedNonTargetFactoryCalls.length,
+    opaqueNonTargetResiduals: reviewedNonTargetResiduals.length,
     contractCounts,
   };
 }

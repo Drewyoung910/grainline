@@ -1,4 +1,5 @@
 import pg from "pg";
+import { classifySellerProfileDatabaseObjects } from "./seller-profile-public-catalog-disposition.mjs";
 
 const url = process.env.SELLER_PROFILE_PUBLIC_CATALOG_DATABASE_URL;
 if (!url) {
@@ -147,6 +148,7 @@ try {
         functions.filter((row) => row.execute_grantees.includes(grantee)).length,
       ]),
   );
+  const dispositions = classifySellerProfileDatabaseObjects({ functions, triggers });
   const summary = {
     identity,
     table,
@@ -155,10 +157,9 @@ try {
     runtimeExecutableFunctions: functions.filter((row) => row.runtime_execute).length,
     publicExecutableFunctions: functions.filter((row) => row.public_execute).length,
     executeGranteeCounts,
+    ...dispositions,
     triggerCount: triggers.length,
-    sellerProfileTriggerCount: triggers.filter(
-      (row) => row.table_name === '"SellerProfile"',
-    ).length,
+    sellerProfileTriggerCount: dispositions.sellerProfileTriggerDispositions.length,
     viewCount: views.length,
     constraintCount: constraints.length,
     incomingForeignKeyCount: constraints.filter(

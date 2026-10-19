@@ -59,12 +59,17 @@ an upper bound of 106 relation-shaped files. That result is retired: it missed
 `tx`, `client`, and `db` receivers and counted unrelated relation syntax. The
 schema-aware result is the canonical source baseline.
 
-### Scanner limits that remain audit work
+### Scanner limits and opaque-shape reconciliation
 
 - The scan does not execute TypeScript and cannot prove runtime receiver types.
-- It reports 218 unresolved generic query shapes and 12 unresolved typed
-  factory shapes across all Prisma models. Those are a manual triage queue;
-  they are not assumed to be hidden `SellerProfile` accesses.
+- It reports 218 syntactically opaque generic query shapes and 12 typed
+  factory shapes across all Prisma models. All are now reconciled by the
+  machine check below: 47 are explicit `SellerProfile` visibility-helper
+  predicates, 149 are reviewed non-target query-factory calls, and 22 are
+  inspected non-target scalar/data/order fragments. The 12 typed shapes are
+  caller-supplied predicate extensions in the reviewed visibility/owner
+  factories. None is an unclassified hidden `SellerProfile` projection or
+  mutation. A count, factory, or target-expression change fails the check.
 - Dynamic SQL generators are not proven absent, although all static raw SQL
   reaching Prisma raw calls is inspected.
 - The source scan does not replace the separate installed database-object
@@ -100,8 +105,8 @@ presentation, availability, conditional map disclosure, and signed-in
 participant behavior. Seven files read exact seller coordinates: five are
 public-map consumers and two are owner-only. All 14 direct base-table writes
 are classified as owner, staff, or service operations. This manifest closes
-the source-file principal assignment; it does not yet define the final SQL
-function/view surface or resolve the scanner's opaque-shape queue.
+the source-file principal assignment and opaque-shape reconciliation; it does
+not yet define the final SQL function/view surface.
 
 ## Full-chain PostgreSQL 16 catalog baseline
 
@@ -144,6 +149,37 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
+The disposition is now machine-checked by
+`scripts/seller-profile-public-catalog-disposition.mjs`:
+
+| Disposition | Count | Meaning for public SellerProfile |
+|---|---:|---|
+| Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
+| Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
+| Converted authority | 0 | Source caller conversion will add new bounded authorities in Phase 1; none exists in this baseline |
+| Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
+
+The classifier rejects a count change, an unreviewed internal signature, any
+`PUBLIC` execute grant, any execute principal outside the exact owner/runtime/
+staff partition, or loss of `SECURITY DEFINER`/`search_path=pg_catalog`.
+Function-family counts are:
+
+| Family | Total | App runtime | Staff read | Internal support |
+|---|---:|---:|---:|---:|
+| Blog | 2 | 0 | 0 | 2 |
+| Case | 10 | 7 | 0 | 3 |
+| Checkout | 11 | 6 | 0 | 5 |
+| Commission | 1 | 0 | 0 | 1 |
+| Conversation | 1 | 0 | 0 | 1 |
+| Direct upload | 5 | 3 | 0 | 2 |
+| Listing | 2 | 2 | 0 | 0 |
+| Message | 4 | 3 | 0 | 1 |
+| Notification | 2 | 1 | 0 | 1 |
+| Order | 38 | 30 | 1 | 7 |
+| Seller | 38 | 28 | 4 | 6 |
+| Stripe | 4 | 4 | 0 | 0 |
+| User | 12 | 7 | 2 | 3 |
+
 The six direct table triggers are:
 
 - private-row initialization;
@@ -154,7 +190,9 @@ The six direct table triggers are:
 - public commission-state synchronization.
 
 They are part of the compatibility proof. None is removed merely to simplify
-RLS activation.
+RLS activation. All six are classified as internal support, and the classifier
+binds each trigger name to its exact function signature so a replacement or
+additional table trigger reopens review.
 
 ## Field and disclosure contracts
 
@@ -274,12 +312,12 @@ guard the final zero-direct state, but they do not count as behavior proof.
 
 ### `BLOCKS_RLS_DESIGN`
 
-- Manually resolve the potentially relevant opaque query shapes. The
-  machine-checked per-consumer principal/contract assignment for all 100
-  proven source files is complete.
-- Classify the 130 installed functions and six direct table triggers as
-  retained authority, converted authority, internal-only support, or retired
-  predecessor; bind retained runtime execution to an acceptance flow.
+- The machine-checked per-consumer principal/contract assignment and
+  opaque-shape reconciliation are complete for all 100 proven source files.
+- The 130 installed functions and six direct table triggers are classified.
+  Bind each of the 98 retained fixed authorities to its existing acceptance
+  flow before grant closure; a test-source name reference alone is not
+  behavior proof.
 - Define the exact columns and row predicates for the public profile,
   eligibility, exact-map, owner, staff and service operations.
 
@@ -301,6 +339,5 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Make the local commission promise match discovery and interest enforcement.
 
 Phase 0 is not closed yet, so no SellerProfile view, function, policy, grant or
-migration implementation begins from this checkpoint. The next pass is the
-130-function/six-trigger disposition and exact field/predicate design, while
-the relevant opaque source shapes are resolved.
+migration implementation begins from this checkpoint. The next pass is exact
+field/predicate design and retained-authority acceptance mapping.
