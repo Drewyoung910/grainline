@@ -151,7 +151,7 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds nine converted runtime authorities without changing
+The Phase 1 candidate adds ten converted runtime authorities without changing
 predecessor table grants. `grainline_seller_public_map_points(integer)` returns
 only seller id/name/city/state and a database-derived coarse point, enforces
 active public-map eligibility, applies reciprocal blocks from trusted
@@ -184,7 +184,12 @@ proves public, owner or reserved-buyer visibility, derives metro/state scope
 from that listing's seller, and returns at most four rendered card rows. It
 owns metro-before-state selection, active candidate seller/listing predicates,
 reciprocal blocks, stable Guild/follower ordering and the top public-listing
-cover without returning user ids or raw geography. All nine grant execute only
+cover without returning user ids or raw geography.
+`grainline_seller_public_featured_makers()` owns the homepage's maximum-two
+spotlight selection: active admin-featured sellers first, weekly Guild rotation
+second and weekly rotation within the top-four reviewed public sellers last. It
+returns the exact rendered spotlight fields; `userId` is purpose-bound to
+suppressing the current seller's follow control. All ten grant execute only
 to the app runtime. Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -192,7 +197,7 @@ to the app runtime. Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 9 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates and listing-bound similar-maker cards replace public base-table reads while predecessor grants remain available |
+| Converted authority | 10 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards and homepage featured-maker selection replace public base-table reads while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -212,7 +217,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 54 | 44 | 4 | 6 |
+| Seller | 55 | 45 | 4 | 6 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 12 | 7 | 2 | 3 |
 
@@ -487,6 +492,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   source listing is visible, owns metro-before-state scope, active candidate
   seller/listing visibility, reciprocal blocks and stable ordering while
   returning only rendered card fields and one public-listing cover image.
+- Keep the homepage spotlight on the exact featured-maker authority; it owns
+  admin-featured, weekly Guild and top-four-reviewed fallback selection, caps
+  results at two, and returns `userId` only for self-follow suppression.
 - Merge and release the isolated application correction that replaces
   raw-coordinate output on public maps, seller/listing public helpers, seller
   JSON-LD and browse-distance SQL with approximate points and removes “exact

@@ -145,6 +145,14 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       similarMakers.every((row) => row.id !== seller.sellerProfileId),
       true,
     );
+    const featuredMakers = rowsOf(await database.query(
+      "SELECT id FROM public.grainline_seller_public_featured_makers()",
+    ));
+    assert.equal(featuredMakers.length <= 2, true);
+    assert.equal(
+      new Set(featuredMakers.map((row) => row.id)).size,
+      featuredMakers.length,
+    );
     const sellerSitemapRows = rowsOf(await database.query(
       `SELECT id, "displayName"
          FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 50000)`,
@@ -273,6 +281,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
         "SELECT * FROM public.grainline_seller_public_similar_makers($1, 4)",
         [listingId],
       ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_featured_makers()"),
       /permission denied/u,
     );
     await assert.rejects(

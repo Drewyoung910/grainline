@@ -56,9 +56,19 @@ describe("public query determinism", () => {
     const sellerPublicSimilarMakersAuthority = source(
       "prisma/migrations/20261019080000_prepare_seller_profile_public_similar_makers/migration.sql",
     );
+    const sellerPublicFeaturedMakersAuthority = source(
+      "prisma/migrations/20261019090000_prepare_seller_profile_public_featured_makers/migration.sql",
+    );
 
-    assert.match(home, /orderBy: \[\{ featuredUntil: "desc" \}, \{ id: "asc" \}\]/);
-    assert.match(home, /ORDER BY COALESCE\(srs\."reviewCount", 0\) DESC, sp\.id ASC/);
+    assert.match(home, /sellerPublicFeaturedMakers\(\)/);
+    assert.match(
+      sellerPublicFeaturedMakersAuthority,
+      /ORDER BY \(active\.profile\)\."featuredUntil" DESC,[\s\S]*\(active\.profile\)\.id ASC/,
+    );
+    assert.match(
+      sellerPublicFeaturedMakersAuthority,
+      /ORDER BY COALESCE\(summary\."reviewCount", 0\) DESC,[\s\S]*\(active\.profile\)\.id ASC[\s\S]*LIMIT 4/,
+    );
     assert.match(home, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -224,14 +234,15 @@ describe("public query determinism", () => {
     assert.match(sellerPublicNameAuthority, /ORDER BY seller\."displayNameNormalized" ASC, seller\.id ASC\s+LIMIT p_limit/);
   });
 
-  it("keeps cached homepage featured makers on a public projection allowlist", () => {
+  it("keeps cached homepage featured makers on the bounded authority", () => {
     const homePage = source("src/app/page.tsx");
+    const sellerAccess = source("src/lib/sellerProfilePublicAccess.ts");
 
-    assert.match(homePage, /const featuredMakerSelect = \{/);
-    assert.match(homePage, /satisfies Prisma\.SellerProfileSelect/);
-    assert.match(homePage, /select: featuredMakerSelect/);
-    assert.doesNotMatch(homePage, /featuredMakerInclude/);
-    assert.doesNotMatch(homePage, /include: featuredMaker/);
+    assert.match(homePage, /sellerPublicFeaturedMakers\(\)/);
+    assert.match(homePage, /type FeaturedMaker = SellerPublicFeaturedMaker/);
+    assert.doesNotMatch(homePage, /prisma\.sellerProfile/);
+    assert.match(sellerAccess, /export type SellerPublicFeaturedMaker = Readonly/);
+    assert.match(sellerAccess, /grainline_seller_public_featured_makers\(\)/);
   });
 
   it("keeps public fuzzy suggestions on indexable trigram predicates", () => {

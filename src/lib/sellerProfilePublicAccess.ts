@@ -55,6 +55,27 @@ export type SellerPublicSimilarMaker = Readonly<{
   scopeKind: "METRO" | "STATE";
 }>;
 
+export type SellerPublicFeaturedMaker = Readonly<{
+  id: string;
+  userId: string;
+  displayName: string;
+  bio: string | null;
+  storyBody: string | null;
+  yearsInBusiness: number | null;
+  createdAt: Date;
+  city: string | null;
+  state: string | null;
+  tagline: string | null;
+  bannerImageUrl: string | null;
+  avatarImageUrl: string | null;
+  workshopImageUrl: string | null;
+  featuredListingIds: readonly string[];
+  guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+  isFoundingMaker: boolean;
+  foundingMakerNumber: number | null;
+  ownerImageUrl: string | null;
+}>;
+
 export type SellerPublicSitemapRow = Readonly<{
   id: string;
   displayName: string;
@@ -112,6 +133,27 @@ type SellerPublicSimilarMakerRow = {
   ownerImageUrl: unknown;
   coverImageUrl: unknown;
   scopeKind: unknown;
+};
+
+type SellerPublicFeaturedMakerRow = {
+  id: unknown;
+  userId: unknown;
+  displayName: unknown;
+  bio: unknown;
+  storyBody: unknown;
+  yearsInBusiness: unknown;
+  createdAt: unknown;
+  city: unknown;
+  state: unknown;
+  tagline: unknown;
+  bannerImageUrl: unknown;
+  avatarImageUrl: unknown;
+  workshopImageUrl: unknown;
+  featuredListingIds: unknown;
+  guildLevel: unknown;
+  isFoundingMaker: unknown;
+  foundingMakerNumber: unknown;
+  ownerImageUrl: unknown;
 };
 
 type SellerPublicSitemapRowResult = {
@@ -262,6 +304,15 @@ function parseSafeCount(value: unknown, label: string) {
   return count;
 }
 
+function parseNullableSafeInteger(value: unknown, label: string) {
+  if (value === null) return null;
+  const integer = Number(value);
+  if (!Number.isSafeInteger(integer)) {
+    throw new Error(`Seller public authority returned an invalid ${label}`);
+  }
+  return integer;
+}
+
 async function readSellerPublicMarketplaceCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicMarketplaceCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_marketplace_counts()
@@ -340,6 +391,66 @@ async function readSellerPublicSimilarMakers(
   });
   if (makers.length > limit || new Set(makers.map((maker) => maker.id)).size !== makers.length) {
     throw new Error("Seller public similar-maker authority returned invalid cardinality");
+  }
+  return Object.freeze(makers);
+}
+
+async function readSellerPublicFeaturedMakers(client: SellerPublicAccessClient) {
+  const rows = await client.$queryRaw<SellerPublicFeaturedMakerRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_featured_makers()
+  `);
+  const makers = rows.map((row) => {
+    if (
+      typeof row.id !== "string"
+      || !row.id
+      || typeof row.userId !== "string"
+      || !row.userId
+      || typeof row.displayName !== "string"
+      || !row.displayName
+      || !nullableString(row.bio)
+      || !nullableString(row.storyBody)
+      || !(row.createdAt instanceof Date)
+      || Number.isNaN(row.createdAt.getTime())
+      || !nullableString(row.city)
+      || !nullableString(row.state)
+      || !nullableString(row.tagline)
+      || !nullableString(row.bannerImageUrl)
+      || !nullableString(row.avatarImageUrl)
+      || !nullableString(row.workshopImageUrl)
+      || !Array.isArray(row.featuredListingIds)
+      || !row.featuredListingIds.every((id) => typeof id === "string" && id.length > 0)
+      || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+      || typeof row.isFoundingMaker !== "boolean"
+      || !nullableString(row.ownerImageUrl)
+    ) {
+      throw new Error("Seller public featured-maker authority returned an invalid result");
+    }
+    return Object.freeze({
+      id: row.id,
+      userId: row.userId,
+      displayName: row.displayName,
+      bio: row.bio,
+      storyBody: row.storyBody,
+      yearsInBusiness: parseNullableSafeInteger(row.yearsInBusiness, "years in business"),
+      createdAt: row.createdAt,
+      city: row.city,
+      state: row.state,
+      tagline: row.tagline,
+      bannerImageUrl: row.bannerImageUrl,
+      avatarImageUrl: row.avatarImageUrl,
+      workshopImageUrl: row.workshopImageUrl,
+      featuredListingIds: Object.freeze([...row.featuredListingIds]),
+      guildLevel: row.guildLevel as SellerPublicFeaturedMaker["guildLevel"],
+      isFoundingMaker: row.isFoundingMaker,
+      foundingMakerNumber: parseNullableSafeInteger(
+        row.foundingMakerNumber,
+        "founding maker number",
+      ),
+      ownerImageUrl: row.ownerImageUrl,
+    });
+  });
+  if (makers.length > 2 || new Set(makers.map((maker) => maker.id)).size !== makers.length) {
+    throw new Error("Seller public featured-maker authority returned invalid cardinality");
   }
   return Object.freeze(makers);
 }
@@ -524,6 +635,10 @@ export async function sellerPublicSimilarMakers(
       readSellerPublicSimilarMakers(client, sourceListingId, limit));
   }
   return readSellerPublicSimilarMakers(prisma, sourceListingId, limit);
+}
+
+export async function sellerPublicFeaturedMakers() {
+  return readSellerPublicFeaturedMakers(prisma);
 }
 
 export async function sellerPublicSitemapPage(

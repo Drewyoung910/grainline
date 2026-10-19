@@ -239,7 +239,14 @@ It returns only rendered card fields and a public-listing cover image. With
 that conversion, the candidate has 80 direct operations in 46 files, 93 total
 consumer files and 199 reconciled opaque query shapes. Its candidate catalog
 contains 139 matching functions: the unchanged 98 retained and 32 internal
-functions plus nine converted public authorities.
+functions plus nine converted public authorities. A tenth exact operation now
+owns the homepage's maximum-two spotlight selection: current admin features,
+weekly Guild rotation, then weekly rotation within the top-four reviewed
+public sellers. It returns only rendered spotlight fields, with `userId`
+purpose-bound to suppressing the current seller's follow control. The candidate
+now has 75 direct operations in 45 files, 15 raw SQL accesses in 12 files, 93
+total consumer files and 194 reconciled opaque query shapes. Its catalog has
+140 matching functions: 98 retained, 32 internal and ten converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

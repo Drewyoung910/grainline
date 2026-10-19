@@ -21,7 +21,6 @@ import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import FollowButton from "@/components/FollowButton";
@@ -33,7 +32,11 @@ import { formatCurrencyCents } from "@/lib/money";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
-import { sellerPublicMapPoints } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerPublicFeaturedMakers,
+  sellerPublicMapPoints,
+  type SellerPublicFeaturedMaker,
+} from "@/lib/sellerProfilePublicAccess";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -51,137 +54,13 @@ function StarsInline({ value }: { value: number }) {
   );
 }
 
-const featuredMakerSelect = {
-  id: true,
-  userId: true,
-  displayName: true,
-  bio: true,
-  storyBody: true,
-  yearsInBusiness: true,
-  createdAt: true,
-  city: true,
-  state: true,
-  tagline: true,
-  bannerImageUrl: true,
-  avatarImageUrl: true,
-  workshopImageUrl: true,
-  featuredListingIds: true,
-  guildLevel: true,
-  isFoundingMaker: true,
-  foundingMakerNumber: true,
-  ownerImageUrl: true,
-} satisfies Prisma.SellerProfileSelect;
+type FeaturedMaker = SellerPublicFeaturedMaker;
 
-type FeaturedMaker = Prisma.SellerProfileGetPayload<{ select: typeof featuredMakerSelect }>;
-
-function makerWeekIndex(count: number) {
-  if (count <= 0) return 0;
-  const now = new Date();
-  const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
-  const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(now);
-  monday.setUTCDate(now.getUTCDate() + daysToMonday);
-  monday.setUTCHours(0, 0, 0, 0);
-  return Math.floor(monday.getTime() / (7 * 24 * 60 * 60 * 1000)) % count;
-}
-
-const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
-  const now = new Date();
-  const picked: FeaturedMaker[] = [];
-  const seen = new Set<string>();
-
-  function add(maker: FeaturedMaker | null) {
-    if (!maker || seen.has(maker.id) || picked.length >= 2) return;
-    picked.push(maker);
-    seen.add(maker.id);
-  }
-
-  // Tier 1: admin-featured (featuredUntil > now)
-  const curated = await prisma.sellerProfile.findMany({
-    where: activeSellerProfileWhere({ featuredUntil: { gt: now } }),
-    orderBy: [{ featuredUntil: "desc" }, { id: "asc" }],
-    select: featuredMakerSelect,
-    take: 2,
-  });
-  for (const m of curated) add(m);
-
-  // Tier 2: weekly Guild rotation (deterministic, fills remaining slots)
-  if (picked.length < 2) {
-    const guildWhere = activeSellerProfileWhere({
-      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-      ...(seen.size > 0 ? { id: { notIn: [...seen] } } : {}),
-    });
-    const guildCount = await prisma.sellerProfile.count({ where: guildWhere });
-    if (guildCount > 0) {
-      const startIdx = makerWeekIndex(guildCount);
-      const need = 2 - picked.length;
-      // Pull up to (need * 2) so we have room if some collide with already-seen
-      const weekly = await prisma.sellerProfile.findMany({
-        where: guildWhere,
-        orderBy: { id: "asc" },
-        skip: startIdx,
-        take: need,
-        select: featuredMakerSelect,
-      });
-      for (const m of weekly) add(m);
-      // Wrap-around if skip was near the end
-      if (picked.length < 2 && weekly.length < need) {
-        const wrap = await prisma.sellerProfile.findMany({
-          where: guildWhere,
-          orderBy: { id: "asc" },
-          take: 2 - picked.length,
-          select: featuredMakerSelect,
-        });
-        for (const m of wrap) add(m);
-      }
-    }
-  }
-
-  // Tier 3: top-reviewed fallback
-  if (picked.length < 2) {
-    const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
-      SELECT sp.id AS "sellerId"
-      FROM "SellerProfile" sp
-      LEFT JOIN "SellerRatingSummary" srs ON srs."sellerProfileId" = sp.id
-      WHERE sp."chargesEnabled" = true
-        AND sp."stripeAccountSupported" = true
-        AND sp."vacationMode" = false
-        AND sp."ownerAccountActive" = true
-        AND EXISTS (
-          SELECT 1
-          FROM "Listing" l
-          WHERE l."sellerId" = sp.id
-            AND l.status = 'ACTIVE'
-            AND l."isPrivate" = false
-        )
-      ORDER BY COALESCE(srs."reviewCount", 0) DESC, sp.id ASC
-      LIMIT 4
-    `;
-    let candidateIds = topReviewedRows.map((r) => r.sellerId).filter((id) => !seen.has(id));
-    // Weekly rotation within the fallback pool too — without this, the
-    // single most-reviewed maker would hold the spotlight indefinitely
-    // whenever no Guild members exist yet.
-    if (candidateIds.length > 1) {
-      const offset = makerWeekIndex(candidateIds.length);
-      candidateIds = [...candidateIds.slice(offset), ...candidateIds.slice(0, offset)];
-    }
-    if (candidateIds.length > 0) {
-      const candidates = await prisma.sellerProfile.findMany({
-        where: activeSellerProfileWhere({ id: { in: candidateIds } }),
-        select: featuredMakerSelect,
-      });
-      // Preserve the SQL ordering
-      const byId = new Map(candidates.map((c) => [c.id, c]));
-      for (const id of candidateIds) {
-        if (picked.length >= 2) break;
-        const m = byId.get(id);
-        if (m) add(m);
-      }
-    }
-  }
-
-  return picked;
-}, ["home-featured-makers-v4"], { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] });
+const getFeaturedMakers = unstable_cache(
+  async (): Promise<FeaturedMaker[]> => [...await sellerPublicFeaturedMakers()],
+  ["home-featured-makers-v5"],
+  { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] },
+);
 
 const featuredListingSelect = {
   id: true,
@@ -231,7 +110,7 @@ async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<F
       if (maker.featuredListingIds.length > 0) {
         const featuredRows = await prisma.listing.findMany({
           where: publicListingWhere({
-            id: { in: maker.featuredListingIds },
+            id: { in: [...maker.featuredListingIds] },
             sellerId: maker.id,
             photos: { some: {} },
           }),
