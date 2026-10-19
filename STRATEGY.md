@@ -92,11 +92,14 @@ replace the public follow endpoint's direct seller, Follow and Block access:
 bounded public state, actor-bound create under the shared sorted Block-pair
 lock, and owner-bound stale cleanup. A separate actor-bound owner core now
 serves the five analytics, broadcast and upload callers that share profile id,
-display name, creation time and shop-state gates. This reduces the candidate
-source inventory to 56 direct operations in 31 files, 15 raw SQL accesses in
-12 files, 80 total consumer files, 179 reconciled opaque query shapes and two
+display name, creation time and shop-state gates. An actor-bound blog-editor
+operation then converts three more direct owner lookups and returns only the
+profile id plus active listing ids/titles, preserving both zero-listing sellers
+and staff authors without seller profiles. This reduces the candidate source
+inventory to 53 direct operations in 29 files, 15 raw SQL accesses in
+12 files, 79 total consumer files, 179 reconciled opaque query shapes and two
 remaining purpose-bound owner coordinate consumers. The candidate catalog
-contains the unchanged 98 retained and 32 internal functions plus 23 converted authorities. It
+contains the unchanged 98 retained and 32 internal functions plus 24 converted authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three

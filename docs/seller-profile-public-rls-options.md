@@ -319,6 +319,16 @@ The candidate is now down to 56 direct operations in 31 files, 98 relation
 accesses in 50 files, 15 raw SQL accesses in 12 files, 80 total consumer files
 and 179 reconciled opaque shapes. Its catalog has 153 matching functions: 98
 retained, 32 internal and 23 converted authorities.
+The twenty-fourth operation derives the same active owner context for the
+dashboard blog editor and returns only profile id plus active listing ids and
+titles in stable editor order. A left join preserves sellers with zero active
+listings, while missing, banned and deleted owners return no row. This converts
+three direct lookups across the blog create and edit surfaces without changing
+the existing staff-without-seller behavior. The candidate is now down to 53
+direct operations in 29 files, 98 relation accesses in 50 files, 15 raw SQL
+accesses in 12 files, 79 total consumer files and 179 reconciled opaque shapes.
+Its catalog has 154 matching functions: 98 retained, 32 internal and 24
+converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

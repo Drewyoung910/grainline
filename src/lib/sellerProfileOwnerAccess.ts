@@ -17,6 +17,12 @@ type SellerOwnerCoreRow = {
   vacationMode: unknown;
 };
 
+type SellerOwnerBlogEditorRow = {
+  sellerProfileId: unknown;
+  listingId: unknown;
+  listingTitle: unknown;
+};
+
 export type SellerOwnerAccountSummary = {
   sellerProfileId: string;
   avatarImageUrl: string | null;
@@ -30,6 +36,60 @@ export type SellerOwnerCore = {
   chargesEnabled: boolean;
   vacationMode: boolean;
 };
+
+export type SellerOwnerBlogEditor = {
+  sellerProfileId: string;
+  listings: ReadonlyArray<Readonly<{
+    id: string;
+    title: string;
+  }>>;
+};
+
+async function readSellerOwnerBlogEditor(client: SellerProfileOwnerClient) {
+  const rows = await client.$queryRaw<SellerOwnerBlogEditorRow[]>`
+    SELECT * FROM public.grainline_seller_owner_blog_editor()
+  `;
+  if (rows.length === 0) return null;
+
+  const sellerProfileId = rows[0]?.sellerProfileId;
+  if (
+    typeof sellerProfileId !== "string"
+    || !/^[A-Za-z0-9._:-]{1,191}$/.test(sellerProfileId)
+  ) {
+    throw new Error("Seller owner blog-editor authority returned an invalid seller");
+  }
+
+  const listingIds = new Set<string>();
+  const listings = rows.flatMap((row) => {
+    if (row.sellerProfileId !== sellerProfileId) {
+      throw new Error("Seller owner blog-editor authority returned mixed sellers");
+    }
+    if (row.listingId === null && row.listingTitle === null) return [];
+    if (
+      typeof row.listingId !== "string"
+      || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.listingId)
+      || typeof row.listingTitle !== "string"
+      || row.listingTitle.length < 1
+      || row.listingTitle.length > 150
+      || listingIds.has(row.listingId)
+    ) {
+      throw new Error("Seller owner blog-editor authority returned an invalid listing");
+    }
+    listingIds.add(row.listingId);
+    return [Object.freeze({ id: row.listingId, title: row.listingTitle })];
+  });
+  if (rows.length > 1 && listings.length !== rows.length) {
+    throw new Error("Seller owner blog-editor authority returned an invalid empty listing row");
+  }
+  return Object.freeze({
+    sellerProfileId,
+    listings: Object.freeze(listings),
+  }) satisfies Readonly<SellerOwnerBlogEditor>;
+}
+
+export function sellerOwnerBlogEditor(userId: string) {
+  return withDbUserContext(userId, readSellerOwnerBlogEditor);
+}
 
 async function readSellerOwnerCore(client: SellerProfileOwnerClient) {
   const rows = await client.$queryRaw<SellerOwnerCoreRow[]>`
