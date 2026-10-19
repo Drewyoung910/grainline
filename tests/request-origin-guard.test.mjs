@@ -220,13 +220,13 @@ describe("request origin guard", () => {
       "await params",
       "await auth()",
       "safeRateLimit(",
-      "prisma.follow.upsert",
+      "createSellerFollow(me.id, sellerId)",
     ]);
     assertHandlerGuardBefore("src/app/api/follow/[sellerId]/route.ts", "export async function DELETE(", [
       "await params",
       "await auth()",
       "safeRateLimit(",
-      "prisma.follow.deleteMany",
+      "deleteSellerFollow(me.id, sellerId)",
     ]);
     assertHandlerGuardBefore("src/app/api/search/saved/route.ts", "export async function POST(", [
       "await auth()",

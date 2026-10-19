@@ -79,7 +79,7 @@ schema-aware result is the canonical source baseline.
 
 ## Machine-checked consumer contracts
 
-The exact 100-file union is assigned in
+The current 84-file candidate union is assigned in
 `scripts/seller-profile-public-consumer-contracts.mjs` and verified with:
 
 ```sh
@@ -93,19 +93,19 @@ contract. The current assignment is:
 
 | Contract | Consumer files | Boundary represented |
 |---|---:|---|
-| `PUBLIC_PROFILE` | 34 | Public-safe presentation under the caller's existing visibility predicate |
-| `PUBLIC_ELIGIBILITY` | 47 | Boolean, count, or filter-only availability without returning a seller row |
-| `PUBLIC_MAP` | 5 | Approximate point under the opt-in and no-positive-radius directory predicate |
-| `OWNER` | 22 | Authenticated active owner and that owner's row |
-| `PARTICIPANT` | 15 | Relationship-bound follow, save, report, review, or message behavior |
+| `PUBLIC_PROFILE` | 29 | Public-safe presentation under the caller's existing visibility predicate |
+| `PUBLIC_ELIGIBILITY` | 35 | Boolean, count, or filter-only availability without returning a seller row |
+| `PUBLIC_MAP` | 4 | Approximate point under the opt-in and no-positive-radius directory predicate |
+| `OWNER` | 19 | Authenticated active owner and that owner's row |
+| `PARTICIPANT` | 13 | Relationship-bound follow, save, report, review, or message behavior |
 | `STAFF` | 7 | Named role/PIN/target/audit-bound staff operations |
-| `SERVICE` | 14 | Named webhook, cron, deletion, notification, metrics, repair, or telemetry operation |
+| `SERVICE` | 12 | Named webhook, cron, deletion, notification, metrics, repair, or telemetry operation |
 | `TRANSACTION` | 14 | Actor/resource-bound checkout, shipping, listing, or custom-order behavior |
 
 Contracts overlap by design. For example, a public listing page needs public
 presentation, availability, conditional map disclosure, and signed-in
-participant behavior. Seven files read raw seller coordinates: five are
-public-location consumers and two are owner-only. All 14 direct base-table writes
+participant behavior. Two files read raw seller coordinates and both are
+owner-only. All 14 direct base-table writes
 are classified as owner, staff, or service operations. This manifest closes
 the source-file principal assignment and opaque-shape reconciliation; it does
 not yet define the final SQL function/view surface.
@@ -151,7 +151,7 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds nineteen converted runtime authorities without changing
+The Phase 1 candidate adds 22 converted runtime authorities without changing
 predecessor table grants. `grainline_seller_public_map_points(integer)` returns
 only seller id/name/city/state and a database-derived coarse point, enforces
 active public-map eligibility, applies reciprocal blocks from trusted
@@ -219,7 +219,14 @@ seller row nor the owner id.
 `grainline_seller_owner_account_summary()` derives its owner only from
 transaction-local actor context and returns the profile id, avatar and active
 listing count shared by account chrome. It refuses missing, banned or deleted
-owner context. All nineteen grant execute only to the app runtime.
+owner context.
+`grainline_seller_public_follow_state(text)`,
+`grainline_seller_public_follow_create(text,text)` and
+`grainline_seller_public_follow_delete(text)` own public follow reads and
+actor-bound mutations. Create shares the sorted Block-pair lock, revalidates
+and locks the visible seller after that lock, rejects self and reciprocal
+blocks, and is idempotent. Delete intentionally permits stale cleanup after a
+seller becomes hidden. All 22 grant execute only to the app runtime.
 Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -227,7 +234,7 @@ Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 19 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target and owner account summary replace direct base-table access while predecessor grants remain available |
+| Converted authority | 22 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary and three public-follow authorities replace direct base-table access while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -247,7 +254,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 62 | 52 | 4 | 6 |
+| Seller | 65 | 55 | 4 | 6 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 13 | 8 | 2 | 3 |
 

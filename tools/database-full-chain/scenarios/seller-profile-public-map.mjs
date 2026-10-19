@@ -9,6 +9,7 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   const viewerClerkId = `user_full_chain_map_viewer_${seller.userId}`;
   const viewerEmail = `map-${seller.userId}@example.test`;
   const blockId = `${seller.sellerProfileId}_map_block`;
+  const followId = `${seller.sellerProfileId}_map_follow`;
   const listingId = `${seller.sellerProfileId}_map_listing`;
   const photoId = `${seller.sellerProfileId}_map_photo`;
   const reviewId = `${seller.sellerProfileId}_sitemap_review`;
@@ -215,6 +216,21 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     }]);
     assert.deepEqual(
       rowsOf(await database.query(
+        `SELECT "sellerProfileId", "followerCount", following
+           FROM public.grainline_seller_public_follow_state($1)`,
+        [seller.sellerProfileId],
+      )).map((row) => ({
+        ...row,
+        followerCount: Number(row.followerCount),
+      })),
+      [{
+        sellerProfileId: seller.sellerProfileId,
+        followerCount: 0,
+        following: false,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
         `SELECT "ownerUserId"
            FROM public.grainline_seller_public_view_target($1)`,
         [seller.sellerProfileId],
@@ -278,6 +294,75 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
         avatarImageUrl: null,
         activeListingCount: 1,
       }],
+    );
+  } finally {
+    await database.query("RESET ROLE");
+    await database.query("RESET app.user_id");
+  }
+
+  await database.query(
+    "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+    [viewerUserId],
+  );
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "resultStatus", "ownerUserId", created, "followerCount"
+           FROM public.grainline_seller_public_follow_create($1, $2)`,
+        [seller.sellerProfileId, followId],
+      )).map((row) => ({
+        ...row,
+        followerCount: Number(row.followerCount),
+      })),
+      [{
+        resultStatus: "OK",
+        ownerUserId: seller.userId,
+        created: true,
+        followerCount: 1,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "resultStatus", "ownerUserId", created, "followerCount"
+           FROM public.grainline_seller_public_follow_create($1, $2)`,
+        [seller.sellerProfileId, `${followId}_replay`],
+      )).map((row) => ({
+        ...row,
+        followerCount: Number(row.followerCount),
+      })),
+      [{
+        resultStatus: "OK",
+        ownerUserId: seller.userId,
+        created: false,
+        followerCount: 1,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "sellerProfileId", "followerCount", following
+           FROM public.grainline_seller_public_follow_state($1)`,
+        [seller.sellerProfileId],
+      )).map((row) => ({
+        ...row,
+        followerCount: Number(row.followerCount),
+      })),
+      [{
+        sellerProfileId: seller.sellerProfileId,
+        followerCount: 1,
+        following: true,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "resultStatus", "followerCount"
+           FROM public.grainline_seller_public_follow_delete($1)`,
+        [seller.sellerProfileId],
+      )).map((row) => ({
+        ...row,
+        followerCount: Number(row.followerCount),
+      })),
+      [{ resultStatus: "OK", followerCount: 0 }],
     );
   } finally {
     await database.query("RESET ROLE");
@@ -365,6 +450,14 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       )),
       [],
     );
+    assert.equal(
+      rowsOf(await database.query(
+        `SELECT "resultStatus"
+           FROM public.grainline_seller_public_follow_create($1, $2)`,
+        [seller.sellerProfileId, `${followId}_blocked`],
+      ))[0].resultStatus,
+      "BLOCKED",
+    );
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -392,6 +485,27 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       database.query(
         "SELECT public.grainline_seller_public_metro_count($1, true, true)",
         [metroId],
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_follow_state($1)",
+        [seller.sellerProfileId],
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_follow_create($1, $2)",
+        [seller.sellerProfileId, `${followId}_untrusted`],
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_follow_delete($1)",
+        [seller.sellerProfileId],
       ),
       /permission denied/u,
     );

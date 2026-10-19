@@ -186,18 +186,22 @@ describe("public visibility follow-ups", () => {
 
   it("cleans up follow rows if a block races the follow write", () => {
     const followRoute = read("src/app/api/follow/[sellerId]/route.ts");
+    const followMigration = read(
+      "prisma/migrations/20261019170000_prepare_seller_profile_follow_authority/migration.sql",
+    );
 
-    assert.match(followRoute, /const blockAfterFollow = await prisma\.block\.findFirst/);
-    assert.match(followRoute, /await prisma\.follow\.deleteMany\(\{\s*where: \{ followerId: me\.id, sellerProfileId: sellerProfile\.id \}/s);
+    assert.match(followRoute, /createSellerFollow\(me\.id, sellerId\)/);
+    assert.doesNotMatch(followRoute, /prisma\.(block|follow)/);
     assert.match(followRoute, /return privateJson\(\{ error: "Blocked" \}, \{ status: 403 \}\)/);
     assert.ok(
-      followRoute.indexOf("const blockAfterFollow") > followRoute.indexOf("await prisma.follow.upsert"),
-      "follow route must re-check block state after the follow write",
+      followMigration.indexOf("grainline_user_block_pair_lock(target_user_id)")
+        < followMigration.indexOf('INSERT INTO public."Follow"'),
+      "follow creation must take the shared block-pair lock before inserting",
     );
     assert.ok(
-      followRoute.indexOf("const followerCount", followRoute.indexOf("const blockAfterFollow")) >
-        followRoute.indexOf("const blockAfterFollow"),
-      "follow route must not count or notify until the post-write block recheck passes",
+      followMigration.indexOf('FROM public."Block" AS relationship')
+        < followMigration.indexOf('INSERT INTO public."Follow"'),
+      "follow creation must reject reciprocal blocks while holding the pair lock",
     );
   });
 });

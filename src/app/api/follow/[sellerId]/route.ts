@@ -1,7 +1,6 @@
 // src/app/api/follow/[sellerId]/route.ts
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
@@ -18,14 +17,14 @@ import {
   searchRatelimit,
 } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
-import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-
-async function getFollowerCount(sellerProfileId: string) {
-  return prisma.follow.count({ where: { sellerProfileId } });
-}
+import {
+  createSellerFollow,
+  deleteSellerFollow,
+  sellerPublicFollowState,
+} from "@/lib/sellerFollowAccess";
 
 // GET — check if current user follows this seller
 export async function GET(
@@ -38,19 +37,17 @@ export async function GET(
   if (!success)
     return privateResponse(rateLimitResponse(reset, "Too many follow reads."));
 
-  // sellerId here is the SellerProfile.id (not userId)
-  const sellerProfile = await prisma.sellerProfile.findFirst({
-    where: visibleSellerProfileWhere({ id: sellerId }),
-    select: { id: true },
-  });
-  if (!sellerProfile)
+  // sellerId here is the SellerProfile.id (not userId).
+  const publicState = await sellerPublicFollowState(sellerId);
+  if (!publicState)
     return privateJson({ error: "Not found" }, { status: 404 });
-
-  const followerCount = await getFollowerCount(sellerProfile.id);
 
   const { userId } = await auth();
   if (!userId) {
-    return privateJson({ following: false, followerCount });
+    return privateJson({
+      following: false,
+      followerCount: publicState.followerCount,
+    });
   }
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
@@ -62,17 +59,12 @@ export async function GET(
     throw err;
   }
 
-  const existing = await prisma.follow.findUnique({
-    where: {
-      followerId_sellerProfileId: {
-        followerId: me.id,
-        sellerProfileId: sellerProfile.id,
-      },
-    },
-    select: { id: true },
+  const state = await sellerPublicFollowState(sellerId, me.id);
+  if (!state) return privateJson({ error: "Not found" }, { status: 404 });
+  return privateJson({
+    following: state.following,
+    followerCount: state.followerCount,
   });
-
-  return privateJson({ following: !!existing, followerCount });
 }
 
 // POST — follow
@@ -109,81 +101,28 @@ export async function POST(
   }
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const sellerProfile = await prisma.sellerProfile.findFirst({
-    where: visibleSellerProfileWhere({ id: sellerId }),
-    select: { id: true, userId: true, displayName: true },
-  });
-  if (!sellerProfile)
-    return privateJson({ error: "Not found" }, { status: 404 });
-
-  // Cannot follow yourself
-  if (sellerProfile.userId === me.id) {
-    logSecurityEvent("spam_attempt", {
-      userId: me.id,
-      route: "/api/follow",
-      reason: "self-follow attempt",
-    });
-    return privateJson({ error: "Cannot follow yourself" }, { status: 400 });
-  }
-
-  // Don't allow following a user who has blocked you or whom you've blocked
-  const blockExists = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: me.id, blockedId: sellerProfile.userId },
-        { blockerId: sellerProfile.userId, blockedId: me.id },
-      ],
-    },
-    select: { id: true },
-  });
-  if (blockExists) return privateJson({ error: "Blocked" }, { status: 403 });
-
-  // Check if already following before upsert so we only notify on new follows
-  const existingFollow = await prisma.follow.findUnique({
-    where: {
-      followerId_sellerProfileId: {
-        followerId: me.id,
-        sellerProfileId: sellerProfile.id,
-      },
-    },
-    select: { id: true },
-  });
-
-  await prisma.follow.upsert({
-    where: {
-      followerId_sellerProfileId: {
-        followerId: me.id,
-        sellerProfileId: sellerProfile.id,
-      },
-    },
-    create: { followerId: me.id, sellerProfileId: sellerProfile.id },
-    update: {},
-  });
-
-  const blockAfterFollow = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: me.id, blockedId: sellerProfile.userId },
-        { blockerId: sellerProfile.userId, blockedId: me.id },
-      ],
-    },
-    select: { id: true },
-  });
-  if (blockAfterFollow) {
-    await prisma.follow.deleteMany({
-      where: { followerId: me.id, sellerProfileId: sellerProfile.id },
-    });
+  const result = await createSellerFollow(me.id, sellerId);
+  if (result.status !== "OK") {
+    if (result.status === "NOT_FOUND") {
+      return privateJson({ error: "Not found" }, { status: 404 });
+    }
+    if (result.status === "SELF") {
+      logSecurityEvent("spam_attempt", {
+        userId: me.id,
+        route: "/api/follow",
+        reason: "self-follow attempt",
+      });
+      return privateJson({ error: "Cannot follow yourself" }, { status: 400 });
+    }
     return privateJson({ error: "Blocked" }, { status: 403 });
   }
 
-  const followerCount = await getFollowerCount(sellerProfile.id);
-
   // Only notify the seller on a new follow; createNotification handles exact duplicate suppression.
-  if (!existingFollow) {
+  if (result.created) {
     const followerName = me.name ?? "Someone";
     try {
       await createNotification({
-        userId: sellerProfile.userId,
+        userId: result.ownerUserId,
         type: "NEW_FOLLOWER",
         title: `${followerName} started following you`,
         body: "They can now see your new listings and posts in their feed",
@@ -191,7 +130,7 @@ export async function POST(
         dedupScope: me.id,
         relatedUserId: me.id,
         sourceType: NOTIFICATION_SOURCE_TYPES.FOLLOW,
-        sourceId: sellerProfile.id,
+        sourceId: sellerId,
       });
     } catch (error) {
       logServerError(error, {
@@ -199,14 +138,14 @@ export async function POST(
         level: "warning",
         extra: {
           followerId: me.id,
-          sellerProfileId: sellerProfile.id,
-          sellerUserId: sellerProfile.userId,
+          sellerProfileId: sellerId,
+          sellerUserId: result.ownerUserId,
         },
       });
     }
   }
 
-  return privateJson({ following: true, followerCount });
+  return privateJson({ following: true, followerCount: result.followerCount });
 }
 
 // DELETE — unfollow
@@ -242,18 +181,8 @@ export async function DELETE(
     throw err;
   }
 
-  const sellerProfile = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: { id: true },
-  });
-  if (!sellerProfile)
+  const result = await deleteSellerFollow(me.id, sellerId);
+  if (result.status === "NOT_FOUND")
     return privateJson({ error: "Not found" }, { status: 404 });
-
-  await prisma.follow.deleteMany({
-    where: { followerId: me.id, sellerProfileId: sellerProfile.id },
-  });
-
-  const followerCount = await getFollowerCount(sellerProfile.id);
-
-  return privateJson({ following: false, followerCount });
+  return privateJson({ following: false, followerCount: result.followerCount });
 }

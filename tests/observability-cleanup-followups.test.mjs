@@ -47,7 +47,7 @@ describe("observability cleanup follow-ups", () => {
         { id: "seller_1" },
       ],
     });
-    assert.match(source("src/app/api/follow/[sellerId]/route.ts"), /visibleSellerProfileWhere\(\{ id: sellerId \}\)/);
+    assert.match(source("src/app/api/follow/[sellerId]/route.ts"), /sellerPublicFollowState\(sellerId\)/);
     assert.match(source("src/app/account/following/page.tsx"), /sellerProfile: visibleSellerProfileWhere\(\)/);
   });
 

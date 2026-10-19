@@ -299,6 +299,17 @@ owner context. The candidate is now down to 66 direct operations in 37 files,
 98 relation accesses in 50 files, 15 raw SQL accesses in 12 files, 85 total
 consumer files and 181 reconciled opaque shapes. Its catalog has 149 matching
 functions: 98 retained, 32 internal and nineteen converted authorities.
+The twentieth through twenty-second operations replace the public follow
+endpoint's direct seller, Follow and Block access. The read returns only the
+visible seller id, follower count and optional actor-bound follow state. Create
+derives the actor from transaction-local context, shares the sorted Block-pair
+lock, revalidates and locks the seller, rejects self/blocked/hidden targets and
+returns only the owner id needed for the post-commit notification. Delete
+remains able to remove a stale follow after a seller becomes hidden. The
+candidate is now down to 63 direct operations in 36 files, 98 relation accesses
+in 50 files, 15 raw SQL accesses in 12 files, 84 total consumer files and 179
+reconciled opaque shapes. Its catalog has 152 matching functions: 98 retained,
+32 internal and 22 converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

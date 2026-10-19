@@ -36,7 +36,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/api/commission/[id]/route.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PARTICIPANT"],
   "src/app/api/cron/commission-expire/route.ts": ["SERVICE"],
   "src/app/api/favorites/route.ts": ["PUBLIC_ELIGIBILITY", "PARTICIPANT"],
-  "src/app/api/follow/[sellerId]/route.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PARTICIPANT"],
   "src/app/api/listings/[id]/similar/route.ts": ["PUBLIC_ELIGIBILITY"],
   "src/app/api/listings/[id]/stock/route.ts": ["TRANSACTION"],
   "src/app/api/listings/recently-viewed/route.ts": ["PUBLIC_PROFILE"],
@@ -236,7 +235,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   if (reviewedNonTargetResiduals.some(({ model }) => model === "SellerProfile")) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
-  if (targetOpaqueShapes.length !== 16
+  if (targetOpaqueShapes.length !== 14
       || reviewedNonTargetFactoryCalls.length !== 143
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
