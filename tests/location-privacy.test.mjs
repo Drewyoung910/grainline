@@ -140,22 +140,10 @@ describe("public location source boundaries", () => {
 
   it("evaluates anonymous browse membership against a coarse public point", () => {
     const browse = source("src/app/browse/page.tsx");
-    assert.match(browse, /publicLatSql/);
-    assert.match(browse, /publicLngSql/);
-    assert.match(browse, /PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE/);
-    assert.match(browse, /PUBLIC_LOCATION_METERS_PER_DEGREE/);
-    assert.match(browse, /WHEN COALESCE\(sp\."radiusMeters", 0\) > 0/);
-    assert.match(browse, /radiusLatSql/);
-    assert.match(browse, /radiusLngSql/);
-    assert.match(browse, /gridCellCenterSql/);
-    assert.match(browse, /sp\.lat BETWEEN -90 AND 90/);
-    assert.match(browse, /sp\.lng BETWEEN -180 AND 180/);
-    assert.match(browse, /LEAST\(89\.975, GREATEST\(-89\.975,/);
-    assert.match(browse, /LEAST\(179\.975, GREATEST\(-179\.975,/);
-    assert.doesNotMatch(browse, /THEN sp\.lat::float8/);
-    assert.doesNotMatch(browse, /THEN sp\.lng::float8/);
-    assert.doesNotMatch(browse, /radians\(\(sp\.lat::float -/);
-    assert.doesNotMatch(browse, /radians\(\(sp\.lng::float -/);
+    assert.match(browse, /sellerPublicBrowseNearbySellerIds\(/);
+    assert.doesNotMatch(browse, /FROM "SellerProfile" sp/);
+    assert.doesNotMatch(browse, /sp\.lat::float8|sp\.lng::float8|sp\."radiusMeters"/);
+    assert.doesNotMatch(browse, /publicLatSql|publicLngSql|gridCellCenterSql/);
   });
 
   it("coarsens new and historical commission locations before public discovery", () => {

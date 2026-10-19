@@ -75,6 +75,14 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       [seller.sellerProfileId, listingId],
     ));
     assert.deepEqual(listingLocation, sellerLocation);
+    const browseSellerIds = rowsOf(await database.query(
+      `SELECT "sellerProfileId"
+         FROM public.grainline_seller_public_browse_nearby(30.251, -97.749, 25)`,
+    ));
+    assert.equal(
+      browseSellerIds.some((row) => row.sellerProfileId === seller.sellerProfileId),
+      true,
+    );
   } finally {
     await database.query("RESET ROLE");
   }
@@ -103,6 +111,14 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
   }
+  await database.query(
+    `UPDATE public."Listing"
+        SET "isPrivate" = false,
+            "reservedForUserId" = NULL,
+            "updatedAt" = $2
+      WHERE id = $1`,
+    [listingId, now],
+  );
 
   await database.query(
     `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
@@ -126,6 +142,14 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       [seller.sellerProfileId],
     ));
     assert.deepEqual(locationRows, []);
+    const browseSellerIds = rowsOf(await database.query(
+      `SELECT "sellerProfileId"
+         FROM public.grainline_seller_public_browse_nearby(30.251, -97.749, 25)`,
+    ));
+    assert.equal(
+      browseSellerIds.some((row) => row.sellerProfileId === seller.sellerProfileId),
+      false,
+    );
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -141,6 +165,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       database.query(
         "SELECT * FROM public.grainline_seller_public_location($1, NULL)",
         [seller.sellerProfileId],
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_browse_nearby(30, -97, 25)",
       ),
       /permission denied/u,
     );

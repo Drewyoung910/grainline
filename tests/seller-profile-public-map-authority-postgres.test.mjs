@@ -12,6 +12,10 @@ const locationMigration = readFileSync(
   "prisma/migrations/20261019020000_prepare_seller_profile_public_location_authority/migration.sql",
   "utf8",
 );
+const browseMigration = readFileSync(
+  "prisma/migrations/20261019030000_prepare_seller_profile_public_browse_authority/migration.sql",
+  "utf8",
+);
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -84,12 +88,16 @@ async function readyDatabase() {
       ('listing-private-viewer', 'seller-visible', 'ACTIVE', true, 'viewer', NULL),
       ('listing-private-other', 'seller-visible', 'ACTIVE', true, 'owner-blocked', NULL),
       ('listing-owner-draft', 'seller-owner-only', 'DRAFT', false, NULL, NULL),
-      ('listing-archived', 'seller-visible', 'ACTIVE', false, NULL, NOW());
+      ('listing-archived', 'seller-visible', 'ACTIVE', false, NULL, NOW()),
+      ('listing-blocked-public', 'seller-blocked', 'ACTIVE', false, NULL, NULL),
+      ('listing-radius-public', 'seller-radius', 'ACTIVE', false, NULL, NULL),
+      ('listing-no-opt-in-public', 'seller-no-opt-in', 'ACTIVE', false, NULL, NULL);
     INSERT INTO public."Block" (id, "blockerId", "blockedId")
       VALUES ('block-1', 'owner-blocked', 'viewer');
   `);
   await database.exec(mapMigration);
   await database.exec(locationMigration);
+  await database.exec(browseMigration);
   return database;
 }
 
@@ -247,6 +255,61 @@ test("resource-bound location authority denies blocked and ungranted callers", a
     await assert.rejects(
       database.query(
         "SELECT * FROM public.grainline_seller_public_location('seller-visible', NULL)",
+      ),
+      /permission denied/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.exec("RESET app.user_id").catch(() => {});
+    await database.close();
+  }
+});
+
+test("browse location authority filters on approximate points without disclosing them", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    const rows = (await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_browse_nearby(30.2672, -97.7431, 500)
+    `)).rows;
+    assert.deepEqual(rows, [
+      { sellerProfileId: "seller-blocked" },
+      { sellerProfileId: "seller-no-opt-in" },
+      { sellerProfileId: "seller-radius" },
+      { sellerProfileId: "seller-visible" },
+    ]);
+    assert.deepEqual(Object.keys(rows[0]), ["sellerProfileId"]);
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_browse_nearby(30, -97, 501)",
+      ),
+      /input is invalid/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("browse location authority applies reciprocal blocks and denies ungranted callers", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SELECT pg_catalog.set_config('app.user_id', 'viewer', false)");
+    await database.exec("SET ROLE grainline_app_runtime");
+    const rows = (await database.query(`
+      SELECT "sellerProfileId"
+        FROM public.grainline_seller_public_browse_nearby(30.2672, -97.7431, 500)
+    `)).rows;
+    assert.equal(rows.some((row) => row.sellerProfileId === "seller-blocked"), false);
+    assert.equal(rows.some((row) => row.sellerProfileId === "seller-visible"), true);
+    await database.exec("RESET ROLE");
+    await database.exec("RESET app.user_id");
+
+    await database.exec("SET ROLE grainline_untrusted");
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_browse_nearby(30, -97, 25)",
       ),
       /permission denied/u,
     );

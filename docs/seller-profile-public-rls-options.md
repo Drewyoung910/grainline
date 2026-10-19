@@ -218,9 +218,10 @@ map/JSON-LD behavior with failing-first evidence. Its first two additive
 database operations convert the three directory/home map reads and bind
 seller/listing detail coordinates to the visible resource, reducing the
 candidate inventory from 99 to 96 direct operations, from 100 to 99 total
-source consumers, and from four to two raw-coordinate source consumers without
-changing predecessor grants. The candidate remains unmerged, and browse
-location still requires database-bound derivation. That work and the three
-retained-authority proof gaps remain
+source consumers, and from four to two raw-coordinate source consumers. The
+third additive operation owns browse-radius membership and reduces raw SQL
+accesses from 17 to 16. No public route now derives from the raw seller point
+in application SQL, and predecessor grants remain unchanged. The candidate
+remains unmerged, and the three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
 deployment, or provider operation is authorized by this decision.
