@@ -68,9 +68,9 @@ describe("observability cleanup follow-ups", () => {
     assert.match(sellerPage, /getSellerRatingMap\(\[seller\.id\]\)/);
     assert.match(viewRoute, /profileViewRatelimit/);
     assert.match(viewRoute, /hasTrackingCookie/);
-    assert.match(viewRoute, /viewer\?\.id === seller\.userId/);
+    assert.match(viewRoute, /viewer\?\.id === seller\.ownerUserId/);
     assert.match(viewRoute, /isLikelyBot/);
-    assert.match(viewRoute, /visibleSellerProfileWhere\(\{ id \}\)/);
+    assert.match(viewRoute, /sellerPublicViewTarget\(id\)/);
   });
 
   it("records account export generation durably without exported payload data", () => {

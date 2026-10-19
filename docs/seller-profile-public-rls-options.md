@@ -269,6 +269,13 @@ accesses in 12 files, while relation access falls to 98 operations in 50 files,
 the total consumer inventory falls to 90 files, and reconciled opaque shapes
 fall to 183. Its catalog has 145 matching functions: 98 retained, 32 internal
 and fifteen converted authorities.
+A sixteenth exact operation now returns only the owner user id of an otherwise
+visible seller to suppress self-view telemetry. It intentionally keeps vacation
+shops visible, and the existing fixed view-record write remains separate and
+unchanged. The candidate is now down to 72 direct operations in 42 files, 98
+relation accesses in 50 files, 15 raw SQL accesses in 12 files, 89 total
+consumer files and 182 reconciled opaque shapes. Its catalog has 146 matching
+functions: 98 retained, 32 internal and sixteen converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

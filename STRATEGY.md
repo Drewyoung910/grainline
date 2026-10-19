@@ -78,12 +78,15 @@ seller, public-listing, reciprocal-block and stable-order predicates into the
 database. A fifteenth exact operation serves the cached footer city links,
 preserving the predecessor's active-seller-or-public-listing eligibility,
 all-listing popularity rank, stable order and ten-row cap without returning
-the rank. All fifteen keep the old table grant unchanged. This reduces the
-candidate source inventory to 73 direct operations in 43 files, 15 raw SQL
-accesses in 12 files, 90 total consumer files, 183 reconciled opaque query
+the rank. A sixteenth returns only the visible seller's owner identifier for
+self-view suppression in seller telemetry, preserving vacation visibility and
+leaving the existing fixed view-record write unchanged. All sixteen keep the
+old table grant unchanged. This reduces the candidate source inventory to 72
+direct operations in 42 files, 15 raw SQL accesses in 12 files, 89 total
+consumer files, 182 reconciled opaque query
 shapes and two remaining purpose-bound owner coordinate consumers. The
 candidate catalog contains the unchanged 98 retained and 32 internal functions
-plus the fifteen converted public authorities. It
+plus the sixteen converted public authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three

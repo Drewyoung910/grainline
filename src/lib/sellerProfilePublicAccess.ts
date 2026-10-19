@@ -117,6 +117,10 @@ export type SellerPublicFooterMetro = Readonly<{
   state: string;
 }>;
 
+export type SellerPublicViewTarget = Readonly<{
+  ownerUserId: string;
+}>;
+
 export type SellerPublicSitemapRow = Readonly<{
   id: string;
   displayName: string;
@@ -240,6 +244,10 @@ type SellerPublicFooterMetroRow = {
   slug: unknown;
   name: unknown;
   state: unknown;
+};
+
+type SellerPublicViewTargetRow = {
+  ownerUserId: unknown;
 };
 
 type SellerPublicSitemapRowResult = {
@@ -705,6 +713,24 @@ async function readSellerPublicFooterMetros(client: SellerPublicAccessClient) {
   return Object.freeze(metros);
 }
 
+async function readSellerPublicViewTarget(
+  client: SellerPublicAccessClient,
+  sellerProfileId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicViewTargetRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_view_target(${sellerProfileId})
+  `);
+  if (rows.length === 0) return null;
+  if (
+    rows.length !== 1
+    || typeof rows[0].ownerUserId !== "string"
+    || !rows[0].ownerUserId
+  ) {
+    throw new Error("Seller public view-target authority returned an invalid result");
+  }
+  return Object.freeze({ ownerUserId: rows[0].ownerUserId });
+}
+
 async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicSitemapCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_sitemap_counts()
@@ -940,6 +966,13 @@ export async function sellerPublicNearbyMetros(
 
 export async function sellerPublicFooterMetros() {
   return readSellerPublicFooterMetros(prisma);
+}
+
+export async function sellerPublicViewTarget(sellerProfileId: string) {
+  if (sellerProfileId.length < 1 || sellerProfileId.length > 191) {
+    throw new RangeError("Seller public view-target id is outside the supported range");
+  }
+  return readSellerPublicViewTarget(prisma, sellerProfileId);
 }
 
 export async function sellerPublicSitemapPage(

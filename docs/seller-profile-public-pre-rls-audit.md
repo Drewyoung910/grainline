@@ -151,7 +151,7 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds fifteen converted runtime authorities without changing
+The Phase 1 candidate adds sixteen converted runtime authorities without changing
 predecessor table grants. `grainline_seller_public_map_points(integer)` returns
 only seller id/name/city/state and a database-derived coarse point, enforces
 active public-map eligibility, applies reciprocal blocks from trusted
@@ -202,7 +202,11 @@ cards, or nearby metro id/slug/name rows while owning active-seller,
 public-listing, reciprocal-block and stable-order predicates.
 `grainline_seller_public_footer_metros()` returns at most ten footer city links,
 preserving the active-seller-or-public-listing eligibility, all-listing
-popularity rank and stable order without exposing the rank. All fifteen grant
+popularity rank and stable order without exposing the rank.
+`grainline_seller_public_view_target(text)` returns only the owner user id for
+an otherwise visible seller so the telemetry route can suppress self-views. It
+preserves the predecessor's vacation-visible rule and leaves the fixed
+view-record writer unchanged. All sixteen grant
 execute only to the app runtime. Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -210,7 +214,7 @@ execute only to the app runtime. Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 15 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, three metro-directory operations and cached footer metros replace public base-table reads while predecessor grants remain available |
+| Converted authority | 16 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, three metro-directory operations, cached footer metros and telemetry view target replace public base-table reads while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any

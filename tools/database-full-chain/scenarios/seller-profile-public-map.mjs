@@ -213,6 +213,14 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       displayName: "Full Chain Workshop",
       coverImageUrl: "https://example.test/map-card.jpg",
     }]);
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "ownerUserId"
+           FROM public.grainline_seller_public_view_target($1)`,
+        [seller.sellerProfileId],
+      )),
+      [{ ownerUserId: seller.userId }],
+    );
     const sellerSitemapRows = rowsOf(await database.query(
       `SELECT id, "displayName"
          FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 50000)`,
@@ -380,6 +388,13 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     await assert.rejects(
       database.query(
         "SELECT * FROM public.grainline_seller_public_map_card($1)",
+        [seller.sellerProfileId],
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_view_target($1)",
         [seller.sellerProfileId],
       ),
       /permission denied/u,
