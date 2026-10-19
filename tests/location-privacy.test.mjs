@@ -52,21 +52,18 @@ describe("public location projection", () => {
     );
   });
 
-  it("coarsens public discovery unless exact-location consent is explicit", () => {
+  it("coarsens every public discovery point", () => {
     const first = coarsePublicLocationPoint({ lat: 30.251, lng: -97.749 });
     const sameCell = coarsePublicLocationPoint({ lat: 30.274, lng: -97.726 });
     assert.deepEqual(first, sameCell);
-    assert.deepEqual(
-      coarsePublicLocationPoint({ lat: 30.251, lng: -97.749, exactLocationOptIn: true }),
-      { lat: 30.251, lng: -97.749 },
-    );
+    assert.notDeepEqual(first, { lat: 30.251, lng: -97.749 });
   });
 
   it("uses one canonical seller projection across every public surface", () => {
     const raw = { lat: 30.04995, lng: -97.35001 };
     const radiusMeters = 1609.344;
     assert.deepEqual(
-      publicSellerLocationPoint({ ...raw, radiusMeters, exactLocationOptIn: true }),
+      publicSellerLocationPoint({ ...raw, radiusMeters }),
       privacySafeLocationPoint({ ...raw, radiusMeters }),
     );
     assert.equal(
@@ -74,8 +71,8 @@ describe("public location projection", () => {
       true,
     );
     assert.deepEqual(
-      publicSellerLocationPoint({ ...raw, radiusMeters: 0, exactLocationOptIn: true }),
-      { ...raw, approximate: false },
+      publicSellerLocationPoint({ ...raw, radiusMeters: 0 }),
+      { ...coarsePublicLocationPoint(raw), approximate: true },
     );
   });
 
@@ -110,7 +107,7 @@ describe("public location source boundaries", () => {
     for (const page of [listing, seller]) {
       assert.match(page, /publicSellerLocationPoint\(/);
       assert.match(page, /isSupportedLocationPoint\(lat, lng\)/);
-      assert.match(page, /exactLocationOptIn: .*publicMapOptIn/);
+      assert.doesNotMatch(page, /exactLocationOptIn/);
       assert.match(page, /showPickupMap && pickupMapPoint &&/);
       assert.match(page, /displayLat=\{pickupMapPoint\.lat\}/);
       assert.match(page, /displayLng=\{pickupMapPoint\.lng\}/);
@@ -121,11 +118,25 @@ describe("public location source boundaries", () => {
     assert.match(mapCard, /displayLat: number/);
     assert.match(mapCard, /displayLng: number/);
     assert.doesNotMatch(mapCard, /jitterAround|seededRand|Math\.random|\bseed\??:/);
+
+    const publicMaps = [
+      source("src/app/map/page.tsx"),
+      source("src/app/sellers/map/page.tsx"),
+      source("src/app/page.tsx"),
+    ];
+    for (const publicMap of publicMaps) {
+      assert.match(publicMap, /publicSellerLocationPoint\(\{ lat, lng, radiusMeters: 0 \}\)/);
+      assert.match(publicMap, /lat: publicPoint\.lat/);
+      assert.match(publicMap, /lng: publicPoint\.lng/);
+    }
+
+    assert.match(seller, /latitude: pickupMapPoint\.lat/);
+    assert.match(seller, /longitude: pickupMapPoint\.lng/);
+    assert.doesNotMatch(seller, /latitude: lat, longitude: lng/);
   });
 
   it("evaluates anonymous browse membership against a coarse public point", () => {
     const browse = source("src/app/browse/page.tsx");
-    assert.match(browse, /sp\."publicMapOptIn" = true AND COALESCE\(sp\."radiusMeters", 0\) = 0/);
     assert.match(browse, /publicLatSql/);
     assert.match(browse, /publicLngSql/);
     assert.match(browse, /PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE/);
@@ -138,6 +149,8 @@ describe("public location source boundaries", () => {
     assert.match(browse, /sp\.lng BETWEEN -180 AND 180/);
     assert.match(browse, /LEAST\(89\.975, GREATEST\(-89\.975,/);
     assert.match(browse, /LEAST\(179\.975, GREATEST\(-179\.975,/);
+    assert.doesNotMatch(browse, /THEN sp\.lat::float8/);
+    assert.doesNotMatch(browse, /THEN sp\.lng::float8/);
     assert.doesNotMatch(browse, /radians\(\(sp\.lat::float -/);
     assert.doesNotMatch(browse, /radians\(\(sp\.lng::float -/);
   });

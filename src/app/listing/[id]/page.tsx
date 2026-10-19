@@ -381,7 +381,6 @@ export default async function ListingPage({
         lat,
         lng,
         radiusMeters: radius,
-        exactLocationOptIn: listing.seller.publicMapOptIn,
       })
     : null;
   const showPickupMap = listing.seller.allowLocalPickup && pickupMapPoint != null;

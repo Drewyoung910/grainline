@@ -65,10 +65,8 @@ export function privacySafeLocationPoint({
 export function coarsePublicLocationPoint({
   lat,
   lng,
-  exactLocationOptIn = false,
-}: LocationPoint & Readonly<{ exactLocationOptIn?: boolean }>): LocationPoint {
+}: LocationPoint): LocationPoint {
   assertCoordinates(lat, lng);
-  if (exactLocationOptIn) return Object.freeze({ lat, lng });
 
   const cells = PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE;
   const cellDegrees = 1 / cells;
@@ -82,10 +80,8 @@ export function publicSellerLocationPoint({
   lat,
   lng,
   radiusMeters,
-  exactLocationOptIn = false,
 }: LocationPoint & Readonly<{
   radiusMeters: number | null | undefined;
-  exactLocationOptIn?: boolean;
 }>): PrivacySafeLocationPoint {
   const normalizedRadius = typeof radiusMeters === "number" && Number.isFinite(radiusMeters)
     ? radiusMeters
@@ -94,8 +90,8 @@ export function publicSellerLocationPoint({
     return privacySafeLocationPoint({ lat, lng, radiusMeters: normalizedRadius });
   }
 
-  const point = coarsePublicLocationPoint({ lat, lng, exactLocationOptIn });
-  return Object.freeze({ ...point, approximate: !exactLocationOptIn });
+  const point = coarsePublicLocationPoint({ lat, lng });
+  return Object.freeze({ ...point, approximate: true });
 }
 
 export function commissionDistanceBucket(distanceMeters: number | null | undefined) {

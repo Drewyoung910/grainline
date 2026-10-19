@@ -41,7 +41,7 @@ export default function SellerLocationSection({
 
       {hasRadius && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          <strong>Note:</strong> Sellers with a radius set cannot appear on the public makers map — your approximate area is still shown on your shop page and listing pages. To enable makers map visibility, set your radius to 0 (exact pin).
+          <strong>Note:</strong> Sellers with a radius set cannot appear on the public makers map — your approximate area is still shown on your shop page and listing pages. To enable makers map visibility, set your radius to 0. Public map pins remain approximate.
         </div>
       )}
 

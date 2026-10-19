@@ -42,13 +42,15 @@ The location review confirmed that current public maps and seller JSON-LD can
 publish raw points even though Privacy 2.7 and Terms 4.19/4.20 promise
 approximate-only display. Option B now requires approximate public points on
 every surface: radius-sized grids for positive privacy radii and the coarse
-public grid otherwise. Exact coordinates remain owner or purpose bound. Phase
-1 may begin additive projection/operation design and isolated source
-preparation. It must correct the current location disclosure, close the three
-behavior-proof gaps, convert every caller, and keep predecessor grants intact
-until compatibility proof is accepted. Production migration, grant, ENABLE,
-FORCE and deployment remain separate approvals. Keep `CommissionRequest` as a
-separate RLS release.
+public grid otherwise. Exact coordinates remain owner or purpose bound. An
+isolated Phase 1 candidate now applies that rule to the three public maps,
+seller/listing map cards, seller JSON-LD and browse-distance SQL, with a
+failing-first behavior test. It is not merged or live, and the authoritative
+database projection still must replace raw source access. Phase 1 continues
+with additive projection/operation design, the three behavior-proof gaps and
+caller conversion while predecessor grants remain intact until compatibility
+proof is accepted. Production migration, grant, ENABLE, FORCE and deployment
+remain separate approvals. Keep `CommissionRequest` as a separate RLS release.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

@@ -251,7 +251,6 @@ async function SellerPublicContent({
         lat,
         lng,
         radiusMeters,
-        exactLocationOptIn: seller.publicMapOptIn,
       })
     : null;
 
@@ -377,8 +376,14 @@ async function SellerPublicContent({
           },
         }
       : {}),
-    ...(hasStructuredAddress && seller.publicMapOptIn && !radiusMeters && lat != null && lng != null
-      ? { geo: { "@type": "GeoCoordinates", latitude: lat, longitude: lng } }
+    ...(hasStructuredAddress && seller.publicMapOptIn && !radiusMeters && pickupMapPoint
+      ? {
+          geo: {
+            "@type": "GeoCoordinates",
+            latitude: pickupMapPoint.lat,
+            longitude: pickupMapPoint.lng,
+          },
+        }
       : {}),
   };
 

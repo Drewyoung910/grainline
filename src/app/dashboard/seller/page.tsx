@@ -98,9 +98,9 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   if (publicMapOptIn) {
     if (!(Number.isFinite(lat as number) && Number.isFinite(lng as number))) {
-      return { ok: false, error: "To appear on the public map, set an exact pin location." };
+      return { ok: false, error: "To appear on the public map, set a pin location." };
     }
-    // exact pin for public map
+    // Store the source point; every public surface projects it approximately.
     radiusMeters = 0;
   }
 

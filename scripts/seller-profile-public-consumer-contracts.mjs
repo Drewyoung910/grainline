@@ -5,7 +5,7 @@ import { auditModelIndirectAccess } from "./audit-user-indirect-access.mjs";
 export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
   PUBLIC_PROFILE: "Public-safe seller presentation under the caller's existing visibility predicate.",
   PUBLIC_ELIGIBILITY: "Boolean, count, or filter-only seller availability without returning a seller row.",
-  PUBLIC_MAP: "Exact public point only for an active, opted-in seller with no positive privacy radius.",
+  PUBLIC_MAP: "Approximate public point only for an active, opted-in seller with no positive privacy radius.",
   OWNER: "Authenticated active owner access to that owner's profile and settings.",
   PARTICIPANT: "Authenticated relationship-bound access for follows, saves, reports, reviews, or messages.",
   STAFF: "Named staff operation retaining role, PIN, target, state-transition, and audit requirements.",
@@ -15,7 +15,7 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 
 // This is the exact current source-consumer disposition, not the future SQL API.
 // A file can need several contracts when it combines public presentation with
-// contextual eligibility, exact-map, participant, or transaction behavior.
+// contextual eligibility, approximate-map, participant, or transaction behavior.
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/about/page.tsx": ["PUBLIC_ELIGIBILITY"],
   "src/app/account/commissions/page.tsx": ["PUBLIC_PROFILE"],

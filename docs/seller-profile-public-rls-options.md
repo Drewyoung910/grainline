@@ -213,7 +213,9 @@ view owner bypasses RLS.
 
 Option B is selected and Phase 0 closed on 2026-10-19. The domain may proceed
 to additive Phase 1 design and isolated source preparation. Public location is
-approximate-only; the current exact map/JSON-LD behavior and three retained
-authority proof gaps are `FIX_BEFORE_ACTIVATION`. No Production policy, grant,
-ENABLE, FORCE, migration, deployment, or provider operation is authorized by
-this decision.
+approximate-only. An isolated application candidate now corrects the exact
+map/JSON-LD behavior with failing-first evidence, but it remains unmerged and
+the database operation still must make approximation authoritative. That work
+and the three retained-authority proof gaps remain `FIX_BEFORE_ACTIVATION`. No
+Production policy, grant, ENABLE, FORCE, migration, deployment, or provider
+operation is authorized by this decision.

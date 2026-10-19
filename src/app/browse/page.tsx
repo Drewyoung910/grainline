@@ -310,8 +310,6 @@ async function BrowseContent({
       CASE
         WHEN COALESCE(sp."radiusMeters", 0) > 0
           THEN ${radiusLatSql}
-        WHEN sp."publicMapOptIn" = true AND COALESCE(sp."radiusMeters", 0) = 0
-          THEN sp.lat::float8
         ELSE LEAST(89.975, GREATEST(-89.975,
           (floor(sp.lat::float8 * ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}) + 0.5)
             / ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}
@@ -322,8 +320,6 @@ async function BrowseContent({
       CASE
         WHEN COALESCE(sp."radiusMeters", 0) > 0
           THEN ${radiusLngSql}
-        WHEN sp."publicMapOptIn" = true AND COALESCE(sp."radiusMeters", 0) = 0
-          THEN sp.lng::float8
         ELSE LEAST(179.975, GREATEST(-179.975,
           (floor(sp.lng::float8 * ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}) + 0.5)
             / ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}

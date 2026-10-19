@@ -375,6 +375,13 @@ projections omit all four location source columns and `userId`; location access
 is a separate operation. The current raw-map and JSON-LD behavior is a product
 defect that Phase 1 must remove before activation.
 
+An isolated Phase 1 source candidate now removes that raw public output across
+the three maps, seller/listing map cards, seller JSON-LD and browse-distance
+SQL. Its behavior test failed on the exact-main implementation and passes after
+the change. This does not rewrite the baseline above or claim a live fix: the
+candidate remains unmerged and undeployed, and the later database projection
+must make approximation authoritative before RLS activation.
+
 ## Reconciliation of recent Claude allegations
 
 Claude findings are treated as allegations until reproduced against current
@@ -385,7 +392,7 @@ ledger later reused some numbers for unrelated findings.
 |---|---|---|
 | Listing AI review omits `materials`, `metaDescription`, variant group names and option labels | **Confirmed.** All four `reviewListingWithAI` call sites pass title, description, category, tags, seller name, price and images; the review contract has no fields for the omitted public text. | `DEFERRED_PRODUCT_WORK`. Fix in the Listing moderation batch. It does not change the SellerProfile projection design or block additive design work. |
 | “Local makers only” commissions are visible to makers nationwide | **Confirmed.** Creation stores a privacy-reduced point and `isNational = false`, but the default `All` tab queries all open requests without a distance predicate. Only the `Near Me` raw query applies the 80 km filter, and any seller shown the request can submit interest. | `DEFERRED_PRODUCT_WORK`. Fix the promise/enforcement in the CommissionRequest domain. Preserve the current active-seller interest predicate during SellerProfile conversion. |
-| Public seller maps and seller JSON-LD disclose exact coordinates despite approximate-only legal promises | **Confirmed.** Opted-in null/zero-radius sellers' raw coordinates reach three map surfaces and seller JSON-LD. Seller/listing helpers can also return exact points. Privacy 2.7 and Terms 4.19/4.20 promise approximate-only public display. | The Phase 0 design now requires approximate-only public output. Correct current callers and copy that describes an “exact pin” before activation; exact location remains owner or purpose bound. |
+| Public seller maps and seller JSON-LD disclose exact coordinates despite approximate-only legal promises | **Confirmed on exact main.** Opted-in null/zero-radius sellers' raw coordinates reach three map surfaces and seller JSON-LD. Seller/listing helpers can also return exact points. Privacy 2.7 and Terms 4.19/4.20 promise approximate-only public display. | The Phase 0 design requires approximate-only public output. An isolated Phase 1 candidate corrects the current application callers and “exact pin” copy, with failing-first behavior evidence. It remains `FIX_BEFORE_ACTIVATION` until merged, released and replaced by the authoritative database projection; exact location remains owner or purpose bound. |
 
 These classifications preserve the verified product bugs without allowing
 unrelated Listing or CommissionRequest work to stall the seller authority
@@ -430,10 +437,11 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Convert every proven direct, relation and raw SQL caller away from runtime
   base-table authority.
 - Replace all 14 direct writes with fixed operations.
-- Replace raw-coordinate output on public maps, seller/listing public helpers,
-  and seller JSON-LD with database-derived approximate points. Remove “exact
-  pin” public UI copy so behavior and disclosure agree with Privacy 2.7 and
-  Terms 4.19/4.20.
+- Merge and release the isolated application correction that replaces
+  raw-coordinate output on public maps, seller/listing public helpers, seller
+  JSON-LD and browse-distance SQL with approximate points and removes “exact
+  pin” UI copy. Then move that derivation into the reviewed database operation
+  so callers cannot recover the raw source point.
 - Add full-chain behavior proof for the checkout claim batch, listing delete
   reference state, and Guild listing-threshold sync authorities.
 - Prove anonymous, owner, staff, map, checkout/shipping, deletion/export,

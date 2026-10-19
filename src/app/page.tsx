@@ -33,6 +33,7 @@ import { formatCurrencyCents } from "@/lib/money";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
+import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -355,16 +356,20 @@ export default async function HomePage() {
 
   const featuredMakers = featuredMakerBlock;
 
-  const mapPoints = mapRows
-    .map((r) => ({
-      id: r.id,
-      name: r.displayName ?? "Maker",
-      city: r.city,
-      state: r.state,
-      lat: Number(r.lat),
-      lng: Number(r.lng),
-    }))
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  const mapPoints = mapRows.flatMap((seller) => {
+    const lat = Number(seller.lat);
+    const lng = Number(seller.lng);
+    if (!isSupportedLocationPoint(lat, lng)) return [];
+    const publicPoint = publicSellerLocationPoint({ lat, lng, radiusMeters: 0 });
+    return [{
+      id: seller.id,
+      name: seller.displayName ?? "Maker",
+      city: seller.city,
+      state: seller.state,
+      lat: publicPoint.lat,
+      lng: publicPoint.lng,
+    }];
+  });
 
   const featuredMakerFallbackImages = featuredMakers.map(({ maker, listings }) =>
     listings[0]?.photos[0]?.url ??

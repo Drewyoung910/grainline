@@ -8,6 +8,7 @@ import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import type { Metadata } from "next";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
 
 export const metadata: Metadata = {
   title: "Find Local Woodworkers Near You | Grainline Makers Map",
@@ -64,7 +65,7 @@ export default async function AllSellersMapPage({
     initialZoom = parseBoundedPositiveIntParam(zoom, 3, 18);
   }
 
-  // Only sellers with a precise pin (lat & lng present). Exclude radius-only rows.
+  // Only sellers with a source point. Public output is always approximated.
   const activeMetros = await prisma.metro.findMany({
     where: {
       isActive: true,
@@ -115,16 +116,20 @@ export default async function AllSellersMapPage({
     take: MAP_SELLER_POINT_LIMIT,
   });
 
-  const points: Point[] = sellers
-    .map((s) => ({
-      id: s.id,
-      name: s.displayName ?? "Maker",
-      lat: Number(s.lat),
-      lng: Number(s.lng),
-      city: s.city,
-      state: s.state,
-    }))
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  const points = sellers.flatMap((seller): Point[] => {
+    const lat = Number(seller.lat);
+    const lng = Number(seller.lng);
+    if (!isSupportedLocationPoint(lat, lng)) return [];
+    const publicPoint = publicSellerLocationPoint({ lat, lng, radiusMeters: 0 });
+    return [{
+      id: seller.id,
+      name: seller.displayName ?? "Maker",
+      lat: publicPoint.lat,
+      lng: publicPoint.lng,
+      city: seller.city,
+      state: seller.state,
+    }];
+  });
 
   return (
     <main className="max-w-7xl mx-auto p-6 space-y-6">
@@ -132,7 +137,7 @@ export default async function AllSellersMapPage({
         <div>
           <h1 className="text-2xl font-semibold font-display">Makers near you</h1>
           <p className="text-sm text-neutral-500 mt-1">
-            Showing {points.length} maker{points.length === 1 ? "" : "s"} with exact pickup locations.
+            Showing {points.length} maker{points.length === 1 ? "" : "s"} with approximate map locations.
           </p>
         </div>
       </header>
