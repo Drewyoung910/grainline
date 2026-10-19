@@ -499,6 +499,18 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     assert.deepEqual(
       rowsOf(await database.query(
+        `SELECT id, "displayName", "guildLevel"
+           FROM public.grainline_seller_actor_account_feed_cards(ARRAY[$1]::text[])`,
+        [seller.sellerProfileId],
+      )),
+      [{
+        id: seller.sellerProfileId,
+        displayName: "Full Chain Workshop",
+        guildLevel: "NONE",
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
         `SELECT "resultStatus", "followerCount"
            FROM public.grainline_seller_public_follow_delete($1)`,
         [seller.sellerProfileId],
@@ -630,6 +642,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     await assert.rejects(
       database.query(
         "SELECT * FROM public.grainline_seller_actor_conversation_cards(ARRAY['target']::text[])",
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_actor_account_feed_cards(ARRAY['target']::text[])",
       ),
       /permission denied/u,
     );

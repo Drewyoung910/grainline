@@ -152,6 +152,13 @@ now at 39 direct operations in 18 files, 91 relation accesses in 48 files, 15
 raw SQL accesses in 12 files and 70 total consumer files. It has 178 reconciled
 opaque shapes, and its 161-function catalog partitions into 98 retained, 32
 internal and 31 converted authorities.
+The account feed then leaves the ledger through an actor-bound followed-seller
+card projection. It verifies the Follow edge, active seller state and reciprocal
+blocks both before and after the three feed queries, and returns only id, name
+and Guild level. The candidate is now at 38 direct operations in 17 files, 85
+relation accesses in 47 files, 15 raw SQL accesses in 12 files and 69 total
+consumer files. It has 174 reconciled opaque shapes, and its 162-function
+catalog partitions into 98 retained, 32 internal and 32 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

@@ -404,6 +404,15 @@ candidate is now at 39 direct operations in 18 files, 91 relation accesses in
 48 files, 15 raw SQL accesses in 12 files, 70 total consumer files and 178
 reconciled opaque shapes. The catalog has 161 functions: 98 retained, 32
 internal and 31 converted.
+The authenticated account feed then uses one actor-bound followed-seller card
+projection before and after its bounded listing, blog and broadcast queries.
+The operation verifies the Follow edge, active-seller readiness and reciprocal
+blocks and returns only id, display name and Guild level. Removing the direct
+preflight and three nested seller filters makes the route leave the consumer
+ledger. The candidate is now at 38 direct operations in 17 files, 85 relation
+accesses in 47 files, 15 raw SQL accesses in 12 files, 69 total consumer files
+and 174 reconciled opaque shapes. The catalog has 162 functions: 98 retained,
+32 internal and 32 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

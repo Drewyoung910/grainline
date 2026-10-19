@@ -12,6 +12,18 @@ type SellerConversationParticipantCardRow = {
   stripeAccountSupported: boolean;
 };
 
+export type SellerAccountFeedCard = Readonly<{
+  id: string;
+  displayName: string;
+  guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+}>;
+
+type SellerAccountFeedCardRow = {
+  id: unknown;
+  displayName: unknown;
+  guildLevel: unknown;
+};
+
 type SellerConversationParticipantClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 function nullableString(value: unknown): value is string | null {
@@ -75,4 +87,54 @@ export function sellerConversationParticipantCards(
   }
   return withDbUserContext(actorId, (client) =>
     readSellerConversationParticipantCards(client, normalizedTargets));
+}
+
+async function readSellerActorAccountFeedCards(
+  client: SellerConversationParticipantClient,
+  sellerProfileIds: string[],
+) {
+  const rows = await client.$queryRaw<SellerAccountFeedCardRow[]>`
+    SELECT *
+      FROM public.grainline_seller_actor_account_feed_cards(
+        ${sellerProfileIds}::text[]
+      )
+  `;
+  const requestedIds = new Set(sellerProfileIds);
+  if (
+    rows.length > sellerProfileIds.length
+    || rows.some((row) => (
+      typeof row.id !== "string"
+      || !requestedIds.has(row.id)
+      || typeof row.displayName !== "string"
+      || row.displayName.length < 1
+      || row.displayName.length > 100
+      || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+    ))
+    || new Set(rows.map((row) => row.id)).size !== rows.length
+  ) {
+    throw new TypeError("Seller account-feed authority returned an invalid result");
+  }
+  return rows.map((row) => Object.freeze({
+    id: row.id as string,
+    displayName: row.displayName as string,
+    guildLevel: row.guildLevel as SellerAccountFeedCard["guildLevel"],
+  }));
+}
+
+export function sellerActorAccountFeedCards(
+  actorUserId: string,
+  sellerProfileIds: string[],
+) {
+  const actorId = normalizeDbUserContextUserId(actorUserId);
+  const normalizedTargets = [...new Set(
+    sellerProfileIds.map((sellerProfileId) => normalizeDbUserContextUserId(sellerProfileId)),
+  )];
+  if (normalizedTargets.length === 0) {
+    return Promise.resolve([] as SellerAccountFeedCard[]);
+  }
+  if (normalizedTargets.length > 1000) {
+    throw new TypeError("Seller account-feed target set is too large");
+  }
+  return withDbUserContext(actorId, (client) =>
+    readSellerActorAccountFeedCards(client, normalizedTargets));
 }
