@@ -133,6 +133,13 @@ conversation with the active actor. The candidate is now at 41 direct
 operations in 20 files, 91 relation accesses in 48 files, 15 raw SQL accesses
 in 12 files and 72 total consumer files. Its 159-function catalog partitions
 into 98 retained, 32 internal and 29 converted authorities.
+The seller-vacation route then leaves the ledger by replacing its direct update
+with an active-owner mutation that binds the expected seller id and preserves
+the post-commit cache and checkout-expiry side effects. UTC epoch input avoids
+session-timezone drift for the date-only return value. The candidate is now at
+40 direct operations in 19 files, 91 relation accesses in 48 files, 15 raw SQL
+accesses in 12 files and 71 total consumer files. Its 160-function catalog
+partitions into 98 retained, 32 internal and 30 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

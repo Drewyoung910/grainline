@@ -381,6 +381,22 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     assert.equal(publishReview[0].chargesEnabled, true);
     assert.equal(publishReview[0].vacationMode, false);
     assert.equal(publishReview[0].publishReviewListingCount >= 1, true);
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "sellerProfileId"
+           FROM public.grainline_seller_owner_vacation_update($1, true, $2, $3)`,
+        [seller.sellerProfileId, BigInt(Date.parse("2026-11-02T12:00:00.000Z")), "Back soon"],
+      )),
+      [{ sellerProfileId: seller.sellerProfileId }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "sellerProfileId"
+           FROM public.grainline_seller_owner_vacation_update($1, false, NULL, NULL)`,
+        [seller.sellerProfileId],
+      )),
+      [{ sellerProfileId: seller.sellerProfileId }],
+    );
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -603,6 +619,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_owner_listing_review()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_owner_vacation_update('seller', false, NULL, NULL)",
+      ),
       /permission denied/u,
     );
     await assert.rejects(

@@ -101,6 +101,69 @@ export type SellerOwnerDashboardState = {
   chargesEnabled: boolean;
 };
 
+export type SellerOwnerVacationUpdate = {
+  sellerProfileId: string;
+};
+
+async function writeSellerOwnerVacationUpdate(
+  client: SellerProfileOwnerClient,
+  input: {
+    sellerProfileId: string;
+    vacationMode: boolean;
+    vacationReturnDate: Date | null;
+    vacationMessage: string | null;
+  },
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/.test(input.sellerProfileId)
+    || typeof input.vacationMode !== "boolean"
+    || (
+      input.vacationReturnDate !== null
+      && (
+        !(input.vacationReturnDate instanceof Date)
+        || !Number.isFinite(input.vacationReturnDate.getTime())
+      )
+    )
+    || (
+      input.vacationMessage !== null
+      && Array.from(input.vacationMessage).length > 200
+    )
+  ) {
+    throw new TypeError("Seller owner vacation update input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<{ sellerProfileId: unknown }>>`
+    SELECT *
+      FROM public.grainline_seller_owner_vacation_update(
+        ${input.sellerProfileId}::text,
+        ${input.vacationMode}::boolean,
+        ${input.vacationReturnDate === null ? null : BigInt(input.vacationReturnDate.getTime())}::bigint,
+        ${input.vacationMessage}::text
+      )
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1 || rows[0]?.sellerProfileId !== input.sellerProfileId) {
+    throw new Error("Seller owner vacation update authority returned an invalid result");
+  }
+  return Object.freeze({
+    sellerProfileId: input.sellerProfileId,
+  }) satisfies Readonly<SellerOwnerVacationUpdate>;
+}
+
+export function sellerOwnerVacationUpdate(
+  userId: string,
+  input: {
+    sellerProfileId: string;
+    vacationMode: boolean;
+    vacationReturnDate: Date | null;
+    vacationMessage: string | null;
+  },
+) {
+  return withDbUserContext(
+    userId,
+    (client) => writeSellerOwnerVacationUpdate(client, input),
+  );
+}
+
 async function readSellerOwnerDashboardState(client: SellerProfileOwnerClient) {
   const rows = await client.$queryRaw<SellerOwnerDashboardStateRow[]>`
     SELECT * FROM public.grainline_seller_owner_dashboard_state()

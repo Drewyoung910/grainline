@@ -383,6 +383,14 @@ consumer ledger. The candidate is now at 41 direct operations in 20 files, 91
 relation accesses in 48 files, 15 raw SQL accesses in 12 files, 72 total
 consumer files and 179 reconciled opaque shapes. The catalog has 159 functions:
 98 retained, 32 internal and 29 converted.
+The owner vacation route then uses one actor-and-target-bound mutation for its
+three vacation fields. It accepts the return date as epoch milliseconds and
+reconstructs the UTC wall-clock timestamp in PostgreSQL, avoiding session
+timezone drift while leaving cache invalidation and checkout expiry after the
+committed write. The route leaves the consumer ledger. The candidate is now at
+40 direct operations in 19 files, 91 relation accesses in 48 files, 15 raw SQL
+accesses in 12 files, 71 total consumer files and 179 reconciled opaque shapes.
+The catalog has 160 functions: 98 retained, 32 internal and 30 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

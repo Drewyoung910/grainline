@@ -1,6 +1,5 @@
 import { after } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -17,6 +16,7 @@ import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { sellerStripeOwnerState } from "@/lib/sellerStripePrivateAccess";
+import { sellerOwnerVacationUpdate } from "@/lib/sellerProfileOwnerAccess";
 
 const VacationSchema = z.object({
   vacationMode: z.boolean(),
@@ -95,11 +95,13 @@ export async function POST(req: Request) {
       ? truncateText(sanitizeText(vacParsed.vacationMessage), 200) || null
       : null;
 
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
-      data: { vacationMode, vacationReturnDate, vacationMessage },
-      select: { id: true },
+    const updatedSeller = await sellerOwnerVacationUpdate(seller.userId, {
+      sellerProfileId: seller.id,
+      vacationMode,
+      vacationReturnDate,
+      vacationMessage,
     });
+    if (!updatedSeller) throw new Error("Seller vacation update was not authorized");
     revalidatePublicSellerVisibilityCaches();
 
     if (vacationMode) {
