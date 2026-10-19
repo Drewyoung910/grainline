@@ -69,6 +69,11 @@ AST scanner exposed as `npm run audit:seller-profile-public-access`. It scans
   query-shape factories whose predicates traverse `SellerProfile`.
 - **17 raw SQL accesses in 14 files**.
 - The union of direct, relation and raw-SQL consumers is **100 source files**.
+- A machine-checked manifest assigns all 100 files to bounded contracts:
+  34 public-profile, 47 public-eligibility, 5 exact-map, 22 owner, 15
+  participant, 7 staff, 14 service and 14 transaction consumers. Contracts
+  overlap where a file performs more than one role. Run it with
+  `npm run audit:seller-profile-public-contracts`.
 - The scan found zero direct full-row returns, zero opaque direct projections,
   and zero relation full-row returns. Existing callers already select bounded
   fields, which reduces projection design risk but does not remove shared-role

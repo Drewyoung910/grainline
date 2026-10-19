@@ -26,11 +26,16 @@ column. See `docs/seller-profile-public-rls-options.md`.
 Phase 0 is the current work. The schema-aware AST inventory on exact main
 `e92b7a329cf3f7c1d45e8c2857e26b336d26ff65` finds 99 direct operations, 103
 confirmed relation accesses and 17 raw SQL accesses across 100 source files.
-Classify those callers; reconcile seller, location, visibility, deletion,
-Guild and staff findings; and finish the public SellerProfile product/authority
-audit. No public-table view, function, policy, grant or migration implementation
-begins until that audit closes. Keep `CommissionRequest` as a separate RLS
-release.
+A machine-checked manifest now assigns all 100 to their public-profile,
+eligibility, exact-map, owner, participant, staff, service and transaction
+contracts. The full-chain PostgreSQL 16 catalog also records 130 matching
+security-definer functions, six direct table triggers, 16 incoming foreign
+keys and the exact function execute-principal split. Next classify those
+database objects, resolve relevant opaque source shapes, define exact
+fields/predicates, reconcile seller, location, visibility, deletion, Guild and
+staff findings, and make the domain go/no-go decision. No public-table view,
+function, policy, grant or migration implementation begins until that audit
+closes. Keep `CommissionRequest` as a separate RLS release.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

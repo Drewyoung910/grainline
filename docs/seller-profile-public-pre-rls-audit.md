@@ -70,6 +70,39 @@ schema-aware result is the canonical source baseline.
 - The source scan does not replace the separate installed database-object
   inventory below.
 
+## Machine-checked consumer contracts
+
+The exact 100-file union is assigned in
+`scripts/seller-profile-public-consumer-contracts.mjs` and verified with:
+
+```sh
+npm run audit:seller-profile-public-contracts
+```
+
+The check fails when a current caller is missing, a stale caller remains, an
+unknown or empty contract appears, a direct write lacks an owner/staff/service
+boundary, or a coordinate reader lacks either the owner or strict public-map
+contract. The current assignment is:
+
+| Contract | Consumer files | Boundary represented |
+|---|---:|---|
+| `PUBLIC_PROFILE` | 34 | Public-safe presentation under the caller's existing visibility predicate |
+| `PUBLIC_ELIGIBILITY` | 47 | Boolean, count, or filter-only availability without returning a seller row |
+| `PUBLIC_MAP` | 5 | Exact point only under the opt-in and no-positive-radius predicate |
+| `OWNER` | 22 | Authenticated active owner and that owner's row |
+| `PARTICIPANT` | 15 | Relationship-bound follow, save, report, review, or message behavior |
+| `STAFF` | 7 | Named role/PIN/target/audit-bound staff operations |
+| `SERVICE` | 14 | Named webhook, cron, deletion, notification, metrics, repair, or telemetry operation |
+| `TRANSACTION` | 14 | Actor/resource-bound checkout, shipping, listing, or custom-order behavior |
+
+Contracts overlap by design. For example, a public listing page needs public
+presentation, availability, conditional map disclosure, and signed-in
+participant behavior. Seven files read exact seller coordinates: five are
+public-map consumers and two are owner-only. All 14 direct base-table writes
+are classified as owner, staff, or service operations. This manifest closes
+the source-file principal assignment; it does not yet define the final SQL
+function/view surface or resolve the scanner's opaque-shape queue.
+
 ## Full-chain PostgreSQL 16 catalog baseline
 
 The repository's full-chain harness built and applied all **350 migrations**
@@ -241,8 +274,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
 
 ### `BLOCKS_RLS_DESIGN`
 
-- Complete the per-consumer principal/contract assignment for the 100-file
-  queue and manually resolve the potentially relevant opaque query shapes.
+- Manually resolve the potentially relevant opaque query shapes. The
+  machine-checked per-consumer principal/contract assignment for all 100
+  proven source files is complete.
 - Classify the 130 installed functions and six direct table triggers as
   retained authority, converted authority, internal-only support, or retired
   predecessor; bind retained runtime execution to an acceptance flow.
@@ -268,4 +302,5 @@ guard the final zero-direct state, but they do not count as behavior proof.
 
 Phase 0 is not closed yet, so no SellerProfile view, function, policy, grant or
 migration implementation begins from this checkpoint. The next pass is the
-per-consumer classification manifest and full-chain database-object inventory.
+130-function/six-trigger disposition and exact field/predicate design, while
+the relevant opaque source shapes are resolved.
