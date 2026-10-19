@@ -284,6 +284,14 @@ candidate is now down to 70 direct operations in 41 files, 98 relation accesses
 in 50 files, 15 raw SQL accesses in 12 files, 88 total consumer files and 182
 reconciled opaque shapes. Its catalog has 147 matching functions: 98 retained,
 32 internal and seventeen converted authorities.
+An eighteenth exact operation replaces the report route's direct seller lookup
+with one boolean check that the submitted seller id is publicly visible and
+belongs to the submitted reported user. It preserves vacation visibility and
+returns neither the seller row nor its owner id. The candidate is now down to
+69 direct operations in 40 files, 98 relation accesses in 50 files, 15 raw SQL
+accesses in 12 files, 88 total consumer files and 181 reconciled opaque shapes.
+Its catalog has 148 matching functions: 98 retained, 32 internal and eighteen
+converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

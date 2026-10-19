@@ -221,6 +221,20 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       )),
       [{ ownerUserId: seller.userId }],
     );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT public.grainline_seller_public_report_target($1, $2) AS value`,
+        [seller.sellerProfileId, seller.userId],
+      )),
+      [{ value: true }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT public.grainline_seller_public_report_target($1, $2) AS value`,
+        [seller.sellerProfileId, viewerUserId],
+      )),
+      [{ value: false }],
+    );
     const sellerSitemapRows = rowsOf(await database.query(
       `SELECT id, "displayName"
          FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 50000)`,

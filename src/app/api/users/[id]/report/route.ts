@@ -9,7 +9,7 @@ import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { canViewListingDetail } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
-import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
+import { sellerPublicReportTarget } from "@/lib/sellerProfilePublicAccess";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -202,9 +202,7 @@ export async function POST(
         reporterCanAccess = exists;
         break;
       case "SELLER_PROFILE":
-        exists = await prisma.sellerProfile.count({
-          where: visibleSellerProfileWhere({ id: body.targetId, userId: reportedId }),
-        }) > 0;
+        exists = await sellerPublicReportTarget(body.targetId, reportedId);
         reporterCanAccess = exists;
         break;
     }

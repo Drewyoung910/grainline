@@ -49,7 +49,7 @@ describe("user report target access guardrails", () => {
     );
     assert.match(
       source,
-      /visibleSellerProfileWhere\(\{ id: body\.targetId, userId: reportedId \}\)/,
+      /sellerPublicReportTarget\(body\.targetId, reportedId\)/,
       "seller-profile reports must require a public seller profile owned by the reported user",
     );
   });
