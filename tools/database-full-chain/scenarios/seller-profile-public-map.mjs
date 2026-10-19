@@ -83,6 +83,19 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       browseSellerIds.some((row) => row.sellerProfileId === seller.sellerProfileId),
       true,
     );
+    const nameSuggestions = rowsOf(await database.query(
+      `SELECT id, "displayName"
+         FROM public.grainline_seller_public_name_suggestions(
+           'Full Chain',
+           'full chain',
+           true,
+           10
+         )`,
+    ));
+    assert.deepEqual(nameSuggestions, [{
+      id: seller.sellerProfileId,
+      displayName: "Full Chain Workshop",
+    }]);
   } finally {
     await database.query("RESET ROLE");
   }
@@ -150,6 +163,16 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       browseSellerIds.some((row) => row.sellerProfileId === seller.sellerProfileId),
       false,
     );
+    const nameSuggestions = rowsOf(await database.query(
+      `SELECT id
+         FROM public.grainline_seller_public_name_suggestions(
+           'Full Chain',
+           'full chain',
+           true,
+           10
+         )`,
+    ));
+    assert.deepEqual(nameSuggestions, []);
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -171,6 +194,18 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     await assert.rejects(
       database.query(
         "SELECT * FROM public.grainline_seller_public_browse_nearby(30, -97, 25)",
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        `SELECT *
+           FROM public.grainline_seller_public_name_suggestions(
+             'Full Chain',
+             'full chain',
+             true,
+             10
+           )`,
       ),
       /permission denied/u,
     );

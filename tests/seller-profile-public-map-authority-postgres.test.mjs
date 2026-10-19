@@ -16,6 +16,10 @@ const browseMigration = readFileSync(
   "prisma/migrations/20261019030000_prepare_seller_profile_public_browse_authority/migration.sql",
   "utf8",
 );
+const nameSuggestionMigration = readFileSync(
+  "prisma/migrations/20261019040000_prepare_seller_profile_public_name_authority/migration.sql",
+  "utf8",
+);
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -32,6 +36,7 @@ async function readyDatabase() {
       "userId" text NOT NULL UNIQUE REFERENCES public."User"(id),
       "ownerAccountActive" boolean NOT NULL DEFAULT false,
       "displayName" varchar(100) NOT NULL,
+      "displayNameNormalized" varchar(100) NOT NULL,
       city varchar(100),
       state varchar(50),
       lat double precision,
@@ -63,23 +68,23 @@ async function readyDatabase() {
       ('owner-no-opt-in'), ('owner-vacation'), ('owner-invalid'),
       ('owner-only');
     INSERT INTO public."SellerProfile" (
-      id, "userId", "ownerAccountActive", "displayName", city, state,
+      id, "userId", "ownerAccountActive", "displayName", "displayNameNormalized", city, state,
       lat, lng, "radiusMeters", "publicMapOptIn", "chargesEnabled",
       "stripeAccountSupported", "vacationMode"
     ) VALUES
-      ('seller-visible', 'owner-visible', true, 'Visible Workshop', 'Austin', 'TX',
+      ('seller-visible', 'owner-visible', true, 'Visible Workshop', 'visible workshop', 'Austin', 'TX',
        30.251, -97.749, 0, true, true, true, false),
-      ('seller-blocked', 'owner-blocked', true, 'Blocked Workshop', 'Dallas', 'TX',
+      ('seller-blocked', 'owner-blocked', true, 'Blocked Workshop', 'blocked workshop', 'Dallas', 'TX',
        32.781, -96.799, NULL, true, true, true, false),
-      ('seller-radius', 'owner-radius', true, 'Radius Workshop', 'Houston', 'TX',
+      ('seller-radius', 'owner-radius', true, 'Radius Workshop', 'radius workshop', 'Houston', 'TX',
        29.760, -95.369, 5000, true, true, true, false),
-      ('seller-no-opt-in', 'owner-no-opt-in', true, 'Private Workshop', 'Waco', 'TX',
+      ('seller-no-opt-in', 'owner-no-opt-in', true, 'Private Workshop', 'private workshop', 'Waco', 'TX',
        31.549, -97.147, 0, false, true, true, false),
-      ('seller-vacation', 'owner-vacation', true, 'Vacation Workshop', 'El Paso', 'TX',
+      ('seller-vacation', 'owner-vacation', true, 'Vacation Workshop', 'vacation workshop', 'El Paso', 'TX',
        31.761, -106.485, 0, true, true, true, true),
-      ('seller-invalid', 'owner-invalid', true, 'Invalid Workshop', 'Nowhere', 'TX',
+      ('seller-invalid', 'owner-invalid', true, 'Invalid Workshop', 'invalid workshop', 'Nowhere', 'TX',
        999, -97.749, 0, true, true, true, false),
-      ('seller-owner-only', 'owner-only', false, 'Owner Workshop', 'Austin', 'TX',
+      ('seller-owner-only', 'owner-only', false, 'Owner Workshop', 'owner workshop', 'Austin', 'TX',
        30.251, -97.749, 0, false, false, true, false);
     INSERT INTO public."Listing" (
       id, "sellerId", status, "isPrivate", "reservedForUserId", "archivedAt"
@@ -98,6 +103,7 @@ async function readyDatabase() {
   await database.exec(mapMigration);
   await database.exec(locationMigration);
   await database.exec(browseMigration);
+  await database.exec(nameSuggestionMigration);
   return database;
 }
 
@@ -311,6 +317,102 @@ test("browse location authority applies reciprocal blocks and denies ungranted c
       database.query(
         "SELECT * FROM public.grainline_seller_public_browse_nearby(30, -97, 25)",
       ),
+      /permission denied/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.exec("RESET app.user_id").catch(() => {});
+    await database.close();
+  }
+});
+
+test("seller name authority returns only active bounded suggestions", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    const publicListingRows = (await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_name_suggestions(
+          'Workshop',
+          'workshop',
+          true,
+          10
+        )
+    `)).rows;
+    assert.deepEqual(publicListingRows, [
+      { id: "seller-blocked", displayName: "Blocked Workshop" },
+      { id: "seller-no-opt-in", displayName: "Private Workshop" },
+      { id: "seller-radius", displayName: "Radius Workshop" },
+      { id: "seller-visible", displayName: "Visible Workshop" },
+    ]);
+    assert.deepEqual(Object.keys(publicListingRows[0]).sort(), ["displayName", "id"]);
+
+    const anyActiveSellerRows = (await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_name_suggestions(
+          'Invalid',
+          'invalid',
+          false,
+          3
+        )
+    `)).rows;
+    assert.deepEqual(anyActiveSellerRows, [
+      { id: "seller-invalid", displayName: "Invalid Workshop" },
+    ]);
+
+    // Search input is literal; SQL wildcard characters do not broaden it.
+    assert.deepEqual((await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_name_suggestions('%', '%', false, 10)
+    `)).rows, []);
+    await assert.rejects(
+      database.query(`
+        SELECT *
+          FROM public.grainline_seller_public_name_suggestions(
+            'Workshop',
+            'workshop',
+            true,
+            11
+          )
+      `),
+      /input is invalid/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("seller name authority applies reciprocal blocks and denies ungranted callers", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SELECT pg_catalog.set_config('app.user_id', 'viewer', false)");
+    await database.exec("SET ROLE grainline_app_runtime");
+    const rows = (await database.query(`
+      SELECT id, "displayName"
+        FROM public.grainline_seller_public_name_suggestions(
+          'Workshop',
+          'workshop',
+          true,
+          10
+        )
+    `)).rows;
+    assert.equal(rows.some((row) => row.id === "seller-blocked"), false);
+    assert.equal(rows.some((row) => row.id === "seller-visible"), true);
+    await database.exec("RESET ROLE");
+    await database.exec("RESET app.user_id");
+
+    await database.exec("SET ROLE grainline_untrusted");
+    await assert.rejects(
+      database.query(`
+        SELECT *
+          FROM public.grainline_seller_public_name_suggestions(
+            'Workshop',
+            'workshop',
+            true,
+            10
+          )
+      `),
       /permission denied/u,
     );
   } finally {

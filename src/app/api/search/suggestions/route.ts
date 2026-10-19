@@ -14,9 +14,9 @@ import {
   normalizeSearchSuggestionQuery,
 } from "@/lib/searchSuggestionState";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
+import { sellerPublicNameSuggestions } from "@/lib/sellerProfilePublicAccess";
 
 async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[]) {
   return prisma.$transaction(async (tx) => {
@@ -142,21 +142,7 @@ export async function GET(req: NextRequest) {
     }),
 
     // Seller name matches
-    prisma.sellerProfile.findMany({
-      where: activeSellerProfileWhere({
-        OR: [
-          { displayName: { contains: q, mode: "insensitive" } },
-          ...(normalizedDisplayNameQuery
-            ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
-            : []),
-        ],
-        listings: { some: publicListingWhere() },
-        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      }),
-      select: { displayName: true },
-      take: 2,
-      orderBy: [{ displayNameNormalized: "asc" }, { id: "asc" }],
-    }),
+    sellerPublicNameSuggestions(meDbId, q, normalizedDisplayNameQuery, true, 2),
 
     // Fuzzy title suggestions via pg_trgm. Keep threshold conservative to avoid
     // surfacing weak visual/homograph matches as marketplace suggestions.

@@ -4,7 +4,6 @@ import { auth } from "@clerk/nextjs/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getIP, rateLimitResponse, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -15,6 +14,7 @@ import {
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { getPopularBlogTags } from "@/lib/popularBlogTags";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { sellerPublicNameSuggestions } from "@/lib/sellerProfilePublicAccess";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -98,20 +98,7 @@ export async function GET(req: NextRequest) {
     ),
 
     // Author / seller display name matches
-    prisma.sellerProfile.findMany({
-      where: activeSellerProfileWhere({
-        OR: [
-          { displayName: { contains: q, mode: "insensitive" } },
-          ...(normalizedDisplayNameQuery
-            ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
-            : []),
-        ],
-        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      }),
-      select: { id: true, displayName: true },
-      take: 3,
-      orderBy: [{ displayNameNormalized: "asc" }, { id: "asc" }],
-    }),
+    sellerPublicNameSuggestions(meDbId, q, normalizedDisplayNameQuery, false, 3),
   ]);
 
   const suggestions: BlogSuggestion[] = [];

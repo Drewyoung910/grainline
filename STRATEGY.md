@@ -51,9 +51,11 @@ point. The second binds one approximate point to an already-visible seller or
 listing, preserving owner and reserved-buyer behavior while denying archived,
 blocked and staff-preview-only access. The third operation applies the same
 approximation and visibility rules to browse-radius membership and returns
-seller ids only. All three keep the old
-table grant unchanged. This reduces the candidate source inventory to 96
-direct operations in 56 files, 16 raw SQL accesses in 13 files, 99 total
+seller ids only. A fourth exact projection serves global and blog seller-name
+suggestions with only seller id/name, active-seller, optional public-listing,
+search, limit and reciprocal-block rules. All four keep the old table grant
+unchanged. This reduces the candidate source inventory to 94 direct operations
+in 54 files, 16 raw SQL accesses in 13 files, 99 total
 consumer files and two remaining purpose-bound owner coordinate consumers. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.

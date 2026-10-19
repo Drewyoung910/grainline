@@ -221,7 +221,11 @@ candidate inventory from 99 to 96 direct operations, from 100 to 99 total
 source consumers, and from four to two raw-coordinate source consumers. The
 third additive operation owns browse-radius membership and reduces raw SQL
 accesses from 17 to 16. No public route now derives from the raw seller point
-in application SQL, and predecessor grants remain unchanged. The candidate
+in application SQL. A fourth exact projection converts both seller-name
+suggestion reads, returning only seller id/name while preserving each route's
+public-listing requirement and reciprocal-block behavior. The candidate now
+has 94 direct operations in 54 files and 213 reconciled opaque query shapes.
+Predecessor grants remain unchanged. The candidate
 remains unmerged, and the three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
 deployment, or provider operation is authorized by this decision.

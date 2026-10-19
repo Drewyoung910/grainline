@@ -24,6 +24,11 @@ export type SellerPublicLocation = Readonly<{
   approximate: true;
 }>;
 
+export type SellerPublicNameSuggestion = Readonly<{
+  id: string;
+  displayName: string;
+}>;
+
 type SellerPublicMapPointRow = {
   id: unknown;
   displayName: unknown;
@@ -42,6 +47,11 @@ type SellerPublicLocationRow = {
 
 type SellerPublicBrowseNearbyRow = {
   sellerProfileId: unknown;
+};
+
+type SellerPublicNameSuggestionRow = {
+  id: unknown;
+  displayName: unknown;
 };
 
 type PublicMapClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
@@ -145,6 +155,39 @@ async function readSellerPublicBrowseNearbySellerIds(
   return Object.freeze(sellerProfileIds);
 }
 
+async function readSellerPublicNameSuggestions(
+  client: PublicMapClient,
+  query: string,
+  normalizedQuery: string,
+  requirePublicListing: boolean,
+  limit: number,
+) {
+  const rows = await client.$queryRaw<SellerPublicNameSuggestionRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_name_suggestions(
+        ${query},
+        ${normalizedQuery},
+        ${requirePublicListing},
+        ${limit}
+      )
+  `);
+  const suggestions = rows.map((row) => {
+    if (
+      typeof row.id !== "string"
+      || !row.id
+      || typeof row.displayName !== "string"
+      || !row.displayName
+    ) {
+      throw new Error("Seller public name authority returned an invalid result");
+    }
+    return Object.freeze({ id: row.id, displayName: row.displayName });
+  });
+  if (new Set(suggestions.map((row) => row.id)).size !== suggestions.length) {
+    throw new Error("Seller public name authority returned duplicate results");
+  }
+  return Object.freeze(suggestions);
+}
+
 export async function sellerPublicMapPoints(
   viewerUserId: string | null,
   limit: number,
@@ -195,4 +238,41 @@ export async function sellerPublicBrowseNearbySellerIds(
       readSellerPublicBrowseNearbySellerIds(client, lat, lng, radiusMiles));
   }
   return readSellerPublicBrowseNearbySellerIds(prisma, lat, lng, radiusMiles);
+}
+
+export async function sellerPublicNameSuggestions(
+  viewerUserId: string | null,
+  query: string,
+  normalizedQuery: string,
+  requirePublicListing: boolean,
+  limit: number,
+) {
+  if (
+    query.length < 1
+    || query.length > 200
+    || normalizedQuery.length > 100
+    || typeof requirePublicListing !== "boolean"
+    || !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 10
+  ) {
+    throw new RangeError("Seller public name suggestion input is outside the supported range");
+  }
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicNameSuggestions(
+        client,
+        query,
+        normalizedQuery,
+        requirePublicListing,
+        limit,
+      ));
+  }
+  return readSellerPublicNameSuggestions(
+    prisma,
+    query,
+    normalizedQuery,
+    requirePublicListing,
+    limit,
+  );
 }
