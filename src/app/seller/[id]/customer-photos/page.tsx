@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ListingStatus, Prisma } from "@prisma/client";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
@@ -6,9 +7,9 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
-import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { sellerPublicCustomerPhotoHeader } from "@/lib/sellerProfilePublicAccess";
 import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
 
 const PAGE_SIZE = 24;
@@ -18,38 +19,14 @@ type Props = {
   searchParams: Promise<{ page?: string }>;
 };
 
-const getSellerProfileForCustomerPhotosPage = cache(async (sellerId: string) =>
-  prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: {
-      id: true,
-      displayName: true,
-      chargesEnabled: true,
-      stripeAccountSupported: true,
-      userId: true,
-      ownerAccountActive: true,
-    },
-  })
-);
-
-type CustomerPhotosSellerProfile = NonNullable<Awaited<ReturnType<typeof getSellerProfileForCustomerPhotosPage>>>;
-
-function sellerPhotosIsPubliclyVisible(
-  seller: Awaited<ReturnType<typeof getSellerProfileForCustomerPhotosPage>>,
-): seller is CustomerPhotosSellerProfile {
-  return Boolean(
-    seller &&
-      seller.chargesEnabled &&
-      seller.stripeAccountSupported &&
-      seller.ownerAccountActive,
-  );
-}
+const getPublicCustomerPhotoHeader = cache((sellerId: string) =>
+  sellerPublicCustomerPhotoHeader(null, sellerId));
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await getSellerProfileForCustomerPhotosPage(sellerId);
-  if (!sellerPhotosIsPubliclyVisible(seller)) return {};
+  const seller = await getPublicCustomerPhotoHeader(sellerId);
+  if (!seller) return {};
   const name = seller.displayName ?? "Maker";
   return {
     title: `Customer photos from ${name} | Grainline`,
@@ -64,28 +41,23 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
   const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const sellerId = extractRouteId(id);
 
-  const seller = await getSellerProfileForCustomerPhotosPage(sellerId);
-  if (!seller) return notFound();
-  if (!seller.ownerAccountActive) return notFound();
-
   const { userId } = await auth();
   let meId: string | null = null;
   if (userId) {
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const isOwner = !!meId && seller.userId === meId;
-  if (!isOwner && !sellerPhotosIsPubliclyVisible(seller)) return notFound();
+
+  const seller = await sellerPublicCustomerPhotoHeader(meId, sellerId);
+  if (!seller) return notFound();
 
   const blockedUserIds = await getBlockedUserIdsFor(meId);
-  if (blockedUserIds.has(seller.userId)) {
-    return notFound();
-  }
 
   // Canonicalize URL slug
   if (id !== routeSegmentWithSlug(seller.id, seller.displayName, "maker")) {
     permanentRedirect(`/seller/${routeSegmentWithSlug(seller.id, seller.displayName, "maker")}/customer-photos${requestedPage > 1 ? `?page=${requestedPage}` : ""}`);
   }
+  if (!seller.publicPhotosEligible) return notFound();
 
   const blockedReviewerFilter = blockedUserIds.size > 0
     ? { reviewerId: { notIn: [...blockedUserIds] } }
@@ -94,9 +66,14 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
     review: {
       ...blockedReviewerFilter,
       reviewerAccountActive: true,
-      listing: publicListingDetailWhere({ sellerId: seller.id }),
+      listing: {
+        sellerId: seller.id,
+        status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
+        isPrivate: false,
+        archivedAt: null,
+      },
     },
-  };
+  } satisfies Prisma.ReviewPhotoWhereInput;
 
   const totalCount = await prisma.reviewPhoto.count({ where: photoWhere });
 
@@ -119,6 +96,8 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
       review: { select: { listingId: true, listing: { select: { title: true } } } },
     },
   });
+  const currentSeller = await sellerPublicCustomerPhotoHeader(meId, sellerId);
+  if (!currentSeller?.publicPhotosEligible) return notFound();
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">

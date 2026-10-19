@@ -413,6 +413,15 @@ ledger. The candidate is now at 38 direct operations in 17 files, 85 relation
 accesses in 47 files, 15 raw SQL accesses in 12 files, 69 total consumer files
 and 174 reconciled opaque shapes. The catalog has 162 functions: 98 retained,
 32 internal and 32 converted.
+The customer-photo landing page then uses a bounded seller header projection
+that preserves anonymous visible metadata and the owner's canonical path while
+returning an explicit public-photo eligibility bit. Authenticated non-owners
+remain block-filtered, the ReviewPhoto query predicates listing state directly,
+and the route rechecks seller eligibility after the read. The page leaves the
+consumer ledger. The candidate is now at 37 direct operations in 16 files, 85
+relation accesses in 47 files, 15 raw SQL accesses in 12 files, 68 total
+consumer files and 172 reconciled opaque shapes. The catalog has 163 functions:
+98 retained, 32 internal and 33 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

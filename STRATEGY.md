@@ -159,6 +159,15 @@ and Guild level. The candidate is now at 38 direct operations in 17 files, 85
 relation accesses in 47 files, 15 raw SQL accesses in 12 files and 69 total
 consumer files. It has 174 reconciled opaque shapes, and its 162-function
 catalog partitions into 98 retained, 32 internal and 32 converted authorities.
+The customer-photo landing page then leaves the ledger through a bounded seller
+header projection that preserves anonymous metadata, the historical owner
+canonical path, reciprocal blocks and an explicit public-photo eligibility
+gate. Its photo query uses only listing status/privacy after that gate and
+rechecks seller eligibility before rendering. The candidate is now at 37 direct
+operations in 16 files, 85 relation accesses in 47 files, 15 raw SQL accesses
+in 12 files and 68 total consumer files. It has 172 reconciled opaque shapes,
+and its 163-function catalog partitions into 98 retained, 32 internal and 33
+converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

@@ -274,6 +274,19 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     assert.deepEqual(
       rowsOf(await database.query(
+        `SELECT id, "userId", "displayName", "publicPhotosEligible"
+           FROM public.grainline_seller_public_customer_photo_header($1)`,
+        [seller.sellerProfileId],
+      )),
+      [{
+        id: seller.sellerProfileId,
+        userId: seller.userId,
+        displayName: "Full Chain Workshop",
+        publicPhotosEligible: true,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
         `SELECT public.grainline_seller_public_report_target($1, $2) AS value`,
         [seller.sellerProfileId, seller.userId],
       )),
@@ -637,6 +650,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_blog_author('target')"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_customer_photo_header('target')",
+      ),
       /permission denied/u,
     );
     await assert.rejects(
