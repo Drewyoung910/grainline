@@ -227,8 +227,13 @@ public-listing requirement and reciprocal-block behavior. The candidate now
 also converts both seller sitemap counts and both bounded sitemap page reads
 through two exact operations. A seventh operation returns only the active
 public-seller and historical founding-maker counts used by four marketing
-surfaces. It has 85 direct operations in 48 files, 94 total consumer files and
-206 reconciled opaque query shapes.
+surfaces. An eighth returns one seller count for a major or city metro, with an
+optional active-public-listing requirement and reciprocal blocks inside the
+operation. It converts the three metro count callers. The candidate has 82
+direct operations in 47 files, 94 total consumer files and 203 reconciled
+opaque query shapes. Its candidate catalog contains 138 matching functions:
+the unchanged 98 retained and 32 internal functions plus eight converted
+public authorities.
 Predecessor grants remain unchanged. The candidate
 remains unmerged, and the three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

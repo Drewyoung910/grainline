@@ -12,8 +12,15 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   const listingId = `${seller.sellerProfileId}_map_listing`;
   const reviewId = `${seller.sellerProfileId}_sitemap_review`;
   const reviewPhotoId = `${seller.sellerProfileId}_sitemap_review_photo`;
+  const metroId = `${seller.sellerProfileId}_public_metro`;
   const now = new Date("2026-10-19T00:00:00.000Z");
 
+  await database.query(
+    `INSERT INTO public."Metro"
+      (id, slug, name, state, latitude, longitude, "radiusMiles", "isActive", "createdAt", "updatedAt")
+     VALUES ($1, $2, 'Full Chain Metro', 'TX', 30.251, -97.749, 45, true, $3, $3)`,
+    [metroId, `full-chain-${seller.sellerProfileId}`.slice(0, 100), now],
+  );
   await database.query(
     `UPDATE public."SellerProfile"
         SET lat = 30.251,
@@ -25,9 +32,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
             "stripeAccountSupported" = true,
             "vacationMode" = false,
             "isFoundingMaker" = true,
+            "metroId" = $3,
             "updatedAt" = $2
       WHERE id = $1`,
-    [seller.sellerProfileId, now],
+    [seller.sellerProfileId, now, metroId],
   );
   await database.query(
     `INSERT INTO public."User"
@@ -122,6 +130,11 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     ));
     assert.equal(Number(marketplaceCounts[0].activeSellerCount) >= 1, true);
     assert.equal(Number(marketplaceCounts[0].foundingMakerCount) >= 1, true);
+    const metroCount = rowsOf(await database.query(
+      `SELECT public.grainline_seller_public_metro_count($1, true, true) AS value`,
+      [metroId],
+    ));
+    assert.equal(Number(metroCount[0].value) >= 1, true);
     const sellerSitemapRows = rowsOf(await database.query(
       `SELECT id, "displayName"
          FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 50000)`,
@@ -236,6 +249,13 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_marketplace_counts()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT public.grainline_seller_public_metro_count($1, true, true)",
+        [metroId],
+      ),
       /permission denied/u,
     );
     await assert.rejects(

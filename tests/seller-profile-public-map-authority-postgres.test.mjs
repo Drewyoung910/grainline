@@ -28,6 +28,10 @@ const marketplaceCountsMigration = readFileSync(
   "prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql",
   "utf8",
 );
+const metroCountMigration = readFileSync(
+  "prisma/migrations/20261019070000_prepare_seller_profile_public_metro_count/migration.sql",
+  "utf8",
+);
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -56,6 +60,8 @@ async function readyDatabase() {
       "vacationMode" boolean NOT NULL DEFAULT false,
       "allowLocalPickup" boolean NOT NULL DEFAULT true,
       "isFoundingMaker" boolean NOT NULL DEFAULT false,
+      "metroId" text,
+      "cityMetroId" text,
       "updatedAt" timestamp(3) NOT NULL DEFAULT '2026-10-19T00:00:00.000Z'
     );
     CREATE TABLE public."Block" (
@@ -124,6 +130,12 @@ async function readyDatabase() {
     UPDATE public."SellerProfile"
        SET "isFoundingMaker" = true
      WHERE id IN ('seller-visible', 'seller-owner-only');
+    UPDATE public."SellerProfile"
+       SET "metroId" = 'metro-major'
+     WHERE id IN ('seller-visible', 'seller-blocked', 'seller-invalid', 'seller-vacation');
+    UPDATE public."SellerProfile"
+       SET "cityMetroId" = 'metro-child'
+     WHERE id = 'seller-radius';
   `);
   await database.exec(mapMigration);
   await database.exec(locationMigration);
@@ -131,6 +143,7 @@ async function readyDatabase() {
   await database.exec(nameSuggestionMigration);
   await database.exec(sitemapMigration);
   await database.exec(marketplaceCountsMigration);
+  await database.exec(metroCountMigration);
   return database;
 }
 
@@ -535,6 +548,60 @@ test("marketplace count authority denies ungranted callers", async () => {
     );
   } finally {
     await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("metro count authority preserves location and listing scopes", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.equal((await database.query(`
+      SELECT public.grainline_seller_public_metro_count(
+        'metro-major', true, false
+      ) AS count
+    `)).rows[0].count, 3);
+    assert.equal((await database.query(`
+      SELECT public.grainline_seller_public_metro_count(
+        'metro-major', true, true
+      ) AS count
+    `)).rows[0].count, 2);
+    assert.equal((await database.query(`
+      SELECT public.grainline_seller_public_metro_count(
+        'metro-child', false, true
+      ) AS count
+    `)).rows[0].count, 1);
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("metro count authority applies reciprocal blocks and denies ungranted callers", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SELECT pg_catalog.set_config('app.user_id', 'viewer', false)");
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.equal((await database.query(`
+      SELECT public.grainline_seller_public_metro_count(
+        'metro-major', true, true
+      ) AS count
+    `)).rows[0].count, 1);
+    await database.exec("RESET ROLE");
+    await database.exec("RESET app.user_id");
+
+    await database.exec("SET ROLE grainline_untrusted");
+    await assert.rejects(
+      database.query(`
+        SELECT public.grainline_seller_public_metro_count(
+          'metro-major', true, false
+        )
+      `),
+      /permission denied/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.exec("RESET app.user_id").catch(() => {});
     await database.close();
   }
 });

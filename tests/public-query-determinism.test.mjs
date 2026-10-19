@@ -49,6 +49,9 @@ describe("public query determinism", () => {
     const sellersMap = source("src/app/sellers/map/page.tsx");
     const publicMap = source("src/app/map/page.tsx");
     const makersMetro = source("src/app/makers/[metroSlug]/page.tsx");
+    const sellerPublicMapAuthority = source(
+      "prisma/migrations/20261019010000_prepare_seller_profile_public_map_authority/migration.sql",
+    );
 
     assert.match(home, /orderBy: \[\{ featuredUntil: "desc" \}, \{ id: "asc" \}\]/);
     assert.match(home, /ORDER BY COALESCE\(srs\."reviewCount", 0\) DESC, sp\.id ASC/);
@@ -91,10 +94,9 @@ describe("public query determinism", () => {
     assert.match(metroPage, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
     assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\}&lng=\$\{metro\.longitude\}&radius=50`\}/);
     assert.doesNotMatch(metroPage, /\/browse\?lat=\$\{metro\.id\}/);
-    assert.match(metroPage, /const blockedSellerProfileWhere: Prisma\.SellerProfileWhereInput/);
     assert.match(metroPage, /const blockedSellerListingWhere: Prisma\.ListingWhereInput/);
     assert.match(metroPage, /const listingWhere = publicListingWhere\(\{[\s\S]*\.\.\.blockedSellerListingWhere/);
-    assert.match(metroPage, /where: activeSellerProfileWhere\(\{[\s\S]*\.\.\.blockedSellerProfileWhere[\s\S]*\}\)/);
+    assert.match(metroPage, /sellerPublicMetroCount\(meDbId, metro\.id, isMajorMetro, false\)/);
     assert.match(metroPage, /listings: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroPage, /listingCityMetros: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -127,42 +129,38 @@ describe("public query determinism", () => {
     assert.match(similar, /ROW_NUMBER\(\) OVER \(ORDER BY p\."sortOrder" ASC, p\.id ASC\)/);
     assert.doesNotMatch(similar, /\(SELECT p\.url FROM "Photo" p/);
 
-    assert.match(sellersMap, /getBlockedSellerProfileIdsFor\(meDbId\)/);
-    assert.match(sellersMap, /\.\.\.\(blockedSellerIds\.length > 0 \? \{ id: \{ notIn: blockedSellerIds \} \} : \{\}\)/);
-    assert.ok(
-      sellersMap.indexOf('orderBy: { id: "asc" }') < sellersMap.indexOf("take: 500"),
-      "sellers map should order before the cap",
-    );
+    assert.match(sellersMap, /sellerPublicMapPoints\(meDbId, 500\)/);
+    assert.match(sellerPublicMapAuthority, /ORDER BY seller\.id ASC\s+LIMIT p_limit/);
+    assert.match(sellerPublicMapAuthority, /FROM public\."Block" AS relationship/);
     assert.match(publicMap, /const MAP_SELLER_POINT_LIMIT = 500/);
     assert.match(publicMap, /const visibleSellerWhere = activeSellerProfileWhere\(/);
     assert.match(publicMap, /sellerProfiles: \{\s*some: visibleSellerWhere/);
     assert.match(publicMap, /sellerCityProfiles: \{\s*some: visibleSellerWhere/);
-    assert.match(publicMap, /\.\.\.visibleSellerWhere/);
-    assert.ok(
-      publicMap.indexOf('orderBy: { id: "asc" }') < publicMap.indexOf("take: MAP_SELLER_POINT_LIMIT"),
-      "public map should order before the cap",
-    );
+    assert.match(publicMap, /sellerPublicMapPoints\(\s*meDbId,\s*MAP_SELLER_POINT_LIMIT/);
+    assert.match(sellerPublicMapAuthority, /ORDER BY seller\.id ASC\s+LIMIT p_limit/);
   });
 
   it("filters browse geo seller pre-pass by public seller and listing visibility", () => {
     const browse = source("src/app/browse/page.tsx");
-    const geoStart = browse.indexOf("const blockedSellerGeoSql");
-    const geoEnd = browse.indexOf("sellerIdFilters.push(rows.map((r) => r.id));", geoStart);
-    const geoBlock = browse.slice(geoStart, geoEnd);
+    const sellerPublicBrowseAuthority = source(
+      "prisma/migrations/20261019030000_prepare_seller_profile_public_browse_authority/migration.sql",
+    );
 
-    assert.match(geoBlock, /FROM "SellerProfile" sp/);
-    assert.match(geoBlock, /sp\."chargesEnabled" = true/);
-    assert.match(geoBlock, /sp\."stripeAccountSupported" = true/);
-    assert.match(geoBlock, /sp\."vacationMode" = false/);
-    assert.match(geoBlock, /sp\."ownerAccountActive" = true/);
-    assert.doesNotMatch(geoBlock, /JOIN "User"/);
-    assert.match(geoBlock, /blockedSellerGeoSql/);
-    assert.match(geoBlock, /EXISTS \(\s*SELECT 1\s*FROM "Listing" l/);
-    assert.match(geoBlock, /l\."sellerId" = sp\.id/);
-    assert.match(geoBlock, /l\.status = 'ACTIVE'::"ListingStatus"/);
-    assert.match(geoBlock, /l\."isPrivate" = false/);
-    assert.match(geoBlock, /sp\.lat::float/);
-    assert.match(geoBlock, /sp\.lng::float/);
+    assert.match(browse, /sellerPublicBrowseNearbySellerIds\(/);
+    assert.match(sellerPublicBrowseAuthority, /FROM public\."SellerProfile" AS seller/);
+    assert.match(sellerPublicBrowseAuthority, /seller\."chargesEnabled" = true/);
+    assert.match(sellerPublicBrowseAuthority, /seller\."stripeAccountSupported" = true/);
+    assert.match(sellerPublicBrowseAuthority, /seller\."vacationMode" = false/);
+    assert.match(sellerPublicBrowseAuthority, /seller\."ownerAccountActive" = true/);
+    assert.doesNotMatch(sellerPublicBrowseAuthority, /JOIN "User"/);
+    assert.match(sellerPublicBrowseAuthority, /FROM public\."Block" AS relationship/);
+    assert.match(sellerPublicBrowseAuthority, /EXISTS \(\s*SELECT 1\s*FROM public\."Listing" AS listing/);
+    assert.match(sellerPublicBrowseAuthority, /listing\."sellerId" = seller\.id/);
+    assert.match(sellerPublicBrowseAuthority, /listing\.status::text = 'ACTIVE'/);
+    assert.match(sellerPublicBrowseAuthority, /listing\."isPrivate" = false/);
+    assert.match(sellerPublicBrowseAuthority, /seller\.lat/);
+    assert.match(sellerPublicBrowseAuthority, /seller\.lng/);
+    assert.match(sellerPublicBrowseAuthority, /ORDER BY public_points\.id ASC/);
   });
 
   it("orders equal-count public tag caps by tag", () => {
@@ -191,15 +189,20 @@ describe("public query determinism", () => {
   it("keeps public search suggestion caps stable on ties", () => {
     const searchSuggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
+    const sellerPublicNameAuthority = source(
+      "prisma/migrations/20261019040000_prepare_seller_profile_public_name_authority/migration.sql",
+    );
 
     assert.match(searchSuggestions, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(searchSuggestions, /orderBy: \[\{ displayNameNormalized: "asc" \}, \{ id: "asc" \}\]/);
+    assert.match(searchSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, true, 2\)/);
+    assert.match(sellerPublicNameAuthority, /ORDER BY seller\."displayNameNormalized" ASC, seller\.id ASC\s+LIMIT p_limit/);
     assert.match(searchSuggestions, /ORDER BY sim DESC, latest_created_at DESC, latest_id DESC\s*LIMIT 2/);
     assert.match(searchSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 3/);
 
     assert.match(blogSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 5/);
     assert.match(blogSuggestions, /getPopularBlogTags\(200\)[\s\S]*\.slice\(0, 5\)/);
-    assert.match(blogSuggestions, /orderBy: \[\{ displayNameNormalized: "asc" \}, \{ id: "asc" \}\]/);
+    assert.match(blogSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, false, 3\)/);
+    assert.match(sellerPublicNameAuthority, /ORDER BY seller\."displayNameNormalized" ASC, seller\.id ASC\s+LIMIT p_limit/);
   });
 
   it("keeps cached homepage featured makers on a public projection allowlist", () => {

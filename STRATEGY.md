@@ -57,10 +57,15 @@ search, limit and reciprocal-block rules. Two more exact operations provide
 only the seller sitemap counts and id/name/updated-at pages for ordinary and
 customer-photo routes. A seventh exact aggregate returns only the active
 public-seller and founding-maker counts used by four marketing surfaces; its
-founding count preserves the historical all-profile allocation rule. All seven
-keep the old table grant unchanged. This reduces the candidate source inventory
-to 85 direct operations in 48 files, 16 raw SQL accesses in 13 files, 94 total
-consumer files and two remaining purpose-bound owner coordinate consumers. It
+founding count preserves the historical all-profile allocation rule. An eighth
+returns one metro seller count while owning major/city membership, optional
+public-listing eligibility and reciprocal blocks for the three metro count
+callers. All eight keep the old table grant unchanged. This reduces the
+candidate source inventory to 82 direct operations in 47 files, 16 raw SQL
+accesses in 13 files, 94 total consumer files, 203 reconciled opaque query
+shapes and two remaining purpose-bound owner coordinate consumers. The
+candidate catalog contains the unchanged 98 retained and 32 internal functions
+plus the eight converted public authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three

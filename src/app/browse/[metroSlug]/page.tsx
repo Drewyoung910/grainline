@@ -17,6 +17,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { sellerPublicMetroCount } from "@/lib/sellerProfilePublicAccess";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { Suspense } from "react";
 import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
@@ -65,9 +66,7 @@ export async function generateMetadata({
     prisma.listing.count({
       where: publicListingWhere(isMajor ? { metroId: metro.id } : { cityMetroId: metro.id }),
     }),
-    prisma.sellerProfile.count({
-      where: activeSellerProfileWhere(isMajor ? { metroId: metro.id } : { cityMetroId: metro.id }),
-    }),
+    sellerPublicMetroCount(null, metro.id, isMajor, false),
   ]);
 
   const title = `Handmade Woodworking in ${cityName} | Grainline`;
@@ -129,9 +128,6 @@ async function BrowseMetroContent({
     meDbId = meRow?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-  const blockedSellerProfileWhere: Prisma.SellerProfileWhereInput = blockedSellerIds.length > 0
-    ? { id: { notIn: blockedSellerIds } }
-    : {};
   const blockedSellerListingWhere: Prisma.ListingWhereInput = blockedSellerIds.length > 0
     ? { sellerId: { notIn: blockedSellerIds } }
     : {};
@@ -171,12 +167,7 @@ async function BrowseMetroContent({
       },
     }),
     prisma.listing.count({ where: listingWhere }),
-    prisma.sellerProfile.count({
-      where: activeSellerProfileWhere({
-        ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
-        ...blockedSellerProfileWhere,
-      }),
-    }),
+    sellerPublicMetroCount(meDbId, metro.id, isMajorMetro, false),
   ]);
   if (listingCount === 0) return notFound();
 

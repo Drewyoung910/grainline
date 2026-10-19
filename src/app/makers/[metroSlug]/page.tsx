@@ -14,6 +14,7 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { sellerPublicMetroCount } from "@/lib/sellerProfilePublicAccess";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -134,7 +135,12 @@ export default async function MakersMetroPage({
     },
   });
 
-  const sellerCount = await prisma.sellerProfile.count({ where: sellerWhere });
+  const sellerCount = await sellerPublicMetroCount(
+    meDbId,
+    metro.id,
+    isMajorMetro,
+    true,
+  );
 
   // Nearby metros with content
   const nearbyRaw = isMajorMetro

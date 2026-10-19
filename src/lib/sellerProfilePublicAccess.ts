@@ -82,6 +82,10 @@ type SellerPublicMarketplaceCountsRow = {
   foundingMakerCount: unknown;
 };
 
+type SellerPublicCountRow = {
+  value: unknown;
+};
+
 type SellerPublicSitemapRowResult = {
   id: unknown;
   displayName: unknown;
@@ -243,6 +247,25 @@ async function readSellerPublicMarketplaceCounts(client: SellerPublicAccessClien
   });
 }
 
+async function readSellerPublicMetroCount(
+  client: SellerPublicAccessClient,
+  metroId: string,
+  isMajor: boolean,
+  requirePublicListing: boolean,
+) {
+  const rows = await client.$queryRaw<SellerPublicCountRow[]>(Prisma.sql`
+    SELECT public.grainline_seller_public_metro_count(
+      ${metroId},
+      ${isMajor},
+      ${requirePublicListing}
+    ) AS value
+  `);
+  if (rows.length !== 1) {
+    throw new Error("Seller public metro count authority returned an invalid result");
+  }
+  return parseSafeCount(rows[0].value, "metro seller count");
+}
+
 async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicSitemapCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_sitemap_counts()
@@ -383,6 +406,26 @@ export async function sellerPublicSitemapCounts() {
 
 export async function sellerPublicMarketplaceCounts() {
   return readSellerPublicMarketplaceCounts(prisma);
+}
+
+export async function sellerPublicMetroCount(
+  viewerUserId: string | null,
+  metroId: string,
+  isMajor: boolean,
+  requirePublicListing: boolean,
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(metroId)
+    || typeof isMajor !== "boolean"
+    || typeof requirePublicListing !== "boolean"
+  ) {
+    throw new RangeError("Seller public metro count input is outside the supported range");
+  }
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicMetroCount(client, metroId, isMajor, requirePublicListing));
+  }
+  return readSellerPublicMetroCount(prisma, metroId, isMajor, requirePublicListing);
 }
 
 export async function sellerPublicSitemapPage(

@@ -471,6 +471,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   photos admit only active or sold-out public listing details with a photo.
 - Keep marketing-page active/founding counts on the exact marketplace-count
   authority; founding allocation intentionally counts inactive profiles too.
+- Keep metro seller counts on the exact metro-count authority; it owns
+  major-vs-city membership, the caller's optional public-listing requirement,
+  active seller state and reciprocal blocks while returning one integer only.
 - Merge and release the isolated application correction that replaces
   raw-coordinate output on public maps, seller/listing public helpers, seller
   JSON-LD and browse-distance SQL with approximate points and removes “exact
