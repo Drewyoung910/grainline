@@ -42,7 +42,9 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   assert.doesNotMatch(mirror, /seller\.user\.(?:id|banned|deletedAt)/);
 
   assert.match(edit, /import \{ userClerkGate \} from "@\/lib\/userIdentityAccess"/);
-  assert.equal((edit.match(/seller:\s*\{ userId: actor\.id \}/g) ?? []).length, 2);
+  assert.match(edit, /sellerOwnerCore\(actor\.id\)/);
+  assert.equal((edit.match(/sellerId:\s*sellerCore\.sellerProfileId/g) ?? []).length, 3);
+  assert.doesNotMatch(edit, /seller:\s*\{ userId: actor\.id \}/);
   assert.doesNotMatch(edit, /seller:\s*\{ user:\s*\{ clerkId: userId \} \}/);
   assert.ok(
     edit.indexOf("safeRateLimit(listingMutationRatelimit, userId)")

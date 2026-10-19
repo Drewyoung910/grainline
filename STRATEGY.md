@@ -113,6 +113,12 @@ are unchanged, and the catalog contains 157 functions partitioned into 98
 retained, 32 internal and 27 converted authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
+The listing-edit page then reuses the prepared owner-core and all-status
+listing-review authorities for ownership, readiness and AI review. This removes
+one direct operation and four relation accesses without another database
+function. The candidate is now at 44 direct operations in 23 files, 94 relation
+accesses in 49 files, 15 raw SQL accesses in 12 files and 74 total consumer
+files; the 179 opaque shapes and 157-function catalog are unchanged.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,
