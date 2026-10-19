@@ -151,7 +151,7 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds 35 converted runtime authorities without changing
+The Phase 1 candidate adds 37 converted runtime authorities without changing
 predecessor table grants. `grainline_seller_public_map_points(integer)` returns
 only seller id/name/city/state and a database-derived coarse point, enforces
 active public-map eligibility, applies reciprocal blocks from trusted
@@ -292,13 +292,23 @@ lookup with exactly the seller user id and UTC-normalized profile creation
 clock required for response-rate and account-age calculations. It deliberately
 preserves inactive and historical seller profiles because the predecessor
 lookup applied no account or seller-eligibility predicate.
+`grainline_seller_service_welcome_name(text)` returns only the existing seller
+display name needed by the signed Clerk lifecycle event's optional seller
+welcome email. It deliberately preserves hidden and inactive seller profiles,
+matching the predecessor lookup rather than introducing a public-visibility
+rule into a service workflow.
+`grainline_seller_transaction_blocked_pair_targets(text,text)` returns only the
+two possible buyer-user/seller-user/seller-profile mappings used to expire open
+checkout sessions after either party blocks the other. The adapter validates
+that every returned row is one of those exact reversed pairs; the operation
+does not expose other seller state or filter hidden/inactive sellers.
 `grainline_seller_public_follow_state(text)`,
 `grainline_seller_public_follow_create(text,text)` and
 `grainline_seller_public_follow_delete(text)` own public follow reads and
 actor-bound mutations. Create shares the sorted Block-pair lock, revalidates
 and locks the visible seller after that lock, rejects self and reciprocal
 blocks, and is idempotent. Delete intentionally permits stale cleanup after a
-seller becomes hidden. All 35 grant execute only to the app runtime.
+seller becomes hidden. All 37 grant execute only to the app runtime.
 Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -306,7 +316,7 @@ Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 35 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary, owner core, owner dashboard state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards and three public-follow authorities replace direct base-table access while predecessor grants remain available |
+| Converted authority | 37 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary, owner core, owner dashboard state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards and three public-follow authorities replace direct base-table access while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -326,7 +336,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 72 | 62 | 4 | 6 |
+| Seller | 74 | 64 | 4 | 6 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 13 | 8 | 2 | 3 |
 

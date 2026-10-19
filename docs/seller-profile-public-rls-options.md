@@ -447,6 +447,14 @@ rule. The candidate is now at 31 direct operations in 12 files, 84 relation
 accesses in 46 files, 15 raw SQL accesses in 12 files, 64 total consumer files
 and 170 reconciled opaque shapes. The catalog has 165 functions: 98 retained,
 32 internal and 35 converted.
+The next cohesive service-identity conversion moves the signed Clerk welcome
+display-name lookup and blocked-pair checkout cleanup's user-to-seller mappings
+behind two bounded operations. Both preserve hidden/inactive sellers, matching
+their predecessors, and the adapter rejects any result outside the exact
+requested pair or expected scalar shape. The candidate is now at 29 direct
+operations in 10 files, 84 relation accesses in 46 files, 15 raw SQL accesses
+in 12 files, 62 total consumer files and 170 reconciled opaque shapes. Its
+167-function catalog is 98 retained, 32 internal and 37 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

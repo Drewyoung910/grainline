@@ -194,6 +194,14 @@ behavior. The candidate is now at 31 direct operations in 12 files, 84
 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 64 total
 consumer files. It still has 170 reconciled opaque shapes, and its 165-function
 catalog partitions into 98 retained, 32 internal and 35 converted authorities.
+A cohesive service-identity pass then replaces the signed Clerk welcome
+display-name lookup and the blocked-pair checkout cleanup's user-to-seller
+mapping reads. Each authority returns only its caller's prior bounded fields,
+preserves hidden/inactive seller rows, and validates exact result shapes in the
+TypeScript adapter. The candidate is now at 29 direct operations in 10 files,
+84 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 62 total
+consumer files. It still has 170 reconciled opaque shapes, and its 167-function
+catalog partitions into 98 retained, 32 internal and 37 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

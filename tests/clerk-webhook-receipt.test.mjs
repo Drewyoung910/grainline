@@ -58,6 +58,9 @@ function route(controls = {}) {
       userClerkLifecycleState: unexpected,
       reserveUserClerkWelcomeEmail: unexpected,
     },
+    "@/lib/sellerProfileServiceAccess": {
+      sellerWelcomeDisplayName: unexpected,
+    },
     "@/lib/httpStatus": { HTTP_STATUS: { BAD_REQUEST: 400, INTERNAL_SERVER_ERROR: 500, SERVICE_UNAVAILABLE: 503, PAYLOAD_TOO_LARGE: 413 } },
     "@sentry/nextjs": { captureException() {}, captureMessage() {} },
     "@/lib/webhookFailureSpike": { recordWebhookFailureSpike: async () => {} },

@@ -36,6 +36,8 @@ export const SELLER_PROFILE_INTERNAL_SUPPORT_FUNCTIONS = new Set([
 export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_service_founding_maker_grant(text)",
   "grainline_seller_service_metrics_identity(text)",
+  "grainline_seller_service_welcome_name(text)",
+  "grainline_seller_transaction_blocked_pair_targets(text,text)",
   "grainline_seller_actor_account_feed_cards(text[])",
   "grainline_seller_actor_conversation_cards(text[])",
   "grainline_seller_public_browse_nearby(double precision,double precision,double precision)",
@@ -86,8 +88,8 @@ function sameStrings(actual, expected) {
 }
 
 export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
-  if (functions.length !== 165) {
-    throw new Error(`SellerProfile function inventory drifted: expected 165, got ${functions.length}`);
+  if (functions.length !== 167) {
+    throw new Error(`SellerProfile function inventory drifted: expected 167, got ${functions.length}`);
   }
   for (const row of functions) {
     if (!row.security_definer || !row.config?.includes("search_path=pg_catalog")) {
@@ -139,7 +141,7 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
   );
   if (retainedAuthorityFunctions.length !== 98
       || internalSupportFunctions.length !== 32
-      || convertedAuthorityFunctions.length !== 35) {
+      || convertedAuthorityFunctions.length !== 37) {
     throw new Error(
       `SellerProfile function dispositions drifted: retained=${retainedAuthorityFunctions.length}; `
       + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length}`,

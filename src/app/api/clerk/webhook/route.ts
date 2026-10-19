@@ -36,6 +36,7 @@ import {
   reserveUserClerkWelcomeEmail,
   userClerkLifecycleState,
 } from "@/lib/userIdentityAccess";
+import { sellerWelcomeDisplayName } from "@/lib/sellerProfileServiceAccess";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
@@ -272,14 +273,11 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      const sellerProfile = await prisma.sellerProfile.findUnique({
-        where: { userId: user.id },
-        select: { displayName: true },
-      });
+      const sellerDisplayName = await sellerWelcomeDisplayName(user.id);
       const buyerWelcomeEmail = renderWelcomeBuyerEmail({ user: { name, email: welcomeEmail } });
-      const sellerWelcomeEmail = sellerProfile
+      const sellerWelcomeEmail = sellerDisplayName
         ? renderWelcomeSellerEmail({
-            seller: { displayName: sellerProfile.displayName, email: welcomeEmail },
+            seller: { displayName: sellerDisplayName, email: welcomeEmail },
           })
         : null;
 
