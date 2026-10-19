@@ -40,8 +40,8 @@ This table is mixed-purpose even after the private companion split:
 
 - public shop presentation and public orderability state;
 - owner-only exact location and settings;
-- conditional public location, where exact `lat`/`lng` may be disclosed only
-  when the maker opted in and no privacy radius is active;
+- conditional public location, where every public result is an approximate
+  database-derived point and exact `lat`/`lng` remains owner or purpose bound;
 - stable ownership and relationship keys such as `userId`;
 - staff or system-controlled verification, Guild, founding-maker and spotlight
   state; and
@@ -70,7 +70,7 @@ AST scanner exposed as `npm run audit:seller-profile-public-access`. It scans
 - **17 raw SQL accesses in 14 files**.
 - The union of direct, relation and raw-SQL consumers is **100 source files**.
 - A machine-checked manifest assigns all 100 files to bounded contracts:
-  34 public-profile, 47 public-eligibility, 5 exact-map, 22 owner, 15
+  34 public-profile, 47 public-eligibility, 5 public-map, 22 owner, 15
   participant, 7 staff, 14 service and 14 transaction consumers. Contracts
   overlap where a file performs more than one role. Run it with
   `npm run audit:seller-profile-public-contracts`.
@@ -89,9 +89,9 @@ AST scanner exposed as `npm run audit:seller-profile-public-access`. It scans
 - A second machine gate partitions all 55 scalar columns into 38 generic
   public-profile outputs, seven public-predicate-only columns, four raw
   public-location source columns, and six purpose-bound-only columns. Generic
-  public results exclude all 17 restricted columns. Exact directory pins and
-  privacy-safe seller/listing points are separate derived contracts; neither
-  returns raw coordinate or privacy-control columns.
+  public results exclude all 17 restricted columns. Approximate directory and
+  seller/listing points are separate derived contracts; neither returns raw
+  coordinate or privacy-control columns.
 
 The earlier regex estimate of 73 direct calls in 52 files counted only literal
 `prisma.sellerProfile` expressions and missed `tx`, `client`, and `db`
@@ -111,11 +111,10 @@ Any option must preserve all of these:
 2. Suspended, inactive, vacation and otherwise non-orderable sellers retain the
    existing route-specific visibility behavior. A single broad view must not
    silently replace those different predicates.
-3. Exact coordinates leave the database boundary only when
-   `publicMapOptIn = true`, the privacy radius is null or zero, and the calling
-   surface is allowed to display the point. Other surfaces receive no exact
-   coordinate or an approved database-derived approximation; raw source
-   coordinates do not cross the generic public boundary.
+3. Public coordinates leave the database boundary only as an approved
+   database-derived approximation. Positive privacy radii use a radius-sized
+   grid and null/zero radii use the coarse public grid. Raw or exact coordinates
+   remain owner or purpose bound and do not cross a generic public boundary.
 4. Owners can read the exact settings needed to edit their own shop. Another
    seller cannot read those owner-only fields.
 5. Owners can change only owner-controlled fields. Staff/system-only badge,
@@ -152,8 +151,8 @@ the most failure-prone part of the completed private split without enough
 additional benefit.
 
 The public projection must not be a single least-common-denominator query.
-At minimum, design separate contracts for general catalog/profile reads, map
-reads with conditional exact location, and owner/staff/service operations. A
+At minimum, design separate contracts for general catalog/profile reads,
+approximate map/location reads, and owner/staff/service operations. A
 dedicated projection owner or fixed read function must be tested under the
 eventual FORCE posture on PostgreSQL 16; implementation cannot assume that a
 view owner bypasses RLS.
@@ -177,8 +176,8 @@ view owner bypasses RLS.
   changing or dropping the predecessor runtime grants.
 - Add catalog, map, owner, staff and service behavior tests on the full migrated
   PostgreSQL 16 schema.
-- Prove the exact-coordinate rule and prove that generic projections never
-  expose `lat`, `lng`, `userId`, or staff/system-only state unintentionally.
+- Prove public location is always approximate and prove that generic
+  projections never expose `lat`, `lng`, `userId`, or staff/system-only state.
 
 ### Phase 2: caller conversion
 
@@ -212,7 +211,9 @@ view owner bypasses RLS.
 - [ ] Choose Option C.
 - [ ] Request a revised comparison.
 
-Option B is selected, but `SellerProfile` remains `BLOCKED_DESIGN` until the
-Phase 0 authority inventory, domain audit and finding reconciliation close.
-No public-table policy, function, view, grant or migration implementation
-begins before that gate.
+Option B is selected and Phase 0 closed on 2026-10-19. The domain may proceed
+to additive Phase 1 design and isolated source preparation. Public location is
+approximate-only; the current exact map/JSON-LD behavior and three retained
+authority proof gaps are `FIX_BEFORE_ACTIVATION`. No Production policy, grant,
+ENABLE, FORCE, migration, deployment, or provider operation is authorized by
+this decision.

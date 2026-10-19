@@ -15,32 +15,40 @@ by protected run `38837514490`. Follow
 and retained evidence.
 
 The next RLS domain is the remaining public `SellerProfile` table. It still
-mixes anonymous catalog data with conditional exact coordinates, owner settings
-and staff/system-controlled state, while the runtime role retains broad CRUD.
+mixes anonymous catalog data with raw coordinates, owner settings and
+staff/system-controlled state, while the runtime role retains broad CRUD.
 Drew selected Option B on 2026-10-18: keep the schema intact, expose bounded
 public projections, move non-public reads and all writes behind fixed
 operations, prove zero direct base-table callers, then revoke grants and apply
 ENABLE and FORCE as separate releases. No security release drops another
 column. See `docs/seller-profile-public-rls-options.md`.
 
-Phase 0 is the current work. The schema-aware AST inventory on exact main
+Phase 0 closed on 2026-10-19. The schema-aware AST inventory on exact main
 `e92b7a329cf3f7c1d45e8c2857e26b336d26ff65` finds 99 direct operations, 103
 confirmed relation accesses and 17 raw SQL accesses across 100 source files.
 A machine-checked manifest now assigns all 100 to their public-profile,
-eligibility, exact-map, owner, participant, staff, service and transaction
+eligibility, public-map, owner, participant, staff, service and transaction
 contracts. The full-chain PostgreSQL 16 catalog also records 130 matching
 security-definer functions, six direct table triggers, 16 incoming foreign
 keys and the exact function execute-principal split. The manifest also
 reconciles every reported opaque source shape, and the catalog now classifies
 98 retained fixed authorities, 32 internal-support functions and all six
 direct table triggers. All 55 scalar columns now have one machine-checked
-maximum-disclosure class, and the visible, active, exact-directory and
-privacy-derived location predicates are fixed. Next map retained authorities
-to behavior evidence, reconcile seller, location,
-visibility, deletion, Guild and
-staff findings, and make the domain go/no-go decision. No public-table view,
-function, policy, grant or migration implementation begins until that audit
-closes. Keep `CommissionRequest` as a separate RLS release.
+maximum-disclosure class. The 98 retained authorities map to 93 direct database
+behavior proofs, two composed behavior proofs and three explicit source-only
+gaps that must gain full-chain proof before activation.
+
+The location review confirmed that current public maps and seller JSON-LD can
+publish raw points even though Privacy 2.7 and Terms 4.19/4.20 promise
+approximate-only display. Option B now requires approximate public points on
+every surface: radius-sized grids for positive privacy radii and the coarse
+public grid otherwise. Exact coordinates remain owner or purpose bound. Phase
+1 may begin additive projection/operation design and isolated source
+preparation. It must correct the current location disclosure, close the three
+behavior-proof gaps, convert every caller, and keep predecessor grants intact
+until compatibility proof is accepted. Production migration, grant, ENABLE,
+FORCE and deployment remain separate approvals. Keep `CommissionRequest` as a
+separate RLS release.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

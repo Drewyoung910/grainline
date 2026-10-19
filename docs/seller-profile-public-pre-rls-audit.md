@@ -2,9 +2,10 @@
 
 Date: 2026-10-18
 
-Status: Phase 0 in progress. This is a source and design audit only. It does
-not authorize or apply a Production migration, database grant change, RLS
-change, deployment, credential change, or provider action.
+Status: Phase 0 complete; additive Phase 1 design may begin. This is a source
+and design audit only. It does not authorize or apply a Production migration,
+database grant change, RLS change, deployment, credential change, or provider
+action.
 
 ## Scope and selected design
 
@@ -18,7 +19,8 @@ preparation:
 
 - retain the current table and foreign keys;
 - expose anonymous catalog data through bounded public projections;
-- keep exact location in a separate conditional map contract;
+- expose only database-derived approximate location through separate public map
+  and resource contracts; exact coordinates remain owner or purpose bound;
 - move owner, staff and service reads to purpose-bound operations;
 - move every write to a fixed operation;
 - reach zero runtime/PUBLIC base-table authority before policyless ENABLE;
@@ -93,7 +95,7 @@ contract. The current assignment is:
 |---|---:|---|
 | `PUBLIC_PROFILE` | 34 | Public-safe presentation under the caller's existing visibility predicate |
 | `PUBLIC_ELIGIBILITY` | 47 | Boolean, count, or filter-only availability without returning a seller row |
-| `PUBLIC_MAP` | 5 | Exact point only under the opt-in and no-positive-radius predicate |
+| `PUBLIC_MAP` | 5 | Approximate point under the opt-in and no-positive-radius directory predicate |
 | `OWNER` | 22 | Authenticated active owner and that owner's row |
 | `PARTICIPANT` | 15 | Relationship-bound follow, save, report, review, or message behavior |
 | `STAFF` | 7 | Named role/PIN/target/audit-bound staff operations |
@@ -102,8 +104,8 @@ contract. The current assignment is:
 
 Contracts overlap by design. For example, a public listing page needs public
 presentation, availability, conditional map disclosure, and signed-in
-participant behavior. Seven files read exact seller coordinates: five are
-public-map consumers and two are owner-only. All 14 direct base-table writes
+participant behavior. Seven files read raw seller coordinates: five are
+public-location consumers and two are owner-only. All 14 direct base-table writes
 are classified as owner, staff, or service operations. This manifest closes
 the source-file principal assignment and opaque-shape reconciliation; it does
 not yet define the final SQL function/view surface.
@@ -194,6 +196,37 @@ RLS activation. All six are classified as internal support, and the classifier
 binds each trigger name to its exact function signature so a replacement or
 additional table trigger reopens review.
 
+### Retained-authority evidence map
+
+The 98 callable retained authorities are bound to evidence in
+`scripts/seller-profile-public-retained-authority-evidence.mjs`. Against the
+sanitized full-chain catalog report, run:
+
+```sh
+SELLER_PROFILE_PUBLIC_CATALOG_REPORT=/path/to/report.json \
+  npm run audit:seller-profile-public-retained-evidence
+```
+
+The machine check rejects a missing or stale authority, missing evidence file,
+evidence that no longer names the authority, or claimed database behavior that
+no longer executes a database path. Current disposition:
+
+| Evidence class | Authorities | Meaning |
+|---|---:|---|
+| Direct database behavior | 93 | A PostgreSQL proof or database behavior test names and executes the installed authority |
+| Composed database behavior | 2 | The authority is covered by a reviewed composed migration/flow proof rather than a single direct test |
+| Source-only gap | 3 | Source guards exist, but no current PostgreSQL behavior proof qualifies |
+
+The three explicit Phase 1 proof obligations are:
+
+- `grainline_checkout_reservation_account_claim_batch(text,integer)`;
+- `grainline_listing_delete_reference_state(text,text)`; and
+- `grainline_seller_guild_listing_threshold_sync(text)`.
+
+They do not reopen the authority inventory or justify removing the functions.
+They must receive full-chain database behavior tests before any release closes
+the predecessor `SellerProfile` grant.
+
 ## Field and disclosure contracts
 
 `SellerProfile` remains mixed-purpose. A single public row projection is not a
@@ -209,7 +242,7 @@ npm run audit:seller-profile-public-fields
 
 The gate fails if a scalar column is added or removed without review, one
 column appears in more than one class, a restricted source column enters the
-generic public set, or the exact-pin/derived-location rules drift.
+generic public set, or the approximate public-location rules drift.
 
 | Maximum-disclosure class | Count | Exact columns |
 |---|---:|---|
@@ -231,8 +264,8 @@ rate a public profile field.
 |---|---|---|---|
 | Public catalog/profile | Anonymous and signed-in visitors | Public profile presentation, public badge state, and only rows satisfying the route's existing active/visible predicate | `userId`, exact `lat`/`lng`, `displayNameNormalized`, owner-only settings, mutation-only state |
 | Public listing/blog eligibility | Anonymous and signed-in visitors | Boolean seller availability predicates used by listing, blog, search, sitemap and aggregate paths | No seller row or private field returned merely to evaluate eligibility |
-| Public directory map point | Anonymous and signed-in visitors | `id`, `displayName`, `city`, `state` and a derived public point; row must satisfy `ACTIVE`, `publicMapOptIn = true`, valid coordinates, and a null/zero privacy radius | No point for non-opted-in or radius-protected sellers; no raw source columns in the result |
-| Public profile/listing location | Authorized viewer of the seller or listing resource | A derived `publicLat`, `publicLng`, and `approximate` flag. Positive radii quantize to a radius-sized grid; no exact opt-in uses the existing coarse grid; exact output requires opt-in plus null/zero radius | No raw `lat`, `lng`, `radiusMeters`, or `publicMapOptIn` returned to the caller |
+| Public directory map point | Anonymous and signed-in visitors | `id`, `displayName`, `city`, `state` and a coarse-grid public point; row must satisfy `ACTIVE`, `publicMapOptIn = true`, valid coordinates, and a null/zero privacy radius | No point for non-opted-in or radius-protected sellers; no raw or exact coordinates in the result |
+| Public profile/listing location | Authorized viewer of the seller or listing resource | A derived `publicLat`, `publicLng`, and `approximate = true`. Positive radii quantize to a radius-sized grid; null/zero radii use the coarse public grid | No raw `lat`, `lng`, `radiusMeters`, or `publicMapOptIn` returned to the caller; exact output is owner or purpose bound only |
 | Owner profile/settings | Authenticated active owner | The owner's exact location, editable profile/settings fields and bounded provider-safe availability state | Foreign seller rows and staff/system-only mutations |
 | Staff moderation | Authorized staff, with the existing role/PIN/audit requirements preserved per caller | Verification, feature, ban/unban and audited recovery state required for the named action | Generic staff table browsing and unaudited mutation |
 | Service/transaction | Named webhook, cron, checkout, deletion, export, notification and repair operation | Only the fields and row set needed by that operation | Reusable broad service table authority |
@@ -247,8 +280,9 @@ The exact Phase 0 row predicates are:
 - `VISIBLE`: `ownerAccountActive = true`, `chargesEnabled = true`, and
   `stripeAccountSupported = true`;
 - `ACTIVE`: `VISIBLE` plus `vacationMode = false`;
-- exact directory pin: `ACTIVE`, non-null valid coordinates,
-  `publicMapOptIn = true`, and `radiusMeters IS NULL OR radiusMeters = 0`;
+- public directory point: `ACTIVE`, non-null valid coordinates,
+  `publicMapOptIn = true`, `radiusMeters IS NULL OR radiusMeters = 0`, followed
+  by coarse-grid derivation inside the database boundary;
 - seller-page location: `VISIBLE` for a public visitor, or the existing exact
   owner/resource authorization for previews, followed by database-side
   derivation of the public point; and
@@ -321,15 +355,25 @@ Current public coordinate paths were rechecked:
 - seller and listing detail pages pass the source point through
   `publicSellerLocationPoint`, which quantizes radius-protected locations and
   uses the coarse public grid when exact-location opt-in is absent; and
-- the public map-card route returns no coordinates.
+- the public map-card route returns no coordinates; and
+- the seller JSON-LD emits raw `geo` for opted-in null/zero-radius sellers.
 
-This supports the existing privacy claim for those paths, but it also corrects
-the earlier shorthand that all five public coordinate consumers were exact-pin
-readers. Three are exact directory/home maps and two derive an approximate or
-exact point. The future database contract performs both checks and derivation
-before returning the point so a new caller cannot bypass them with a broad
-select. General public projections omit all four location source columns and
-`userId`; location access is a separate operation.
+The three directory/home map queries and seller JSON-LD currently publish the
+raw point. Seller and listing detail helpers also return the raw point when
+exact-location opt-in is set. That contradicts Privacy Policy section 2.7 and
+Terms sections 4.19 and 4.20, which promise approximate city/region display and
+say exact coordinates are not displayed. Opt-in does not cure that mismatch:
+the current checkbox does not clearly disclose raw-coordinate publication, and
+the legal promise is unconditional.
+
+Option B therefore adopts the safer contract: every anonymous or signed-in
+public location result is database-derived and approximate. Positive privacy
+radii use a radius-sized grid; null/zero radii use the coarse public grid.
+Exact coordinates remain available only to the owner or a reviewed
+purpose-bound transaction such as pickup fulfillment. General public
+projections omit all four location source columns and `userId`; location access
+is a separate operation. The current raw-map and JSON-LD behavior is a product
+defect that Phase 1 must remove before activation.
 
 ## Reconciliation of recent Claude allegations
 
@@ -341,7 +385,7 @@ ledger later reused some numbers for unrelated findings.
 |---|---|---|
 | Listing AI review omits `materials`, `metaDescription`, variant group names and option labels | **Confirmed.** All four `reviewListingWithAI` call sites pass title, description, category, tags, seller name, price and images; the review contract has no fields for the omitted public text. | `DEFERRED_PRODUCT_WORK`. Fix in the Listing moderation batch. It does not change the SellerProfile projection design or block additive design work. |
 | “Local makers only” commissions are visible to makers nationwide | **Confirmed.** Creation stores a privacy-reduced point and `isNational = false`, but the default `All` tab queries all open requests without a distance predicate. Only the `Near Me` raw query applies the 80 km filter, and any seller shown the request can submit interest. | `DEFERRED_PRODUCT_WORK`. Fix the promise/enforcement in the CommissionRequest domain. Preserve the current active-seller interest predicate during SellerProfile conversion. |
-| Public seller maps disclose exact coordinates without consent | **Not reproduced in the reviewed exact-pin paths.** Both map pages require explicit opt-in and no positive privacy radius; the card endpoint omits coordinates. | Retain as a required behavior proof. Any projection that exposes coordinates before those predicates is a `BLOCKS_RLS_DESIGN` defect. |
+| Public seller maps and seller JSON-LD disclose exact coordinates despite approximate-only legal promises | **Confirmed.** Opted-in null/zero-radius sellers' raw coordinates reach three map surfaces and seller JSON-LD. Seller/listing helpers can also return exact points. Privacy 2.7 and Terms 4.19/4.20 promise approximate-only public display. | The Phase 0 design now requires approximate-only public output. Correct current callers and copy that describes an “exact pin” before activation; exact location remains owner or purpose bound. |
 
 These classifications preserve the verified product bugs without allowing
 unrelated Listing or CommissionRequest work to stall the seller authority
@@ -354,7 +398,7 @@ The 100-file queue will be converted in independently reviewable groups:
 1. public catalog/profile and seller-name projections;
 2. public eligibility predicates for listing, blog, search, sitemap and
    aggregates;
-3. exact public map operation;
+3. approximate public map/location operations;
 4. authenticated owner reads and the eight owner mutations;
 5. staff reads and six staff/system/founding-maker mutations;
 6. checkout, shipping, cart, deletion, export, upload, notification and webhook
@@ -368,14 +412,16 @@ guard the final zero-direct state, but they do not count as behavior proof.
 
 ### `BLOCKS_RLS_DESIGN`
 
+- No open design blocker remains. Phase 0 fixed the authority, field,
+  predicate, and approximate-location contracts needed for additive design.
 - The machine-checked per-consumer principal/contract assignment and
   opaque-shape reconciliation are complete for all 100 proven source files.
 - The 130 installed functions and six direct table triggers are classified.
-  Bind each of the 98 retained fixed authorities to its existing acceptance
-  flow before grant closure; a test-source name reference alone is not
-  behavior proof.
+  All 98 retained fixed authorities are mapped: 93 direct behavior proofs, two
+  composed behavior proofs, and three explicit source-only proof gaps.
 - The 55-column disclosure partition and public visibility/location predicates
-  are complete. Phase 1 still defines each operation's narrower return shape;
+  are complete and prohibit exact public location output. Phase 1 still defines
+  each operation's narrower return shape;
   owner, staff, service, participant and transaction operations never inherit
   a reusable whole-row result from this maximum allowlist.
 
@@ -384,6 +430,12 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Convert every proven direct, relation and raw SQL caller away from runtime
   base-table authority.
 - Replace all 14 direct writes with fixed operations.
+- Replace raw-coordinate output on public maps, seller/listing public helpers,
+  and seller JSON-LD with database-derived approximate points. Remove “exact
+  pin” public UI copy so behavior and disclosure agree with Privacy 2.7 and
+  Terms 4.19/4.20.
+- Add full-chain behavior proof for the checkout claim batch, listing delete
+  reference state, and Guild listing-threshold sync authorities.
 - Prove anonymous, owner, staff, map, checkout/shipping, deletion/export,
   webhook/cron and aggregate behavior on the full migrated PostgreSQL 16
   schema.
@@ -396,6 +448,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   labels.
 - Make the local commission promise match discovery and interest enforcement.
 
-Phase 0 is not closed yet, so no SellerProfile view, function, policy, grant or
-migration implementation begins from this checkpoint. The next pass is exact
-field/predicate design and retained-authority acceptance mapping.
+Phase 0 closed on 2026-10-19 with a **go to additive Phase 1 design**. The
+existing Option B approval covers isolated source preparation only. It does not
+authorize a Production migration, grant change, RLS change, deployment, or
+provider action. Phase 1 begins with bounded projection/operation definitions
+and the retained-location/authority behavior obligations above; predecessor
+runtime grants remain unchanged throughout compatible preparation.

@@ -96,16 +96,20 @@ export const SELLER_PROFILE_VISIBILITY_PREDICATES = Object.freeze({
     stripeAccountSupported: true,
     vacationMode: false,
   }),
-  EXACT_DIRECTORY_LOCATION: Object.freeze({
+  DIRECTORY_LOCATION: Object.freeze({
     visibility: "ACTIVE",
     publicMapOptIn: true,
     coordinatesPresentAndValid: true,
     radiusMeters: "NULL_OR_ZERO",
+    derivation: "COARSE_PUBLIC_GRID",
+    result: Object.freeze(["publicLat", "publicLng", "approximate"]),
   }),
   PROFILE_LOCATION: Object.freeze({
     visibility: "CALLER_RESOURCE_VISIBILITY",
-    exactWhen: "publicMapOptIn = true AND (radiusMeters IS NULL OR radiusMeters = 0)",
-    approximateWhen: "positive radius, or no exact-location opt-in",
+    publicResult: "ALWAYS_APPROXIMATE",
+    positiveRadiusDerivation: "RADIUS_SIZED_GRID",
+    nullOrZeroRadiusDerivation: "COARSE_PUBLIC_GRID",
+    exactResult: "OWNER_OR_PURPOSE_BOUND_ONLY",
     result: Object.freeze(["publicLat", "publicLng", "approximate"]),
   }),
 });
@@ -167,15 +171,21 @@ export function verifySellerProfilePublicFieldContracts(root) {
     throw new Error(`Generic SellerProfile projection exposes restricted fields: ${publicLeaks.join(", ")}`);
   }
 
-  const exact = SELLER_PROFILE_VISIBILITY_PREDICATES.EXACT_DIRECTORY_LOCATION;
-  if (exact.visibility !== "ACTIVE"
-      || exact.publicMapOptIn !== true
-      || exact.coordinatesPresentAndValid !== true
-      || exact.radiusMeters !== "NULL_OR_ZERO") {
-    throw new Error("Exact SellerProfile directory-location predicate drifted");
+  const directory = SELLER_PROFILE_VISIBILITY_PREDICATES.DIRECTORY_LOCATION;
+  if (directory.visibility !== "ACTIVE"
+      || directory.publicMapOptIn !== true
+      || directory.coordinatesPresentAndValid !== true
+      || directory.radiusMeters !== "NULL_OR_ZERO"
+      || directory.derivation !== "COARSE_PUBLIC_GRID"
+      || directory.result.join(",") !== "publicLat,publicLng,approximate") {
+    throw new Error("SellerProfile directory-location predicate drifted");
   }
   const derived = SELLER_PROFILE_VISIBILITY_PREDICATES.PROFILE_LOCATION;
-  if (derived.result.join(",") !== "publicLat,publicLng,approximate") {
+  if (derived.publicResult !== "ALWAYS_APPROXIMATE"
+      || derived.positiveRadiusDerivation !== "RADIUS_SIZED_GRID"
+      || derived.nullOrZeroRadiusDerivation !== "COARSE_PUBLIC_GRID"
+      || derived.exactResult !== "OWNER_OR_PURPOSE_BOUND_ONLY"
+      || derived.result.join(",") !== "publicLat,publicLng,approximate") {
     throw new Error("SellerProfile derived public-location result drifted");
   }
 
