@@ -35,6 +35,14 @@ type SellerOwnerListingMetroSourceRow = {
   lng: unknown;
 };
 
+type SellerOwnerListingPublishReviewRow = {
+  sellerProfileId: unknown;
+  displayName: unknown;
+  chargesEnabled: unknown;
+  vacationMode: unknown;
+  publishReviewListingCount: unknown;
+};
+
 export type SellerOwnerAccountSummary = {
   sellerProfileId: string;
   avatarImageUrl: string | null;
@@ -68,6 +76,62 @@ export type SellerOwnerListingMetroSource = {
   lat: number | null;
   lng: number | null;
 };
+
+export type SellerOwnerListingPublishReview = {
+  sellerProfileId: string;
+  displayName: string;
+  chargesEnabled: boolean;
+  vacationMode: boolean;
+  publishReviewListingCount: number;
+};
+
+async function readSellerOwnerListingPublishReview(
+  client: SellerProfileOwnerClient,
+  sellerProfileId: string,
+) {
+  const rows = await client.$queryRaw<SellerOwnerListingPublishReviewRow[]>`
+    SELECT *
+      FROM public.grainline_seller_owner_listing_publish_review(
+        ${sellerProfileId}::text
+      )
+  `;
+  if (rows.length > 1) {
+    throw new Error("Seller owner listing-publish-review authority returned too many rows");
+  }
+  const row = rows[0];
+  if (!row) return null;
+  if (
+    row.sellerProfileId !== sellerProfileId
+    || !/^[A-Za-z0-9._:-]{1,191}$/.test(sellerProfileId)
+    || typeof row.displayName !== "string"
+    || row.displayName.length < 1
+    || row.displayName.length > 100
+    || typeof row.chargesEnabled !== "boolean"
+    || typeof row.vacationMode !== "boolean"
+    || typeof row.publishReviewListingCount !== "bigint"
+    || row.publishReviewListingCount < 0n
+    || row.publishReviewListingCount > BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    throw new Error("Seller owner listing-publish-review authority returned an invalid result");
+  }
+  return Object.freeze({
+    sellerProfileId,
+    displayName: row.displayName,
+    chargesEnabled: row.chargesEnabled,
+    vacationMode: row.vacationMode,
+    publishReviewListingCount: Number(row.publishReviewListingCount),
+  }) satisfies Readonly<SellerOwnerListingPublishReview>;
+}
+
+export function sellerOwnerListingPublishReview(
+  userId: string,
+  sellerProfileId: string,
+) {
+  return withDbUserContext(
+    userId,
+    (client) => readSellerOwnerListingPublishReview(client, sellerProfileId),
+  );
+}
 
 async function readSellerOwnerListingMetroSource(
   client: SellerProfileOwnerClient,

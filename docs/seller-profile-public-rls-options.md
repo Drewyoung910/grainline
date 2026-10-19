@@ -354,6 +354,13 @@ accesses in 12 files, 75 total consumer files and 179 reconciled opaque shapes.
 Only one source consumer file still directly reads owner coordinates. The
 catalog has 156 matching functions: 98 retained, 32 internal and 26 converted
 authorities.
+A twenty-seventh actor-and-target-bound authority replaces both direct seller
+reads in listing publish/reactivation. It returns only display name,
+charges/vacation readiness and the exact ACTIVE/SOLD/SOLD_OUT count used by the
+predecessor moderation call. The candidate is now down to 45 direct operations
+in 24 files; relation, raw SQL, total-consumer and opaque-shape counts are
+unchanged. The catalog has 157 matching functions: 98 retained, 32 internal and
+27 converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

@@ -25,6 +25,7 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
+import { sellerOwnerListingPublishReview } from "@/lib/sellerProfileOwnerAccess";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -261,23 +262,16 @@ export async function publishListingAction(listingId: string): Promise<{ status:
   const blockReason = publishListingBlockReason(listing);
   if (blockReason) return { error: blockReason };
 
-  const sellerCheck = await prisma.sellerProfile.findUnique({
-    where: { id: listing.sellerId },
-    select: { chargesEnabled: true, vacationMode: true },
-  });
-  if (!sellerCheck?.chargesEnabled || sellerCheck.vacationMode) {
+  const sellerReview = await sellerOwnerListingPublishReview(
+    listing.seller.userId,
+    listing.sellerId,
+  );
+  if (!sellerReview?.chargesEnabled || sellerReview.vacationMode) {
     return { error: "Connect your bank account in Shop Settings to publish." };
   }
 
   try {
-    const sellerInfo = await prisma.sellerProfile.findUnique({
-      where: { id: listing.sellerId },
-      select: {
-        displayName: true,
-        _count: { select: { listings: { where: { status: { in: ["ACTIVE", "SOLD", "SOLD_OUT"] } } } } },
-      },
-    });
-    const listingCount = sellerInfo?._count.listings ?? 0;
+    const listingCount = sellerReview.publishReviewListingCount;
 
     const { reviewListingWithAI } = await import("@/lib/ai-review");
     const { logAdminAction } = await import("@/lib/audit");
@@ -298,7 +292,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       currency: listing.currency,
       category: listing.category ?? null,
       tags: listing.tags,
-      sellerName: sellerInfo?.displayName ?? "Unknown",
+      sellerName: sellerReview.displayName,
       listingCount,
       imageUrls: photos.map((p) => p.url),
     }).catch((error) => {

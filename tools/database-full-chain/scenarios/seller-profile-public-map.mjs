@@ -346,6 +346,21 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
         lng: -97.749,
       }],
     );
+    const publishReview = rowsOf(await database.query(
+      `SELECT "sellerProfileId", "displayName", "chargesEnabled",
+              "vacationMode", "publishReviewListingCount"
+         FROM public.grainline_seller_owner_listing_publish_review($1)`,
+      [seller.sellerProfileId],
+    )).map((row) => ({
+      ...row,
+      publishReviewListingCount: Number(row.publishReviewListingCount),
+    }));
+    assert.equal(publishReview.length, 1);
+    assert.equal(publishReview[0].sellerProfileId, seller.sellerProfileId);
+    assert.equal(publishReview[0].displayName, "Full Chain Workshop");
+    assert.equal(publishReview[0].chargesEnabled, true);
+    assert.equal(publishReview[0].vacationMode, false);
+    assert.equal(publishReview[0].publishReviewListingCount >= 1, true);
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -547,6 +562,13 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     await assert.rejects(
       database.query(
         "SELECT * FROM public.grainline_seller_owner_listing_metro_source($1)",
+        [seller.sellerProfileId],
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_owner_listing_publish_review($1)",
         [seller.sellerProfileId],
       ),
       /permission denied/u,

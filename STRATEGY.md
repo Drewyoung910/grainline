@@ -104,7 +104,13 @@ source returns the exact coordinate pair only to the server-side metro mapper.
 The candidate now has 47 direct operations in 25 files, 15 raw SQL accesses in
 12 files, 75 total consumer files, 179 reconciled opaque query shapes and one
 remaining owner-coordinate consumer file. The candidate catalog contains the
-unchanged 98 retained and 32 internal functions plus 26 converted authorities. It
+unchanged 98 retained and 32 internal functions plus 26 converted authorities.
+A twenty-seventh actor-and-target-bound operation then replaces the two seller
+reads in listing publish/reactivation while preserving its narrower
+ACTIVE/SOLD/SOLD_OUT moderation count. The candidate is now at 45 direct
+operations in 24 files; relation, raw SQL, total-consumer and opaque-shape counts
+are unchanged, and the catalog contains 157 functions partitioned into 98
+retained, 32 internal and 27 converted authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three
