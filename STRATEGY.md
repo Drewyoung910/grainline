@@ -168,6 +168,15 @@ operations in 16 files, 85 relation accesses in 47 files, 15 raw SQL accesses
 in 12 files and 68 total consumer files. It has 172 reconciled opaque shapes,
 and its 163-function catalog partitions into 98 retained, 32 internal and 33
 converted authorities.
+The listing review section then stops repeating seller and ownership reads that
+the authorized listing-detail loader has already completed. The parent passes
+the seller reply name/avatar and its database-derived ownership result into the
+server component, removing one direct SellerProfile read and one
+Listing-to-SellerProfile join without adding an authority or changing rendered
+review behavior. The candidate is now at 36 direct operations in 15 files, 84
+relation accesses in 46 files, 15 raw SQL accesses in 12 files and 67 total
+consumer files. It still has 172 reconciled opaque shapes, and its 163-function
+catalog remains 98 retained, 32 internal and 33 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

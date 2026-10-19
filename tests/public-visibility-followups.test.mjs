@@ -137,10 +137,14 @@ describe("public visibility follow-ups", () => {
     assert.match(visibility, /listing\.seller\.userId === viewer\.dbUserId/);
 
     assert.doesNotMatch(customerPhotosPage, /clerkId: true/);
-    assert.match(customerPhotosPage, /const isOwner = !!meId && seller\.userId === meId/);
-    assert.match(reviewsSection, /where: \{ userId: sellerUserId \}/);
+    assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
+    assert.doesNotMatch(customerPhotosPage, /prisma\.sellerProfile/);
+    assert.match(reviewsSection, /sellerName: string;/);
+    assert.match(reviewsSection, /sellerAvatarUrl: string \| null;/);
+    assert.match(reviewsSection, /viewerIsSeller: boolean;/);
+    assert.doesNotMatch(reviewsSection, /prisma\.sellerProfile/);
+    assert.doesNotMatch(reviewsSection, /select: \{ seller: \{ select: \{ userId: true \} \} \}/);
     assert.match(reviewsSection, /!r\.sellerReply && viewerIsSeller/);
-    assert.doesNotMatch(reviewsSection, /where: \{ clerkId: sellerUserId \}/);
   });
 
   it("resolves analytics ownership to local ids and fails closed for missing local users", () => {

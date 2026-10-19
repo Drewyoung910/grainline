@@ -922,7 +922,9 @@ export default async function ListingPage({
           listingId={listingId}
           listingTitle={listing.title}
           meId={meId}
-          sellerUserId={sellerUserId}
+          sellerName={sellerName}
+          sellerAvatarUrl={sellerAvatar}
+          viewerIsSeller={viewerIsSeller}
           initialSort={sortKey}
           edit={editingMine}
           blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}

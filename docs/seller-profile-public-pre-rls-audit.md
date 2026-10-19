@@ -275,6 +275,11 @@ photo page's public header and owner canonical behavior, applies reciprocal
 blocks for authenticated non-owners, and returns an explicit public-photo
 eligibility bit. The route rechecks it after its photo reads and predicates
 listings directly on status/privacy rather than joining SellerProfile.
+The listing review section needs no separate seller-card authority: its parent
+listing-detail loader already returns the seller reply name/avatar and proves
+whether the viewer owns that seller. Passing those values into the server
+component removes one direct SellerProfile read and one redundant relation join
+while preserving the exact rendered and seller-action behavior.
 `grainline_seller_public_follow_state(text)`,
 `grainline_seller_public_follow_create(text,text)` and
 `grainline_seller_public_follow_delete(text)` own public follow reads and

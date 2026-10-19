@@ -422,6 +422,14 @@ consumer ledger. The candidate is now at 37 direct operations in 16 files, 85
 relation accesses in 47 files, 15 raw SQL accesses in 12 files, 68 total
 consumer files and 172 reconciled opaque shapes. The catalog has 163 functions:
 98 retained, 32 internal and 33 converted.
+The listing review section then reuses the seller reply name/avatar and seller
+ownership result already established by the authorized listing-detail loader.
+This removes the component's duplicate direct SellerProfile read and its
+Listing-to-SellerProfile ownership join without adding a new database authority
+or changing the review surface. The candidate is now at 36 direct operations
+in 15 files, 84 relation accesses in 46 files, 15 raw SQL accesses in 12 files,
+67 total consumer files and 172 reconciled opaque shapes. The catalog remains
+163 functions: 98 retained, 32 internal and 33 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

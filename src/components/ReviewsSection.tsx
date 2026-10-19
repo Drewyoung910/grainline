@@ -70,7 +70,9 @@ export default async function ReviewsSection({
   listingId,
   listingTitle,
   meId,
-  sellerUserId,
+  sellerName,
+  sellerAvatarUrl,
+  viewerIsSeller,
   initialSort = "top",
   edit = false,              // ?redit=1 toggles edit UI
   blockedUserIds,
@@ -78,7 +80,9 @@ export default async function ReviewsSection({
   listingId: string;
   listingTitle?: string | null;
   meId: string | null;
-  sellerUserId: string | null;
+  sellerName: string;
+  sellerAvatarUrl: string | null;
+  viewerIsSeller: boolean;
   initialSort?: "top" | "new" | "rating" | "photos";
   edit?: boolean;
   blockedUserIds?: string[];
@@ -105,17 +109,6 @@ export default async function ReviewsSection({
   });
   const avg = agg._avg.ratingX2 ? agg._avg.ratingX2 / 2 : null;
   const avgQuarter = avg != null ? quarterRound(avg) : null;
-
-  // Is the viewer the seller of this listing? (sellers can't mark their
-  // own listing's reviews helpful — would let them boost their best ones.)
-  let viewerIsSeller = false;
-  if (meId) {
-    const listingRow = await prisma.listing.findUnique({
-      where: { id: listingId },
-      select: { seller: { select: { userId: true } } },
-    });
-    viewerIsSeller = listingRow?.seller.userId === meId;
-  }
 
   // Viewer's review (full)
   const mine = meId
@@ -166,17 +159,6 @@ export default async function ReviewsSection({
     });
     votedReviewIds = new Set(votes.map((v) => v.reviewId));
   }
-
-  // Fetch the seller profile once so the reply card can show the seller's
-  // display name + avatar (much clearer than a generic "Seller reply" label).
-  const sellerProfile = sellerUserId
-    ? await prisma.sellerProfile.findUnique({
-        where: { userId: sellerUserId },
-        select: { id: true, displayName: true, avatarImageUrl: true, ownerImageUrl: true },
-      })
-    : null;
-  const sellerName = sellerProfile?.displayName ?? "Maker";
-  const sellerAvatarUrl = sellerProfile?.avatarImageUrl ?? sellerProfile?.ownerImageUrl ?? null;
 
   // Link builders (always target listing path + #reviews)
   const sortHref = (k: "top" | "new" | "rating" | "photos", keepEdit = false) =>
