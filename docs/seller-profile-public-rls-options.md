@@ -247,6 +247,12 @@ purpose-bound to suppressing the current seller's follow control. The candidate
 now has 75 direct operations in 45 files, 15 raw SQL accesses in 12 files, 93
 total consumer files and 194 reconciled opaque query shapes. Its catalog has
 140 matching functions: 98 retained, 32 internal and ten converted authorities.
+An eleventh exact operation now serves the public map-card endpoint. It owns
+active/map-opt-in eligibility and highest-quality public-listing cover
+selection and returns only the rendered card fields. The candidate is now down
+to 74 direct operations in 44 files, 15 raw SQL accesses in 12 files, 92 total
+consumer files and 192 reconciled opaque query shapes. Its catalog has 141
+matching functions: 98 retained, 32 internal and eleven converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

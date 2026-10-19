@@ -68,13 +68,16 @@ or raw-geography column. A tenth exact operation owns the homepage's two-maker
 spotlight selection: active admin-featured sellers first, weekly Guild rotation
 second and a weekly rotation within the top-four reviewed public sellers last.
 It returns only the rendered spotlight fields; `userId` is purpose-bound to
-suppressing the current seller's follow control. All ten keep the old table
-grant unchanged. This reduces the candidate source inventory to 75 direct
-operations in 45 files, 15 raw SQL accesses in 12 files, 93 total consumer
-files, 194 reconciled opaque query
+suppressing the current seller's follow control. An eleventh exact operation
+serves the public map-card endpoint with active/map-opt-in eligibility and the
+top public-listing cover inside the database; it returns no raw coordinate,
+owner identifier or control field. All eleven keep the old table grant
+unchanged. This reduces the candidate source inventory to 74 direct operations
+in 44 files, 15 raw SQL accesses in 12 files, 92 total consumer files, 192
+reconciled opaque query
 shapes and two remaining purpose-bound owner coordinate consumers. The
 candidate catalog contains the unchanged 98 retained and 32 internal functions
-plus the ten converted public authorities. It
+plus the eleven converted public authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three

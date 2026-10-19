@@ -76,6 +76,21 @@ export type SellerPublicFeaturedMaker = Readonly<{
   ownerImageUrl: string | null;
 }>;
 
+export type SellerPublicMapCard = Readonly<{
+  id: string;
+  displayName: string;
+  tagline: string | null;
+  city: string | null;
+  state: string | null;
+  guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+  isFoundingMaker: boolean;
+  foundingMakerNumber: number | null;
+  avatarImageUrl: string | null;
+  bannerImageUrl: string | null;
+  ownerImageUrl: string | null;
+  coverImageUrl: string | null;
+}>;
+
 export type SellerPublicSitemapRow = Readonly<{
   id: string;
   displayName: string;
@@ -154,6 +169,21 @@ type SellerPublicFeaturedMakerRow = {
   isFoundingMaker: unknown;
   foundingMakerNumber: unknown;
   ownerImageUrl: unknown;
+};
+
+type SellerPublicMapCardRow = {
+  id: unknown;
+  displayName: unknown;
+  tagline: unknown;
+  city: unknown;
+  state: unknown;
+  guildLevel: unknown;
+  isFoundingMaker: unknown;
+  foundingMakerNumber: unknown;
+  avatarImageUrl: unknown;
+  bannerImageUrl: unknown;
+  ownerImageUrl: unknown;
+  coverImageUrl: unknown;
 };
 
 type SellerPublicSitemapRowResult = {
@@ -455,6 +485,54 @@ async function readSellerPublicFeaturedMakers(client: SellerPublicAccessClient) 
   return Object.freeze(makers);
 }
 
+async function readSellerPublicMapCard(
+  client: SellerPublicAccessClient,
+  sellerProfileId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicMapCardRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_map_card(${sellerProfileId})
+  `);
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Seller public map-card authority returned multiple results");
+  }
+  const row = rows[0];
+  if (
+    typeof row.id !== "string"
+    || !row.id
+    || typeof row.displayName !== "string"
+    || !row.displayName
+    || !nullableString(row.tagline)
+    || !nullableString(row.city)
+    || !nullableString(row.state)
+    || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+    || typeof row.isFoundingMaker !== "boolean"
+    || !nullableString(row.avatarImageUrl)
+    || !nullableString(row.bannerImageUrl)
+    || !nullableString(row.ownerImageUrl)
+    || !nullableString(row.coverImageUrl)
+  ) {
+    throw new Error("Seller public map-card authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.id,
+    displayName: row.displayName,
+    tagline: row.tagline,
+    city: row.city,
+    state: row.state,
+    guildLevel: row.guildLevel as SellerPublicMapCard["guildLevel"],
+    isFoundingMaker: row.isFoundingMaker,
+    foundingMakerNumber: parseNullableSafeInteger(
+      row.foundingMakerNumber,
+      "founding maker number",
+    ),
+    avatarImageUrl: row.avatarImageUrl,
+    bannerImageUrl: row.bannerImageUrl,
+    ownerImageUrl: row.ownerImageUrl,
+    coverImageUrl: row.coverImageUrl,
+  });
+}
+
 async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicSitemapCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_sitemap_counts()
@@ -639,6 +717,13 @@ export async function sellerPublicSimilarMakers(
 
 export async function sellerPublicFeaturedMakers() {
   return readSellerPublicFeaturedMakers(prisma);
+}
+
+export async function sellerPublicMapCard(sellerProfileId: string) {
+  if (sellerProfileId.length < 1 || sellerProfileId.length > 64) {
+    throw new RangeError("Seller public map-card id is outside the supported range");
+  }
+  return readSellerPublicMapCard(prisma, sellerProfileId);
 }
 
 export async function sellerPublicSitemapPage(

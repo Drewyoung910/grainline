@@ -552,13 +552,13 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(homepage, /NewsletterSignup/);
     assert.match(homepage, /import \{ getCachedPublicSellerStats \} from "@\/lib\/publicSellerStats"/);
     assert.match(homepage, /import FollowButton from "@\/components\/FollowButton"/);
-    assert.match(homepage, /userId: true/);
-    assert.match(homepage, /storyBody: true/);
-    assert.match(homepage, /yearsInBusiness: true/);
-    assert.match(homepage, /createdAt: true/);
-    assert.match(homepage, /home-featured-makers-v4/);
-    assert.match(homepage, /isFoundingMaker: true/);
-    assert.match(homepage, /foundingMakerNumber: true/);
+    assert.match(homepage, /sellerPublicFeaturedMakers\(\)/);
+    assert.match(homepage, /spotlight\.storyBody \?\? spotlight\.bio/);
+    assert.match(homepage, /spotlight\.yearsInBusiness/);
+    assert.match(homepage, /spotlight\.createdAt/);
+    assert.match(homepage, /home-featured-makers-v5/);
+    assert.match(homepage, /spotlight\.isFoundingMaker/);
+    assert.match(homepage, /spotlight\.foundingMakerNumber/);
     assert.match(homepage, /const featuredMakerIds = featuredMakers\.map\(\(\{ maker \}\) => maker\.id\)/);
     assert.match(homepage, /prisma\.follow\.groupBy\(\{/);
     assert.match(homepage, /where: \{ followerId: meDbId, sellerProfileId: \{ in: featuredMakerIds \} \}/);
@@ -629,7 +629,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(makerCard, /<X size=\{16\} aria-hidden="true" \/>/);
     assert.doesNotMatch(makerCard, /dangerouslySetInnerHTML|innerHTML/);
     assert.match(mapCardRoute, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
-    assert.match(mapCardRoute, /activeSellerProfileWhere\(\{ id, publicMapOptIn: true \}\)/);
+    assert.match(mapCardRoute, /sellerPublicMapCard\(id\)/);
+    assert.doesNotMatch(mapCardRoute, /prisma\.sellerProfile/);
     assert.match(mapCardRoute, /headers: \{ "Cache-Control": "public, max-age=300" \}/);
   });
 
@@ -641,25 +642,17 @@ describe("post-launch UI follow-ups", () => {
     assert.match(listingPage, /import SimilarMakers from "@\/components\/SimilarMakers"/);
     assert.match(listingPage, /metroId: true/);
     assert.match(listingPage, /cityMetroId: true/);
-    assert.match(listingPage, /<SimilarMakers[\s\S]*sellerId=\{listing\.seller\.id\}[\s\S]*metroId=\{listing\.metroId\}[\s\S]*cityMetroId=\{listing\.cityMetroId\}/);
-    assert.match(listingPage, /blockedUserIds=\{blockedUserIds\.size > 0 \? \[\.\.\.blockedUserIds\] : undefined\}/);
+    assert.match(listingPage, /<SimilarMakers[\s\S]*listingId=\{listing\.id\}[\s\S]*viewerUserId=\{meId\}/);
 
-    assert.match(similarMakers, /activeSellerProfileWhere/);
-    assert.match(similarMakers, /publicListingWhere/);
-    assert.match(similarMakers, /satisfies Prisma\.SellerProfileSelect/);
-    assert.doesNotMatch(similarMakers, /include:/);
-    assert.match(similarMakers, /id: \{ not: sellerId \}/);
-    assert.match(similarMakers, /userId: \{ notIn: blockedUserIds \}/);
-    assert.match(similarMakers, /listings: \{ some: publicListingWhere\(\) \}/);
-    assert.match(similarMakers, /OR: \[\{ metroId: \{ in: metroIds \} \}, \{ cityMetroId: \{ in: metroIds \} \}\]/);
-    assert.match(similarMakers, /id: \{ notIn: \[sellerId, \.\.\.found\] \}/);
-    assert.match(similarMakers, /take: MAX_SIMILAR_MAKERS/);
-    assert.match(similarMakers, /\{ id: "asc" as const \}/);
+    assert.match(similarMakers, /sellerPublicSimilarMakers\(/);
+    assert.doesNotMatch(similarMakers, /prisma\.sellerProfile|activeSellerProfileWhere|publicListingWhere/);
+    assert.match(similarMakers, /const MAX_SIMILAR_MAKERS = 4/);
+    assert.match(similarMakers, /listingId,[\s\S]*MAX_SIMILAR_MAKERS/);
     assert.match(similarMakers, /border-\[3px\] border-\[#EFEAE0\] bg-white/);
     assert.doesNotMatch(similarMakers, /ring-1 ring-black\/10 bg-white/);
     assert.doesNotMatch(similarMakers, /import GuildBadge|<GuildBadge/);
     assert.doesNotMatch(similarMakers, /lat: true|lng: true|radiusMeters: true/);
-    assert.match(docs, /SimilarMakers[\s\S]*activeSellerProfileWhere\(\)[\s\S]*publicListingWhere\(\)[\s\S]*SellerProfile\.userId/);
+    assert.match(docs, /Similar-maker cards use `sellerPublicSimilarMakers\(\)`[\s\S]*grainline_seller_public_similar_makers/);
     assert.match(docs, /Listing detail[\s\S]*SimilarMakers\.tsx[\s\S]*blockedUserIds/);
   });
 

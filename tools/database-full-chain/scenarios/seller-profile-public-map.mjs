@@ -10,6 +10,7 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   const viewerEmail = `map-${seller.userId}@example.test`;
   const blockId = `${seller.sellerProfileId}_map_block`;
   const listingId = `${seller.sellerProfileId}_map_listing`;
+  const photoId = `${seller.sellerProfileId}_map_photo`;
   const reviewId = `${seller.sellerProfileId}_sitemap_review`;
   const reviewPhotoId = `${seller.sellerProfileId}_sitemap_review_photo`;
   const metroId = `${seller.sellerProfileId}_public_metro`;
@@ -50,6 +51,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
      VALUES ($1, $2, 'Full Chain Map Listing', 'Public location proof', 1200,
              'ACTIVE', false, $3, $3)`,
     [listingId, seller.sellerProfileId, now],
+  );
+  await database.query(
+    `INSERT INTO public."Photo"
+      (id, "listingId", url, "sortOrder", "createdAt")
+     VALUES ($1, $2, 'https://example.test/map-card.jpg', 0, $3)`,
+    [photoId, listingId, now],
   );
   await database.query(
     `INSERT INTO public."Review"
@@ -153,6 +160,16 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       new Set(featuredMakers.map((row) => row.id)).size,
       featuredMakers.length,
     );
+    const mapCard = rowsOf(await database.query(
+      `SELECT id, "displayName", "coverImageUrl"
+         FROM public.grainline_seller_public_map_card($1)`,
+      [seller.sellerProfileId],
+    ));
+    assert.deepEqual(mapCard, [{
+      id: seller.sellerProfileId,
+      displayName: "Full Chain Workshop",
+      coverImageUrl: "https://example.test/map-card.jpg",
+    }]);
     const sellerSitemapRows = rowsOf(await database.query(
       `SELECT id, "displayName"
          FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 50000)`,
@@ -285,6 +302,13 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_featured_makers()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_map_card($1)",
+        [seller.sellerProfileId],
+      ),
       /permission denied/u,
     );
     await assert.rejects(
