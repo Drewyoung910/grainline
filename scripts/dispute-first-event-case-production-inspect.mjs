@@ -19,7 +19,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const MIGRATION = "20261017010000_correct_dispute_first_event_case";
 export const MIGRATION_SHA256 =
-  "714c73d9321b60e6deda6b6300ac1b4cd04f71555bbe962f7edd5c0243945505";
+  "735e84fd9d672426333cd5cf608ba3b60a0613ee6fc162f5bfc3e6beaed1179b";
 
 export const FUNCTION_SPECS = Object.freeze([
   Object.freeze({
@@ -264,7 +264,16 @@ export async function disputeFirstEventRecoveryCandidateSummary(client) {
         orders."stripeChargeId" AS stripe_charge_id,
         order_seller."userId" AS order_seller_user_id,
         retained_seller.seller_count,
-        retained_seller.only_seller_user_id
+        retained_seller.only_seller_user_id,
+        EXISTS (
+          SELECT 1
+            FROM public."Case" AS existing_case
+           WHERE existing_case."orderId" = orders.id
+             AND existing_case.resolution IN (
+               'REFUND_FULL'::public."CaseResolution",
+               'REFUND_PARTIAL'::public."CaseResolution"
+             )
+        ) AS has_refund_resolved_case
       FROM public."OrderPaymentEvent" AS payment
       JOIN public."Order" AS orders
         ON orders.id = payment."orderId"
@@ -361,6 +370,7 @@ export async function disputeFirstEventRecoveryCandidateSummary(client) {
            OR candidate.only_seller_user_id IS NULL
            OR candidate.only_seller_user_id
                 IS DISTINCT FROM candidate.order_seller_user_id
+           OR candidate.has_refund_resolved_case
       )::integer AS unrepairable_count
     FROM candidates AS candidate`);
   assert.equal(result.rows.length, 1);

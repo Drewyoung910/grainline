@@ -46,9 +46,12 @@ Last updated: 2026-10-18
   the same dispute, and repairs retained eligible gaps with a transaction-local
   100-row safety cap. Its read-only Production preflight now refuses the release
   before Prisma writes a migration row if any retained candidate has become
-  unrepairable, including after account deletion nulls the buyer. It preserves
-  the already-live #714 same-second projection correction. Fifteen focused
-  behavior/release checks pass, and a disposable
+  unrepairable, including after account deletion nulls the buyer or when
+  historical recovery would reopen a full- or partial-refund Case and erase
+  its refund resolution (#703). The migration repeats that #703 guard inside
+  its transaction before any recovery write. It preserves
+  the already-live #714 same-second projection correction. Eighteen focused
+  behavior/release tests, including the new failing-first #703 boundary, pass, and a disposable
   PostgreSQL 16 proof reproduced the predecessor gap before applying the last
   of all 350 candidate migrations, then proved one Case and one seller alert
   with stable replay; the hardened candidate classifier also compiled and

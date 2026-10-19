@@ -117,7 +117,7 @@ test("#662 release scripts and reviewed sources are exact", () => {
   assert.equal(MIGRATION, "20261017010000_correct_dispute_first_event_case");
   assert.equal(
     MIGRATION_SHA256,
-    "714c73d9321b60e6deda6b6300ac1b4cd04f71555bbe962f7edd5c0243945505",
+    "735e84fd9d672426333cd5cf608ba3b60a0613ee6fc162f5bfc3e6beaed1179b",
   );
   const sources = reviewedSources();
   assert.equal(sources.size, 4);

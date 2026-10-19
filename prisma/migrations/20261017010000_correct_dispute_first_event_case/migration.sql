@@ -2494,7 +2494,16 @@ SELECT DISTINCT ON (
   COALESCE(
     payment."stripeEventCreatedSeconds",
     (payment.metadata->>'stripeEventCreated')::bigint
-  ) AS event_created_seconds
+  ) AS event_created_seconds,
+  EXISTS (
+    SELECT 1
+      FROM public."Case" AS existing_case
+     WHERE existing_case."orderId" = orders.id
+       AND existing_case.resolution IN (
+         'REFUND_FULL'::public."CaseResolution",
+         'REFUND_PARTIAL'::public."CaseResolution"
+       )
+  ) AS has_refund_resolved_case
 FROM public."OrderPaymentEvent" AS payment
 JOIN public."Order" AS orders
   ON orders.id = payment."orderId"
@@ -2567,15 +2576,26 @@ DECLARE
   application record;
   notification_id text;
   candidate_count bigint;
+  refund_resolved_case_count bigint;
 BEGIN
-  SELECT pg_catalog.count(*)
-    INTO candidate_count
-    FROM pg_temp.grainline_dispute_first_event_case_candidates;
+  SELECT
+    pg_catalog.count(*),
+    pg_catalog.count(*) FILTER (
+      WHERE candidates.has_refund_resolved_case
+    )
+    INTO candidate_count, refund_resolved_case_count
+    FROM pg_temp.grainline_dispute_first_event_case_candidates AS candidates;
 
   IF candidate_count > 100 THEN
     RAISE EXCEPTION
       'Dispute first-event recovery candidate cap exceeded: %',
       candidate_count;
+  END IF;
+
+  IF refund_resolved_case_count > 0 THEN
+    RAISE EXCEPTION
+      'Dispute first-event recovery refund-resolved Case candidate count: %',
+      refund_resolved_case_count;
   END IF;
 
   FOR candidate IN

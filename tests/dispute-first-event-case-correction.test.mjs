@@ -501,6 +501,77 @@ test("#662 Production preflight rejects gaps with lost retained authority", asyn
   }
 });
 
+test("#662 Production preflight rejects recovery that would erase a refund-resolved Case (#703)", async () => {
+  const database = await createDatabase({ corrected: false });
+  const created = Math.floor(Date.now() / 1000) - 5;
+  try {
+    await seedLease(database, {
+      eventId: "evt_refund_resolved_gap",
+      type: "charge.dispute.funds_withdrawn",
+    });
+    await applyDispute(database, {
+      eventId: "evt_refund_resolved_gap",
+      created,
+    });
+    await database.exec(`
+      INSERT INTO public."Case" (
+        id, "orderId", "buyerId", "sellerId", reason, description,
+        status, resolution, "refundAmountCents", "stripeRefundId",
+        "sellerRespondBy", "resolvedAt", "resolvedById"
+      ) VALUES (
+        'case-refund-resolved-gap', 'order-1', 'buyer-1', 'seller-user-1',
+        'NOT_RECEIVED', 'Refund already resolved before dispute recovery.',
+        'RESOLVED', 'REFUND_FULL', 11800, 're_already_refunded',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'seller-user-1'
+      )
+    `);
+
+    assert.deepEqual(
+      await disputeFirstEventRecoveryCandidateSummary(database),
+      { candidateCount: 1, unrepairableCount: 1 },
+    );
+    await assert.rejects(
+      database.exec(buildDisputeFirstEventCaseCorrection()),
+      /refund-resolved Case candidate count: 1/,
+    );
+    await database.exec("ROLLBACK");
+
+    assert.deepEqual(
+      (
+        await database.query(`
+          SELECT status::text, resolution::text,
+                 "refundAmountCents", "stripeRefundId"
+            FROM public."Case"
+           WHERE id = 'case-refund-resolved-gap'
+        `)
+      ).rows,
+      [
+        {
+          status: "RESOLVED",
+          resolution: "REFUND_FULL",
+          refundAmountCents: 11800,
+          stripeRefundId: "re_already_refunded",
+        },
+      ],
+    );
+    assert.equal(
+      (
+        await database.query(`
+          SELECT pg_catalog.count(*)::integer AS count
+            FROM public."CaseStripeDisputeApplication"
+        `)
+      ).rows[0].count,
+      0,
+    );
+    assert.equal(
+      (await database.query(`SELECT * FROM public."Notification"`)).rows.length,
+      0,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
 test("#662 correction opens one Case and authorizes one alert from funds-withdrawn first", async () => {
   const database = await createDatabase({ corrected: true });
   const created = Math.floor(Date.now() / 1000) - 5;
@@ -925,7 +996,7 @@ test("#662 migration remains byte-pinned to reviewed predecessor functions", () 
   const verified = verifyDisputeFirstEventCaseCorrection();
   assert.equal(
     verified.sha256,
-    "714c73d9321b60e6deda6b6300ac1b4cd04f71555bbe962f7edd5c0243945505",
+    "735e84fd9d672426333cd5cf608ba3b60a0613ee6fc162f5bfc3e6beaed1179b",
   );
   const migration = readFileSync(verified.migrationPath, "utf8");
   assert.match(migration, /is_first_dispute_event AND NOT is_terminal/);

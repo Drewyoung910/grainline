@@ -133,7 +133,7 @@ jobs:
           set -euo pipefail
           migration=20261017010000_correct_dispute_first_event_case
           test -f "prisma/migrations/$migration/migration.sql"
-          echo "714c73d9321b60e6deda6b6300ac1b4cd04f71555bbe962f7edd5c0243945505  prisma/migrations/$migration/migration.sql" \
+          echo "735e84fd9d672426333cd5cf608ba3b60a0613ee6fc162f5bfc3e6beaed1179b  prisma/migrations/$migration/migration.sql" \
             | sha256sum --check --status
           node scripts/build-dispute-first-event-case-correction.mjs --verify
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \

@@ -72,8 +72,9 @@ materializes one immutable transaction-local candidate set containing at most
 one newest nonterminal signed `orderingAction=applied` event per order/dispute
 with no Case application, excluding events superseded by a newer or
 same-second terminal observation. It counts and loops only that materialized
-set, and aborts before any repair write if it exceeds 100 order/dispute pairs.
-Within that bound, it applies the Case authority and creates the
+set, and aborts before any repair write if it exceeds 100 order/dispute pairs
+or if any candidate already has a full- or partial-refund Case resolution that
+the generic reopen authority would erase. Within that bound, it applies the Case authority and creates the
 source-validated deduplicated seller notification.
 
 The builder pins the four reviewed predecessor files by SHA-256 and generates
@@ -95,7 +96,7 @@ without a conflict or duplicate side effect. The existing full-chain Case
 suite also confirms that #714 remains fixed.
 
 The source candidate additionally retains a fast PGlite behavior suite;
-its 15 focused behavior and protected-release checks pass. That suite is
+its 18 focused behavior and protected-release tests pass. That suite is
 supplemental and does not substitute for the PostgreSQL 16 full-chain proof.
 
 `tests/dispute-first-event-case-correction.test.mjs` covers:
@@ -122,8 +123,11 @@ supplemental and does not substitute for the PostgreSQL 16 full-chain proof.
 13. a 101-candidate recovery set aborting before any Case, application, or
     notification write; and
 14. the read-only Production preflight classifying a retained gap as
-    repairable, then refusing it after account deletion nulls the buyer; and
-15. exact preservation of function owner, ACLs, SECURITY DEFINER, volatility,
+    repairable, then refusing it after account deletion nulls the buyer;
+15. the Production preflight and migration refusing a retained gap whose
+    existing full-refund Case would otherwise be reopened and stripped of its
+    refund record, with no Case, application, or notification mutation; and
+16. exact preservation of function owner, ACLs, SECURITY DEFINER, volatility,
     parallel safety, and `search_path` across the migration.
 
 ## Remaining release gates
@@ -137,6 +141,7 @@ supplemental and does not substitute for the PostgreSQL 16 full-chain proof.
   counts the exact transaction-repair candidate set before deploy, and refuses
   more than 100 candidates or any row whose retained buyer, charge, dispute,
   event, or one-seller relationship can no longer satisfy the repair authority,
+  or whose existing Case carries a full or partial refund resolution,
   and reads back exact replacement bodies, unchanged ACLs, the migration
   ledger, and zero retained eligible gaps. Production dispatch remains a
   separate approval after merge and exact-main checks.
