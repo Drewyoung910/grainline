@@ -33,8 +33,10 @@ security-definer functions, six direct table triggers, 16 incoming foreign
 keys and the exact function execute-principal split. The manifest also
 reconciles every reported opaque source shape, and the catalog now classifies
 98 retained fixed authorities, 32 internal-support functions and all six
-direct table triggers. Next define exact fields/predicates, map retained
-authorities to behavior evidence, reconcile seller, location,
+direct table triggers. All 55 scalar columns now have one machine-checked
+maximum-disclosure class, and the visible, active, exact-directory and
+privacy-derived location predicates are fixed. Next map retained authorities
+to behavior evidence, reconcile seller, location,
 visibility, deletion, Guild and
 staff findings, and make the domain go/no-go decision. No public-table view,
 function, policy, grant or migration implementation begins until that audit

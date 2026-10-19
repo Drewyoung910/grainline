@@ -199,11 +199,40 @@ additional table trigger reopens review.
 `SellerProfile` remains mixed-purpose. A single public row projection is not a
 sufficient security boundary.
 
+All **55 scalar columns** now have one machine-checked maximum-disclosure
+class in `scripts/seller-profile-public-field-contracts.mjs`. Run the gate
+with:
+
+```sh
+npm run audit:seller-profile-public-fields
+```
+
+The gate fails if a scalar column is added or removed without review, one
+column appears in more than one class, a restricted source column enters the
+generic public set, or the exact-pin/derived-location rules drift.
+
+| Maximum-disclosure class | Count | Exact columns |
+|---|---:|---|
+| Generic public-profile output | 38 | `id`, `ownerImageUrl`, `displayName`, `bio`, `city`, `state`, `createdAt`, `updatedAt`, `allowLocalPickup`, `tagline`, `bannerImageUrl`, `avatarImageUrl`, `workshopImageUrl`, `storyTitle`, `storyBody`, `instagramUrl`, `facebookUrl`, `pinterestUrl`, `tiktokUrl`, `websiteUrl`, `yearsInBusiness`, `acceptsCustomOrders`, `acceptingNewOrders`, `offersGiftWrapping`, `giftWrappingPriceCents`, `returnPolicy`, `customOrderPolicy`, `shippingPolicy`, `featuredListingIds`, `galleryImageUrls`, `galleryAltTexts`, `isVerifiedMaker`, `guildLevel`, `vacationMode`, `vacationReturnDate`, `vacationMessage`, `isFoundingMaker`, `foundingMakerNumber` |
+| Public predicate only | 7 | `ownerAccountActive`, `displayNameNormalized`, `chargesEnabled`, `stripeAccountSupported`, `featuredUntil`, `metroId`, `cityMetroId` |
+| Public-location source only | 4 | `lat`, `lng`, `radiusMeters`, `publicMapOptIn` |
+| Purpose-bound only | 6 | `userId`, `shippingFlatRateCents`, `freeShippingOverCents`, `customOrderTurnaroundDays`, `verifiedAt`, `foundingMakerAt` |
+
+“Generic public-profile output” is a maximum allowlist, not a requirement that
+one broad view return all 38 columns. Each Phase 1 projection returns only the
+subset its callers currently consume. Predicate-only columns can filter,
+order, or aggregate inside a reviewed public authority but do not appear in
+its returned row. Purpose-bound columns leave the base table only through a
+named owner, participant, staff, service, or transaction operation. Shipping
+operations can return a derived quote without making either stored shipping
+rate a public profile field.
+
 | Contract | Intended principal | Fields and predicates | Exclusions |
 |---|---|---|---|
 | Public catalog/profile | Anonymous and signed-in visitors | Public profile presentation, public badge state, and only rows satisfying the route's existing active/visible predicate | `userId`, exact `lat`/`lng`, `displayNameNormalized`, owner-only settings, mutation-only state |
 | Public listing/blog eligibility | Anonymous and signed-in visitors | Boolean seller availability predicates used by listing, blog, search, sitemap and aggregate paths | No seller row or private field returned merely to evaluate eligibility |
-| Public map point | Anonymous and signed-in visitors | Only active sellers with `publicMapOptIn = true`, valid coordinates, and no positive privacy radius; exact point is returned only under that predicate | No exact point for non-opted-in or radius-protected sellers |
+| Public directory map point | Anonymous and signed-in visitors | `id`, `displayName`, `city`, `state` and a derived public point; row must satisfy `ACTIVE`, `publicMapOptIn = true`, valid coordinates, and a null/zero privacy radius | No point for non-opted-in or radius-protected sellers; no raw source columns in the result |
+| Public profile/listing location | Authorized viewer of the seller or listing resource | A derived `publicLat`, `publicLng`, and `approximate` flag. Positive radii quantize to a radius-sized grid; no exact opt-in uses the existing coarse grid; exact output requires opt-in plus null/zero radius | No raw `lat`, `lng`, `radiusMeters`, or `publicMapOptIn` returned to the caller |
 | Owner profile/settings | Authenticated active owner | The owner's exact location, editable profile/settings fields and bounded provider-safe availability state | Foreign seller rows and staff/system-only mutations |
 | Staff moderation | Authorized staff, with the existing role/PIN/audit requirements preserved per caller | Verification, feature, ban/unban and audited recovery state required for the named action | Generic staff table browsing and unaudited mutation |
 | Service/transaction | Named webhook, cron, checkout, deletion, export, notification and repair operation | Only the fields and row set needed by that operation | Reusable broad service table authority |
@@ -212,6 +241,26 @@ Public visibility is not one predicate. `visibleSellerProfileWhere` allows
 vacation profiles while `activeSellerProfileWhere`, public listings and public
 blogs exclude them. The projection layer must preserve those route-specific
 semantics instead of replacing them with one universal view.
+
+The exact Phase 0 row predicates are:
+
+- `VISIBLE`: `ownerAccountActive = true`, `chargesEnabled = true`, and
+  `stripeAccountSupported = true`;
+- `ACTIVE`: `VISIBLE` plus `vacationMode = false`;
+- exact directory pin: `ACTIVE`, non-null valid coordinates,
+  `publicMapOptIn = true`, and `radiusMeters IS NULL OR radiusMeters = 0`;
+- seller-page location: `VISIBLE` for a public visitor, or the existing exact
+  owner/resource authorization for previews, followed by database-side
+  derivation of the public point; and
+- listing-page location: the existing public, reserved-buyer, owner-preview,
+  or staff-preview listing decision, followed by the same database-side
+  derivation. The location operation cannot independently make a private
+  listing visible.
+
+Viewer block exclusions remain caller-specific relationship predicates. They
+are applied through the future bounded operation rather than expanding the
+generic public row or returning `userId` to perform the check in application
+code.
 
 ## Write inventory
 
@@ -263,17 +312,24 @@ must convert. `CommissionRequest` remains a separate RLS release.
 
 ## Location boundary
 
-Current public exact-pin paths were rechecked:
+Current public coordinate paths were rechecked:
 
 - `/map` requires `publicMapOptIn = true`, non-null coordinates and
   `radiusMeters IS NULL OR radiusMeters = 0`;
 - `/sellers/map` applies the same conditions; and
+- the homepage map applies the same conditions;
+- seller and listing detail pages pass the source point through
+  `publicSellerLocationPoint`, which quantizes radius-protected locations and
+  uses the coarse public grid when exact-location opt-in is absent; and
 - the public map-card route returns no coordinates.
 
-This supports the existing privacy claim for those paths. The future database
-contract must encode the same condition so a new caller cannot bypass it with
-a broad select. General public projections must omit `lat`, `lng`, `userId`,
-and `radiusMeters`; map access is a separate operation.
+This supports the existing privacy claim for those paths, but it also corrects
+the earlier shorthand that all five public coordinate consumers were exact-pin
+readers. Three are exact directory/home maps and two derive an approximate or
+exact point. The future database contract performs both checks and derivation
+before returning the point so a new caller cannot bypass them with a broad
+select. General public projections omit all four location source columns and
+`userId`; location access is a separate operation.
 
 ## Reconciliation of recent Claude allegations
 
@@ -318,8 +374,10 @@ guard the final zero-direct state, but they do not count as behavior proof.
   Bind each of the 98 retained fixed authorities to its existing acceptance
   flow before grant closure; a test-source name reference alone is not
   behavior proof.
-- Define the exact columns and row predicates for the public profile,
-  eligibility, exact-map, owner, staff and service operations.
+- The 55-column disclosure partition and public visibility/location predicates
+  are complete. Phase 1 still defines each operation's narrower return shape;
+  owner, staff, service, participant and transaction operations never inherit
+  a reusable whole-row result from this maximum allowlist.
 
 ### `FIX_BEFORE_ACTIVATION`
 

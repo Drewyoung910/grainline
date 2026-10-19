@@ -86,6 +86,12 @@ AST scanner exposed as `npm run audit:seller-profile-public-access`. It scans
   7 staff read), 32 owner/internal support functions, and six internal-support
   table triggers. No matching installed function is public-executable or
   classified for retirement merely for this RLS conversion.
+- A second machine gate partitions all 55 scalar columns into 38 generic
+  public-profile outputs, seven public-predicate-only columns, four raw
+  public-location source columns, and six purpose-bound-only columns. Generic
+  public results exclude all 17 restricted columns. Exact directory pins and
+  privacy-safe seller/listing points are separate derived contracts; neither
+  returns raw coordinate or privacy-control columns.
 
 The earlier regex estimate of 73 direct calls in 52 files counted only literal
 `prisma.sellerProfile` expressions and missed `tx`, `client`, and `db`
@@ -108,7 +114,8 @@ Any option must preserve all of these:
 3. Exact coordinates leave the database boundary only when
    `publicMapOptIn = true`, the privacy radius is null or zero, and the calling
    surface is allowed to display the point. Other surfaces receive no exact
-   coordinate or an approved approximation.
+   coordinate or an approved database-derived approximation; raw source
+   coordinates do not cross the generic public boundary.
 4. Owners can read the exact settings needed to edit their own shop. Another
    seller cannot read those owner-only fields.
 5. Owners can change only owner-controlled fields. Staff/system-only badge,

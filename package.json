@@ -62,6 +62,7 @@
     "audit:user-indirect-access": "node scripts/audit-user-indirect-access.mjs",
     "audit:seller-profile-public-access": "node scripts/audit-user-indirect-access.mjs --model=SellerProfile",
     "audit:seller-profile-public-contracts": "node scripts/seller-profile-public-consumer-contracts.mjs",
+    "audit:seller-profile-public-fields": "node scripts/seller-profile-public-field-contracts.mjs",
     "audit:seller-profile-public-catalog": "node scripts/seller-profile-public-catalog-inventory.mjs",
     "audit:rls-context": "node scripts/rls-context-acceptance-gate.mjs",
     "audit:rls-saved-search": "node scripts/saved-search-rls-acceptance-gate.mjs",
