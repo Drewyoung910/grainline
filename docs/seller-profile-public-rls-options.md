@@ -310,6 +310,15 @@ candidate is now down to 63 direct operations in 36 files, 98 relation accesses
 in 50 files, 15 raw SQL accesses in 12 files, 84 total consumer files and 179
 reconciled opaque shapes. Its catalog has 152 matching functions: 98 retained,
 32 internal and 22 converted authorities.
+The twenty-third operation derives the authenticated owner from
+transaction-local context and returns only the profile id, display name,
+UTC-normalized creation time, charges-enabled state and vacation state shared
+by seller analytics, broadcast and upload gates. It rejects missing, banned or
+deleted owner context. This converts seven direct lookups across five callers.
+The candidate is now down to 56 direct operations in 31 files, 98 relation
+accesses in 50 files, 15 raw SQL accesses in 12 files, 80 total consumer files
+and 179 reconciled opaque shapes. Its catalog has 153 matching functions: 98
+retained, 32 internal and 23 converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

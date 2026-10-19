@@ -35,8 +35,8 @@ describe("API read route rate-limit sweep", () => {
       ["src/app/api/cart/route.ts", "safeRateLimit(cartReadRatelimit, userId)", "const cart = await ownerCartForDisplay"],
       ["src/app/api/messages/[id]/list/route.ts", "safeRateLimit(messageListRatelimit, userId)", "getActorConversation(me.id, id)"],
       ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "await ownerNotificationBellData"],
-      ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
-      ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
+      ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "sellerOwnerCore(me.id)"],
+      ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "sellerOwnerCore(me.id)"],
       ["src/app/api/seller/broadcast/route.ts", "safeRateLimit(\n    sellerBroadcastReadRatelimit,\n    userId,\n  )", "userClerkGate(prisma, userId)"],
     ]) {
       const file = source(path);

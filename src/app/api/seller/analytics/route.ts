@@ -20,6 +20,7 @@ import {
 } from "@/lib/orderSellerAnalyticsAuthority";
 import type { SellerOrderAnalyticsBucket } from "@/lib/orderSellerAnalyticsState";
 import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 
 export const runtime = "nodejs";
 
@@ -156,16 +157,12 @@ export async function GET(req: Request) {
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many analytics requests."));
 
     const me = await ensureUserByClerkId(userId);
-    const sellerProfile = await prisma.sellerProfile.findUnique({
-      where: { userId: me.id },
-      select: {
-        id: true,
-        createdAt: true,
-        chargesEnabled: true,
-      },
-    });
+    const sellerProfile = await sellerOwnerCore(me.id);
     if (!sellerProfile) return privateJson({ error: "Seller profile not found" }, { status: 404 });
-    const sellerPrivate = await sellerOwnerPrivateState(me.id, sellerProfile.id);
+    const sellerPrivate = await sellerOwnerPrivateState(
+      me.id,
+      sellerProfile.sellerProfileId,
+    );
     if (!sellerPrivate) return privateJson({ error: "Seller profile not found" }, { status: 404 });
     if (!sellerPrivate.onboardingComplete) {
       return privateJson(
@@ -180,7 +177,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const sellerId = sellerProfile.id;
+    const sellerId = sellerProfile.sellerProfileId;
 
     const url = new URL(req.url);
     const rangeParam = url.searchParams.get("range") ?? "last30";

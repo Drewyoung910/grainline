@@ -8,7 +8,6 @@ import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
 import { recordDirectUploadPresigned } from "@/lib/directUploadLifecycle";
@@ -32,6 +31,7 @@ import {
   uploadTypeMessage,
 } from "@/lib/uploadRules";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 
 const ALLOWED_TYPES = [
   "video/mp4", "video/quicktime",
@@ -97,10 +97,7 @@ export async function POST(req: NextRequest) {
     );
   }
   if (SELLER_ONLY_ENDPOINTS.has(endpoint)) {
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { userId: me.id },
-      select: { id: true },
-    });
+    const seller = await sellerOwnerCore(me.id);
     if (!seller) return privateJson({ error: "Seller profile required" }, { status: 403 });
   }
 

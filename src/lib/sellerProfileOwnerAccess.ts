@@ -9,11 +9,63 @@ type SellerOwnerAccountSummaryRow = {
   activeListingCount: unknown;
 };
 
+type SellerOwnerCoreRow = {
+  sellerProfileId: unknown;
+  displayName: unknown;
+  createdAtEpochMillis: unknown;
+  chargesEnabled: unknown;
+  vacationMode: unknown;
+};
+
 export type SellerOwnerAccountSummary = {
   sellerProfileId: string;
   avatarImageUrl: string | null;
   activeListingCount: number;
 };
+
+export type SellerOwnerCore = {
+  sellerProfileId: string;
+  displayName: string;
+  createdAt: Date;
+  chargesEnabled: boolean;
+  vacationMode: boolean;
+};
+
+async function readSellerOwnerCore(client: SellerProfileOwnerClient) {
+  const rows = await client.$queryRaw<SellerOwnerCoreRow[]>`
+    SELECT * FROM public.grainline_seller_owner_core()
+  `;
+  if (rows.length > 1) {
+    throw new Error("Seller owner core authority returned too many rows");
+  }
+  const row = rows[0];
+  if (!row) return null;
+  if (
+    typeof row.sellerProfileId !== "string"
+    || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.sellerProfileId)
+    || typeof row.displayName !== "string"
+    || row.displayName.length < 1
+    || row.displayName.length > 100
+    || typeof row.createdAtEpochMillis !== "bigint"
+    || row.createdAtEpochMillis < 0n
+    || row.createdAtEpochMillis > 253402300799999n
+    || typeof row.chargesEnabled !== "boolean"
+    || typeof row.vacationMode !== "boolean"
+  ) {
+    throw new Error("Seller owner core authority returned an invalid result");
+  }
+  return Object.freeze({
+    sellerProfileId: row.sellerProfileId,
+    displayName: row.displayName,
+    createdAt: new Date(Number(row.createdAtEpochMillis)),
+    chargesEnabled: row.chargesEnabled,
+    vacationMode: row.vacationMode,
+  }) satisfies Readonly<SellerOwnerCore>;
+}
+
+export function sellerOwnerCore(userId: string) {
+  return withDbUserContext(userId, readSellerOwnerCore);
+}
 
 async function readSellerOwnerAccountSummary(client: SellerProfileOwnerClient) {
   const rows = await client.$queryRaw<SellerOwnerAccountSummaryRow[]>`

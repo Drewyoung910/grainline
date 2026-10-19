@@ -1,6 +1,5 @@
 // src/app/api/seller/analytics/recent-sales/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
@@ -10,6 +9,7 @@ import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 import { readSellerRecentSales } from "@/lib/orderSellerAnalyticsAuthority";
 import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 
 export const runtime = "nodejs";
 
@@ -22,12 +22,12 @@ export async function GET() {
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many analytics requests."));
 
     const me = await ensureUserByClerkId(userId);
-    const sellerProfile = await prisma.sellerProfile.findUnique({
-      where: { userId: me.id },
-      select: { id: true, chargesEnabled: true },
-    });
+    const sellerProfile = await sellerOwnerCore(me.id);
     if (!sellerProfile) return privateJson({ error: "Seller profile not found" }, { status: 404 });
-    const sellerPrivate = await sellerOwnerPrivateState(me.id, sellerProfile.id);
+    const sellerPrivate = await sellerOwnerPrivateState(
+      me.id,
+      sellerProfile.sellerProfileId,
+    );
     if (!sellerPrivate) return privateJson({ error: "Seller profile not found" }, { status: 404 });
     if (!sellerPrivate.onboardingComplete) {
       return privateJson(

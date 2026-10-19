@@ -295,6 +295,23 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
         activeListingCount: 1,
       }],
     );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "sellerProfileId", "displayName", "createdAtEpochMillis",
+                "chargesEnabled", "vacationMode"
+           FROM public.grainline_seller_owner_core()`,
+      )).map((row) => ({
+        ...row,
+        createdAtEpochMillis: Number(row.createdAtEpochMillis),
+      })),
+      [{
+        sellerProfileId: seller.sellerProfileId,
+        displayName: "Full Chain Workshop",
+        createdAtEpochMillis: Date.parse("2026-10-15T00:00:00.000Z"),
+        chargesEnabled: true,
+        vacationMode: false,
+      }],
+    );
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -479,6 +496,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_owner_account_summary()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_owner_core()"),
       /permission denied/u,
     );
     await assert.rejects(

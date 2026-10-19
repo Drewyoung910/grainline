@@ -90,11 +90,13 @@ only the profile id, avatar and active-listing count needed by account chrome. A
 nineteen keep the old table grant unchanged. Three follow authorities then
 replace the public follow endpoint's direct seller, Follow and Block access:
 bounded public state, actor-bound create under the shared sorted Block-pair
-lock, and owner-bound stale cleanup. This reduces the candidate source
-inventory to 63 direct operations in 36 files, 15 raw SQL accesses in 12 files,
-84 total consumer files, 179 reconciled opaque query shapes and two remaining
-purpose-bound owner coordinate consumers. The candidate catalog contains the
-unchanged 98 retained and 32 internal functions plus 22 converted authorities. It
+lock, and owner-bound stale cleanup. A separate actor-bound owner core now
+serves the five analytics, broadcast and upload callers that share profile id,
+display name, creation time and shop-state gates. This reduces the candidate
+source inventory to 56 direct operations in 31 files, 15 raw SQL accesses in
+12 files, 80 total consumer files, 179 reconciled opaque query shapes and two
+remaining purpose-bound owner coordinate consumers. The candidate catalog
+contains the unchanged 98 retained and 32 internal functions plus 23 converted authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three
