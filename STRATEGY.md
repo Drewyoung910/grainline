@@ -261,6 +261,15 @@ consumer files. It still has 170 reconciled opaque shapes. The versioned
 exact-map consent successor adds one converted owner-settings authority and
 one internal revocation trigger function, so its 169-function catalog now
 partitions into 98 retained, 33 internal and 38 converted authorities.
+The public maker profile and shop-header pass then replaces both broad page
+reads with one viewer-aware fixed projection. The database now owns public
+eligibility, active-owner preview and reciprocal-block denial; it returns
+ordered FAQs, public metro labels and `viewerIsOwner`, while withholding the
+owner id, raw coordinates, consent state and account/Stripe controls. The
+candidate is now at 27 direct operations in 8 files, 84 relation accesses in
+46 files, 15 raw SQL accesses in 12 files and 60 total consumer files. It still
+has 170 reconciled opaque shapes, and its 170-function catalog partitions into
+98 retained, 33 internal and 39 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

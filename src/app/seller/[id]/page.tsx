@@ -9,7 +9,11 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import DynamicMapCard from "@/components/DynamicMapCard";
-import { sellerPublicLocation } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerPublicLocation,
+  sellerPublicProfile,
+  sellerPublicViewTarget,
+} from "@/lib/sellerProfilePublicAccess";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
@@ -72,53 +76,9 @@ function safeSellerSocialUrl(value: string | null, allowedHosts?: readonly strin
   return allowedHosts.includes(host) ? normalized : null;
 }
 
-const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
-  prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: {
-      id: true,
-      userId: true,
-      displayName: true,
-      bio: true,
-      city: true,
-      state: true,
-      createdAt: true,
-      allowLocalPickup: true,
-      tagline: true,
-      bannerImageUrl: true,
-      avatarImageUrl: true,
-      workshopImageUrl: true,
-      storyTitle: true,
-      storyBody: true,
-      instagramUrl: true,
-      facebookUrl: true,
-      pinterestUrl: true,
-      tiktokUrl: true,
-      websiteUrl: true,
-      yearsInBusiness: true,
-      acceptsCustomOrders: true,
-      acceptingNewOrders: true,
-      returnPolicy: true,
-      customOrderPolicy: true,
-      shippingPolicy: true,
-      featuredListingIds: true,
-      galleryImageUrls: true,
-      galleryAltTexts: true,
-      guildLevel: true,
-      vacationMode: true,
-      vacationReturnDate: true,
-      vacationMessage: true,
-      isFoundingMaker: true,
-      foundingMakerNumber: true,
-      chargesEnabled: true,
-      stripeAccountSupported: true,
-      ownerAccountActive: true,
-      ownerImageUrl: true,
-      faqs: { orderBy: { sortOrder: "asc" }, select: { id: true, question: true, answer: true } },
-      metro: { select: { slug: true, name: true, state: true } },
-      cityMetro: { select: { slug: true, name: true, state: true } },
-    },
-  })
+const getSellerProfileForPublicPage = cache(
+  (viewerUserId: string | null, sellerId: string) =>
+    sellerPublicProfile(viewerUserId, sellerId),
 );
 
 const getSellerProfileListingPreview = cache(async (sellerId: string) =>
@@ -130,19 +90,6 @@ const getSellerProfileListingPreview = cache(async (sellerId: string) =>
   })
 );
 
-type PublicSellerProfile = NonNullable<Awaited<ReturnType<typeof getSellerProfileForPublicPage>>>;
-
-function sellerIsPubliclyVisible(
-  seller: Awaited<ReturnType<typeof getSellerProfileForPublicPage>>,
-): seller is PublicSellerProfile {
-  return Boolean(
-    seller &&
-      seller.chargesEnabled &&
-      seller.stripeAccountSupported &&
-      seller.ownerAccountActive,
-  );
-}
-
 export async function generateMetadata({
   params,
 }: {
@@ -150,8 +97,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await getSellerProfileForPublicPage(sellerId);
-  if (!sellerIsPubliclyVisible(seller)) return {};
+  const seller = await getSellerProfileForPublicPage(null, sellerId);
+  if (!seller) return {};
 
   const name = seller.displayName ?? "Maker";
   const title = `${name} — Handmade Woodworking on Grainline`;
@@ -208,27 +155,23 @@ async function SellerPublicContent({
   const { id } = await params;
   const sellerId = extractRouteId(id);
 
-  const [seller, authResult] = await Promise.all([
-    getSellerProfileForPublicPage(sellerId),
-    auth(),
-  ]);
-
-  if (!seller) return notFound();
-  if (!seller.ownerAccountActive) return notFound();
-
   // Current viewer
-  const { userId } = authResult;
+  const { userId } = await auth();
   let meId: string | null = null;
   if (userId) {
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const isOwner = !!meId && seller.userId === meId;
-  if (!isOwner && !sellerIsPubliclyVisible(seller)) return notFound();
+  const seller = await getSellerProfileForPublicPage(meId, sellerId);
+  if (!seller) return notFound();
+  const isOwner = seller.viewerIsOwner;
+  const publicTarget = isOwner ? null : await sellerPublicViewTarget(seller.id);
+  const sellerUserId = isOwner ? meId : publicTarget?.ownerUserId ?? null;
+  if (!sellerUserId) return notFound();
 
   // Block check — return 404 if the viewer has blocked or been blocked by the seller
   const blockedUserIds = await getBlockedUserIdsFor(meId);
-  if (blockedUserIds.has(seller.userId)) {
+  if (blockedUserIds.has(sellerUserId)) {
     return notFound();
   }
 
@@ -278,7 +221,7 @@ async function SellerPublicContent({
     getSellerProfileListingPreview(seller.id),
     seller.featuredListingIds && seller.featuredListingIds.length > 0
       ? prisma.listing.findMany({
-          where: publicListingWhere({ sellerId: seller.id, id: { in: seller.featuredListingIds } }),
+          where: publicListingWhere({ sellerId: seller.id, id: { in: [...seller.featuredListingIds] } }),
           select: sellerProfileListingCardSelect,
         })
       : Promise.resolve([]),
@@ -535,7 +478,7 @@ async function SellerPublicContent({
               Custom Piece, View all listings. All dark cream for a unified
               secondary-button look. */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            {meId !== seller.userId && (
+            {meId !== sellerUserId && (
               <>
                 <FollowButton
                   sellerProfileId={seller.id}
@@ -544,7 +487,7 @@ async function SellerPublicContent({
                   variant="cream"
                 />
                 <Link
-                  href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                  href={meId ? `/messages/new?to=${sellerUserId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
                   className="inline-flex items-center justify-center rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                 >
                   Message Maker
@@ -552,7 +495,7 @@ async function SellerPublicContent({
                 {seller.acceptsCustomOrders && (
                   meId ? (
                     <CustomOrderRequestForm
-                      sellerUserId={seller.userId}
+                      sellerUserId={sellerUserId}
                       sellerName={seller.displayName}
                       triggerLabel="Request a Custom Piece"
                       triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
@@ -593,10 +536,10 @@ async function SellerPublicContent({
               </div>
             )}
 
-            {meId && meId !== seller.userId && (
+            {meId && meId !== sellerUserId && (
               <span className="ml-auto">
                 <BlockReportButton
-                  targetUserId={seller.userId}
+                  targetUserId={sellerUserId}
                   targetName={seller.displayName ?? "this maker"}
                   targetType="SELLER_PROFILE"
                   targetId={seller.id}
@@ -889,8 +832,8 @@ async function SellerPublicContent({
               <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">From the Workshop</h2>
               <SellerGallery
                 workshopImageUrl={null}
-                images={seller.galleryImageUrls}
-                imageAltTexts={seller.galleryAltTexts ?? []}
+                images={[...seller.galleryImageUrls]}
+                imageAltTexts={[...seller.galleryAltTexts]}
               />
             </section>
           )}

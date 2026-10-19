@@ -464,6 +464,14 @@ in 12 files, 62 total consumer files and 170 reconciled opaque shapes. Its
 versioned exact-map consent successor adds one converted owner authority and
 one internal revocation trigger function. The 169-function catalog is now 98
 retained, 33 internal and 38 converted.
+The public maker profile and shop header now use one viewer-aware fixed
+projection instead of two broad direct reads. The operation preserves public
+visibility and active-owner preview, denies reciprocal blocks, returns ordered
+FAQs and metro labels, and exposes only `viewerIsOwner` rather than the owner
+id or account controls. The candidate is now at 27 direct operations in 8
+files, 84 relation accesses in 46 files, 15 raw SQL accesses in 12 files, 60
+total consumer files and 170 reconciled opaque shapes. The 170-function catalog
+is 98 retained, 33 internal and 39 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

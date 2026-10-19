@@ -121,6 +121,59 @@ export type SellerPublicViewTarget = Readonly<{
   ownerUserId: string;
 }>;
 
+export type SellerPublicProfileFaq = Readonly<{
+  id: string;
+  question: string;
+  answer: string;
+}>;
+
+export type SellerPublicProfileMetro = Readonly<{
+  slug: string;
+  name: string;
+  state: string;
+}>;
+
+export type SellerPublicProfile = Readonly<{
+  id: string;
+  displayName: string;
+  bio: string | null;
+  city: string | null;
+  state: string | null;
+  createdAt: Date;
+  allowLocalPickup: boolean;
+  tagline: string | null;
+  bannerImageUrl: string | null;
+  avatarImageUrl: string | null;
+  workshopImageUrl: string | null;
+  storyTitle: string | null;
+  storyBody: string | null;
+  instagramUrl: string | null;
+  facebookUrl: string | null;
+  pinterestUrl: string | null;
+  tiktokUrl: string | null;
+  websiteUrl: string | null;
+  yearsInBusiness: number | null;
+  acceptsCustomOrders: boolean;
+  acceptingNewOrders: boolean;
+  returnPolicy: string | null;
+  customOrderPolicy: string | null;
+  shippingPolicy: string | null;
+  featuredListingIds: readonly string[];
+  galleryImageUrls: readonly string[];
+  galleryAltTexts: readonly string[];
+  guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+  vacationMode: boolean;
+  vacationReturnDate: Date | null;
+  vacationMessage: string | null;
+  isFoundingMaker: boolean;
+  foundingMakerNumber: number | null;
+  ownerImageUrl: string | null;
+  viewerIsOwner: boolean;
+  faqs: readonly SellerPublicProfileFaq[];
+  metro: SellerPublicProfileMetro | null;
+  cityMetro: SellerPublicProfileMetro | null;
+}>;
+
 export type SellerPublicBlogAuthor = Readonly<{
   id: string;
   userId: string;
@@ -267,6 +320,47 @@ type SellerPublicViewTargetRow = {
   ownerUserId: unknown;
 };
 
+type SellerPublicProfileRow = {
+  id: unknown;
+  displayName: unknown;
+  bio: unknown;
+  city: unknown;
+  state: unknown;
+  createdAt: unknown;
+  allowLocalPickup: unknown;
+  tagline: unknown;
+  bannerImageUrl: unknown;
+  avatarImageUrl: unknown;
+  workshopImageUrl: unknown;
+  storyTitle: unknown;
+  storyBody: unknown;
+  instagramUrl: unknown;
+  facebookUrl: unknown;
+  pinterestUrl: unknown;
+  tiktokUrl: unknown;
+  websiteUrl: unknown;
+  yearsInBusiness: unknown;
+  acceptsCustomOrders: unknown;
+  acceptingNewOrders: unknown;
+  returnPolicy: unknown;
+  customOrderPolicy: unknown;
+  shippingPolicy: unknown;
+  featuredListingIds: unknown;
+  galleryImageUrls: unknown;
+  galleryAltTexts: unknown;
+  guildLevel: unknown;
+  vacationMode: unknown;
+  vacationReturnDate: unknown;
+  vacationMessage: unknown;
+  isFoundingMaker: unknown;
+  foundingMakerNumber: unknown;
+  ownerImageUrl: unknown;
+  viewerIsOwner: unknown;
+  faqs: unknown;
+  metro: unknown;
+  cityMetro: unknown;
+};
+
 type SellerPublicBlogAuthorRow = {
   id: unknown;
   userId: unknown;
@@ -298,6 +392,147 @@ type SellerPublicAccessClient = Pick<DbUserContextTransactionClient, "$queryRaw"
 
 function nullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
+}
+
+function parseNullableDate(value: unknown, label: string) {
+  if (value === null) return null;
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    throw new Error(`Seller public authority returned an invalid ${label}`);
+  }
+  return value;
+}
+
+function parseSellerPublicProfileMetro(
+  value: unknown,
+  label: string,
+): SellerPublicProfileMetro | null {
+  if (value === null) return null;
+  if (
+    typeof value !== "object"
+    || value === null
+    || typeof (value as Record<string, unknown>).slug !== "string"
+    || !(value as Record<string, unknown>).slug
+    || typeof (value as Record<string, unknown>).name !== "string"
+    || !(value as Record<string, unknown>).name
+    || typeof (value as Record<string, unknown>).state !== "string"
+    || !(value as Record<string, unknown>).state
+  ) {
+    throw new Error(`Seller public authority returned an invalid ${label}`);
+  }
+  const metro = value as Record<string, string>;
+  return Object.freeze({ slug: metro.slug, name: metro.name, state: metro.state });
+}
+
+function parseSellerPublicProfileFaqs(value: unknown) {
+  if (!Array.isArray(value)) {
+    throw new Error("Seller public authority returned invalid FAQs");
+  }
+  return Object.freeze(value.map((entry) => {
+    if (
+      typeof entry !== "object"
+      || entry === null
+      || typeof (entry as Record<string, unknown>).id !== "string"
+      || !(entry as Record<string, unknown>).id
+      || typeof (entry as Record<string, unknown>).question !== "string"
+      || typeof (entry as Record<string, unknown>).answer !== "string"
+    ) {
+      throw new Error("Seller public authority returned an invalid FAQ");
+    }
+    const faq = entry as Record<string, string>;
+    return Object.freeze({ id: faq.id, question: faq.question, answer: faq.answer });
+  }));
+}
+
+function parseSellerPublicProfile(row: SellerPublicProfileRow): SellerPublicProfile {
+  const stringArrays = [
+    [row.featuredListingIds, "featured listing ids"],
+    [row.galleryImageUrls, "gallery image URLs"],
+    [row.galleryAltTexts, "gallery alt texts"],
+  ] as const;
+  for (const [value, label] of stringArrays) {
+    if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+      throw new Error(`Seller public authority returned invalid ${label}`);
+    }
+  }
+  if (
+    typeof row.id !== "string"
+    || !row.id
+    || typeof row.displayName !== "string"
+    || !row.displayName
+    || !nullableString(row.bio)
+    || !nullableString(row.city)
+    || !nullableString(row.state)
+    || !(row.createdAt instanceof Date)
+    || Number.isNaN(row.createdAt.getTime())
+    || typeof row.allowLocalPickup !== "boolean"
+    || !nullableString(row.tagline)
+    || !nullableString(row.bannerImageUrl)
+    || !nullableString(row.avatarImageUrl)
+    || !nullableString(row.workshopImageUrl)
+    || !nullableString(row.storyTitle)
+    || !nullableString(row.storyBody)
+    || !nullableString(row.instagramUrl)
+    || !nullableString(row.facebookUrl)
+    || !nullableString(row.pinterestUrl)
+    || !nullableString(row.tiktokUrl)
+    || !nullableString(row.websiteUrl)
+    || typeof row.acceptsCustomOrders !== "boolean"
+    || typeof row.acceptingNewOrders !== "boolean"
+    || !nullableString(row.returnPolicy)
+    || !nullableString(row.customOrderPolicy)
+    || !nullableString(row.shippingPolicy)
+    || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+    || typeof row.vacationMode !== "boolean"
+    || !nullableString(row.vacationMessage)
+    || typeof row.isFoundingMaker !== "boolean"
+    || !nullableString(row.ownerImageUrl)
+    || typeof row.viewerIsOwner !== "boolean"
+  ) {
+    throw new Error("Seller public profile authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.id,
+    displayName: row.displayName,
+    bio: row.bio,
+    city: row.city,
+    state: row.state,
+    createdAt: row.createdAt,
+    allowLocalPickup: row.allowLocalPickup,
+    tagline: row.tagline,
+    bannerImageUrl: row.bannerImageUrl,
+    avatarImageUrl: row.avatarImageUrl,
+    workshopImageUrl: row.workshopImageUrl,
+    storyTitle: row.storyTitle,
+    storyBody: row.storyBody,
+    instagramUrl: row.instagramUrl,
+    facebookUrl: row.facebookUrl,
+    pinterestUrl: row.pinterestUrl,
+    tiktokUrl: row.tiktokUrl,
+    websiteUrl: row.websiteUrl,
+    yearsInBusiness: parseNullableSafeInteger(row.yearsInBusiness, "years in business"),
+    acceptsCustomOrders: row.acceptsCustomOrders,
+    acceptingNewOrders: row.acceptingNewOrders,
+    returnPolicy: row.returnPolicy,
+    customOrderPolicy: row.customOrderPolicy,
+    shippingPolicy: row.shippingPolicy,
+    featuredListingIds: Object.freeze([...(row.featuredListingIds as string[])]),
+    galleryImageUrls: Object.freeze([...(row.galleryImageUrls as string[])]),
+    galleryAltTexts: Object.freeze([...(row.galleryAltTexts as string[])]),
+    guildLevel: row.guildLevel as SellerPublicProfile["guildLevel"],
+    vacationMode: row.vacationMode,
+    vacationReturnDate: parseNullableDate(row.vacationReturnDate, "vacation return date"),
+    vacationMessage: row.vacationMessage,
+    isFoundingMaker: row.isFoundingMaker,
+    foundingMakerNumber: parseNullableSafeInteger(
+      row.foundingMakerNumber,
+      "founding maker number",
+    ),
+    ownerImageUrl: row.ownerImageUrl,
+    viewerIsOwner: row.viewerIsOwner,
+    faqs: parseSellerPublicProfileFaqs(row.faqs),
+    metro: parseSellerPublicProfileMetro(row.metro, "metro"),
+    cityMetro: parseSellerPublicProfileMetro(row.cityMetro, "city metro"),
+  });
 }
 
 function parsePublicMapPoint(row: SellerPublicMapPointRow): SellerPublicMapPoint {
@@ -769,6 +1004,20 @@ async function readSellerPublicViewTarget(
   return Object.freeze({ ownerUserId: rows[0].ownerUserId });
 }
 
+async function readSellerPublicProfile(
+  client: SellerPublicAccessClient,
+  sellerProfileId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicProfileRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_profile(${sellerProfileId})
+  `);
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Seller public profile authority returned multiple results");
+  }
+  return parseSellerPublicProfile(rows[0]);
+}
+
 async function readSellerPublicBlogAuthor(
   client: SellerPublicAccessClient,
   sellerProfileId: string,
@@ -1097,6 +1346,20 @@ export async function sellerPublicViewTarget(sellerProfileId: string) {
     throw new RangeError("Seller public view-target id is outside the supported range");
   }
   return readSellerPublicViewTarget(prisma, sellerProfileId);
+}
+
+export async function sellerPublicProfile(
+  viewerUserId: string | null,
+  sellerProfileId: string,
+) {
+  if (!/^[A-Za-z0-9._:-]{1,191}$/u.test(sellerProfileId)) {
+    throw new RangeError("Seller public profile id is outside the supported range");
+  }
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicProfile(client, sellerProfileId));
+  }
+  return readSellerPublicProfile(prisma, sellerProfileId);
 }
 
 export async function sellerPublicBlogAuthor(sellerProfileId: string) {
