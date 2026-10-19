@@ -280,7 +280,6 @@ describe("verified audit follow-up guardrails", () => {
     }
 
     const rawSqlPaths = [
-      "src/app/page.tsx",
       "src/app/blog/page.tsx",
       "src/app/api/blog/search/route.ts",
       "src/app/api/blog/search/suggestions/route.ts",

@@ -175,6 +175,16 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       )),
       [],
     );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        "SELECT slug, name, state FROM public.grainline_seller_public_footer_metros()",
+      )).filter((row) => row.slug === `full-chain-${seller.sellerProfileId}`.slice(0, 100)),
+      [{
+        slug: `full-chain-${seller.sellerProfileId}`.slice(0, 100),
+        name: "Full Chain Metro",
+        state: "TX",
+      }],
+    );
     const similarMakers = rowsOf(await database.query(
       `SELECT id, "scopeKind"
          FROM public.grainline_seller_public_similar_makers($1, 4)`,
@@ -336,6 +346,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_metro_static_slugs()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_footer_metros()"),
       /permission denied/u,
     );
     await assert.rejects(

@@ -293,6 +293,9 @@ describe("public query determinism", () => {
     const publicOrderAuthority = source(
       "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
     );
+    const sellerPublicFooterMetroAuthority = source(
+      "prisma/migrations/20261019120000_prepare_seller_profile_public_footer_metros/migration.sql",
+    );
     const blogCommentLimits = source("src/lib/blogCommentLimits.ts");
     const blogCommentApi = source("src/app/api/blog/[slug]/comments/route.ts");
     const blogDetail = source("src/app/blog/[slug]/page.tsx");
@@ -322,7 +325,11 @@ describe("public query determinism", () => {
     assert.match(customerPhotosPage, /skip: \(page - 1\) \* PAGE_SIZE/);
     assert.match(customerPhotosPage, /Page \{page\} of \{totalPages\}/);
 
-    assert.match(footerMetros, /orderBy: \[\{ listings: \{ _count: "desc" \} \}, \{ name: "asc" \}, \{ slug: "asc" \}\]/);
+    assert.match(footerMetros, /sellerPublicFooterMetros\(\)/);
+    assert.match(
+      sellerPublicFooterMetroAuthority,
+      /ORDER BY \([\s\S]*FROM public\."Listing" AS listing[\s\S]*\) DESC,\s*metro\.name ASC,\s*metro\.slug ASC\s+LIMIT 10/,
+    );
     assert.match(publicSellerStats, /getPublicSellerOrderStats/u);
     assert.match(publicOrderAuthority, /ORDER BY source_order\."shippedAt" DESC, source_order\.id DESC/);
     assert.match(publicOrderAuthority, /LIMIT 30/);

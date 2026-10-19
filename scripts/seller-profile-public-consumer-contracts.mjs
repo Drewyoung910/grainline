@@ -95,7 +95,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/lib/ensureSeller.ts": ["OWNER"],
   "src/lib/followerBlogNotifications.ts": ["SERVICE"],
   "src/lib/followerListingNotifications.ts": ["SERVICE"],
-  "src/lib/footerMetros.ts": ["PUBLIC_ELIGIBILITY"],
   "src/lib/foundingMaker.ts": ["PUBLIC_ELIGIBILITY", "SERVICE"],
   "src/lib/foundingMakerCore.ts": ["SERVICE"],
   "src/lib/listingDelete.ts": ["OWNER", "TRANSACTION"],
@@ -242,8 +241,8 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   if (reviewedNonTargetResiduals.some(({ model }) => model === "SellerProfile")) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
-  if (targetOpaqueShapes.length !== 19
-      || reviewedNonTargetFactoryCalls.length !== 144
+  if (targetOpaqueShapes.length !== 18
+      || reviewedNonTargetFactoryCalls.length !== 143
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `

@@ -111,6 +111,12 @@ export type SellerPublicNearbyMetro = Readonly<{
   name: string;
 }>;
 
+export type SellerPublicFooterMetro = Readonly<{
+  slug: string;
+  name: string;
+  state: string;
+}>;
+
 export type SellerPublicSitemapRow = Readonly<{
   id: string;
   displayName: string;
@@ -228,6 +234,12 @@ type SellerPublicNearbyMetroRow = {
   id: unknown;
   slug: unknown;
   name: unknown;
+};
+
+type SellerPublicFooterMetroRow = {
+  slug: unknown;
+  name: unknown;
+  state: unknown;
 };
 
 type SellerPublicSitemapRowResult = {
@@ -670,6 +682,29 @@ async function readSellerPublicNearbyMetros(
   return Object.freeze(metros);
 }
 
+async function readSellerPublicFooterMetros(client: SellerPublicAccessClient) {
+  const rows = await client.$queryRaw<SellerPublicFooterMetroRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_footer_metros()
+  `);
+  const metros = rows.map((row) => {
+    if (
+      typeof row.slug !== "string"
+      || !row.slug
+      || typeof row.name !== "string"
+      || !row.name
+      || typeof row.state !== "string"
+      || !row.state
+    ) {
+      throw new Error("Seller public footer-metro authority returned an invalid result");
+    }
+    return Object.freeze({ slug: row.slug, name: row.name, state: row.state });
+  });
+  if (metros.length > 10 || new Set(metros.map(({ slug }) => slug)).size !== metros.length) {
+    throw new Error("Seller public footer-metro authority returned invalid cardinality");
+  }
+  return Object.freeze(metros);
+}
+
 async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicSitemapCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_sitemap_counts()
@@ -901,6 +936,10 @@ export async function sellerPublicNearbyMetros(
       readSellerPublicNearbyMetros(client, metroId));
   }
   return readSellerPublicNearbyMetros(prisma, metroId);
+}
+
+export async function sellerPublicFooterMetros() {
+  return readSellerPublicFooterMetros(prisma);
 }
 
 export async function sellerPublicSitemapPage(

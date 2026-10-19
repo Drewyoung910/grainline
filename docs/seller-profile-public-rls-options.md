@@ -261,6 +261,14 @@ The candidate is now down to 73 direct operations in 43 files, 99 relation
 accesses in 51 files, 15 raw SQL accesses in 12 files, 91 total consumer files
 and 185 reconciled opaque query shapes. Its catalog has 144 matching functions:
 98 retained, 32 internal and fourteen converted authorities.
+A fifteenth exact operation now returns the maximum-ten cached footer metros.
+It preserves active-seller-or-public-listing eligibility and the predecessor's
+all-listing popularity rank without returning that rank to the application.
+The candidate remains at 73 direct operations in 43 files and 15 raw SQL
+accesses in 12 files, while relation access falls to 98 operations in 50 files,
+the total consumer inventory falls to 90 files, and reconciled opaque shapes
+fall to 183. Its catalog has 145 matching functions: 98 retained, 32 internal
+and fifteen converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

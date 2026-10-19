@@ -75,12 +75,15 @@ owner identifier or control field. Three more exact operations serve the metro
 maker directory: static slugs, capped rendered maker cards and nearby metros.
 They preserve the three predecessor eligibility contracts while moving active
 seller, public-listing, reciprocal-block and stable-order predicates into the
-database. All fourteen keep the old table grant unchanged. This reduces the
+database. A fifteenth exact operation serves the cached footer city links,
+preserving the predecessor's active-seller-or-public-listing eligibility,
+all-listing popularity rank, stable order and ten-row cap without returning
+the rank. All fifteen keep the old table grant unchanged. This reduces the
 candidate source inventory to 73 direct operations in 43 files, 15 raw SQL
-accesses in 12 files, 91 total consumer files, 185 reconciled opaque query
+accesses in 12 files, 90 total consumer files, 183 reconciled opaque query
 shapes and two remaining purpose-bound owner coordinate consumers. The
 candidate catalog contains the unchanged 98 retained and 32 internal functions
-plus the fourteen converted public authorities. It
+plus the fifteen converted public authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three
