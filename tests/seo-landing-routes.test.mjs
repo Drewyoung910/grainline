@@ -25,11 +25,10 @@ describe("SEO landing route guardrails", () => {
     const page = source("src/app/blog/author/[slug]/page.tsx");
 
     assert.match(page, /import \{ cache \} from "react"/);
-    assert.match(page, /const getPublicBlogAuthor = cache\(async \(sellerProfileId: string\) =>/);
+    assert.match(page, /const getPublicBlogAuthor = cache\(sellerPublicBlogAuthor\)/);
     assert.match(page, /extractRouteId\(slug\)/);
     assert.match(page, /publicBlogAuthorPath\(author\.id, author\.displayName\)/);
-    assert.match(page, /activeSellerProfileWhere\(\{/);
-    assert.match(page, /blogPosts: \{ some: publicBlogPostWhere\(\{ sellerProfileId \}\) \}/);
+    assert.doesNotMatch(page, /prisma\.sellerProfile|activeSellerProfileWhere/);
     assert.match(page, /publicBlogPostWhere\(\{ sellerProfileId: author\.id \}\)/);
     assert.match(page, /getBlockedUserIdsFor\(meDbId\)/);
     assert.ok(

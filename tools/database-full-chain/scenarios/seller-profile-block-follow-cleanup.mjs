@@ -30,11 +30,11 @@ export async function proveSellerProfileBlockFollowCleanup({ database, seller })
   );
   await database.query(
     `INSERT INTO public."SellerProfile"
-      (id, "userId", "displayName", "displayNameNormalized")
+      (id, "userId", "displayName", "displayNameNormalized", "createdAt", "updatedAt")
      VALUES
-      ($1, $2, 'Block Target Shop', 'block target shop'),
-      ($3, $4, 'Block Outsider Shop', 'block outsider shop')`,
-    [targetSellerId, targetUserId, outsiderSellerId, outsiderUserId],
+      ($1, $2, 'Block Target Shop', 'block target shop', $5, $5),
+      ($3, $4, 'Block Outsider Shop', 'block outsider shop', $5, $5)`,
+    [targetSellerId, targetUserId, outsiderSellerId, outsiderUserId, now],
   );
   await database.query(
     `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")

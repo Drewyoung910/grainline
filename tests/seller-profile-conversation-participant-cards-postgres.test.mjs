@@ -8,6 +8,10 @@ const migration = readFileSync(
   "prisma/migrations/20261020000000_prepare_seller_profile_conversation_participant_cards/migration.sql",
   "utf8",
 );
+const correction = readFileSync(
+  "prisma/migrations/20261020030000_correct_seller_profile_conversation_participant_cards/migration.sql",
+  "utf8",
+);
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -20,10 +24,10 @@ async function readyDatabase() {
       "deletedAt" timestamp(3)
     );
     CREATE TABLE public."SellerProfile" (
-      id text PRIMARY KEY,
-      "userId" text NOT NULL UNIQUE,
-      "displayName" text NOT NULL,
-      "avatarImageUrl" text,
+      id varchar(191) PRIMARY KEY,
+      "userId" varchar(191) NOT NULL UNIQUE,
+      "displayName" varchar(100) NOT NULL,
+      "avatarImageUrl" varchar(2048),
       "acceptsCustomOrders" boolean NOT NULL DEFAULT false,
       "chargesEnabled" boolean NOT NULL DEFAULT false,
       "stripeAccountSupported" boolean NOT NULL DEFAULT true
@@ -54,6 +58,7 @@ async function readyDatabase() {
       ('conversation-4', 'deleted-actor', 'connected-seller');
   `);
   await database.exec(migration);
+  await database.exec(correction);
   return database;
 }
 

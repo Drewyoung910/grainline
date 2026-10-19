@@ -382,7 +382,11 @@ actor. This removes two direct SellerProfile reads and the inbox leaves the
 consumer ledger. The candidate is now at 41 direct operations in 20 files, 91
 relation accesses in 48 files, 15 raw SQL accesses in 12 files, 72 total
 consumer files and 179 reconciled opaque shapes. The catalog has 159 functions:
-98 retained, 32 internal and 29 converted.
+98 retained, 32 internal and 29 converted. The real PostgreSQL 16 chain then
+caught a `varchar`-to-`text` table-return mismatch that the original miniature
+all-text fixture concealed. The forward correction casts the four affected
+seller fields explicitly, and the focused fixture now mirrors their migrated
+column widths.
 The owner vacation route then uses one actor-and-target-bound mutation for its
 three vacation fields. It accepts the return date as epoch milliseconds and
 reconstructs the UTC wall-clock timestamp in PostgreSQL, avoiding session
@@ -391,6 +395,15 @@ committed write. The route leaves the consumer ledger. The candidate is now at
 40 direct operations in 19 files, 91 relation accesses in 48 files, 15 raw SQL
 accesses in 12 files, 71 total consumer files and 179 reconciled opaque shapes.
 The catalog has 160 functions: 98 retained, 32 internal and 30 converted.
+The public blog-author page then uses an exact seven-field projection available
+only for an active seller with a currently published, active-author blog post.
+The returned owner id remains purpose-bound to the existing reciprocal-block
+check before canonical redirects. This removes the page's direct seller read
+and its opaque target predicate, so it leaves the consumer ledger. The
+candidate is now at 39 direct operations in 18 files, 91 relation accesses in
+48 files, 15 raw SQL accesses in 12 files, 70 total consumer files and 178
+reconciled opaque shapes. The catalog has 161 functions: 98 retained, 32
+internal and 31 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

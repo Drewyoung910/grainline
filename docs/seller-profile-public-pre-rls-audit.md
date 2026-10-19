@@ -151,7 +151,7 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds 30 converted runtime authorities without changing
+The Phase 1 candidate adds 31 converted runtime authorities without changing
 predecessor table grants. `grainline_seller_public_map_points(integer)` returns
 only seller id/name/city/state and a database-derived coarse point, enforces
 active public-map eligibility, applies reciprocal blocks from trusted
@@ -248,19 +248,29 @@ core and the composite Listing owner key.
 from transaction-local context, accepts at most 51 unique target user ids and
 returns only seller-card fields for targets who already share a conversation
 with the actor. This preserves historical counterpart display while existing
-user-state and readiness checks keep unavailable actions and links inert.
+user-state and readiness checks keep unavailable actions and links inert. A
+full-chain PostgreSQL 16 invocation exposed that the original projection's
+Prisma-managed `varchar` columns did not satisfy its declared `text` return
+types. `20261020030000_correct_seller_profile_conversation_participant_cards`
+adds explicit casts, and the focused fixture now uses the real column widths.
 `grainline_seller_owner_vacation_update(text,boolean,bigint,text)` derives the
 active owner, binds the expected seller id and updates only the three vacation
 fields. Epoch-millisecond input reconstructs the UTC wall-clock return date
 inside PostgreSQL; cache invalidation and checkout expiry remain post-commit
 application side effects.
+`grainline_seller_public_blog_author(text)` returns only the seven seller fields
+consumed by the public author header, and only for an active seller with at
+least one published, due and active-author blog post. Its owner id is
+purpose-bound to the existing reciprocal-block check before canonical
+redirects; blog post count and pagination remain separately constrained by the
+public blog-post predicate.
 `grainline_seller_public_follow_state(text)`,
 `grainline_seller_public_follow_create(text,text)` and
 `grainline_seller_public_follow_delete(text)` own public follow reads and
 actor-bound mutations. Create shares the sorted Block-pair lock, revalidates
 and locks the visible seller after that lock, rejects self and reciprocal
 blocks, and is idempotent. Delete intentionally permits stale cleanup after a
-seller becomes hidden. All 28 grant execute only to the app runtime.
+seller becomes hidden. All 31 grant execute only to the app runtime.
 Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -268,7 +278,7 @@ Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 30 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary, owner core, owner dashboard state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards and three public-follow authorities replace direct base-table access while predecessor grants remain available |
+| Converted authority | 31 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary, owner core, owner dashboard state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards and three public-follow authorities replace direct base-table access while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -288,7 +298,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 66 | 56 | 4 | 6 |
+| Seller | 67 | 57 | 4 | 6 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 13 | 8 | 2 | 3 |
 

@@ -132,7 +132,11 @@ bounded seller-card fields only for requested users who already share a
 conversation with the active actor. The candidate is now at 41 direct
 operations in 20 files, 91 relation accesses in 48 files, 15 raw SQL accesses
 in 12 files and 72 total consumer files. Its 159-function catalog partitions
-into 98 retained, 32 internal and 29 converted authorities.
+into 98 retained, 32 internal and 29 converted authorities. The full-chain
+PostgreSQL 16 proof found that the original projection returned Prisma-managed
+`varchar` columns through a declared `text` table result; the forward
+correction adds explicit casts, and the behavior fixture now uses the real
+column widths so the `42804` regression cannot be hidden by an all-text model.
 The seller-vacation route then leaves the ledger by replacing its direct update
 with an active-owner mutation that binds the expected seller id and preserves
 the post-commit cache and checkout-expiry side effects. UTC epoch input avoids
@@ -140,6 +144,14 @@ session-timezone drift for the date-only return value. The candidate is now at
 40 direct operations in 19 files, 91 relation accesses in 48 files, 15 raw SQL
 accesses in 12 files and 71 total consumer files. Its 160-function catalog
 partitions into 98 retained, 32 internal and 30 converted authorities.
+The public blog-author landing page then leaves the ledger through an exact
+seven-field projection available only for an active seller with a currently
+published, active-author blog post. Its owner id remains purpose-bound to the
+existing reciprocal-block check before canonical redirects. The candidate is
+now at 39 direct operations in 18 files, 91 relation accesses in 48 files, 15
+raw SQL accesses in 12 files and 70 total consumer files. It has 178 reconciled
+opaque shapes, and its 161-function catalog partitions into 98 retained, 32
+internal and 31 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

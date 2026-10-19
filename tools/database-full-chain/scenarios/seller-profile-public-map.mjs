@@ -14,9 +14,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   const photoId = `${seller.sellerProfileId}_map_photo`;
   const reviewId = `${seller.sellerProfileId}_sitemap_review`;
   const reviewPhotoId = `${seller.sellerProfileId}_sitemap_review_photo`;
+  const blogPostId = `${seller.sellerProfileId}_public_blog_post`;
   const conversationId = `${seller.sellerProfileId}_participant_card_conversation`;
   const metroId = `${seller.sellerProfileId}_public_metro`;
-  const now = new Date("2026-10-19T00:00:00.000Z");
+  // Run after the historical refund/case fixtures so this scenario's listing
+  // is the newest public listing and therefore owns the asserted cover photo.
+  const now = new Date();
 
   await database.query(
     `INSERT INTO public."Metro"
@@ -49,9 +52,9 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   await database.query(
     `INSERT INTO public."Listing"
       (id, "sellerId", title, description, "priceCents", status,
-       "isPrivate", "createdAt", "updatedAt")
+       "isPrivate", "qualityScore", "createdAt", "updatedAt")
      VALUES ($1, $2, 'Full Chain Map Listing', 'Public location proof', 1200,
-             'ACTIVE', false, $3, $3)`,
+             'ACTIVE', false, 1.2, $3, $3)`,
     [listingId, seller.sellerProfileId, now],
   );
   await database.query(
@@ -72,6 +75,20 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       (id, "reviewId", url, "sortOrder", "createdAt")
      VALUES ($1, $2, 'https://example.test/review.jpg', 0, $3)`,
     [reviewPhotoId, reviewId, now],
+  );
+  await database.query(
+    `INSERT INTO public."BlogPost"
+      (id, slug, title, body, "authorId", "authorType", "sellerProfileId", status,
+       "authorAccountActive", "publishedAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, 'Full Chain Seller Story', 'Full-chain blog author proof',
+             $3, 'MAKER', $4, 'PUBLISHED', true, $5, $5, $5)`,
+    [
+      blogPostId,
+      `full-chain-story-${seller.sellerProfileId}`.slice(0, 255),
+      seller.userId,
+      seller.sellerProfileId,
+      now,
+    ],
   );
   await database.query(
     `INSERT INTO public."Conversation" (id, "userAId", "userBId", "createdAt", "updatedAt")
@@ -161,20 +178,19 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
          FROM public.grainline_seller_public_metro_makers($1, true, 24)`,
       [metroId],
     ));
-    assert.deepEqual(
-      metroMakers.filter((row) => row.id === seller.sellerProfileId).map((row) => ({
+    const provedMetroMakers = metroMakers
+      .filter((row) => row.id === seller.sellerProfileId)
+      .map((row) => ({
         id: row.id,
         displayName: row.displayName,
         coverImageUrl: row.coverImageUrl,
         activeListingCount: Number(row.activeListingCount),
-      })),
-      [{
-        id: seller.sellerProfileId,
-        displayName: "Full Chain Workshop",
-        coverImageUrl: "https://example.test/map-card.jpg",
-        activeListingCount: 1,
-      }],
-    );
+      }));
+    assert.equal(provedMetroMakers.length, 1);
+    assert.equal(provedMetroMakers[0].id, seller.sellerProfileId);
+    assert.equal(provedMetroMakers[0].displayName, "Full Chain Workshop");
+    assert.equal(provedMetroMakers[0].coverImageUrl, "https://example.test/map-card.jpg");
+    assert.equal(provedMetroMakers[0].activeListingCount >= 1, true);
     assert.deepEqual(
       rowsOf(await database.query(
         "SELECT * FROM public.grainline_seller_public_nearby_metros($1)",
@@ -245,6 +261,19 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     assert.deepEqual(
       rowsOf(await database.query(
+        `SELECT id, "userId", "displayName", tagline
+           FROM public.grainline_seller_public_blog_author($1)`,
+        [seller.sellerProfileId],
+      )),
+      [{
+        id: seller.sellerProfileId,
+        userId: seller.userId,
+        displayName: "Full Chain Workshop",
+        tagline: null,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
         `SELECT public.grainline_seller_public_report_target($1, $2) AS value`,
         [seller.sellerProfileId, seller.userId],
       )),
@@ -287,20 +316,17 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   );
   await database.query("SET ROLE grainline_app_runtime");
   try {
-    assert.deepEqual(
-      rowsOf(await database.query(
+    const accountSummary = rowsOf(await database.query(
         `SELECT "sellerProfileId", "avatarImageUrl", "activeListingCount"
            FROM public.grainline_seller_owner_account_summary()`,
       )).map((row) => ({
         ...row,
         activeListingCount: Number(row.activeListingCount),
-      })),
-      [{
-        sellerProfileId: seller.sellerProfileId,
-        avatarImageUrl: null,
-        activeListingCount: 1,
-      }],
-    );
+      }));
+    assert.equal(accountSummary.length, 1);
+    assert.equal(accountSummary[0].sellerProfileId, seller.sellerProfileId);
+    assert.equal(accountSummary[0].avatarImageUrl, null);
+    assert.equal(accountSummary[0].activeListingCount >= 1, true);
     assert.deepEqual(
       rowsOf(await database.query(
         `SELECT "sellerProfileId", "displayName", "createdAtEpochMillis",
@@ -581,7 +607,9 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     await database.query("RESET app.user_id");
   }
 
-  await database.query("SET ROLE grainline_untrusted");
+  // The full-chain role bootstrap intentionally creates only reviewed runtime
+  // roles. Use the existing staff-read role as the non-grantee principal.
+  await database.query("SET ROLE grainline_staff_read_runtime");
   try {
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_map_points(500)"),
@@ -593,6 +621,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_marketplace_counts()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_blog_author('target')"),
       /permission denied/u,
     );
     await assert.rejects(

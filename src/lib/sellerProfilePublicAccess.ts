@@ -121,6 +121,16 @@ export type SellerPublicViewTarget = Readonly<{
   ownerUserId: string;
 }>;
 
+export type SellerPublicBlogAuthor = Readonly<{
+  id: string;
+  userId: string;
+  displayName: string;
+  tagline: string | null;
+  avatarImageUrl: string | null;
+  bannerImageUrl: string | null;
+  ownerImageUrl: string | null;
+}>;
+
 export type SellerPublicSitemapRow = Readonly<{
   id: string;
   displayName: string;
@@ -248,6 +258,16 @@ type SellerPublicFooterMetroRow = {
 
 type SellerPublicViewTargetRow = {
   ownerUserId: unknown;
+};
+
+type SellerPublicBlogAuthorRow = {
+  id: unknown;
+  userId: unknown;
+  displayName: unknown;
+  tagline: unknown;
+  avatarImageUrl: unknown;
+  bannerImageUrl: unknown;
+  ownerImageUrl: unknown;
 };
 
 type SellerPublicReportTargetRow = {
@@ -735,6 +755,43 @@ async function readSellerPublicViewTarget(
   return Object.freeze({ ownerUserId: rows[0].ownerUserId });
 }
 
+async function readSellerPublicBlogAuthor(
+  client: SellerPublicAccessClient,
+  sellerProfileId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicBlogAuthorRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_blog_author(${sellerProfileId})
+  `);
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Seller public blog-author authority returned multiple results");
+  }
+  const row = rows[0];
+  if (
+    typeof row.id !== "string"
+    || !row.id
+    || typeof row.userId !== "string"
+    || !row.userId
+    || typeof row.displayName !== "string"
+    || !row.displayName
+    || !nullableString(row.tagline)
+    || !nullableString(row.avatarImageUrl)
+    || !nullableString(row.bannerImageUrl)
+    || !nullableString(row.ownerImageUrl)
+  ) {
+    throw new Error("Seller public blog-author authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.id,
+    userId: row.userId,
+    displayName: row.displayName,
+    tagline: row.tagline,
+    avatarImageUrl: row.avatarImageUrl,
+    bannerImageUrl: row.bannerImageUrl,
+    ownerImageUrl: row.ownerImageUrl,
+  });
+}
+
 async function readSellerPublicReportTarget(
   client: SellerPublicAccessClient,
   sellerProfileId: string,
@@ -994,6 +1051,13 @@ export async function sellerPublicViewTarget(sellerProfileId: string) {
     throw new RangeError("Seller public view-target id is outside the supported range");
   }
   return readSellerPublicViewTarget(prisma, sellerProfileId);
+}
+
+export async function sellerPublicBlogAuthor(sellerProfileId: string) {
+  if (sellerProfileId.length < 1 || sellerProfileId.length > 191) {
+    throw new RangeError("Seller public blog-author id is outside the supported range");
+  }
+  return readSellerPublicBlogAuthor(prisma, sellerProfileId);
 }
 
 export async function sellerPublicReportTarget(
