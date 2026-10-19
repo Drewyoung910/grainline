@@ -41,6 +41,20 @@ export type SellerPublicMarketplaceCounts = Readonly<{
   foundingMakerCount: number;
 }>;
 
+export type SellerPublicSimilarMaker = Readonly<{
+  id: string;
+  displayName: string;
+  tagline: string | null;
+  city: string | null;
+  state: string | null;
+  guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+  avatarImageUrl: string | null;
+  bannerImageUrl: string | null;
+  ownerImageUrl: string | null;
+  coverImageUrl: string | null;
+  scopeKind: "METRO" | "STATE";
+}>;
+
 export type SellerPublicSitemapRow = Readonly<{
   id: string;
   displayName: string;
@@ -84,6 +98,20 @@ type SellerPublicMarketplaceCountsRow = {
 
 type SellerPublicCountRow = {
   value: unknown;
+};
+
+type SellerPublicSimilarMakerRow = {
+  id: unknown;
+  displayName: unknown;
+  tagline: unknown;
+  city: unknown;
+  state: unknown;
+  guildLevel: unknown;
+  avatarImageUrl: unknown;
+  bannerImageUrl: unknown;
+  ownerImageUrl: unknown;
+  coverImageUrl: unknown;
+  scopeKind: unknown;
 };
 
 type SellerPublicSitemapRowResult = {
@@ -266,6 +294,56 @@ async function readSellerPublicMetroCount(
   return parseSafeCount(rows[0].value, "metro seller count");
 }
 
+async function readSellerPublicSimilarMakers(
+  client: SellerPublicAccessClient,
+  sourceListingId: string,
+  limit: number,
+) {
+  const rows = await client.$queryRaw<SellerPublicSimilarMakerRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_similar_makers(
+        ${sourceListingId},
+        ${limit}
+      )
+  `);
+  const makers = rows.map((row) => {
+    if (
+      typeof row.id !== "string"
+      || !row.id
+      || typeof row.displayName !== "string"
+      || !row.displayName
+      || !nullableString(row.tagline)
+      || !nullableString(row.city)
+      || !nullableString(row.state)
+      || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+      || !nullableString(row.avatarImageUrl)
+      || !nullableString(row.bannerImageUrl)
+      || !nullableString(row.ownerImageUrl)
+      || !nullableString(row.coverImageUrl)
+      || !["METRO", "STATE"].includes(String(row.scopeKind))
+    ) {
+      throw new Error("Seller public similar-maker authority returned an invalid result");
+    }
+    return Object.freeze({
+      id: row.id,
+      displayName: row.displayName,
+      tagline: row.tagline,
+      city: row.city,
+      state: row.state,
+      guildLevel: row.guildLevel as SellerPublicSimilarMaker["guildLevel"],
+      avatarImageUrl: row.avatarImageUrl,
+      bannerImageUrl: row.bannerImageUrl,
+      ownerImageUrl: row.ownerImageUrl,
+      coverImageUrl: row.coverImageUrl,
+      scopeKind: row.scopeKind as SellerPublicSimilarMaker["scopeKind"],
+    });
+  });
+  if (makers.length > limit || new Set(makers.map((maker) => maker.id)).size !== makers.length) {
+    throw new Error("Seller public similar-maker authority returned invalid cardinality");
+  }
+  return Object.freeze(makers);
+}
+
 async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicSitemapCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_sitemap_counts()
@@ -426,6 +504,26 @@ export async function sellerPublicMetroCount(
       readSellerPublicMetroCount(client, metroId, isMajor, requirePublicListing));
   }
   return readSellerPublicMetroCount(prisma, metroId, isMajor, requirePublicListing);
+}
+
+export async function sellerPublicSimilarMakers(
+  viewerUserId: string | null,
+  sourceListingId: string,
+  limit: number,
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(sourceListingId)
+    || !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 4
+  ) {
+    throw new RangeError("Seller public similar-maker input is outside the supported range");
+  }
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicSimilarMakers(client, sourceListingId, limit));
+  }
+  return readSellerPublicSimilarMakers(prisma, sourceListingId, limit);
 }
 
 export async function sellerPublicSitemapPage(

@@ -89,7 +89,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/sitemap.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/tag/[slug]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/components/ReviewsSection.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
-  "src/components/SimilarMakers.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/lib/accountDeletion.ts": ["SERVICE"],
   "src/lib/ban.ts": ["STAFF", "SERVICE"],
   "src/lib/cartOwnerAccess.ts": ["TRANSACTION"],
@@ -245,8 +244,8 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   if (reviewedNonTargetResiduals.some(({ model }) => model === "SellerProfile")) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
-  if (targetOpaqueShapes.length !== 32
-      || reviewedNonTargetFactoryCalls.length !== 149
+  if (targetOpaqueShapes.length !== 30
+      || reviewedNonTargetFactoryCalls.length !== 147
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `

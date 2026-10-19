@@ -60,12 +60,16 @@ public-seller and founding-maker counts used by four marketing surfaces; its
 founding count preserves the historical all-profile allocation rule. An eighth
 returns one metro seller count while owning major/city membership, optional
 public-listing eligibility and reciprocal blocks for the three metro count
-callers. All eight keep the old table grant unchanged. This reduces the
-candidate source inventory to 82 direct operations in 47 files, 16 raw SQL
-accesses in 13 files, 94 total consumer files, 203 reconciled opaque query
+callers. A ninth listing-bound operation returns at most four public similar-
+maker cards, derives metro-before-state scope only from a viewer-visible source
+listing, owns active candidate seller/listing visibility,
+reciprocal blocks and stable Guild/follower ordering, and exposes no ownership
+or raw-geography column. All nine keep the old table grant unchanged. This
+reduces the candidate source inventory to 80 direct operations in 46 files,
+16 raw SQL accesses in 13 files, 93 total consumer files, 199 reconciled opaque query
 shapes and two remaining purpose-bound owner coordinate consumers. The
 candidate catalog contains the unchanged 98 retained and 32 internal functions
-plus the eight converted public authorities. It
+plus the nine converted public authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three

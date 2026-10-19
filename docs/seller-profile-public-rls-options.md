@@ -231,10 +231,16 @@ surfaces. An eighth returns one seller count for a major or city metro, with an
 optional active-public-listing requirement and reciprocal blocks inside the
 operation. It converts the three metro count callers. The candidate has 82
 direct operations in 47 files, 94 total consumer files and 203 reconciled
-opaque query shapes. Its candidate catalog contains 138 matching functions:
-the unchanged 98 retained and 32 internal functions plus eight converted
-public authorities.
-Predecessor grants remain unchanged. The candidate
-remains unmerged, and the three retained-authority proof gaps remain
+opaque query shapes at that point. A ninth listing-bound operation now returns at most four
+similar-maker cards while deriving metro-before-state scope only from a
+viewer-visible source listing and owning active candidate seller/listing
+predicates, reciprocal blocks and stable Guild/follower order.
+It returns only rendered card fields and a public-listing cover image. With
+that conversion, the candidate has 80 direct operations in 46 files, 93 total
+consumer files and 199 reconciled opaque query shapes. Its candidate catalog
+contains 139 matching functions: the unchanged 98 retained and 32 internal
+functions plus nine converted public authorities.
+Predecessor grants remain unchanged. The candidate remains unmerged, and the
+three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
 deployment, or provider operation is authorized by this decision.

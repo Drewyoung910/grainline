@@ -46,11 +46,15 @@ describe("public query determinism", () => {
     const metroCategoryPage = source("src/app/browse/[metroSlug]/[category]/page.tsx");
     const blogDetail = source("src/app/blog/[slug]/page.tsx");
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
+    const similarMakers = source("src/components/SimilarMakers.tsx");
     const sellersMap = source("src/app/sellers/map/page.tsx");
     const publicMap = source("src/app/map/page.tsx");
     const makersMetro = source("src/app/makers/[metroSlug]/page.tsx");
     const sellerPublicMapAuthority = source(
       "prisma/migrations/20261019010000_prepare_seller_profile_public_map_authority/migration.sql",
+    );
+    const sellerPublicSimilarMakersAuthority = source(
+      "prisma/migrations/20261019080000_prepare_seller_profile_public_similar_makers/migration.sql",
     );
 
     assert.match(home, /orderBy: \[\{ featuredUntil: "desc" \}, \{ id: "asc" \}\]/);
@@ -128,6 +132,21 @@ describe("public query determinism", () => {
     assert.match(similar, /LEFT JOIN LATERAL/);
     assert.match(similar, /ROW_NUMBER\(\) OVER \(ORDER BY p\."sortOrder" ASC, p\.id ASC\)/);
     assert.doesNotMatch(similar, /\(SELECT p\.url FROM "Photo" p/);
+
+    assert.match(similarMakers, /sellerPublicSimilarMakers\(/);
+    assert.doesNotMatch(similarMakers, /prisma\.sellerProfile/);
+    assert.match(
+      sellerPublicSimilarMakersAuthority,
+      /ORDER BY listing\."qualityScore" DESC, listing\.id DESC/,
+    );
+    assert.match(
+      sellerPublicSimilarMakersAuthority,
+      /ORDER BY photo\."sortOrder" ASC\s+LIMIT 1/,
+    );
+    assert.match(
+      sellerPublicSimilarMakersAuthority,
+      /ORDER BY candidates\.scope_priority ASC,[\s\S]*candidates\."guildLevel"::public\."GuildLevel" DESC,[\s\S]*candidates\.follower_count DESC,[\s\S]*candidates\.id ASC\s+LIMIT p_limit/,
+    );
 
     assert.match(sellersMap, /sellerPublicMapPoints\(meDbId, 500\)/);
     assert.match(sellerPublicMapAuthority, /ORDER BY seller\.id ASC\s+LIMIT p_limit/);

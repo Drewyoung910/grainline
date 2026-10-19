@@ -11,18 +11,18 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 test("every SellerProfile source consumer has a bounded authority contract", () => {
   const result = verifySellerProfilePublicConsumerContracts(root);
-  assert.equal(result.consumerFiles, 94);
-  assert.equal(Object.keys(SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS).length, 94);
+  assert.equal(result.consumerFiles, 93);
+  assert.equal(Object.keys(SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS).length, 93);
   assert.equal(result.directWrites, 14);
   assert.equal(result.coordinateFiles, 2);
-  assert.equal(result.reviewedOpaqueShapes, 203);
+  assert.equal(result.reviewedOpaqueShapes, 199);
   assert.equal(result.reviewedOpaqueFactoryShapes, 12);
-  assert.equal(result.opaqueTargetPredicates, 32);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 149);
+  assert.equal(result.opaqueTargetPredicates, 30);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 147);
   assert.equal(result.opaqueNonTargetResiduals, 22);
   assert.deepEqual(result.contractCounts, {
-    PUBLIC_PROFILE: 33,
-    PUBLIC_ELIGIBILITY: 41,
+    PUBLIC_PROFILE: 32,
+    PUBLIC_ELIGIBILITY: 40,
     PUBLIC_MAP: 4,
     OWNER: 22,
     PARTICIPANT: 15,

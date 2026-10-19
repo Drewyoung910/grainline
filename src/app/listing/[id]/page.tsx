@@ -909,13 +909,11 @@ export default async function ListingPage({
 
       {/* ── Similar makers — scoped to the LISTING's maker city/metro ─────── */}
       <SimilarMakers
-        sellerId={listing.seller.id}
-        metroId={listing.metroId}
-        cityMetroId={listing.cityMetroId}
+        listingId={listing.id}
         metroName={listing.cityMetro?.name ?? listing.metro?.name ?? null}
         city={listing.seller.city}
         state={listing.seller.state}
-        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+        viewerUserId={meId}
       />
 
       {/* ── Reviews ───────────────────────────────────────────────────────── */}
