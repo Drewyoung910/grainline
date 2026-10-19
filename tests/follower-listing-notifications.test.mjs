@@ -80,7 +80,7 @@ describe("follower listing notification guardrails", () => {
     const broadcastRoute = source("src/app/api/seller/broadcast/route.ts");
 
     assert.match(broadcastRoute, /userOwnerBroadcastFollowers\(me\.id, \{/);
-    assert.match(broadcastRoute, /sellerProfileId: seller\.id/);
+    assert.match(broadcastRoute, /sellerProfileId: seller\.sellerProfileId/);
     assert.match(broadcastRoute, /sellersOnly/);
     assert.doesNotMatch(broadcastRoute, /prisma\.follow\.findMany/);
     assert.ok(
