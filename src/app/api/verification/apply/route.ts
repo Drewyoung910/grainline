@@ -17,6 +17,7 @@ import { z } from "zod";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
 import { getSellerVerificationOrderSales } from "@/lib/orderEligibilityAuthority";
+import { sellerOwnerGuildApplicationState } from "@/lib/sellerOwnerPrivateAccess";
 
 export const runtime = "nodejs";
 
@@ -61,14 +62,7 @@ export async function POST(req: Request) {
     }
 
     // ── Server-side eligibility check ─────────────────────────────────────
-    const sellerData = await prisma.sellerProfile.findUnique({
-      where: { id: seller.id },
-      select: {
-        userId: true,
-        guildLevel: true,
-        makerVerification: { select: { status: true, reviewedAt: true } },
-      },
-    });
+    const sellerData = await sellerOwnerGuildApplicationState(seller.id, me.id);
 
     if (!sellerData) {
       return privateJson({ error: "Seller profile not found" }, { status: 404 });

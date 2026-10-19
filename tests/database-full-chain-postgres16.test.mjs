@@ -33,6 +33,7 @@ import {
 } from "../tools/database-full-chain/scenarios/dispute-first-event-case.mjs";
 import { proveSellerProfilePublicMapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-map.mjs";
 import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-profile.mjs";
+import { proveSellerProfileOwnerGuildApplicationAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-guild-application.mjs";
 import { proveSellerProfileBlockFollowCleanup } from "../tools/database-full-chain/scenarios/seller-profile-block-follow-cleanup.mjs";
 import { proveSellerProfileFoundingMakerGrant } from "../tools/database-full-chain/scenarios/seller-profile-founding-maker-grant.mjs";
 import { proveSellerProfileMetricsIdentity } from "../tools/database-full-chain/scenarios/seller-profile-metrics-identity.mjs";
@@ -142,6 +143,10 @@ test(
         seller: fixture,
       });
       await proveSellerProfilePublicProfileAuthority({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveSellerProfileOwnerGuildApplicationAuthority({
         database: adapter,
         seller: fixture,
       });

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import {
   sellerProfileEditorSelect,
   sellerSettingsOwnerSelect,
@@ -202,11 +203,22 @@ const sellerOwnerGuildDashboardSelect = {
   makerVerification: true,
 } satisfies Prisma.SellerProfileSelect;
 
-const sellerOwnerGuildApplicationSelect = {
-  userId: true,
-  guildLevel: true,
-  makerVerification: { select: { status: true, reviewedAt: true } },
-} satisfies Prisma.SellerProfileSelect;
+type SellerOwnerGuildApplicationStateRow = {
+  userId: unknown;
+  guildLevel: unknown;
+  verificationStatus: unknown;
+  verificationReviewedAt: unknown;
+};
+
+const GUILD_LEVELS = ["NONE", "GUILD_MEMBER", "GUILD_MASTER"] as const;
+const VERIFICATION_STATUSES = [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "GUILD_MASTER_PENDING",
+  "GUILD_MASTER_APPROVED",
+  "GUILD_MASTER_REJECTED",
+] as const;
 
 /** Owner-bound compatibility reads that intentionally combine public profile
  * state with private operational state. These become fixed database operations
@@ -409,11 +421,48 @@ export async function sellerOwnerGuildDashboardState(
 export function sellerOwnerGuildApplicationState(
   sellerProfileId: string,
   userId: string,
-  client: SellerOwnerPrivateClient = prisma,
 ) {
-  return client.sellerProfile.findFirst({
-    where: { id: sellerProfileId, userId },
-    select: sellerOwnerGuildApplicationSelect,
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<SellerOwnerGuildApplicationStateRow[]>`
+      SELECT *
+        FROM public.grainline_seller_owner_guild_application_state(
+          ${sellerProfileId}::text
+        )
+    `;
+    if (rows.length === 0) return null;
+    if (rows.length !== 1) {
+      throw new Error("Seller owner Guild application authority returned multiple results");
+    }
+    const row = rows[0];
+    if (
+      typeof row.userId !== "string"
+      || row.userId !== userId
+      || !GUILD_LEVELS.includes(row.guildLevel as typeof GUILD_LEVELS[number])
+      || (
+        row.verificationStatus !== null
+        && !VERIFICATION_STATUSES.includes(
+          row.verificationStatus as typeof VERIFICATION_STATUSES[number],
+        )
+      )
+      || (
+        row.verificationReviewedAt !== null
+        && (!(row.verificationReviewedAt instanceof Date)
+          || Number.isNaN(row.verificationReviewedAt.getTime()))
+      )
+      || (row.verificationStatus === null && row.verificationReviewedAt !== null)
+    ) {
+      throw new Error("Seller owner Guild application authority returned an invalid result");
+    }
+    return Object.freeze({
+      userId: row.userId,
+      guildLevel: row.guildLevel as typeof GUILD_LEVELS[number],
+      makerVerification: row.verificationStatus === null
+        ? null
+        : Object.freeze({
+            status: row.verificationStatus as typeof VERIFICATION_STATUSES[number],
+            reviewedAt: row.verificationReviewedAt as Date | null,
+          }),
+    });
   });
 }
 

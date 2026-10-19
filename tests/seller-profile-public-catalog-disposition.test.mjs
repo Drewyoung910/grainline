@@ -49,7 +49,7 @@ test("SellerProfile catalog disposition accepts only the reviewed ACL partition"
   assert.deepEqual(result.functionDispositions, {
     retainedAuthority: 98,
     internalSupport: 33,
-    convertedAuthority: 39,
+    convertedAuthority: 40,
     retiredPredecessor: 0,
   });
   assert.equal(result.sellerProfileTriggerDispositions.length, 7);

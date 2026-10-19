@@ -270,6 +270,12 @@ candidate is now at 27 direct operations in 8 files, 84 relation accesses in
 46 files, 15 raw SQL accesses in 12 files and 60 total consumer files. It still
 has 170 reconciled opaque shapes, and its 170-function catalog partitions into
 98 retained, 33 internal and 39 converted authorities.
+The owner Guild-application state pass then replaces the API and dashboard
+eligibility reads with one actor-bound projection of seller level and current
+verification status. The candidate is now at 25 direct operations in 7 files,
+84 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 59 total
+consumer files. It still has 170 reconciled opaque shapes, and its 171-function
+catalog partitions into 98 retained, 33 internal and 40 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

@@ -472,6 +472,12 @@ id or account controls. The candidate is now at 27 direct operations in 8
 files, 84 relation accesses in 46 files, 15 raw SQL accesses in 12 files, 60
 total consumer files and 170 reconciled opaque shapes. The 170-function catalog
 is 98 retained, 33 internal and 39 converted.
+The Guild Member and Guild Master application gates now share an actor-bound
+owner projection of seller level and current verification status. This removes
+the API's broad read and the compatibility helper's direct read. The candidate
+is now at 25 direct operations in 7 files, 84 relation accesses in 46 files, 15
+raw SQL accesses in 12 files, 59 total consumer files and 170 reconciled opaque
+shapes. The 171-function catalog is 98 retained, 33 internal and 40 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
