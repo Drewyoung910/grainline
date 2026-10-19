@@ -374,6 +374,15 @@ so the file leaves the consumer ledger. The candidate is now at 43 direct
 operations in 22 files, 91 relation accesses in 48 files, 15 raw SQL accesses
 in 12 files, 73 total consumer files and 179 reconciled opaque shapes. The
 catalog has 158 functions: 98 retained, 32 internal and 28 converted.
+One actor-bound conversation participant-card authority then replaces the
+message inbox's batch seller lookup and the thread's counterpart seller lookup.
+It accepts no more than 51 unique target user ids and returns only the bounded
+seller-card fields for users who already share a conversation with the active
+actor. This removes two direct SellerProfile reads and the inbox leaves the
+consumer ledger. The candidate is now at 41 direct operations in 20 files, 91
+relation accesses in 48 files, 15 raw SQL accesses in 12 files, 72 total
+consumer files and 179 reconciled opaque shapes. The catalog has 159 functions:
+98 retained, 32 internal and 29 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

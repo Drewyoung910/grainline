@@ -126,6 +126,13 @@ candidate is now at 43 direct operations in 22 files, 91 relation accesses in
 48 files, 15 raw SQL accesses in 12 files and 73 total consumer files. Its
 158-function catalog partitions into 98 retained, 32 internal and 28 converted
 authorities; opaque-shape and coordinate counts are unchanged.
+One actor-bound conversation participant-card authority then replaces the
+inbox batch seller lookup and thread counterpart seller lookup. It returns
+bounded seller-card fields only for requested users who already share a
+conversation with the active actor. The candidate is now at 41 direct
+operations in 20 files, 91 relation accesses in 48 files, 15 raw SQL accesses
+in 12 files and 72 total consumer files. Its 159-function catalog partitions
+into 98 retained, 32 internal and 29 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

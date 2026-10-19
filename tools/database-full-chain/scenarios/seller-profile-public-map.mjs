@@ -14,6 +14,7 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   const photoId = `${seller.sellerProfileId}_map_photo`;
   const reviewId = `${seller.sellerProfileId}_sitemap_review`;
   const reviewPhotoId = `${seller.sellerProfileId}_sitemap_review_photo`;
+  const conversationId = `${seller.sellerProfileId}_participant_card_conversation`;
   const metroId = `${seller.sellerProfileId}_public_metro`;
   const now = new Date("2026-10-19T00:00:00.000Z");
 
@@ -71,6 +72,11 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       (id, "reviewId", url, "sortOrder", "createdAt")
      VALUES ($1, $2, 'https://example.test/review.jpg', 0, $3)`,
     [reviewPhotoId, reviewId, now],
+  );
+  await database.query(
+    `INSERT INTO public."Conversation" (id, "userAId", "userBId", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $4)`,
+    [conversationId, seller.userId, viewerUserId, now],
   );
 
   await database.query("SET ROLE grainline_app_runtime");
@@ -388,6 +394,22 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   try {
     assert.deepEqual(
       rowsOf(await database.query(
+        `SELECT "sellerProfileId", "userId", "displayName", "acceptsCustomOrders",
+                "chargesEnabled", "stripeAccountSupported"
+           FROM public.grainline_seller_actor_conversation_cards(ARRAY[$1]::text[])`,
+        [seller.userId],
+      )),
+      [{
+        sellerProfileId: seller.sellerProfileId,
+        userId: seller.userId,
+        displayName: "Full Chain Workshop",
+        acceptsCustomOrders: false,
+        chargesEnabled: true,
+        stripeAccountSupported: true,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
         `SELECT "resultStatus", "ownerUserId", created, "followerCount"
            FROM public.grainline_seller_public_follow_create($1, $2)`,
         [seller.sellerProfileId, followId],
@@ -555,6 +577,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_marketplace_counts()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_actor_conversation_cards(ARRAY['target']::text[])",
+      ),
       /permission denied/u,
     );
     await assert.rejects(

@@ -47,6 +47,7 @@ import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
+import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
 
 export default async function ThreadPage({
   params,
@@ -159,17 +160,7 @@ export default async function ThreadPage({
   // account name so threads with makers show the shop name, not the
   // person's legal name).
   const otherSellerProfile = other
-    ? await prisma.sellerProfile.findUnique({
-        where: { userId: other.id },
-        select: {
-          id: true,
-          displayName: true,
-          acceptsCustomOrders: true,
-          avatarImageUrl: true,
-          chargesEnabled: true,
-          stripeAccountSupported: true,
-        },
-      })
+    ? (await sellerConversationParticipantCards(me.id, [other.id]))[0] ?? null
     : null;
 
   const participantLabel = isStaffReviewMode
@@ -184,11 +175,11 @@ export default async function ThreadPage({
   // When the other party has a public seller profile, the header avatar +
   // name link to that shop. Otherwise no link.
   const sellerProfileHref = !otherUnavailableReason &&
-    otherSellerProfile?.id &&
+    otherSellerProfile?.sellerProfileId &&
     otherSellerProfile.displayName &&
     otherSellerProfile.chargesEnabled &&
     otherSellerProfile.stripeAccountSupported
-    ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
+    ? publicSellerPath(otherSellerProfile.sellerProfileId, otherSellerProfile.displayName)
     : null;
 
   const messageRows = await listLatestActorMessages(me.id, conversation, 201);

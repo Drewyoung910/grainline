@@ -12,6 +12,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { parseMessageCursor } from "@/lib/messageCursor";
 import { listActorConversationInbox } from "@/lib/conversationMessageAuthority";
+import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -131,12 +132,7 @@ async function MessagesInbox({
         .filter((id): id is string => Boolean(id)),
     ),
   );
-  const sellerProfiles = otherUserIds.length
-    ? await prisma.sellerProfile.findMany({
-        where: { userId: { in: otherUserIds } },
-        select: { userId: true, displayName: true, avatarImageUrl: true },
-      })
-    : [];
+  const sellerProfiles = await sellerConversationParticipantCards(me.id, otherUserIds);
   const sellerByUserId = new Map(sellerProfiles.map((s) => [s.userId, s]));
 
   const enrich = convos.map((c) => {
