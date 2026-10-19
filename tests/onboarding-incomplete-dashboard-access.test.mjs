@@ -62,7 +62,9 @@ describe("onboarding-incomplete dashboard access", () => {
     const newListing = source("src/app/dashboard/listings/new/page.tsx");
     assert.match(newListing, /if \(!saveAsDraft && !seller\.chargesEnabled\)/);
     assert.match(newListing, /if \(!saveAsDraft && seller\.vacationMode\)/);
-    assert.match(newListing, /select: \{ chargesEnabled: true, vacationMode: true \}/);
+    assert.match(newListing, /const chargesEnabled = seller\.chargesEnabled/);
+    assert.match(newListing, /const vacationMode = seller\.vacationMode/);
+    assert.doesNotMatch(newListing, /select: \{ chargesEnabled: true, vacationMode: true \}/);
     assert.match(newListing, /disabled=\{Boolean\(publishBlockedMessage\)\}/);
     assert.match(newListing, /Save as Draft/);
 

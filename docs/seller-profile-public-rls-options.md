@@ -336,6 +336,12 @@ unchanged. The candidate is now down to 51 direct operations in 27 files, 98
 relation accesses in 50 files, 15 raw SQL accesses in 12 files, 77 total
 consumer files and 179 reconciled opaque shapes. The catalog remains 154
 matching functions: 98 retained, 32 internal and 24 converted authorities.
+The new-listing page also reuses the already-loaded active owner bootstrap for
+its rendered payout/vacation publish gates instead of reading those same two
+seller fields again. Its exact-location metro assignment and total-listing AI
+review inputs remain explicit later conversion work. The candidate is now down
+to 50 direct operations in the same 27 files; relation, raw SQL, total-consumer,
+opaque-shape and function-catalog counts are unchanged.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

@@ -495,12 +495,8 @@ export default async function NewListingPage({
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/listings/new");
 
   const { seller } = await ensureSeller();
-  const sellerData = await prisma.sellerProfile.findUnique({
-    where: { id: seller.id },
-    select: { chargesEnabled: true, vacationMode: true },
-  });
-  const chargesEnabled = sellerData?.chargesEnabled ?? false;
-  const vacationMode = sellerData?.vacationMode ?? false;
+  const chargesEnabled = seller.chargesEnabled;
+  const vacationMode = seller.vacationMode;
   const publishBlockedMessage = !chargesEnabled
     ? PUBLISH_REQUIRES_STRIPE_MESSAGE
     : vacationMode

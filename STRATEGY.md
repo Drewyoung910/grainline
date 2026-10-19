@@ -96,7 +96,7 @@ display name, creation time and shop-state gates. An actor-bound blog-editor
 operation then converts three more direct owner lookups and returns only the
 profile id plus active listing ids/titles, preserving both zero-listing sellers
 and staff authors without seller profiles. This reduces the candidate source
-inventory to 51 direct operations in 27 files, 15 raw SQL accesses in
+inventory to 50 direct operations in 27 files, 15 raw SQL accesses in
 12 files, 77 total consumer files, 179 reconciled opaque query shapes and two
 remaining purpose-bound owner coordinate consumers. The candidate catalog
 contains the unchanged 98 retained and 32 internal functions plus 24 converted authorities. It
