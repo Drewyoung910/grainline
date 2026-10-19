@@ -39,6 +39,7 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
+import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -355,15 +356,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
   // AI listing review + first-listing hold
   try {
-    const sellerInfo = await prisma.sellerProfile.findUnique({
-      where: { id: seller.id },
-      select: {
-        displayName: true,
-        _count: { select: { listings: true } }
-      }
-    })
+    const sellerInfo = await sellerOwnerListingReview(seller.userId);
+    if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
+      throw new Error("Seller listing-review authority returned a different seller");
+    }
 
-    const listingCount = sellerInfo?._count.listings ?? 0
+    const listingCount = sellerInfo?.totalListingCount ?? 0
 
     const { reviewListingWithAI } = await import('@/lib/ai-review')
 
@@ -376,7 +374,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
       currency: created.currency,
       category: created.category ?? null,
       tags: created.tags,
-      sellerName: sellerInfo?.displayName ?? 'Unknown',
+      sellerName: sellerInfo?.displayName ?? seller.displayName ?? 'Unknown',
       listingCount,
       imageUrls,
     }).catch((): AIReviewResult => ({

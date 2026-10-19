@@ -323,6 +323,17 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
         listingTitle: "Full Chain Map Listing",
       }],
     );
+    const listingReview = rowsOf(await database.query(
+      `SELECT "sellerProfileId", "displayName", "totalListingCount"
+         FROM public.grainline_seller_owner_listing_review()`,
+    )).map((row) => ({
+      ...row,
+      totalListingCount: Number(row.totalListingCount),
+    }));
+    assert.equal(listingReview.length, 1);
+    assert.equal(listingReview[0].sellerProfileId, seller.sellerProfileId);
+    assert.equal(listingReview[0].displayName, "Full Chain Workshop");
+    assert.equal(listingReview[0].totalListingCount >= 1, true);
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -515,6 +526,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_owner_blog_editor()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_owner_listing_review()"),
       /permission denied/u,
     );
     await assert.rejects(

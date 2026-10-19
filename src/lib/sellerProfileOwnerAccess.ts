@@ -23,6 +23,12 @@ type SellerOwnerBlogEditorRow = {
   listingTitle: unknown;
 };
 
+type SellerOwnerListingReviewRow = {
+  sellerProfileId: unknown;
+  displayName: unknown;
+  totalListingCount: unknown;
+};
+
 export type SellerOwnerAccountSummary = {
   sellerProfileId: string;
   avatarImageUrl: string | null;
@@ -44,6 +50,44 @@ export type SellerOwnerBlogEditor = {
     title: string;
   }>>;
 };
+
+export type SellerOwnerListingReview = {
+  sellerProfileId: string;
+  displayName: string;
+  totalListingCount: number;
+};
+
+async function readSellerOwnerListingReview(client: SellerProfileOwnerClient) {
+  const rows = await client.$queryRaw<SellerOwnerListingReviewRow[]>`
+    SELECT * FROM public.grainline_seller_owner_listing_review()
+  `;
+  if (rows.length > 1) {
+    throw new Error("Seller owner listing-review authority returned too many rows");
+  }
+  const row = rows[0];
+  if (!row) return null;
+  if (
+    typeof row.sellerProfileId !== "string"
+    || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.sellerProfileId)
+    || typeof row.displayName !== "string"
+    || row.displayName.length < 1
+    || row.displayName.length > 100
+    || typeof row.totalListingCount !== "bigint"
+    || row.totalListingCount < 0n
+    || row.totalListingCount > BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    throw new Error("Seller owner listing-review authority returned an invalid result");
+  }
+  return Object.freeze({
+    sellerProfileId: row.sellerProfileId,
+    displayName: row.displayName,
+    totalListingCount: Number(row.totalListingCount),
+  }) satisfies Readonly<SellerOwnerListingReview>;
+}
+
+export function sellerOwnerListingReview(userId: string) {
+  return withDbUserContext(userId, readSellerOwnerListingReview);
+}
 
 async function readSellerOwnerBlogEditor(client: SellerProfileOwnerClient) {
   const rows = await client.$queryRaw<SellerOwnerBlogEditorRow[]>`

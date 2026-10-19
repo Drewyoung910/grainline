@@ -33,6 +33,7 @@ import {
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
+import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -232,10 +233,10 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     return listing;
   });
 
-  const sellerInfo = await prisma.sellerProfile.findUnique({
-    where: { id: seller.id },
-    select: { displayName: true, _count: { select: { listings: true } } },
-  });
+  const sellerInfo = await sellerOwnerListingReview(seller.userId);
+  if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
+    throw new Error("Seller listing-review authority returned a different seller");
+  }
   const { reviewListingWithAI } = await import("@/lib/ai-review");
   const aiResult = await reviewListingWithAI({
     listingId: created.id,
@@ -247,7 +248,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     category: created.category ?? null,
     tags: created.tags,
     sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
-    listingCount: sellerInfo?._count.listings ?? 0,
+    listingCount: sellerInfo?.totalListingCount ?? 0,
     imageUrls,
   }).catch((): AIReviewResult => ({
     approved: false,

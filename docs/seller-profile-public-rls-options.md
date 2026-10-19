@@ -338,10 +338,14 @@ consumer files and 179 reconciled opaque shapes. The catalog remains 154
 matching functions: 98 retained, 32 internal and 24 converted authorities.
 The new-listing page also reuses the already-loaded active owner bootstrap for
 its rendered payout/vacation publish gates instead of reading those same two
-seller fields again. Its exact-location metro assignment and total-listing AI
-review inputs remain explicit later conversion work. The candidate is now down
-to 50 direct operations in the same 27 files; relation, raw SQL, total-consumer,
-opaque-shape and function-catalog counts are unchanged.
+seller fields again. A twenty-fifth actor-bound authority returns only seller
+id, display name and the all-status listing count required by new/custom
+listing moderation, preserving the predecessor relation-count scope. Its
+exact-location metro assignment remains later conversion work. The candidate
+is now down to 48 direct operations in 26 files, 98 relation accesses in 50
+files, 15 raw SQL accesses in 12 files, 76 total consumer files and 179
+reconciled opaque shapes. The catalog has 155 matching functions: 98 retained,
+32 internal and 25 converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
