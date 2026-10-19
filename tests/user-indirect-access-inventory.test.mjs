@@ -3,7 +3,10 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { auditUserIndirectAccess } from "../scripts/audit-user-indirect-access.mjs";
+import {
+  auditModelIndirectAccess,
+  auditUserIndirectAccess,
+} from "../scripts/audit-user-indirect-access.mjs";
 
 test("User inventory follows schema relations, shared projections, and lexical aliases", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "grainline-user-inventory-"));
@@ -33,6 +36,7 @@ db.listing.findMany({ include: { seller: { include: { user: false } } } });
 db.listing.findMany({ ...(flag ? { include: { seller: { include: { user: true } } } } : {}) });
 db.listing.findMany({ where: makeFilter() });
 db.user.findFirstOrThrow({ where: { id: "owner" } });
+db.sellerProfile.findUnique({ where: { id: "seller" }, select: { id: true } });
 // db.user.deleteMany({});
 const prose = "db.user.findMany({})";
 const fragment = Prisma.sql\` JOIN "User" u ON u.id = target \`;
@@ -44,16 +48,44 @@ db.$executeRawUnsafe('UPDATE public."User" SET email = $1', email);
 `);
     const report = auditUserIndirectAccess(root);
     assert.equal(report.directCount, 1);
+    assert.equal(report.directFiles, 1);
     assert.equal(report.direct[0].method, "findFirstOrThrow");
+    assert.equal(report.direct[0].fullRow, true);
+    assert.equal(report.directFullRowCount, 1);
+    assert.equal(report.directProjectionOpaqueCount, 0);
     assert.equal(report.relationCount, 3);
+    assert.equal(report.relationFiles, 1);
+    assert.equal(report.relationFullRowCount, 1);
     assert.deepEqual(report.relations.map(({ path: trail }) => trail), ["select.seller.select.user", "where.seller.is.user", "include.seller.include.user"]);
     assert.deepEqual(report.relations[0].fields, ["email"]);
     assert.equal(report.relations[0].file, "src/lib/shared.ts");
     assert.equal(report.relations[0].query.file, "src/main.ts");
     assert.equal(report.relations[2].fullRow, true);
     assert.equal(report.rawSqlCount, 2);
+    assert.equal(report.rawSqlFiles, 1);
+    assert.equal(report.sourceFiles, 1);
     assert.deepEqual(report.opaqueShapes.map(({ expression }) => expression), ["makeFilter()"]);
     assert.deepEqual(report.factoryRelations.map(({ function: name, path: trail }) => ({ name, trail })), [{ name: "blogFilter", trail: "return.seller.user" }]);
+
+    const sellerReport = auditModelIndirectAccess(root, "SellerProfile");
+    assert.equal(sellerReport.model, "SellerProfile");
+    assert.equal(sellerReport.directCount, 1);
+    assert.equal(sellerReport.directFiles, 1);
+    assert.deepEqual(sellerReport.direct[0].fields, ["id"]);
+    assert.equal(sellerReport.direct[0].fullRow, false);
+    assert.equal(sellerReport.directFullRowCount, 0);
+    assert.equal(sellerReport.relationCount, 4);
+    assert.deepEqual(
+      sellerReport.relations.map(({ path: trail }) => trail),
+      [
+        "select.seller",
+        "where.seller",
+        "include.seller",
+        "include.seller",
+      ],
+    );
+    assert.equal(sellerReport.rawSqlCount, 0);
+    assert.equal(sellerReport.sourceFiles, 1);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

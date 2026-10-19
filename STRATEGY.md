@@ -23,12 +23,14 @@ operations, prove zero direct base-table callers, then revoke grants and apply
 ENABLE and FORCE as separate releases. No security release drops another
 column. See `docs/seller-profile-public-rls-options.md`.
 
-Phase 0 is the current work: classify 73 direct app operations across 52 files
-and the relation-shaped audit queue of at most 106 files; reconcile seller,
-location, visibility, deletion, Guild and staff findings; and finish the public
-SellerProfile product/authority audit. No public-table view, function, policy,
-grant or migration implementation begins until that audit closes. Keep
-`CommissionRequest` as a separate RLS release.
+Phase 0 is the current work. The schema-aware AST inventory on exact main
+`e92b7a329cf3f7c1d45e8c2857e26b336d26ff65` finds 99 direct operations, 103
+confirmed relation accesses and 17 raw SQL accesses across 100 source files.
+Classify those callers; reconcile seller, location, visibility, deletion,
+Guild and staff findings; and finish the public SellerProfile product/authority
+audit. No public-table view, function, policy, grant or migration implementation
+begins until that audit closes. Keep `CommissionRequest` as a separate RLS
+release.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

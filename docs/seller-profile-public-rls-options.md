@@ -54,24 +54,32 @@ needs a column/projection boundary as well as row and write authority.
 ## Current caller inventory
 
 The inventory below was measured on exact main
-`e92b7a329cf3f7c1d45e8c2857e26b336d26ff65` and excludes migrations:
+`e92b7a329cf3f7c1d45e8c2857e26b336d26ff65` with the schema-aware TypeScript
+AST scanner exposed as `npm run audit:seller-profile-public-access`. It scans
+`src/` and excludes migrations and installed database function bodies:
 
-- `src/` contains **73 direct `prisma.sellerProfile` operations in 52 files**:
-  12 `count`, 1 `create`, 6 `findFirst`, 18 `findMany`, 35 `findUnique`, and
-  1 `update`.
-- The two direct app writes are `src/lib/ensureSeller.ts` (`create`) and
-  `src/app/api/seller/vacation/route.ts` (`update`). Other seller mutations
-  already tend to use purpose-bound access modules and database operations.
-- Relation-shaped syntax adds 107 `seller: { ... }` occurrences in 54 files and
-  35 `sellerProfile: { ... }` occurrences in 22 files. The union of direct and
-  relation-shaped files is **106 files**.
+- **99 direct `SellerProfile` delegate operations in 58 files**: 12 `count`,
+  1 `create`, 13 `findFirst`, 18 `findMany`, 42 `findUnique`, 1 `update`, and
+  12 `updateMany`.
+- Those include **14 direct writes**: the creation path, vacation update, four
+  admin/founding-maker updates, and eight owner/staff access-module updates.
+  Purpose-bound TypeScript wrappers do not remove the underlying base-table
+  authority and still need fixed database operations before grant closure.
+- **103 confirmed schema-relation accesses in 52 files**, plus five typed
+  query-shape factories whose predicates traverse `SellerProfile`.
+- **17 raw SQL accesses in 14 files**.
+- The union of direct, relation and raw-SQL consumers is **100 source files**.
+- The scan found zero direct full-row returns, zero opaque direct projections,
+  and zero relation full-row returns. Existing callers already select bounded
+  fields, which reduces projection design risk but does not remove shared-role
+  base-table authority.
 
-The relation count is deliberately an upper bound: some `seller` relations are
-not `SellerProfile`, and some files repeat the same query. Before conversion,
-an AST/query inventory must classify each of those files as a real base-table
-consumer, safe public projection consumer, owner/staff operation, or false
-positive. The 73 direct operations and two direct writes are exact source
-counts; 106 files is the conservative migration queue.
+The earlier regex estimate of 73 direct calls in 52 files counted only literal
+`prisma.sellerProfile` expressions and missed `tx`, `client`, and `db`
+receivers. Its 106-file relation estimate mixed real and false-positive
+relations. It is retired in favor of the schema-aware inventory. The scanner
+also reports unresolved generic query shapes for manual triage; those are an
+audit queue, not assumed `SellerProfile` accesses.
 
 ## Required product and security invariants
 
@@ -103,9 +111,9 @@ Any option must preserve all of these:
 
 | Option | Shape | Caller conversion | Protection | Rollback | Main costs and limits |
 |---|---|---|---|---|---|
-| **A. Add another companion-table split** | Move exact coordinates and any remaining internal/control fields into another one-to-one table. Leave a physically public catalog row and add fixed writes for both sides. | Every consumer of a moved field changes. The exact subset requires the field-by-field AST inventory; the audit queue starts at 73 direct operations in 52 files and the 106-file relation upper bound. Both direct app writes still move behind fixed operations. | Strong physical separation for fields moved out. It can make the remaining row safe for broad public reads. | Keep old columns synchronized during compatibility, switch reads back, and revoke the new path. No old column is dropped during the security release. | Repeats the migration and synchronization risk of the private split; creates a third seller table; still needs row-bound write functions; does not by itself solve visibility-state differences. |
-| **B. Zero direct base authority plus bounded projection and fixed operations** | Keep the schema intact. Add one or more security-barrier public projections containing only approved fields, with conditional location disclosure handled in a dedicated projection/function. Move owner, staff, service and repair reads to purpose-bound operations. Move every write behind fixed operations. Revoke runtime/PUBLIC access to the base table, then activate RLS in separate ENABLE and FORCE releases. | All 73 direct operations must be classified and moved off direct base access. Relevant relation reads from the 106-file upper-bound queue must use a safe projection or a purpose-bound operation. The two direct writes definitely convert. | Strong default: newly added base columns are not automatically public; exact coordinates and stable identifiers stay out of generic public results; row visibility and every mutation are centrally enforced. | Before activation, restore old callers because old grants remain. After activation, database-first rollback returns FORCE to ENABLE or disables the new posture, then restores the reviewed predecessor grant only if the compatibility proof still passes. | Largest explicit caller conversion. The view/function owner and RLS policy interaction must be proven on the full PostgreSQL 16 schema; no assumption about Prisma or view-owner bypass is accepted. Multiple projections may be needed for catalog, map and owner surfaces. |
-| **C. Column-level privilege revocation plus fixed writes** | Revoke whole-table grants; grant runtime `SELECT` only on a reviewed safe column set. Serve conditional coordinates through a function/view. Put the two direct writes and all other mutations behind fixed operations. | Explicit Prisma reads that request only granted columns may remain. Every implicit/broad read, coordinate read, relation query requesting denied columns, and both direct writes must convert. The exact subset comes from the AST/query inventory. | Reduces broad disclosure and closes direct writes. Column denial protects named sensitive fields. | Regrant the reviewed predecessor columns and switch converted callers back. | Shared runtime identity still cannot express per-owner reads by itself; safe-column maintenance is fragile when columns are added; Prisma relation shapes can request a denied column unexpectedly; weaker fail-closed default than Option B. |
+| **A. Add another companion-table split** | Move exact coordinates and any remaining internal/control fields into another one-to-one table. Leave a physically public catalog row and add fixed writes for both sides. | Every consumer of a moved field changes. The exact queue is 99 direct calls, 103 relation accesses, and 17 raw SQL accesses across 100 files. All 14 direct writes still move behind fixed operations. | Strong physical separation for fields moved out. It can make the remaining row safe for broad public reads. | Keep old columns synchronized during compatibility, switch reads back, and revoke the new path. No old column is dropped during the security release. | Repeats the migration and synchronization risk of the private split; creates a third seller table; still needs row-bound write functions; does not by itself solve visibility-state differences. |
+| **B. Zero direct base authority plus bounded projection and fixed operations** | Keep the schema intact. Add one or more security-barrier public projections containing only approved fields, with conditional location disclosure handled in a dedicated projection/function. Move owner, staff, service and repair reads to purpose-bound operations. Move every write behind fixed operations. Revoke runtime/PUBLIC access to the base table, then activate RLS in separate ENABLE and FORCE releases. | All 99 direct operations, 103 relation accesses and 17 raw SQL accesses must be classified and moved to a safe projection or purpose-bound operation. All 14 direct writes convert. | Strong default: newly added base columns are not automatically public; exact coordinates and stable identifiers stay out of generic public results; row visibility and every mutation are centrally enforced. | Before activation, restore old callers because old grants remain. After activation, database-first rollback returns FORCE to ENABLE or disables the new posture, then restores the reviewed predecessor grant only if the compatibility proof still passes. | Largest explicit caller conversion. The view/function owner and RLS policy interaction must be proven on the full PostgreSQL 16 schema; no assumption about Prisma or view-owner bypass is accepted. Multiple projections may be needed for catalog, map and owner surfaces. |
+| **C. Column-level privilege revocation plus fixed writes** | Revoke whole-table grants; grant runtime `SELECT` only on a reviewed safe column set. Serve conditional coordinates through a function/view. Put all 14 direct writes and all other mutations behind fixed operations. | Explicit Prisma reads that request only granted columns may remain. Every implicit/broad read, coordinate read, relation query requesting denied columns, and every direct write must convert. | Reduces broad disclosure and closes direct writes. Column denial protects named sensitive fields. | Regrant the reviewed predecessor columns and switch converted callers back. | Shared runtime identity still cannot express per-owner reads by itself; safe-column maintenance is fragile when columns are added; Prisma relation shapes can request a denied column unexpectedly; weaker fail-closed default than Option B. |
 
 ## Recommendation
 
@@ -132,8 +140,8 @@ view owner bypasses RLS.
 
 ### Phase 0: exact authority inventory
 
-- Classify the 73 direct operations and every real consumer in the 106-file
-  relation audit queue.
+- Classify all 99 direct operations, 103 confirmed relation accesses, five
+  relation-bearing query factories, and 17 raw SQL accesses across 100 files.
 - Record requested columns, row visibility predicate, principal, and write
   authority for each caller.
 - Reconcile current Claude/audit allegations that touch seller visibility,
