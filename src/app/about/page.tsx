@@ -3,7 +3,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 import { getPublicActiveMemberCount } from "@/lib/userPublicIdentityAccess";
 
 export const metadata: Metadata = {
@@ -16,13 +16,12 @@ export default async function AboutPage() {
   const { userId } = await auth();
   const makerLink = userId ? "/dashboard" : "/sign-up";
 
-  const [listingCount, sellerCount, memberCount] = await Promise.all([
+  const [listingCount, marketplaceCounts, memberCount] = await Promise.all([
     prisma.listing.count({ where: publicListingWhere() }),
-    prisma.sellerProfile.count({
-      where: activeSellerProfileWhere({ listings: { some: publicListingWhere() } }),
-    }),
+    sellerPublicMarketplaceCounts(),
     getPublicActiveMemberCount(),
   ]);
+  const sellerCount = marketplaceCounts.activeSellerCount;
 
   return (
     <div className="bg-gradient-to-b from-amber-50/30 via-white to-white min-h-[100svh]">

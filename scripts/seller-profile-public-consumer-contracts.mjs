@@ -17,7 +17,6 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 // A file can need several contracts when it combines public presentation with
 // contextual eligibility, approximate-map, participant, or transaction behavior.
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
-  "src/app/about/page.tsx": ["PUBLIC_ELIGIBILITY"],
   "src/app/account/commissions/page.tsx": ["PUBLIC_PROFILE"],
   "src/app/account/following/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/account/page.tsx": ["OWNER"],
@@ -89,8 +88,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/seller/[id]/shop/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/sitemap.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/tag/[slug]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
-  "src/app/why-grainline/page.tsx": ["PUBLIC_ELIGIBILITY"],
-  "src/app/why-sell-on-grainline/page.tsx": ["PUBLIC_ELIGIBILITY"],
   "src/components/ReviewsSection.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/components/SimilarMakers.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/lib/accountDeletion.ts": ["SERVICE"],
@@ -104,7 +101,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/lib/footerMetros.ts": ["PUBLIC_ELIGIBILITY"],
   "src/lib/foundingMaker.ts": ["PUBLIC_ELIGIBILITY", "SERVICE"],
   "src/lib/foundingMakerCore.ts": ["SERVICE"],
-  "src/lib/homepageStats.ts": ["PUBLIC_ELIGIBILITY"],
   "src/lib/listingDelete.ts": ["OWNER", "TRANSACTION"],
   "src/lib/metrics.ts": ["SERVICE"],
   "src/lib/popularBlogTags.ts": ["PUBLIC_ELIGIBILITY"],
@@ -249,7 +245,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   if (reviewedNonTargetResiduals.some(({ model }) => model === "SellerProfile")) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
-  if (targetOpaqueShapes.length !== 38
+  if (targetOpaqueShapes.length !== 35
       || reviewedNonTargetFactoryCalls.length !== 149
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(

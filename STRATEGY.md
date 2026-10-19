@@ -55,10 +55,12 @@ seller ids only. A fourth exact projection serves global and blog seller-name
 suggestions with only seller id/name, active-seller, optional public-listing,
 search, limit and reciprocal-block rules. Two more exact operations provide
 only the seller sitemap counts and id/name/updated-at pages for ordinary and
-customer-photo routes. All six keep the old table grant unchanged. This reduces
-the candidate source inventory to 90 direct operations in 52 files, 16 raw SQL
-accesses in 13 files, 98 total consumer files and two remaining purpose-bound
-owner coordinate consumers. It
+customer-photo routes. A seventh exact aggregate returns only the active
+public-seller and founding-maker counts used by four marketing surfaces; its
+founding count preserves the historical all-profile allocation rule. All seven
+keep the old table grant unchanged. This reduces the candidate source inventory
+to 85 direct operations in 48 files, 16 raw SQL accesses in 13 files, 94 total
+consumer files and two remaining purpose-bound owner coordinate consumers. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three
@@ -2664,7 +2666,7 @@ Both landing pages are live.
 - `/why-grainline` (buyer) lives in `src/app/why-grainline/page.tsx`. Sections: hero, handmade-trust problem with two-column comparison, four trust-mechanism cards, badge ladder (Founding/Guild Member/Guild Master with live counts), American-made stat bar with map link, buyer protection step-by-step, espresso final CTA.
 - `/why-sell-on-grainline` (seller) lives in `src/app/why-sell-on-grainline/page.tsx`. Sections: hero, four-platform fee comparison table (Grainline/Etsy/Faire/Amazon Handmade), Etsy take-rate trap deep dive, Founding Maker scarcity counter, what-we-dont-do, what-you-get six-card grid, risk reversal, espresso final CTA. CTA links use Clerk auth state to send signed-in users straight to `/dashboard` and signed-out users to `/sign-up?redirect_url=/dashboard`.
 
-Both are wired into the Shop and Sell footer columns respectively, added to `middleware.ts` `isPublic`, and added to `sitemap.ts` at priority 0.8 monthly. Live `prisma.sellerProfile.count({ where: { isFoundingMaker: true } })` reads power the "X of 250 spots left" counter on the seller page and the "X of 250 granted" pill on the buyer page.
+Both are wired into the Shop and Sell footer columns respectively, added to `middleware.ts` `isPublic`, and added to `sitemap.ts` at priority 0.8 monthly. The bounded `sellerPublicMarketplaceCounts()` authority powers the "X of 250 spots left" counter on the seller page and the "X of 250 granted" pill on the buyer page.
 
 Revisit when: catalog hits ~75 listings (refresh stats and screenshots), Etsy fees change (refresh comparison table), or Drew wants to test conversion variants on the seller landing.
 

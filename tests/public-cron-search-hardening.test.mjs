@@ -170,7 +170,7 @@ describe("cron and public route hardening", () => {
     assert.match(blogSuggestions, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blogSuggestions, /normalizeSearchSuggestionQuery/);
     assert.match(blogSuggestions, /BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY/);
-    assert.match(blogSuggestions, /activeSellerProfileWhere/);
+    assert.match(blogSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, false, 3\)/);
     assert.match(blogSuggestions, /bp\."publishedAt" IS NOT NULL/);
     assert.match(blogSuggestions, /bp\."publishedAt" <= NOW\(\)/);
     assert.doesNotMatch(blogSuggestions, /similarity\(bp\.title, \$\{q\}\) > 0\.2/);
@@ -182,7 +182,7 @@ describe("cron and public route hardening", () => {
     assert.match(globalSuggestions, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(globalSuggestions, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
     assert.match(globalSuggestions, /publicListingWhere/);
-    assert.match(globalSuggestions, /activeSellerProfileWhere/);
+    assert.match(globalSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, true, 2\)/);
     assert.match(globalSuggestions, /bp\."publishedAt" IS NOT NULL/);
     assert.match(globalSuggestions, /bp\."publishedAt" <= NOW\(\)/);
 
@@ -237,7 +237,7 @@ describe("cron and public route hardening", () => {
     assert.match(blogSuggestions, /getBlockedIdsFor\(meDbId\)/);
     assert.match(blogSuggestions, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(blogSuggestions, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
-    assert.match(blogSuggestions, /id: \{ notIn: blockedSellerIds \}/);
+    assert.match(blogSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, false, 3\)/);
   });
 
   it("keeps checkout rollback scoped to the signed-in buyer and idempotent stock restore", () => {

@@ -24,6 +24,7 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
             "chargesEnabled" = true,
             "stripeAccountSupported" = true,
             "vacationMode" = false,
+            "isFoundingMaker" = true,
             "updatedAt" = $2
       WHERE id = $1`,
     [seller.sellerProfileId, now],
@@ -116,6 +117,11 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     ));
     assert.equal(Number(sitemapCounts[0].sellerCount) >= 1, true);
     assert.equal(Number(sitemapCounts[0].customerPhotoSellerCount) >= 1, true);
+    const marketplaceCounts = rowsOf(await database.query(
+      "SELECT * FROM public.grainline_seller_public_marketplace_counts()",
+    ));
+    assert.equal(Number(marketplaceCounts[0].activeSellerCount) >= 1, true);
+    assert.equal(Number(marketplaceCounts[0].foundingMakerCount) >= 1, true);
     const sellerSitemapRows = rowsOf(await database.query(
       `SELECT id, "displayName"
          FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 50000)`,
@@ -226,6 +232,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_sitemap_counts()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_marketplace_counts()"),
       /permission denied/u,
     );
     await assert.rejects(

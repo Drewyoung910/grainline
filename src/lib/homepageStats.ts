@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 import { getPublicFulfilledOrderCount } from "@/lib/orderPublicAggregateAuthority";
 import { getPublicActiveMemberCount } from "@/lib/userPublicIdentityAccess";
 
@@ -15,18 +15,19 @@ export type HomepageStats = {
 };
 
 async function loadHomepageStats(): Promise<HomepageStats> {
-  const [pieces, makers, members, fulfilledOrders] = await Promise.all([
+  const [pieces, marketplaceCounts, members, fulfilledOrders] = await Promise.all([
     prisma.listing.count({ where: publicListingWhere() }),
-    prisma.sellerProfile.count({
-      where: activeSellerProfileWhere({
-        listings: { some: publicListingWhere() },
-      }),
-    }),
+    sellerPublicMarketplaceCounts(),
     getPublicActiveMemberCount(),
     getPublicFulfilledOrderCount(),
   ]);
 
-  return { pieces, makers, members, fulfilledOrders };
+  return {
+    pieces,
+    makers: marketplaceCounts.activeSellerCount,
+    members,
+    fulfilledOrders,
+  };
 }
 
 export const getCachedHomepageStats = unstable_cache(

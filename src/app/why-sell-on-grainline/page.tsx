@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
+import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 import {
   Truck,
   BarChart,
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default async function WhySellOnGrainlinePage() {
   const { userId } = await auth();
   const ctaHref = userId ? "/dashboard" : "/sign-up?redirect_url=%2Fdashboard";
-  const foundingCount = await prisma.sellerProfile.count({ where: { isFoundingMaker: true } });
+  const { foundingMakerCount: foundingCount } = await sellerPublicMarketplaceCounts();
   const foundingRemaining = Math.max(0, 250 - foundingCount);
 
   return (

@@ -225,8 +225,10 @@ in application SQL. A fourth exact projection converts both seller-name
 suggestion reads, returning only seller id/name while preserving each route's
 public-listing requirement and reciprocal-block behavior. The candidate now
 also converts both seller sitemap counts and both bounded sitemap page reads
-through two exact operations. It has 90 direct operations in 52 files, 98 total
-consumer files and 209 reconciled opaque query shapes.
+through two exact operations. A seventh operation returns only the active
+public-seller and historical founding-maker counts used by four marketing
+surfaces. It has 85 direct operations in 48 files, 94 total consumer files and
+206 reconciled opaque query shapes.
 Predecessor grants remain unchanged. The candidate
 remains unmerged, and the three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

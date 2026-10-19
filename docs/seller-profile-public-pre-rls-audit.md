@@ -151,7 +151,7 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds six converted runtime authorities without changing
+The Phase 1 candidate adds seven converted runtime authorities without changing
 predecessor table grants. `grainline_seller_public_map_points(integer)` returns
 only seller id/name/city/state and a database-derived coarse point, enforces
 active public-map eligibility, applies reciprocal blocks from trusted
@@ -172,7 +172,10 @@ suggestions without exposing normalized search state.
 `grainline_seller_public_sitemap_counts()` and
 `grainline_seller_public_sitemap_page(text,integer,integer)` own the ordinary
 seller and customer-photo sitemap predicates, counts, stable pagination, and
-the exact id/name/updated-at output. All six grant execute only to the app
+the exact id/name/updated-at output.
+`grainline_seller_public_marketplace_counts()` returns only the active seller
+count used by public marketplace statistics and the historical all-profile
+founding-maker allocation count. All seven grant execute only to the app
 runtime. Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -180,7 +183,7 @@ runtime. Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 6 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion and two seller-sitemap operations replace public base-table reads while predecessor grants remain available |
+| Converted authority | 7 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations and marketplace-count aggregate replace public base-table reads while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -200,7 +203,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 44 | 34 | 4 | 6 |
+| Seller | 45 | 35 | 4 | 6 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 12 | 7 | 2 | 3 |
 
@@ -466,6 +469,8 @@ guard the final zero-direct state, but they do not count as behavior proof.
   profile reads or expose normalized search state.
 - Keep sitemap counts and pages on the exact sitemap authorities; customer
   photos admit only active or sold-out public listing details with a photo.
+- Keep marketing-page active/founding counts on the exact marketplace-count
+  authority; founding allocation intentionally counts inactive profiles too.
 - Merge and release the isolated application correction that replaces
   raw-coordinate output on public maps, seller/listing public helpers, seller
   JSON-LD and browse-distance SQL with approximate points and removes “exact

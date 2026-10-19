@@ -9,19 +9,13 @@ function source(path) {
 describe("homepage deterministic query guardrails", () => {
   it("orders capped homepage map rows deterministically", () => {
     const home = source("src/app/page.tsx");
-    const publicMapOptIn = home.indexOf("publicMapOptIn: true");
-    const mapQueryStart = home.lastIndexOf("prisma.sellerProfile.findMany({", publicMapOptIn);
-    const mapQueryEnd = home.indexOf("prisma.blogPost.findMany({", mapQueryStart);
-
-    assert.notEqual(mapQueryStart, -1, "homepage map query should exist");
-    assert.notEqual(mapQueryEnd, -1, "homepage map query should end before the blog query");
-    const mapQuery = home.slice(mapQueryStart, mapQueryEnd);
-
-    assert.match(mapQuery, /publicMapOptIn: true/);
-    assert.ok(
-      mapQuery.indexOf('orderBy: { id: "asc" }') < mapQuery.indexOf("take: 200"),
-      "homepage map rows should have a stable order before the 200-row cap",
+    const authority = source(
+      "prisma/migrations/20261019010000_prepare_seller_profile_public_map_authority/migration.sql",
     );
+
+    assert.match(home, /sellerPublicMapPoints\(meDbId, 200\)/);
+    assert.doesNotMatch(home, /prisma\.sellerProfile\.findMany\([\s\S]*publicMapOptIn/u);
+    assert.match(authority, /ORDER BY seller\.id ASC[\s\S]*LIMIT p_limit/u);
   });
 
   it("keeps the static homepage hero free of decoration-only database work", () => {
@@ -44,7 +38,9 @@ describe("homepage deterministic query guardrails", () => {
     assert.match(stats, /HOMEPAGE_STATS_REVALIDATE_SECONDS = 5 \* 60/);
     assert.match(stats, /await Promise\.all\(\[/);
     assert.match(stats, /prisma\.listing\.count\(\{ where: publicListingWhere\(\) \}\)/);
-    assert.match(stats, /prisma\.sellerProfile\.count\(\{[\s\S]*activeSellerProfileWhere\([\s\S]*listings: \{ some: publicListingWhere\(\) \}/);
+    assert.match(stats, /sellerPublicMarketplaceCounts\(\)/);
+    assert.match(stats, /makers: marketplaceCounts\.activeSellerCount/);
+    assert.doesNotMatch(stats, /prisma\.sellerProfile\./);
     assert.match(stats, /import \{ getPublicActiveMemberCount \} from "@\/lib\/userPublicIdentityAccess"/);
     assert.match(stats, /getPublicActiveMemberCount\(\)/);
     assert.doesNotMatch(stats, /prisma\.user\.(count|findMany|findFirst|findUnique)\(/);

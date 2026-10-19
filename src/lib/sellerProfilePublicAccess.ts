@@ -36,6 +36,11 @@ export type SellerPublicSitemapCounts = Readonly<{
   customerPhotoSellerCount: number;
 }>;
 
+export type SellerPublicMarketplaceCounts = Readonly<{
+  activeSellerCount: number;
+  foundingMakerCount: number;
+}>;
+
 export type SellerPublicSitemapRow = Readonly<{
   id: string;
   displayName: string;
@@ -70,6 +75,11 @@ type SellerPublicNameSuggestionRow = {
 type SellerPublicSitemapCountsRow = {
   sellerCount: unknown;
   customerPhotoSellerCount: unknown;
+};
+
+type SellerPublicMarketplaceCountsRow = {
+  activeSellerCount: unknown;
+  foundingMakerCount: unknown;
 };
 
 type SellerPublicSitemapRowResult = {
@@ -215,9 +225,22 @@ async function readSellerPublicNameSuggestions(
 function parseSafeCount(value: unknown, label: string) {
   const count = Number(value);
   if (!Number.isSafeInteger(count) || count < 0) {
-    throw new Error(`Seller public sitemap authority returned an invalid ${label}`);
+    throw new Error(`Seller public authority returned an invalid ${label}`);
   }
   return count;
+}
+
+async function readSellerPublicMarketplaceCounts(client: SellerPublicAccessClient) {
+  const rows = await client.$queryRaw<SellerPublicMarketplaceCountsRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_marketplace_counts()
+  `);
+  if (rows.length !== 1) {
+    throw new Error("Seller public marketplace count authority returned an invalid result");
+  }
+  return Object.freeze({
+    activeSellerCount: parseSafeCount(rows[0].activeSellerCount, "active seller count"),
+    foundingMakerCount: parseSafeCount(rows[0].foundingMakerCount, "founding maker count"),
+  });
 }
 
 async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
@@ -356,6 +379,10 @@ export async function sellerPublicNameSuggestions(
 
 export async function sellerPublicSitemapCounts() {
   return readSellerPublicSitemapCounts(prisma);
+}
+
+export async function sellerPublicMarketplaceCounts() {
+  return readSellerPublicMarketplaceCounts(prisma);
 }
 
 export async function sellerPublicSitemapPage(

@@ -24,6 +24,10 @@ const sitemapMigration = readFileSync(
   "prisma/migrations/20261019050000_prepare_seller_profile_public_sitemap_authority/migration.sql",
   "utf8",
 );
+const marketplaceCountsMigration = readFileSync(
+  "prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql",
+  "utf8",
+);
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -51,6 +55,7 @@ async function readyDatabase() {
       "stripeAccountSupported" boolean NOT NULL DEFAULT true,
       "vacationMode" boolean NOT NULL DEFAULT false,
       "allowLocalPickup" boolean NOT NULL DEFAULT true,
+      "isFoundingMaker" boolean NOT NULL DEFAULT false,
       "updatedAt" timestamp(3) NOT NULL DEFAULT '2026-10-19T00:00:00.000Z'
     );
     CREATE TABLE public."Block" (
@@ -116,12 +121,16 @@ async function readyDatabase() {
       VALUES ('review-visible', 'listing-public');
     INSERT INTO public."ReviewPhoto" (id, "reviewId")
       VALUES ('review-photo-visible', 'review-visible');
+    UPDATE public."SellerProfile"
+       SET "isFoundingMaker" = true
+     WHERE id IN ('seller-visible', 'seller-owner-only');
   `);
   await database.exec(mapMigration);
   await database.exec(locationMigration);
   await database.exec(browseMigration);
   await database.exec(nameSuggestionMigration);
   await database.exec(sitemapMigration);
+  await database.exec(marketplaceCountsMigration);
   return database;
 }
 
@@ -495,6 +504,33 @@ test("seller sitemap authorities deny ungranted callers", async () => {
         SELECT *
           FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 1)
       `),
+      /permission denied/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("marketplace count authority preserves active and founding scopes", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.deepEqual((await database.query(`
+      SELECT * FROM public.grainline_seller_public_marketplace_counts()
+    `)).rows, [{ activeSellerCount: 4, foundingMakerCount: 2 }]);
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("marketplace count authority denies ungranted callers", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_untrusted");
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_marketplace_counts()"),
       /permission denied/u,
     );
   } finally {
