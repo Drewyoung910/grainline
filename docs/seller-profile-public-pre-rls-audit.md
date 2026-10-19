@@ -93,13 +93,18 @@ cannot target Production.
 | Runtime column privilege rows | 165 | All 55 columns carry runtime `SELECT`, `INSERT`, and `UPDATE` through the table grant |
 | Installed function bodies containing `SellerProfile` | 130 | Every retained function must be classified and tested under the future grant/RLS posture |
 | Runtime-executable functions in that set | 91 | Existing fixed authorities are a major part of the compatibility surface; they are not automatically conversion defects |
+| Staff-read-role executable functions in that set | 7 | The staff projection surface is separate from the shared app runtime and must retain its staff role/PIN/audit binding |
+| Migration-owner/internal-only functions in that set | 32 | Internal helpers remain non-runtime authorities unless a reviewed caller proves otherwise |
 | PUBLIC-executable functions in that set | 0 | Current function ACLs do not expose them to unauthenticated database roles |
 | Dependent non-internal triggers | 24 | Six are on `SellerProfile`; the rest synchronize or enforce cross-domain state |
 | Views or materialized views referencing the table | 0 | The selected bounded projections are additive new objects |
 | Constraints involving the table | 23 | Seven belong to `SellerProfile`; 16 are incoming foreign keys from other tables |
 
 All 130 matching functions are `SECURITY DEFINER`, owned by the disposable
-migration owner, and pinned to `search_path=pg_catalog`. The 91 runtime-callable
+migration owner, and pinned to `search_path=pg_catalog`. Their execute ACL
+partition is exact: the migration owner can execute all 130, the shared app
+runtime can execute 91, the staff-read role can execute 7, and 32 are
+owner/internal-only; none is executable by `PUBLIC`. The runtime-callable
 functions include existing case, order, checkout, deletion, Guild, Stripe,
 shipping, notification and seller-owner operations. Option B must retain only
 the reviewed subset and prove each function's result and actor binding; it

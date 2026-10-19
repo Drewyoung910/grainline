@@ -50,6 +50,17 @@ try {
            pg_catalog.pg_get_userbyid(p.proowner) AS owner,
            p.proconfig AS config,
            pg_catalog.md5(p.prosrc) AS source_md5,
+           ARRAY(
+             SELECT CASE
+                      WHEN acl.grantee = 0 THEN 'PUBLIC'
+                      ELSE pg_catalog.pg_get_userbyid(acl.grantee)
+                    END
+               FROM pg_catalog.aclexplode(
+                 COALESCE(p.proacl, pg_catalog.acldefault('f', p.proowner))
+               ) AS acl
+              WHERE acl.privilege_type = 'EXECUTE'
+              ORDER BY 1
+           )::text[] AS execute_grantees,
            pg_catalog.has_function_privilege(
              'grainline_app_runtime', p.oid, 'EXECUTE'
            ) AS runtime_execute,
@@ -128,6 +139,14 @@ try {
     grants,
     columnGrants,
   };
+  const executeGranteeCounts = Object.fromEntries(
+    [...new Set(functions.flatMap((row) => row.execute_grantees))]
+      .sort()
+      .map((grantee) => [
+        grantee,
+        functions.filter((row) => row.execute_grantees.includes(grantee)).length,
+      ]),
+  );
   const summary = {
     identity,
     table,
@@ -135,6 +154,7 @@ try {
     functionCount: functions.length,
     runtimeExecutableFunctions: functions.filter((row) => row.runtime_execute).length,
     publicExecutableFunctions: functions.filter((row) => row.public_execute).length,
+    executeGranteeCounts,
     triggerCount: triggers.length,
     sellerProfileTriggerCount: triggers.filter(
       (row) => row.table_name === '"SellerProfile"',
