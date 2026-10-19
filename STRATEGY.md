@@ -99,10 +99,12 @@ and staff authors without seller profiles. A separate actor-bound listing-review
 operation preserves the all-status listing count used by post-create AI review
 while returning only profile id, display name and that count. Together with
 reusing the owner bootstrap for the new-listing readiness banner, this reduces
-the candidate source inventory to 48 direct operations in 26 files, 15 raw SQL
-accesses in 12 files, 76 total consumer files, 179 reconciled opaque query shapes and two
-remaining purpose-bound owner coordinate consumers. The candidate catalog
-contains the unchanged 98 retained and 32 internal functions plus 25 converted authorities. It
+the candidate source inventory. A separate actor-and-target-bound listing-metro
+source returns the exact coordinate pair only to the server-side metro mapper.
+The candidate now has 47 direct operations in 25 files, 15 raw SQL accesses in
+12 files, 75 total consumer files, 179 reconciled opaque query shapes and one
+remaining owner-coordinate consumer file. The candidate catalog contains the
+unchanged 98 retained and 32 internal functions plus 26 converted authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three

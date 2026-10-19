@@ -334,6 +334,18 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     assert.equal(listingReview[0].sellerProfileId, seller.sellerProfileId);
     assert.equal(listingReview[0].displayName, "Full Chain Workshop");
     assert.equal(listingReview[0].totalListingCount >= 1, true);
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "sellerProfileId", lat, lng
+           FROM public.grainline_seller_owner_listing_metro_source($1)`,
+        [seller.sellerProfileId],
+      )),
+      [{
+        sellerProfileId: seller.sellerProfileId,
+        lat: 30.251,
+        lng: -97.749,
+      }],
+    );
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -530,6 +542,13 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_owner_listing_review()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_owner_listing_metro_source($1)",
+        [seller.sellerProfileId],
+      ),
       /permission denied/u,
     );
     await assert.rejects(

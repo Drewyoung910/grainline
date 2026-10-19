@@ -39,7 +39,10 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
-import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
+import {
+  sellerOwnerListingMetroSource,
+  sellerOwnerListingReview,
+} from "@/lib/sellerProfileOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -304,10 +307,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
   // Assign metro geography from seller's location — non-fatal (runs for both draft and publish)
   try {
-    const sellerLocation = await prisma.sellerProfile.findUnique({
-      where: { id: seller.id },
-      select: { lat: true, lng: true },
-    });
+    const sellerLocation = await sellerOwnerListingMetroSource(seller.userId, seller.id);
     if (sellerLocation?.lat != null && sellerLocation?.lng != null) {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(sellerLocation.lat, sellerLocation.lng);

@@ -57,6 +57,7 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_owner_account_summary()",
   "grainline_seller_owner_blog_editor()",
   "grainline_seller_owner_core()",
+  "grainline_seller_owner_listing_metro_source(text)",
   "grainline_seller_owner_listing_review()",
   "grainline_user_block_follow_cleanup(text)",
 ]);
@@ -76,8 +77,8 @@ function sameStrings(actual, expected) {
 }
 
 export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
-  if (functions.length !== 155) {
-    throw new Error(`SellerProfile function inventory drifted: expected 155, got ${functions.length}`);
+  if (functions.length !== 156) {
+    throw new Error(`SellerProfile function inventory drifted: expected 156, got ${functions.length}`);
   }
   for (const row of functions) {
     if (!row.security_definer || !row.config?.includes("search_path=pg_catalog")) {
@@ -129,7 +130,7 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
   );
   if (retainedAuthorityFunctions.length !== 98
       || internalSupportFunctions.length !== 32
-      || convertedAuthorityFunctions.length !== 25) {
+      || convertedAuthorityFunctions.length !== 26) {
     throw new Error(
       `SellerProfile function dispositions drifted: retained=${retainedAuthorityFunctions.length}; `
       + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length}`,

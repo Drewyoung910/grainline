@@ -346,6 +346,14 @@ is now down to 48 direct operations in 26 files, 98 relation accesses in 50
 files, 15 raw SQL accesses in 12 files, 76 total consumer files and 179
 reconciled opaque shapes. The catalog has 155 matching functions: 98 retained,
 32 internal and 25 converted authorities.
+A twenty-sixth actor-and-target-bound authority returns the exact seller
+coordinate pair only to the server-side post-create listing metro mapper. It
+does not change public location disclosure. The candidate is now down to 47
+direct operations in 25 files, 98 relation accesses in 50 files, 15 raw SQL
+accesses in 12 files, 75 total consumer files and 179 reconciled opaque shapes.
+Only one source consumer file still directly reads owner coordinates. The
+catalog has 156 matching functions: 98 retained, 32 internal and 26 converted
+authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
