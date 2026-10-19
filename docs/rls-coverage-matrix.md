@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-10-15
+Last updated: 2026-10-18
 
 ## Purpose And Scope
 
@@ -8,12 +8,11 @@ This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Candidate-source snapshot scope: 69 Prisma models.
 
 Current candidate source contains 69 Prisma models. Twenty-nine have committed
-ENABLE plus FORCE migrations and forty have no committed RLS activation. The
-additional `SellerProfilePrivate` companion is an additive, zero-direct-runtime
-table whose policyless ENABLE is now present in Production and whose FORCE
-successor remains a candidate. Retained Production evidence covers 69 model
-tables: twenty-eight FORCE, one ENABLE-only and forty without RLS. The
-twenty-eight currently live FORCE models are listed in
+ENABLE plus FORCE migrations and forty have no committed RLS activation.
+`SellerProfilePrivate` is an additive, zero-direct-runtime companion whose
+policyless ENABLE and separate FORCE successor are now accepted in Production.
+Retained Production evidence covers 69 model tables: twenty-nine FORCE and
+forty without RLS. The previously listed twenty-eight FORCE models are in
 `docs/remaining-rls-table-prioritization-audit-20261012.md`.
 
 `User` is
@@ -241,8 +240,8 @@ completed alternative.
 |---|---|---|---|---|
 | `User` | `RLS_LIVE_FORCE` | Identity and account core | Account identity, contact and shipping PII; self, public/relationship identity, staff, Clerk lifecycle and deletion jobs | Policyless ENABLE plus FORCE is accepted in Production. Phase A is bound to guarded run `37747980060`; FORCE is bound to exact main `85934f600f46c3e4b08046888d008970eaf8f171`, first-attempt CI `37763700848`, and guarded run `37766247341`. The retained postflight proves zero policies, zero runtime/staff/PUBLIC direct table or column authority, and all 150 reviewed readers remain security-definer functions. The separately tracked `AccountDeletionSideEffect` and `ClerkWebhookEvent` service ledgers are also FORCE-hardened. See `docs/user-rls-release.md`, `docs/user-cross-domain-authority-convergence.md`, `docs/user-indirect-access-pre-rls-audit.md`, and `docs/user-service-ledger-separation-decision.md`. |
 | `UserEmailAddress` | `RLS_LIVE_FORCE` | Identity and account core | Private email history; account owner, Clerk lifecycle, signed-unsubscribe replay defense, export and deletion | Policyless ENABLE plus FORCE and zero direct runtime/PUBLIC table authority are live from exact main `e689e1ff1d76a65146d132ad25dc545a72b87aac`, CI `37133944427`, and guarded run `37136042748`; six exact fixed operations remain. See `docs/user-email-address-rls-release.md` |
-| `SellerProfile` | `BLOCKED_DESIGN` | Seller public-private split | Public shop profile, conditional exact coordinates and public availability snapshots; public, buyer, seller, staff and service callers | The private companion conversion, predecessor drain and 30-column retirement are live. Account deletion was repaired by run `38697452638`, and exact main `e46c45ed7e24b29f6ae2673d96649d2e1ac3ab61` is live as `dpl_7kfJ9HCWtJBiHhZDhbCBbwNGts5m`. Public-row RLS remains separate because anonymous catalog reads and conditional exact-coordinate disclosure first require bounded projections and direct-grant conversion. See `docs/seller-profile-private-boundary-pre-rls-audit.md` |
-| `SellerProfilePrivate` | `RLS_LIVE_ENABLE_FORCE_CANDIDATE` | Seller public-private split | Private provider, ship-from, package, workflow, staff/cron and analytics state; fixed application and service operations only | Policyless ENABLE is live from exact main `faed352bf0baa5bff8727539bdaec36eb18370ac`, CI `38813143503`, and protected run `38825901687`; evidence proves zero policies, zero ordinary-runtime/PUBLIC table or column authority, exact invariants, and public `SellerProfile` unchanged. The isolated posture-only FORCE successor `20261015120000_force_seller_profile_private_rls` requires that exact ENABLE ledger, changes only `relforcerowsecurity`, retains zero policies/grants, and has rollback to ENABLE. It remains source preparation until exact-head CI, merge, merged-main gates, and a separately approved protected Production run pass. Public `SellerProfile` remains a separate options-first design. See `docs/seller-profile-private-boundary-pre-rls-audit.md` |
+| `SellerProfile` | `BLOCKED_DESIGN` | Seller public-private split | Public shop profile, conditional exact coordinates and public availability snapshots; public, buyer, seller, staff and service callers | The private companion is policyless FORCE in Production, but the public row still has broad runtime CRUD authority. Its 73 direct app operations across 52 files and relation-shaped audit queue of at most 106 files require a projection and grant conversion. Drew selected Option B on 2026-10-18: zero direct base authority, bounded projections and fixed operations. The Phase 0 authority/domain audit remains the implementation gate. See `docs/seller-profile-public-rls-options.md` and `docs/seller-profile-private-boundary-pre-rls-audit.md` |
+| `SellerProfilePrivate` | `RLS_LIVE_FORCE` | Seller public-private split | Private provider, ship-from, package, workflow, staff/cron and analytics state; fixed application and service operations only | Policyless ENABLE is live from exact main `faed352bf0baa5bff8727539bdaec36eb18370ac`, CI `38813143503`, and protected run `38825901687`. Separate FORCE migration `20261015120000_force_seller_profile_private_rls` is live from exact main `994fc18da95d2d896cec5baf73d3cce2227966a7` through protected run `38837514490`. The retained postflight proves the forced catalog, zero policies, zero ordinary-runtime/PUBLIC authority and global grant integrity; artifact digest is `sha256:c21270de58c8c7e925c4cd71878e7bd6a7d20f6a9183414bbcba720bb56a5bcb`. Public `SellerProfile` remains a separate options-first design. See `docs/seller-profile-private-boundary-pre-rls-audit.md` and `docs/seller-profile-public-rls-options.md` |
 | `SellerFaq` | `BLOCKED_DESIGN` | Seller public-private split | Public shop content with seller-owned writes | Parent-seller write policy and public-read design tied to visible profiles |
 | `FoundingMakerGrant` | `ALTERNATIVE_REVIEW` | Service and allocation ledgers | System allocation and badge state; allocation job, staff and public badge consumers | Revoke ordinary writes and choose service-only mutation plus minimal read projection |
 | `Listing` | `BLOCKED_DESIGN` | Catalog public-private split | Public inventory mixed with drafts, private reservations and review state; public, seller, reserved buyer, staff and cron | Model visibility states, participant access and private moderation fields before base-table RLS |

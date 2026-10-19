@@ -4,59 +4,31 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Split SellerProfile public and private authority (updated 2026-10-13)
+### Split SellerProfile public and private authority (updated 2026-10-18)
 
-The User-family RLS program and the separately tracked
-`AccountDeletionSideEffect` and `ClerkWebhookEvent` ledgers are accepted through
-policyless FORCE in Production. The next RLS domain is SellerProfile, which is
-not a simple owner table: one row combines public maker/shop content with
-ship-from contact/address, Stripe and reconciliation state, conditional exact
-coordinates, staff/Guild state, onboarding and analytics.
+The private companion conversion is complete. `SellerProfilePrivate` is
+policyless FORCE in Production with zero ordinary-runtime/`PUBLIC` direct table
+authority. ENABLE was accepted by protected run `38825901687`; the separate
+FORCE release was accepted from exact main `994fc18da95d2d896cec5baf73d3cce2227966a7`
+by protected run `38837514490`. Follow
+`docs/seller-profile-private-boundary-pre-rls-audit.md` for the completed split
+and retained evidence.
 
-Follow `docs/seller-profile-private-boundary-pre-rls-audit.md`. The approved
-first implementation boundary is additive compatibility only: create and
-backfill a one-to-one private operational companion, maintain temporary
-transactional convergence, and add a public-safe availability snapshot. Then
-convert explicit public, owner, Stripe, shipping, staff/cron, export/deletion
-and effective database-function callers. Do not drop predecessor columns,
-revoke grants or enable SellerProfile RLS until the converted application is
-live, predecessor deployments are drained, installed function/grant state is
-inspected, and rollback is proved. Keep CommissionRequest as a separate release.
+The next RLS domain is the remaining public `SellerProfile` table. It still
+mixes anonymous catalog data with conditional exact coordinates, owner settings
+and staff/system-controlled state, while the runtime role retains broad CRUD.
+Drew selected Option B on 2026-10-18: keep the schema intact, expose bounded
+public projections, move non-public reads and all writes behind fixed
+operations, prove zero direct base-table callers, then revoke grants and apply
+ENABLE and FORCE as separate releases. No security release drops another
+column. See `docs/seller-profile-public-rls-options.md`.
 
-The Phase 0 source candidate is now prepared and has passed focused source
-checks, Prisma validation and an exact-migration rollback-only PostgreSQL 16
-proof. The next release action is review/merge and guarded additive migration;
-Phase 1 caller conversion may proceed in isolated source but cannot deploy
-before the companion is installed.
-
-The first isolated Phase 1 caller slice is also prepared: public visibility,
-search, commission-interest, stock-notification and conversation eligibility
-now use the derived `stripeAccountSupported` snapshot instead of the private
-provider-version diagnostic. Exact version reads remain intentionally in
-checkout, Stripe, reconciliation, export and deletion paths until those
-families receive purpose-bound private operations. The next stacked slice
-removes all nine nested `seller: true` reads with explicit checkout, quote and
-ownership projections plus a recursive zero-count guard. A third stacked slice
-converts the three direct broad owner reads to explicit bootstrap, settings and
-profile-editor projections; the source guard now proves zero broad direct or
-nested SellerProfile reads. A fourth stacked slice centralizes Stripe Connect
-owner, webhook and reconciliation access in one compatibility module so the
-post-Phase-0 fixed-operation release can replace a single implementation point
-without changing provider behavior. Three following slices centralize shipping
-quote fulfillment inputs, owner onboarding/export reads, and staff
-ban/unban/undo seller state behind equally narrow compatibility modules. These
-slices stay stacked behind Phase 0. An eighth slice centralizes account-deletion
-seller pauses and anonymization behind an ownership-bound, fail-closed
-compatibility module. A ninth moves seller onboarding reads and writes behind
-owner-bound purpose-specific operations. A tenth does the same for shop-settings,
-including private ship-from data and best-effort metro assignment. An eleventh
-moves seller profile-editor reads, profile/avatar updates and featured-listing
-state behind the same owner-bound boundary. A twelfth centralizes the daily and
-monthly Guild cron scans and guarded state transitions while preserving their
-transactional verification/audit coupling. A thirteenth moves the authenticated
-Guild dashboard and both application rechecks behind the owner-bound access
-layer. The fixed database operations, staff Guild state, checkout and effective
-SQL-function families remain.
+Phase 0 is the current work: classify 73 direct app operations across 52 files
+and the relation-shaped audit queue of at most 106 files; reconcile seller,
+location, visibility, deletion, Guild and staff findings; and finish the public
+SellerProfile product/authority audit. No public-table view, function, policy,
+grant or migration implementation begins until that audit closes. Keep
+`CommissionRequest` as a separate RLS release.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 
