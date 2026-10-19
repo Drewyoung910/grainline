@@ -115,7 +115,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/lib/sellerOwnerPrivateAccess.ts": ["OWNER"],
   "src/lib/sellerStaffPrivateAccess.ts": ["STAFF"],
   "src/lib/site-metrics-snapshot.ts": ["SERVICE"],
-  "src/lib/sitemapSourceCounts.ts": ["PUBLIC_ELIGIBILITY"],
 });
 
 const WRITE_METHODS = new Set([
@@ -250,7 +249,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   if (reviewedNonTargetResiduals.some(({ model }) => model === "SellerProfile")) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
-  if (targetOpaqueShapes.length !== 42
+  if (targetOpaqueShapes.length !== 38
       || reviewedNonTargetFactoryCalls.length !== 149
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(

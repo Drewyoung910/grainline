@@ -20,6 +20,10 @@ const nameSuggestionMigration = readFileSync(
   "prisma/migrations/20261019040000_prepare_seller_profile_public_name_authority/migration.sql",
   "utf8",
 );
+const sitemapMigration = readFileSync(
+  "prisma/migrations/20261019050000_prepare_seller_profile_public_sitemap_authority/migration.sql",
+  "utf8",
+);
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -46,7 +50,8 @@ async function readyDatabase() {
       "chargesEnabled" boolean NOT NULL DEFAULT false,
       "stripeAccountSupported" boolean NOT NULL DEFAULT true,
       "vacationMode" boolean NOT NULL DEFAULT false,
-      "allowLocalPickup" boolean NOT NULL DEFAULT true
+      "allowLocalPickup" boolean NOT NULL DEFAULT true,
+      "updatedAt" timestamp(3) NOT NULL DEFAULT '2026-10-19T00:00:00.000Z'
     );
     CREATE TABLE public."Block" (
       id text PRIMARY KEY,
@@ -60,6 +65,14 @@ async function readyDatabase() {
       "isPrivate" boolean NOT NULL DEFAULT false,
       "reservedForUserId" text REFERENCES public."User"(id),
       "archivedAt" timestamp(3)
+    );
+    CREATE TABLE public."Review" (
+      id text PRIMARY KEY,
+      "listingId" text NOT NULL REFERENCES public."Listing"(id)
+    );
+    CREATE TABLE public."ReviewPhoto" (
+      id text PRIMARY KEY,
+      "reviewId" text NOT NULL REFERENCES public."Review"(id)
     );
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."SellerProfile"
       TO grainline_app_runtime;
@@ -99,11 +112,16 @@ async function readyDatabase() {
       ('listing-no-opt-in-public', 'seller-no-opt-in', 'ACTIVE', false, NULL, NULL);
     INSERT INTO public."Block" (id, "blockerId", "blockedId")
       VALUES ('block-1', 'owner-blocked', 'viewer');
+    INSERT INTO public."Review" (id, "listingId")
+      VALUES ('review-visible', 'listing-public');
+    INSERT INTO public."ReviewPhoto" (id, "reviewId")
+      VALUES ('review-photo-visible', 'review-visible');
   `);
   await database.exec(mapMigration);
   await database.exec(locationMigration);
   await database.exec(browseMigration);
   await database.exec(nameSuggestionMigration);
+  await database.exec(sitemapMigration);
   return database;
 }
 
@@ -418,6 +436,69 @@ test("seller name authority applies reciprocal blocks and denies ungranted calle
   } finally {
     await database.exec("RESET ROLE").catch(() => {});
     await database.exec("RESET app.user_id").catch(() => {});
+    await database.close();
+  }
+});
+
+test("seller sitemap authorities return exact public counts and bounded pages", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.deepEqual((await database.query(`
+      SELECT * FROM public.grainline_seller_public_sitemap_counts()
+    `)).rows, [{ sellerCount: 4, customerPhotoSellerCount: 1 }]);
+
+    const sellerRows = (await database.query(`
+      SELECT id, "displayName", "updatedAt"
+        FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 2)
+    `)).rows;
+    assert.deepEqual(sellerRows.map(({ id, displayName }) => ({ id, displayName })), [
+      { id: "seller-blocked", displayName: "Blocked Workshop" },
+      { id: "seller-no-opt-in", displayName: "Private Workshop" },
+    ]);
+    assert.equal(sellerRows.every((row) => row.updatedAt instanceof Date), true);
+
+    const customerPhotoRows = (await database.query(`
+      SELECT id, "displayName"
+        FROM public.grainline_seller_public_sitemap_page(
+          'CUSTOMER_PHOTOS',
+          0,
+          50000
+        )
+    `)).rows;
+    assert.deepEqual(customerPhotoRows, [
+      { id: "seller-visible", displayName: "Visible Workshop" },
+    ]);
+    await assert.rejects(
+      database.query(`
+        SELECT *
+          FROM public.grainline_seller_public_sitemap_page('UNKNOWN', 0, 1)
+      `),
+      /input is invalid/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("seller sitemap authorities deny ungranted callers", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_untrusted");
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_sitemap_counts()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(`
+        SELECT *
+          FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 1)
+      `),
+      /permission denied/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
     await database.close();
   }
 });

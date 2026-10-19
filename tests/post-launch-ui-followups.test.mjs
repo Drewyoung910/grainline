@@ -729,7 +729,7 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(customerPhotosPage, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.match(customerPhotosPage, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
     assert.doesNotMatch(customerPhotosPage, /review: \{ listing: \{ sellerId: seller\.id \} \}/);
-    assert.match(sitemap, /publicListingDetailWhere\(\{\s*reviews: \{ some: \{ photos: \{ some: \{\} \} \} \},\s*\}\)/s);
+    assert.match(sitemap, /sellerPublicSitemapPage\(\s*"CUSTOMER_PHOTOS"/s);
     assert.match(sitemap, /chunk\.kind === "customerPhotos"/);
     assert.match(sitemap, /publicSellerPath\(s\.id, s\.displayName\)}\/customer-photos/);
   });

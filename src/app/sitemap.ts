@@ -5,7 +5,7 @@ import type { MetadataRoute } from "next";
 import { BlogPostType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
+import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath, publicSellerShopPath, publicTagPath } from "@/lib/publicPaths";
 import { getPopularListingTags } from "@/lib/popularTags";
@@ -16,6 +16,7 @@ import {
   sitemapChunkForId,
 } from "@/lib/sitemapIndex";
 import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
+import { sellerPublicSitemapPage } from "@/lib/sellerProfilePublicAccess";
 
 const BASE_URL = "https://thegrainline.com";
 const STATIC_ROUTE_LAST_MODIFIED = new Date("2026-04-30T00:00:00.000Z");
@@ -54,15 +55,11 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     if (!chunk || chunk.kind === "base") return [];
 
     if (chunk.kind === "sellers") {
-      const sellers = await prisma.sellerProfile.findMany({
-        where: activeSellerProfileWhere({
-          listings: { some: publicListingWhere() },
-        }),
-        select: { id: true, displayName: true, updatedAt: true },
-        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-        skip: chunk.rowSkip,
-        take: chunk.rowTake,
-      });
+      const sellers = await sellerPublicSitemapPage(
+        "SELLERS",
+        chunk.rowSkip,
+        chunk.rowTake,
+      );
 
       return sellers.flatMap((s) => [
         {
@@ -81,19 +78,11 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     }
 
     if (chunk.kind === "customerPhotos") {
-      const sellers = await prisma.sellerProfile.findMany({
-        where: activeSellerProfileWhere({
-          listings: {
-            some: publicListingDetailWhere({
-              reviews: { some: { photos: { some: {} } } },
-            }),
-          },
-        }),
-        select: { id: true, displayName: true, updatedAt: true },
-        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-        skip: chunk.rowSkip,
-        take: chunk.rowTake,
-      });
+      const sellers = await sellerPublicSitemapPage(
+        "CUSTOMER_PHOTOS",
+        chunk.rowSkip,
+        chunk.rowTake,
+      );
 
       return sellers.map((s) => ({
         url: `${BASE_URL}${publicSellerPath(s.id, s.displayName)}/customer-photos`,

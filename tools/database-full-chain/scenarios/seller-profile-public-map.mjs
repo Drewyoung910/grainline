@@ -10,6 +10,8 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   const viewerEmail = `map-${seller.userId}@example.test`;
   const blockId = `${seller.sellerProfileId}_map_block`;
   const listingId = `${seller.sellerProfileId}_map_listing`;
+  const reviewId = `${seller.sellerProfileId}_sitemap_review`;
+  const reviewPhotoId = `${seller.sellerProfileId}_sitemap_review_photo`;
   const now = new Date("2026-10-19T00:00:00.000Z");
 
   await database.query(
@@ -39,6 +41,19 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
      VALUES ($1, $2, 'Full Chain Map Listing', 'Public location proof', 1200,
              'ACTIVE', false, $3, $3)`,
     [listingId, seller.sellerProfileId, now],
+  );
+  await database.query(
+    `INSERT INTO public."Review"
+      (id, "listingId", "reviewerId", "reviewerAccountActive", "reviewerName",
+       "ratingX2", verified, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, true, 'Map Viewer', 10, true, $4, $4)`,
+    [reviewId, listingId, viewerUserId, now],
+  );
+  await database.query(
+    `INSERT INTO public."ReviewPhoto"
+      (id, "reviewId", url, "sortOrder", "createdAt")
+     VALUES ($1, $2, 'https://example.test/review.jpg', 0, $3)`,
+    [reviewPhotoId, reviewId, now],
   );
 
   await database.query("SET ROLE grainline_app_runtime");
@@ -96,6 +111,31 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       id: seller.sellerProfileId,
       displayName: "Full Chain Workshop",
     }]);
+    const sitemapCounts = rowsOf(await database.query(
+      "SELECT * FROM public.grainline_seller_public_sitemap_counts()",
+    ));
+    assert.equal(Number(sitemapCounts[0].sellerCount) >= 1, true);
+    assert.equal(Number(sitemapCounts[0].customerPhotoSellerCount) >= 1, true);
+    const sellerSitemapRows = rowsOf(await database.query(
+      `SELECT id, "displayName"
+         FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 50000)`,
+    ));
+    assert.deepEqual(
+      sellerSitemapRows.filter((row) => row.id === seller.sellerProfileId),
+      [{ id: seller.sellerProfileId, displayName: "Full Chain Workshop" }],
+    );
+    const customerPhotoSitemapRows = rowsOf(await database.query(
+      `SELECT id, "displayName"
+         FROM public.grainline_seller_public_sitemap_page(
+           'CUSTOMER_PHOTOS',
+           0,
+           50000
+         )`,
+    ));
+    assert.deepEqual(
+      customerPhotoSitemapRows.filter((row) => row.id === seller.sellerProfileId),
+      [{ id: seller.sellerProfileId, displayName: "Full Chain Workshop" }],
+    );
   } finally {
     await database.query("RESET ROLE");
   }
@@ -182,6 +222,16 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   try {
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_map_points(500)"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_sitemap_counts()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_sitemap_page('SELLERS', 0, 1)",
+      ),
       /permission denied/u,
     );
     await assert.rejects(

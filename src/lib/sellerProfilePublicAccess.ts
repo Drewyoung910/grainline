@@ -29,6 +29,19 @@ export type SellerPublicNameSuggestion = Readonly<{
   displayName: string;
 }>;
 
+export type SellerPublicSitemapKind = "SELLERS" | "CUSTOMER_PHOTOS";
+
+export type SellerPublicSitemapCounts = Readonly<{
+  sellerCount: number;
+  customerPhotoSellerCount: number;
+}>;
+
+export type SellerPublicSitemapRow = Readonly<{
+  id: string;
+  displayName: string;
+  updatedAt: Date;
+}>;
+
 type SellerPublicMapPointRow = {
   id: unknown;
   displayName: unknown;
@@ -54,7 +67,18 @@ type SellerPublicNameSuggestionRow = {
   displayName: unknown;
 };
 
-type PublicMapClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
+type SellerPublicSitemapCountsRow = {
+  sellerCount: unknown;
+  customerPhotoSellerCount: unknown;
+};
+
+type SellerPublicSitemapRowResult = {
+  id: unknown;
+  displayName: unknown;
+  updatedAt: unknown;
+};
+
+type SellerPublicAccessClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
 
 function nullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
@@ -82,7 +106,7 @@ function parsePublicMapPoint(row: SellerPublicMapPointRow): SellerPublicMapPoint
   });
 }
 
-async function readSellerPublicMapPoints(client: PublicMapClient, limit: number) {
+async function readSellerPublicMapPoints(client: SellerPublicAccessClient, limit: number) {
   const rows = await client.$queryRaw<SellerPublicMapPointRow[]>(Prisma.sql`
     SELECT *
       FROM public.grainline_seller_public_map_points(${limit})
@@ -91,7 +115,7 @@ async function readSellerPublicMapPoints(client: PublicMapClient, limit: number)
 }
 
 async function readSellerPublicLocation(
-  client: PublicMapClient,
+  client: SellerPublicAccessClient,
   sellerProfileId: string,
   listingId: string | null,
 ) {
@@ -130,7 +154,7 @@ async function readSellerPublicLocation(
 }
 
 async function readSellerPublicBrowseNearbySellerIds(
-  client: PublicMapClient,
+  client: SellerPublicAccessClient,
   lat: number,
   lng: number,
   radiusMiles: number,
@@ -156,7 +180,7 @@ async function readSellerPublicBrowseNearbySellerIds(
 }
 
 async function readSellerPublicNameSuggestions(
-  client: PublicMapClient,
+  client: SellerPublicAccessClient,
   query: string,
   normalizedQuery: string,
   requirePublicListing: boolean,
@@ -186,6 +210,59 @@ async function readSellerPublicNameSuggestions(
     throw new Error("Seller public name authority returned duplicate results");
   }
   return Object.freeze(suggestions);
+}
+
+function parseSafeCount(value: unknown, label: string) {
+  const count = Number(value);
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new Error(`Seller public sitemap authority returned an invalid ${label}`);
+  }
+  return count;
+}
+
+async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
+  const rows = await client.$queryRaw<SellerPublicSitemapCountsRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_sitemap_counts()
+  `);
+  if (rows.length !== 1) {
+    throw new Error("Seller public sitemap count authority returned an invalid result");
+  }
+  return Object.freeze({
+    sellerCount: parseSafeCount(rows[0].sellerCount, "seller count"),
+    customerPhotoSellerCount: parseSafeCount(
+      rows[0].customerPhotoSellerCount,
+      "customer-photo seller count",
+    ),
+  });
+}
+
+async function readSellerPublicSitemapPage(
+  client: SellerPublicAccessClient,
+  kind: SellerPublicSitemapKind,
+  skip: number,
+  take: number,
+) {
+  const rows = await client.$queryRaw<SellerPublicSitemapRowResult[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_sitemap_page(${kind}, ${skip}, ${take})
+  `);
+  return Object.freeze(rows.map((row) => {
+    if (
+      typeof row.id !== "string"
+      || !row.id
+      || typeof row.displayName !== "string"
+      || !row.displayName
+      || !(row.updatedAt instanceof Date)
+      || Number.isNaN(row.updatedAt.getTime())
+    ) {
+      throw new Error("Seller public sitemap page authority returned an invalid result");
+    }
+    return Object.freeze({
+      id: row.id,
+      displayName: row.displayName,
+      updatedAt: row.updatedAt,
+    });
+  }));
 }
 
 export async function sellerPublicMapPoints(
@@ -275,4 +352,27 @@ export async function sellerPublicNameSuggestions(
     requirePublicListing,
     limit,
   );
+}
+
+export async function sellerPublicSitemapCounts() {
+  return readSellerPublicSitemapCounts(prisma);
+}
+
+export async function sellerPublicSitemapPage(
+  kind: SellerPublicSitemapKind,
+  skip: number,
+  take: number,
+) {
+  if (
+    !["SELLERS", "CUSTOMER_PHOTOS"].includes(kind)
+    || !Number.isSafeInteger(skip)
+    || skip < 0
+    || skip > 2_147_483_647
+    || !Number.isSafeInteger(take)
+    || take < 1
+    || take > 50_000
+  ) {
+    throw new RangeError("Seller public sitemap page input is outside the supported range");
+  }
+  return readSellerPublicSitemapPage(prisma, kind, skip, take);
 }

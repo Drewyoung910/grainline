@@ -224,7 +224,9 @@ accesses from 17 to 16. No public route now derives from the raw seller point
 in application SQL. A fourth exact projection converts both seller-name
 suggestion reads, returning only seller id/name while preserving each route's
 public-listing requirement and reciprocal-block behavior. The candidate now
-has 94 direct operations in 54 files and 213 reconciled opaque query shapes.
+also converts both seller sitemap counts and both bounded sitemap page reads
+through two exact operations. It has 90 direct operations in 52 files, 98 total
+consumer files and 209 reconciled opaque query shapes.
 Predecessor grants remain unchanged. The candidate
 remains unmerged, and the three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
