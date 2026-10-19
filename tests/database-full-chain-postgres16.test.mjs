@@ -32,6 +32,7 @@ import {
   seedDisputeFirstEventPredecessorGap,
 } from "../tools/database-full-chain/scenarios/dispute-first-event-case.mjs";
 import { proveSellerProfilePublicMapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-map.mjs";
+import { proveSellerProfileBlockFollowCleanup } from "../tools/database-full-chain/scenarios/seller-profile-block-follow-cleanup.mjs";
 import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-followup-correction.mjs";
 import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-first-event-case-correction.mjs";
 
@@ -133,6 +134,10 @@ test(
         ship_from_phone: "+15125550100",
       }]);
       await proveSellerProfilePublicMapAuthority({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveSellerProfileBlockFollowCleanup({
         database: adapter,
         seller: fixture,
       });

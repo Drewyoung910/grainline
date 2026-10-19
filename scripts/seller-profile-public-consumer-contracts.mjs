@@ -54,7 +54,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/api/shipping/quote/route.ts": ["TRANSACTION"],
   "src/app/api/upload/image/route.ts": ["OWNER"],
   "src/app/api/upload/presign/route.ts": ["OWNER"],
-  "src/app/api/users/[id]/block/route.ts": ["PARTICIPANT", "SERVICE"],
   "src/app/api/users/[id]/report/route.ts": ["PUBLIC_ELIGIBILITY", "PARTICIPANT"],
   "src/app/api/verification/apply/route.ts": ["OWNER"],
   "src/app/blog/[slug]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],

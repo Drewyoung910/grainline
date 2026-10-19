@@ -9,6 +9,10 @@ type LockedBlockUser = {
   deletedAt: Date | null;
 };
 
+type BlockFollowCleanupRow = {
+  deletedCount: number;
+};
+
 async function lockBlockUserPair(
   tx: BlockMutationTx,
   blockedId: string,
@@ -47,5 +51,19 @@ export async function deleteUserBlock(blockerId: string, blockedId: string) {
       where: { blockerId, blockedId },
     });
     return result.count;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+}
+
+export async function cleanupUserBlockFollows(blockerId: string, blockedId: string) {
+  return withDbUserContext(blockerId, async (tx) => {
+    const rows = await tx.$queryRaw<BlockFollowCleanupRow[]>`
+      SELECT public.grainline_user_block_follow_cleanup(${blockedId}::text)
+        AS "deletedCount"
+    `;
+    const deletedCount = rows[0]?.deletedCount;
+    if (rows.length !== 1 || !Number.isSafeInteger(deletedCount) || deletedCount < 0) {
+      throw new Error("User block follow cleanup returned an invalid result");
+    }
+    return deletedCount;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }
