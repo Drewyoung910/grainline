@@ -151,7 +151,7 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds 33 converted runtime authorities without changing
+The Phase 1 candidate adds 34 converted runtime authorities without changing
 predecessor table grants. `grainline_seller_public_map_points(integer)` returns
 only seller id/name/city/state and a database-derived coarse point, enforces
 active public-map eligibility, applies reciprocal blocks from trusted
@@ -280,13 +280,20 @@ listing-detail loader already returns the seller reply name/avatar and proves
 whether the viewer owns that seller. Passing those values into the server
 component removes one direct SellerProfile read and one redundant relation join
 while preserving the exact rendered and seller-action behavior.
+`grainline_seller_service_founding_maker_grant(text)` keeps the durable
+FoundingMakerGrant ledger as the allocation source while moving the
+public-listing eligibility checks, fixed advisory lock, existing-grant restore,
+cap enforcement, ledger insert and SellerProfile badge mirror into one
+statement. It returns only whether the target is currently badged and exposes
+no seller fields. The repair path consumes that result instead of issuing a
+second SellerProfile read.
 `grainline_seller_public_follow_state(text)`,
 `grainline_seller_public_follow_create(text,text)` and
 `grainline_seller_public_follow_delete(text)` own public follow reads and
 actor-bound mutations. Create shares the sorted Block-pair lock, revalidates
 and locks the visible seller after that lock, rejects self and reciprocal
 blocks, and is idempotent. Delete intentionally permits stale cleanup after a
-seller becomes hidden. All 33 grant execute only to the app runtime.
+seller becomes hidden. All 34 grant execute only to the app runtime.
 Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -294,7 +301,7 @@ Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 33 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary, owner core, owner dashboard state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards and three public-follow authorities replace direct base-table access while predecessor grants remain available |
+| Converted authority | 34 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary, owner core, owner dashboard state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards and three public-follow authorities replace direct base-table access while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any

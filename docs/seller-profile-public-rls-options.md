@@ -430,6 +430,15 @@ or changing the review surface. The candidate is now at 36 direct operations
 in 15 files, 84 relation accesses in 46 files, 15 raw SQL accesses in 12 files,
 67 total consumer files and 172 reconciled opaque shapes. The catalog remains
 163 functions: 98 retained, 32 internal and 33 converted.
+The Founding Maker allocator then becomes one bounded service authority that
+owns the public-listing eligibility recheck, advisory lock, durable grant-ledger
+allocation/restoration and SellerProfile badge mirror. The application helper
+executes one statement and repair consumes its boolean result instead of
+rereading SellerProfile. This removes four direct operations and two opaque
+factory calls across two files. The candidate is now at 32 direct operations
+in 13 files, 84 relation accesses in 46 files, 15 raw SQL accesses in 12 files,
+65 total consumer files and 170 reconciled opaque shapes. The catalog has 164
+functions: 98 retained, 32 internal and 34 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

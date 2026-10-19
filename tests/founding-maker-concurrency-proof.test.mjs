@@ -83,12 +83,17 @@ describe("Founding Maker concurrency proof harness", () => {
     const script = source("scripts/founding-maker-concurrency-proof.mjs");
     const core = source("src/lib/foundingMakerCore.ts");
     const production = source("src/lib/foundingMaker.ts");
+    const migration = source(
+      "prisma/migrations/20261020060000_prepare_seller_profile_founding_maker_grant/migration.sql",
+    );
 
     assert.match(script, /maybeGrantFoundingMakerWithClient/);
     assert.match(production, /maybeGrantFoundingMakerWithClient\(prisma, sellerProfileId\)/);
     assert.match(core, /FoundingMakerGrant is the durable source of issued numbers/);
-    assert.match(core, /foundingMakerGrant\.aggregate/);
-    assert.match(core, /foundingMakerGrant\.create/);
+    assert.match(core, /grainline_seller_service_founding_maker_grant/);
+    assert.match(migration, /MAX\(grant_row\."foundingMakerNumber"\)/);
+    assert.match(migration, /INSERT INTO public\."FoundingMakerGrant"/);
+    assert.match(migration, /pg_advisory_xact_lock\(913337, 250\)/);
     assert.doesNotMatch(core, /sellerProfile\.aggregate/);
   });
 

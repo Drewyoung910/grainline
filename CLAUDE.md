@@ -2739,9 +2739,9 @@ First-250-seller recognition program. Permanent badge granted on the seller's FI
 
 ### Grant helper (`src/lib/foundingMaker.ts`)
 `maybeGrantFoundingMaker(sellerProfileId)`:
-1. Returns immediately if the seller already has the badge.
-2. Returns immediately if the seller has zero public ACTIVE listings, using the shared `publicListingWhere({ sellerId })` policy instead of hand-rolled `ACTIVE` / `isPrivate` checks.
-3. Otherwise opens a transaction, takes the short Postgres advisory lock `pg_advisory_xact_lock(913337, 250)`, re-checks that the seller still has a public ACTIVE listing through `publicListingWhere({ sellerId })`, reads the current max `FoundingMakerGrant.foundingMakerNumber`, inserts the next grant while `<= 250`, and mirrors that grant onto `SellerProfile` through an `updateMany` with `isFoundingMaker: false` guard.
+1. Calls the single-statement `grainline_seller_service_founding_maker_grant(text)` authority and validates its one boolean result; callers may ignore the result, while repair uses it instead of rereading `SellerProfile`.
+2. The authority returns false for a missing or ineligible target and true for an already-badged target. Eligibility requires a public ACTIVE listing plus active/supported/non-vacation seller state, checked before and after the allocation lock.
+3. It takes the short Postgres advisory lock `pg_advisory_xact_lock(913337, 250)`, restores an existing durable grant when present, otherwise reads the current max `FoundingMakerGrant.foundingMakerNumber`, inserts the next grant while `<= 250`, and mirrors that grant onto `SellerProfile` with an `isFoundingMaker = false` guard.
 4. Numbers are never reused after gaps/deletions because the helper uses the durable `FoundingMakerGrant` ledger, not live `SellerProfile` rows or `count + 1`. The advisory lock serializes only the tiny number-assignment window so high-concurrency publish bursts cannot exhaust a bounded retry loop and silently drop eligible makers while slots remain.
 5. Idempotent. Wrapped in try/catch so a grant failure never blocks the calling flow, but production failures still go to Sentry with source `founding_maker_grant` and bounded `sellerProfileId` context so eligible-maker grant loss is observable.
 6. The `FoundingMakerGrant.foundingMakerNumber` and denormalized `SellerProfile.foundingMakerNumber` unique indexes enforce no-double-issue at the DB level.

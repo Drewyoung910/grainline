@@ -22,9 +22,9 @@ export const FOUNDING_MAKER_REPAIR_SELLER_LIMIT = 25;
  * takes a short Postgres advisory lock around max-number assignment so a burst
  * of simultaneous seller grants cannot exhaust a fixed retry count.
  */
-export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<void> {
+export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<boolean> {
   try {
-    await maybeGrantFoundingMakerWithClient(prisma, sellerProfileId);
+    return await maybeGrantFoundingMakerWithClient(prisma, sellerProfileId);
   } catch (err) {
     // Non-fatal: the listing transition is the primary work, the badge is a bonus.
     logServerError(err, {
@@ -32,6 +32,7 @@ export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<
       source: "founding_maker_grant",
       extra: { sellerProfileId },
     });
+    return false;
   }
 }
 
@@ -83,12 +84,7 @@ export async function repairMissedFoundingMakerGrants(opts: {
 
   let repairedSellers = 0;
   for (const sellerId of sellerIds) {
-    await maybeGrantFoundingMaker(sellerId);
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { id: sellerId },
-      select: { isFoundingMaker: true },
-    });
-    if (seller?.isFoundingMaker) repairedSellers += 1;
+    if (await maybeGrantFoundingMaker(sellerId)) repairedSellers += 1;
   }
 
   return {

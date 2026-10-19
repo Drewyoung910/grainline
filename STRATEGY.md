@@ -177,6 +177,15 @@ review behavior. The candidate is now at 36 direct operations in 15 files, 84
 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 67 total
 consumer files. It still has 172 reconciled opaque shapes, and its 163-function
 catalog remains 98 retained, 32 internal and 33 converted authorities.
+The Founding Maker allocator then moves its eligibility recheck, advisory lock,
+durable-ledger allocation/restoration and public badge mirror into one bounded
+service authority. The shared helper now executes one statement and validates
+one boolean result; repair uses that result instead of rereading SellerProfile.
+This removes four direct operations and two opaque query-factory calls across
+two files. The candidate is now at 32 direct operations in 13 files, 84
+relation accesses in 46 files, 15 raw SQL accesses in 12 files and 65 total
+consumer files. It has 170 reconciled opaque shapes, and its 164-function
+catalog partitions into 98 retained, 32 internal and 34 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

@@ -717,7 +717,8 @@ describe("post-launch UI follow-ups", () => {
     const sitemap = source("src/app/sitemap.ts");
 
     assert.match(sellerPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
-    assert.match(customerPhotosPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
+    assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
+    assert.match(customerPhotosPage, /sellerId: seller\.id/);
     assert.match(customerPhotosPage, /reviewerAccountActive: true/);
     assert.doesNotMatch(customerPhotosPage, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.match(customerPhotosPage, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
@@ -730,19 +731,19 @@ describe("post-launch UI follow-ups", () => {
   it("serializes Founding Maker number assignment instead of relying on bounded retries", () => {
     const founding = source("src/lib/foundingMaker.ts");
     const foundingCore = source("src/lib/foundingMakerCore.ts");
+    const foundingAuthority = source(
+      "prisma/migrations/20261020060000_prepare_seller_profile_founding_maker_grant/migration.sql",
+    );
     const repairRoute = source("src/app/api/cron/founding-maker-repair/route.ts");
     const vercel = source("vercel.json");
 
     assert.match(founding, /maybeGrantFoundingMakerWithClient\(prisma, sellerProfileId\)/);
-    assert.match(foundingCore, /import \{ publicListingWhere \} from "\.\/listingVisibility\.ts"/);
-    assert.equal((foundingCore.match(/where: publicListingWhere\(\{ sellerId: sellerProfileId \}\)/g) ?? []).length, 2);
-    assert.match(foundingCore, /pg_advisory_xact_lock/);
-    assert.match(foundingCore, /FOUNDING_MAKER_LOCK_NAMESPACE/);
-    assert.match(foundingCore, /foundingMakerGrant\.aggregate/);
-    assert.match(foundingCore, /foundingMakerGrant\.create/);
-    assert.match(foundingCore, /existingGrant/);
-    assert.match(foundingCore, /stillEligible/);
-    assert.match(foundingCore, /maxWait: 5000, timeout: 10000/);
+    assert.match(foundingCore, /grainline_seller_service_founding_maker_grant/);
+    assert.match(foundingAuthority, /pg_advisory_xact_lock\(913337, 250\)/);
+    assert.equal((foundingAuthority.match(/listing\.status = 'ACTIVE'/g) ?? []).length, 2);
+    assert.match(foundingAuthority, /MAX\(grant_row\."foundingMakerNumber"\)/);
+    assert.match(foundingAuthority, /INSERT INTO public\."FoundingMakerGrant"/);
+    assert.match(foundingAuthority, /existing_number/);
     assert.doesNotMatch(foundingCore, /sellerProfile\.aggregate/);
     assert.match(founding, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(founding, /logServerError\(err, \{/);
@@ -752,8 +753,7 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(founding, /FOUNDING_MAKER_GRANT_ATTEMPTS/);
     assert.doesNotMatch(founding, /isUniqueConstraintError\(err\)/);
     assert.doesNotMatch(founding, /currentCount \+ 1/);
-    assert.doesNotMatch(foundingCore, /status: "ACTIVE"/);
-    assert.doesNotMatch(foundingCore, /isPrivate: false/);
+    assert.doesNotMatch(foundingCore, /sellerProfile\.(?:findUnique|updateMany)/);
 
     assert.match(founding, /export const FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT = 250/);
     assert.match(founding, /export const FOUNDING_MAKER_REPAIR_SELLER_LIMIT = 25/);
