@@ -61,8 +61,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/dashboard/listings/custom/page.tsx": ["OWNER"],
   "src/app/dashboard/listings/new/page.tsx": ["OWNER"],
   "src/app/dashboard/page.tsx": ["OWNER"],
-  "src/app/dashboard/sales/[orderId]/page.tsx": ["OWNER", "TRANSACTION"],
-  "src/app/dashboard/sales/page.tsx": ["OWNER", "TRANSACTION"],
   "src/app/listing/[id]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PUBLIC_MAP", "PARTICIPANT"],
   "src/app/map/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PUBLIC_MAP"],
   "src/app/messages/[id]/page.tsx": ["PARTICIPANT", "TRANSACTION"],

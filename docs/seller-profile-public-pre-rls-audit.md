@@ -223,7 +223,7 @@ owner context.
 `grainline_seller_owner_core()` derives the same active owner context and
 returns only profile id, display name, UTC-normalized creation time,
 charges-enabled state and vacation state for seller analytics, broadcast and
-upload gates.
+upload gates plus the seller sales list/detail setup gates.
 `grainline_seller_owner_blog_editor()` derives the same active owner context
 and returns only profile id plus active listing ids/titles for dashboard blog
 create/edit. Its single null listing row preserves an active seller with no

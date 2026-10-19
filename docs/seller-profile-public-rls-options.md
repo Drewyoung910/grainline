@@ -329,6 +329,13 @@ direct operations in 29 files, 98 relation accesses in 50 files, 15 raw SQL
 accesses in 12 files, 79 total consumer files and 179 reconciled opaque shapes.
 Its catalog has 154 matching functions: 98 retained, 32 internal and 24
 converted authorities.
+The existing owner-core operation also replaces the two direct seller lookups
+used only to gate the sales list/detail routes and bind their private seller
+state. The onboarding-incomplete behavior and durable Order authorities remain
+unchanged. The candidate is now down to 51 direct operations in 27 files, 98
+relation accesses in 50 files, 15 raw SQL accesses in 12 files, 77 total
+consumer files and 179 reconciled opaque shapes. The catalog remains 154
+matching functions: 98 retained, 32 internal and 24 converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

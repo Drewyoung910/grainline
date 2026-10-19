@@ -11,6 +11,8 @@ const callerPaths = [
   "src/app/api/seller/broadcast/route.ts",
   "src/app/api/upload/image/route.ts",
   "src/app/api/upload/presign/route.ts",
+  "src/app/dashboard/sales/page.tsx",
+  "src/app/dashboard/sales/[orderId]/page.tsx",
 ];
 
 test("owner core converts analytics, broadcast, and seller-upload lookups", () => {
