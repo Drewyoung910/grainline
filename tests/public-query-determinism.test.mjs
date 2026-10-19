@@ -59,6 +59,9 @@ describe("public query determinism", () => {
     const sellerPublicFeaturedMakersAuthority = source(
       "prisma/migrations/20261019090000_prepare_seller_profile_public_featured_makers/migration.sql",
     );
+    const sellerPublicMetroDirectoryAuthority = source(
+      "prisma/migrations/20261019110000_prepare_seller_profile_public_metro_directory/migration.sql",
+    );
 
     assert.match(home, /sellerPublicFeaturedMakers\(\)/);
     assert.match(
@@ -127,14 +130,22 @@ describe("public query determinism", () => {
       assert.match(metroText, /where: \{ userId: meDbId, listingId: \{ in: listingIds \} \}/);
     }
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(makersMetro, /orderBy: \[\{ followers: \{ _count: "desc" \} \}, \{ id: "asc" \}\]/);
-    assert.match(makersMetro, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
-    assert.match(makersMetro, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
-    assert.match(makersMetro, /getBlockedSellerProfileIdsFor\(meDbId\)/);
-    assert.match(makersMetro, /const sellerWhere = activeSellerProfileWhere\(\{\s*\.\.\.blockedSellerWhere/);
-    assert.match(makersMetro, /const visibleSellerWhere = activeSellerProfileWhere\(blockedSellerWhere\)/);
-    assert.match(makersMetro, /sellerProfiles: \{ some: visibleSellerWhere \}/);
-    assert.match(makersMetro, /sellerCityProfiles: \{ some: visibleSellerWhere \}/);
+    assert.match(makersMetro, /sellerPublicMetroStaticSlugs\(\)/);
+    assert.match(makersMetro, /sellerPublicMetroMakers\(meDbId, metro\.id, isMajorMetro, 24\)/);
+    assert.match(makersMetro, /sellerPublicNearbyMetros\(meDbId, metro\.id\)/);
+    assert.doesNotMatch(makersMetro, /prisma\.sellerProfile/);
+    assert.match(
+      sellerPublicMetroDirectoryAuthority,
+      /ORDER BY \([\s\S]*FROM public\."Follow" AS follower[\s\S]*\) DESC,\s*seller\.id ASC\s+LIMIT p_limit/,
+    );
+    assert.match(
+      sellerPublicMetroDirectoryAuthority,
+      /ORDER BY listing\."createdAt" DESC, listing\.id DESC\s+LIMIT 1/,
+    );
+    assert.match(
+      sellerPublicMetroDirectoryAuthority,
+      /ORDER BY candidates\.name ASC, candidates\.slug ASC/,
+    );
 
     assert.match(similar, /l\."createdAt" DESC,\s*l\.id DESC/);
     assert.match(similar, /b\.createdAt\.getTime\(\) - a\.createdAt\.getTime\(\)/);

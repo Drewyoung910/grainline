@@ -142,6 +142,39 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       [metroId],
     ));
     assert.equal(Number(metroCount[0].value) >= 1, true);
+    const metroStaticSlugs = rowsOf(await database.query(
+      "SELECT slug FROM public.grainline_seller_public_metro_static_slugs()",
+    ));
+    assert.equal(
+      metroStaticSlugs.some((row) => row.slug === `full-chain-${seller.sellerProfileId}`.slice(0, 100)),
+      true,
+    );
+    const metroMakers = rowsOf(await database.query(
+      `SELECT id, "displayName", "coverImageUrl", "activeListingCount"
+         FROM public.grainline_seller_public_metro_makers($1, true, 24)`,
+      [metroId],
+    ));
+    assert.deepEqual(
+      metroMakers.filter((row) => row.id === seller.sellerProfileId).map((row) => ({
+        id: row.id,
+        displayName: row.displayName,
+        coverImageUrl: row.coverImageUrl,
+        activeListingCount: Number(row.activeListingCount),
+      })),
+      [{
+        id: seller.sellerProfileId,
+        displayName: "Full Chain Workshop",
+        coverImageUrl: "https://example.test/map-card.jpg",
+        activeListingCount: 1,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
+        "SELECT * FROM public.grainline_seller_public_nearby_metros($1)",
+        [metroId],
+      )),
+      [],
+    );
     const similarMakers = rowsOf(await database.query(
       `SELECT id, "scopeKind"
          FROM public.grainline_seller_public_similar_makers($1, 4)`,
@@ -267,6 +300,14 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
          )`,
     ));
     assert.deepEqual(nameSuggestions, []);
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT id
+           FROM public.grainline_seller_public_metro_makers($1, true, 24)`,
+        [metroId],
+      )),
+      [],
+    );
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -289,6 +330,24 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     await assert.rejects(
       database.query(
         "SELECT public.grainline_seller_public_metro_count($1, true, true)",
+        [metroId],
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_metro_static_slugs()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_metro_makers($1, true, 24)",
+        [metroId],
+      ),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_nearby_metros($1)",
         [metroId],
       ),
       /permission denied/u,

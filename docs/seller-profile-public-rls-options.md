@@ -253,6 +253,14 @@ selection and returns only the rendered card fields. The candidate is now down
 to 74 direct operations in 44 files, 15 raw SQL accesses in 12 files, 92 total
 consumer files and 192 reconciled opaque query shapes. Its catalog has 141
 matching functions: 98 retained, 32 internal and eleven converted authorities.
+Three additional exact operations now serve the metro maker directory: static
+route slugs, at most 24 rendered maker cards and the current metro's nearby
+areas. They keep the predecessor's distinct eligibility rules while owning
+active seller, public-listing, reciprocal-block and stable-order predicates.
+The candidate is now down to 73 direct operations in 43 files, 99 relation
+accesses in 51 files, 15 raw SQL accesses in 12 files, 91 total consumer files
+and 185 reconciled opaque query shapes. Its catalog has 144 matching functions:
+98 retained, 32 internal and fourteen converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

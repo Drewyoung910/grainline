@@ -151,7 +151,7 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds eleven converted runtime authorities without changing
+The Phase 1 candidate adds fourteen converted runtime authorities without changing
 predecessor table grants. `grainline_seller_public_map_points(integer)` returns
 only seller id/name/city/state and a database-derived coarse point, enforces
 active public-map eligibility, applies reciprocal blocks from trusted
@@ -193,7 +193,14 @@ suppressing the current seller's follow control.
 `grainline_seller_public_map_card(text)` serves one active, map-opted-in seller
 card and selects the first photo of that seller's highest-quality public
 listing. It returns only the rendered card fields, with no raw coordinate,
-owner identifier or control field. All eleven grant execute only
+owner identifier or control field.
+`grainline_seller_public_metro_static_slugs()`,
+`grainline_seller_public_metro_makers(text,boolean,integer)` and
+`grainline_seller_public_nearby_metros(text)` serve the metro maker directory's
+three distinct scopes. They return only route slugs, at most 24 rendered maker
+cards, or nearby metro id/slug/name rows while owning active-seller,
+public-listing, reciprocal-block and stable-order predicates. All fourteen
+grant execute only
 to the app runtime. Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -201,7 +208,7 @@ to the app runtime. Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 11 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection and public map-card replace public base-table reads while predecessor grants remain available |
+| Converted authority | 14 | The additive directory-map, resource-bound detail, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card and three metro-directory operations replace public base-table reads while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -221,7 +228,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 56 | 46 | 4 | 6 |
+| Seller | 59 | 49 | 4 | 6 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 12 | 7 | 2 | 3 |
 
@@ -502,6 +509,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Keep the public map-card endpoint on the exact map-card authority; it owns
   active/map-opt-in eligibility and public-listing cover selection while
   returning no raw coordinate, owner identifier or control field.
+- Keep metro maker static paths, rendered cards and nearby areas on their three
+  exact authorities; their eligibility scopes intentionally differ, and the
+  maker-card operation alone requires an active public listing.
 - Merge and release the isolated application correction that replaces
   raw-coordinate output on public maps, seller/listing public helpers, seller
   JSON-LD and browse-distance SQL with approximate points and removes “exact

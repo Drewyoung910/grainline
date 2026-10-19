@@ -91,6 +91,26 @@ export type SellerPublicMapCard = Readonly<{
   coverImageUrl: string | null;
 }>;
 
+export type SellerPublicMetroMaker = Readonly<{
+  id: string;
+  displayName: string;
+  tagline: string | null;
+  city: string | null;
+  state: string | null;
+  avatarImageUrl: string | null;
+  bannerImageUrl: string | null;
+  guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+  ownerImageUrl: string | null;
+  coverImageUrl: string | null;
+  activeListingCount: number;
+}>;
+
+export type SellerPublicNearbyMetro = Readonly<{
+  id: string;
+  slug: string;
+  name: string;
+}>;
+
 export type SellerPublicSitemapRow = Readonly<{
   id: string;
   displayName: string;
@@ -184,6 +204,30 @@ type SellerPublicMapCardRow = {
   bannerImageUrl: unknown;
   ownerImageUrl: unknown;
   coverImageUrl: unknown;
+};
+
+type SellerPublicMetroStaticSlugRow = {
+  slug: unknown;
+};
+
+type SellerPublicMetroMakerRow = {
+  id: unknown;
+  displayName: unknown;
+  tagline: unknown;
+  city: unknown;
+  state: unknown;
+  avatarImageUrl: unknown;
+  bannerImageUrl: unknown;
+  guildLevel: unknown;
+  ownerImageUrl: unknown;
+  coverImageUrl: unknown;
+  activeListingCount: unknown;
+};
+
+type SellerPublicNearbyMetroRow = {
+  id: unknown;
+  slug: unknown;
+  name: unknown;
 };
 
 type SellerPublicSitemapRowResult = {
@@ -533,6 +577,99 @@ async function readSellerPublicMapCard(
   });
 }
 
+async function readSellerPublicMetroStaticSlugs(client: SellerPublicAccessClient) {
+  const rows = await client.$queryRaw<SellerPublicMetroStaticSlugRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_metro_static_slugs()
+  `);
+  const slugs = rows.map((row) => {
+    if (typeof row.slug !== "string" || !row.slug) {
+      throw new Error("Seller public metro-static authority returned an invalid result");
+    }
+    return Object.freeze({ slug: row.slug });
+  });
+  if (new Set(slugs.map(({ slug }) => slug)).size !== slugs.length) {
+    throw new Error("Seller public metro-static authority returned duplicate results");
+  }
+  return Object.freeze(slugs);
+}
+
+async function readSellerPublicMetroMakers(
+  client: SellerPublicAccessClient,
+  metroId: string,
+  isMajor: boolean,
+  limit: number,
+) {
+  const rows = await client.$queryRaw<SellerPublicMetroMakerRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_metro_makers(
+        ${metroId},
+        ${isMajor},
+        ${limit}
+      )
+  `);
+  const makers = rows.map((row) => {
+    if (
+      typeof row.id !== "string"
+      || !row.id
+      || typeof row.displayName !== "string"
+      || !row.displayName
+      || !nullableString(row.tagline)
+      || !nullableString(row.city)
+      || !nullableString(row.state)
+      || !nullableString(row.avatarImageUrl)
+      || !nullableString(row.bannerImageUrl)
+      || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+      || !nullableString(row.ownerImageUrl)
+      || !nullableString(row.coverImageUrl)
+    ) {
+      throw new Error("Seller public metro-maker authority returned an invalid result");
+    }
+    return Object.freeze({
+      id: row.id,
+      displayName: row.displayName,
+      tagline: row.tagline,
+      city: row.city,
+      state: row.state,
+      avatarImageUrl: row.avatarImageUrl,
+      bannerImageUrl: row.bannerImageUrl,
+      guildLevel: row.guildLevel as SellerPublicMetroMaker["guildLevel"],
+      ownerImageUrl: row.ownerImageUrl,
+      coverImageUrl: row.coverImageUrl,
+      activeListingCount: parseSafeCount(row.activeListingCount, "active listing count"),
+    });
+  });
+  if (makers.length > limit || new Set(makers.map(({ id }) => id)).size !== makers.length) {
+    throw new Error("Seller public metro-maker authority returned invalid cardinality");
+  }
+  return Object.freeze(makers);
+}
+
+async function readSellerPublicNearbyMetros(
+  client: SellerPublicAccessClient,
+  metroId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicNearbyMetroRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_nearby_metros(${metroId})
+  `);
+  const metros = rows.map((row) => {
+    if (
+      typeof row.id !== "string"
+      || !row.id
+      || typeof row.slug !== "string"
+      || !row.slug
+      || typeof row.name !== "string"
+      || !row.name
+    ) {
+      throw new Error("Seller public nearby-metro authority returned an invalid result");
+    }
+    return Object.freeze({ id: row.id, slug: row.slug, name: row.name });
+  });
+  if (new Set(metros.map(({ id }) => id)).size !== metros.length) {
+    throw new Error("Seller public nearby-metro authority returned duplicate results");
+  }
+  return Object.freeze(metros);
+}
+
 async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicSitemapCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_sitemap_counts()
@@ -724,6 +861,46 @@ export async function sellerPublicMapCard(sellerProfileId: string) {
     throw new RangeError("Seller public map-card id is outside the supported range");
   }
   return readSellerPublicMapCard(prisma, sellerProfileId);
+}
+
+export async function sellerPublicMetroStaticSlugs() {
+  return readSellerPublicMetroStaticSlugs(prisma);
+}
+
+export async function sellerPublicMetroMakers(
+  viewerUserId: string | null,
+  metroId: string,
+  isMajor: boolean,
+  limit = 24,
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(metroId)
+    || typeof isMajor !== "boolean"
+    || !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 24
+  ) {
+    throw new RangeError("Seller public metro-maker input is outside the supported range");
+  }
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicMetroMakers(client, metroId, isMajor, limit));
+  }
+  return readSellerPublicMetroMakers(prisma, metroId, isMajor, limit);
+}
+
+export async function sellerPublicNearbyMetros(
+  viewerUserId: string | null,
+  metroId: string,
+) {
+  if (!/^[A-Za-z0-9._:-]{1,191}$/u.test(metroId)) {
+    throw new RangeError("Seller public nearby-metro input is outside the supported range");
+  }
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicNearbyMetros(client, metroId));
+  }
+  return readSellerPublicNearbyMetros(prisma, metroId);
 }
 
 export async function sellerPublicSitemapPage(
