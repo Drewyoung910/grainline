@@ -314,6 +314,20 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     assert.deepEqual(
       rowsOf(await database.query(
+        `SELECT "sellerProfileId", "guildLevel", "vacationMode",
+                "vacationReturnEpochMillis", "chargesEnabled"
+           FROM public.grainline_seller_owner_dashboard_state()`,
+      )),
+      [{
+        sellerProfileId: seller.sellerProfileId,
+        guildLevel: "NONE",
+        vacationMode: false,
+        vacationReturnEpochMillis: null,
+        chargesEnabled: true,
+      }],
+    );
+    assert.deepEqual(
+      rowsOf(await database.query(
         `SELECT "sellerProfileId", "listingId", "listingTitle"
            FROM public.grainline_seller_owner_blog_editor()`,
       )).filter((row) => row.listingId === listingId),
@@ -549,6 +563,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_owner_core()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_owner_dashboard_state()"),
       /permission denied/u,
     );
     await assert.rejects(

@@ -43,6 +43,14 @@ type SellerOwnerListingPublishReviewRow = {
   publishReviewListingCount: unknown;
 };
 
+type SellerOwnerDashboardStateRow = {
+  sellerProfileId: unknown;
+  guildLevel: unknown;
+  vacationMode: unknown;
+  vacationReturnEpochMillis: unknown;
+  chargesEnabled: unknown;
+};
+
 export type SellerOwnerAccountSummary = {
   sellerProfileId: string;
   avatarImageUrl: string | null;
@@ -84,6 +92,55 @@ export type SellerOwnerListingPublishReview = {
   vacationMode: boolean;
   publishReviewListingCount: number;
 };
+
+export type SellerOwnerDashboardState = {
+  sellerProfileId: string;
+  guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+  vacationMode: boolean;
+  vacationReturnDate: Date | null;
+  chargesEnabled: boolean;
+};
+
+async function readSellerOwnerDashboardState(client: SellerProfileOwnerClient) {
+  const rows = await client.$queryRaw<SellerOwnerDashboardStateRow[]>`
+    SELECT * FROM public.grainline_seller_owner_dashboard_state()
+  `;
+  if (rows.length > 1) {
+    throw new Error("Seller owner dashboard authority returned too many rows");
+  }
+  const row = rows[0];
+  if (!row) return null;
+  if (
+    typeof row.sellerProfileId !== "string"
+    || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.sellerProfileId)
+    || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+    || typeof row.vacationMode !== "boolean"
+    || (
+      row.vacationReturnEpochMillis !== null
+      && (
+        typeof row.vacationReturnEpochMillis !== "bigint"
+        || row.vacationReturnEpochMillis < 0n
+        || row.vacationReturnEpochMillis > 253402300799999n
+      )
+    )
+    || typeof row.chargesEnabled !== "boolean"
+  ) {
+    throw new Error("Seller owner dashboard authority returned an invalid result");
+  }
+  return Object.freeze({
+    sellerProfileId: row.sellerProfileId,
+    guildLevel: row.guildLevel as SellerOwnerDashboardState["guildLevel"],
+    vacationMode: row.vacationMode,
+    vacationReturnDate: row.vacationReturnEpochMillis === null
+      ? null
+      : new Date(Number(row.vacationReturnEpochMillis)),
+    chargesEnabled: row.chargesEnabled,
+  }) satisfies Readonly<SellerOwnerDashboardState>;
+}
+
+export function sellerOwnerDashboardState(userId: string) {
+  return withDbUserContext(userId, readSellerOwnerDashboardState);
+}
 
 async function readSellerOwnerListingPublishReview(
   client: SellerProfileOwnerClient,

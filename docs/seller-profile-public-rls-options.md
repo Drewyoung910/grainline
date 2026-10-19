@@ -367,6 +367,13 @@ seller profile id, removing the page's direct SellerProfile read and all four
 SellerProfile relation accesses without a new function. The candidate is now at
 44 direct operations in 23 files, 94 relation accesses in 49 files, 15 raw SQL
 accesses in 12 files, 74 total consumer files and 179 reconciled opaque shapes.
+The workshop dashboard then uses a bounded owner-dashboard state authority and
+reuses owner core plus the composite Listing owner key for its three listing
+actions. This removes one direct SellerProfile read and three relation accesses,
+so the file leaves the consumer ledger. The candidate is now at 43 direct
+operations in 22 files, 91 relation accesses in 48 files, 15 raw SQL accesses
+in 12 files, 73 total consumer files and 179 reconciled opaque shapes. The
+catalog has 158 functions: 98 retained, 32 internal and 28 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

@@ -69,8 +69,9 @@ describe("onboarding-incomplete dashboard access", () => {
     assert.match(newListing, /Save as Draft/);
 
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
-    assert.match(shopActions, /select: \{ chargesEnabled: true, vacationMode: true \}/);
-    assert.match(shopActions, /if \(!sellerCheck\?\.chargesEnabled \|\| sellerCheck\.vacationMode\)/);
+    assert.match(shopActions, /sellerOwnerListingPublishReview\(/);
+    assert.match(shopActions, /if \(!sellerReview\?\.chargesEnabled \|\| sellerReview\.vacationMode\)/);
+    assert.doesNotMatch(shopActions, /prisma\.sellerProfile\./);
 
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");

@@ -119,6 +119,13 @@ one direct operation and four relation accesses without another database
 function. The candidate is now at 44 direct operations in 23 files, 94 relation
 accesses in 49 files, 15 raw SQL accesses in 12 files and 74 total consumer
 files; the 179 opaque shapes and 157-function catalog are unchanged.
+The workshop dashboard then leaves the ledger entirely: one actor-bound
+dashboard-state authority replaces its direct seller read, and its three
+listing actions reuse owner core plus the composite Listing owner key. The
+candidate is now at 43 direct operations in 22 files, 91 relation accesses in
+48 files, 15 raw SQL accesses in 12 files and 73 total consumer files. Its
+158-function catalog partitions into 98 retained, 32 internal and 28 converted
+authorities; opaque-shape and coordinate counts are unchanged.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,
