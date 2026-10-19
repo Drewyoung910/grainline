@@ -125,9 +125,10 @@ describe("public location source boundaries", () => {
       source("src/app/page.tsx"),
     ];
     for (const publicMap of publicMaps) {
-      assert.match(publicMap, /publicSellerLocationPoint\(\{ lat, lng, radiusMeters: 0 \}\)/);
-      assert.match(publicMap, /lat: publicPoint\.lat/);
-      assert.match(publicMap, /lng: publicPoint\.lng/);
+      assert.match(publicMap, /sellerPublicMapPoints\(/);
+      assert.match(publicMap, /lat: seller\.publicLat/);
+      assert.match(publicMap, /lng: seller\.publicLng/);
+      assert.doesNotMatch(publicMap, /prisma\.sellerProfile\.findMany\(\{[\s\S]{0,350}publicMapOptIn/u);
     }
 
     assert.match(seller, /latitude: pickupMapPoint\.lat/);

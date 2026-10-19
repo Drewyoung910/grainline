@@ -33,7 +33,7 @@ import { formatCurrencyCents } from "@/lib/money";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
-import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
+import { sellerPublicMapPoints } from "@/lib/sellerProfilePublicAccess";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -320,18 +320,7 @@ export default async function HomePage() {
       take: 12,
       select: homeListingCardSelect,
     }),
-    prisma.sellerProfile.findMany({
-      where: activeSellerProfileWhere({
-        publicMapOptIn: true,
-        lat: { not: null },
-        lng: { not: null },
-        OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
-        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      }),
-      select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
-      orderBy: { id: "asc" },
-      take: 200,
-    }),
+    sellerPublicMapPoints(meDbId, 200),
     prisma.blogPost.findMany({
       where: publicBlogPostWhere({
         ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}),
@@ -356,20 +345,14 @@ export default async function HomePage() {
 
   const featuredMakers = featuredMakerBlock;
 
-  const mapPoints = mapRows.flatMap((seller) => {
-    const lat = Number(seller.lat);
-    const lng = Number(seller.lng);
-    if (!isSupportedLocationPoint(lat, lng)) return [];
-    const publicPoint = publicSellerLocationPoint({ lat, lng, radiusMeters: 0 });
-    return [{
+  const mapPoints = mapRows.map((seller) => ({
       id: seller.id,
-      name: seller.displayName ?? "Maker",
+      name: seller.displayName || "Maker",
       city: seller.city,
       state: seller.state,
-      lat: publicPoint.lat,
-      lng: publicPoint.lng,
-    }];
-  });
+      lat: seller.publicLat,
+      lng: seller.publicLng,
+    }));
 
   const featuredMakerFallbackImages = featuredMakers.map(({ maker, listings }) =>
     listings[0]?.photos[0]?.url ??

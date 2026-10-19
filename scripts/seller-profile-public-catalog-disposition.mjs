@@ -33,6 +33,10 @@ export const SELLER_PROFILE_INTERNAL_SUPPORT_FUNCTIONS = new Set([
   "grainline_user_public_seller_state_sync()",
 ]);
 
+export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
+  "grainline_seller_public_map_points(integer)",
+]);
+
 export const SELLER_PROFILE_TRIGGER_DISPOSITIONS = new Map([
   ["SellerProfile_private_initialize", "grainline_seller_profile_private_initialize()"],
   ["SellerProfile_supported_snapshot_guard", "grainline_seller_profile_supported_snapshot_guard()"],
@@ -48,8 +52,8 @@ function sameStrings(actual, expected) {
 }
 
 export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
-  if (functions.length !== 130) {
-    throw new Error(`SellerProfile function inventory drifted: expected 130, got ${functions.length}`);
+  if (functions.length !== 131) {
+    throw new Error(`SellerProfile function inventory drifted: expected 131, got ${functions.length}`);
   }
   for (const row of functions) {
     if (!row.security_definer || !row.config?.includes("search_path=pg_catalog")) {
@@ -84,14 +88,27 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
     );
   }
 
+  const convertedAuthorityFunctions = functions.filter((row) =>
+    SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS.has(row.signature));
+  const missingConvertedFunctions = [...SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS]
+    .filter((signature) => !convertedAuthorityFunctions.some((row) => row.signature === signature));
+  if (missingConvertedFunctions.length
+      || convertedAuthorityFunctions.some((row) => !row.runtime_execute)) {
+    throw new Error(
+      `SellerProfile converted authority drifted: missing=${missingConvertedFunctions.join(",") || "none"}`,
+    );
+  }
   const retainedAuthorityFunctions = functions.filter(
-    (row) => row.runtime_execute
-      || row.execute_grantees.includes("grainline_staff_read_runtime"),
+    (row) => (row.runtime_execute
+      || row.execute_grantees.includes("grainline_staff_read_runtime"))
+      && !SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS.has(row.signature),
   );
-  if (retainedAuthorityFunctions.length !== 98 || internalSupportFunctions.length !== 32) {
+  if (retainedAuthorityFunctions.length !== 98
+      || internalSupportFunctions.length !== 32
+      || convertedAuthorityFunctions.length !== 1) {
     throw new Error(
       `SellerProfile function dispositions drifted: retained=${retainedAuthorityFunctions.length}; `
-      + `internal=${internalSupportFunctions.length}`,
+      + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length}`,
     );
   }
 
@@ -126,7 +143,7 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
     functionDispositions: {
       retainedAuthority: retainedAuthorityFunctions.length,
       internalSupport: internalSupportFunctions.length,
-      convertedAuthority: 0,
+      convertedAuthority: convertedAuthorityFunctions.length,
       retiredPredecessor: 0,
     },
     functionFamilyCounts,

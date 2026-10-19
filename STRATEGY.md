@@ -45,12 +45,17 @@ every surface: radius-sized grids for positive privacy radii and the coarse
 public grid otherwise. Exact coordinates remain owner or purpose bound. An
 isolated Phase 1 candidate now applies that rule to the three public maps,
 seller/listing map cards, seller JSON-LD and browse-distance SQL, with a
-failing-first behavior test. It is not merged or live, and the authoritative
-database projection still must replace raw source access. Phase 1 continues
-with additive projection/operation design, the three behavior-proof gaps and
-caller conversion while predecessor grants remain intact until compatibility
-proof is accepted. Production migration, grant, ENABLE, FORCE and deployment
-remain separate approvals. Keep `CommissionRequest` as a separate RLS release.
+failing-first behavior test. The three directory/home maps now call the first
+additive database authority, which returns only bounded presentation fields
+and a coarse point, applies active/map/block predicates and keeps the old table
+grant unchanged. This reduces the candidate source inventory to 96 direct
+operations in 56 files and 99 total consumer files. It is not merged or live;
+seller/listing detail and browse location still need database-bound operations.
+Phase 1 continues with additive projection/operation design, the three
+behavior-proof gaps and caller conversion while predecessor grants remain
+intact until compatibility proof is accepted. Production migration, grant,
+ENABLE, FORCE and deployment remain separate approvals. Keep
+`CommissionRequest` as a separate RLS release.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 

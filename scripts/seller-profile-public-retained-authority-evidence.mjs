@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS } from "./seller-profile-public-catalog-disposition.mjs";
 
 const db = (file) => Object.freeze({ kind: "DIRECT_DATABASE_BEHAVIOR", files: Object.freeze([file]) });
 const composed = (...files) => Object.freeze({ kind: "COMPOSED_DATABASE_BEHAVIOR", files: Object.freeze(files) });
@@ -126,7 +127,9 @@ function functionName(signature) {
 
 export function verifySellerProfileRetainedAuthorityEvidence(root, catalog) {
   const installed = catalog.functions
-    .filter((row) => row.runtime_execute || row.execute_grantees.includes('grainline_staff_read_runtime'))
+    .filter((row) => (
+      row.runtime_execute || row.execute_grantees.includes('grainline_staff_read_runtime')
+    ) && !SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS.has(row.signature))
     .map((row) => row.signature)
     .sort();
   const mapped = Object.keys(SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE).sort();

@@ -151,14 +151,19 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The disposition is now machine-checked by
+The Phase 1 candidate adds one converted runtime authority,
+`grainline_seller_public_map_points(integer)`, without changing predecessor
+table grants. It returns only seller id/name/city/state and a database-derived
+coarse point, enforces active public-map eligibility, applies reciprocal blocks
+from trusted transaction-local user context, caps results at 500 and grants
+execute only to the app runtime. The disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
 | Disposition | Count | Meaning for public SellerProfile |
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 0 | Source caller conversion will add new bounded authorities in Phase 1; none exists in this baseline |
+| Converted authority | 1 | The additive public-map operation replaces direct base-table map reads while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -178,7 +183,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 38 | 28 | 4 | 6 |
+| Seller | 39 | 29 | 4 | 6 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 12 | 7 | 2 | 3 |
 
@@ -378,9 +383,11 @@ defect that Phase 1 must remove before activation.
 An isolated Phase 1 source candidate now removes that raw public output across
 the three maps, seller/listing map cards, seller JSON-LD and browse-distance
 SQL. Its behavior test failed on the exact-main implementation and passes after
-the change. This does not rewrite the baseline above or claim a live fix: the
-candidate remains unmerged and undeployed, and the later database projection
-must make approximation authoritative before RLS activation.
+the change. The three directory/home maps additionally read through the first
+database-derived public operation instead of directly selecting raw map source
+columns. This does not rewrite the baseline above or claim a live fix: the
+candidate remains unmerged and undeployed, and seller/listing detail plus
+browse location still need database-bound operations before RLS activation.
 
 ## Reconciliation of recent Claude allegations
 
@@ -440,8 +447,10 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Merge and release the isolated application correction that replaces
   raw-coordinate output on public maps, seller/listing public helpers, seller
   JSON-LD and browse-distance SQL with approximate points and removes “exact
-  pin” UI copy. Then move that derivation into the reviewed database operation
-  so callers cannot recover the raw source point.
+  pin” UI copy. The three directory/home maps now use the additive bounded map
+  authority; move the remaining seller/listing detail and browse derivations
+  into reviewed database operations so those callers cannot recover the raw
+  source point.
 - Add full-chain behavior proof for the checkout claim batch, listing delete
   reference state, and Guild listing-threshold sync authorities.
 - Prove anonymous, owner, staff, map, checkout/shipping, deletion/export,

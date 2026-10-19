@@ -1,11 +1,9 @@
 // src/app/sellers/map/page.tsx
-import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import SellersMap from "@/components/SellersMap";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { auth } from "@clerk/nextjs/server";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
-import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
+import { prisma } from "@/lib/db";
+import { sellerPublicMapPoints } from "@/lib/sellerProfilePublicAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -16,36 +14,14 @@ export default async function SellersMapPage() {
     const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-
-  const sellers = await prisma.sellerProfile.findMany({
-    where: {
-      lat: { not: null },
-      lng: { not: null },
-      publicMapOptIn: true,
-      ...activeSellerProfileWhere(),
-      ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
-    },
-    select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
-    orderBy: { id: "asc" },
-    take: 500,
-  });
-
-  const pins = sellers.flatMap((seller) => {
-    const lat = Number(seller.lat);
-    const lng = Number(seller.lng);
-    if (!isSupportedLocationPoint(lat, lng)) return [];
-    const publicPoint = publicSellerLocationPoint({ lat, lng, radiusMeters: 0 });
-    return [{
-      id: seller.id,
-      name: seller.displayName ?? "Maker",
-      lat: publicPoint.lat,
-      lng: publicPoint.lng,
-      city: seller.city,
-      state: seller.state,
-    }];
-  });
+  const pins = (await sellerPublicMapPoints(meDbId, 500)).map((seller) => ({
+    id: seller.id,
+    name: seller.displayName || "Maker",
+    lat: seller.publicLat,
+    lng: seller.publicLng,
+    city: seller.city,
+    state: seller.state,
+  }));
 
   return (
     <main className="max-w-7xl mx-auto p-8 space-y-6">

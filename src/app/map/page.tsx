@@ -8,7 +8,7 @@ import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import type { Metadata } from "next";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
-import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
+import { sellerPublicMapPoints } from "@/lib/sellerProfilePublicAccess";
 
 export const metadata: Metadata = {
   title: "Find Local Woodworkers Near You | Grainline Makers Map",
@@ -65,7 +65,9 @@ export default async function AllSellersMapPage({
     initialZoom = parseBoundedPositiveIntParam(zoom, 3, 18);
   }
 
-  // Only sellers with a source point. Public output is always approximated.
+  // Metro membership still uses the existing visibility predicate during the
+  // additive compatibility phase. Map coordinates come only from the bounded
+  // database authority below.
   const activeMetros = await prisma.metro.findMany({
     where: {
       isActive: true,
@@ -96,40 +98,17 @@ export default async function AllSellersMapPage({
     childrenByParent.set(c.parentMetroId!, list);
   }
 
-  const sellers = await prisma.sellerProfile.findMany({
-    where: {
-      publicMapOptIn: true,
-      ...visibleSellerWhere,
-      lat: { not: null },
-      lng: { not: null },
-      OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
-    },
-    select: {
-      id: true,
-      displayName: true,
-      city: true,
-      state: true,
-      lat: true,
-      lng: true,
-    },
-    orderBy: { id: "asc" },
-    take: MAP_SELLER_POINT_LIMIT,
-  });
-
-  const points = sellers.flatMap((seller): Point[] => {
-    const lat = Number(seller.lat);
-    const lng = Number(seller.lng);
-    if (!isSupportedLocationPoint(lat, lng)) return [];
-    const publicPoint = publicSellerLocationPoint({ lat, lng, radiusMeters: 0 });
-    return [{
+  const points: Point[] = (await sellerPublicMapPoints(
+    meDbId,
+    MAP_SELLER_POINT_LIMIT,
+  )).map((seller) => ({
       id: seller.id,
-      name: seller.displayName ?? "Maker",
-      lat: publicPoint.lat,
-      lng: publicPoint.lng,
+      name: seller.displayName || "Maker",
+      lat: seller.publicLat,
+      lng: seller.publicLng,
       city: seller.city,
       state: seller.state,
-    }];
-  });
+    }));
 
   return (
     <main className="max-w-7xl mx-auto p-6 space-y-6">

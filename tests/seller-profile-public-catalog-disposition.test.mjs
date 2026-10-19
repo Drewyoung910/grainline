@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS,
   SELLER_PROFILE_INTERNAL_SUPPORT_FUNCTIONS,
   SELLER_PROFILE_TRIGGER_DISPOSITIONS,
   classifySellerProfileDatabaseObjects,
@@ -21,6 +22,8 @@ function fixture() {
   const functions = [
     ...[...SELLER_PROFILE_INTERNAL_SUPPORT_FUNCTIONS]
       .map((signature) => functionRow(signature, ["ci"])),
+    ...[...SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS]
+      .map((signature) => functionRow(signature, ["ci", "grainline_app_runtime"], true)),
     ...Array.from({ length: 91 }, (_, index) => functionRow(
       `grainline_fixture_runtime_${index}(text)`,
       ["ci", "grainline_app_runtime"],
@@ -46,7 +49,7 @@ test("SellerProfile catalog disposition accepts only the reviewed ACL partition"
   assert.deepEqual(result.functionDispositions, {
     retainedAuthority: 98,
     internalSupport: 32,
-    convertedAuthority: 0,
+    convertedAuthority: 1,
     retiredPredecessor: 0,
   });
   assert.equal(result.sellerProfileTriggerDispositions.length, 6);
