@@ -9,7 +9,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import DynamicMapCard from "@/components/DynamicMapCard";
-import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
+import { sellerPublicLocation } from "@/lib/sellerProfilePublicAccess";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
@@ -82,11 +82,7 @@ const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
       bio: true,
       city: true,
       state: true,
-      lat: true,
-      lng: true,
       createdAt: true,
-      radiusMeters: true,
-      publicMapOptIn: true,
       allowLocalPickup: true,
       tagline: true,
       bannerImageUrl: true,
@@ -240,18 +236,8 @@ async function SellerPublicContent({
     permanentRedirect(publicSellerPath(seller.id, seller.displayName));
   }
 
-  // Ensure numbers (handle Prisma Decimal/null)
-  const lat = seller.lat != null ? Number(seller.lat) : null;
-  const lng = seller.lng != null ? Number(seller.lng) : null;
-  const radiusMeters =
-    seller.radiusMeters != null ? Number(seller.radiusMeters) : null;
-
-  const pickupMapPoint = lat != null && lng != null && isSupportedLocationPoint(lat, lng)
-    ? publicSellerLocationPoint({
-        lat,
-        lng,
-        radiusMeters,
-      })
+  const pickupMapPoint = seller.allowLocalPickup
+    ? await sellerPublicLocation(meId, seller.id, null)
     : null;
 
   const cityState = [seller.city, seller.state].filter(Boolean).join(", ");
@@ -376,12 +362,12 @@ async function SellerPublicContent({
           },
         }
       : {}),
-    ...(hasStructuredAddress && seller.publicMapOptIn && !radiusMeters && pickupMapPoint
+    ...(hasStructuredAddress && pickupMapPoint?.structuredGeoEligible
       ? {
           geo: {
             "@type": "GeoCoordinates",
-            latitude: pickupMapPoint.lat,
-            longitude: pickupMapPoint.lng,
+            latitude: pickupMapPoint.publicLat,
+            longitude: pickupMapPoint.publicLng,
           },
         }
       : {}),
@@ -915,17 +901,15 @@ async function SellerPublicContent({
               <div className="mb-4">
                 <h2 className="text-xl sm:text-2xl font-display font-semibold">Visit this maker</h2>
                 <p className="text-sm text-neutral-500 mt-1">
-                  {pickupMapPoint.approximate
-                    ? `Approximate area${cityState ? ` near ${cityState}` : ""}. Exact pickup details shared after purchase.`
-                    : `Exact pickup point${cityState ? ` in ${cityState}` : ""}. Pickup available at checkout.`}
+                  {`Approximate area${cityState ? ` near ${cityState}` : ""}. Exact pickup details shared after purchase.`}
                 </p>
               </div>
               <div className="rounded-2xl overflow-hidden ring-1 ring-stone-300/70 shadow-sm">
                 <DynamicMapCard
-                  displayLat={pickupMapPoint.lat}
-                  displayLng={pickupMapPoint.lng}
+                  displayLat={pickupMapPoint.publicLat}
+                  displayLng={pickupMapPoint.publicLng}
                   label={cityState || seller.displayName || "Pickup area"}
-                  radiusMeters={radiusMeters ?? null}
+                  radiusMeters={pickupMapPoint.displayRadiusMeters}
                   showPinWithRadius={false}
                   className="h-72 sm:h-96 w-full"
                 />

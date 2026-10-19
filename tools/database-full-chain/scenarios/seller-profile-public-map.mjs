@@ -9,6 +9,7 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   const viewerClerkId = `user_full_chain_map_viewer_${seller.userId}`;
   const viewerEmail = `map-${seller.userId}@example.test`;
   const blockId = `${seller.sellerProfileId}_map_block`;
+  const listingId = `${seller.sellerProfileId}_map_listing`;
   const now = new Date("2026-10-19T00:00:00.000Z");
 
   await database.query(
@@ -31,6 +32,14 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
      VALUES ($1, $2, $3, 'Map Viewer', $4, $4, $4, '2026-01-01', $4)`,
     [viewerUserId, viewerClerkId, viewerEmail, now],
   );
+  await database.query(
+    `INSERT INTO public."Listing"
+      (id, "sellerId", title, description, "priceCents", status,
+       "isPrivate", "createdAt", "updatedAt")
+     VALUES ($1, $2, 'Full Chain Map Listing', 'Public location proof', 1200,
+             'ACTIVE', false, $3, $3)`,
+    [listingId, seller.sellerProfileId, now],
+  );
 
   await database.query("SET ROLE grainline_app_runtime");
   try {
@@ -45,8 +54,54 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       publicLat: 30.275,
       publicLng: -97.725,
     }]);
+    const sellerLocation = rowsOf(await database.query(
+      `SELECT *
+         FROM public.grainline_seller_public_location($1, NULL)`,
+      [seller.sellerProfileId],
+    ));
+    assert.deepEqual(sellerLocation, [{
+      publicLat: 30.275,
+      publicLng: -97.725,
+      displayRadiusMeters: null,
+      structuredGeoEligible: true,
+    }]);
+    assert.deepEqual(
+      Object.keys(sellerLocation[0]).sort(),
+      ["displayRadiusMeters", "publicLat", "publicLng", "structuredGeoEligible"].sort(),
+    );
+    const listingLocation = rowsOf(await database.query(
+      `SELECT *
+         FROM public.grainline_seller_public_location($1, $2)`,
+      [seller.sellerProfileId, listingId],
+    ));
+    assert.deepEqual(listingLocation, sellerLocation);
   } finally {
     await database.query("RESET ROLE");
+  }
+
+  await database.query(
+    `UPDATE public."Listing"
+        SET "isPrivate" = true,
+            "reservedForUserId" = $2,
+            "updatedAt" = $3
+      WHERE id = $1`,
+    [listingId, viewerUserId, now],
+  );
+  await database.query(
+    "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+    [viewerUserId],
+  );
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    const rows = rowsOf(await database.query(
+      `SELECT *
+         FROM public.grainline_seller_public_location($1, $2)`,
+      [seller.sellerProfileId, listingId],
+    ));
+    assert.equal(rows.length, 1);
+  } finally {
+    await database.query("RESET ROLE");
+    await database.query("RESET app.user_id");
   }
 
   await database.query(
@@ -65,6 +120,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       [seller.sellerProfileId],
     ));
     assert.deepEqual(rows, []);
+    const locationRows = rowsOf(await database.query(
+      `SELECT *
+         FROM public.grainline_seller_public_location($1, NULL)`,
+      [seller.sellerProfileId],
+    ));
+    assert.deepEqual(locationRows, []);
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
@@ -74,6 +135,13 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   try {
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_map_points(500)"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_location($1, NULL)",
+        [seller.sellerProfileId],
+      ),
       /permission denied/u,
     );
   } finally {

@@ -214,11 +214,13 @@ view owner bypasses RLS.
 Option B is selected and Phase 0 closed on 2026-10-19. The domain may proceed
 to additive Phase 1 design and isolated source preparation. Public location is
 approximate-only. An isolated application candidate now corrects the exact
-map/JSON-LD behavior with failing-first evidence. Its first additive database
-operation converts the three directory/home map reads, reducing the candidate
-inventory from 99 to 96 direct operations and from 100 to 99 total source
-consumers without changing predecessor grants. The candidate remains unmerged,
-and seller/listing detail plus browse location still require database-bound
-derivation. That work and the three retained-authority proof gaps remain
+map/JSON-LD behavior with failing-first evidence. Its first two additive
+database operations convert the three directory/home map reads and bind
+seller/listing detail coordinates to the visible resource, reducing the
+candidate inventory from 99 to 96 direct operations, from 100 to 99 total
+source consumers, and from four to two raw-coordinate source consumers without
+changing predecessor grants. The candidate remains unmerged, and browse
+location still requires database-bound derivation. That work and the three
+retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
 deployment, or provider operation is authorized by this decision.

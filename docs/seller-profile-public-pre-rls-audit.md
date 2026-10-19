@@ -151,19 +151,24 @@ the reviewed subset and prove each function's result and actor binding; it
 must not revoke function execution merely because the function reads this
 table.
 
-The Phase 1 candidate adds one converted runtime authority,
-`grainline_seller_public_map_points(integer)`, without changing predecessor
-table grants. It returns only seller id/name/city/state and a database-derived
-coarse point, enforces active public-map eligibility, applies reciprocal blocks
-from trusted transaction-local user context, caps results at 500 and grants
-execute only to the app runtime. The disposition is machine-checked by
+The Phase 1 candidate adds two converted runtime authorities without changing
+predecessor table grants. `grainline_seller_public_map_points(integer)` returns
+only seller id/name/city/state and a database-derived coarse point, enforces
+active public-map eligibility, applies reciprocal blocks from trusted
+transaction-local user context, and caps results at 500.
+`grainline_seller_public_location(text,text)` binds one approximate point to an
+already-visible seller or listing and returns only the point, display radius,
+and structured-geo eligibility. It preserves owner and reserved-buyer access,
+denies reciprocal blocks, excludes archived listings, and deliberately emits
+no location for a staff-only preview. Both grant execute only to the app
+runtime. Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
 | Disposition | Count | Meaning for public SellerProfile |
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 32 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details |
-| Converted authority | 1 | The additive public-map operation replaces direct base-table map reads while predecessor grants remain available |
+| Converted authority | 2 | The additive directory-map and resource-bound detail operations replace raw-coordinate public reads while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -183,7 +188,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 39 | 29 | 4 | 6 |
+| Seller | 40 | 30 | 4 | 6 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 12 | 7 | 2 | 3 |
 
@@ -447,9 +452,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Merge and release the isolated application correction that replaces
   raw-coordinate output on public maps, seller/listing public helpers, seller
   JSON-LD and browse-distance SQL with approximate points and removes “exact
-  pin” UI copy. The three directory/home maps now use the additive bounded map
-  authority; move the remaining seller/listing detail and browse derivations
-  into reviewed database operations so those callers cannot recover the raw
+  pin” UI copy. The three directory/home maps and seller/listing detail routes
+  now use additive bounded authorities. Move the remaining browse derivation
+  into a reviewed database operation so that caller cannot recover the raw
   source point.
 - Add full-chain behavior proof for the checkout claim batch, listing delete
   reference state, and Guild listing-threshold sync authorities.

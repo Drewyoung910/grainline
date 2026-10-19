@@ -105,12 +105,14 @@ describe("public location source boundaries", () => {
     const mapCard = source("src/components/MapCard.tsx");
 
     for (const page of [listing, seller]) {
-      assert.match(page, /publicSellerLocationPoint\(/);
-      assert.match(page, /isSupportedLocationPoint\(lat, lng\)/);
-      assert.doesNotMatch(page, /exactLocationOptIn/);
+      assert.match(page, /sellerPublicLocation\(/);
       assert.match(page, /showPickupMap && pickupMapPoint &&/);
-      assert.match(page, /displayLat=\{pickupMapPoint\.lat\}/);
-      assert.match(page, /displayLng=\{pickupMapPoint\.lng\}/);
+      assert.match(page, /displayLat=\{pickupMapPoint\.publicLat\}/);
+      assert.match(page, /displayLng=\{pickupMapPoint\.publicLng\}/);
+      assert.doesNotMatch(page, /\blat: true,/);
+      assert.doesNotMatch(page, /\blng: true,/);
+      assert.doesNotMatch(page, /\bradiusMeters: true,/);
+      assert.doesNotMatch(page, /\bpublicMapOptIn: true,/);
       assert.doesNotMatch(page, /<DynamicMapCard[\s\S]{0,120}\blat=\{lat\}/);
       assert.doesNotMatch(page, /<DynamicMapCard[\s\S]{0,120}\blng=\{lng\}/);
     }
@@ -131,8 +133,8 @@ describe("public location source boundaries", () => {
       assert.doesNotMatch(publicMap, /prisma\.sellerProfile\.findMany\(\{[\s\S]{0,350}publicMapOptIn/u);
     }
 
-    assert.match(seller, /latitude: pickupMapPoint\.lat/);
-    assert.match(seller, /longitude: pickupMapPoint\.lng/);
+    assert.match(seller, /latitude: pickupMapPoint\.publicLat/);
+    assert.match(seller, /longitude: pickupMapPoint\.publicLng/);
     assert.doesNotMatch(seller, /latitude: lat, longitude: lng/);
   });
 

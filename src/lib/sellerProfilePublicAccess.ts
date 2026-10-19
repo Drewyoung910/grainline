@@ -16,6 +16,14 @@ export type SellerPublicMapPoint = Readonly<{
   publicLng: number;
 }>;
 
+export type SellerPublicLocation = Readonly<{
+  publicLat: number;
+  publicLng: number;
+  displayRadiusMeters: number | null;
+  structuredGeoEligible: boolean;
+  approximate: true;
+}>;
+
 type SellerPublicMapPointRow = {
   id: unknown;
   displayName: unknown;
@@ -23,6 +31,13 @@ type SellerPublicMapPointRow = {
   state: unknown;
   publicLat: unknown;
   publicLng: unknown;
+};
+
+type SellerPublicLocationRow = {
+  publicLat: unknown;
+  publicLng: unknown;
+  displayRadiusMeters: unknown;
+  structuredGeoEligible: unknown;
 };
 
 type PublicMapClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
@@ -61,6 +76,45 @@ async function readSellerPublicMapPoints(client: PublicMapClient, limit: number)
   return rows.map(parsePublicMapPoint);
 }
 
+async function readSellerPublicLocation(
+  client: PublicMapClient,
+  sellerProfileId: string,
+  listingId: string | null,
+) {
+  const rows = await client.$queryRaw<SellerPublicLocationRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_location(
+        ${sellerProfileId},
+        ${listingId}
+      )
+  `);
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Seller public location authority returned multiple results");
+  }
+  const row = rows[0];
+  const publicLat = Number(row.publicLat);
+  const publicLng = Number(row.publicLng);
+  const displayRadiusMeters = row.displayRadiusMeters == null
+    ? null
+    : Number(row.displayRadiusMeters);
+  if (
+    !isSupportedLocationPoint(publicLat, publicLng)
+    || (displayRadiusMeters !== null
+      && (!Number.isSafeInteger(displayRadiusMeters) || displayRadiusMeters <= 0))
+    || typeof row.structuredGeoEligible !== "boolean"
+  ) {
+    throw new Error("Seller public location authority returned an invalid result");
+  }
+  return Object.freeze({
+    publicLat,
+    publicLng,
+    displayRadiusMeters,
+    structuredGeoEligible: row.structuredGeoEligible,
+    approximate: true as const,
+  });
+}
+
 export async function sellerPublicMapPoints(
   viewerUserId: string | null,
   limit: number,
@@ -73,4 +127,16 @@ export async function sellerPublicMapPoints(
       readSellerPublicMapPoints(client, limit));
   }
   return readSellerPublicMapPoints(prisma, limit);
+}
+
+export async function sellerPublicLocation(
+  viewerUserId: string | null,
+  sellerProfileId: string,
+  listingId: string | null,
+) {
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicLocation(client, sellerProfileId, listingId));
+  }
+  return readSellerPublicLocation(prisma, sellerProfileId, listingId);
 }

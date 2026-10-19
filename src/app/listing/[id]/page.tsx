@@ -32,8 +32,8 @@ import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
 import { DEFAULT_CURRENCY, formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
-import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
+import { sellerPublicLocation } from "@/lib/sellerProfilePublicAccess";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -74,10 +74,6 @@ const getListingForDetailPage = cache(async (listingId: string) =>
           displayName: true,
           city: true,
           state: true,
-          lat: true,
-          lng: true,
-          radiusMeters: true,
-          publicMapOptIn: true,
           allowLocalPickup: true,
           chargesEnabled: true,
           stripeAccountSupported: true,
@@ -251,6 +247,10 @@ export default async function ListingPage({
     return notFound();
   }
 
+  const pickupMapPoint = listing.seller.allowLocalPickup
+    ? await sellerPublicLocation(meId, listing.sellerId, listing.id)
+    : null;
+
   if (!isPreview && !editingMine && id !== routeSegmentWithSlug(listing.id, listing.title, "listing")) {
     permanentRedirect(publicListingPath(listing.id, listing.title));
   }
@@ -372,17 +372,7 @@ export default async function ListingPage({
 
   const initials = avatarInitials(sellerName, "S");
 
-  const lat = listing.seller.lat != null ? Number(listing.seller.lat) : null;
-  const lng = listing.seller.lng != null ? Number(listing.seller.lng) : null;
-  const radius = Number(listing.seller.radiusMeters ?? 0);
   const cityState = [listing.seller.city, listing.seller.state].filter(Boolean).join(", ");
-  const pickupMapPoint = lat != null && lng != null && isSupportedLocationPoint(lat, lng)
-    ? publicSellerLocationPoint({
-        lat,
-        lng,
-        radiusMeters: radius,
-      })
-    : null;
   const showPickupMap = listing.seller.allowLocalPickup && pickupMapPoint != null;
 
   const signedInMessageHref =
@@ -822,9 +812,9 @@ export default async function ListingPage({
         <section className="mb-10 max-w-2xl">
           <div style={{ position: "relative", zIndex: 0 }}>
             <DynamicMapCard
-              displayLat={pickupMapPoint.lat}
-              displayLng={pickupMapPoint.lng}
-              radiusMeters={radius}
+              displayLat={pickupMapPoint.publicLat}
+              displayLng={pickupMapPoint.publicLng}
+              radiusMeters={pickupMapPoint.displayRadiusMeters}
               label={cityState || sellerName}
             />
           </div>

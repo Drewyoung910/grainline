@@ -4,8 +4,12 @@ import test from "node:test";
 
 import { PGlite } from "@electric-sql/pglite";
 
-const migration = readFileSync(
+const mapMigration = readFileSync(
   "prisma/migrations/20261019010000_prepare_seller_profile_public_map_authority/migration.sql",
+  "utf8",
+);
+const locationMigration = readFileSync(
+  "prisma/migrations/20261019020000_prepare_seller_profile_public_location_authority/migration.sql",
   "utf8",
 );
 
@@ -16,6 +20,7 @@ async function readyDatabase() {
     CREATE ROLE grainline_untrusted LOGIN NOINHERIT;
     CREATE TABLE public."User" (
       id text PRIMARY KEY,
+      banned boolean NOT NULL DEFAULT false,
       "deletedAt" timestamp(3)
     );
     CREATE TABLE public."SellerProfile" (
@@ -31,18 +36,28 @@ async function readyDatabase() {
       "publicMapOptIn" boolean NOT NULL DEFAULT false,
       "chargesEnabled" boolean NOT NULL DEFAULT false,
       "stripeAccountSupported" boolean NOT NULL DEFAULT true,
-      "vacationMode" boolean NOT NULL DEFAULT false
+      "vacationMode" boolean NOT NULL DEFAULT false,
+      "allowLocalPickup" boolean NOT NULL DEFAULT true
     );
     CREATE TABLE public."Block" (
       id text PRIMARY KEY,
       "blockerId" text NOT NULL REFERENCES public."User"(id),
       "blockedId" text NOT NULL REFERENCES public."User"(id)
     );
+    CREATE TABLE public."Listing" (
+      id text PRIMARY KEY,
+      "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id),
+      status text NOT NULL,
+      "isPrivate" boolean NOT NULL DEFAULT false,
+      "reservedForUserId" text REFERENCES public."User"(id),
+      "archivedAt" timestamp(3)
+    );
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."SellerProfile"
       TO grainline_app_runtime;
     INSERT INTO public."User" (id) VALUES
       ('viewer'), ('owner-visible'), ('owner-blocked'), ('owner-radius'),
-      ('owner-no-opt-in'), ('owner-vacation'), ('owner-invalid');
+      ('owner-no-opt-in'), ('owner-vacation'), ('owner-invalid'),
+      ('owner-only');
     INSERT INTO public."SellerProfile" (
       id, "userId", "ownerAccountActive", "displayName", city, state,
       lat, lng, "radiusMeters", "publicMapOptIn", "chargesEnabled",
@@ -59,11 +74,22 @@ async function readyDatabase() {
       ('seller-vacation', 'owner-vacation', true, 'Vacation Workshop', 'El Paso', 'TX',
        31.761, -106.485, 0, true, true, true, true),
       ('seller-invalid', 'owner-invalid', true, 'Invalid Workshop', 'Nowhere', 'TX',
-       999, -97.749, 0, true, true, true, false);
+       999, -97.749, 0, true, true, true, false),
+      ('seller-owner-only', 'owner-only', false, 'Owner Workshop', 'Austin', 'TX',
+       30.251, -97.749, 0, false, false, true, false);
+    INSERT INTO public."Listing" (
+      id, "sellerId", status, "isPrivate", "reservedForUserId", "archivedAt"
+    ) VALUES
+      ('listing-public', 'seller-visible', 'ACTIVE', false, NULL, NULL),
+      ('listing-private-viewer', 'seller-visible', 'ACTIVE', true, 'viewer', NULL),
+      ('listing-private-other', 'seller-visible', 'ACTIVE', true, 'owner-blocked', NULL),
+      ('listing-owner-draft', 'seller-owner-only', 'DRAFT', false, NULL, NULL),
+      ('listing-archived', 'seller-visible', 'ACTIVE', false, NULL, NOW());
     INSERT INTO public."Block" (id, "blockerId", "blockedId")
       VALUES ('block-1', 'owner-blocked', 'viewer');
   `);
-  await database.exec(migration);
+  await database.exec(mapMigration);
+  await database.exec(locationMigration);
   return database;
 }
 
@@ -101,10 +127,132 @@ test("public map authority returns bounded approximate active-seller rows", asyn
     // unchanged until the later zero-direct activation release.
     assert.equal(
       (await database.query('SELECT count(*)::integer AS count FROM public."SellerProfile"')).rows[0].count,
-      6,
+      7,
     );
   } finally {
     await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("resource-bound location authority returns only approximate presentation fields", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    const sellerRows = (await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_location('seller-visible', NULL)
+    `)).rows;
+    assert.deepEqual(sellerRows, [{
+      publicLat: 30.275,
+      publicLng: -97.725,
+      displayRadiusMeters: null,
+      structuredGeoEligible: true,
+    }]);
+    assert.deepEqual(
+      Object.keys(sellerRows[0]).sort(),
+      ["displayRadiusMeters", "publicLat", "publicLng", "structuredGeoEligible"].sort(),
+    );
+
+    const listingRows = (await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_location(
+          'seller-visible',
+          'listing-public'
+        )
+    `)).rows;
+    assert.deepEqual(listingRows, sellerRows);
+
+    const radiusRows = (await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_location('seller-radius', NULL)
+    `)).rows;
+    assert.equal(radiusRows.length, 1);
+    assert.ok(Math.abs(radiusRows[0].publicLat - 29.76733740567734) < 1e-10);
+    assert.ok(Math.abs(radiusRows[0].publicLng - (-95.35662953647143)) < 1e-10);
+    assert.equal(radiusRows[0].displayRadiusMeters, 5000);
+    assert.equal(radiusRows[0].structuredGeoEligible, false);
+
+    assert.deepEqual((await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_location(
+          'seller-visible',
+          'listing-private-viewer'
+        )
+    `)).rows, []);
+    assert.deepEqual((await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_location(
+          'seller-visible',
+          'listing-archived'
+        )
+    `)).rows, []);
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("resource-bound location authority preserves owner and reserved-buyer visibility", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SELECT pg_catalog.set_config('app.user_id', 'viewer', false)");
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.equal((await database.query(`
+      SELECT count(*)::integer AS count
+        FROM public.grainline_seller_public_location(
+          'seller-visible',
+          'listing-private-viewer'
+        )
+    `)).rows[0].count, 1);
+    assert.deepEqual((await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_location(
+          'seller-visible',
+          'listing-private-other'
+        )
+    `)).rows, []);
+    await database.exec("RESET ROLE");
+    await database.exec("RESET app.user_id");
+
+    await database.exec("SELECT pg_catalog.set_config('app.user_id', 'owner-only', false)");
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.equal((await database.query(`
+      SELECT count(*)::integer AS count
+        FROM public.grainline_seller_public_location(
+          'seller-owner-only',
+          'listing-owner-draft'
+        )
+    `)).rows[0].count, 1);
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.exec("RESET app.user_id").catch(() => {});
+    await database.close();
+  }
+});
+
+test("resource-bound location authority denies blocked and ungranted callers", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SELECT pg_catalog.set_config('app.user_id', 'viewer', false)");
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.deepEqual((await database.query(`
+      SELECT *
+        FROM public.grainline_seller_public_location('seller-blocked', NULL)
+    `)).rows, []);
+    await database.exec("RESET ROLE");
+    await database.exec("RESET app.user_id");
+
+    await database.exec("SET ROLE grainline_untrusted");
+    await assert.rejects(
+      database.query(
+        "SELECT * FROM public.grainline_seller_public_location('seller-visible', NULL)",
+      ),
+      /permission denied/u,
+    );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.exec("RESET app.user_id").catch(() => {});
     await database.close();
   }
 });

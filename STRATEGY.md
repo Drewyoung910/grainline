@@ -44,13 +44,16 @@ approximate-only display. Option B now requires approximate public points on
 every surface: radius-sized grids for positive privacy radii and the coarse
 public grid otherwise. Exact coordinates remain owner or purpose bound. An
 isolated Phase 1 candidate now applies that rule to the three public maps,
-seller/listing map cards, seller JSON-LD and browse-distance SQL, with a
-failing-first behavior test. The three directory/home maps now call the first
-additive database authority, which returns only bounded presentation fields
-and a coarse point, applies active/map/block predicates and keeps the old table
-grant unchanged. This reduces the candidate source inventory to 96 direct
-operations in 56 files and 99 total consumer files. It is not merged or live;
-seller/listing detail and browse location still need database-bound operations.
+seller/listing map cards, seller JSON-LD and browse-distance SQL, with
+failing-first behavior evidence. The first additive database authority serves
+the three directory/home maps with bounded presentation fields and a coarse
+point. The second binds one approximate point to an already-visible seller or
+listing, preserving owner and reserved-buyer behavior while denying archived,
+blocked and staff-preview-only access. Both keep the old table grant unchanged.
+This reduces the candidate source inventory to 96 direct operations in 56
+files, 99 total consumer files and two remaining raw-coordinate source
+consumers. It is not merged or live; browse location still needs a
+database-bound operation.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,
