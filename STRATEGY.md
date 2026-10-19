@@ -85,12 +85,14 @@ operation performs actor-bound reciprocal Follow cleanup after an outgoing
 Block, using the shared sorted pair lock and returning only a deletion count.
 An eighteenth exact operation returns one boolean proving that a report target
 is a publicly visible seller owned by the reported user, without exposing the
-seller row or owner id. All eighteen keep the old table grant unchanged. This
-reduces the candidate source inventory to 69 direct operations in 40 files,
-15 raw SQL accesses in 12 files, 88 total consumer files, 181 reconciled opaque query
+seller row or owner id. A nineteenth actor-bound owner account summary returns
+only the profile id, avatar and active-listing count needed by account chrome. All
+nineteen keep the old table grant unchanged. This reduces the candidate source
+inventory to 66 direct operations in 37 files, 15 raw SQL accesses in 12 files,
+85 total consumer files, 181 reconciled opaque query
 shapes and two remaining purpose-bound owner coordinate consumers. The
 candidate catalog contains the unchanged 98 retained and 32 internal functions
-plus the eighteen converted authorities. It
+plus the nineteen converted authorities. It
 is not merged or live; no public route now derives from the raw seller point in
 application SQL.
 Phase 1 continues with additive projection/operation design, the three

@@ -19,9 +19,7 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/account/commissions/page.tsx": ["PUBLIC_PROFILE"],
   "src/app/account/following/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
-  "src/app/account/page.tsx": ["OWNER"],
   "src/app/account/saved/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
-  "src/app/account/settings/page.tsx": ["OWNER"],
   "src/app/admin/broadcasts/page.tsx": ["STAFF"],
   "src/app/admin/reports/page.tsx": ["STAFF"],
   "src/app/admin/review/page.tsx": ["STAFF"],
@@ -42,7 +40,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/api/listings/[id]/similar/route.ts": ["PUBLIC_ELIGIBILITY"],
   "src/app/api/listings/[id]/stock/route.ts": ["TRANSACTION"],
   "src/app/api/listings/recently-viewed/route.ts": ["PUBLIC_PROFILE"],
-  "src/app/api/me/route.ts": ["OWNER"],
   "src/app/api/reviews/[id]/reply/route.ts": ["PUBLIC_ELIGIBILITY", "PARTICIPANT"],
   "src/app/api/reviews/[id]/vote/route.ts": ["PUBLIC_ELIGIBILITY", "PARTICIPANT"],
   "src/app/api/reviews/route.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PARTICIPANT"],

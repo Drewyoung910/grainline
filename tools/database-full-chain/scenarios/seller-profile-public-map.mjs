@@ -260,6 +260,31 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   }
 
   await database.query(
+    "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+    [seller.userId],
+  );
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    assert.deepEqual(
+      rowsOf(await database.query(
+        `SELECT "sellerProfileId", "avatarImageUrl", "activeListingCount"
+           FROM public.grainline_seller_owner_account_summary()`,
+      )).map((row) => ({
+        ...row,
+        activeListingCount: Number(row.activeListingCount),
+      })),
+      [{
+        sellerProfileId: seller.sellerProfileId,
+        avatarImageUrl: null,
+        activeListingCount: 1,
+      }],
+    );
+  } finally {
+    await database.query("RESET ROLE");
+    await database.query("RESET app.user_id");
+  }
+
+  await database.query(
     `UPDATE public."Listing"
         SET "isPrivate" = true,
             "reservedForUserId" = $2,
@@ -357,6 +382,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_marketplace_counts()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_owner_account_summary()"),
       /permission denied/u,
     );
     await assert.rejects(

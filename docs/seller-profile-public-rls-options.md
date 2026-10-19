@@ -292,6 +292,13 @@ returns neither the seller row nor its owner id. The candidate is now down to
 accesses in 12 files, 88 total consumer files and 181 reconciled opaque shapes.
 Its catalog has 148 matching functions: 98 retained, 32 internal and eighteen
 converted authorities.
+A nineteenth exact operation derives the authenticated owner only from
+transaction-local context and returns the profile id, avatar and active-listing
+count shared by three account surfaces. It rejects missing, banned and deleted
+owner context. The candidate is now down to 66 direct operations in 37 files,
+98 relation accesses in 50 files, 15 raw SQL accesses in 12 files, 85 total
+consumer files and 181 reconciled opaque shapes. Its catalog has 149 matching
+functions: 98 retained, 32 internal and nineteen converted authorities.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

@@ -12,6 +12,7 @@ import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { countSellerCompletedOrders } from "@/lib/orderSellerAnalyticsAuthority";
 import { readBuyerOrderSummaryPage } from "@/lib/orderParticipantReadAuthority";
+import { sellerOwnerAccountSummary } from "@/lib/sellerProfileOwnerAccess";
 import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
@@ -65,17 +66,7 @@ async function AccountPageContent() {
     prisma.follow.count({ where: { followerId: me.id } }),
 
     // Seller profile stats (if they're a seller)
-    prisma.sellerProfile.findUnique({
-      where: { userId: me.id },
-      select: {
-        id: true,
-        _count: {
-          select: {
-            listings: { where: { status: "ACTIVE" } },
-          },
-        },
-      },
-    }),
+    sellerOwnerAccountSummary(me.id),
   ]);
   const recentOrders = recentOrderPage.rows;
 
@@ -383,7 +374,7 @@ async function AccountPageContent() {
           <div className="card-section p-5 space-y-4">
             <div className="flex gap-6 text-sm">
               <div>
-                <p className="text-2xl font-bold">{sellerProfile._count.listings}</p>
+                <p className="text-2xl font-bold">{sellerProfile.activeListingCount}</p>
                 <p className="text-neutral-500 text-xs">Active listings</p>
               </div>
               <div>
