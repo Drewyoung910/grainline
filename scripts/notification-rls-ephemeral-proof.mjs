@@ -299,7 +299,7 @@ async function cleanFixtures(owner) {
   }
 }
 
-async function seedFixturesInTransaction(owner) {
+async function seedFixturesInTransaction(owner, currentSchemaReplay) {
   await owner.query(
     `INSERT INTO public."User" (id, "clerkId", email, name, "updatedAt")
      VALUES
@@ -532,12 +532,18 @@ async function seedFixturesInTransaction(owner) {
   );
   await owner.query(
     `INSERT INTO public."Order" (
-       id, "buyerId", "sellerProfileId", "paidAt", "stripeSessionId"
+       id, "buyerId", "sellerProfileId", "paidAt", "stripeSessionId",
+       "stripeChargeId"
      ) VALUES (
        $1, $2, $3, pg_catalog.clock_timestamp(),
-       'cs_notification_proof_dispute'
+       'cs_notification_proof_dispute', $4
      )`,
-    [fixture.orderDisputeOrderId, fixture.actorUserId, fixture.sellerProfileId],
+    [
+      fixture.orderDisputeOrderId,
+      fixture.actorUserId,
+      fixture.sellerProfileId,
+      fixture.orderDisputeStripeChargeId,
+    ],
   );
   await owner.query(
     `INSERT INTO public."OrderItem" (
@@ -670,7 +676,8 @@ async function seedFixturesInTransaction(owner) {
          'chargeId', $5::text,
          'disputeId', $4::text,
          'stripeEventType', 'charge.dispute.created',
-         'stripeEventCreated', $6::bigint
+         'stripeEventCreated', $6::bigint,
+         'orderingAction', 'applied'
        ),
        $6::bigint
      )`,
@@ -683,6 +690,33 @@ async function seedFixturesInTransaction(owner) {
       fixture.orderDisputeStripeEventCreatedSeconds,
     ],
   );
+  if (currentSchemaReplay) {
+    const disputeApplication = await owner.query(
+      `SELECT *
+         FROM public.grainline_case_stripe_dispute_apply($1)`,
+      [fixture.orderPaymentEventId],
+    );
+    assert.equal(disputeApplication.rows.length, 1);
+    assert.equal(disputeApplication.rows[0].action, "create");
+    assert.equal(
+      disputeApplication.rows[0].paymentEventId,
+      fixture.orderPaymentEventId,
+    );
+    assert.equal(
+      disputeApplication.rows[0].orderId,
+      fixture.orderDisputeOrderId,
+    );
+    assert.equal(
+      disputeApplication.rows[0].sellerUserId,
+      fixture.sellerUserId,
+    );
+    assert.equal(
+      disputeApplication.rows[0].buyerUserId,
+      fixture.actorUserId,
+    );
+    assert.ok(disputeApplication.rows[0].caseId);
+    record("current_dispute_notification_source_authority_seeded");
+  }
   await owner.query(
     `INSERT INTO public."CommissionRequest" (
        id, "buyerId", title, description, "updatedAt"
@@ -858,11 +892,11 @@ async function seedFixturesInTransaction(owner) {
   );
 }
 
-async function seedFixtures(owner) {
+async function seedFixtures(owner, currentSchemaReplay) {
   await cleanFixtures(owner);
   await owner.query("BEGIN");
   try {
-    await seedFixturesInTransaction(owner);
+    await seedFixturesInTransaction(owner, currentSchemaReplay);
     await owner.query("COMMIT");
   } catch (error) {
     await owner.query("ROLLBACK").catch(() => {});
@@ -2498,7 +2532,7 @@ async function main() {
   try {
     await proveUserReplayPosture(owner, currentSchemaReplay);
     await proveCatalog(owner);
-    await seedFixtures(owner);
+    await seedFixtures(owner, currentSchemaReplay);
     await proveRecipientIsolation(owner);
     await proveServiceAuthority(owner);
     await proveCreationFamilyMatrix(owner);

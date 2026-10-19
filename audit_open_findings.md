@@ -1,10 +1,10 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-10-16
+Last updated: 2026-10-18
 
 ## 2026-10-16 — Blocked-pair paid-checkout completion
 
-- **[#702 VERIFIED/FIX PREPARED; NOT YET MERGED OR PRODUCTION]** The signed
+- **[#702 VERIFIED/FIXED/PRODUCTION LIVE]** The signed
   paid-checkout writer already classified a reciprocal buyer/seller Block as an
   ineligible payment, detached the buyer, purged buyer PII, and prepared the
   durable review/refund Order. Its reservation finalizer accepted that
@@ -26,13 +26,39 @@ Last updated: 2026-10-16
   because the corrected signed webhook path remains the durable refund
   backstop. Focused checkout behavior tests pass 21/21, the new pair-expiry
   behavior tests pass 2/2, and TypeScript plus focused lint pass. The protected
-  Production workflow is prepared but not dispatched: it binds the candidate
-  to exact main, the named successful CI run, every required exact-main push
-  workflow, the exact migration checksum, the complete peer-migration ledger,
-  and the exact predecessor/replacement function catalog before applying only
-  this migration. Dependency audit reports no unreviewed high or critical
-  vulnerability, and the production build passes against the disposable
-  full-chain PostgreSQL 16 database. Exact-head hosted CI remains pending.
+  Production workflow bound the candidate to exact main, the named successful
+  CI run, every required exact-main push workflow, the exact migration
+  checksum, the complete peer-migration ledger, and the exact
+  predecessor/replacement function catalog. PR #594 merged as main
+  `b85043ae`; protected Production run `38978765664` applied only
+  `20261016000000_correct_blocked_pair_paid_checkout_completion` and passed.
+
+## 2026-10-18 — Stripe dispute first-event Case correction
+
+- **[#662 VERIFIED/FIX PREPARED; NOT YET MERGED OR PRODUCTION]** Current
+  Production creates or reopens a Case only when the applied signed event is
+  `charge.dispute.created`. When a nonterminal `funds_withdrawn` event arrives
+  first, the retained payment evidence receives no Case or seller alert; a
+  same-second `created` delivery then records a visible conflict but cannot
+  repair either omission. The candidate widens the Case, relationship, and
+  notification authorities only to the five supported signed dispute event
+  types, requires `orderingAction=applied`, prevents a second application for
+  the same dispute, and repairs retained eligible gaps with a transaction-local
+  100-row safety cap. Its read-only Production preflight now refuses the release
+  before Prisma writes a migration row if any retained candidate has become
+  unrepairable, including after account deletion nulls the buyer or when
+  historical recovery would reopen a full- or partial-refund Case and erase
+  its refund resolution (#703). The migration repeats that #703 guard inside
+  its transaction before any recovery write. It preserves
+  the already-live #714 same-second projection correction. Eighteen focused
+  behavior/release tests, including the new failing-first #703 boundary, pass, and a disposable
+  PostgreSQL 16 proof reproduced the predecessor gap before applying the last
+  of all 350 candidate migrations, then proved one Case and one seller alert
+  with stable replay; the hardened candidate classifier also compiled and
+  returned zero issues on that complete migrated schema. A protected
+  database-only Production lane is prepared;
+  publication, independent review, exact-head CI, merge, and Production
+  dispatch remain separate gates.
 
 ## 2026-10-16 — Blocked-checkout refund durability
 
@@ -4014,8 +4040,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 **Batch J (low-risk cleanup):**
 - #113-124
 
-## 2026-10-16 — Case refund recovery candidate (not merged or live)
+## 2026-10-18 — Case refund recovery (Production live)
 
-- **#659, #660, #676–#680, #655, #657, #665:** candidate forward migration `20261016010000_correct_case_refund_recovery_core` is byte-derived from the independently exercised Case recovery prototype and retains the existing function signatures and catalog posture. Keep these findings open until exact-head review, merge, protected Production application, and postflight all pass.
-- **#710–#714:** candidate forward migration `20261016011000_correct_case_refund_followup_deadends` has failing-current-head/passing-candidate PostgreSQL 16 full-chain behavior evidence for ambiguous-marker preservation and repair, original-actor replay, Case-lock preservation, listing-type stock-plan drift, and same-second won-dispute projection. The #710 historical proof now creates the damaged ledger/order state with the actual predecessor function before applying the successor. The protected two-migration workflow runs the aggregate-only, repeatable-read Production inventory first, preserves repairable/unrepairable counts and cents without identifiers, and stops before SQL if any stuck claim lacks the exact signed repair witness. The application accepts the predecessor finalization result until the migration lands. Keep these findings open through exact-head re-review, merge, protected Production application, and postflight.
-- **Still open and deliberately outside this candidate:** #338, #428, #662, #703–#705, and #715. The candidate only retains a staff-visible conflict when same-second dispute creation would otherwise lose its Case/alert; it does not close #662. The Case/dispute lifecycle findings require their own behavior-first correction after this recovery core; no RLS expansion resumes before the named launch-blocking money work is merged and live.
+- **#659, #660, #676–#680, #655, #657, #665, #710–#714 VERIFIED/FIXED/PRODUCTION LIVE:** protected run `39113321452` applied `20261016010000_correct_case_refund_recovery_core` and `20261016011000_correct_case_refund_followup_deadends` on exact main `30f13665fb156a0639fdae3685fc04d714232d89`. The postflight verified all 15 reviewed functions, both exact migration checksums, zero repairable claims, zero unrepairable claims, and `issueCount=0`. The release performed no app deployment or Stripe operation.
+- **Still open and deliberately outside those migrations:** #338, #428, #662, #703–#705, and #715. #662 now has its own behavior-first source candidate above. No RLS expansion resumes until that named launch-blocking money correction is merged and live.

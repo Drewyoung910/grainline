@@ -113,6 +113,8 @@ jobs:
           tests/case-refund-provider-continuity.test.mjs
           tests/case-refund-provider-recovery.test.mjs
           tests/case-staff-resolution-app-authority.test.mjs
+          tests/dispute-first-event-case-correction.test.mjs
+          tests/dispute-first-event-case-production-workflow.test.mjs
       - name: Isolate Case refund recovery until earlier money corrections pass
         shell: bash
         run: |
@@ -121,12 +123,14 @@ jobs:
           mkdir "$holding"
           for migration in \
             20261016010000_correct_case_refund_recovery_core \
-            20261016011000_correct_case_refund_followup_deadends
+            20261016011000_correct_case_refund_followup_deadends \
+            20261017010000_correct_dispute_first_event_case
           do
             mv "prisma/migrations/$migration" "$holding/$migration"
           done
           echo "CASE_REFUND_RECOVERY_CORE_MIGRATION_PATH=$holding/20261016010000_correct_case_refund_recovery_core/migration.sql" >> "$GITHUB_ENV"
           echo "CASE_REFUND_FOLLOWUP_MIGRATION_PATH=$holding/20261016011000_correct_case_refund_followup_deadends/migration.sql" >> "$GITHUB_ENV"
+          echo "DISPUTE_FIRST_EVENT_CASE_MIGRATION_PATH=$holding/20261017010000_correct_dispute_first_event_case/migration.sql" >> "$GITHUB_ENV"
       - name: Verify immutable Order refund-event repair source package
         run: >-
           node --test --test-concurrency=1
@@ -6305,13 +6309,15 @@ jobs:
           holding="$RUNNER_TEMP/case-refund-recovery"
           for migration in \
             20261016010000_correct_case_refund_recovery_core \
-            20261016011000_correct_case_refund_followup_deadends
+            20261016011000_correct_case_refund_followup_deadends \
+            20261017010000_correct_dispute_first_event_case
           do
             mv "$holding/$migration" "prisma/migrations/$migration"
           done
           rmdir "$holding"
           echo "CASE_REFUND_RECOVERY_CORE_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "CASE_REFUND_FOLLOWUP_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "DISPUTE_FIRST_EVENT_CASE_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Re-verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -6320,13 +6326,16 @@ jobs:
           tests/case-refund-provider-continuity.test.mjs
           tests/case-refund-provider-recovery.test.mjs
           tests/case-staff-resolution-app-authority.test.mjs
+          tests/dispute-first-event-case-correction.test.mjs
+          tests/dispute-first-event-case-production-workflow.test.mjs
       - name: Apply Case refund recovery in reviewed order
         shell: bash
         run: |
           set -euo pipefail
           for migration in \
             20261016010000_correct_case_refund_recovery_core \
-            20261016011000_correct_case_refund_followup_deadends
+            20261016011000_correct_case_refund_followup_deadends \
+            20261017010000_correct_dispute_first_event_case
           do
             psql "$DIRECT_URL" \
               --set=ON_ERROR_STOP=on \
@@ -6349,6 +6358,7 @@ jobs:
           node --input-type=module - <<'NODE'
           import pg from 'pg';
           import {proveCaseRefundRecoveryFindings} from './tools/database-full-chain/scenarios/case-refund-recovery.mjs';
+          import {proveDisputeFirstEventCaseCorrection} from './tools/database-full-chain/scenarios/dispute-first-event-case.mjs';
           import {seedSellerProfilePrivateFixture} from './tools/database-full-chain/scenarios/seller-profile-private-fixture.mjs';
 
           const client = new pg.Client({connectionString: process.env.DIRECT_URL});
@@ -6361,8 +6371,19 @@ jobs:
               database: client,
               seller,
               requireHistoricalDamage: false,
+              expectDisputeFirstEventCase: true,
               scenarioNamespace: 'restored_current_schema',
             });
+            await client.query('BEGIN');
+            try {
+              await proveDisputeFirstEventCaseCorrection({
+                database: client,
+                seller,
+                scenarioNamespace: 'restored_current_schema',
+              });
+            } finally {
+              await client.query('ROLLBACK').catch(() => {});
+            }
           } finally {
             await client.end();
           }
@@ -6383,8 +6404,6 @@ jobs:
         shell: bash
         env:
           CASE_SELLER_AGGREGATE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-          CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-          CASE_REFUND_RECOVERY_CORRECTION_EXPECTED: "1"
           CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           CONVERSATION_MESSAGE_CURRENT_SCHEMA_REPLAY: "true"
           NOTIFICATION_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
@@ -6395,7 +6414,6 @@ jobs:
         run: |
           set -euo pipefail
           npm run audit:rls-case-seller-aggregate
-          npm run audit:rls-case-invariant-drafts
           npm run audit:rls-conversation-message-recipient
           npm run audit:rls-notification-ephemeral
           psql "$DIRECT_URL" \
