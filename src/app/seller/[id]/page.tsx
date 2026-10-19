@@ -901,7 +901,9 @@ async function SellerPublicContent({
               <div className="mb-4">
                 <h2 className="text-xl sm:text-2xl font-display font-semibold">Visit this maker</h2>
                 <p className="text-sm text-neutral-500 mt-1">
-                  {`Approximate area${cityState ? ` near ${cityState}` : ""}. Exact pickup details shared after purchase.`}
+                  {pickupMapPoint.approximate
+                    ? `Approximate area${cityState ? ` near ${cityState}` : ""}. Exact pickup details shared after purchase.`
+                    : `Exact public pin${cityState ? ` in ${cityState}` : ""}, shared by this maker.`}
                 </p>
               </div>
               <div className="rounded-2xl overflow-hidden ring-1 ring-stone-300/70 shadow-sm">

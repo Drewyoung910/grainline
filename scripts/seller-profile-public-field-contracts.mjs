@@ -101,15 +101,16 @@ export const SELLER_PROFILE_VISIBILITY_PREDICATES = Object.freeze({
     publicMapOptIn: true,
     coordinatesPresentAndValid: true,
     radiusMeters: "NULL_OR_ZERO",
-    derivation: "COARSE_PUBLIC_GRID",
+    defaultDerivation: "COARSE_PUBLIC_GRID",
+    exactDerivation: "VERSIONED_PRIVATE_EXPLICIT_CONSENT",
     result: Object.freeze(["publicLat", "publicLng", "approximate"]),
   }),
   PROFILE_LOCATION: Object.freeze({
     visibility: "CALLER_RESOURCE_VISIBILITY",
-    publicResult: "ALWAYS_APPROXIMATE",
+    publicResult: "APPROXIMATE_UNLESS_VERSIONED_PRIVATE_EXPLICIT_CONSENT",
     positiveRadiusDerivation: "RADIUS_SIZED_GRID",
     nullOrZeroRadiusDerivation: "COARSE_PUBLIC_GRID",
-    exactResult: "OWNER_OR_PURPOSE_BOUND_ONLY",
+    exactResult: "PUBLIC_ONLY_WITH_CURRENT_PRIVATE_CONSENT",
     result: Object.freeze(["publicLat", "publicLng", "approximate"]),
   }),
 });
@@ -176,15 +177,16 @@ export function verifySellerProfilePublicFieldContracts(root) {
       || directory.publicMapOptIn !== true
       || directory.coordinatesPresentAndValid !== true
       || directory.radiusMeters !== "NULL_OR_ZERO"
-      || directory.derivation !== "COARSE_PUBLIC_GRID"
+      || directory.defaultDerivation !== "COARSE_PUBLIC_GRID"
+      || directory.exactDerivation !== "VERSIONED_PRIVATE_EXPLICIT_CONSENT"
       || directory.result.join(",") !== "publicLat,publicLng,approximate") {
     throw new Error("SellerProfile directory-location predicate drifted");
   }
   const derived = SELLER_PROFILE_VISIBILITY_PREDICATES.PROFILE_LOCATION;
-  if (derived.publicResult !== "ALWAYS_APPROXIMATE"
+  if (derived.publicResult !== "APPROXIMATE_UNLESS_VERSIONED_PRIVATE_EXPLICIT_CONSENT"
       || derived.positiveRadiusDerivation !== "RADIUS_SIZED_GRID"
       || derived.nullOrZeroRadiusDerivation !== "COARSE_PUBLIC_GRID"
-      || derived.exactResult !== "OWNER_OR_PURPOSE_BOUND_ONLY"
+      || derived.exactResult !== "PUBLIC_ONLY_WITH_CURRENT_PRIVATE_CONSENT"
       || derived.result.join(",") !== "publicLat,publicLng,approximate") {
     throw new Error("SellerProfile derived public-location result drifted");
   }

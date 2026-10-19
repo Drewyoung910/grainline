@@ -4,6 +4,61 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Marketplace operating decisions (Drew, 2026-10-19)
+
+These are product and policy decisions, not claims that the behavior is live.
+Public Terms, Privacy, help and handbook copy must change only with the matching
+implemented behavior and attorney review.
+
+- Makers bear the published 5% platform fee plus Stripe processing costs. The
+  implementation must choose and disclose either a fixed formula known before
+  purchase or a later reconciliation of the actual provider fee; it must not
+  silently deduct an unknowable final fee at checkout.
+- Makers are contractually responsible for refunds, disputes, dispute fees and
+  uninsured lost or damaged packages. Under the current Connect configuration
+  Grainline can still retain residual platform liability when recovery fails,
+  so product copy must not promise that Grainline can never absorb a loss.
+- Negative balances are recovered from future earnings first, then through
+  supported Stripe balance/bank-debit mechanisms. A backup card requires a
+  separate SetupIntent/PaymentMethod flow and explicit authorization; a payout
+  debit card is not assumed to be chargeable. While debt remains, keep sales
+  open only while fulfillment is healthy and the debt is shrinking, retain all
+  payouts, and suspend for fraud signals, lack of progress or a reviewed cap.
+- Payout holds are delivery-based: about seven days after delivery for new
+  makers and 30 days after delivery for higher-risk makers, extendable to 90
+  days in severe cases. Implement this with an internal payable ledger plus
+  manual payouts or reserves; changing an account-wide payout schedule alone
+  does not prove per-order holds.
+- Tracking is required for shipped physical orders. Carrier evidence or buyer
+  confirmation establishes delivery; an unconfirmed order closes without
+  claiming delivery 30 days after its estimated-delivery window. External
+  tracking must match the buyer destination and a carrier scan after the order.
+- Local pickup uses a buyer-held code entered at handoff. Without it, an order
+  closes 30 days after ready-for-pickup unless the buyer reports a problem.
+- The case window is 30 days from the later of the estimated delivery date and
+  actual delivery or pickup. Insurance and signature remain optional, with an
+  insurance prompt above $250 and uninsured loss assigned to the maker.
+- Address fields use browser autofill and local ZIP-to-city/state data, then a
+  submit-time suggested correction through the reviewed verifier. Map search
+  runs only on explicit Search. Do not send personal/confidential addresses to
+  the public Nominatim service; disclose any Shippo address verification.
+- Public map membership authorizes an approximate pin only. Publishing an exact
+  point requires separate, versioned consent that says it is exact and public,
+  recommends a workshop/business address, and can be removed easily. Existing
+  map opt-ins are never grandfathered into exact publication.
+- Transactional order, shipping, case and refund mail is preference-independent
+  and always attempted; delivery cannot be promised. Only marketing mail is
+  optional.
+- Keep the code repository public during the high-change period and revisit
+  privacy later. Do not move the private vulnerability backlog into the public
+  repository. Direct charges are not the current payment design, but Connect
+  responsibilities and residual loss exposure require Stripe/accounting review
+  before launch rather than waiting for a loss.
+- Still undecided: high-value order controls (3DS threshold, payout hold and
+  per-item/per-order caps) and the maximum made-to-order processing time. The
+  current $100,000 item cap and 365-day processing bound are not accepted launch
+  policy merely because they exist in code.
+
 ### Split SellerProfile public and private authority (updated 2026-10-18)
 
 The private companion conversion is complete. `SellerProfilePrivate` is
@@ -38,12 +93,14 @@ maximum-disclosure class. The 98 retained authorities map to 93 direct database
 behavior proofs, two composed behavior proofs and three explicit source-only
 gaps that must gain full-chain proof before activation.
 
-The location review confirmed that current public maps and seller JSON-LD can
-publish raw points even though Privacy 2.7 and Terms 4.19/4.20 promise
-approximate-only display. Option B now requires approximate public points on
+The location review confirmed that predecessor public maps and seller JSON-LD
+could publish raw points even though Privacy 2.7 and Terms 4.19/4.20 promise
+approximate-only display. Option B first applied approximate public points on
 every surface: radius-sized grids for positive privacy radii and the coarse
-public grid otherwise. Exact coordinates remain owner or purpose bound. An
-isolated Phase 1 candidate now applies that rule to the three public maps,
+public grid otherwise. The 2026-10-19 product decision now permits exact public
+output only under a separate versioned consent stored in the protected private
+companion; old map opt-ins remain approximate and any source-location/privacy
+change revokes consent. An isolated Phase 1 candidate applies that rule to the three public maps,
 seller/listing map cards, seller JSON-LD and browse-distance SQL, with
 failing-first behavior evidence. The first additive database authority serves
 the three directory/home maps with bounded presentation fields and a coarse
@@ -200,8 +257,10 @@ mapping reads. Each authority returns only its caller's prior bounded fields,
 preserves hidden/inactive seller rows, and validates exact result shapes in the
 TypeScript adapter. The candidate is now at 29 direct operations in 10 files,
 84 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 62 total
-consumer files. It still has 170 reconciled opaque shapes, and its 167-function
-catalog partitions into 98 retained, 32 internal and 37 converted authorities.
+consumer files. It still has 170 reconciled opaque shapes. The versioned
+exact-map consent successor adds one converted owner-settings authority and
+one internal revocation trigger function, so its 169-function catalog now
+partitions into 98 retained, 33 internal and 38 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

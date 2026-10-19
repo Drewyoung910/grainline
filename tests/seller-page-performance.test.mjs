@@ -132,25 +132,27 @@ describe("seller public page query guardrails", () => {
     const sellerShopPage = source("src/app/seller/[id]/shop/page.tsx");
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
 
-    for (const pageSource of [sellerShopPage, customerPhotosPage]) {
-      assert.match(pageSource, /import \{ cache \} from "react"/);
-      assert.match(pageSource, /seller\.stripeAccountSupported/);
-      assert.equal(
-        (pageSource.match(/prisma\.sellerProfile\.findUnique\(/g) ?? []).length,
-        1,
-        "metadata and page render should share one cached seller profile findUnique call",
-      );
-      assert.doesNotMatch(pageSource, /prisma\.sellerProfile\.findFirst\(\{\s*where: visibleSellerProfileWhere/);
-      assert.doesNotMatch(pageSource, /prisma\.sellerProfile\.count\(\{\s*where: visibleSellerProfileWhere/);
-    }
+    assert.match(sellerShopPage, /import \{ cache \} from "react"/);
+    assert.match(sellerShopPage, /seller\.stripeAccountSupported/);
+    assert.equal(
+      (sellerShopPage.match(/prisma\.sellerProfile\.findUnique\(/g) ?? []).length,
+      1,
+      "metadata and page render should share one cached seller profile findUnique call",
+    );
+    assert.doesNotMatch(sellerShopPage, /prisma\.sellerProfile\.findFirst\(\{\s*where: visibleSellerProfileWhere/);
+    assert.doesNotMatch(sellerShopPage, /prisma\.sellerProfile\.count\(\{\s*where: visibleSellerProfileWhere/);
+
+    assert.match(customerPhotosPage, /import \{ cache \} from "react"/);
+    assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader/);
+    assert.doesNotMatch(customerPhotosPage, /prisma\.sellerProfile\./);
 
     assert.match(sellerShopPage, /const getSellerProfileForShopPage = cache\(async \(sellerId: string\) =>/);
     assert.match(sellerShopPage, /export async function generateMetadata[\s\S]*getSellerProfileForShopPage\(sellerId\)/);
     assert.match(sellerShopPage, /export default async function SellerShopPage[\s\S]*getSellerProfileForShopPage\(sellerId\)/);
 
-    assert.match(customerPhotosPage, /const getSellerProfileForCustomerPhotosPage = cache\(async \(sellerId: string\) =>/);
-    assert.match(customerPhotosPage, /export async function generateMetadata[\s\S]*getSellerProfileForCustomerPhotosPage\(sellerId\)/);
-    assert.match(customerPhotosPage, /export default async function CustomerPhotosPage[\s\S]*getSellerProfileForCustomerPhotosPage\(sellerId\)/);
+    assert.match(customerPhotosPage, /const getPublicCustomerPhotoHeader = cache\(\(sellerId: string\) =>/);
+    assert.match(customerPhotosPage, /export async function generateMetadata[\s\S]*getPublicCustomerPhotoHeader\(sellerId\)/);
+    assert.match(customerPhotosPage, /export default async function CustomerPhotosPage[\s\S]*sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
   });
 
   it("keeps independent seller-shop page reads grouped before paginated listing fetch", () => {

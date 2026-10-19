@@ -297,6 +297,11 @@ model SellerProfilePrivate {
   metricWarningSentAt         DateTime?
   listingsBelowThresholdSince DateTime?
 
+  // Versioned, explicit consent to publish the exact SellerProfile point.
+  // Public-map membership alone continues to authorize approximate output.
+  publicMapExactConsentAt      DateTime?
+  publicMapExactConsentVersion Int?
+
   profileViews Int      @default(0)
   updatedAt    DateTime @updatedAt
 }

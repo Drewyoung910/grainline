@@ -40,8 +40,9 @@ This table is mixed-purpose even after the private companion split:
 
 - public shop presentation and public orderability state;
 - owner-only exact location and settings;
-- conditional public location, where every public result is an approximate
-  database-derived point and exact `lat`/`lng` remains owner or purpose bound;
+- conditional public location, where every public result defaults to a
+  database-derived approximation and an exact point requires separate,
+  current, versioned consent stored in the private companion;
 - stable ownership and relationship keys such as `userId`;
 - staff or system-controlled verification, Guild, founding-maker and spotlight
   state; and
@@ -111,10 +112,13 @@ Any option must preserve all of these:
 2. Suspended, inactive, vacation and otherwise non-orderable sellers retain the
    existing route-specific visibility behavior. A single broad view must not
    silently replace those different predicates.
-3. Public coordinates leave the database boundary only as an approved
-   database-derived approximation. Positive privacy radii use a radius-sized
-   grid and null/zero radii use the coarse public grid. Raw or exact coordinates
-   remain owner or purpose bound and do not cross a generic public boundary.
+3. Public coordinates leave the database boundary through one approved
+   database-derived contract. Positive privacy radii use a radius-sized grid
+   and null/zero radii use the coarse public grid by default. Exact output is
+   allowed only when separate current versioned consent exists in the private
+   companion. Existing map opt-ins are not grandfathered, and a coordinate,
+   radius, or map-opt-in change revokes consent. Generic public projections
+   never return raw coordinate or consent source columns.
 4. Owners can read the exact settings needed to edit their own shop. Another
    seller cannot read those owner-only fields.
 5. Owners can change only owner-controlled fields. Staff/system-only badge,
@@ -176,8 +180,9 @@ view owner bypasses RLS.
   changing or dropping the predecessor runtime grants.
 - Add catalog, map, owner, staff and service behavior tests on the full migrated
   PostgreSQL 16 schema.
-- Prove public location is always approximate and prove that generic
-  projections never expose `lat`, `lng`, `userId`, or staff/system-only state.
+- Prove public location is approximate without separate current versioned
+  consent and exact only with it; prove that generic projections never expose
+  `lat`, `lng`, consent state, `userId`, or staff/system-only state.
 
 ### Phase 2: caller conversion
 
@@ -213,8 +218,10 @@ view owner bypasses RLS.
 
 Option B is selected and Phase 0 closed on 2026-10-19. The domain may proceed
 to additive Phase 1 design and isolated source preparation. Public location is
-approximate-only. An isolated application candidate now corrects the exact
-map/JSON-LD behavior with failing-first evidence. Its first two additive
+approximate by default. An isolated candidate makes every predecessor map
+opt-in approximate and adds a separate versioned exact-location consent in the
+protected private companion, with automatic revocation when coordinates or
+privacy controls change. Its first two additive
 database operations convert the three directory/home map reads and bind
 seller/listing detail coordinates to the visible resource, reducing the
 candidate inventory from 99 to 96 direct operations, from 100 to 99 total
@@ -454,7 +461,9 @@ their predecessors, and the adapter rejects any result outside the exact
 requested pair or expected scalar shape. The candidate is now at 29 direct
 operations in 10 files, 84 relation accesses in 46 files, 15 raw SQL accesses
 in 12 files, 62 total consumer files and 170 reconciled opaque shapes. Its
-167-function catalog is 98 retained, 32 internal and 37 converted.
+versioned exact-map consent successor adds one converted owner authority and
+one internal revocation trigger function. The 169-function catalog is now 98
+retained, 33 internal and 38 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

@@ -301,7 +301,6 @@ describe("verified audit follow-up guardrails", () => {
       "src/app/listing/[id]/page.tsx",
       "src/app/messages/[id]/page.tsx",
       "src/app/messages/new/page.tsx",
-      "src/app/seller/[id]/customer-photos/page.tsx",
       "src/app/seller/[id]/page.tsx",
       "src/app/seller/[id]/shop/page.tsx",
       "src/lib/blogVisibility.ts",
@@ -315,6 +314,9 @@ describe("verified audit follow-up guardrails", () => {
       assert.match(text, /stripeAccountSupported/, `${path} should use the public-safe seller capability snapshot`);
       assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
     }
+    const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+    assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
+    assert.doesNotMatch(customerPhotosPage, /prisma\.sellerProfile\./);
     assert.doesNotMatch(source("src/app/page.tsx"), /featuredMakerWhere/);
     assert.match(source("src/lib/conversationStartState.ts"), /listing\.seller\.stripeAccountSupported/);
     assert.match(source("src/app/messages/new/page.tsx"), /stripeAccountSupported: true/);

@@ -37,6 +37,8 @@ type SellerOwnerPrivateState = {
   lastMetricCheckAt: string | Date | null;
   metricWarningSentAt: string | Date | null;
   listingsBelowThresholdSince: string | Date | null;
+  publicMapExactConsentAt: string | Date | null;
+  publicMapExactConsentVersion: number | null;
   profileViews: number;
 };
 
@@ -85,6 +87,9 @@ function isSellerOwnerPrivateState(value: unknown): value is SellerOwnerPrivateS
     && nullableDateValue(state.lastMetricCheckAt)
     && nullableDateValue(state.metricWarningSentAt)
     && nullableDateValue(state.listingsBelowThresholdSince)
+    && nullableDateValue(state.publicMapExactConsentAt)
+    && (state.publicMapExactConsentVersion === null
+      || state.publicMapExactConsentVersion === 1)
     && Number.isSafeInteger(state.profileViews);
 }
 
@@ -458,6 +463,7 @@ export async function updateSellerOwnerShopSettings(
     lng: number | null;
     radiusMeters: number | null;
     publicMapOptIn: boolean;
+    publicMapExactConsent: boolean;
     shippingFlatRateCents: number | null;
     freeShippingOverCents: number | null;
     allowLocalPickup: boolean;
@@ -487,6 +493,7 @@ export async function updateSellerOwnerShopSettings(
       ${input.lng}::double precision,
       ${input.radiusMeters}::double precision,
       ${input.publicMapOptIn}::boolean,
+      ${input.publicMapExactConsent}::boolean,
       ${input.shippingFlatRateCents}::integer,
       ${input.freeShippingOverCents}::integer,
       ${input.allowLocalPickup}::boolean,

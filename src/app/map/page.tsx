@@ -116,7 +116,7 @@ export default async function AllSellersMapPage({
         <div>
           <h1 className="text-2xl font-semibold font-display">Makers near you</h1>
           <p className="text-sm text-neutral-500 mt-1">
-            Showing {points.length} maker{points.length === 1 ? "" : "s"} with approximate map locations.
+            Showing {points.length} maker{points.length === 1 ? "" : "s"}. Pin precision follows each maker&apos;s privacy choice.
           </p>
         </div>
       </header>

@@ -27,6 +27,7 @@ export const SELLER_PROFILE_INTERNAL_SUPPORT_FUNCTIONS = new Set([
   "grainline_seller_profile_private_supported_snapshot_sync()",
   "grainline_seller_profile_reconciliation_required_compat(text,text,text,timestamp without time zone)",
   "grainline_seller_profile_supported_snapshot_guard()",
+  "grainline_seller_exact_map_consent_revoke()",
   "grainline_seller_public_blog_state_sync()",
   "grainline_user_account_deletion_preflight(text)",
   "grainline_user_account_deletion_snapshot(text)",
@@ -34,6 +35,7 @@ export const SELLER_PROFILE_INTERNAL_SUPPORT_FUNCTIONS = new Set([
 ]);
 
 export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
+  "grainline_seller_owner_shop_settings_update(text,text,text,text,double precision,double precision,double precision,boolean,boolean,integer,integer,boolean,boolean,text[],text,text,text,text,text,text,text,text,double precision,double precision,double precision,integer)",
   "grainline_seller_service_founding_maker_grant(text)",
   "grainline_seller_service_metrics_identity(text)",
   "grainline_seller_service_welcome_name(text)",
@@ -75,6 +77,7 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
 
 export const SELLER_PROFILE_TRIGGER_DISPOSITIONS = new Map([
   ["SellerProfile_private_initialize", "grainline_seller_profile_private_initialize()"],
+  ["SellerProfile_exact_map_consent_revoke", "grainline_seller_exact_map_consent_revoke()"],
   ["SellerProfile_supported_snapshot_guard", "grainline_seller_profile_supported_snapshot_guard()"],
   ["grainline_direct_upload_release_seller_profile_delete", "grainline_direct_upload_source_delete_trigger()"],
   ["grainline_seller_owner_public_state_bind", "grainline_seller_owner_public_state_bind()"],
@@ -88,8 +91,8 @@ function sameStrings(actual, expected) {
 }
 
 export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
-  if (functions.length !== 167) {
-    throw new Error(`SellerProfile function inventory drifted: expected 167, got ${functions.length}`);
+  if (functions.length !== 169) {
+    throw new Error(`SellerProfile function inventory drifted: expected 169, got ${functions.length}`);
   }
   for (const row of functions) {
     if (!row.security_definer || !row.config?.includes("search_path=pg_catalog")) {
@@ -140,8 +143,8 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
       && !SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS.has(row.signature),
   );
   if (retainedAuthorityFunctions.length !== 98
-      || internalSupportFunctions.length !== 32
-      || convertedAuthorityFunctions.length !== 37) {
+      || internalSupportFunctions.length !== 33
+      || convertedAuthorityFunctions.length !== 38) {
     throw new Error(
       `SellerProfile function dispositions drifted: retained=${retainedAuthorityFunctions.length}; `
       + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length}`,

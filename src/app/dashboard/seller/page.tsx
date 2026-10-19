@@ -85,6 +85,8 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const lng = toFloat(formData.get("lng"));
   let radiusMeters = toFloat(formData.get("radiusMeters"));
   const publicMapOptIn = String(formData.get("publicMapOptIn") ?? "") === "on";
+  const publicMapExactConsent =
+    String(formData.get("publicMapExactConsent") ?? "") === "on";
 
   // Shipping/tax in dollars
   const shippingFlatRateCents = parseMoneyInputToCents(formData.get("shippingFlatRate"), {
@@ -100,8 +102,15 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     if (!(Number.isFinite(lat as number) && Number.isFinite(lng as number))) {
       return { ok: false, error: "To appear on the public map, set a pin location." };
     }
-    // Store the source point; every public surface projects it approximately.
+    // Directory-map membership requires a zero radius. Exact publication is a
+    // separate versioned consent recorded by the database operation below.
     radiusMeters = 0;
+  }
+  if (publicMapExactConsent && !publicMapOptIn) {
+    return {
+      ok: false,
+      error: "Turn on public map visibility before publishing your exact pin.",
+    };
   }
 
   // Ship-from address
@@ -155,6 +164,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     lng: lng as number | null,
     radiusMeters: radiusMeters as number | null,
     publicMapOptIn,
+    publicMapExactConsent,
     shippingFlatRateCents,
     freeShippingOverCents,
     allowLocalPickup,
@@ -355,6 +365,10 @@ export default async function SellerSettingsPage({
             defaultLng={currentRow?.lng != null ? Number(currentRow.lng) : null}
             defaultRadiusMeters={currentRow?.radiusMeters ?? null}
             defaultPublicMapOptIn={currentRow?.publicMapOptIn ?? false}
+            defaultPublicMapExactConsent={
+              currentRow?.publicMapExactConsentAt != null
+              && currentRow.publicMapExactConsentVersion === 1
+            }
           />
           <p className="mt-2 text-xs text-neutral-500">
             Drag the pin or click the map to set your pickup spot.

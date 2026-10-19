@@ -43,9 +43,11 @@ describe("seller display-name lookup normalization guardrails", () => {
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const browse = source("src/app/browse/page.tsx");
 
-    for (const text of [suggestions, blogSuggestions, browse]) {
+    for (const text of [suggestions, blogSuggestions]) {
       assert.match(text, /normalizeDisplayNameForLookup\(q\)/);
-      assert.match(text, /displayNameNormalized: \{ contains: normalizedDisplayNameQuery, mode: "insensitive"/);
+      assert.match(text, /sellerPublicNameSuggestions\([^)]*normalizedDisplayNameQuery/s);
     }
+    assert.match(browse, /normalizeDisplayNameForLookup\(q\)/);
+    assert.match(browse, /displayNameNormalized: \{ contains: normalizedDisplayNameQuery, mode: "insensitive"/);
   });
 });

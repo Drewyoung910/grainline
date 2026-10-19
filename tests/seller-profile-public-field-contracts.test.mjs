@@ -33,21 +33,22 @@ test("all SellerProfile scalar fields have one fail-closed disclosure class", ()
   ]).size, 55);
 });
 
-test("every public location is derived and approximate", () => {
+test("every public location is derived and exact output needs private versioned consent", () => {
   assert.deepEqual(SELLER_PROFILE_VISIBILITY_PREDICATES.DIRECTORY_LOCATION, {
     visibility: "ACTIVE",
     publicMapOptIn: true,
     coordinatesPresentAndValid: true,
     radiusMeters: "NULL_OR_ZERO",
-    derivation: "COARSE_PUBLIC_GRID",
+    defaultDerivation: "COARSE_PUBLIC_GRID",
+    exactDerivation: "VERSIONED_PRIVATE_EXPLICIT_CONSENT",
     result: ["publicLat", "publicLng", "approximate"],
   });
   assert.deepEqual(SELLER_PROFILE_VISIBILITY_PREDICATES.PROFILE_LOCATION, {
     visibility: "CALLER_RESOURCE_VISIBILITY",
-    publicResult: "ALWAYS_APPROXIMATE",
+    publicResult: "APPROXIMATE_UNLESS_VERSIONED_PRIVATE_EXPLICIT_CONSENT",
     positiveRadiusDerivation: "RADIUS_SIZED_GRID",
     nullOrZeroRadiusDerivation: "COARSE_PUBLIC_GRID",
-    exactResult: "OWNER_OR_PURPOSE_BOUND_ONLY",
+    exactResult: "PUBLIC_ONLY_WITH_CURRENT_PRIVATE_CONSENT",
     result: ["publicLat", "publicLng", "approximate"],
   });
   for (const field of ["userId", "lat", "lng", "radiusMeters", "publicMapOptIn", "chargesEnabled"]) {

@@ -48,11 +48,11 @@ test("SellerProfile catalog disposition accepts only the reviewed ACL partition"
   const result = classifySellerProfileDatabaseObjects(fixture());
   assert.deepEqual(result.functionDispositions, {
     retainedAuthority: 98,
-    internalSupport: 32,
-    convertedAuthority: 37,
+    internalSupport: 33,
+    convertedAuthority: 38,
     retiredPredecessor: 0,
   });
-  assert.equal(result.sellerProfileTriggerDispositions.length, 6);
+  assert.equal(result.sellerProfileTriggerDispositions.length, 7);
 });
 
 test("SellerProfile catalog disposition rejects new internal or PUBLIC authority", () => {

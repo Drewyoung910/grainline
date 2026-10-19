@@ -21,7 +21,7 @@ export type SellerPublicLocation = Readonly<{
   publicLng: number;
   displayRadiusMeters: number | null;
   structuredGeoEligible: boolean;
-  approximate: true;
+  approximate: boolean;
 }>;
 
 export type SellerPublicNameSuggestion = Readonly<{
@@ -365,7 +365,7 @@ async function readSellerPublicLocation(
     publicLng,
     displayRadiusMeters,
     structuredGeoEligible: row.structuredGeoEligible,
-    approximate: true as const,
+    approximate: !row.structuredGeoEligible,
   });
 }
 

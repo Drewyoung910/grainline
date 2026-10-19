@@ -324,15 +324,13 @@ test("legacy Order inspection reads authoritative private shipping fields", () =
   assert.doesNotMatch(candidate, /seller\."shipFrom/u);
 });
 
-test("vacation-mode update does not return retired SellerProfile columns", () => {
+test("vacation-mode update stays on the bounded owner authority", () => {
   const source = readFileSync(
     "src/app/api/seller/vacation/route.ts",
     "utf8",
   );
-  assert.match(
-    source,
-    /prisma\.sellerProfile\.update\(\{[\s\S]*?data: \{ vacationMode, vacationReturnDate, vacationMessage \},[\s\S]*?select: \{ id: true \}/u,
-  );
+  assert.match(source, /sellerOwnerVacationUpdate\(seller\.userId,/u);
+  assert.doesNotMatch(source, /prisma\.sellerProfile\./u);
 });
 
 test("signature-keyed catalog scan rejects retired public SellerProfile references", () => {
