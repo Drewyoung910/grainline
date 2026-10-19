@@ -73,6 +73,11 @@ AST scanner exposed as `npm run audit:seller-profile-public-access`. It scans
   and zero relation full-row returns. Existing callers already select bounded
   fields, which reduces projection design risk but does not remove shared-role
   base-table authority.
+- A disposable PostgreSQL 16 build of all 350 migrations finds 130 installed
+  function bodies that reference `SellerProfile`, including 91 existing
+  runtime-executable fixed authorities; 24 dependent triggers, six directly on
+  the table; 16 incoming foreign keys; and no existing view. Those database
+  objects form a separate retained-authority classification queue.
 
 The earlier regex estimate of 73 direct calls in 52 files counted only literal
 `prisma.sellerProfile` expressions and missed `tx`, `client`, and `db`

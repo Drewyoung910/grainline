@@ -67,8 +67,56 @@ schema-aware result is the canonical source baseline.
   they are not assumed to be hidden `SellerProfile` accesses.
 - Dynamic SQL generators are not proven absent, although all static raw SQL
   reaching Prisma raw calls is inspected.
-- Migrations and installed database function bodies need a separate full-chain
-  catalog inventory before activation.
+- The source scan does not replace the separate installed database-object
+  inventory below.
+
+## Full-chain PostgreSQL 16 catalog baseline
+
+The repository's full-chain harness built and applied all **350 migrations**
+to a new disposable PostgreSQL 16.15 database, including its two reviewed
+historical role-convergence retries. The complete existing full-chain behavior
+suite passed. The read-only catalog inventory is run against that database
+with:
+
+```sh
+SELLER_PROFILE_PUBLIC_CATALOG_DATABASE_URL=postgresql://ci:...@127.0.0.1/... \
+  npm run audit:seller-profile-public-catalog
+```
+
+The script refuses non-loopback hosts and requires `ci@.../grainline_ci`; it
+cannot target Production.
+
+| Catalog class | Baseline | Consequence |
+|---|---:|---|
+| RLS policies | 0 | The table is still RLS-disabled and not forced |
+| Runtime table privileges | 4 | Runtime has direct `SELECT`, `INSERT`, `UPDATE`, and `DELETE` |
+| Runtime column privilege rows | 165 | All 55 columns carry runtime `SELECT`, `INSERT`, and `UPDATE` through the table grant |
+| Installed function bodies containing `SellerProfile` | 130 | Every retained function must be classified and tested under the future grant/RLS posture |
+| Runtime-executable functions in that set | 91 | Existing fixed authorities are a major part of the compatibility surface; they are not automatically conversion defects |
+| PUBLIC-executable functions in that set | 0 | Current function ACLs do not expose them to unauthenticated database roles |
+| Dependent non-internal triggers | 24 | Six are on `SellerProfile`; the rest synchronize or enforce cross-domain state |
+| Views or materialized views referencing the table | 0 | The selected bounded projections are additive new objects |
+| Constraints involving the table | 23 | Seven belong to `SellerProfile`; 16 are incoming foreign keys from other tables |
+
+All 130 matching functions are `SECURITY DEFINER`, owned by the disposable
+migration owner, and pinned to `search_path=pg_catalog`. The 91 runtime-callable
+functions include existing case, order, checkout, deletion, Guild, Stripe,
+shipping, notification and seller-owner operations. Option B must retain only
+the reviewed subset and prove each function's result and actor binding; it
+must not revoke function execution merely because the function reads this
+table.
+
+The six direct table triggers are:
+
+- private-row initialization;
+- supported-snapshot guard;
+- seller-profile media-reference release on delete;
+- owner public-state snapshot binding;
+- public blog-state synchronization; and
+- public commission-state synchronization.
+
+They are part of the compatibility proof. None is removed merely to simplify
+RLS activation.
 
 ## Field and disclosure contracts
 
@@ -190,8 +238,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
 
 - Complete the per-consumer principal/contract assignment for the 100-file
   queue and manually resolve the potentially relevant opaque query shapes.
-- Inventory full-chain installed functions, triggers, constraints and views
-  that read or write `SellerProfile`.
+- Classify the 130 installed functions and six direct table triggers as
+  retained authority, converted authority, internal-only support, or retired
+  predecessor; bind retained runtime execution to an acceptance flow.
 - Define the exact columns and row predicates for the public profile,
   eligibility, exact-map, owner, staff and service operations.
 
