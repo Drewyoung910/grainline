@@ -439,6 +439,14 @@ factory calls across two files. The candidate is now at 32 direct operations
 in 13 files, 84 relation accesses in 46 files, 15 raw SQL accesses in 12 files,
 65 total consumer files and 170 reconciled opaque shapes. The catalog has 164
 functions: 98 retained, 32 internal and 34 converted.
+Seller metrics then replaces its direct profile identity lookup with a bounded
+service authority returning only the seller user id and UTC-normalized profile
+creation clock. It keeps inactive and historical seller metrics available,
+matching the predecessor lookup rather than silently adding a public-visibility
+rule. The candidate is now at 31 direct operations in 12 files, 84 relation
+accesses in 46 files, 15 raw SQL accesses in 12 files, 64 total consumer files
+and 170 reconciled opaque shapes. The catalog has 165 functions: 98 retained,
+32 internal and 35 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

@@ -186,6 +186,14 @@ two files. The candidate is now at 32 direct operations in 13 files, 84
 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 65 total
 consumer files. It has 170 reconciled opaque shapes, and its 164-function
 catalog partitions into 98 retained, 32 internal and 34 converted authorities.
+Seller metrics then replaces its direct profile identity lookup with one
+purpose-bound service authority returning only the seller user id and
+UTC-normalized profile creation clock. The operation intentionally preserves
+inactive and historical seller profiles, matching the predecessor metrics
+behavior. The candidate is now at 31 direct operations in 12 files, 84
+relation accesses in 46 files, 15 raw SQL accesses in 12 files and 64 total
+consumer files. It still has 170 reconciled opaque shapes, and its 165-function
+catalog partitions into 98 retained, 32 internal and 35 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

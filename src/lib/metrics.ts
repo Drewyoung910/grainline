@@ -11,6 +11,13 @@ import { getCaseSellerActiveCount } from "@/lib/caseSellerAggregateAuthority";
 import { readOrderSellerMetricsFacts } from "@/lib/orderSellerMetricsAuthority";
 
 const SELLER_METRICS_LOCK_NAMESPACE = 913344;
+const SELLER_PROFILE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/;
+const MAX_EPOCH_MILLIS = 253402300799999n;
+
+type SellerMetricsIdentityRow = {
+  sellerUserId: unknown;
+  createdAtEpochMillis: unknown;
+};
 
 export const SELLER_METRICS_SELECT = {
   sellerProfileId: true,
@@ -136,6 +143,37 @@ async function calculateSellerMetricsInTransaction(
   return calculateSellerMetricsWithoutLock(sellerProfileId, periodMonths, db);
 }
 
+async function readSellerMetricsIdentity(
+  sellerProfileId: string,
+  db: Pick<Prisma.TransactionClient, "$queryRaw">,
+) {
+  if (!SELLER_PROFILE_ID_PATTERN.test(sellerProfileId)) {
+    throw new TypeError("Seller metrics seller id is invalid");
+  }
+  const rows = await db.$queryRaw<SellerMetricsIdentityRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_service_metrics_identity(${sellerProfileId})
+  `);
+  if (rows.length > 1) {
+    throw new Error("Seller metrics identity authority returned too many rows");
+  }
+  const row = rows[0];
+  if (!row) throw new Error(`SellerProfile not found: ${sellerProfileId}`);
+  if (
+    typeof row.sellerUserId !== "string"
+    || !SELLER_PROFILE_ID_PATTERN.test(row.sellerUserId)
+    || typeof row.createdAtEpochMillis !== "bigint"
+    || row.createdAtEpochMillis < 0n
+    || row.createdAtEpochMillis > MAX_EPOCH_MILLIS
+  ) {
+    throw new Error("Seller metrics identity authority returned an invalid result");
+  }
+  return Object.freeze({
+    userId: row.sellerUserId,
+    createdAt: new Date(Number(row.createdAtEpochMillis)),
+  });
+}
+
 async function calculateSellerMetricsWithoutLock(
   sellerProfileId: string,
   periodMonths: number,
@@ -144,14 +182,10 @@ async function calculateSellerMetricsWithoutLock(
   const now = new Date();
   const periodStart = metricsPeriodStart(now, periodMonths);
 
-  const seller = await db.sellerProfile.findUnique({
-    where: { id: sellerProfileId },
-    select: { userId: true, createdAt: true },
-  });
-  if (!seller) throw new Error(`SellerProfile not found: ${sellerProfileId}`);
+  const seller = await readSellerMetricsIdentity(sellerProfileId, db);
 
   const accountAgeDays = Math.floor(
-    (now.getTime() - new Date(seller.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+    (now.getTime() - seller.createdAt.getTime()) / (1000 * 60 * 60 * 24)
   );
 
   // Keep metrics aggregation in the database. Loading full order/review/message
