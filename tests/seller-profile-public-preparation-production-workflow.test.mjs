@@ -182,6 +182,10 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   );
   assert.match(
     ci,
+    /predecessor_staff_blob=43e85a986eb4790e222482e81a00afbfcc91dce5[\s\S]*"\$predecessor:scripts\/provision-order-staff-read-role\.sql"[\s\S]*"\$holding\/predecessor-provision-order-staff-read-role\.sql"/u,
+  );
+  assert.match(
+    ci,
     /test "\$\(git hash-object "\$schema"\)" = c69a15bb7e921be14fcd19eea6b139d4ddca7fa4[\s\S]*trap cleanup EXIT[\s\S]*cp "\$holding\/predecessor-schema\.prisma" "\$schema"/u,
   );
   assert.equal(
@@ -191,6 +195,10 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
       ),
     ].length,
     9,
+  );
+  assert.match(
+    ci,
+    /Converge staff grants after SellerProfile private boundary[\s\S]*--file="\$RUNNER_TEMP\/seller-profile-public-candidate\/predecessor-provision-order-staff-read-role\.sql"/u,
   );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_PREPARATIONS/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_ENABLE/u);

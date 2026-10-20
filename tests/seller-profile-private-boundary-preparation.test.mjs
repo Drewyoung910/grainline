@@ -835,7 +835,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     );
     assert.match(
       ci,
-      /Converge staff grants after SellerProfile private boundary[\s\S]*--set=staff_role=grainline_staff_read_runtime[\s\S]*--file=scripts\/provision-order-staff-read-role\.sql/,
+      /Converge staff grants after SellerProfile private boundary[\s\S]*--set=staff_role=grainline_staff_read_runtime[\s\S]*--file="\$RUNNER_TEMP\/seller-profile-public-candidate\/predecessor-provision-order-staff-read-role\.sql"/,
     );
     assert.match(
       zeroDirectProof,
