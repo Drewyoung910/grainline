@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import pg from "pg";
@@ -49,6 +52,11 @@ import { proveSellerProfileMetricsIdentity } from "../tools/database-full-chain/
 import { proveSellerProfileServiceIdentities } from "../tools/database-full-chain/scenarios/seller-profile-service-identities.mjs";
 import { proveSellerProfileRetainedAuthorityGaps } from "../tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs";
 import { proveSellerProfilePolicylessEnable } from "../tools/database-full-chain/scenarios/seller-profile-enable.mjs";
+import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
+import {
+  SELLER_PROFILE_PUBLIC_ENABLE,
+  SELLER_PROFILE_PUBLIC_PREPARATIONS,
+} from "../scripts/seller-profile-public-preparation-manifest.mjs";
 import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-followup-correction.mjs";
 import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-first-event-case-correction.mjs";
 
@@ -62,6 +70,9 @@ test(
   },
   async () => {
     const client = new pg.Client({ connectionString: proofDatabaseUrl });
+    const preparationEvidenceDirectory = mkdtempSync(
+      join(tmpdir(), "seller-profile-public-preparation-full-chain-"),
+    );
     await client.connect();
     try {
       const identity = (await client.query(`
@@ -86,6 +97,32 @@ test(
         bootstrapRoles: roles.bootstrapRoles,
         convergeRoles: roles.convergeRoles,
         beforeMigration: async ({ artifact }) => {
+          if (artifact.name === SELLER_PROFILE_PUBLIC_PREPARATIONS[0].name) {
+            const evidence = await inspectSellerProfilePublicPreparationProduction({
+              DIRECT_URL: proofDatabaseUrl,
+              SELLER_PROFILE_PREPARATION_EXPECTED_STATE: "ready",
+              SELLER_PROFILE_PREPARATION_EVIDENCE_PATH: join(
+                preparationEvidenceDirectory,
+                "ready.json",
+              ),
+              SELLER_PROFILE_PREPARATION_RELEASE_COMMIT: "a".repeat(40),
+            });
+            assert.equal(evidence.state, "ready");
+            assert.equal(evidence.pendingCount, 47);
+          }
+          if (artifact.name === SELLER_PROFILE_PUBLIC_ENABLE.name) {
+            const evidence = await inspectSellerProfilePublicPreparationProduction({
+              DIRECT_URL: proofDatabaseUrl,
+              SELLER_PROFILE_PREPARATION_EXPECTED_STATE: "prepared",
+              SELLER_PROFILE_PREPARATION_EVIDENCE_PATH: join(
+                preparationEvidenceDirectory,
+                "prepared.json",
+              ),
+              SELLER_PROFILE_PREPARATION_RELEASE_COMMIT: "a".repeat(40),
+            });
+            assert.equal(evidence.state, "prepared");
+            assert.equal(evidence.pendingCount, 0);
+          }
           if (artifact.name === CASE_REFUND_FOLLOWUP_MIGRATION) {
             fixture = await seedSellerProfilePrivateFixture(adapter);
             historicalCaseRefundDamage =
@@ -259,6 +296,7 @@ test(
       });
     } finally {
       await client.end();
+      rmSync(preparationEvidenceDirectory, { recursive: true, force: true });
     }
   },
 );

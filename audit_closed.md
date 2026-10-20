@@ -19846,3 +19846,38 @@ verified stale/false-positive/current 579, deferred product/design/ops/legal
 86, approximate raw allegations left from current max #1126: 0. The tally is
 unchanged because C-754 is a private-ledger label whose numeric suffix collides
 with older canonical repository findings.
+
+### Entry 576 - Public SellerProfile compatible preparation release gate
+
+Entry 576 closes the local release-packaging gap discovered while reconciling
+C-754. The isolated public SellerProfile branch had a protected workflow for
+the final policyless ENABLE migration, but no exact workflow for installing its
+47 additive predecessor migrations. Deploying the converted app before those
+functions exist would fail, while a broad migration deploy could apply ENABLE
+too early.
+
+The candidate now has one immutable 47-migration preparation manifest, a
+count-only/read-only Production inspector and a protected restart-safe
+workflow. The workflow binds exact main and all required exact-main checks,
+accepts only a successful migration prefix, holds ENABLE outside the Prisma
+tree, applies only the reviewed suffix, restores ENABLE even on failure, then
+requires ENABLE to be the only pending migration. It preserves the public
+table's RLS-off predecessor grants, confirms the private companion remains
+policyless FORCE, runs the global grant audit and retains sanitized evidence.
+Git-triggered Vercel deployment is already disabled, so the converted runtime
+can be promoted only after this preparation postflight.
+
+Nine focused manifest/inspector/workflow checks pass. The complete PostgreSQL
+16 migration-chain proof also invokes the same inspector immediately before
+the first preparation and immediately before ENABLE. It reads exactly `ready`
+and `prepared`, respectively, and the complete 398-migration behavior proof
+passes afterward.
+
+This is prepared source only. No Production migration, deployment, grant or
+RLS state changed. Merge review, exact-head CI and a separately authorized
+preparation dispatch remain required.
+
+Current running tally after Entry 576 remains verified fixed/reduced 1106,
+verified stale/false-positive/current 579, deferred product/design/ops/legal
+86, approximate raw allegations left from current max #1126: 0. This entry
+closes release machinery rather than a new canonical product finding.

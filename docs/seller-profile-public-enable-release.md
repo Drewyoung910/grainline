@@ -85,6 +85,14 @@ runs the global grant audit afterward and preserves mode-0600 sanitized
 preflight/postflight evidence. It contains no application deployment and no
 FORCE step.
 
+The 47 compatible predecessor migrations have their own earlier protected
+workflow and immutable manifest, documented in
+`docs/seller-profile-public-preparation-release.md`. That workflow holds this
+ENABLE migration out of the Prisma tree, installs only an exact restart-safe
+preparation suffix, restores ENABLE, and requires ENABLE to be the sole pending
+migration afterward. Git-triggered Vercel deployment is disabled, so the
+converted runtime is promoted only after the preparation postflight succeeds.
+
 ## Release blockers
 
 The database candidate and release machinery are locally compatible, but

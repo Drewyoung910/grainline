@@ -3,14 +3,13 @@ import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 
-export const SELLER_PROFILE_PREPARATION = Object.freeze({
-  name: "20261020230000_prepare_seller_profile_staff_orderability_transition",
-  checksum: "a6912d3fa0fd6c183cfa246d349b00ae1984d980411831e482b246a8b49226de",
-});
-export const SELLER_PROFILE_ENABLE = Object.freeze({
-  name: "20261020240000_enable_seller_profile_rls",
-  checksum: "0ffbb49886ed5be2269fe6808da1058b6cc9cb7d50df16e02afb0053735141a9",
-});
+import {
+  SELLER_PROFILE_PUBLIC_ENABLE,
+  SELLER_PROFILE_PUBLIC_PREPARATIONS,
+} from "./seller-profile-public-preparation-manifest.mjs";
+
+export const SELLER_PROFILE_PREPARATION = SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1);
+export const SELLER_PROFILE_ENABLE = SELLER_PROFILE_PUBLIC_ENABLE;
 
 const EXPECTED_STATES = new Set(["ready", "enabled", "ready-or-enabled"]);
 

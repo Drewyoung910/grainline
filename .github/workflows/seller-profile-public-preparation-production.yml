@@ -1,0 +1,261 @@
+name: SellerProfile Public Preparation Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit containing the compatible preparations
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      conversation_force_proof_run_id:
+        description: Successful Conversation and Message FORCE proof for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-seller-profile-public-preparations
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Apply reviewed SellerProfile public preparations
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-seller-profile-public-preparations'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind preparations to exact main and successful checks
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_CONVERSATION_FORCE_PROOF_RUN_ID: ${{ inputs.conversation_force_proof_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const conversationValue =
+              process.env.REVIEWED_CONVERSATION_FORCE_PROOF_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(conversationValue ?? '')) {
+              throw new Error('SellerProfile preparation binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const conversationRunId = Number(conversationValue);
+            if (!Number.isSafeInteger(ciRunId) ||
+                !Number.isSafeInteger(conversationRunId)) {
+              throw new Error('SellerProfile preparation run id is unsafe');
+            }
+            const [{data: main}, {data: ci}, {data: conversation}] =
+              await Promise.all([
+                github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+                github.rest.actions.getWorkflowRun({
+                  ...context.repo,
+                  run_id: conversationRunId,
+                }),
+              ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.status !== 'completed' ||
+                ci.conclusion !== 'success') {
+              throw new Error('SellerProfile preparation main/CI readback drifted');
+            }
+            if (conversation.name !== 'Conversation and Message RLS FORCE Proof' ||
+                conversation.path !== '.github/workflows/conversation-message-force-proof.yml' ||
+                conversation.event !== 'push' ||
+                conversation.head_branch !== 'main' ||
+                conversation.head_sha !== sha ||
+                conversation.status !== 'completed' ||
+                conversation.conclusion !== 'success') {
+              throw new Error('Conversation and Message FORCE proof readback drifted');
+            }
+            const conversationJobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRun,
+              {...context.repo, run_id: conversationRunId, per_page: 100},
+            );
+            const conversationProofJobs = conversationJobs.filter((job) =>
+              job.name === 'proof' && job.status === 'completed' &&
+              job.conclusion === 'success'
+            );
+            if (conversationProofJobs.length !== 1) {
+              throw new Error('Conversation and Message FORCE proof job is absent');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {
+                ...context.repo,
+                branch: 'main',
+                event: 'push',
+                head_sha: sha,
+                per_page: 100,
+              },
+            );
+            const latestByWorkflow = new Map();
+            for (const run of exactPushRuns) {
+              if (run.head_sha !== sha || run.head_branch !== 'main' ||
+                  run.event !== 'push') continue;
+              const key = run.path || run.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(run.id) > Number(previous.id)) {
+                latestByWorkflow.set(key, run);
+              }
+            }
+            if (latestByWorkflow.size === 0) {
+              throw new Error('No exact-main push workflows were found');
+            }
+            const requiredPushWorkflowPaths = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missingPushWorkflows = [...requiredPushWorkflowPaths]
+              .filter((path) => !latestByWorkflow.has(path));
+            if (missingPushWorkflows.length !== 0) {
+              throw new Error(
+                `Required exact-main push workflows are absent: ${missingPushWorkflows.join(', ')}`,
+              );
+            }
+            const unacceptablePushRuns = [...latestByWorkflow.values()]
+              .filter((run) => run.status !== 'completed' ||
+                run.conclusion !== 'success');
+            if (unacceptablePushRuns.length !== 0) {
+              throw new Error(
+                `Exact-main push workflows are not all green: ${unacceptablePushRuns
+                  .map((run) => `${run.name}:${run.status}/${run.conclusion}`)
+                  .join(', ')}`,
+              );
+            }
+      - name: Verify exact SellerProfile preparation source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e \
+            "import {verifySellerProfilePublicPreparationSources} from './scripts/seller-profile-public-preparation-manifest.mjs'; verifySellerProfilePublicPreparationSources();"
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "20261020240000_enable_seller_profile_rls"
+          node --test \
+            tests/seller-profile-public-preparation-production-inspect.test.mjs \
+            tests/seller-profile-public-preparation-production-workflow.test.mjs \
+            tests/reviewed-pending-migrations.test.mjs \
+            tests/db-grant-inventory.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe SellerProfile preparation prefix
+        id: preflight
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          SELLER_PROFILE_PREPARATION_EXPECTED_STATE: restart-safe
+          SELLER_PROFILE_PREPARATION_EVIDENCE_PATH: ${{ runner.temp }}/seller-profile-preparation-${{ inputs.release_commit }}-preflight.json
+          SELLER_PROFILE_PREPARATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        run: |
+          set -euo pipefail
+          result="$(node scripts/seller-profile-public-preparation-production-inspect.mjs)"
+          node -e '
+            let value="";
+            process.stdin.setEncoding("utf8");
+            process.stdin.on("data", chunk => value += chunk);
+            process.stdin.on("end", () => {
+              const result = JSON.parse(value).result;
+              process.stdout.write(`state=${result.state}\npending=${result.pending.join(",")}\n`);
+            });
+          ' <<< "$result" >> "$GITHUB_OUTPUT"
+      - name: Hold SellerProfile ENABLE outside the preparation release
+        id: hold
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261020240000_enable_seller_profile_rls
+          holding="$(mktemp -d "$RUNNER_TEMP/seller-profile-enable-hold.XXXXXX")"
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          echo "holding=$holding" >> "$GITHUB_OUTPUT"
+      - name: Require only the reviewed SellerProfile preparation suffix pending
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Apply only the reviewed SellerProfile preparation suffix
+        if: steps.preflight.outputs.state != 'prepared'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Restore held SellerProfile ENABLE source
+        if: ${{ always() && steps.hold.outputs.holding != '' }}
+        shell: bash
+        env:
+          HOLDING: ${{ steps.hold.outputs.holding }}
+        run: |
+          set -euo pipefail
+          migration=20261020240000_enable_seller_profile_rls
+          mv "$HOLDING/$migration" "prisma/migrations/$migration"
+          rmdir "$HOLDING"
+      - name: Require only SellerProfile ENABLE pending after preparation
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: 20261020240000_enable_seller_profile_rls
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Read back complete SellerProfile preparation catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          SELLER_PROFILE_PREPARATION_EXPECTED_STATE: prepared
+          SELLER_PROFILE_PREPARATION_EVIDENCE_PATH: ${{ runner.temp }}/seller-profile-preparation-${{ inputs.release_commit }}-prepared.json
+          SELLER_PROFILE_PREPARATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        run: node scripts/seller-profile-public-preparation-production-inspect.mjs
+      - name: Audit global runtime grants after SellerProfile preparations
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized SellerProfile preparation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: seller-profile-public-preparation-production-${{ github.run_id }}
+          path: ${{ runner.temp }}/seller-profile-preparation-${{ github.sha }}-*.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false
