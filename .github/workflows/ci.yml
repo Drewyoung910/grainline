@@ -2910,20 +2910,6 @@ jobs:
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
-      - name: Restore public SellerProfile candidate after historical release guards
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/seller-profile-public-candidate"
-          while IFS= read -r migration
-          do
-            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
-          done < "$holding/migration-names.txt"
-          while IFS= read -r test_file
-          do
-            mv "$holding/tests/$(basename "$test_file")" "$test_file"
-          done < "$holding/test-files.txt"
-          echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
       - name: Restore and prove the reviewed successors
         shell: bash
         run: |
@@ -6541,5 +6527,23 @@ jobs:
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+      # The disposable database above intentionally replays each accepted
+      # historical release boundary without the later SellerProfile candidate.
+      # Restore the candidate only after every historical catalog audit so the
+      # source-derived inventory cannot outrun the database state under proof.
+      - name: Restore public SellerProfile candidate after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          while IFS= read -r migration
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done < "$holding/migration-names.txt"
+          while IFS= read -r test_file
+          do
+            mv "$holding/tests/$(basename "$test_file")" "$test_file"
+          done < "$holding/test-files.txt"
+          echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
       - name: Production build
         run: npm run build

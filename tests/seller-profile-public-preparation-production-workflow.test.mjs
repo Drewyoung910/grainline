@@ -150,12 +150,18 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   const restore = ci.indexOf(
     "Restore public SellerProfile candidate after historical release guards",
   );
+  const finalHistoricalAudit = ci.indexOf(
+    "Audit runtime grants after SellerProfile private boundary",
+  );
+  const build = ci.indexOf("- name: Production build");
   assert.ok(
     generate >= 0 &&
       generate < verify &&
       verify < isolate &&
       isolate < historical &&
-      historical < restore,
+      historical < finalHistoricalAudit &&
+      finalHistoricalAudit < restore &&
+      restore < build,
   );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_PREPARATIONS/u);
