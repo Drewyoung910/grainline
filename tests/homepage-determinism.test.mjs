@@ -59,7 +59,7 @@ describe("homepage deterministic query guardrails", () => {
     const start = home.indexOf("async function getFeaturedMakerBlock");
     const block = home.slice(start, home.indexOf("const CATEGORIES", start));
 
-    assert.match(block, /where: publicListingWhere\(\{\s*id: \{ in: maker\.featuredListingIds \},\s*sellerId: maker\.id,\s*photos: \{ some: \{\} \},\s*\}\),/);
+    assert.match(block, /where: publicListingWhere\(\{\s*id: \{ in: \[\.\.\.maker\.featuredListingIds\] \},\s*sellerId: maker\.id,\s*photos: \{ some: \{\} \},\s*\}\),/);
     assert.match(block, /where: publicListingWhere\(\{\s*sellerId: maker\.id,\s*photos: \{ some: \{\} \},\s*\.\.\.\(existingIds\.length > 0 \? \{ id: \{ notIn: existingIds \} \} : \{\}\),\s*\}\),/);
     assert.doesNotMatch(block, /status: "ACTIVE"/);
     assert.doesNotMatch(block, /isPrivate: false/);

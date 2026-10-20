@@ -2385,7 +2385,6 @@ WHERE to_regprocedure(function_signature) IS NOT NULL;
 -- provisioning replay cannot depend on which preparation migration ran last.
 WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
   VALUES
-    ('public."grainline_seller_account_deletion_public_media_urls"(text,bigint,uuid)', true),
     ('public."grainline_seller_actor_account_feed_cards"(text[])', true),
     ('public."grainline_seller_actor_conversation_cards"(text[])', true),
     ('public."grainline_seller_owner_account_summary"()', true),
@@ -2453,7 +2452,6 @@ SELECT format(
 
 WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
   VALUES
-    ('public."grainline_seller_account_deletion_public_media_urls"(text,bigint,uuid)', true),
     ('public."grainline_seller_actor_account_feed_cards"(text[])', true),
     ('public."grainline_seller_actor_conversation_cards"(text[])', true),
     ('public."grainline_seller_owner_account_summary"()', true),
@@ -2518,50 +2516,6 @@ SELECT format(
   FROM seller_profile_public_candidate
  WHERE runtime_execute
    AND to_regprocedure(function_signature) IS NOT NULL;
-\gexec
-
--- Public SellerProfile owner transitions derive the authenticated local user
--- from transaction-local context and expose no generic table operation.
-WITH seller_public_owner_authority(function_signature) AS (
-  VALUES
-    ('public."grainline_seller_owner_featured_listing_toggle"(text, text)'),
-    ('public."grainline_seller_owner_avatar_clear"(text)'),
-    ('public."grainline_seller_owner_metro_assignment_update"(text, text, text)'),
-    ('public."grainline_seller_owner_onboarding_state"(text)'),
-    ('public."grainline_seller_owner_guild_dashboard_state"(text)'),
-    ('public."grainline_seller_owner_shop_settings_state"(text)'),
-    ('public."grainline_seller_owner_profile_editor_state"(text)'),
-    ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, boolean, integer, double precision, double precision, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
-    ('public."grainline_seller_owner_profile_update"(text, text, text, text, text, text, text, integer, text, text, text, text[], text[], boolean, text, text, text, text, text, text, text, text, boolean, boolean, integer, boolean, integer)')
-)
-SELECT format(
-  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
-  function_signature,
-  :'runtime_role'
-)
-  FROM seller_public_owner_authority
- WHERE to_regprocedure(function_signature) IS NOT NULL;
-\gexec
-
-WITH seller_public_owner_authority(function_signature) AS (
-  VALUES
-    ('public."grainline_seller_owner_featured_listing_toggle"(text, text)'),
-    ('public."grainline_seller_owner_avatar_clear"(text)'),
-    ('public."grainline_seller_owner_metro_assignment_update"(text, text, text)'),
-    ('public."grainline_seller_owner_onboarding_state"(text)'),
-    ('public."grainline_seller_owner_guild_dashboard_state"(text)'),
-    ('public."grainline_seller_owner_shop_settings_state"(text)'),
-    ('public."grainline_seller_owner_profile_editor_state"(text)'),
-    ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, boolean, integer, double precision, double precision, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
-    ('public."grainline_seller_owner_profile_update"(text, text, text, text, text, text, text, integer, text, text, text, text[], text[], boolean, text, text, text, text, text, text, text, text, boolean, boolean, integer, boolean, integer)')
-)
-SELECT format(
-  'GRANT EXECUTE ON FUNCTION %s TO %I',
-  function_signature,
-  :'runtime_role'
-)
-  FROM seller_public_owner_authority
- WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
 -- Phase 0 creates these trigger functions without PUBLIC or ordinary-runtime

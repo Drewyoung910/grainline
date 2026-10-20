@@ -130,10 +130,11 @@ describe("public visibility follow-ups", () => {
 
     for (const source of [sellerPage, sellerShopPage]) {
       assert.doesNotMatch(source, /clerkId: true/);
-      assert.match(source, /const isOwner = !!meId && seller\.userId === meId/);
+      assert.match(source, /const isOwner = seller\.viewerIsOwner/);
+      assert.doesNotMatch(source, /seller\.userId/);
     }
-    assert.match(sellerShopPage, /const blockedUserIds = await getBlockedUserIdsFor\(meId\)/);
-    assert.match(sellerShopPage, /!isOwner && blockedUserIds\.has\(seller\.userId\)/);
+    assert.match(sellerPage, /sellerPublicViewTarget\(seller\.id\)/);
+    assert.match(sellerShopPage, /getSellerProfileForShopPage\(meId, sellerId\)/);
     assert.match(visibility, /listing\.seller\.userId === viewer\.dbUserId/);
 
     assert.doesNotMatch(customerPhotosPage, /clerkId: true/);

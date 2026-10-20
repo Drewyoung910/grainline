@@ -138,3 +138,19 @@ test("workflow orders source checks before owner access and postflight after res
   assert.ok(preflight < hold && hold < apply && apply < restore);
   assert.ok(restore < pending && pending < postflight && postflight < audit);
 });
+
+test("main CI proves and isolates the public SellerProfile candidate around historical guards", () => {
+  const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+  const verify = ci.indexOf("Verify public SellerProfile candidate source package");
+  const isolate = ci.indexOf(
+    "Isolate public SellerProfile candidate from historical release guards",
+  );
+  const historical = ci.indexOf("- name: Tests");
+  const restore = ci.indexOf(
+    "Restore public SellerProfile candidate after historical release guards",
+  );
+  assert.ok(verify >= 0 && verify < isolate && isolate < historical && historical < restore);
+  assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
+  assert.match(ci, /SELLER_PROFILE_PUBLIC_PREPARATIONS/u);
+  assert.match(ci, /SELLER_PROFILE_PUBLIC_ENABLE/u);
+});

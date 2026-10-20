@@ -104,6 +104,57 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/database-full-chain-source"
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
+      - name: Verify public SellerProfile candidate source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_tests=()
+          while IFS= read -r test_file
+          do
+            package_tests+=("$test_file")
+          done < <(
+              grep -El \
+                '202610(19|20)|verifySellerProfilePublicPreparationSources' \
+                tests/*.test.mjs \
+                | sort
+            )
+          test "${#package_tests[@]}" -ge 70
+          node \
+            --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
+            --experimental-strip-types \
+            --test \
+            --test-concurrency=1 \
+            "${package_tests[@]}"
+      - name: Isolate public SellerProfile candidate from historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          mkdir -p "$holding/migrations" "$holding/tests"
+          node --input-type=module - <<'NODE' > "$holding/migration-names.txt"
+          import {
+            SELLER_PROFILE_PUBLIC_ENABLE,
+            SELLER_PROFILE_PUBLIC_PREPARATIONS,
+          } from './scripts/seller-profile-public-preparation-manifest.mjs';
+
+          for (const {name} of [
+            ...SELLER_PROFILE_PUBLIC_PREPARATIONS,
+            SELLER_PROFILE_PUBLIC_ENABLE,
+          ]) console.log(name);
+          NODE
+          while IFS= read -r migration
+          do
+            mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          done < "$holding/migration-names.txt"
+          grep -El \
+            '202610(19|20)|verifySellerProfilePublicPreparationSources' \
+            tests/*.test.mjs \
+            | sort > "$holding/test-files.txt"
+          while IFS= read -r test_file
+          do
+            mv "$test_file" "$holding/tests/$(basename "$test_file")"
+          done < "$holding/test-files.txt"
+          echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true" >> "$GITHUB_ENV"
       - run: npx prisma generate
       - name: Verify Case refund recovery source package
         run: >-
@@ -2842,6 +2893,20 @@ jobs:
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
           npm test
+      - name: Restore public SellerProfile candidate after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          while IFS= read -r migration
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done < "$holding/migration-names.txt"
+          while IFS= read -r test_file
+          do
+            mv "$holding/tests/$(basename "$test_file")" "$test_file"
+          done < "$holding/test-files.txt"
+          echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
       - name: Restore and prove the reviewed successors
         shell: bash
         run: |

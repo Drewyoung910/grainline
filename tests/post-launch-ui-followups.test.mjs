@@ -41,7 +41,8 @@ describe("post-launch UI follow-ups", () => {
 
   it("reuses the shared address autocomplete on shipping, pickup, and ship-from surfaces", () => {
     assert.match(source("src/components/ShippingAddressForm.tsx"), /AddressAutocomplete/);
-    assert.match(source("src/components/LocationPicker.tsx"), /AddressAutocomplete/);
+    assert.match(source("src/components/LocationPicker.tsx"), /SellerLocationSearch/);
+    assert.match(source("src/components/SellerLocationSearch.tsx"), /\/api\/seller\/location\/search/);
     assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /AddressAutocomplete/);
     assert.match(source("src/app/api/address/autocomplete/route.ts"), /countrycodes/);
     assert.match(source("src/app/api/address/autocomplete/route.ts"), /dedupe/);
