@@ -9,10 +9,10 @@ describe("sitemap entry limit guardrails", () => {
     const terms = readFileSync("src/app/terms/page.tsx", "utf8");
     const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
 
-    assert.match(terms, /Last Updated: June 14, 2026/);
-    assert.match(privacy, /Last Updated: April 24, 2026/);
-    assert.match(source, /const TERMS_ROUTE_LAST_MODIFIED = new Date\("2026-06-14T00:00:00\.000Z"\)/);
-    assert.match(source, /const PRIVACY_ROUTE_LAST_MODIFIED = new Date\("2026-04-24T00:00:00\.000Z"\)/);
+    assert.match(terms, /Last Updated: October 19, 2026/);
+    assert.match(privacy, /Last Updated: October 19, 2026/);
+    assert.match(source, /const TERMS_ROUTE_LAST_MODIFIED = new Date\("2026-10-19T00:00:00\.000Z"\)/);
+    assert.match(source, /const PRIVACY_ROUTE_LAST_MODIFIED = new Date\("2026-10-19T00:00:00\.000Z"\)/);
     assert.match(source, /url: `\$\{BASE_URL\}\/terms`, lastModified: TERMS_ROUTE_LAST_MODIFIED/);
     assert.match(source, /url: `\$\{BASE_URL\}\/privacy`, lastModified: PRIVACY_ROUTE_LAST_MODIFIED/);
   });

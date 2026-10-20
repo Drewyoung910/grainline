@@ -60,7 +60,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/sitemap.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/tag/[slug]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/lib/accountDeletion.ts": ["SERVICE"],
-  "src/lib/ban.ts": ["STAFF", "SERVICE"],
   "src/lib/cartOwnerAccess.ts": ["TRANSACTION"],
   "src/lib/customOrderReadyLink.ts": ["PARTICIPANT", "TRANSACTION"],
   "src/lib/followerBlogNotifications.ts": ["SERVICE"],
@@ -71,8 +70,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/lib/quality-score.ts": ["SERVICE"],
   "src/lib/savedBlogPostOwnerAccess.ts": ["PUBLIC_PROFILE"],
   "src/lib/sellerCheckoutPrivateAccess.ts": ["TRANSACTION"],
-  "src/lib/sellerOwnerPrivateAccess.ts": ["OWNER"],
-  "src/lib/sellerStaffPrivateAccess.ts": ["STAFF"],
   "src/lib/site-metrics-snapshot.ts": ["SERVICE"],
 });
 

@@ -16,12 +16,12 @@ const clean = { override_rows: 0, row_security_on: true, origin_replication: tru
 test("all 18 global inventories preserve unaffected authority and omit only not-yet-created prefix objects", () => {
   const full = deriveGrantInventory();
   assert.deepEqual(states[17].inventory, full);
-  assert.equal(full.tables.length, 68); assert.equal(full.functions.length, 265);
+  assert.equal(full.tables.length, 69); assert.equal(full.functions.length, 265);
   for (let n = 0; n <= 17; n += 1) {
     const inventory = states[n].inventory;
     const excludedFunctions = scope.manifest.targetNames.filter(name => !scope.manifest.states[n].some(fn => fn.name === name));
     assert.deepEqual(inventory.functions, full.functions.filter(name => !excludedFunctions.includes(name)));
-    assert.equal(inventory.tables.length, 66 + Number(n >= 10) + Number(n >= 12));
+    assert.equal(inventory.tables.length, 67 + Number(n >= 10) + Number(n >= 12));
     for (const field of ["tables", "rlsEnableTables", "rlsForceTables"])
       for (const [name, introduced] of [["OrderStaffCapability", 10], ["SellerDeauthorizationApplication", 12]])
         assert.equal(inventory[field].includes(name), n >= introduced);

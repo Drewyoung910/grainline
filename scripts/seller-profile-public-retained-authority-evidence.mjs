@@ -122,6 +122,17 @@ export const SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE = Object.freeze({
 
 const DATABASE_MARKER = /PGlite|pg\.Client|client\.query\(|database\.query\(|db\.query\(|await client\.query\(migration\.sql\)/u;
 
+function resolveEvidenceFile(root, file) {
+  const primary = path.join(root, file);
+  if (fs.existsSync(primary)) return primary;
+  const stagedTests = process.env.SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR;
+  if (stagedTests && file.startsWith('tests/')) {
+    const staged = path.join(stagedTests, path.basename(file));
+    if (fs.existsSync(staged)) return staged;
+  }
+  throw new Error(`evidence file is missing: ${file}`);
+}
+
 function functionName(signature) {
   return signature.slice(0, signature.indexOf('('));
 }
@@ -153,8 +164,12 @@ export function verifySellerProfileRetainedAuthorityEvidence(root, catalog) {
   const gaps = [];
   for (const [signature, evidence] of Object.entries(SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE)) {
     const sources = evidence.files.map((file) => {
-      const absolute = path.join(root, file);
-      if (!fs.existsSync(absolute)) throw new Error(`${signature} evidence file is missing: ${file}`);
+      let absolute;
+      try {
+        absolute = resolveEvidenceFile(root, file);
+      } catch {
+        throw new Error(`${signature} evidence file is missing: ${file}`);
+      }
       return fs.readFileSync(absolute, 'utf8');
     });
     if (!sources.some((source) => source.includes(functionName(signature)))) {

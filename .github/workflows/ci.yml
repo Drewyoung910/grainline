@@ -2901,6 +2901,7 @@ jobs:
       - name: Tests
         env:
           DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR: ${{ runner.temp }}/database-full-chain-source/migrations
+          SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR: ${{ runner.temp }}/order-release-correction-tests
           USER_CLERK_IDENTITY_MIGRATION_PATH: ${{ runner.temp }}/user-clerk-identity-authority/migration/migration.sql
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'

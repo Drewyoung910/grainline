@@ -33,7 +33,6 @@ describe("admin audit durability", () => {
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/support/actions.ts",
-      "src/app/admin/verification/page.tsx",
       "src/app/api/admin/listings/[id]/route.ts",
       "src/app/api/admin/listings/[id]/review/route.ts",
       "src/app/api/admin/reports/[id]/resolve/route.ts",
@@ -47,6 +46,25 @@ describe("admin audit durability", () => {
         `${path} must audit inside the mutation transaction`,
       );
     }
+
+    const verification = source("src/app/admin/verification/page.tsx");
+    const guildTransition = source(
+      "prisma/migrations/20261014220000_prepare_seller_profile_private_guild_staff_transition_authority/migration.sql",
+    );
+    const featureTransition = source(
+      "prisma/migrations/20261020140000_prepare_seller_profile_staff_feature_transition/migration.sql",
+    );
+    const guildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
+    assert.match(verification, /applySellerGuildStaffTransition\(getOrderStaffReadClient\(\), \{/);
+    assert.match(verification, /applySellerStaffFeatureTransition\(getOrderStaffReadClient\(\), \{/);
+    assert.match(verification, /if \(!approval\?\.applied \|\| !approval\.auditId\)/);
+    assert.match(verification, /if \(!result\?\.applied\) return/);
+    assert.match(guildAccess, /if \(result\?\.applied && !result\.auditId\)/);
+    assert.match(guildAccess, /Seller feature transition omitted its audit witness/);
+    for (const authority of [guildTransition, featureTransition]) {
+      assert.match(authority, /UPDATE public\."SellerProfile"[\s\S]*INSERT INTO public\."AdminAuditLog"/);
+    }
+    assert.doesNotMatch(verification, /prisma\.sellerProfile\.(?:create|update|delete|upsert)/);
 
     const orderActions = source("src/app/admin/actions.ts");
     const orderAuthority = source("docs/rls-drafts/order-staff-mutation-authority.sql");

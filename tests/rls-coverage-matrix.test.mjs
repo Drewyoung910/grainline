@@ -30,8 +30,8 @@ describe("site-wide RLS coverage matrix", () => {
     const rows = matrixRows();
     const documentedModels = rows.map((row) => row.model).sort();
 
-    assert.equal(models.length, 69, "review the snapshot count when the schema changes");
-    assert.match(matrix, /Candidate-source snapshot scope: 69 Prisma models\./);
+    assert.equal(models.length, 70, "review the snapshot count when the schema changes");
+    assert.match(matrix, /Candidate-source snapshot scope: 70 Prisma models\./);
     assert.equal(rows.length, models.length, "matrix must have exactly one row per model");
     assert.deepEqual(documentedModels, models);
     assert.equal(new Set(documentedModels).size, documentedModels.length);
@@ -93,7 +93,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["User", "RLS_LIVE_FORCE"],
         ["UserEmailAddress", "RLS_LIVE_FORCE"],
-        ["SellerProfilePrivate", "RLS_LIVE_ENABLE_FORCE_CANDIDATE"],
+        ["SellerProfilePrivate", "RLS_LIVE_FORCE"],
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
         ["OrderPaymentEvent", "RLS_LIVE_FORCE"],
@@ -117,7 +117,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /Current candidate source contains 69 Prisma models\. Twenty-nine have committed[\s\S]*forty have no committed RLS activation[\s\S]*Retained Production\s+evidence covers 69 model\s+tables: twenty-eight FORCE, one ENABLE-only and forty without RLS/,
+      /Current candidate source contains 70 Prisma models\. Twenty-nine have committed[\s\S]*forty-one have no committed RLS activation[\s\S]*Retained Production evidence still covers the 69 model tables on current main:[\s\S]*twenty-nine FORCE and forty without RLS/,
     );
     assert.match(
       matrix,

@@ -95,7 +95,10 @@ test("main CI proves the full chain before recreating the disposable database", 
   const proof = workflow.indexOf("      - name: Prove full migration chain on PostgreSQL 16\n");
   const reset = workflow.indexOf("      - name: Reset disposable database after full-chain proof\n");
   const preserve = workflow.indexOf("      - name: Preserve full-chain sources for post-isolation tests\n");
-  const existingSuite = workflow.indexOf("      - run: npx prisma generate\n");
+  const existingSuite = workflow.indexOf(
+    "      - name: Generate Prisma client for candidate behavior tests\n",
+    preserve,
+  );
   assert.ok(proof >= 0);
   assert.ok(reset > proof);
   assert.ok(preserve > reset);

@@ -16,7 +16,7 @@ describe("public fee-policy copy", () => {
     const claude = source("CLAUDE.md");
 
     assert.match(termsState, /CURRENT_TERMS_VERSION = "2026-06-14"/);
-    assert.match(terms, /Last Updated: June 14, 2026/);
+    assert.match(terms, /Last Updated: October 19, 2026/);
     assert.match(checkoutAmounts, /sellerTransferBeforeMinimumCents = preTaxTotalCents - platformFeeCents/);
     assert.doesNotMatch(checkoutAmounts, /stripe|processing/i);
 
