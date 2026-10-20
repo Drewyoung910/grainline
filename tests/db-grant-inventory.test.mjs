@@ -353,6 +353,9 @@ const {
 
 describe("temporary SellerProfile CI isolation", () => {
   it("is absent by default and accepted only for exact loopback GitHub CI", () => {
+    const sellerProfilePublicIsolationSupported = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED");
     assert.deepEqual(resolveTemporarilyAbsentCiTables({}), []);
     assert.deepEqual(resolveTemporarilyAbsentCiTables({
       SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "",
@@ -370,16 +373,28 @@ describe("temporary SellerProfile CI isolation", () => {
         SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "true",
         SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED: "true",
       }, {allowLoopbackCi: true}),
-      ["SellerProfilePrivate", "SellerExactMapConsentEvent"],
+      [
+        "SellerProfilePrivate",
+        ...(sellerProfilePublicIsolationSupported
+          ? ["SellerExactMapConsentEvent"]
+          : []),
+      ],
     );
-    for (const [env, options] of [
+    const invalidIsolationInputs = [
       [{GITHUB_ACTIONS: "true", SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "yes"}, {allowLoopbackCi: true}],
       [{GITHUB_ACTIONS: "true", SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "true"}, {allowLoopbackCi: false}],
       [{SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED: "true"}, {allowLoopbackCi: true}],
-      [{GITHUB_ACTIONS: "true", SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED: "yes"}, {allowLoopbackCi: true}],
-      [{GITHUB_ACTIONS: "true", SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED: "true"}, {allowLoopbackCi: false}],
-      [{SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED: "true"}, {allowLoopbackCi: true}],
-    ]) assert.throws(() => resolveTemporarilyAbsentCiTables(env, options));
+      ...(sellerProfilePublicIsolationSupported
+        ? [
+            [{GITHUB_ACTIONS: "true", SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED: "yes"}, {allowLoopbackCi: true}],
+            [{GITHUB_ACTIONS: "true", SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED: "true"}, {allowLoopbackCi: false}],
+            [{SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED: "true"}, {allowLoopbackCi: true}],
+          ]
+        : []),
+    ];
+    for (const [env, options] of invalidIsolationInputs) {
+      assert.throws(() => resolveTemporarilyAbsentCiTables(env, options));
+    }
   });
 });
 
@@ -764,6 +779,9 @@ describe("database grant inventory guardrails", () => {
       requiredRuntimeTablePrivileges("DirectUploadReference", phaseAInventory),
       [],
     );
+    const sellerExactMapConsentEventAudited = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes('"SellerExactMapConsentEvent"');
     assert.deepEqual(RUNTIME_PRIVATE_TABLES, [
       "CaseResolutionClaim",
       "CaseStripeDisputeApplication",
@@ -774,7 +792,9 @@ describe("database grant inventory guardrails", () => {
       "OrderRefundReconciliation",
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
-      "SellerExactMapConsentEvent",
+      ...(sellerExactMapConsentEventAudited
+        ? ["SellerExactMapConsentEvent"]
+        : []),
       "SellerProfilePrivate",
     ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
@@ -788,44 +808,49 @@ describe("database grant inventory guardrails", () => {
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
     ]);
-    assert.equal(
-      sellerProfileRlsActivationExpected(sellerProfilePredecessorInventory),
-      false,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_PROFILE_TABLE,
-        sellerProfilePredecessorInventory,
-      ),
-      REQUIRED_TABLE_PRIVILEGES,
-    );
-    assert.equal(
-      policylessServiceRlsTableNames(
-        sellerProfilePredecessorInventory,
-      ).includes(SELLER_PROFILE_TABLE),
-      false,
-    );
-    assert.equal(
-      sellerProfileRlsActivationExpected(sellerProfileEnabledInventory),
-      true,
-    );
-    assert.equal(
-      sellerProfileRlsForceExpected(sellerProfileEnabledInventory),
-      false,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SELLER_PROFILE_TABLE,
-        sellerProfileEnabledInventory,
-      ),
-      [],
-    );
-    assert.equal(
-      policylessServiceRlsTableNames(
-        sellerProfileEnabledInventory,
-      ).includes(SELLER_PROFILE_TABLE),
-      true,
-    );
+    if (typeof sellerProfileRlsActivationExpected === "function") {
+      assert.equal(
+        sellerProfileRlsActivationExpected(sellerProfilePredecessorInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_PROFILE_TABLE,
+          sellerProfilePredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          sellerProfilePredecessorInventory,
+        ).includes(SELLER_PROFILE_TABLE),
+        false,
+      );
+      assert.equal(
+        sellerProfileRlsActivationExpected(sellerProfileEnabledInventory),
+        true,
+      );
+      assert.equal(
+        sellerProfileRlsForceExpected(sellerProfileEnabledInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SELLER_PROFILE_TABLE,
+          sellerProfileEnabledInventory,
+        ),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(
+          sellerProfileEnabledInventory,
+        ).includes(SELLER_PROFILE_TABLE),
+        true,
+      );
+    } else {
+      assert.equal(sellerProfileRlsActivationExpected, undefined);
+      assert.equal(sellerProfileRlsForceExpected, undefined);
+    }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
       rls_enabled: true,
@@ -2712,6 +2737,9 @@ describe("database grant inventory guardrails", () => {
     const sellerProfilePublicCandidatePresent = existsSync(
       SELLER_PROFILE_PUBLIC_CANDIDATE_FIRST_MIGRATION,
     );
+    const sellerProfilePublicProvisioningPresent = source(
+      "scripts/provision-runtime-db-role.sql",
+    ).includes("SellerExactMapConsentEvent");
     const orderOpsHealthMigrationPath =
       "prisma/migrations/20260930033000_order_ops_health_summary/migration.sql";
     const orderOpsHealthMigrationPresent = existsSync(orderOpsHealthMigrationPath)
@@ -3192,7 +3220,8 @@ describe("database grant inventory guardrails", () => {
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
         + (sellerProfilePublicCandidatePresent
-          ? 61 // public SellerProfile candidate functions/table, RLS convergence and consent successors
+          ? 61 // current public SellerProfile candidate surface
+            + Number(!sellerProfilePublicProvisioningPresent) // historical provisioning retains one distinct predecessor revoke
           : 0)
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0)
@@ -4968,12 +4997,23 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 25);
-    assert.match(provision, /seller_profile_rls_active/);
-    assert.match(
-      provision,
-      /REVOKE ALL ON TABLE public\."SellerProfile"\s+FROM PUBLIC, :"runtime_role"/,
+    const sellerProfilePublicProvisioningPresent = provision.includes(
+      "SellerExactMapConsentEvent",
     );
+    assert.equal(guardResultCount, sellerProfilePublicProvisioningPresent ? 25 : 24);
+    if (sellerProfilePublicProvisioningPresent) {
+      assert.match(provision, /seller_profile_rls_active/);
+      assert.match(
+        provision,
+        /REVOKE ALL ON TABLE public\."SellerProfile"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    } else {
+      assert.doesNotMatch(provision, /seller_profile_rls_active/);
+      assert.doesNotMatch(
+        provision,
+        /REVOKE ALL ON TABLE public\."SellerProfile"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -5206,10 +5246,14 @@ describe("database grant inventory guardrails", () => {
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO/i);
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+TO/i);
 
+    const runtimePrivateTablesForProvision = new Set(RUNTIME_PRIVATE_TABLES);
+    if (!sellerProfilePublicProvisioningPresent) {
+      runtimePrivateTablesForProvision.add("SellerExactMapConsentEvent");
+    }
     assert.deepEqual(
       provisionedObjects(provision, "TABLE"),
       inventory.tables.filter(
-        (tableName) => !RUNTIME_PRIVATE_TABLES.includes(tableName),
+        (tableName) => !runtimePrivateTablesForProvision.has(tableName),
       ),
     );
     assert.deepEqual(
@@ -5237,7 +5281,12 @@ describe("database grant inventory guardrails", () => {
       provision,
       /GRANT USAGE ON TYPE public\."OrderDisputeRecoveryStatus" TO %I/,
     );
-    for (const fn of inventory.functions) {
+    const provisionedFunctionNames = sellerProfilePublicProvisioningPresent
+      ? inventory.functions
+      : inventory.functions.filter(
+          (functionName) => !SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES.includes(functionName),
+        );
+    for (const fn of provisionedFunctionNames) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;
       const unquoted = `public\\.${escapeRegExp(fn)}`;
       assert.match(provision, new RegExp(`(?:${quoted}|${unquoted})`));

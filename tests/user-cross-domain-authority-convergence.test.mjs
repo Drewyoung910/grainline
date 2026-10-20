@@ -67,7 +67,7 @@ function finalDirectUserFunctionModes() {
     for (const match of source.matchAll(declaration)) {
       const start = match.index;
       const remainder = source.slice(start);
-      const body = /AS\s+(\$[A-Za-z0-9_]*\$)\n([\s\S]*?)\n\1;/u.exec(remainder);
+      const body = /AS\s+(\$[A-Za-z0-9_]*\$)\s*\n([\s\S]*?)\n\1\s*;/u.exec(remainder);
       assert.ok(body, `${match[1]} in ${migrationName} has no parseable body`);
       const header = remainder.slice(0, body.index);
       state.set(match[1], {
