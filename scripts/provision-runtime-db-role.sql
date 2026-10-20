@@ -3404,6 +3404,7 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_seller_guild_staff_roster"(text, text)'),
     ('public."grainline_seller_guild_staff_master_pending"(text)'),
     ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)'),
+    ('public."grainline_seller_staff_report_targets"(text, text[])'),
     ('public."grainline_seller_staff_orderability_state"(text, text)')
 )
 SELECT format(

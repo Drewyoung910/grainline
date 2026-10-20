@@ -283,6 +283,13 @@ is now at 23 direct operations in 6 files, 84 relation accesses in 46 files, 15
 raw SQL accesses in 12 files and 58 total consumer files. It still has 170
 reconciled opaque shapes, and its 172-function catalog partitions into 98
 retained, 33 internal and 41 converted authorities.
+The staff report-target pass then moves the admin reports page's single seller
+name lookup onto the isolated staff role, retaining the Clerk-role and
+session-bound PIN gate and adding an active-staff database check plus a 50-id
+input cap. The candidate is now at 22 direct operations in 5 files, 84 relation
+accesses in 46 files, 15 raw SQL accesses in 12 files and 57 total consumer
+files. Its 173-function catalog partitions into 98 retained, 33 internal and 42
+converted authorities; the new converted authority is staff-only.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

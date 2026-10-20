@@ -78,6 +78,10 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_user_block_follow_cleanup(text)",
 ]);
 
+export const SELLER_PROFILE_CONVERTED_STAFF_AUTHORITY_FUNCTIONS = new Set([
+  "grainline_seller_staff_report_targets(text,text[])",
+]);
+
 export const SELLER_PROFILE_TRIGGER_DISPOSITIONS = new Map([
   ["SellerProfile_private_initialize", "grainline_seller_profile_private_initialize()"],
   ["SellerProfile_exact_map_consent_revoke", "grainline_seller_exact_map_consent_revoke()"],
@@ -94,8 +98,8 @@ function sameStrings(actual, expected) {
 }
 
 export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
-  if (functions.length !== 172) {
-    throw new Error(`SellerProfile function inventory drifted: expected 172, got ${functions.length}`);
+  if (functions.length !== 173) {
+    throw new Error(`SellerProfile function inventory drifted: expected 173, got ${functions.length}`);
   }
   for (const row of functions) {
     if (!row.security_definer || !row.config?.includes("search_path=pg_catalog")) {
@@ -132,6 +136,8 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
 
   const convertedAuthorityFunctions = functions.filter((row) =>
     SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS.has(row.signature));
+  const convertedStaffAuthorityFunctions = functions.filter((row) =>
+    SELLER_PROFILE_CONVERTED_STAFF_AUTHORITY_FUNCTIONS.has(row.signature));
   const missingConvertedFunctions = [...SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS]
     .filter((signature) => !convertedAuthorityFunctions.some((row) => row.signature === signature));
   if (missingConvertedFunctions.length
@@ -140,17 +146,27 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
       `SellerProfile converted authority drifted: missing=${missingConvertedFunctions.join(",") || "none"}`,
     );
   }
+  const missingConvertedStaffFunctions = [...SELLER_PROFILE_CONVERTED_STAFF_AUTHORITY_FUNCTIONS]
+    .filter((signature) => !convertedStaffAuthorityFunctions.some((row) => row.signature === signature));
+  if (missingConvertedStaffFunctions.length
+      || convertedStaffAuthorityFunctions.some((row) => row.runtime_execute
+        || !row.execute_grantees.includes("grainline_staff_read_runtime"))) {
+    throw new Error(
+      `SellerProfile converted staff authority drifted: missing=${missingConvertedStaffFunctions.join(",") || "none"}`,
+    );
+  }
   const retainedAuthorityFunctions = functions.filter(
     (row) => (row.runtime_execute
       || row.execute_grantees.includes("grainline_staff_read_runtime"))
-      && !SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS.has(row.signature),
+      && !SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS.has(row.signature)
+      && !SELLER_PROFILE_CONVERTED_STAFF_AUTHORITY_FUNCTIONS.has(row.signature),
   );
   if (retainedAuthorityFunctions.length !== 98
       || internalSupportFunctions.length !== 33
-      || convertedAuthorityFunctions.length !== 41) {
+      || convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length !== 42) {
     throw new Error(
       `SellerProfile function dispositions drifted: retained=${retainedAuthorityFunctions.length}; `
-      + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length}`,
+      + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length}`,
     );
   }
 
@@ -185,7 +201,7 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
     functionDispositions: {
       retainedAuthority: retainedAuthorityFunctions.length,
       internalSupport: internalSupportFunctions.length,
-      convertedAuthority: convertedAuthorityFunctions.length,
+      convertedAuthority: convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length,
       retiredPredecessor: 0,
     },
     functionFamilyCounts,

@@ -226,6 +226,7 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_seller_guild_staff_roster(text,text)",
   "grainline_seller_guild_staff_master_pending(text)",
   "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+  "grainline_seller_staff_report_targets(text,text[])",
   "grainline_seller_staff_orderability_state(text,text)",
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
@@ -242,6 +243,7 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_seller_guild_staff_roster(text,text)",
     "grainline_seller_guild_staff_master_pending(text)",
     "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+    "grainline_seller_staff_report_targets(text,text[])",
     "grainline_seller_staff_orderability_state(text,text)",
   ],
 );
@@ -476,6 +478,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_guild_staff_roster",
   "grainline_seller_guild_staff_master_pending",
   "grainline_seller_guild_staff_transition",
+  "grainline_seller_staff_report_targets",
   "grainline_seller_staff_orderability_state",
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",

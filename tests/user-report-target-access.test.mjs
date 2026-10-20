@@ -64,6 +64,8 @@ describe("user report target access guardrails", () => {
     assert.doesNotMatch(sellerPage, /targetType="SELLER"/);
     assert.match(adminReports, /targetType === "SELLER_PROFILE" \|\| targetType === "SELLER"/);
     assert.match(adminReports, /isSellerProfileReportTarget\(r\.targetType\)/);
+    assert.match(adminReports, /sellerProfileStaffReportTargets\(getOrderStaffReadClient\(\), \{/);
+    assert.doesNotMatch(adminReports, /prisma\.sellerProfile\./);
     assert.match(adminReports, /publicSellerPath\(seller\.id, seller\.displayName\)/);
     assert.match(docs, /\| Seller profiles \| `SELLER_PROFILE` \| `BlockReportButton` on `\/seller\/\[id\]` \|/);
     assert.doesNotMatch(docs, /\| Seller profiles \| `SELLER` \|/);

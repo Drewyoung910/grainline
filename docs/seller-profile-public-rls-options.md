@@ -485,6 +485,14 @@ of public/private state and returns only the bootstrap fields. The candidate is
 now at 23 direct operations in 6 files, 84 relation accesses in 46 files, 15
 raw SQL accesses in 12 files, 58 total consumer files and 170 reconciled opaque
 shapes. The 172-function catalog is 98 retained, 33 internal and 41 converted.
+The PIN-gated admin reports page now resolves seller report links through a
+50-id bounded operation on the isolated staff role. That removes its shared
+runtime direct read while the function revalidates the active staff actor and
+returns only seller id/display name. The candidate is now at 22 direct
+operations in 5 files, 84 relation accesses in 46 files, 15 raw SQL accesses
+in 12 files, 57 total consumer files and 170 reconciled opaque shapes. The
+173-function catalog is 98 retained, 33 internal and 42 converted; the new
+converted authority is staff-only.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
