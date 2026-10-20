@@ -150,6 +150,12 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   const restore = ci.indexOf(
     "Restore public SellerProfile candidate after historical release guards",
   );
+  const applyForBuild = ci.indexOf(
+    "Apply public SellerProfile preparations for final Production build",
+  );
+  const pendingForBuild = ci.indexOf(
+    "Require only SellerProfile ENABLE pending for final Production build",
+  );
   const finalHistoricalAudit = ci.indexOf(
     "Audit runtime grants after SellerProfile private boundary",
   );
@@ -173,7 +179,13 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
       installHistoricalAudit < restoreCurrentAudit &&
       historical < finalHistoricalAudit &&
       finalHistoricalAudit < restore &&
-      restore < build,
+      restore < applyForBuild &&
+      applyForBuild < pendingForBuild &&
+      pendingForBuild < build,
+  );
+  assert.match(
+    ci.slice(applyForBuild, pendingForBuild),
+    /20261020240000_enable_seller_profile_rls[\s\S]*npx prisma migrate deploy/u,
   );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
   assert.match(

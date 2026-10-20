@@ -6593,5 +6593,30 @@ jobs:
             mv "$holding/tests/$(basename "$test_file")" "$test_file"
           done < "$holding/test-files.txt"
           echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
+      # The application now calls the bounded SellerProfile authorities while
+      # collecting static page data. Mirror the reviewed release order for the
+      # final build: preparations first, compatible app second, ENABLE later.
+      - name: Apply public SellerProfile preparations for final Production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261020240000_enable_seller_profile_rls
+          holding="$(mktemp -d "$RUNNER_TEMP/seller-profile-final-build-enable.XXXXXX")"
+          cleanup() {
+            if test -d "$holding/$migration"
+            then
+              mv "$holding/$migration" "prisma/migrations/$migration"
+            fi
+            rmdir "$holding" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          npx prisma migrate deploy
+          cleanup
+          trap - EXIT
+      - name: Require only SellerProfile ENABLE pending for final Production build
+        env:
+          REVIEWED_PENDING_MIGRATIONS: 20261020240000_enable_seller_profile_rls
+        run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Production build
         run: npm run build
