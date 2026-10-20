@@ -509,6 +509,14 @@ candidate is now at 18 direct operations in 3 files, 84 relation accesses in
 46 files, 15 raw SQL accesses in 12 files, 57 total consumer files and 169
 reconciled opaque shapes. The 175-function catalog is 98 retained, 33 internal
 and 44 converted; two converted authorities are staff-only.
+The profile editor's featured-listing toggle now uses one actor-bound operation
+instead of separate SellerProfile read/write and Listing ownership queries. It
+locks the exact owner profile row, verifies Listing ownership and atomically
+removes or appends the id while enforcing the six-listing cap. The candidate is
+now at 16 direct operations in 3 files, 84 relation accesses in 46 files, 15 raw
+SQL accesses in 12 files, 57 total consumer files, 169 reconciled opaque shapes
+and 7 direct writes. The 176-function catalog is 98 retained, 33 internal and
+45 converted; two converted authorities are staff-only.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

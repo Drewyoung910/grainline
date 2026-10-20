@@ -32,9 +32,8 @@ import { withSerializableRetry } from "@/lib/transactionRetry";
 import {
   clearSellerOwnerAvatar,
   duplicateSellerOwnerDisplayName,
-  sellerOwnerFeaturedListingIds,
   sellerOwnerProfileEditorState,
-  updateSellerOwnerFeaturedListingIds,
+  toggleSellerOwnerFeaturedListing,
   updateSellerOwnerProfile,
 } from "@/lib/sellerOwnerPrivateAccess";
 
@@ -323,30 +322,10 @@ async function toggleFeaturedListing(listingId: string) {
   if (!success) return;
   const { seller } = await ensureSeller();
 
-  await withSerializableRetry(() => prisma.$transaction(async (tx) => {
-    // Verify seller owns the listing before featuring it.
-    const owned = await tx.listing.count({ where: { id: listingId, sellerId: seller.id } });
-    if (owned === 0) return;
-
-    const freshSeller = await sellerOwnerFeaturedListingIds(tx, {
-      sellerProfileId: seller.id,
-      userId: seller.userId,
-    });
-    const current = freshSeller?.featuredListingIds ?? [];
-    let next: string[];
-    if (current.includes(listingId)) {
-      next = current.filter((id) => id !== listingId);
-    } else {
-      if (current.length >= SELLER_FEATURED_LISTING_LIMIT) return;
-      next = [...current, listingId];
-    }
-
-    await updateSellerOwnerFeaturedListingIds(tx, {
-      sellerProfileId: seller.id,
-      userId: seller.userId,
-      featuredListingIds: next,
-    });
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+  await toggleSellerOwnerFeaturedListing(seller.userId, {
+    sellerProfileId: seller.id,
+    listingId,
+  });
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);

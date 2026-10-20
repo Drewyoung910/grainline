@@ -305,6 +305,14 @@ is down to 18 direct operations in 3 files, 84 relation accesses in 46 files,
 15 raw SQL accesses in 12 files and 57 total consumer files. It retains 169
 reconciled opaque shapes, and its 175-function catalog partitions into 98
 retained, 33 internal and 44 converted authorities.
+The owner featured-listing pass then replaces the profile editor's separate
+SellerProfile read/write and Listing ownership query with one actor-bound
+operation. It locks the owner's exact profile row, checks Listing ownership and
+atomically removes or appends the id while enforcing the six-listing cap. The
+candidate is down to 16 direct operations in 3 files, 84 relation accesses in
+46 files, 15 raw SQL accesses in 12 files, 57 total consumer files, 169
+reconciled opaque shapes and 7 direct writes. Its 176-function catalog
+partitions into 98 retained, 33 internal and 45 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

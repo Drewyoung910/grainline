@@ -690,25 +690,30 @@ export async function clearSellerOwnerAvatar(
   await requireOneSellerOwnerMutation(result, "avatar removal");
 }
 
-export function sellerOwnerFeaturedListingIds(
-  client: SellerOwnerPrivateClient,
-  input: { sellerProfileId: string; userId: string },
+export function toggleSellerOwnerFeaturedListing(
+  userId: string,
+  input: { sellerProfileId: string; listingId: string },
 ) {
-  return client.sellerProfile.findFirst({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    select: { featuredListingIds: true },
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<Array<{ applied: unknown; featured: unknown }>>`
+      SELECT *
+        FROM public.grainline_seller_owner_featured_listing_toggle(
+          ${input.sellerProfileId}::text,
+          ${input.listingId}::text
+        )
+    `;
+    if (
+      rows.length !== 1
+      || typeof rows[0]?.applied !== "boolean"
+      || typeof rows[0]?.featured !== "boolean"
+    ) {
+      throw new Error("Seller owner featured-listing authority returned an invalid result");
+    }
+    return Object.freeze({
+      applied: rows[0].applied,
+      featured: rows[0].featured,
+    });
   });
-}
-
-export async function updateSellerOwnerFeaturedListingIds(
-  client: SellerOwnerPrivateClient,
-  input: { sellerProfileId: string; userId: string; featuredListingIds: string[] },
-) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: { featuredListingIds: input.featuredListingIds },
-  });
-  await requireOneSellerOwnerMutation(result, "featured listings update");
 }
 
 export function sellerOwnerProfileEditorState(

@@ -357,6 +357,15 @@ There are now 44 converted authorities: 42 app-runtime and two staff-read
 operations. The source candidate is at 18 direct operations in 3 files, 84
 relation accesses in 46 files, 15 raw SQL accesses in 12 files, 57 total
 consumer files and 169 reconciled opaque shapes.
+`grainline_seller_owner_featured_listing_toggle(text,text)` then replaces the
+profile editor's separate owner featured-id read/write plus Listing ownership
+query. It derives the active owner from transaction-local context, locks the
+exact SellerProfile row, validates ownership and atomically removes or appends
+the listing id while enforcing the six-listing cap. There are now 45 converted
+authorities: 43 app-runtime and two staff-read operations. The source candidate
+is at 16 direct operations in 3 files, 84 relation accesses in 46 files, 15 raw
+SQL accesses in 12 files, 57 total consumer files, 169 reconciled opaque shapes
+and 7 direct writes.
 Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -364,7 +373,7 @@ Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 33 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details, including exact-map consent revocation |
-| Converted authority | 44 | The additive directory-map, resource-bound detail, public maker profile/shop projection, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, bounded staff report-target labels, atomic staff feature transition, claim-bound account-deletion public-media projection, owner account summary, owner core, owner dashboard state, owner bootstrap, owner Guild-application state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards, three public-follow authorities and versioned exact-map owner consent replace direct base-table access while predecessor grants remain available |
+| Converted authority | 45 | The additive directory-map, resource-bound detail, public maker profile/shop projection, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, bounded staff report-target labels, atomic staff feature transition, claim-bound account-deletion public-media projection, atomic owner featured-listing toggle, owner account summary, owner core, owner dashboard state, owner bootstrap, owner Guild-application state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards, three public-follow authorities and versioned exact-map owner consent replace direct base-table access while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any

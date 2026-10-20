@@ -2320,6 +2320,34 @@ FROM (
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Public SellerProfile owner transitions derive the authenticated local user
+-- from transaction-local context and expose no generic table operation.
+WITH seller_public_owner_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_owner_featured_listing_toggle"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_public_owner_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_public_owner_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_owner_featured_listing_toggle"(text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_public_owner_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Phase 0 creates these trigger functions without PUBLIC or ordinary-runtime
 -- execution. Re-provisioning must converge that zero-direct boundary too.
 SELECT format(

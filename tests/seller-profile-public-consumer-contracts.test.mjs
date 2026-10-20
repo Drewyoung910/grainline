@@ -13,7 +13,7 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   const result = verifySellerProfilePublicConsumerContracts(root);
   assert.equal(result.consumerFiles, 57);
   assert.equal(Object.keys(SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS).length, 57);
-  assert.equal(result.directWrites, 8);
+  assert.equal(result.directWrites, 7);
   assert.equal(result.coordinateFiles, 1);
   assert.equal(result.reviewedOpaqueShapes, 169);
   assert.equal(result.reviewedOpaqueFactoryShapes, 12);
