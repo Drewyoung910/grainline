@@ -27,8 +27,9 @@ describe("PR E onboarding summary follow-ups", () => {
     assert.match(page, /sellerOwnerOnboardingState\(seller\.id, seller\.userId\)/);
     assert.match(
       ownerAccess,
-      /const sellerOwnerOnboardingSelect = \{[\s\S]*listings: \{\s*orderBy: \{ createdAt: "desc" \}/,
+      /grainline_seller_owner_onboarding_state/,
     );
+    assert.match(ownerAccess, /latestListingStatus/);
     assert.match(page, /latestListing=\{sp\.listings\[0\] \?\? null\}/);
     assert.match(wizard, /href=\{`\/dashboard\/listings\/\$\{latestListing\.id\}\/edit`\}/);
     assert.match(wizard, /Open draft/);

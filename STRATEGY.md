@@ -320,6 +320,12 @@ remain a non-fatal post-geocoding step. The candidate is down to 14 direct
 operations in 3 files and 5 direct writes, with the other source counts
 unchanged. Its 178-function catalog partitions into 98 retained, 33 internal
 and 47 converted authorities.
+The owner onboarding-read pass then replaces the page and action setup reads
+with one actor-bound projection that returns the all-status listing count and
+stable latest-listing summary before combining with private onboarding state.
+The candidate is down to 12 direct operations in 3 files and 5 direct writes,
+with the other source counts unchanged. Its 179-function catalog partitions
+into 98 retained, 33 internal and 48 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

@@ -524,6 +524,13 @@ geocoding. The candidate is now at 14 direct operations in 3 files and 5 direct
 writes; relation, raw SQL, consumer and opaque-shape counts are unchanged. The
 178-function catalog is 98 retained, 33 internal and 47 converted; two
 converted authorities are staff-only.
+Onboarding page and server-action setup now share one actor-bound projection.
+It optionally binds the expected seller id and owns the all-status listing
+count plus deterministic latest-listing summary before the caller adds private
+onboarding state. The candidate is now at 12 direct operations in 3 files and
+5 direct writes; the other source counts are unchanged. The 179-function
+catalog is 98 retained, 33 internal and 48 converted; two converted authorities
+are staff-only.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

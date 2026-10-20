@@ -117,32 +117,112 @@ export async function sellerOwnerPrivateState(
   return valid ? { id: row.id, ...(row.state as SellerOwnerPrivateState) } : null;
 }
 
-const sellerOwnerOnboardingSelect = {
-  displayName: true,
-  bio: true,
-  tagline: true,
-  avatarImageUrl: true,
-  yearsInBusiness: true,
-  city: true,
-  state: true,
-  returnPolicy: true,
-  shippingPolicy: true,
-  acceptsCustomOrders: true,
-  chargesEnabled: true,
-  _count: { select: { listings: true } },
-  listings: {
-    orderBy: { createdAt: "desc" },
-    take: 1,
-    select: { id: true, title: true, status: true },
-  },
-} satisfies Prisma.SellerProfileSelect;
+type SellerOwnerOnboardingStateRow = {
+  sellerProfileId: unknown;
+  userId: unknown;
+  displayName: unknown;
+  bio: unknown;
+  tagline: unknown;
+  avatarImageUrl: unknown;
+  yearsInBusiness: unknown;
+  city: unknown;
+  state: unknown;
+  returnPolicy: unknown;
+  shippingPolicy: unknown;
+  acceptsCustomOrders: unknown;
+  chargesEnabled: unknown;
+  totalListingCount: unknown;
+  latestListingId: unknown;
+  latestListingTitle: unknown;
+  latestListingStatus: unknown;
+};
 
-const sellerOwnerOnboardingMutationSelect = {
-  id: true,
-  userId: true,
-  chargesEnabled: true,
-  _count: { select: { listings: true } },
-} satisfies Prisma.SellerProfileSelect;
+const LISTING_STATUSES = [
+  "DRAFT",
+  "ACTIVE",
+  "SOLD",
+  "SOLD_OUT",
+  "HIDDEN",
+  "PENDING_REVIEW",
+  "REJECTED",
+] as const;
+
+function safeCount(value: unknown) {
+  const count = typeof value === "bigint" ? Number(value) : value;
+  return Number.isSafeInteger(count) && (count as number) >= 0
+    ? count as number
+    : null;
+}
+
+async function readSellerOwnerOnboardingState(
+  client: DbUserContextTransactionClient,
+  userId: string,
+  expectedSellerProfileId: string | null,
+) {
+  const rows = await client.$queryRaw<SellerOwnerOnboardingStateRow[]>`
+    SELECT *
+      FROM public.grainline_seller_owner_onboarding_state(
+        ${expectedSellerProfileId}::text
+      )
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Seller owner onboarding authority returned multiple results");
+  }
+  const row = rows[0];
+  const count = safeCount(row.totalListingCount);
+  const latestIsNull = row.latestListingId === null
+    && row.latestListingTitle === null
+    && row.latestListingStatus === null;
+  const latestIsValid = typeof row.latestListingId === "string"
+    && typeof row.latestListingTitle === "string"
+    && LISTING_STATUSES.includes(
+      row.latestListingStatus as typeof LISTING_STATUSES[number],
+    );
+  if (
+    typeof row.sellerProfileId !== "string"
+    || (expectedSellerProfileId !== null && row.sellerProfileId !== expectedSellerProfileId)
+    || row.userId !== userId
+    || typeof row.displayName !== "string"
+    || !nullableString(row.bio)
+    || !nullableString(row.tagline)
+    || !nullableString(row.avatarImageUrl)
+    || !nullableNumber(row.yearsInBusiness)
+    || !nullableString(row.city)
+    || !nullableString(row.state)
+    || !nullableString(row.returnPolicy)
+    || !nullableString(row.shippingPolicy)
+    || typeof row.acceptsCustomOrders !== "boolean"
+    || typeof row.chargesEnabled !== "boolean"
+    || count === null
+    || (!latestIsNull && !latestIsValid)
+  ) {
+    throw new Error("Seller owner onboarding authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.sellerProfileId,
+    userId: row.userId,
+    displayName: row.displayName,
+    bio: row.bio,
+    tagline: row.tagline,
+    avatarImageUrl: row.avatarImageUrl,
+    yearsInBusiness: row.yearsInBusiness,
+    city: row.city,
+    state: row.state,
+    returnPolicy: row.returnPolicy,
+    shippingPolicy: row.shippingPolicy,
+    acceptsCustomOrders: row.acceptsCustomOrders,
+    chargesEnabled: row.chargesEnabled,
+    _count: Object.freeze({ listings: count }),
+    listings: latestIsValid
+      ? [Object.freeze({
+          id: row.latestListingId as string,
+          title: row.latestListingTitle as string,
+          status: row.latestListingStatus as typeof LISTING_STATUSES[number],
+        })]
+      : [],
+  });
+}
 
 const sellerOwnerExportSelect = {
   id: true,
@@ -229,28 +309,34 @@ const VERIFICATION_STATUSES = [
 export async function sellerOwnerOnboardingState(
   sellerProfileId: string,
   userId: string,
-  client: SellerOwnerPrivateClient = prisma,
 ) {
-  const profile = await client.sellerProfile.findFirst({
-    where: { id: sellerProfileId, userId },
-    select: sellerOwnerOnboardingSelect,
+  return withDbUserContext(userId, async (client) => {
+    const profile = await readSellerOwnerOnboardingState(
+      client,
+      userId,
+      sellerProfileId,
+    );
+    if (!profile) return null;
+    const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
+    return privateState ? { ...profile, ...privateState } : null;
   });
-  if (!profile) return null;
-  const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
-  return privateState ? { ...profile, ...privateState } : null;
 }
 
 export async function sellerOwnerOnboardingMutationState(
   userId: string,
-  client: SellerOwnerPrivateClient = prisma,
 ) {
-  const profile = await client.sellerProfile.findUnique({
-    where: { userId },
-    select: sellerOwnerOnboardingMutationSelect,
+  return withDbUserContext(userId, async (client) => {
+    const profile = await readSellerOwnerOnboardingState(client, userId, null);
+    if (!profile) return null;
+    const privateState = await sellerOwnerPrivateState(userId, profile.id, client);
+    return privateState ? {
+      id: profile.id,
+      userId: profile.userId,
+      chargesEnabled: profile.chargesEnabled,
+      _count: profile._count,
+      onboardingStep: privateState.onboardingStep,
+    } : null;
   });
-  if (!profile) return null;
-  const privateState = await sellerOwnerPrivateState(userId, profile.id, client);
-  return privateState ? { ...profile, onboardingStep: privateState.onboardingStep } : null;
 }
 
 async function updateSellerOwnerOnboardingStep(
