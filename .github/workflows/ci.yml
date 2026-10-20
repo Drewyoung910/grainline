@@ -6597,6 +6597,8 @@ jobs:
       # collecting static page data. Mirror the reviewed release order for the
       # final build: preparations first, compatible app second, ENABLE later.
       - name: Apply public SellerProfile preparations for final Production build
+        env:
+          PGPASSWORD: ci
         shell: bash
         run: |
           set -euo pipefail
@@ -6611,6 +6613,11 @@ jobs:
           }
           trap cleanup EXIT
           mv "prisma/migrations/$migration" "$holding/$migration"
+          # Historical release proofs intentionally reconstruct some accepted
+          # states outside Prisma's ledger. Recreate only this disposable CI
+          # database so the final staged build uses one coherent full chain.
+          dropdb --host=localhost --username=ci --force grainline_ci
+          createdb --host=localhost --username=ci --owner=ci grainline_ci
           npx prisma migrate deploy
           cleanup
           trap - EXIT

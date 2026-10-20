@@ -185,7 +185,7 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   );
   assert.match(
     ci.slice(applyForBuild, pendingForBuild),
-    /20261020240000_enable_seller_profile_rls[\s\S]*npx prisma migrate deploy/u,
+    /20261020240000_enable_seller_profile_rls[\s\S]*dropdb[\s\S]*createdb[\s\S]*npx prisma migrate deploy/u,
   );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
   assert.match(
