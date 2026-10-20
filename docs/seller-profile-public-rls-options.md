@@ -589,7 +589,9 @@ predecessor runtime CRUD grants on the 397-migration schema; the complete
 owner, staff, service, checkout, deletion and retained-authority scenarios.
 Runtime-role provisioning now preserves zero-direct posture on every replay,
 and the database-first rollback was proven to disable RLS without restoring
-broad grants. Production remains blocked on the exact-address/Nominatim and
-consent-wording items recorded in
-`docs/seller-profile-public-enable-release.md`. FORCE is still a separate
+broad grants. The source candidate now also closes the exact-address/Nominatim
+boundary with authenticated, explicit-submit city/state-or-ZIP search and no
+external reverse-geocoding of the dragged pin; Terms and Privacy copy describe
+the versioned exact-pin consent. Exact-head audit reconciliation and the
+protected release workflow remain before Production. FORCE is still a separate
 post-acceptance stage.

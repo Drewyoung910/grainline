@@ -2,7 +2,7 @@
 // Geo-mapping utility for assigning metro areas to listings, commissions, and seller profiles.
 
 import { prisma } from "@/lib/db";
-import { reverseGeocode } from "@/lib/reverse-geocode";
+import { geocodePublicLocality } from "@/lib/reverse-geocode";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { logServerError } from "@/lib/serverErrorLogger";
 
@@ -99,12 +99,15 @@ export async function mapToMetros(
 
 // ---------------------------------------------------------------------------
 // findOrCreateMetro
-// Like mapToMetros but auto-creates a metro via reverse geocoding when no
-// existing metro is found nearby.
+// Like mapToMetros but may auto-create a metro from an explicitly public
+// city/state locality when no existing metro is found nearby. Precise caller
+// coordinates are used only for local distance matching and never leave the
+// application through this helper.
 // ---------------------------------------------------------------------------
 export async function findOrCreateMetro(
   lat: number,
-  lng: number
+  lng: number,
+  publicLocality?: { city: string; state: string } | null,
 ): Promise<{ metroId: string | null; cityMetroId: string | null }> {
   const { cityMetro, majorMetro } = await findNearestMetro(lat, lng);
 
@@ -115,9 +118,11 @@ export async function findOrCreateMetro(
     };
   }
 
-  // No nearby metro — attempt to create one via reverse geocoding
+  // No nearby metro. Auto-create only from an explicitly public locality.
+  // Exact caller coordinates never leave Grainline.
+  if (!publicLocality) return { metroId: null, cityMetroId: null };
   try {
-    const geo = await reverseGeocode(lat, lng);
+    const geo = await geocodePublicLocality(publicLocality.city, publicLocality.state);
     if (!geo) return { metroId: null, cityMetroId: null };
 
     // Build slug: "city-name-st" (lowercase, spaces→hyphens)

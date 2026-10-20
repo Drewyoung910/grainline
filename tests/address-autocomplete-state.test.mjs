@@ -59,8 +59,9 @@ describe("address autocomplete state behavior", () => {
   });
 
   it("discloses proxied address autocomplete use of Nominatim", () => {
-    assert.match(privacy, /Address search and reverse geocoding/);
+    assert.match(privacy, /Address search and broad location search/);
     assert.match(privacy, /address search text may be sent from Grainline/);
-    assert.match(privacy, /proxied by Grainline rather than\s+sent directly from your browser to Nominatim/);
+    assert.match(privacy, /Address and location searches are proxied by\s+Grainline rather than sent directly from your browser to Nominatim/);
+    assert.match(privacy, /does not send the dragged pin, precise\s+coordinates, or a workshop street address/);
   });
 });

@@ -19,4 +19,10 @@ describe("geo metro privacy guardrails", () => {
     assert.doesNotMatch(source, /latitude: lat/);
     assert.doesNotMatch(source, /longitude: lng/);
   });
+
+  it("does not send exact caller coordinates to an external provider", () => {
+    assert.match(source, /if \(!publicLocality\) return \{ metroId: null, cityMetroId: null \}/);
+    assert.match(source, /geocodePublicLocality\(publicLocality\.city, publicLocality\.state\)/);
+    assert.doesNotMatch(source, /reverseGeocode/);
+  });
 });

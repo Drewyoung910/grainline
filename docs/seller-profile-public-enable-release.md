@@ -67,16 +67,18 @@ the rollback never restores broad predecessor CRUD.
 The database candidate is locally compatible, but Production remains blocked
 until all current `FIX_BEFORE_ACTIVATION` items are resolved and rechecked:
 
-1. Replace or constrain the public Nominatim exact-address search used by the
-   new exact home/workshop pin flow. Exact confidential addresses must not be
-   sent to the public provider.
-2. Finalize and review the exact-map consent wording shipped with the database
-   projection and UI. Existing map opt-ins stay approximate until the maker
-   gives the new point-bound consent.
-3. Reconcile any new Claude/audit allegations against the exact release head.
-4. Add the exact-main protected ENABLE workflow, inspector and sanitized
+1. Reconcile any new Claude/audit allegations against the exact release head.
+2. Add the exact-main protected ENABLE workflow, inspector and sanitized
    postflight only after the source candidate and the blockers above are
    accepted. FORCE remains a separate later release.
+
+The prior exact-location blockers are closed in this source candidate. The
+workshop map now uses explicit-submit city/state-or-ZIP search, rejects numeric
+street addresses and queries outside that narrow shape before Nominatim,
+discards street-level results, and never reverse-geocodes the dragged pin.
+Existing map opt-ins remain approximate until the maker gives the new
+coordinate-bound consent. Privacy and Terms copy now describe the exact public
+surfaces and withdrawal behavior.
 
 ## Release order
 

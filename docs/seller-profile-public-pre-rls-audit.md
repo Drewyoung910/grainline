@@ -670,7 +670,7 @@ ledger later reused some numbers for unrelated findings.
 | Exact-map consent remains checked after the maker moves the pin (Claude C-751) | **Confirmed on the isolated candidate.** The prior checkbox state was independent of `LocationPicker` changes, so saving a moved point could reuse consent given for another point. | `FIX_BEFORE_ACTIVATION`. The corrected candidate binds consent to the reviewed latitude/longitude, clears it immediately in the UI when the pin moves, and rejects mismatched hidden fields again in the server action and database function. |
 | Exact-map consent overwrites its only timestamp and retains no withdrawal history (Claude C-752) | **Confirmed on the isolated candidate.** The protected companion held only the current timestamp/version. It could not prove which point was reviewed or retain a prior grant after withdrawal/account deletion. | `FIX_BEFORE_ACTIVATION`. The corrected candidate adds a zero-direct append-only evidence table with consent-text and coordinate hashes, records grants and withdrawal reasons, and preserves unchanged-save idempotency. This remains unmerged and unshipped. |
 | Signed-in banned viewers can call the public map-points operation | **Confirmed on the isolated candidate.** Reciprocal blocks were applied, but the viewer lookup did not reject `User.banned = true`. Anonymous access was unaffected. | `FIX_BEFORE_ACTIVATION`. The corrected database projection returns no rows for a supplied banned viewer; full-chain behavior proof covers it. |
-| Exact workshop-address search is proxied to public Nominatim (Claude C-753) | **Confirmed.** `LocationPicker` uses `AddressAutocomplete`, and `/api/address/autocomplete` forwards the normalized search string to `nominatim.openstreetmap.org`. The Privacy page discloses that proxy, but the 2026-10-19 product decision says personal/confidential addresses must not use public Nominatim. | `FIX_BEFORE_ACTIVATION` for the new exact-pin experience. Replace the exact-address provider or restrict the search contract before advertising exact home/workshop consent. This is a provider/privacy correction, not an RLS predicate change. |
+| Exact workshop-address search is proxied to public Nominatim (Claude C-753) | **Confirmed on the predecessor and corrected in the isolated candidate.** The workshop map now uses a separate authenticated, explicit-submit search that accepts only city/state or ZIP. Street addresses, precise coordinates and free-form place text are rejected before the provider request, street-level results are discarded, and metro creation uses only an explicitly public locality rather than reverse-geocoding caller coordinates. | `CLOSED_IN_CANDIDATE`. Failing-first boundary proof reproduced the predecessor `AddressAutocomplete` and raw-coordinate reverse request; behavior tests cover accepted/rejected query shapes and result filtering. Generic shipping-address autocomplete remains a separate launch/provider decision, not a SellerProfile RLS predicate. |
 
 These classifications preserve the verified product bugs without allowing
 unrelated Listing or CommissionRequest work to stall the seller authority
@@ -756,11 +756,6 @@ guard the final zero-direct state, but they do not count as behavior proof.
   helpers, seller JSON-LD and browse-distance SQL with privacy-selected points.
   Approximation is the default; exact output needs new, clear, versioned consent
   and no old map opt-in is grandfathered.
-- Remove public Nominatim from the exact workshop-address path, or otherwise
-  enforce the reviewed non-confidential query boundary, before releasing the
-  separate exact-public-pin option.
-- Finalize and review the exact-map consent wording that ships with the UI and
-  database projection.
 - Reconcile all new SellerProfile-related audit allegations against the exact
   release head, then add the exact-main protected ENABLE workflow, inspector
   and sanitized postflight.

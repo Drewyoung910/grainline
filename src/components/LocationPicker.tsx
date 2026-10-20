@@ -2,7 +2,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState, useMemo } from "react";
 import * as maplibregl from "@/lib/maplibreClient";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
+import SellerLocationSearch from "@/components/SellerLocationSearch";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
 
@@ -153,23 +153,19 @@ export default function LocationPicker({
 
   return (
     <div className="space-y-2">
-      <AddressAutocomplete
-        id="pickup-location-search"
-        label=""
-        placeholder="Search address or place"
-        onSelect={(address) => {
-          if (address.lat == null || address.lng == null) return;
-          setPos([address.lat, address.lng]);
-          onLocationChange?.(address.lat, address.lng);
-          if (mapRef.current) mapRef.current.panTo([address.lng, address.lat]);
-          if (markerRef.current) markerRef.current.setLngLat([address.lng, address.lat]);
+      <SellerLocationSearch
+        onSelect={(location) => {
+          setPos([location.lat, location.lng]);
+          onLocationChange?.(location.lat, location.lng);
+          if (mapRef.current) mapRef.current.panTo([location.lng, location.lat]);
+          if (markerRef.current) markerRef.current.setLngLat([location.lng, location.lat]);
         }}
       />
 
       {mapUnavailable ? (
         <MapFallback
           className="min-h-[260px] w-full rounded-xl border border-neutral-200"
-          message="Map picker is unavailable because WebGL is disabled or unsupported. Search an address to set the coordinates."
+          message="Map picker is unavailable because WebGL is disabled or unsupported. Search a city or ZIP to set the general area."
           lat={pos[0]}
           lng={pos[1]}
         />
@@ -186,7 +182,7 @@ export default function LocationPicker({
       )}
 
       <div id="pickup-location-map-help" className="text-sm text-neutral-600">
-        {mapUnavailable ? "Search an address to set your pickup location." : "Drag the pin or click the map to set your pickup location."}
+        {mapUnavailable ? "Search a city or ZIP to set the general area." : "Search a city or ZIP, then drag the pin or click the map to choose the saved location."}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -222,7 +218,9 @@ export default function LocationPicker({
             className="w-full"
           />
           <div className="text-xs mt-1">
-            {miles === 0 ? "Exact pin" : `${miles} mi area`}
+            {miles === 0
+              ? "Saved point (public display stays approximate unless you separately opt in below)"
+              : `${miles} mi private area`}
           </div>
         </div>
       </div>

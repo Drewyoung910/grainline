@@ -212,7 +212,11 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   if (lat != null && lng != null) {
     try {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
-      const { metroId, cityMetroId } = await findOrCreateMetro(lat, lng);
+      const { metroId, cityMetroId } = await findOrCreateMetro(
+        lat,
+        lng,
+        city && state ? { city, state } : null,
+      );
       await updateSellerOwnerMetroAssignment(seller.userId, {
         sellerProfileId: seller.id,
         metroId,
