@@ -290,6 +290,13 @@ input cap. The candidate is now at 22 direct operations in 5 files, 84 relation
 accesses in 46 files, 15 raw SQL accesses in 12 files and 57 total consumer
 files. Its 173-function catalog partitions into 98 retained, 33 internal and 42
 converted authorities; the new converted authority is staff-only.
+The staff feature-transition pass then replaces the verification page's
+self-profile read and two feature-state writes with one isolated ADMIN-only
+operation. Eligibility, the seven-day transition and its audit witness are now
+atomic. The candidate is down to 19 direct operations in 4 files, 84 relation
+accesses in 46 files, 15 raw SQL accesses in 12 files and 57 total consumer
+files. It has 169 reconciled opaque shapes, and its 174-function catalog
+partitions into 98 retained, 33 internal and 43 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

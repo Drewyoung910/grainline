@@ -22,12 +22,11 @@ import {
 } from "@/lib/metrics";
 import { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
-import { logAdminAction, logAdminActionOrThrow } from "@/lib/audit";
+import { logAdminAction } from "@/lib/audit";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
@@ -43,6 +42,7 @@ import {
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import {
   applySellerGuildStaffTransition,
+  applySellerStaffFeatureTransition,
   sellerGuildStaffMasterList,
   sellerGuildStaffMasterPendingList,
   sellerGuildStaffMemberList,
@@ -661,34 +661,12 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
 async function featureMaker(sellerProfileId: string) {
   "use server";
   const me = await requireAdminOnly();
-
-  const ownSeller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true },
+  const result = await applySellerStaffFeatureTransition(getOrderStaffReadClient(), {
+    actorId: me.id,
+    sellerProfileId,
+    operation: "FEATURE",
   });
-  if (ownSeller?.id === sellerProfileId) return;
-
-  const now = new Date();
-  const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.sellerProfile.updateMany({
-      where: activeSellerProfileWhere({
-        id: sellerProfileId,
-        guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-        OR: [{ featuredUntil: null }, { featuredUntil: { lte: now } }],
-      }),
-      data: { featuredUntil: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
-    });
-    if (updated.count === 0) return updated;
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "FEATURE_MAKER",
-      targetType: "SELLER_PROFILE",
-      targetId: sellerProfileId,
-    });
-    return updated;
-  });
-  if (result.count === 0) return;
+  if (!result?.applied) return;
 
   revalidatePath("/admin/verification");
   revalidatePath("/");
@@ -698,23 +676,12 @@ async function featureMaker(sellerProfileId: string) {
 async function unfeatureMaker(sellerProfileId: string) {
   "use server";
   const me = await requireAdminOnly();
-
-  const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.sellerProfile.updateMany({
-      where: { id: sellerProfileId, featuredUntil: { not: null } },
-      data: { featuredUntil: null },
-    });
-    if (updated.count === 0) return updated;
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "UNFEATURE_MAKER",
-      targetType: "SELLER_PROFILE",
-      targetId: sellerProfileId,
-    });
-    return updated;
+  const result = await applySellerStaffFeatureTransition(getOrderStaffReadClient(), {
+    actorId: me.id,
+    sellerProfileId,
+    operation: "UNFEATURE",
   });
-  if (result.count === 0) return;
+  if (!result?.applied) return;
 
   revalidatePath("/admin/verification");
   revalidatePath("/");

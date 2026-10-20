@@ -208,7 +208,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   if (reviewedNonTargetResiduals.some(({ model }) => model === "SellerProfile")) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
-  if (targetOpaqueShapes.length !== 9
+  if (targetOpaqueShapes.length !== 8
       || reviewedNonTargetFactoryCalls.length !== 139
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(

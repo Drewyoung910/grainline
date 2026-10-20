@@ -18,6 +18,9 @@ function functionBody(text, name) {
 describe("security lifecycle follow-ups", () => {
   it("keeps sensitive Guild restoration and feature actions admin-only", () => {
     const page = source("src/app/admin/verification/page.tsx");
+    const featureAuthority = source(
+      "prisma/migrations/20261020140000_prepare_seller_profile_staff_feature_transition/migration.sql",
+    );
 
     assert.match(page, /async function requireStaff\(\)/);
     assert.match(page, /async function requireAdminOnly\(\)/);
@@ -27,8 +30,16 @@ describe("security lifecycle follow-ups", () => {
       assert.match(functionBody(page, action), /const me = await requireAdminOnly\(\)/, `${action} must require ADMIN`);
     }
 
-    assert.match(page, /import \{ activeSellerProfileWhere \} from "@\/lib\/sellerVisibility"/);
-    assert.match(functionBody(page, "featureMaker"), /activeSellerProfileWhere\(\{\s*id: sellerProfileId,\s*guildLevel: \{ in: \["GUILD_MEMBER", "GUILD_MASTER"\] \}/s);
+    assert.match(functionBody(page, "featureMaker"), /applySellerStaffFeatureTransition\(getOrderStaffReadClient\(\), \{/s);
+    assert.match(functionBody(page, "featureMaker"), /operation: "FEATURE"/s);
+    assert.match(functionBody(page, "unfeatureMaker"), /operation: "UNFEATURE"/s);
+    assert.match(featureAuthority, /actor\.role::text = 'ADMIN'/u);
+    assert.match(featureAuthority, /source_seller\."userId" = p_actor_id/u);
+    assert.match(featureAuthority, /source_seller\."guildLevel" NOT IN/u);
+    assert.match(featureAuthority, /source_seller\."chargesEnabled"/u);
+    assert.match(featureAuthority, /source_seller\."stripeAccountSupported"/u);
+    assert.match(featureAuthority, /source_seller\."vacationMode"/u);
+    assert.match(featureAuthority, /INSERT INTO public\."AdminAuditLog"/u);
 
     assert.match(functionBody(page, "approveGuildMember"), /const me = await requireStaff\(\)/);
     assert.match(functionBody(page, "approveGuildMember"), /const adminOverride = me\.role === "ADMIN"/);
