@@ -89,9 +89,13 @@ keys and the exact function execute-principal split. The manifest also
 reconciles every reported opaque source shape, and the catalog now classifies
 98 retained fixed authorities, 32 internal-support functions and all six
 direct table triggers. All 55 scalar columns now have one machine-checked
-maximum-disclosure class. The 98 retained authorities map to 93 direct database
-behavior proofs, two composed behavior proofs and three explicit source-only
-gaps that must gain full-chain proof before activation.
+maximum-disclosure class. The Phase 0 baseline mapped the 98 retained
+authorities to 93 direct database behavior proofs, two composed behavior proofs
+and three explicit source-only gaps. The real 397-migration PostgreSQL 16 chain
+now closes those gaps at 96 direct database behavior proofs and two composed
+behavior proofs. Caller conversion and retained behavior evidence are
+complete; the next phase is the additive revoke/ENABLE/FORCE release design
+and compatibility proof.
 
 The location review confirmed that predecessor public maps and seller JSON-LD
 could publish raw points even though Privacy 2.7 and Terms 4.19/4.20 promise

@@ -484,19 +484,15 @@ no longer executes a database path. Current disposition:
 
 | Evidence class | Authorities | Meaning |
 |---|---:|---|
-| Direct database behavior | 93 | A PostgreSQL proof or database behavior test names and executes the installed authority |
+| Direct database behavior | 96 | A PostgreSQL proof or database behavior test names and executes the installed authority |
 | Composed database behavior | 2 | The authority is covered by a reviewed composed migration/flow proof rather than a single direct test |
-| Source-only gap | 3 | Source guards exist, but no current PostgreSQL behavior proof qualifies |
+| Source-only gap | 0 | Every retained callable authority has qualifying PostgreSQL behavior evidence |
 
-The three explicit Phase 1 proof obligations are:
-
-- `grainline_checkout_reservation_account_claim_batch(text,integer)`;
-- `grainline_listing_delete_reference_state(text,text)`; and
-- `grainline_seller_guild_listing_threshold_sync(text)`.
-
-They do not reopen the authority inventory or justify removing the functions.
-They must receive full-chain database behavior tests before any release closes
-the predecessor `SellerProfile` grant.
+The real 397-migration PostgreSQL 16 chain now proves the three authorities
+that previously had only source guards: account repair claims, listing delete
+reference state and Guild listing-threshold synchronization. Retained-authority
+behavior evidence is complete before any release closes the predecessor
+`SellerProfile` grant.
 
 ## Field and disclosure contracts
 
@@ -705,9 +701,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   predicate, and approximate-location contracts needed for additive design.
 - The machine-checked per-consumer principal/contract assignment and
   opaque-shape reconciliation are complete for all 100 proven source files.
-- The 130 installed functions and six direct table triggers are classified.
-  All 98 retained fixed authorities are mapped: 93 direct behavior proofs, two
-  composed behavior proofs, and three explicit source-only proof gaps.
+- The 187 installed functions and seven direct table triggers are classified.
+  All 98 retained fixed authorities are mapped: 96 direct behavior proofs and
+  two composed behavior proofs, with no source-only gaps.
 - The 55-column disclosure partition and public visibility/location predicates
   are complete and prohibit exact public location output. Phase 1 still defines
   each operation's narrower return shape;

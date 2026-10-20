@@ -576,6 +576,8 @@ the real 396-migration predecessor failed because the transition was absent;
 the complete 397-migration PostgreSQL 16 chain proves stale-state rejection,
 staff authorization, prior-state return and the runtime/PUBLIC grant boundary.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
-three retained-authority proof gaps remain
-`FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
-deployment, or provider operation is authorized by this decision.
+real 397-migration PostgreSQL 16 chain now closes all three retained-authority
+proof gaps. All 98 retained callable authorities have database behavior
+evidence: 96 direct and two composed. No Production policy, grant, ENABLE,
+FORCE, migration, deployment, or provider operation is authorized by this
+decision.

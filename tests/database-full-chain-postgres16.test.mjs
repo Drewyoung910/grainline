@@ -47,6 +47,7 @@ import { proveSellerProfileBlockFollowCleanup } from "../tools/database-full-cha
 import { proveSellerProfileFoundingMakerGrant } from "../tools/database-full-chain/scenarios/seller-profile-founding-maker-grant.mjs";
 import { proveSellerProfileMetricsIdentity } from "../tools/database-full-chain/scenarios/seller-profile-metrics-identity.mjs";
 import { proveSellerProfileServiceIdentities } from "../tools/database-full-chain/scenarios/seller-profile-service-identities.mjs";
+import { proveSellerProfileRetainedAuthorityGaps } from "../tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs";
 import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-followup-correction.mjs";
 import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-first-event-case-correction.mjs";
 
@@ -210,6 +211,13 @@ test(
       await proveSellerProfileServiceIdentities({
         database: adapter,
         seller: fixture,
+      });
+      const retainedAuthorityFixture = await seedSellerProfilePrivateFixture(adapter, {
+        suffix: "retained_authority_gaps",
+      });
+      await proveSellerProfileRetainedAuthorityGaps({
+        database: adapter,
+        seller: retainedAuthorityFixture,
       });
       await proveImmutableRefundRepair({
         database: adapter,

@@ -8,12 +8,10 @@ import {
 
 const db = (file) => Object.freeze({ kind: "DIRECT_DATABASE_BEHAVIOR", files: Object.freeze([file]) });
 const composed = (...files) => Object.freeze({ kind: "COMPOSED_DATABASE_BEHAVIOR", files: Object.freeze(files) });
-const sourceOnly = (file) => Object.freeze({ kind: "SOURCE_ONLY_GAP", files: Object.freeze([file]) });
 
 // Exact Phase 0 evidence map for the 98 installed SellerProfile-reading
 // authorities executable by either the shared app runtime or staff-read role.
-// Source/catalog assertions are deliberately labelled as gaps rather than
-// being counted as behavioral proof.
+// Every retained callable authority has PostgreSQL behavior evidence.
 export const SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE = Object.freeze({
   'grainline_case_guild_unresolved_guard(text)': db('scripts/case-seller-aggregate-authority-postgres-proof.mjs'),
   'grainline_case_open(text,text,text,text)': db('scripts/case-open-authority-postgres-proof.mjs'),
@@ -22,7 +20,7 @@ export const SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE = Object.freeze({
   'grainline_case_seller_verification_eligibility(text,text)': db('scripts/case-seller-aggregate-authority-postgres-proof.mjs'),
   'grainline_case_staff_resolution_prepare(text,text,"CaseResolution",integer,jsonb)': db('tests/case-case-message-invariant-postgres-proof.test.mjs'),
   'grainline_case_stripe_dispute_apply(text)': db('scripts/case-case-message-invariant-postgres-proof.mjs'),
-  'grainline_checkout_reservation_account_claim_batch(text,integer)': sourceOnly('tests/checkout-stock-reservation-rls-audit.test.mjs'),
+  'grainline_checkout_reservation_account_claim_batch(text,integer)': db('tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs'),
   'grainline_checkout_reservation_account_scrub(text)': db('tests/checkout-stock-reservation-authority-postgres-proof.test.mjs'),
   'grainline_checkout_reservation_complete(text,bigint,text,text)': db('tests/checkout-stock-reservation-authority-postgres-proof.test.mjs'),
   'grainline_checkout_reservation_create_cart_snapshot(text,text,text,text,text,jsonb)': db('tests/checkout-stock-reservation-authority-postgres-proof.test.mjs'),
@@ -35,7 +33,7 @@ export const SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE = Object.freeze({
     'scripts/direct-upload-legacy-repair-postgres-proof.mjs',
     'prisma/migrations/20260726185700_repair_direct_upload_legacy_references/migration.sql',
   ),
-  'grainline_listing_delete_reference_state(text,text)': sourceOnly('tests/listing-delete.test.mjs'),
+  'grainline_listing_delete_reference_state(text,text)': db('tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs'),
   'grainline_listing_order_archive_blocked(text,text,bigint)': db('tests/order-eligibility-authority-postgres.test.mjs'),
   'grainline_message_create_commission_interest(text,text,text,text,text)': db('scripts/conversation-message-recipient-rls-proof.mjs'),
   'grainline_message_send_custom_order_ready(text,text,text)': db('scripts/conversation-message-recipient-rls-proof.mjs'),
@@ -79,7 +77,7 @@ export const SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE = Object.freeze({
   'grainline_seller_account_deletion_pause(text,text,text,bigint,uuid)': db('tests/seller-profile-private-account-deletion-app-authority-postgres.test.mjs'),
   'grainline_seller_account_deletion_reconciliation_clear(text,text,text,bigint,uuid)': db('tests/seller-profile-private-remaining-app-authorities-postgres.test.mjs'),
   'grainline_seller_checkout_private_state(text,text,text,text)': db('tests/seller-profile-private-checkout-app-authority-postgres.test.mjs'),
-  'grainline_seller_guild_listing_threshold_sync(text)': sourceOnly('tests/guild-listing-edit-followups.test.mjs'),
+  'grainline_seller_guild_listing_threshold_sync(text)': db('tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs'),
   'grainline_seller_guild_member_cron_batch(text,integer)': db('tests/seller-profile-private-guild-cron-batch-authorities-postgres.test.mjs'),
   'grainline_seller_guild_member_revoke(text)': db('tests/seller-profile-private-guild-member-revocation-authority-postgres.test.mjs'),
   'grainline_seller_guild_metrics_apply(text,timestamp without time zone)': db('tests/seller-profile-private-guild-metrics-authority-postgres.test.mjs'),

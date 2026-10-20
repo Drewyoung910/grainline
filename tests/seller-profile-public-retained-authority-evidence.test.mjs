@@ -28,15 +28,11 @@ test('every retained SellerProfile authority maps to behavioral evidence or an e
   assert.deepEqual(verifySellerProfileRetainedAuthorityEvidence(root, fixture()), {
     retainedAuthorities: 98,
     evidenceCounts: {
-      DIRECT_DATABASE_BEHAVIOR: 93,
+      DIRECT_DATABASE_BEHAVIOR: 96,
       COMPOSED_DATABASE_BEHAVIOR: 2,
-      SOURCE_ONLY_GAP: 3,
+      SOURCE_ONLY_GAP: 0,
     },
-    gaps: [
-      'grainline_checkout_reservation_account_claim_batch(text,integer)',
-      'grainline_listing_delete_reference_state(text,text)',
-      'grainline_seller_guild_listing_threshold_sync(text)',
-    ],
+    gaps: [],
   });
 });
 
