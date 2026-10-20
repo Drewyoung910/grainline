@@ -157,7 +157,7 @@ describe("seller operational route hardening", () => {
     );
   });
 
-  it("keeps seller profile FAQ and featured listing writes capped under serializable transactions", () => {
+  it("keeps seller profile FAQ and featured listing writes concurrency-safe and capped", () => {
     const profile = source("src/app/dashboard/profile/page.tsx");
     const addFaq = profile.slice(profile.indexOf("async function addFaq"), profile.indexOf("async function deleteFaq"));
     const toggleFeatured = profile.slice(
@@ -174,12 +174,10 @@ describe("seller operational route hardening", () => {
     assert.match(addFaq, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
     assert.match(profile, /fullSeller\.faqs\.length >= SELLER_FAQ_LIMIT/);
 
-    assert.match(toggleFeatured, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(toggleFeatured, /tx\.listing\.count\(\{ where: \{ id: listingId, sellerId: seller\.id \} \}/);
-    assert.match(toggleFeatured, /sellerOwnerFeaturedListingIds\(tx, \{/);
-    assert.match(toggleFeatured, /updateSellerOwnerFeaturedListingIds\(tx, \{/);
-    assert.match(toggleFeatured, /if \(current\.length >= SELLER_FEATURED_LISTING_LIMIT\) return/);
-    assert.match(toggleFeatured, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(toggleFeatured, /toggleSellerOwnerFeaturedListing\(seller\.userId, \{/);
+    assert.doesNotMatch(toggleFeatured, /tx\.listing\.count/);
+    assert.doesNotMatch(toggleFeatured, /sellerOwnerFeaturedListingIds/);
+    assert.doesNotMatch(toggleFeatured, /updateSellerOwnerFeaturedListingIds/);
     assert.match(profile, /featured\.size >= SELLER_FEATURED_LISTING_LIMIT/);
   });
 

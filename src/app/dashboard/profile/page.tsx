@@ -29,6 +29,7 @@ import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/se
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { withSerializableRetry } from "@/lib/transactionRetry";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import {
   clearSellerOwnerAvatar,
   duplicateSellerOwnerDisplayName,
@@ -297,10 +298,9 @@ async function removeSellerAvatar() {
   const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
   if (!success) return;
   const { seller } = await ensureSeller();
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(seller.userId, async (tx) => {
     await clearSellerOwnerAvatar(tx, {
       sellerProfileId: seller.id,
-      userId: seller.userId,
     });
     await syncSellerProfileDirectUploadReferences({
       client: tx,

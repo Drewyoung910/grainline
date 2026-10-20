@@ -39,6 +39,7 @@ import { proveSellerProfileStaffReportTargetsAuthority } from "../tools/database
 import { proveSellerProfileStaffFeatureTransition } from "../tools/database-full-chain/scenarios/seller-profile-staff-feature-transition.mjs";
 import { proveSellerProfileAccountDeletionMediaAuthority } from "../tools/database-full-chain/scenarios/seller-profile-account-deletion-media.mjs";
 import { proveSellerProfileOwnerFeaturedListingToggle } from "../tools/database-full-chain/scenarios/seller-profile-owner-featured-listing-toggle.mjs";
+import { proveSellerProfileOwnerAuxiliaryUpdates } from "../tools/database-full-chain/scenarios/seller-profile-owner-auxiliary-updates.mjs";
 import { proveSellerProfileBlockFollowCleanup } from "../tools/database-full-chain/scenarios/seller-profile-block-follow-cleanup.mjs";
 import { proveSellerProfileFoundingMakerGrant } from "../tools/database-full-chain/scenarios/seller-profile-founding-maker-grant.mjs";
 import { proveSellerProfileMetricsIdentity } from "../tools/database-full-chain/scenarios/seller-profile-metrics-identity.mjs";
@@ -172,6 +173,10 @@ test(
         seller: fixture,
       });
       await proveSellerProfileOwnerFeaturedListingToggle({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveSellerProfileOwnerAuxiliaryUpdates({
         database: adapter,
         seller: fixture,
       });

@@ -517,6 +517,13 @@ now at 16 direct operations in 3 files, 84 relation accesses in 46 files, 15 raw
 SQL accesses in 12 files, 57 total consumer files, 169 reconciled opaque shapes
 and 7 direct writes. The 176-function catalog is 98 retained, 33 internal and
 45 converted; two converted authorities are staff-only.
+Avatar removal and automatic metro assignment now use two actor-bound owner
+operations. Avatar clearing and DirectUpload-reference synchronization remain
+in one contextual transaction, while metro assignment remains non-fatal after
+geocoding. The candidate is now at 14 direct operations in 3 files and 5 direct
+writes; relation, raw SQL, consumer and opaque-shape counts are unchanged. The
+178-function catalog is 98 retained, 33 internal and 47 converted; two
+converted authorities are staff-only.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

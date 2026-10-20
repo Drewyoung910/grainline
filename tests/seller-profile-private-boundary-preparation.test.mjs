@@ -963,8 +963,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(profileEditor, /sellerOwnerProfileEditorState/);
     assert.match(profileEditor, /updateSellerOwnerProfile/);
     assert.match(profileEditor, /clearSellerOwnerAvatar/);
-    assert.match(profileEditor, /sellerOwnerFeaturedListingIds/);
-    assert.match(profileEditor, /updateSellerOwnerFeaturedListingIds/);
+    assert.match(profileEditor, /toggleSellerOwnerFeaturedListing/);
     assert.match(guildDashboard, /sellerOwnerGuildDashboardState/);
     assert.match(guildDashboard, /sellerOwnerGuildApplicationState/);
     assert.match(guildDashboard, /recordSellerOwnerGuildMasterApplication/);

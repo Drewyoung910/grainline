@@ -189,9 +189,8 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     try {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(lat, lng);
-      await updateSellerOwnerMetroAssignment(prisma, {
+      await updateSellerOwnerMetroAssignment(seller.userId, {
         sellerProfileId: seller.id,
-        userId: seller.userId,
         metroId,
         cityMetroId,
       });

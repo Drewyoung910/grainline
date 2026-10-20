@@ -313,6 +313,13 @@ candidate is down to 16 direct operations in 3 files, 84 relation accesses in
 46 files, 15 raw SQL accesses in 12 files, 57 total consumer files, 169
 reconciled opaque shapes and 7 direct writes. Its 176-function catalog
 partitions into 98 retained, 33 internal and 45 converted authorities.
+The owner auxiliary-update pass then replaces avatar removal and automatic
+metro assignment with two actor-bound operations. Avatar clearing remains in
+the same transaction as DirectUpload-reference synchronization; metro updates
+remain a non-fatal post-geocoding step. The candidate is down to 14 direct
+operations in 3 files and 5 direct writes, with the other source counts
+unchanged. Its 178-function catalog partitions into 98 retained, 33 internal
+and 47 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

@@ -1,6 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { withDbUserContext } from "@/lib/dbUserContext";
+import {
+  withDbUserContext,
+  type DbUserContextTransactionClient,
+} from "@/lib/dbUserContext";
 import {
   sellerProfileEditorSelect,
   sellerSettingsOwnerSelect,
@@ -567,20 +570,28 @@ export async function updateSellerOwnerShopSettings(
   }
 }
 
-export async function updateSellerOwnerMetroAssignment(
-  client: SellerOwnerPrivateClient,
+export function updateSellerOwnerMetroAssignment(
+  userId: string,
   input: {
     sellerProfileId: string;
-    userId: string;
     metroId: string | null;
     cityMetroId: string | null;
   },
 ) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: { metroId: input.metroId, cityMetroId: input.cityMetroId },
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<Array<{ sellerProfileId: unknown }>>`
+      SELECT *
+        FROM public.grainline_seller_owner_metro_assignment_update(
+          ${input.sellerProfileId}::text,
+          ${input.metroId}::text,
+          ${input.cityMetroId}::text
+        )
+    `;
+    if (rows.length !== 1 || rows[0]?.sellerProfileId !== input.sellerProfileId) {
+      throw new Error("Seller owner metro-assignment authority returned an invalid result");
+    }
+    return Object.freeze({ sellerProfileId: rows[0].sellerProfileId });
   });
-  await requireOneSellerOwnerMutation(result, "metro assignment");
 }
 
 export function duplicateSellerOwnerDisplayName(
@@ -680,14 +691,18 @@ export async function updateSellerOwnerProfile(
 }
 
 export async function clearSellerOwnerAvatar(
-  client: SellerOwnerPrivateClient,
-  input: { sellerProfileId: string; userId: string },
+  client: DbUserContextTransactionClient,
+  input: { sellerProfileId: string },
 ) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: { avatarImageUrl: null },
-  });
-  await requireOneSellerOwnerMutation(result, "avatar removal");
+  const rows = await client.$queryRaw<Array<{ sellerProfileId: unknown }>>`
+    SELECT *
+      FROM public.grainline_seller_owner_avatar_clear(
+        ${input.sellerProfileId}::text
+      )
+  `;
+  if (rows.length !== 1 || rows[0]?.sellerProfileId !== input.sellerProfileId) {
+    throw new Error("Seller owner avatar-clear authority returned an invalid result");
+  }
 }
 
 export function toggleSellerOwnerFeaturedListing(

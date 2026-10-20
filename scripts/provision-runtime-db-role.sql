@@ -2324,7 +2324,9 @@ WHERE to_regprocedure(function_signature) IS NOT NULL;
 -- from transaction-local context and expose no generic table operation.
 WITH seller_public_owner_authority(function_signature) AS (
   VALUES
-    ('public."grainline_seller_owner_featured_listing_toggle"(text, text)')
+    ('public."grainline_seller_owner_featured_listing_toggle"(text, text)'),
+    ('public."grainline_seller_owner_avatar_clear"(text)'),
+    ('public."grainline_seller_owner_metro_assignment_update"(text, text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
@@ -2337,7 +2339,9 @@ SELECT format(
 
 WITH seller_public_owner_authority(function_signature) AS (
   VALUES
-    ('public."grainline_seller_owner_featured_listing_toggle"(text, text)')
+    ('public."grainline_seller_owner_featured_listing_toggle"(text, text)'),
+    ('public."grainline_seller_owner_avatar_clear"(text)'),
+    ('public."grainline_seller_owner_metro_assignment_update"(text, text, text)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

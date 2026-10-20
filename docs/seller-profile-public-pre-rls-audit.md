@@ -366,6 +366,15 @@ authorities: 43 app-runtime and two staff-read operations. The source candidate
 is at 16 direct operations in 3 files, 84 relation accesses in 46 files, 15 raw
 SQL accesses in 12 files, 57 total consumer files, 169 reconciled opaque shapes
 and 7 direct writes.
+`grainline_seller_owner_avatar_clear(text)` and
+`grainline_seller_owner_metro_assignment_update(text,text,text)` then replace
+the two small owner maintenance writes. Both derive an active owner from
+transaction-local context. Avatar clearing stays in the same application
+transaction as DirectUpload-reference synchronization; metro assignment stays
+after the non-fatal geocoder step. There are now 47 converted authorities: 45
+app-runtime and two staff-read operations. The source candidate is at 14 direct
+operations in 3 files and 5 direct writes; relation, raw SQL, consumer and
+opaque-shape counts are unchanged.
 Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -373,7 +382,7 @@ Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 33 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details, including exact-map consent revocation |
-| Converted authority | 45 | The additive directory-map, resource-bound detail, public maker profile/shop projection, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, bounded staff report-target labels, atomic staff feature transition, claim-bound account-deletion public-media projection, atomic owner featured-listing toggle, owner account summary, owner core, owner dashboard state, owner bootstrap, owner Guild-application state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards, three public-follow authorities and versioned exact-map owner consent replace direct base-table access while predecessor grants remain available |
+| Converted authority | 47 | The additive directory-map, resource-bound detail, public maker profile/shop projection, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, bounded staff report-target labels, atomic staff feature transition, claim-bound account-deletion public-media projection, atomic owner featured-listing toggle, owner avatar clear, owner metro assignment, owner account summary, owner core, owner dashboard state, owner bootstrap, owner Guild-application state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards, three public-follow authorities and versioned exact-map owner consent replace direct base-table access while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
