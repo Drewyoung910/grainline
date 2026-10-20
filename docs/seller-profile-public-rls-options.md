@@ -539,6 +539,14 @@ transaction. The candidate is now at 10 direct operations in 3 files and 5
 direct writes; the other source counts are unchanged. The 181-function catalog
 is 98 retained, 33 internal and 50 converted; two converted authorities are
 staff-only.
+The Shop Profile editor now uses one actor-bound state projection and one
+actor-bound update instead of a direct state read, separate duplicate-name
+lookup and direct update. The update locks the exact owner row, returns the
+advisory duplicate result, preserves untouched gallery arrays and stays in the
+same context transaction as DirectUpload-reference synchronization. The
+candidate is now at 7 direct operations in 3 files and 4 direct writes; the
+other source counts are unchanged. The 183-function catalog is 98 retained,
+33 internal and 52 converted; two converted authorities are staff-only.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

@@ -14,7 +14,7 @@ const provision = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 test("owner auxiliary SellerProfile writes are actor-bound fixed operations", () => {
   const metroHelper = access.slice(
     access.indexOf("export function updateSellerOwnerMetroAssignment"),
-    access.indexOf("export function duplicateSellerOwnerDisplayName"),
+    access.indexOf("export async function updateSellerOwnerProfile"),
   );
   const avatarHelper = access.slice(
     access.indexOf("export async function clearSellerOwnerAvatar"),

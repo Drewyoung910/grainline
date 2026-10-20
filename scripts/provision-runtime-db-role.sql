@@ -2329,7 +2329,9 @@ WITH seller_public_owner_authority(function_signature) AS (
     ('public."grainline_seller_owner_metro_assignment_update"(text, text, text)'),
     ('public."grainline_seller_owner_onboarding_state"(text)'),
     ('public."grainline_seller_owner_guild_dashboard_state"(text)'),
-    ('public."grainline_seller_owner_shop_settings_state"(text)')
+    ('public."grainline_seller_owner_shop_settings_state"(text)'),
+    ('public."grainline_seller_owner_profile_editor_state"(text)'),
+    ('public."grainline_seller_owner_profile_update"(text, text, text, text, text, text, text, integer, text, text, text, text[], text[], boolean, text, text, text, text, text, text, text, text, boolean, boolean, integer, boolean, integer)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
@@ -2347,7 +2349,9 @@ WITH seller_public_owner_authority(function_signature) AS (
     ('public."grainline_seller_owner_metro_assignment_update"(text, text, text)'),
     ('public."grainline_seller_owner_onboarding_state"(text)'),
     ('public."grainline_seller_owner_guild_dashboard_state"(text)'),
-    ('public."grainline_seller_owner_shop_settings_state"(text)')
+    ('public."grainline_seller_owner_shop_settings_state"(text)'),
+    ('public."grainline_seller_owner_profile_editor_state"(text)'),
+    ('public."grainline_seller_owner_profile_update"(text, text, text, text, text, text, text, integer, text, text, text, text[], text[], boolean, text, text, text, text, text, text, text, text, boolean, boolean, integer, boolean, integer)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

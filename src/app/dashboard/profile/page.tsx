@@ -32,7 +32,6 @@ import { withSerializableRetry } from "@/lib/transactionRetry";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import {
   clearSellerOwnerAvatar,
-  duplicateSellerOwnerDisplayName,
   sellerOwnerProfileEditorState,
   toggleSellerOwnerFeaturedListing,
   updateSellerOwnerProfile,
@@ -181,17 +180,10 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
       : null;
 
-  // Soft uniqueness check — warn (don't block) if another seller has the same name
-  const duplicate = await duplicateSellerOwnerDisplayName({
-    sellerProfileId: seller.id,
-    displayName,
-    displayNameNormalized,
-  });
-
-  await prisma.$transaction(async (tx) => {
-    await updateSellerOwnerProfile(tx, {
+  let duplicateDisplayName = false;
+  await withDbUserContext(seller.userId, async (tx) => {
+    const result = await updateSellerOwnerProfile(tx, {
       sellerProfileId: seller.id,
-      userId: seller.userId,
       displayName,
       displayNameNormalized,
       tagline,
@@ -217,6 +209,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       offersGiftWrapping,
       giftWrappingPriceCents,
     });
+    duplicateDisplayName = result.duplicateDisplayName;
     await syncSellerProfileDirectUploadReferences({
       client: tx,
       userId: seller.userId,
@@ -231,7 +224,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   revalidateFeaturedMakerCaches();
   revalidatePath("/");
 
-  if (duplicate) {
+  if (duplicateDisplayName) {
     redirect("/dashboard/profile?warning=duplicate-name");
   }
   return { ok: true };

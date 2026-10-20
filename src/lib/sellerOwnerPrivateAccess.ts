@@ -4,7 +4,6 @@ import {
   withDbUserContext,
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
-import { sellerProfileEditorSelect } from "@/lib/sellerProfileSelects";
 
 type SellerOwnerPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile" | "$queryRaw">;
 
@@ -316,6 +315,89 @@ type SellerOwnerShopSettingsStateRow = {
   freeShippingOverCents: unknown;
   allowLocalPickup: unknown;
 };
+
+type SellerOwnerProfileEditorFaq = {
+  id: string;
+  question: string;
+  answer: string;
+};
+
+type SellerOwnerProfileEditorState = {
+  avatarImageUrl: string | null;
+  bannerImageUrl: string | null;
+  displayName: string;
+  tagline: string | null;
+  yearsInBusiness: number | null;
+  bio: string | null;
+  storyTitle: string | null;
+  storyBody: string | null;
+  workshopImageUrl: string | null;
+  galleryImageUrls: string[];
+  galleryAltTexts: string[];
+  instagramUrl: string | null;
+  facebookUrl: string | null;
+  pinterestUrl: string | null;
+  tiktokUrl: string | null;
+  websiteUrl: string | null;
+  returnPolicy: string | null;
+  customOrderPolicy: string | null;
+  shippingPolicy: string | null;
+  acceptsCustomOrders: boolean;
+  acceptingNewOrders: boolean;
+  customOrderTurnaroundDays: number | null;
+  offersGiftWrapping: boolean;
+  giftWrappingPriceCents: number | null;
+  featuredListingIds: string[];
+  faqs: SellerOwnerProfileEditorFaq[];
+};
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function nullableSafeInteger(value: unknown): value is number | null {
+  return value === null || Number.isSafeInteger(value);
+}
+
+function isSellerOwnerProfileEditorState(
+  value: unknown,
+): value is SellerOwnerProfileEditorState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = value as Record<string, unknown>;
+  return nullableString(state.avatarImageUrl)
+    && nullableString(state.bannerImageUrl)
+    && typeof state.displayName === "string"
+    && nullableString(state.tagline)
+    && nullableSafeInteger(state.yearsInBusiness)
+    && nullableString(state.bio)
+    && nullableString(state.storyTitle)
+    && nullableString(state.storyBody)
+    && nullableString(state.workshopImageUrl)
+    && isStringArray(state.galleryImageUrls)
+    && isStringArray(state.galleryAltTexts)
+    && nullableString(state.instagramUrl)
+    && nullableString(state.facebookUrl)
+    && nullableString(state.pinterestUrl)
+    && nullableString(state.tiktokUrl)
+    && nullableString(state.websiteUrl)
+    && nullableString(state.returnPolicy)
+    && nullableString(state.customOrderPolicy)
+    && nullableString(state.shippingPolicy)
+    && typeof state.acceptsCustomOrders === "boolean"
+    && typeof state.acceptingNewOrders === "boolean"
+    && nullableSafeInteger(state.customOrderTurnaroundDays)
+    && typeof state.offersGiftWrapping === "boolean"
+    && nullableSafeInteger(state.giftWrappingPriceCents)
+    && isStringArray(state.featuredListingIds)
+    && Array.isArray(state.faqs)
+    && state.faqs.every((faq) => {
+      if (!faq || typeof faq !== "object" || Array.isArray(faq)) return false;
+      const entry = faq as Record<string, unknown>;
+      return typeof entry.id === "string"
+        && typeof entry.question === "string"
+        && typeof entry.answer === "string";
+    });
+}
 
 const GUILD_LEVELS = ["NONE", "GUILD_MEMBER", "GUILD_MASTER"] as const;
 const VERIFICATION_STATUSES = [
@@ -795,36 +877,10 @@ export function updateSellerOwnerMetroAssignment(
   });
 }
 
-export function duplicateSellerOwnerDisplayName(
-  input: {
-    sellerProfileId: string;
-    displayName: string;
-    displayNameNormalized: string;
-  },
-  client: SellerOwnerPrivateClient = prisma,
-) {
-  return client.sellerProfile.findFirst({
-    where: {
-      OR: [
-        { displayName: { equals: input.displayName, mode: "insensitive" } },
-        {
-          displayNameNormalized: {
-            equals: input.displayNameNormalized,
-            mode: "insensitive",
-          },
-        },
-      ],
-      id: { not: input.sellerProfileId },
-    },
-    select: { id: true },
-  });
-}
-
 export async function updateSellerOwnerProfile(
-  client: SellerOwnerPrivateClient,
+  client: DbUserContextTransactionClient,
   input: {
     sellerProfileId: string;
-    userId: string;
     displayName: string;
     displayNameNormalized: string;
     tagline: string | null;
@@ -852,43 +908,51 @@ export async function updateSellerOwnerProfile(
     giftWrappingPriceCents: number | null;
   },
 ) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: {
-      displayName: input.displayName,
-      displayNameNormalized: input.displayNameNormalized,
-      tagline: input.tagline,
-      bio: input.bio,
-      storyTitle: input.storyTitle,
-      storyBody: input.storyBody,
-      yearsInBusiness: input.yearsInBusiness,
-      bannerImageUrl: input.bannerImageUrl,
-      avatarImageUrl: input.avatarImageUrl,
-      workshopImageUrl: input.workshopImageUrl,
-      ...(input.galleryImageUrls
-        ? {
-            galleryImageUrls: input.galleryImageUrls,
-            galleryAltTexts: input.galleryAltTexts ?? [],
-          }
-        : {}),
-      instagramUrl: input.instagramUrl,
-      facebookUrl: input.facebookUrl,
-      pinterestUrl: input.pinterestUrl,
-      tiktokUrl: input.tiktokUrl,
-      websiteUrl: input.websiteUrl,
-      returnPolicy: input.returnPolicy,
-      customOrderPolicy: input.customOrderPolicy,
-      shippingPolicy: input.shippingPolicy,
-      acceptsCustomOrders: input.acceptsCustomOrders,
-      acceptingNewOrders: input.acceptingNewOrders,
-      customOrderTurnaroundDays: input.customOrderTurnaroundDays,
-      offersGiftWrapping: input.offersGiftWrapping,
-      giftWrappingPriceCents: input.offersGiftWrapping
-        ? input.giftWrappingPriceCents
-        : null,
-    },
-  });
-  await requireOneSellerOwnerMutation(result, "profile update");
+  const galleryImagesTouched = input.galleryImageUrls !== undefined;
+  const rows = await client.$queryRaw<Array<{
+    sellerProfileId: unknown;
+    duplicateDisplayName: unknown;
+  }>>`
+    SELECT *
+      FROM public.grainline_seller_owner_profile_update(
+        ${input.sellerProfileId}::text,
+        ${input.displayName}::text,
+        ${input.displayNameNormalized}::text,
+        ${input.tagline}::text,
+        ${input.bio}::text,
+        ${input.storyTitle}::text,
+        ${input.storyBody}::text,
+        ${input.yearsInBusiness}::integer,
+        ${input.bannerImageUrl}::text,
+        ${input.avatarImageUrl}::text,
+        ${input.workshopImageUrl}::text,
+        ${input.galleryImageUrls ?? []}::text[],
+        ${input.galleryAltTexts ?? []}::text[],
+        ${galleryImagesTouched}::boolean,
+        ${input.instagramUrl}::text,
+        ${input.facebookUrl}::text,
+        ${input.pinterestUrl}::text,
+        ${input.tiktokUrl}::text,
+        ${input.websiteUrl}::text,
+        ${input.returnPolicy}::text,
+        ${input.customOrderPolicy}::text,
+        ${input.shippingPolicy}::text,
+        ${input.acceptsCustomOrders}::boolean,
+        ${input.acceptingNewOrders}::boolean,
+        ${input.customOrderTurnaroundDays}::integer,
+        ${input.offersGiftWrapping}::boolean,
+        ${input.giftWrappingPriceCents}::integer
+      )
+  `;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || row?.sellerProfileId !== input.sellerProfileId
+    || typeof row.duplicateDisplayName !== "boolean"
+  ) {
+    throw new Error("Seller owner profile-update authority returned an invalid result");
+  }
+  return Object.freeze({ duplicateDisplayName: row.duplicateDisplayName });
 }
 
 export async function clearSellerOwnerAvatar(
@@ -935,13 +999,26 @@ export function toggleSellerOwnerFeaturedListing(
 export function sellerOwnerProfileEditorState(
   sellerProfileId: string,
   userId: string,
-  client: SellerOwnerPrivateClient = prisma,
 ) {
-  return client.sellerProfile.findFirst({
-    where: { id: sellerProfileId, userId },
-    select: {
-      ...sellerProfileEditorSelect,
-      faqs: { orderBy: { sortOrder: "asc" as const } },
-    },
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<Array<{
+      sellerProfileId: unknown;
+      state: unknown;
+    }>>`
+      SELECT *
+        FROM public.grainline_seller_owner_profile_editor_state(
+          ${sellerProfileId}::text
+        )
+    `;
+    if (rows.length === 0) return null;
+    const row = rows[0];
+    if (
+      rows.length !== 1
+      || row.sellerProfileId !== sellerProfileId
+      || !isSellerOwnerProfileEditorState(row.state)
+    ) {
+      throw new Error("Seller owner profile-editor authority returned an invalid result");
+    }
+    return row.state;
   });
 }
