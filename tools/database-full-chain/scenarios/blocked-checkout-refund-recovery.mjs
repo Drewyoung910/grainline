@@ -176,7 +176,11 @@ async function applySignedRefundObservation(database, fixture, suffix) {
 }
 
 async function authorizeExistingProviderEffect(database, adminId, claim) {
-  const inspectedAtSeconds = Math.floor(Date.now() / 1000);
+  const inspectedAtSeconds = (await database.query(
+    `SELECT pg_catalog.floor(
+       EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+     )::bigint AS inspected_at_seconds`,
+  )).rows[0].inspected_at_seconds;
   return (await asRuntime(
     database,
     `SELECT public.grainline_order_refund_reconcile(
