@@ -146,8 +146,7 @@ export function preserveSellerProfileRetainedAuthorityEvidence(root, destination
   fs.mkdirSync(destination, { recursive: true });
   const copiedNames = new Set();
   for (const file of testFiles) {
-    const source = path.join(root, file);
-    if (!fs.existsSync(source)) throw new Error(`retained evidence source is missing: ${file}`);
+    const source = resolveEvidenceFile(root, file);
     const name = path.basename(file);
     if (copiedNames.has(name)) throw new Error(`retained evidence basename collides: ${name}`);
     fs.copyFileSync(source, path.join(destination, name));

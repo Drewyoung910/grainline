@@ -54,7 +54,13 @@ test('new or retired callable authorities reopen evidence review', () => {
 
 test('preserves every test-backed authority proof before CI isolates successors', (context) => {
   const destination = fs.mkdtempSync(path.join(os.tmpdir(), 'seller-profile-retained-evidence-'));
-  context.after(() => fs.rmSync(destination, { recursive: true, force: true }));
+  const isolatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'seller-profile-isolated-root-'));
+  const replayDestination = fs.mkdtempSync(path.join(os.tmpdir(), 'seller-profile-replayed-evidence-'));
+  context.after(() => {
+    fs.rmSync(destination, { recursive: true, force: true });
+    fs.rmSync(isolatedRoot, { recursive: true, force: true });
+    fs.rmSync(replayDestination, { recursive: true, force: true });
+  });
 
   const result = preserveSellerProfileRetainedAuthorityEvidence(root, destination);
   assert.ok(result.copiedFiles.includes('tests/user-staff-ban-authorities.test.mjs'));
@@ -63,4 +69,16 @@ test('preserves every test-backed authority proof before CI isolates successors'
     fs.readFileSync(path.join(destination, 'user-staff-ban-authorities.test.mjs'), 'utf8'),
     fs.readFileSync(path.join(root, 'tests/user-staff-ban-authorities.test.mjs'), 'utf8'),
   );
+
+  const previous = process.env.SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR;
+  process.env.SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR = destination;
+  try {
+    assert.deepEqual(
+      preserveSellerProfileRetainedAuthorityEvidence(isolatedRoot, replayDestination),
+      result,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR;
+    else process.env.SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR = previous;
+  }
 });
