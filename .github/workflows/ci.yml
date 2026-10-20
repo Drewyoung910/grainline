@@ -136,7 +136,14 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
+          predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
           mkdir -p "$holding/migrations" "$holding/tests"
+          git cat-file -e "$predecessor^{commit}"
+          git merge-base --is-ancestor "$predecessor" HEAD
+          mv prisma/schema.prisma "$holding/schema.prisma"
+          git show "$predecessor:prisma/schema.prisma" > prisma/schema.prisma
+          test "$(git hash-object prisma/schema.prisma)" = "$predecessor_schema_blob"
           node --input-type=module - <<'NODE' > "$holding/migration-names.txt"
           import {
             SELLER_PROFILE_PUBLIC_ENABLE,
@@ -6536,6 +6543,7 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          mv "$holding/schema.prisma" prisma/schema.prisma
           while IFS= read -r migration
           do
             mv "$holding/migrations/$migration" "prisma/migrations/$migration"

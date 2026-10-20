@@ -164,6 +164,11 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
       restore < build,
   );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
+  assert.match(
+    ci,
+    /predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65[\s\S]*mv prisma\/schema\.prisma "\$holding\/schema\.prisma"[\s\S]*git show "\$predecessor:prisma\/schema\.prisma" > prisma\/schema\.prisma/u,
+  );
+  assert.match(ci, /mv "\$holding\/schema\.prisma" prisma\/schema\.prisma/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_PREPARATIONS/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_ENABLE/u);
 });
