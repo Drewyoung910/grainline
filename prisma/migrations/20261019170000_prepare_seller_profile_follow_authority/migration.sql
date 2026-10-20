@@ -182,7 +182,7 @@ BEGIN
     p_follow_id,
     request_user_id,
     p_seller_profile_id,
-    pg_catalog.clock_timestamp()
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
   )
   ON CONFLICT ("followerId", "sellerProfileId") DO NOTHING;
   GET DIAGNOSTICS inserted_count = ROW_COUNT;

@@ -59,6 +59,12 @@ export async function proveSellerProfileOwnerBootstrapAuthority({ database, sell
     "SELECT pg_catalog.set_config('app.user_id', $1, false)",
     [ownerUserId],
   );
+  const initialTimeZone = rowsOf(await database.query(
+    "SELECT pg_catalog.current_setting('TimeZone') AS timezone",
+  ))[0].timezone;
+  await database.query(
+    "SELECT pg_catalog.set_config('TimeZone', 'America/Los_Angeles', false)",
+  );
   await database.query("SET ROLE grainline_app_runtime");
   try {
     const first = rowsOf(await database.query(
@@ -87,12 +93,28 @@ export async function proveSellerProfileOwnerBootstrapAuthority({ database, sell
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
+    await database.query(
+      "SELECT pg_catalog.set_config('TimeZone', $1, false)",
+      [initialTimeZone],
+    );
   }
 
-  assert.deepEqual(rowsOf(await database.query(
+  const created = rowsOf(await database.query(
     `SELECT seller.id,
             seller."displayName" AS "displayName",
             seller."displayNameNormalized" AS "displayNameNormalized",
+            ABS(EXTRACT(
+              epoch FROM (
+                seller."createdAt" -
+                (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+              )
+            ))::double precision AS "createdUtcDriftSeconds",
+            ABS(EXTRACT(
+              epoch FROM (
+                seller."updatedAt" -
+                (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+              )
+            ))::double precision AS "updatedUtcDriftSeconds",
             COUNT(seller_private.*)::integer AS "privateRows"
        FROM public."SellerProfile" AS seller
        LEFT JOIN public."SellerProfilePrivate" AS seller_private
@@ -100,12 +122,21 @@ export async function proveSellerProfileOwnerBootstrapAuthority({ database, sell
       WHERE seller."userId" = $1
       GROUP BY seller.id, seller."displayName", seller."displayNameNormalized"`,
     [ownerUserId],
-  )), [{
+  ));
+  assert.equal(created.length, 1);
+  assert.deepEqual({
+    id: created[0].id,
+    displayName: created[0].displayName,
+    displayNameNormalized: created[0].displayNameNormalized,
+    privateRows: created[0].privateRows,
+  }, {
     id: sellerProfileId,
     displayName: "Bootstrap Workshop",
     displayNameNormalized: "bootstrap workshop",
     privateRows: 1,
-  }]);
+  });
+  assert.equal(created[0].createdUtcDriftSeconds < 15, true);
+  assert.equal(created[0].updatedUtcDriftSeconds < 15, true);
 
   await database.query(`DELETE FROM public."User" WHERE id = $1`, [ownerUserId]);
 }

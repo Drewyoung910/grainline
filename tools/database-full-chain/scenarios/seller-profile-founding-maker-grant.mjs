@@ -40,6 +40,12 @@ export async function proveSellerProfileFoundingMakerGrant({ database, seller })
     [listingId, sellerProfileId, now],
   );
 
+  const initialTimeZone = rowsOf(await database.query(
+    "SELECT pg_catalog.current_setting('TimeZone') AS timezone",
+  ))[0].timezone;
+  await database.query(
+    "SELECT pg_catalog.set_config('TimeZone', 'America/Los_Angeles', false)",
+  );
   await database.query("SET ROLE grainline_app_runtime");
   try {
     assert.deepEqual(
@@ -58,12 +64,28 @@ export async function proveSellerProfileFoundingMakerGrant({ database, seller })
     );
   } finally {
     await database.query("RESET ROLE");
+    await database.query(
+      "SELECT pg_catalog.set_config('TimeZone', $1, false)",
+      [initialTimeZone],
+    );
   }
 
   const result = rowsOf(await database.query(
     `SELECT seller."isFoundingMaker",
             seller."foundingMakerNumber",
             grant_row."foundingMakerNumber" AS "ledgerNumber",
+            ABS(EXTRACT(
+              epoch FROM (
+                grant_row."grantedAt" -
+                (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+              )
+            ))::double precision AS "grantUtcDriftSeconds",
+            ABS(EXTRACT(
+              epoch FROM (
+                seller."updatedAt" -
+                (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+              )
+            ))::double precision AS "sellerUtcDriftSeconds",
             COUNT(*) OVER () AS "rowCount"
        FROM public."SellerProfile" AS seller
        JOIN public."FoundingMakerGrant" AS grant_row
@@ -75,6 +97,8 @@ export async function proveSellerProfileFoundingMakerGrant({ database, seller })
   assert.equal(result[0].isFoundingMaker, true);
   assert.equal(Number.isSafeInteger(result[0].foundingMakerNumber), true);
   assert.equal(result[0].ledgerNumber, result[0].foundingMakerNumber);
+  assert.equal(result[0].grantUtcDriftSeconds < 15, true);
+  assert.equal(result[0].sellerUtcDriftSeconds < 15, true);
   assert.equal(Number(result[0].rowCount), 1);
 
   await database.query("SET ROLE grainline_staff_read_runtime");

@@ -43,7 +43,9 @@ The same proof passed on the complete 398-migration candidate. It established:
 - direct staff SELECT denial;
 - unchanged policyless FORCE posture for `SellerProfilePrivate`; and
 - passing public, owner, map, staff, service, checkout, account-deletion and
-  retained-authority behavior scenarios after activation.
+  retained-authority behavior scenarios after activation; and
+- UTC-stable Follow, Founding Maker and owner-bootstrap writes while the proof
+  session is deliberately set to `America/Los_Angeles`.
 
 The retained callable catalog is complete at 98 authorities: 96 direct
 PostgreSQL behavior proofs and two composed behavior proofs, with zero
@@ -90,9 +92,10 @@ Production remains blocked until the release head is concrete and rechecked:
 
 1. Repeat the Claude/audit reconciliation immediately before dispatch. The
    2026-10-19 pass closed the Austin default-pin, weak input-boundary and broad
-   ship-from client-payload defects in source.
-2. Merge and deploy the compatible source while predecessor grants remain
-   unchanged.
+   ship-from client-payload defects plus the three session-timezone write
+   defects in source.
+2. Install the compatible preparation functions while the predecessor
+   application and grants remain live, then deploy the converted source.
 3. Require successful exact-head CI and proof workflows, verify that exact
    deployment on the canonical aliases, and obtain the separately authorized
    Production ENABLE dispatch.
@@ -109,9 +112,10 @@ surfaces and withdrawal behavior.
 
 ## Release order
 
-1. Merge and deploy the compatible source/functions with predecessor grants
-   unchanged.
-2. Confirm the exact source deployment and all required exact-head checks.
-3. Run the protected ENABLE migration and pooled-runtime postflight.
-4. Observe public/owner/staff/service flows and preserve sanitized evidence.
-5. Prepare FORCE only after ENABLE evidence is accepted.
+1. Merge the compatible preparation source while predecessor grants remain
+   unchanged and apply only the reviewed preparation migrations.
+2. Deploy the converted source after those fixed functions are present.
+3. Confirm the exact source deployment and all required exact-head checks.
+4. Run the protected ENABLE migration and pooled-runtime postflight.
+5. Observe public/owner/staff/service flows and preserve sanitized evidence.
+6. Prepare FORCE only after ENABLE evidence is accepted.

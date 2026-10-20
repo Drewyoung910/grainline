@@ -683,6 +683,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     "SELECT pg_catalog.set_config('app.user_id', $1, false)",
     [viewerUserId],
   );
+  const followInitialTimeZone = rowsOf(await database.query(
+    "SELECT pg_catalog.current_setting('TimeZone') AS timezone",
+  ))[0].timezone;
+  await database.query(
+    "SELECT pg_catalog.set_config('TimeZone', 'America/Los_Angeles', false)",
+  );
   await database.query("SET ROLE grainline_app_runtime");
   try {
     assert.deepEqual(
@@ -717,6 +723,19 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
         followerCount: 1,
       }],
     );
+    const followTimestamp = rowsOf(await database.query(
+      `SELECT ABS(EXTRACT(
+                epoch FROM (
+                  follower."createdAt" -
+                  (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+                )
+              ))::double precision AS "utcDriftSeconds"
+         FROM public."Follow" AS follower
+        WHERE follower.id = $1`,
+      [followId],
+    ));
+    assert.equal(followTimestamp.length, 1);
+    assert.equal(followTimestamp[0].utcDriftSeconds < 15, true);
     assert.deepEqual(
       rowsOf(await database.query(
         `SELECT "resultStatus", "ownerUserId", created, "followerCount"
@@ -774,6 +793,10 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");
+    await database.query(
+      "SELECT pg_catalog.set_config('TimeZone', $1, false)",
+      [followInitialTimeZone],
+    );
   }
 
   await database.query(

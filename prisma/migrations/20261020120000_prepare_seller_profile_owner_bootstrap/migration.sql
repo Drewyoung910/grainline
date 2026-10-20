@@ -31,6 +31,8 @@ DECLARE
     pg_catalog.current_setting('app.user_id', true),
     ''
   );
+  bootstrap_at timestamp without time zone :=
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC';
 BEGIN
   IF request_user_id IS NULL
      OR request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
@@ -60,13 +62,15 @@ BEGIN
     "userId",
     "displayName",
     "displayNameNormalized",
+    "createdAt",
     "updatedAt"
   ) VALUES (
     p_proposed_seller_profile_id,
     request_user_id,
     p_display_name,
     p_display_name_normalized,
-    CURRENT_TIMESTAMP
+    bootstrap_at,
+    bootstrap_at
   )
   ON CONFLICT DO NOTHING;
 

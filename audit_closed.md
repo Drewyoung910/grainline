@@ -19815,3 +19815,34 @@ verified stale/false-positive/current 579, deferred product/design/ops/legal
 86, approximate raw allegations left from current max #1126: 0. The tally is
 unchanged because these private-ledger labels overlap previously reconciled raw
 categories and are not canonical repository finding IDs.
+
+### Entry 575 - Public SellerProfile UTC authority boundary
+
+Entry 575 independently verifies private Claude finding C-754 against the
+current isolated public SellerProfile candidate. It was real. Three new fixed
+authorities wrote values into `timestamp without time zone` columns without an
+explicit UTC conversion: follow creation used bare `clock_timestamp()`, while
+Founding Maker allocation and owner bootstrap used `CURRENT_TIMESTAMP`.
+PostgreSQL therefore interpreted the stored wall clock through the caller's
+session timezone.
+
+The corrected candidate uses `clock_timestamp() AT TIME ZONE 'UTC'` for Follow
+creation, a single UTC `granted_at` for the Founding Maker ledger and public
+badge update, and one UTC `bootstrap_at` for both new SellerProfile timestamps.
+The proof is behavioral and uses the complete PostgreSQL 16 migration chain.
+It changes the session to `America/Los_Angeles`, then checks stored values
+against the database UTC wall clock. The new proof failed on the exact
+pre-correction candidate at the Follow assertion and passed after all three
+authorities were corrected across all 398 migrations and the policyless ENABLE
+scenario.
+
+This is prepared source only. No Production database, deployment, grant or RLS
+state changed. Release packaging must still install all reviewed preparation
+functions before the converted application deploys, then apply ENABLE through
+its separate protected workflow.
+
+Current running tally after Entry 575 remains verified fixed/reduced 1106,
+verified stale/false-positive/current 579, deferred product/design/ops/legal
+86, approximate raw allegations left from current max #1126: 0. The tally is
+unchanged because C-754 is a private-ledger label whose numeric suffix collides
+with older canonical repository findings.
