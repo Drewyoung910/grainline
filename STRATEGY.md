@@ -276,6 +276,13 @@ verification status. The candidate is now at 25 direct operations in 7 files,
 84 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 59 total
 consumer files. It still has 170 reconciled opaque shapes, and its 171-function
 catalog partitions into 98 retained, 33 internal and 40 converted authorities.
+The owner bootstrap pass then replaces the direct find-then-create sequence
+with one idempotent actor-bound database operation. Existing insert triggers
+still initialize the private companion and public owner snapshot. The candidate
+is now at 23 direct operations in 6 files, 84 relation accesses in 46 files, 15
+raw SQL accesses in 12 files and 58 total consumer files. It still has 170
+reconciled opaque shapes, and its 172-function catalog partitions into 98
+retained, 33 internal and 41 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

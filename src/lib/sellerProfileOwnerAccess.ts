@@ -3,6 +3,18 @@ import { withDbUserContext } from "@/lib/dbUserContext";
 
 type SellerProfileOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
+type SellerOwnerBootstrapRow = {
+  id: unknown;
+  userId: unknown;
+  displayName: unknown;
+  chargesEnabled: unknown;
+  vacationMode: unknown;
+  bannerImageUrl: unknown;
+  avatarImageUrl: unknown;
+  workshopImageUrl: unknown;
+  galleryImageUrls: unknown;
+};
+
 type SellerOwnerAccountSummaryRow = {
   sellerProfileId: unknown;
   avatarImageUrl: unknown;
@@ -413,6 +425,71 @@ async function readSellerOwnerCore(client: SellerProfileOwnerClient) {
 
 export function sellerOwnerCore(userId: string) {
   return withDbUserContext(userId, readSellerOwnerCore);
+}
+
+async function readSellerOwnerBootstrap(
+  client: SellerProfileOwnerClient,
+  input: {
+    userId: string;
+    proposedSellerProfileId: string;
+    displayName: string;
+    displayNameNormalized: string;
+  },
+) {
+  const rows = await client.$queryRaw<SellerOwnerBootstrapRow[]>`
+    SELECT *
+      FROM public.grainline_seller_owner_bootstrap(
+        ${input.proposedSellerProfileId}::text,
+        ${input.displayName}::text,
+        ${input.displayNameNormalized}::text
+      )
+  `;
+  if (rows.length !== 1) {
+    throw new Error("Seller owner bootstrap authority returned an invalid row count");
+  }
+  const row = rows[0];
+  if (
+    typeof row.id !== "string"
+    || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.id)
+    || row.userId !== input.userId
+    || typeof row.displayName !== "string"
+    || row.displayName.length < 1
+    || row.displayName.length > 100
+    || typeof row.chargesEnabled !== "boolean"
+    || typeof row.vacationMode !== "boolean"
+    || (row.bannerImageUrl !== null && typeof row.bannerImageUrl !== "string")
+    || (row.avatarImageUrl !== null && typeof row.avatarImageUrl !== "string")
+    || (row.workshopImageUrl !== null && typeof row.workshopImageUrl !== "string")
+    || !Array.isArray(row.galleryImageUrls)
+    || !row.galleryImageUrls.every((value) => typeof value === "string")
+  ) {
+    throw new Error("Seller owner bootstrap authority returned an invalid result");
+  }
+  return {
+    id: row.id,
+    userId: row.userId,
+    displayName: row.displayName,
+    chargesEnabled: row.chargesEnabled,
+    vacationMode: row.vacationMode,
+    bannerImageUrl: row.bannerImageUrl,
+    avatarImageUrl: row.avatarImageUrl,
+    workshopImageUrl: row.workshopImageUrl,
+    galleryImageUrls: [...row.galleryImageUrls],
+  };
+}
+
+export function sellerOwnerBootstrap(
+  userId: string,
+  input: {
+    proposedSellerProfileId: string;
+    displayName: string;
+    displayNameNormalized: string;
+  },
+) {
+  return withDbUserContext(userId, (client) => readSellerOwnerBootstrap(client, {
+    userId,
+    ...input,
+  }));
 }
 
 async function readSellerOwnerAccountSummary(client: SellerProfileOwnerClient) {

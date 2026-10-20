@@ -478,6 +478,13 @@ the API's broad read and the compatibility helper's direct read. The candidate
 is now at 25 direct operations in 7 files, 84 relation accesses in 46 files, 15
 raw SQL accesses in 12 files, 59 total consumer files and 170 reconciled opaque
 shapes. The 171-function catalog is 98 retained, 33 internal and 40 converted.
+Authenticated seller bootstrap now uses one idempotent database operation
+instead of a direct find followed by create. It binds the active owner through
+transaction-local context, preserves the existing insert-trigger initialization
+of public/private state and returns only the bootstrap fields. The candidate is
+now at 23 direct operations in 6 files, 84 relation accesses in 46 files, 15
+raw SQL accesses in 12 files, 58 total consumer files and 170 reconciled opaque
+shapes. The 172-function catalog is 98 retained, 33 internal and 41 converted.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

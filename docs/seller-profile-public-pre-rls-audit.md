@@ -80,7 +80,7 @@ schema-aware result is the canonical source baseline.
 
 ## Machine-checked consumer contracts
 
-The current 59-file candidate union is assigned in
+The current 58-file candidate union is assigned in
 `scripts/seller-profile-public-consumer-contracts.mjs` and verified with:
 
 ```sh
@@ -97,7 +97,7 @@ contract. The current assignment is:
 | `PUBLIC_PROFILE` | 23 | Public-safe presentation under the caller's existing visibility predicate |
 | `PUBLIC_ELIGIBILITY` | 28 | Boolean, count, or filter-only availability without returning a seller row |
 | `PUBLIC_MAP` | 3 | Privacy-selected point under the exact public-location authorities |
-| `OWNER` | 6 | Authenticated active owner and that owner's row |
+| `OWNER` | 5 | Authenticated active owner and that owner's row |
 | `PARTICIPANT` | 11 | Relationship-bound follow, save, report, review, or message behavior |
 | `STAFF` | 7 | Named role/PIN/target/audit-bound staff operations |
 | `SERVICE` | 7 | Named webhook, cron, deletion, notification, metrics, repair, or telemetry operation |
@@ -105,7 +105,7 @@ contract. The current assignment is:
 
 Contracts overlap by design. For example, a public listing page needs public
 presentation, availability, conditional map disclosure, and signed-in
-participant behavior. One owner-only file reads raw seller coordinates. All 11 direct base-table writes
+participant behavior. One owner-only file reads raw seller coordinates. All 10 direct base-table writes
 are classified as owner, staff, or service operations. This manifest closes
 the source-file principal assignment and opaque-shape reconciliation; it does
 not yet define the final SQL function/view surface.
@@ -329,6 +329,12 @@ transaction-local context and returns only that owner's id, Guild level and
 current verification status/review time for the exact seller target. All 40
 converted authorities grant execute only to the app runtime; the trigger
 function does not.
+`grainline_seller_owner_bootstrap(text,text,text)` then replaces the direct
+owner find-then-create sequence with one idempotent operation. It derives the
+active user from transaction-local context, preserves trigger initialization of
+the private companion/public snapshot, and returns only the prior bootstrap
+projection. All 41 converted authorities grant execute only to the app runtime;
+the trigger function does not.
 Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -336,7 +342,7 @@ Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 33 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details, including exact-map consent revocation |
-| Converted authority | 40 | The additive directory-map, resource-bound detail, public maker profile/shop projection, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary, owner core, owner dashboard state, owner Guild-application state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards, three public-follow authorities and versioned exact-map owner consent replace direct base-table access while predecessor grants remain available |
+| Converted authority | 41 | The additive directory-map, resource-bound detail, public maker profile/shop projection, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, owner account summary, owner core, owner dashboard state, owner bootstrap, owner Guild-application state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards, three public-follow authorities and versioned exact-map owner consent replace direct base-table access while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
