@@ -137,6 +137,25 @@ function functionName(signature) {
   return signature.slice(0, signature.indexOf('('));
 }
 
+export function preserveSellerProfileRetainedAuthorityEvidence(root, destination) {
+  const testFiles = [...new Set(
+    Object.values(SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE)
+      .flatMap(({ files }) => files)
+      .filter((file) => file.startsWith('tests/')),
+  )].sort();
+  fs.mkdirSync(destination, { recursive: true });
+  const copiedNames = new Set();
+  for (const file of testFiles) {
+    const source = path.join(root, file);
+    if (!fs.existsSync(source)) throw new Error(`retained evidence source is missing: ${file}`);
+    const name = path.basename(file);
+    if (copiedNames.has(name)) throw new Error(`retained evidence basename collides: ${name}`);
+    fs.copyFileSync(source, path.join(destination, name));
+    copiedNames.add(name);
+  }
+  return Object.freeze({ copiedFiles: Object.freeze(testFiles) });
+}
+
 export function verifySellerProfileRetainedAuthorityEvidence(root, catalog) {
   const installed = catalog.functions
     .filter((row) => (
@@ -191,8 +210,17 @@ export function verifySellerProfileRetainedAuthorityEvidence(root, catalog) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const catalogPath = process.env.SELLER_PROFILE_PUBLIC_CATALOG_REPORT;
-  if (!catalogPath) throw new Error('SELLER_PROFILE_PUBLIC_CATALOG_REPORT is required');
-  const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
-  process.stdout.write(`${JSON.stringify(verifySellerProfileRetainedAuthorityEvidence(root, catalog), null, 2)}\n`);
+  const preserveDirectory = process.env.SELLER_PROFILE_RETAINED_EVIDENCE_PRESERVE_DIR;
+  if (preserveDirectory) {
+    process.stdout.write(`${JSON.stringify(
+      preserveSellerProfileRetainedAuthorityEvidence(root, preserveDirectory),
+      null,
+      2,
+    )}\n`);
+  } else {
+    const catalogPath = process.env.SELLER_PROFILE_PUBLIC_CATALOG_REPORT;
+    if (!catalogPath) throw new Error('SELLER_PROFILE_PUBLIC_CATALOG_REPORT is required');
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+    process.stdout.write(`${JSON.stringify(verifySellerProfileRetainedAuthorityEvidence(root, catalog), null, 2)}\n`);
+  }
 }

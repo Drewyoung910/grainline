@@ -127,6 +127,10 @@ jobs:
             --test \
             --test-concurrency=1 \
             "${package_tests[@]}"
+      - name: Preserve retained SellerProfile authority evidence before isolation
+        env:
+          SELLER_PROFILE_RETAINED_EVIDENCE_PRESERVE_DIR: ${{ runner.temp }}/seller-profile-retained-authority-evidence
+        run: node scripts/seller-profile-public-retained-authority-evidence.mjs
       - name: Isolate public SellerProfile candidate from historical release guards
         shell: bash
         run: |
@@ -2901,7 +2905,7 @@ jobs:
       - name: Tests
         env:
           DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR: ${{ runner.temp }}/database-full-chain-source/migrations
-          SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR: ${{ runner.temp }}/order-release-correction-tests
+          SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR: ${{ runner.temp }}/seller-profile-retained-authority-evidence
           USER_CLERK_IDENTITY_MIGRATION_PATH: ${{ runner.temp }}/user-clerk-identity-authority/migration/migration.sql
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'

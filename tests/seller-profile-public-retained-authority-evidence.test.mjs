@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { SELLER_PROFILE_INTERNAL_SUPPORT_FUNCTIONS } from '../scripts/seller-profile-public-catalog-disposition.mjs';
 import {
   SELLER_PROFILE_RETAINED_AUTHORITY_EVIDENCE,
+  preserveSellerProfileRetainedAuthorityEvidence,
   verifySellerProfileRetainedAuthorityEvidence,
 } from '../scripts/seller-profile-public-retained-authority-evidence.mjs';
 
@@ -46,5 +49,18 @@ test('new or retired callable authorities reopen evidence review', () => {
   assert.throws(
     () => verifySellerProfileRetainedAuthorityEvidence(root, changed),
     /evidence drifted/u,
+  );
+});
+
+test('preserves every test-backed authority proof before CI isolates successors', (context) => {
+  const destination = fs.mkdtempSync(path.join(os.tmpdir(), 'seller-profile-retained-evidence-'));
+  context.after(() => fs.rmSync(destination, { recursive: true, force: true }));
+
+  const result = preserveSellerProfileRetainedAuthorityEvidence(root, destination);
+  assert.ok(result.copiedFiles.includes('tests/user-staff-ban-authorities.test.mjs'));
+  assert.ok(result.copiedFiles.includes('tests/order-label-authority-postgres.test.mjs'));
+  assert.equal(
+    fs.readFileSync(path.join(destination, 'user-staff-ban-authorities.test.mjs'), 'utf8'),
+    fs.readFileSync(path.join(root, 'tests/user-staff-ban-authorities.test.mjs'), 'utf8'),
   );
 });
