@@ -710,11 +710,10 @@ guard the final zero-direct state, but they do not count as behavior proof.
   owner, staff, service, participant and transaction operations never inherit
   a reusable whole-row result from this maximum allowlist.
 
-### `FIX_BEFORE_ACTIVATION`
+### Accepted Phase 1/2 contracts
 
-- Convert every proven direct, relation and raw SQL caller away from runtime
-  base-table authority.
-- Replace all 14 direct writes with fixed operations.
+- Caller conversion is complete: zero direct SellerProfile operations and zero
+  direct writes remain. All 14 predecessor writes use fixed operations.
 - Keep global and blog seller-name suggestions on the exact two-column
   `grainline_seller_public_name_suggestions` projection; do not restore direct
   profile reads or expose normalized search state.
@@ -740,28 +739,31 @@ guard the final zero-direct state, but they do not count as behavior proof.
   maker-card operation alone requires an active public listing.
 - Keep cached footer city links on the exact footer-metro authority; it returns
   no count even though the predecessor's all-listing count still controls rank.
-- Merge and release the isolated application correction that replaces
-  unconsented raw-coordinate output on public maps, seller/listing public
-  helpers, seller JSON-LD and browse-distance SQL with privacy-selected points.
-  Approximation is the default; exact output needs new, clear, versioned consent
-  and no old map opt-in is grandfathered. The three directory/home maps and
-  seller/listing detail routes now use three additive bounded authorities. The
-  application no longer derives a public point from raw seller coordinates;
-  the two remaining coordinate consumers are purpose-bound owner paths.
 - Keep exact-map consent coordinate-bound and append-only. A pin/privacy/account
   change must record a withdrawal and clear active consent, unchanged saves
   must not duplicate a grant, and supplied banned viewers must receive no map
   rows.
+- The complete 398-migration PostgreSQL 16 chain proves anonymous, owner,
+  staff, map, checkout/shipping, deletion/export, webhook/cron and aggregate
+  behavior after policyless ENABLE. All 98 retained authorities have behavior
+  evidence, and the zero-direct guard plus catalog proof closes runtime,
+  staff-runtime and `PUBLIC` table/column authority.
+
+### `FIX_BEFORE_ACTIVATION`
+
+- Merge and release the isolated application correction that replaces
+  unconsented raw-coordinate output on public maps, seller/listing public
+  helpers, seller JSON-LD and browse-distance SQL with privacy-selected points.
+  Approximation is the default; exact output needs new, clear, versioned consent
+  and no old map opt-in is grandfathered.
 - Remove public Nominatim from the exact workshop-address path, or otherwise
   enforce the reviewed non-confidential query boundary, before releasing the
   separate exact-public-pin option.
-- Add full-chain behavior proof for the checkout claim batch, listing delete
-  reference state, and Guild listing-threshold sync authorities.
-- Prove anonymous, owner, staff, map, checkout/shipping, deletion/export,
-  webhook/cron and aggregate behavior on the full migrated PostgreSQL 16
-  schema.
-- Add the final zero-direct guard and prove runtime/PUBLIC table and column
-  grants are closed before ENABLE.
+- Finalize and review the exact-map consent wording that ships with the UI and
+  database projection.
+- Reconcile all new SellerProfile-related audit allegations against the exact
+  release head, then add the exact-main protected ENABLE workflow, inspector
+  and sanitized postflight.
 
 ### `DEFERRED_PRODUCT_WORK`
 

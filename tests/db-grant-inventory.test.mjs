@@ -259,6 +259,11 @@ const {
   SELLER_PROFILE_POST_RETIREMENT_REPAIR_MIGRATION_SHA256,
   SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION,
   SELLER_PROFILE_PRIVATE_INVARIANTS_MIGRATION_SHA256,
+  SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION,
+  SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION_SHA256,
+  SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION,
+  SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256,
+  SELLER_PROFILE_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
@@ -286,6 +291,7 @@ const {
   collectAccountDeletionWorkerBoundaryIssues,
   collectClerkWebhookEventMigrationOrderIssues,
   collectSellerProfilePrivateMigrationOrderIssues,
+  collectSellerProfilePublicMigrationOrderIssues,
   clerkWebhookEventRlsActivationExpected,
   clerkWebhookEventRlsForceExpected,
   checkoutStockReservationRlsActivationExpected,
@@ -311,6 +317,8 @@ const {
   orderPaymentEventRlsActivationExpected,
   orderPaymentEventRlsForceExpected,
   sellerPayoutEventRlsActivationExpected,
+  sellerProfileRlsActivationExpected,
+  sellerProfileRlsForceExpected,
   stripeWebhookEventRlsActivationExpected,
   stripeWebhookEventRlsForceExpected,
   formatSavedSearchCatalogEvidence,
@@ -329,6 +337,8 @@ const {
   readSellerProfilePostRetirementRepairState,
   readSellerProfilePrivateInvariantsState,
   readSellerProfileReconciliationCompatState,
+  readSellerProfilePublicPreparationState,
+  readSellerProfilePublicEnableState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
   resolveStaffReadAuditStage,
@@ -714,6 +724,17 @@ describe("database grant inventory guardrails", () => {
       rlsForceTables: [],
       rlsPolicyTables: [],
     };
+    const sellerProfilePredecessorInventory = {
+      tables: [SELLER_PROFILE_TABLE],
+      rlsEnableTables: [SELLER_PROFILE_TABLE],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+      sellerProfileRlsActivationApplied: false,
+    };
+    const sellerProfileEnabledInventory = {
+      ...sellerProfilePredecessorInventory,
+      sellerProfileRlsActivationApplied: true,
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -754,6 +775,50 @@ describe("database grant inventory guardrails", () => {
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
     ]);
+    assert.equal(
+      sellerProfileRlsActivationExpected(sellerProfilePredecessorInventory),
+      false,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SELLER_PROFILE_TABLE,
+        sellerProfilePredecessorInventory,
+      ),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(
+        sellerProfilePredecessorInventory,
+      ).includes(SELLER_PROFILE_TABLE),
+      false,
+    );
+    assert.equal(
+      sellerProfileRlsActivationExpected(sellerProfileEnabledInventory),
+      true,
+    );
+    assert.equal(
+      sellerProfileRlsForceExpected(sellerProfileEnabledInventory),
+      false,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SELLER_PROFILE_TABLE,
+        sellerProfileEnabledInventory,
+      ),
+      [],
+    );
+    assert.equal(
+      policylessServiceRlsTableNames(
+        sellerProfileEnabledInventory,
+      ).includes(SELLER_PROFILE_TABLE),
+      true,
+    );
+    assert.deepEqual(collectPolicylessServiceRlsIssues([{
+      table_name: SELLER_PROFILE_TABLE,
+      rls_enabled: true,
+      rls_forced: false,
+      policy_count: 0,
+    }], sellerProfileEnabledInventory), []);
     assert.equal(
       directUploadRlsActivationExpected(directUploadActivationInventory),
       true,
@@ -3100,7 +3165,7 @@ describe("database grant inventory guardrails", () => {
         + ORDER_LABEL_PRIVATE_FUNCTIONS.length
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
-        + 60 // public SellerProfile candidate functions/table and corrected consent successors
+        + 61 // public SellerProfile candidate functions/table, RLS convergence and consent successors
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0)
         + (orderPaymentEventRlsActivationExpected(inventory) ? 1 : 0),
@@ -3444,6 +3509,7 @@ describe("database grant inventory guardrails", () => {
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
+        "SellerProfile",
         ...(sellerProfilePrivateEnableMigrationPresent
           ? ["SellerProfilePrivate"]
           : []),
@@ -4110,6 +4176,20 @@ describe("database grant inventory guardrails", () => {
       )),
       { applied: true, issues: [] },
     );
+    assert.deepEqual(
+      await readSellerProfilePublicPreparationState(exactClient(
+        SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION,
+        SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readSellerProfilePublicEnableState(exactClient(
+        SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION,
+        SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
 
     const sourceInventory = {
       functions: [
@@ -4214,6 +4294,25 @@ describe("database grant inventory guardrails", () => {
       forceApplied: true,
     }), [
       "SellerProfilePrivate RLS FORCE is applied without its exact ENABLE prerequisite",
+    ]);
+    assert.deepEqual(collectSellerProfilePublicMigrationOrderIssues({
+      preparationApplied: true,
+      privateForceApplied: true,
+      enableApplied: true,
+    }), []);
+    assert.deepEqual(collectSellerProfilePublicMigrationOrderIssues({
+      preparationApplied: false,
+      privateForceApplied: true,
+      enableApplied: true,
+    }), [
+      "SellerProfile public RLS ENABLE is applied without its exact final preparation prerequisite",
+    ]);
+    assert.deepEqual(collectSellerProfilePublicMigrationOrderIssues({
+      preparationApplied: true,
+      privateForceApplied: false,
+      enableApplied: true,
+    }), [
+      "SellerProfile public RLS ENABLE is applied without accepted SellerProfilePrivate FORCE",
     ]);
     assert.equal(
       policylessServiceRlsTableNames({
@@ -4841,7 +4940,12 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 24);
+    assert.equal(guardResultCount, 25);
+    assert.match(provision, /seller_profile_rls_active/);
+    assert.match(
+      provision,
+      /REVOKE ALL ON TABLE public\."SellerProfile"\s+FROM PUBLIC, :"runtime_role"/,
+    );
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,

@@ -581,3 +581,15 @@ proof gaps. All 98 retained callable authorities have database behavior
 evidence: 96 direct and two composed. No Production policy, grant, ENABLE,
 FORCE, migration, deployment, or provider operation is authorized by this
 decision.
+
+The isolated Phase 3 candidate now adds policyless ENABLE plus zero direct
+runtime/PUBLIC/staff table authority. Its failing-first proof exposes the four
+predecessor runtime CRUD grants on the 397-migration schema; the complete
+398-migration PostgreSQL 16 chain passes after activation, including all public,
+owner, staff, service, checkout, deletion and retained-authority scenarios.
+Runtime-role provisioning now preserves zero-direct posture on every replay,
+and the database-first rollback was proven to disable RLS without restoring
+broad grants. Production remains blocked on the exact-address/Nominatim and
+consent-wording items recorded in
+`docs/seller-profile-public-enable-release.md`. FORCE is still a separate
+post-acceptance stage.

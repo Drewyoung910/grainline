@@ -48,6 +48,7 @@ import { proveSellerProfileFoundingMakerGrant } from "../tools/database-full-cha
 import { proveSellerProfileMetricsIdentity } from "../tools/database-full-chain/scenarios/seller-profile-metrics-identity.mjs";
 import { proveSellerProfileServiceIdentities } from "../tools/database-full-chain/scenarios/seller-profile-service-identities.mjs";
 import { proveSellerProfileRetainedAuthorityGaps } from "../tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs";
+import { proveSellerProfilePolicylessEnable } from "../tools/database-full-chain/scenarios/seller-profile-enable.mjs";
 import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-followup-correction.mjs";
 import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-first-event-case-correction.mjs";
 
@@ -126,6 +127,7 @@ test(
       );
 
       await assertSellerProfilePrivateLayout(adapter);
+      await proveSellerProfilePolicylessEnable({ database: adapter });
       assert.ok(fixture, "seller fixture must be seeded before Case follow-up");
       assert.ok(
         historicalCaseRefundDamage,

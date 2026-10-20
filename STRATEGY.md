@@ -94,8 +94,11 @@ authorities to 93 direct database behavior proofs, two composed behavior proofs
 and three explicit source-only gaps. The real 397-migration PostgreSQL 16 chain
 now closes those gaps at 96 direct database behavior proofs and two composed
 behavior proofs. Caller conversion and retained behavior evidence are
-complete; the next phase is the additive revoke/ENABLE/FORCE release design
-and compatibility proof.
+complete. The isolated 398-migration PostgreSQL 16 candidate now proves
+policyless ENABLE, zero direct runtime/staff/PUBLIC authority, role-provisioning
+replay and database-first rollback compatibility. Production remains blocked
+on the exact-address/Nominatim boundary, final consent wording and exact-head
+audit reconciliation; FORCE remains a later posture-only release.
 
 The location review confirmed that predecessor public maps and seller JSON-LD
 could publish raw points even though Privacy 2.7 and Terms 4.19/4.20 promise

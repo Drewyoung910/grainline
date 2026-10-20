@@ -4,6 +4,15 @@ function rowsOf(result) {
   return Array.isArray(result) ? result : result?.rows ?? [];
 }
 
+async function inspectAsOwner(database, operation) {
+  await database.query("RESET ROLE");
+  try {
+    return await operation();
+  } finally {
+    await database.query("SET ROLE grainline_app_runtime");
+  }
+}
+
 async function rejectsAtSavepoint(database, name, operation, pattern) {
   await database.query(`SAVEPOINT ${name}`);
   try {
@@ -261,7 +270,7 @@ export async function proveSellerProfileOwnerProfileEditor({ database, seller })
         }),
       )), [{ sellerProfileId: seller.sellerProfileId, duplicateDisplayName: true }]);
 
-      assert.deepEqual(rowsOf(await database.query(
+      assert.deepEqual(rowsOf(await inspectAsOwner(database, () => database.query(
         `SELECT "displayName", "displayNameNormalized", tagline, bio,
                 "yearsInBusiness", "galleryImageUrls", "galleryAltTexts",
                 "acceptsCustomOrders", "acceptingNewOrders",
@@ -270,7 +279,7 @@ export async function proveSellerProfileOwnerProfileEditor({ database, seller })
            FROM public."SellerProfile"
           WHERE id = $1`,
         [seller.sellerProfileId],
-      )), [{
+      ))), [{
         displayName: "duplicate studio",
         displayNameNormalized: "DUPLICATE STUDIO",
         tagline: "Editor tagline",
@@ -295,12 +304,12 @@ export async function proveSellerProfileOwnerProfileEditor({ database, seller })
           galleryImagesTouched: false,
         }),
       )), [{ sellerProfileId: seller.sellerProfileId, duplicateDisplayName: false }]);
-      assert.deepEqual(rowsOf(await database.query(
+      assert.deepEqual(rowsOf(await inspectAsOwner(database, () => database.query(
         `SELECT "galleryImageUrls", "galleryAltTexts", "giftWrappingPriceCents"
            FROM public."SellerProfile"
           WHERE id = $1`,
         [seller.sellerProfileId],
-      )), [{
+      ))), [{
         galleryImageUrls: ["https://cdn.example.test/gallery-1.jpg"],
         galleryAltTexts: ["Gallery one"],
         giftWrappingPriceCents: 500,
