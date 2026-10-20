@@ -353,6 +353,12 @@ in 2 files and 2 direct writes, with 56 total consumer files; all owner-side
 direct access is gone. Its 186-function catalog partitions into 98 retained,
 33 internal and 55 converted authorities. The real 396-migration PostgreSQL 16
 chain proves the new operations and their grant boundary.
+The final staff orderability pass converts the two ban/unban reads and two
+writes to one actor-bound compare-and-set transition. The candidate now has
+zero direct operations and zero direct writes, with 54 total consumer files.
+Its 187-function catalog partitions into 98 retained, 33 internal and 56
+converted authorities. The real 397-migration PostgreSQL 16 chain proves the
+transition's stale-state, staff-identity and grant boundaries.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

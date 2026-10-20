@@ -137,6 +137,10 @@ const ownerOnboardingStateMigration = readFileSync(
   "prisma/migrations/20261020180000_prepare_seller_profile_owner_onboarding_state/migration.sql",
   "utf8",
 );
+const ownerResidualAuthorityMigration = readFileSync(
+  "prisma/migrations/20261020220000_prepare_seller_profile_owner_residual_authorities/migration.sql",
+  "utf8",
+);
 const ownerPrivateAccess = readFileSync(
   "src/lib/sellerOwnerPrivateAccess.ts",
   "utf8",
@@ -147,6 +151,10 @@ const staffPrivateAccess = readFileSync(
 );
 const remainingAppAuthorityMigration = readFileSync(
   sellerProfilePrivateMigrationPath("20261014230000_prepare_seller_profile_private_remaining_app_authorities"),
+  "utf8",
+);
+const staffOrderabilityTransitionMigration = readFileSync(
+  "prisma/migrations/20261020230000_prepare_seller_profile_staff_orderability_transition/migration.sql",
   "utf8",
 );
 const profileViewAccess = readFileSync(
@@ -944,7 +952,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.doesNotMatch(guildMetricsCron, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(accountExport, /prisma\.sellerProfile\./);
     assert.match(ownerPrivateAccess, /grainline_seller_owner_onboarding_state/);
-    assert.match(ownerPrivateAccess, /sellerOwnerExportSelect/);
+    assert.match(ownerPrivateAccess, /grainline_seller_owner_export_profile/);
+    assert.match(ownerPrivateAccess, /grainline_seller_owner_onboarding_step_one_update/);
+    assert.match(ownerPrivateAccess, /grainline_seller_owner_onboarding_step_two_update/);
+    assert.doesNotMatch(ownerPrivateAccess, /\.sellerProfile\./);
     assert.match(ownerPrivateAccess, /grainline_seller_owner_private_state/);
     assert.match(ownerPrivateAccess, /manualStripeReconciliationNeeded: boolean/);
     assert.match(ownerPrivateAccess, /guildMasterReviewNotes: string \| null/);
@@ -953,6 +964,9 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_complete\(/);
     assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_shop_settings_update\(/);
     assert.match(ownerOnboardingStateMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_state\(/);
+    assert.match(ownerResidualAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_export_profile\(/);
+    assert.match(ownerResidualAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_step_one_update\(/);
+    assert.match(ownerResidualAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_step_two_update\(/);
     assert.match(ownerAppAuthorityMigration, /JOIN public\."SellerProfilePrivate"/);
     assert.doesNotMatch(ownerAppAuthorityMigration, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*SellerProfilePrivate/i);
     assert.match(provisioning, /public\."grainline_seller_owner_private_state"\(text\)/);
@@ -1024,23 +1038,29 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.doesNotMatch(guildMemberCron, /(?:prisma|tx)\.makerVerification\./);
     assert.doesNotMatch(guildMetricsCron, /(?:prisma|tx)\.makerVerification\./);
     assert.doesNotMatch(guildPrivateAccess, /consecutiveMetricFailures:\s*\{/);
-    assert.match(ownerPrivateAccess, /where: \{ id: input\.sellerProfileId, userId: input\.userId \}/);
+    assert.match(ownerPrivateAccess, /grainline_seller_owner_guild_master_application_record/);
   });
 
   it("funnels staff ban and undo seller state through one compatibility boundary", () => {
     const ban = readFileSync("src/lib/ban.ts", "utf8");
     const audit = readFileSync("src/lib/audit.ts", "utf8");
     assert.match(ban, /sellerStaffOrderabilityState/);
-    assert.match(ban, /disableSellerForStaff/);
-    assert.match(audit, /setSellerStaffOrderability/);
+    assert.match(ban, /transitionSellerStaffOrderability/);
+    assert.match(audit, /transitionSellerStaffOrderability/);
     assert.match(staffPrivateAccess, /grainline_seller_staff_orderability_state/);
+    assert.match(staffPrivateAccess, /grainline_seller_staff_orderability_transition/);
+    assert.doesNotMatch(staffPrivateAccess, /sellerProfile\.(?:findUnique|updateMany)/);
     assert.doesNotMatch(staffPrivateAccess, /stripeAccountId: true/);
     assert.match(remainingAppAuthorityMigration, /SESSION_USER <> 'grainline_staff_read_runtime'/);
     assert.match(remainingAppAuthorityMigration, /grainline_seller_staff_orderability_state/);
     assert.match(remainingAppAuthorityMigration, /TO grainline_staff_read_runtime/);
+    assert.match(staffOrderabilityTransitionMigration, /current_setting\('app\.user_id', true\)/);
+    assert.match(staffOrderabilityTransitionMigration, /actor\.role::text IN \('ADMIN', 'EMPLOYEE'\)/);
+    assert.match(staffOrderabilityTransitionMigration, /USING ERRCODE = '40001'/);
+    assert.match(staffOrderabilityTransitionMigration, /TO grainline_app_runtime/);
     assert.doesNotMatch(
       `${ban}\n${audit}`,
-      /sellerProfile\.(?:findUnique|findFirst)[\s\S]{0,300}stripeAccountId:\s*true/,
+      /sellerProfile\.(?:findUnique|findFirst|update|updateMany)/,
     );
   });
 

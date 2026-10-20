@@ -2381,6 +2381,7 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_seller_transaction_blocked_pair_targets"(text,text)', true),
     ('public."grainline_user_block_follow_cleanup"(text)', true),
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
     ('public."grainline_seller_staff_report_targets"(text,text[])', false)
 )
 SELECT format(
@@ -2448,6 +2449,7 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_seller_transaction_blocked_pair_targets"(text,text)', true),
     ('public."grainline_user_block_follow_cleanup"(text)', true),
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
     ('public."grainline_seller_staff_report_targets"(text,text[])', false)
 )
 SELECT format(

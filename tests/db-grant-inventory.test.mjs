@@ -3100,7 +3100,7 @@ describe("database grant inventory guardrails", () => {
         + ORDER_LABEL_PRIVATE_FUNCTIONS.length
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
-        + 59 // public SellerProfile candidate functions/table and corrected consent successors
+        + 60 // public SellerProfile candidate functions/table and corrected consent successors
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0)
         + (orderPaymentEventRlsActivationExpected(inventory) ? 1 : 0),

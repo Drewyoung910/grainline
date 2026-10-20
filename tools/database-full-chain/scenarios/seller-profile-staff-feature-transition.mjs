@@ -41,6 +41,37 @@ export async function proveSellerProfileStaffFeatureTransition({ database, selle
     publicExecute: false,
   }]);
 
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT routine.prosecdef AS "securityDefiner",
+           routine.provolatile AS volatility,
+           routine.proconfig AS config,
+           pg_catalog.has_function_privilege(
+             'grainline_app_runtime', routine.oid, 'EXECUTE'
+           ) AS "runtimeExecute",
+           pg_catalog.has_function_privilege(
+             'grainline_staff_read_runtime', routine.oid, 'EXECUTE'
+           ) AS "staffExecute",
+           EXISTS (
+             SELECT 1
+               FROM pg_catalog.aclexplode(
+                 COALESCE(routine.proacl, pg_catalog.acldefault('f', routine.proowner))
+               ) AS acl
+              WHERE acl.grantee = 0
+                AND acl.privilege_type = 'EXECUTE'
+           ) AS "publicExecute"
+      FROM pg_catalog.pg_proc AS routine
+     WHERE routine.oid = pg_catalog.to_regprocedure(
+       'public.grainline_seller_staff_orderability_transition(text,text,boolean,boolean,boolean,boolean)'
+     )
+  `)), [{
+    securityDefiner: true,
+    volatility: "v",
+    config: ["search_path=pg_catalog"],
+    runtimeExecute: true,
+    staffExecute: false,
+    publicExecute: false,
+  }]);
+
   for (const [id, suffix, role] of [
     [adminUserId, "admin", "ADMIN"],
     [employeeUserId, "employee", "EMPLOYEE"],
@@ -82,6 +113,62 @@ export async function proveSellerProfileStaffFeatureTransition({ database, selle
       WHERE id = $1`,
     [seller.sellerProfileId, now],
   );
+
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    await database.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+      [adminUserId],
+    );
+    assert.deepEqual(rowsOf(await database.query(`
+      SELECT *
+        FROM public.grainline_seller_staff_orderability_transition(
+          $1, $2, true, false, false, true
+        )
+    `, [seller.userId, seller.sellerProfileId])), [{
+      sellerProfileId: seller.sellerProfileId,
+      previousChargesEnabled: true,
+      previousVacationMode: false,
+      changed: true,
+    }]);
+    await assert.rejects(
+      database.query(`
+        SELECT *
+          FROM public.grainline_seller_staff_orderability_transition(
+            $1, $2, true, false, false, true
+          )
+      `, [seller.userId, seller.sellerProfileId]),
+      (error) => error?.code === "40001",
+    );
+    assert.deepEqual(rowsOf(await database.query(`
+      SELECT *
+        FROM public.grainline_seller_staff_orderability_transition(
+          $1, $2, false, true, true, false
+        )
+    `, [seller.userId, seller.sellerProfileId])), [{
+      sellerProfileId: seller.sellerProfileId,
+      previousChargesEnabled: false,
+      previousVacationMode: true,
+      changed: true,
+    }]);
+
+    await database.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+      [seller.userId],
+    );
+    await assert.rejects(
+      database.query(`
+        SELECT *
+          FROM public.grainline_seller_staff_orderability_transition(
+            $1, $2, true, false, NULL, NULL
+          )
+      `, [seller.userId, seller.sellerProfileId]),
+      (error) => error?.code === "42501",
+    );
+  } finally {
+    await database.query("SELECT pg_catalog.set_config('app.user_id', '', false)");
+    await database.query("RESET ROLE");
+  }
 
   let featureAuditId;
   let unfeatureAuditId;

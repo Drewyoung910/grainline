@@ -13,6 +13,7 @@ import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
+import { withDbUserContext } from './dbUserContext'
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
@@ -25,7 +26,7 @@ import {
 } from './userStaffAccess'
 import {
   sellerStaffOrderabilityState,
-  setSellerStaffOrderability,
+  transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
@@ -275,33 +276,37 @@ export async function undoAdminAction({
   }
 
   let sellerRestore: { id: string; chargesEnabled: boolean; vacationMode: boolean } | null = null
-  if (log.action === 'BAN_USER') {
-    if (banMetadata?.previousSellerProfile) {
-      sellerRestore = banMetadata.previousSellerProfile
-    } else {
-      const seller = await sellerStaffOrderabilityState(getOrderStaffReadClient(), {
+  const sellerBeforeUndo = log.action === 'BAN_USER'
+    ? await sellerStaffOrderabilityState(getOrderStaffReadClient(), {
         actorId: adminId,
         targetUserId: log.targetId,
       })
-      if (seller?.stripeAccountId) {
-        let chargesEnabled = false
-        try {
-          const { stripe } = await import('./stripe')
-          const account = await stripe.accounts.retrieve(seller.stripeAccountId)
-          chargesEnabled = Boolean(
-            account.charges_enabled &&
-            account.details_submitted &&
-            !account.requirements?.disabled_reason
-          )
-        } catch (err) {
-          console.error('Failed to verify Stripe account during admin undo:', sanitizeEmailOutboxError(err))
-          Sentry.captureException(err, {
-            level: 'warning',
-            tags: { source: 'admin_undo_stripe_account_verify' },
-            extra: { logId, adminId, targetId: log.targetId, sellerProfileId: seller.id },
-          })
-        }
-        sellerRestore = { id: seller.id, chargesEnabled, vacationMode: !chargesEnabled }
+    : null
+  if (log.action === 'BAN_USER') {
+    if (banMetadata?.previousSellerProfile) {
+      sellerRestore = banMetadata.previousSellerProfile
+    } else if (sellerBeforeUndo?.stripeAccountId) {
+      let chargesEnabled = false
+      try {
+        const { stripe } = await import('./stripe')
+        const account = await stripe.accounts.retrieve(sellerBeforeUndo.stripeAccountId)
+        chargesEnabled = Boolean(
+          account.charges_enabled &&
+          account.details_submitted &&
+          !account.requirements?.disabled_reason
+        )
+      } catch (err) {
+        console.error('Failed to verify Stripe account during admin undo:', sanitizeEmailOutboxError(err))
+        Sentry.captureException(err, {
+          level: 'warning',
+          tags: { source: 'admin_undo_stripe_account_verify' },
+          extra: { logId, adminId, targetId: log.targetId, sellerProfileId: sellerBeforeUndo.id },
+        })
+      }
+      sellerRestore = {
+        id: sellerBeforeUndo.id,
+        chargesEnabled,
+        vacationMode: !chargesEnabled,
       }
     }
   }
@@ -330,7 +335,7 @@ export async function undoAdminAction({
       })
     : null
 
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(adminId, async (tx) => {
     // Atomic lock: only one undo can succeed, and the flag rolls back if the
     // undo operation fails.
     const locked = await tx.adminAuditLog.updateMany({
@@ -362,23 +367,37 @@ export async function undoAdminAction({
           }
           throw error
         }
-        if (sellerRestore) {
-          await setSellerStaffOrderability(tx, {
-            sellerProfileId: sellerRestore.id,
-            userId: log.targetId,
-            chargesEnabled: sellerRestore.chargesEnabled,
-            vacationMode: sellerRestore.vacationMode,
+        try {
+          await transitionSellerStaffOrderability(tx, {
+            targetUserId: log.targetId,
+            expected: sellerBeforeUndo
+              ? {
+                  id: sellerBeforeUndo.id,
+                  chargesEnabled: sellerBeforeUndo.chargesEnabled,
+                  vacationMode: sellerBeforeUndo.vacationMode,
+                }
+              : null,
+            next: sellerRestore
+              ? {
+                  chargesEnabled: sellerRestore.chargesEnabled,
+                  vacationMode: sellerRestore.vacationMode,
+                }
+              : null,
           })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : ''
+          if (message.includes('Seller staff orderability')) {
+            throw new Error('Seller profile changed before undo could be applied')
+          }
+          throw error
         }
         if (banMetadata?.previousCommissionRequests.length) {
-          await Promise.all(
-            banMetadata.previousCommissionRequests.map((request) =>
-              tx.commissionRequest.updateMany({
-                where: { id: request.id, buyerId: log.targetId, status: 'CLOSED' },
-                data: { status: request.status },
-              })
-            )
-          )
+          for (const request of banMetadata.previousCommissionRequests) {
+            await tx.commissionRequest.updateMany({
+              where: { id: request.id, buyerId: log.targetId, status: 'CLOSED' },
+              data: { status: request.status },
+            })
+          }
         }
         break
       }

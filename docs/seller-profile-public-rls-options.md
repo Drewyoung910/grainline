@@ -567,6 +567,14 @@ direct writes, with 56 total consumer files. The 186-function catalog is 98
 retained, 33 internal and 55 converted; two converted authorities are
 staff-only. The real 396-migration PostgreSQL 16 chain proves the three new
 operations and their runtime/PUBLIC grant boundary.
+The final staff orderability pass replaces both transactional ban/unban reads
+and both staff writes with one actor-bound compare-and-set transition. The
+candidate now has zero direct operations and zero direct writes, with 54 total
+consumer files. The 187-function catalog is 98 retained, 33 internal and 56
+converted; two converted authorities are staff-only. A failing-first proof on
+the real 396-migration predecessor failed because the transition was absent;
+the complete 397-migration PostgreSQL 16 chain proves stale-state rejection,
+staff authorization, prior-state return and the runtime/PUBLIC grant boundary.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
