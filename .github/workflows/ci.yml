@@ -104,6 +104,8 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/database-full-chain-source"
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
+      - name: Generate Prisma client for candidate behavior tests
+        run: npx prisma generate
       - name: Verify public SellerProfile candidate source package
         shell: bash
         run: |
@@ -155,7 +157,6 @@ jobs:
             mv "$test_file" "$holding/tests/$(basename "$test_file")"
           done < "$holding/test-files.txt"
           echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true" >> "$GITHUB_ENV"
-      - run: npx prisma generate
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON

@@ -141,6 +141,7 @@ test("workflow orders source checks before owner access and postflight after res
 
 test("main CI proves and isolates the public SellerProfile candidate around historical guards", () => {
   const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+  const generate = ci.indexOf("Generate Prisma client for candidate behavior tests");
   const verify = ci.indexOf("Verify public SellerProfile candidate source package");
   const isolate = ci.indexOf(
     "Isolate public SellerProfile candidate from historical release guards",
@@ -149,7 +150,13 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   const restore = ci.indexOf(
     "Restore public SellerProfile candidate after historical release guards",
   );
-  assert.ok(verify >= 0 && verify < isolate && isolate < historical && historical < restore);
+  assert.ok(
+    generate >= 0 &&
+      generate < verify &&
+      verify < isolate &&
+      isolate < historical &&
+      historical < restore,
+  );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_PREPARATIONS/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_ENABLE/u);
