@@ -4,10 +4,7 @@ import {
   withDbUserContext,
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
-import {
-  sellerProfileEditorSelect,
-  sellerSettingsOwnerSelect,
-} from "@/lib/sellerProfileSelects";
+import { sellerProfileEditorSelect } from "@/lib/sellerProfileSelects";
 
 type SellerOwnerPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile" | "$queryRaw">;
 
@@ -56,6 +53,11 @@ function nullableNumber(value: unknown): value is number | null {
 
 function nullableDateValue(value: unknown): value is string | Date | null {
   return value === null || typeof value === "string" || value instanceof Date;
+}
+
+function nullableDate(value: unknown): value is Date | null {
+  return value === null
+    || (value instanceof Date && !Number.isNaN(value.getTime()));
 }
 
 function isSellerOwnerPrivateState(value: unknown): value is SellerOwnerPrivateState {
@@ -274,23 +276,45 @@ const sellerOwnerExportSelect = {
   updatedAt: true,
 } satisfies Prisma.SellerProfileSelect;
 
-const sellerOwnerGuildDashboardSelect = {
-  id: true,
-  userId: true,
-  bio: true,
-  avatarImageUrl: true,
-  returnPolicy: true,
-  customOrderPolicy: true,
-  shippingPolicy: true,
-  guildLevel: true,
-  makerVerification: true,
-} satisfies Prisma.SellerProfileSelect;
-
 type SellerOwnerGuildApplicationStateRow = {
   userId: unknown;
   guildLevel: unknown;
   verificationStatus: unknown;
   verificationReviewedAt: unknown;
+};
+
+type SellerOwnerGuildDashboardStateRow = {
+  sellerProfileId: unknown;
+  userId: unknown;
+  bio: unknown;
+  avatarImageUrl: unknown;
+  returnPolicy: unknown;
+  customOrderPolicy: unknown;
+  shippingPolicy: unknown;
+  guildLevel: unknown;
+  verificationStatus: unknown;
+  verificationReviewedAt: unknown;
+  verificationReviewNotes: unknown;
+  verificationCraftDescription: unknown;
+  verificationYearsExperience: unknown;
+  verificationPortfolioUrl: unknown;
+};
+
+type SellerOwnerShopSettingsStateRow = {
+  sellerProfileId: unknown;
+  chargesEnabled: unknown;
+  vacationMode: unknown;
+  vacationReturnDate: unknown;
+  vacationMessage: unknown;
+  city: unknown;
+  state: unknown;
+  lat: unknown;
+  lng: unknown;
+  radiusMeters: unknown;
+  publicMapOptIn: unknown;
+  shippingFlatRateCents: unknown;
+  freeShippingOverCents: unknown;
+  allowLocalPickup: unknown;
 };
 
 const GUILD_LEVELS = ["NONE", "GUILD_MEMBER", "GUILD_MASTER"] as const;
@@ -496,15 +520,66 @@ export async function completeSellerOwnerOnboarding(
 export async function sellerOwnerGuildDashboardState(
   sellerProfileId: string,
   userId: string,
-  client: SellerOwnerPrivateClient = prisma,
 ) {
-  const profile = await client.sellerProfile.findFirst({
-    where: { id: sellerProfileId, userId },
-    select: sellerOwnerGuildDashboardSelect,
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<SellerOwnerGuildDashboardStateRow[]>`
+      SELECT *
+        FROM public.grainline_seller_owner_guild_dashboard_state(
+          ${sellerProfileId}::text
+        )
+    `;
+    if (rows.length === 0) return null;
+    if (rows.length !== 1) {
+      throw new Error("Seller owner Guild dashboard authority returned multiple results");
+    }
+    const row = rows[0];
+    const noVerification = row.verificationStatus === null
+      && row.verificationReviewedAt === null
+      && row.verificationReviewNotes === null
+      && row.verificationCraftDescription === null
+      && row.verificationYearsExperience === null
+      && row.verificationPortfolioUrl === null;
+    const validVerification = VERIFICATION_STATUSES.includes(
+      row.verificationStatus as typeof VERIFICATION_STATUSES[number],
+    )
+      && nullableDate(row.verificationReviewedAt)
+      && nullableString(row.verificationReviewNotes)
+      && typeof row.verificationCraftDescription === "string"
+      && Number.isSafeInteger(row.verificationYearsExperience)
+      && nullableString(row.verificationPortfolioUrl);
+    if (
+      row.sellerProfileId !== sellerProfileId
+      || row.userId !== userId
+      || !nullableString(row.bio)
+      || !nullableString(row.avatarImageUrl)
+      || !nullableString(row.returnPolicy)
+      || !nullableString(row.customOrderPolicy)
+      || !nullableString(row.shippingPolicy)
+      || !GUILD_LEVELS.includes(row.guildLevel as typeof GUILD_LEVELS[number])
+      || (!noVerification && !validVerification)
+    ) {
+      throw new Error("Seller owner Guild dashboard authority returned an invalid result");
+    }
+    const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
+    return privateState ? {
+      userId: row.userId as string,
+      bio: row.bio as string | null,
+      avatarImageUrl: row.avatarImageUrl as string | null,
+      returnPolicy: row.returnPolicy as string | null,
+      customOrderPolicy: row.customOrderPolicy as string | null,
+      shippingPolicy: row.shippingPolicy as string | null,
+      guildLevel: row.guildLevel as typeof GUILD_LEVELS[number],
+      makerVerification: noVerification ? null : {
+        status: row.verificationStatus as typeof VERIFICATION_STATUSES[number],
+        reviewedAt: row.verificationReviewedAt as Date | null,
+        reviewNotes: row.verificationReviewNotes as string | null,
+        craftDescription: row.verificationCraftDescription as string,
+        yearsExperience: row.verificationYearsExperience as number,
+        portfolioUrl: row.verificationPortfolioUrl as string | null,
+      },
+      ...privateState,
+    } : null;
   });
-  if (!profile) return null;
-  const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
-  return privateState ? { ...profile, ...privateState } : null;
 }
 
 export function sellerOwnerGuildApplicationState(
@@ -579,15 +654,55 @@ export async function recordSellerOwnerGuildMasterApplication(
 export async function sellerOwnerShopSettingsState(
   sellerProfileId: string,
   userId: string,
-  client: SellerOwnerPrivateClient = prisma,
 ) {
-  const profile = await client.sellerProfile.findFirst({
-    where: { id: sellerProfileId, userId },
-    select: sellerSettingsOwnerSelect,
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<SellerOwnerShopSettingsStateRow[]>`
+      SELECT *
+        FROM public.grainline_seller_owner_shop_settings_state(
+          ${sellerProfileId}::text
+        )
+    `;
+    if (rows.length === 0) return null;
+    if (rows.length !== 1) {
+      throw new Error("Seller owner Shop Settings authority returned multiple results");
+    }
+    const row = rows[0];
+    if (
+      row.sellerProfileId !== sellerProfileId
+      || typeof row.chargesEnabled !== "boolean"
+      || typeof row.vacationMode !== "boolean"
+      || !nullableDate(row.vacationReturnDate)
+      || !nullableString(row.vacationMessage)
+      || !nullableString(row.city)
+      || !nullableString(row.state)
+      || !nullableNumber(row.lat)
+      || !nullableNumber(row.lng)
+      || !nullableNumber(row.radiusMeters)
+      || typeof row.publicMapOptIn !== "boolean"
+      || !nullableNumber(row.shippingFlatRateCents)
+      || !nullableNumber(row.freeShippingOverCents)
+      || typeof row.allowLocalPickup !== "boolean"
+    ) {
+      throw new Error("Seller owner Shop Settings authority returned an invalid result");
+    }
+    const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
+    return privateState ? {
+      chargesEnabled: row.chargesEnabled,
+      vacationMode: row.vacationMode,
+      vacationReturnDate: row.vacationReturnDate as Date | null,
+      vacationMessage: row.vacationMessage as string | null,
+      city: row.city as string | null,
+      state: row.state as string | null,
+      lat: row.lat as number | null,
+      lng: row.lng as number | null,
+      radiusMeters: row.radiusMeters as number | null,
+      publicMapOptIn: row.publicMapOptIn,
+      shippingFlatRateCents: row.shippingFlatRateCents as number | null,
+      freeShippingOverCents: row.freeShippingOverCents as number | null,
+      allowLocalPickup: row.allowLocalPickup,
+      ...privateState,
+    } : null;
   });
-  if (!profile) return null;
-  const privateState = await sellerOwnerPrivateState(userId, sellerProfileId, client);
-  return privateState ? { ...profile, ...privateState } : null;
 }
 
 export async function updateSellerOwnerShopSettings(

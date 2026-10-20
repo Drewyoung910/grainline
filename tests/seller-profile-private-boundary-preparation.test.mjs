@@ -133,6 +133,10 @@ const ownerAppAuthorityMigration = readFileSync(
   sellerProfilePrivateMigrationPath("20261014150000_prepare_seller_profile_private_owner_app_authorities"),
   "utf8",
 );
+const ownerOnboardingStateMigration = readFileSync(
+  "prisma/migrations/20261020180000_prepare_seller_profile_owner_onboarding_state/migration.sql",
+  "utf8",
+);
 const ownerPrivateAccess = readFileSync(
   "src/lib/sellerOwnerPrivateAccess.ts",
   "utf8",
@@ -939,7 +943,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.doesNotMatch(guildMemberCron, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(guildMetricsCron, /(?:prisma|tx)\.sellerProfile\./);
     assert.doesNotMatch(accountExport, /prisma\.sellerProfile\./);
-    assert.match(ownerPrivateAccess, /sellerOwnerOnboardingSelect/);
+    assert.match(ownerPrivateAccess, /grainline_seller_owner_onboarding_state/);
     assert.match(ownerPrivateAccess, /sellerOwnerExportSelect/);
     assert.match(ownerPrivateAccess, /grainline_seller_owner_private_state/);
     assert.match(ownerPrivateAccess, /manualStripeReconciliationNeeded: boolean/);
@@ -948,6 +952,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_step_update\(/);
     assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_complete\(/);
     assert.match(ownerAppAuthorityMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_shop_settings_update\(/);
+    assert.match(ownerOnboardingStateMigration, /CREATE OR REPLACE FUNCTION public\.grainline_seller_owner_onboarding_state\(/);
     assert.match(ownerAppAuthorityMigration, /JOIN public\."SellerProfilePrivate"/);
     assert.doesNotMatch(ownerAppAuthorityMigration, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*SellerProfilePrivate/i);
     assert.match(provisioning, /public\."grainline_seller_owner_private_state"\(text\)/);

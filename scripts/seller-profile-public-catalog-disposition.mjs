@@ -72,6 +72,7 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_owner_core()",
   "grainline_seller_owner_dashboard_state()",
   "grainline_seller_owner_avatar_clear(text)",
+  "grainline_seller_owner_guild_dashboard_state(text)",
   "grainline_seller_owner_guild_application_state(text)",
   "grainline_seller_owner_featured_listing_toggle(text,text)",
   "grainline_seller_owner_listing_metro_source(text)",
@@ -79,6 +80,7 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_owner_listing_review()",
   "grainline_seller_owner_metro_assignment_update(text,text,text)",
   "grainline_seller_owner_onboarding_state(text)",
+  "grainline_seller_owner_shop_settings_state(text)",
   "grainline_seller_owner_vacation_update(text,boolean,bigint,text)",
   "grainline_user_block_follow_cleanup(text)",
 ]);
@@ -104,8 +106,8 @@ function sameStrings(actual, expected) {
 }
 
 export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
-  if (functions.length !== 179) {
-    throw new Error(`SellerProfile function inventory drifted: expected 179, got ${functions.length}`);
+  if (functions.length !== 181) {
+    throw new Error(`SellerProfile function inventory drifted: expected 181, got ${functions.length}`);
   }
   for (const row of functions) {
     if (!row.security_definer || !row.config?.includes("search_path=pg_catalog")) {
@@ -169,7 +171,7 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
   );
   if (retainedAuthorityFunctions.length !== 98
       || internalSupportFunctions.length !== 33
-      || convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length !== 48) {
+      || convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length !== 50) {
     throw new Error(
       `SellerProfile function dispositions drifted: retained=${retainedAuthorityFunctions.length}; `
       + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length}`,

@@ -326,6 +326,13 @@ stable latest-listing summary before combining with private onboarding state.
 The candidate is down to 12 direct operations in 3 files and 5 direct writes,
 with the other source counts unchanged. Its 179-function catalog partitions
 into 98 retained, 33 internal and 48 converted authorities.
+The owner dashboard-read pass then replaces the Guild verification and Shop
+Settings public SellerProfile reads with two actor-bound projections. The
+Guild operation owns its bounded MakerVerification join, and both callers add
+private state sequentially inside the same transaction-local context. The
+candidate is down to 10 direct operations in 3 files and 5 direct writes, with
+the other source counts unchanged. Its 181-function catalog partitions into
+98 retained, 33 internal and 50 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

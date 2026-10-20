@@ -531,6 +531,14 @@ onboarding state. The candidate is now at 12 direct operations in 3 files and
 5 direct writes; the other source counts are unchanged. The 179-function
 catalog is 98 retained, 33 internal and 48 converted; two converted authorities
 are staff-only.
+The Guild verification and Shop Settings dashboards now use two actor-bound
+public-state projections. Both bind the active owner and expected seller id;
+the Guild projection owns its bounded MakerVerification join, and both callers
+combine the result with private state sequentially inside the same context
+transaction. The candidate is now at 10 direct operations in 3 files and 5
+direct writes; the other source counts are unchanged. The 181-function catalog
+is 98 retained, 33 internal and 50 converted; two converted authorities are
+staff-only.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,
