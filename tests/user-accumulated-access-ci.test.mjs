@@ -115,6 +115,22 @@ function accountDeletionSuccessorTestPath(file) {
   return stagedPath;
 }
 
+function accumulatedUserTestPath(file) {
+  const livePath = path.join("tests", file);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "seller-profile-public-candidate",
+    "tests",
+    file,
+  );
+  assert.ok(
+    existsSync(stagedPath),
+    `missing isolated accumulated User test ${file}`,
+  );
+  return stagedPath;
+}
+
 function accountDeletionSuccessorMigrationPath(migration) {
   const livePath = path.join("prisma", "migrations", migration);
   if (existsSync(livePath)) return livePath;
@@ -331,7 +347,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
-    for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
+    for (const file of heldTests) {
+      cpSync(accumulatedUserTestPath(file), path.join(root, "tests", file));
+    }
     for (const file of accountDeletionSuccessorTests) {
       cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
     }
