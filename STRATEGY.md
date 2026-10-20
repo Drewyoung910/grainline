@@ -347,6 +347,12 @@ media-reference synchronization. The candidate is down to 7 direct operations
 in 3 files and 4 direct writes, with the other source counts unchanged. Its
 183-function catalog partitions into 98 retained, 33 internal and 52 converted
 authorities.
+The owner residual pass then converts account export and both onboarding writes
+to actor-bound fixed operations. The candidate is down to 4 direct operations
+in 2 files and 2 direct writes, with 56 total consumer files; all owner-side
+direct access is gone. Its 186-function catalog partitions into 98 retained,
+33 internal and 55 converted authorities. The real 396-migration PostgreSQL 16
+chain proves the new operations and their grant boundary.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

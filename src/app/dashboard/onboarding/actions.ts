@@ -19,6 +19,7 @@ import {
   updateSellerOwnerOnboardingStepOne,
   updateSellerOwnerOnboardingStepTwo,
 } from "@/lib/sellerOwnerPrivateAccess";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -83,7 +84,7 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
       }
     }
 
-    await prisma.$transaction(async (tx) => {
+    await withDbUserContext(seller.userId, async (tx) => {
       await updateSellerOwnerOnboardingStepOne(tx, {
         sellerProfileId: seller.id,
         userId: seller.userId,
@@ -125,7 +126,7 @@ export async function saveStep2(formData: FormData): Promise<ActionResult> {
     const shippingPolicy = cleanSellerProfileRichText(formData.get("shippingPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
     const acceptsCustomOrders = formData.get("acceptsCustomOrders") === "on";
 
-    await prisma.$transaction(async (tx) => {
+    await withDbUserContext(seller.userId, async (tx) => {
       await updateSellerOwnerOnboardingStepTwo(tx, {
         sellerProfileId: seller.id,
         userId: seller.userId,

@@ -559,6 +559,14 @@ coordinate binding; the corrected 395-migration chain passes. The separately
 alleged public-Nominatim exact-address disclosure also reproduces and remains a
 provider/privacy gate before the exact-pin option ships. None of these
 candidate changes is merged or live.
+The owner residual pass then replaces account export and the two onboarding
+writes with actor-bound fixed operations. The export returns only the reviewed
+portable fields; onboarding validates its public inputs and advances protected
+state atomically. The candidate is now at 4 direct operations in 2 files and 2
+direct writes, with 56 total consumer files. The 186-function catalog is 98
+retained, 33 internal and 55 converted; two converted authorities are
+staff-only. The real 396-migration PostgreSQL 16 chain proves the three new
+operations and their runtime/PUBLIC grant boundary.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

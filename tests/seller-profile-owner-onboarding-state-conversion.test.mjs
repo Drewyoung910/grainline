@@ -30,6 +30,6 @@ test("owner onboarding reads use one actor-bound database projection", () => {
   assert.match(access, /withDbUserContext\(userId, async \(client\)/u);
   assert.equal(
     [...provision.matchAll(/grainline_seller_owner_onboarding_state/g)].length,
-    2,
+    4,
   );
 });

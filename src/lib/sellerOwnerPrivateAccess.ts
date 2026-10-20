@@ -5,7 +5,7 @@ import {
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
 
-type SellerOwnerPrivateClient = Pick<Prisma.TransactionClient, "sellerProfile" | "$queryRaw">;
+type SellerOwnerPrivateClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 type SellerOwnerPrivateState = {
   stripeAccountId: string | null;
@@ -241,55 +241,65 @@ async function readSellerOwnerOnboardingState(
   });
 }
 
-const sellerOwnerExportSelect = {
-  id: true,
-  displayName: true,
-  bio: true,
-  city: true,
-  state: true,
-  lat: true,
-  lng: true,
-  radiusMeters: true,
-  publicMapOptIn: true,
-  chargesEnabled: true,
-  shippingFlatRateCents: true,
-  freeShippingOverCents: true,
-  allowLocalPickup: true,
-  tagline: true,
-  bannerImageUrl: true,
-  avatarImageUrl: true,
-  workshopImageUrl: true,
-  storyTitle: true,
-  storyBody: true,
-  instagramUrl: true,
-  facebookUrl: true,
-  pinterestUrl: true,
-  tiktokUrl: true,
-  websiteUrl: true,
-  yearsInBusiness: true,
-  acceptsCustomOrders: true,
-  acceptingNewOrders: true,
-  customOrderTurnaroundDays: true,
-  offersGiftWrapping: true,
-  giftWrappingPriceCents: true,
-  returnPolicy: true,
-  customOrderPolicy: true,
-  shippingPolicy: true,
-  featuredListingIds: true,
-  galleryImageUrls: true,
-  galleryAltTexts: true,
-  isVerifiedMaker: true,
-  verifiedAt: true,
-  guildLevel: true,
-  vacationMode: true,
-  vacationReturnDate: true,
-  vacationMessage: true,
-  isFoundingMaker: true,
-  foundingMakerNumber: true,
-  foundingMakerAt: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.SellerProfileSelect;
+const SELLER_OWNER_EXPORT_PROFILE_KEYS = [
+  "acceptingNewOrders",
+  "acceptsCustomOrders",
+  "allowLocalPickup",
+  "avatarImageUrl",
+  "bannerImageUrl",
+  "bio",
+  "chargesEnabled",
+  "city",
+  "createdAt",
+  "customOrderPolicy",
+  "customOrderTurnaroundDays",
+  "displayName",
+  "facebookUrl",
+  "featuredListingIds",
+  "foundingMakerAt",
+  "foundingMakerNumber",
+  "freeShippingOverCents",
+  "galleryAltTexts",
+  "galleryImageUrls",
+  "giftWrappingPriceCents",
+  "guildLevel",
+  "id",
+  "instagramUrl",
+  "isFoundingMaker",
+  "isVerifiedMaker",
+  "lat",
+  "lng",
+  "offersGiftWrapping",
+  "pinterestUrl",
+  "publicMapOptIn",
+  "radiusMeters",
+  "returnPolicy",
+  "shippingFlatRateCents",
+  "shippingPolicy",
+  "state",
+  "storyBody",
+  "storyTitle",
+  "tagline",
+  "tiktokUrl",
+  "updatedAt",
+  "vacationMessage",
+  "vacationMode",
+  "vacationReturnDate",
+  "verifiedAt",
+  "websiteUrl",
+  "workshopImageUrl",
+  "yearsInBusiness",
+] as const;
+
+function isSellerOwnerExportProfile(
+  value: unknown,
+): value is Record<string, unknown> & { id: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const profile = value as Record<string, unknown>;
+  return typeof profile.id === "string"
+    && Object.keys(profile).sort().join("\n")
+      === [...SELLER_OWNER_EXPORT_PROFILE_KEYS].sort().join("\n");
+}
 
 type SellerOwnerGuildApplicationStateRow = {
   userId: unknown;
@@ -502,24 +512,25 @@ async function completeSellerOwnerOnboardingState(
 
 export async function sellerOwnerExportProfile(
   userId: string,
-  client: SellerOwnerPrivateClient = prisma,
 ) {
-  const profile = await client.sellerProfile.findUnique({
-    where: { userId },
-    select: sellerOwnerExportSelect,
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<Array<{ id: string; profile: unknown }>>`
+      SELECT id, profile
+        FROM public.grainline_seller_owner_export_profile()
+    `;
+    const row = rows[0];
+    if (!row) return null;
+    if (
+      rows.length !== 1
+      || typeof row.id !== "string"
+      || !isSellerOwnerExportProfile(row.profile)
+      || row.profile.id !== row.id
+    ) {
+      throw new Error("Seller owner export authority returned an invalid result");
+    }
+    const privateState = await sellerOwnerPrivateState(userId, row.id, client);
+    return privateState ? { ...row.profile, ...privateState } : null;
   });
-  if (!profile) return null;
-  const privateState = await sellerOwnerPrivateState(userId, profile.id, client);
-  return privateState ? { ...profile, ...privateState } : null;
-}
-
-async function requireOneSellerOwnerMutation(
-  result: { count: number },
-  operation: string,
-) {
-  if (result.count !== 1) {
-    throw new Error(`Seller owner ${operation} target changed`);
-  }
 }
 
 export async function updateSellerOwnerOnboardingStepOne(
@@ -534,27 +545,17 @@ export async function updateSellerOwnerOnboardingStepOne(
     avatarImageUrl: string | null;
   },
 ) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: {
-      ...(input.displayName
-        ? {
-            displayName: input.displayName,
-            displayNameNormalized: input.displayNameNormalized,
-          }
-        : {}),
-      bio: input.bio,
-      tagline: input.tagline,
-      avatarImageUrl: input.avatarImageUrl,
-    },
-  });
-  await requireOneSellerOwnerMutation(result, "onboarding step one");
-  if (!await updateSellerOwnerOnboardingStep(client, {
-    sellerProfileId: input.sellerProfileId,
-    userId: input.userId,
-    expectedStep: null,
-    nextStep: 2,
-  })) {
+  const rows = await client.$queryRaw<Array<{ updated: boolean }>>`
+    SELECT public.grainline_seller_owner_onboarding_step_one_update(
+      ${input.sellerProfileId}::text,
+      ${input.displayName ?? null}::text,
+      ${input.displayNameNormalized ?? null}::text,
+      ${input.bio}::text,
+      ${input.tagline}::text,
+      ${input.avatarImageUrl}::text
+    ) AS updated
+  `;
+  if (rows.length !== 1 || rows[0]?.updated !== true) {
     throw new Error("Seller owner onboarding step one changed");
   }
 }
@@ -572,24 +573,18 @@ export async function updateSellerOwnerOnboardingStepTwo(
     acceptsCustomOrders: boolean;
   },
 ) {
-  const result = await client.sellerProfile.updateMany({
-    where: { id: input.sellerProfileId, userId: input.userId },
-    data: {
-      yearsInBusiness: input.yearsInBusiness,
-      city: input.city,
-      state: input.state,
-      returnPolicy: input.returnPolicy,
-      shippingPolicy: input.shippingPolicy,
-      acceptsCustomOrders: input.acceptsCustomOrders,
-    },
-  });
-  await requireOneSellerOwnerMutation(result, "onboarding step two");
-  if (!await updateSellerOwnerOnboardingStep(client, {
-    sellerProfileId: input.sellerProfileId,
-    userId: input.userId,
-    expectedStep: null,
-    nextStep: 3,
-  })) {
+  const rows = await client.$queryRaw<Array<{ updated: boolean }>>`
+    SELECT public.grainline_seller_owner_onboarding_step_two_update(
+      ${input.sellerProfileId}::text,
+      ${input.yearsInBusiness}::integer,
+      ${input.city}::text,
+      ${input.state}::text,
+      ${input.returnPolicy}::text,
+      ${input.shippingPolicy}::text,
+      ${input.acceptsCustomOrders}::boolean
+    ) AS updated
+  `;
+  if (rows.length !== 1 || rows[0]?.updated !== true) {
     throw new Error("Seller owner onboarding step two changed");
   }
 }

@@ -406,6 +406,14 @@ same context transaction. There are now 52 converted authorities: 50
 app-runtime and two staff-read operations. The source candidate is at 7 direct
 operations in 3 files and 4 direct writes; relation, raw SQL, consumer and
 opaque-shape counts are unchanged.
+The owner residual pass then replaces the account-export read and both
+onboarding writes with actor-bound fixed operations. The export operation
+returns only the reviewed account-export fields; the two onboarding operations
+validate their public inputs and advance the protected onboarding state in the
+same transaction. There are now 55 converted authorities: 53 app-runtime and
+two staff-read operations. The source candidate is at 4 direct operations in 2
+files and 2 direct writes, with 56 total consumer files; relation, raw SQL and
+opaque-shape counts are unchanged.
 Their disposition is machine-checked by
 `scripts/seller-profile-public-catalog-disposition.mjs`:
 
@@ -413,7 +421,7 @@ Their disposition is machine-checked by
 |---|---:|---|
 | Retained fixed authority | 98 | 91 shared-app-runtime and 7 staff-read operations remain callable under their existing purpose-bound contracts |
 | Internal support | 33 | Owner-only trigger, core, compatibility and composed-predecessor functions remain non-runtime implementation details, including exact-map consent revocation |
-| Converted authority | 52 | The additive directory-map, resource-bound detail, public maker profile/shop projection, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, bounded staff report-target labels, atomic staff feature transition, claim-bound account-deletion public-media projection, atomic owner featured-listing toggle, owner avatar clear, owner metro assignment, owner onboarding state, owner Guild dashboard, owner Shop Settings, owner profile-editor state/update, owner account summary, owner core, owner dashboard state, owner bootstrap, owner Guild-application state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, conversation participant cards, three public-follow authorities and versioned exact-map owner consent replace direct base-table access while predecessor grants remain available |
+| Converted authority | 55 | The additive directory-map, resource-bound detail, public maker profile/shop projection, browse-membership, seller-name suggestion, two seller-sitemap operations, marketplace/metro aggregates, listing-bound similar-maker cards, homepage featured-maker selection, public map-card, public blog-author projection, actor-bound account-feed cards, customer-photo seller header, Founding Maker grant service, seller metrics identity, signed welcome-name service, blocked-pair checkout targets, three metro-directory operations, cached footer metros, telemetry view target, actor-bound block follow cleanup, boolean seller-report target, bounded staff report-target labels, atomic staff feature transition, claim-bound account-deletion public-media projection, atomic owner featured-listing toggle, owner avatar clear, owner metro assignment, owner onboarding state, owner Guild dashboard, owner Shop Settings, owner profile-editor state/update, owner account summary, owner core, owner dashboard state, owner bootstrap, owner Guild-application state, owner blog editor, owner listing review, owner listing-metro source, owner listing-publish review, owner vacation update, owner account export, owner onboarding step-one/step-two writes, conversation participant cards, three public-follow authorities and versioned exact-map owner consent replace direct base-table access while predecessor grants remain available |
 | Retired predecessor | 0 | No installed function in this matching set can be dropped merely for the RLS conversion |
 
 The classifier rejects a count change, an unreviewed internal signature, any
@@ -433,7 +441,7 @@ Function-family counts are:
 | Message | 4 | 3 | 0 | 1 |
 | Notification | 2 | 1 | 0 | 1 |
 | Order | 38 | 30 | 1 | 7 |
-| Seller | 90 | 77 | 6 | 7 |
+| Seller | 93 | 80 | 6 | 7 |
 | Stripe | 4 | 4 | 0 | 0 |
 | User | 13 | 8 | 2 | 3 |
 
