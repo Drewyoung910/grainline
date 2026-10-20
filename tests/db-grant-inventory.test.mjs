@@ -202,6 +202,8 @@ const SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_exact_map_consent_event_immutable()",
   "grainline_seller_exact_map_consent_revoke()",
 ].map((identity) => identity.slice(0, identity.indexOf("(")));
+const SELLER_PROFILE_PUBLIC_CANDIDATE_FIRST_MIGRATION =
+  "prisma/migrations/20261019010000_prepare_seller_profile_public_map_authority/migration.sql";
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -2557,6 +2559,14 @@ describe("database grant inventory guardrails", () => {
   });
 
   it("derives exact migration and provisioned staff-read catalogs", () => {
+    const currentInventory = deriveGrantInventory();
+    const availableMigrationStaffReadIdentities =
+      MIGRATION_STAFF_READ_FUNCTION_IDENTITIES.filter((identity) =>
+        currentInventory.functions.includes(identity.slice(0, identity.indexOf("("))));
+    const availableStaffReadIdentities = STAFF_READ_FUNCTION_IDENTITIES.filter(
+      (identity) =>
+        currentInventory.functions.includes(identity.slice(0, identity.indexOf("("))),
+    );
     const migrationIdentity = MIGRATION_STAFF_READ_FUNCTION_IDENTITIES[0];
     const migrationName = migrationIdentity.slice(0, migrationIdentity.indexOf("("));
     const orderIdentity = STAFF_READ_FUNCTION_IDENTITIES[0];
@@ -2597,39 +2607,39 @@ describe("database grant inventory guardrails", () => {
       [...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES],
     );
     assert.deepEqual(
-      staffReadFunctionIdentitiesForInventory(deriveGrantInventory()),
-      [...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES],
+      staffReadFunctionIdentitiesForInventory(currentInventory),
+      availableMigrationStaffReadIdentities,
     );
     assert.deepEqual(
-      staffReadFunctionIdentitiesForInventory(deriveGrantInventory(), marker),
+      staffReadFunctionIdentitiesForInventory(currentInventory, marker),
       [...new Set([
-        ...STAFF_READ_FUNCTION_IDENTITIES,
-        ...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
+        ...availableStaffReadIdentities,
+        ...availableMigrationStaffReadIdentities,
       ])],
     );
     assert.deepEqual(
       staffReadFunctionIdentitiesForInventory(
-        deriveGrantInventory(),
+        currentInventory,
         null,
         ORDER_USER_COMBINED_STAFF_READ_STAGE,
       ),
       [...new Set([
-        ...STAFF_READ_FUNCTION_IDENTITIES,
-        ...MIGRATION_STAFF_READ_FUNCTION_IDENTITIES,
+        ...availableStaffReadIdentities,
+        ...availableMigrationStaffReadIdentities,
       ])],
     );
     assert.deepEqual(
       staffReadFunctionIdentitiesForInventory(
         {
-          ...deriveGrantInventory(),
-          functions: deriveGrantInventory().functions.filter(
+          ...currentInventory,
+          functions: currentInventory.functions.filter(
             (name) => name !== "grainline_user_staff_admin_labels",
           ),
         },
         null,
         ORDER_USER_COMBINED_STAFF_READ_STAGE,
       ),
-      STAFF_READ_FUNCTION_IDENTITIES.filter(
+      availableStaffReadIdentities.filter(
         (identity) => !identity.startsWith("grainline_user_staff_admin_labels("),
       ),
     );
@@ -2699,6 +2709,9 @@ describe("database grant inventory guardrails", () => {
 
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
+    const sellerProfilePublicCandidatePresent = existsSync(
+      SELLER_PROFILE_PUBLIC_CANDIDATE_FIRST_MIGRATION,
+    );
     const orderOpsHealthMigrationPath =
       "prisma/migrations/20260930033000_order_ops_health_summary/migration.sql";
     const orderOpsHealthMigrationPresent = existsSync(orderOpsHealthMigrationPath)
@@ -3087,7 +3100,9 @@ describe("database grant inventory guardrails", () => {
       ...(conversationMessageAuthorityPrepared
         ? CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name)
         : []),
-      ...SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES,
+      ...(sellerProfilePublicCandidatePresent
+        ? SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES
+        : []),
     ])].sort((left, right) => left.localeCompare(right)));
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);
     assert.deepEqual(inventory.sequenceSqlReferences, []);
@@ -3176,7 +3191,9 @@ describe("database grant inventory guardrails", () => {
         + ORDER_LABEL_PRIVATE_FUNCTIONS.length
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
-        + 61 // public SellerProfile candidate functions/table, RLS convergence and consent successors
+        + (sellerProfilePublicCandidatePresent
+          ? 61 // public SellerProfile candidate functions/table, RLS convergence and consent successors
+          : 0)
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0)
         + (orderPaymentEventRlsActivationExpected(inventory) ? 1 : 0),
@@ -3520,7 +3537,7 @@ describe("database grant inventory guardrails", () => {
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
-        "SellerProfile",
+        ...(sellerProfilePublicCandidatePresent ? ["SellerProfile"] : []),
         ...(sellerProfilePrivateEnableMigrationPresent
           ? ["SellerProfilePrivate"]
           : []),
