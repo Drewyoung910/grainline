@@ -598,7 +598,18 @@ jobs:
             tests/conversation-message-pre-rls-audit.test.mjs \
             tests/conversation-message-recipient-rls.test.mjs
           do
-            mv "$test_file" "$holding/$(basename "$test_file")"
+            source_path="$test_file"
+            if [[ ! -f "$source_path" ]]
+            then
+              source_path="$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
+              test -f "$source_path"
+            fi
+            if [[ "$source_path" = "$test_file" ]]
+            then
+              mv "$source_path" "$holding/$(basename "$test_file")"
+            else
+              cp "$source_path" "$holding/$(basename "$test_file")"
+            fi
           done
       - name: Isolate User public-identity first package until historical release guards pass
         shell: bash

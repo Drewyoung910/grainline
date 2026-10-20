@@ -379,6 +379,17 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       RUNNER_TEMP: holding,
       GITHUB_ENV: path.join(holding, "github-env"),
     };
+    const sellerPublicTestHolding = path.join(
+      holding,
+      "seller-profile-public-candidate",
+      "tests",
+    );
+    mkdirSync(sellerPublicTestHolding, { recursive: true });
+    cpSync(
+      path.join(root, "tests", "db-grant-inventory.test.mjs"),
+      path.join(sellerPublicTestHolding, "db-grant-inventory.test.mjs"),
+    );
+    rmSync(path.join(root, "tests", "db-grant-inventory.test.mjs"));
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
