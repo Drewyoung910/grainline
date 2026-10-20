@@ -278,6 +278,8 @@ export const ORDER_USER_COMBINED_STAFF_READ_STAGE =
 export const STAFF_READ_STAGE_FLAG_PREFIX = "--staff-read-stage=";
 export const SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV =
   "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED";
+export const SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED_ENV =
+  "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED";
 export const USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR_ENV =
   "USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR";
 export const USER_RELATIONSHIP_AUTHORITY_MIGRATION =
@@ -305,18 +307,25 @@ export function resolveTemporarilyAbsentCiTables(
   env = process.env,
   { allowLoopbackCi = false } = {},
 ) {
-  const value = env[SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV];
-  if (value === undefined || value === "") return Object.freeze([]);
-  if (
-    value !== "true"
-    || !allowLoopbackCi
-    || env.GITHUB_ACTIONS !== "true"
-  ) {
-    throw new Error(
-      `${SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV} is allowed only as exact true in loopback CI`,
-    );
+  const temporarilyAbsentTables = [];
+  for (const [variable, table] of [
+    [SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV, "SellerProfilePrivate"],
+    [SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED_ENV, "SellerExactMapConsentEvent"],
+  ]) {
+    const value = env[variable];
+    if (value === undefined || value === "") continue;
+    if (
+      value !== "true"
+      || !allowLoopbackCi
+      || env.GITHUB_ACTIONS !== "true"
+    ) {
+      throw new Error(
+        `${variable} is allowed only as exact true in loopback CI`,
+      );
+    }
+    temporarilyAbsentTables.push(table);
   }
-  return Object.freeze(["SellerProfilePrivate"]);
+  return Object.freeze(temporarilyAbsentTables);
 }
 
 export function resolveTemporarilyReappliedCiFunctions(
