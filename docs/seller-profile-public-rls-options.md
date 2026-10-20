@@ -592,6 +592,10 @@ and the database-first rollback was proven to disable RLS without restoring
 broad grants. The source candidate now also closes the exact-address/Nominatim
 boundary with authenticated, explicit-submit city/state-or-ZIP search and no
 external reverse-geocoding of the dragged pin; Terms and Privacy copy describe
-the versioned exact-pin consent. Exact-head audit reconciliation and the
-protected release workflow remain before Production. FORCE is still a separate
+the versioned exact-pin consent. The later exact-head reconciliation also keeps
+the Austin visual map center out of submitted state, strictly validates the
+Shop Settings location/shipping boundary and narrows the ship-from client
+payload. The protected ENABLE workflow and restart-safe inspector are prepared.
+The candidate still needs merge, compatible application deployment, exact-head
+CI and a separately authorized Production ENABLE run. FORCE remains a separate
 post-acceptance stage.

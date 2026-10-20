@@ -88,7 +88,9 @@ FORCE step.
 The database candidate and release machinery are locally compatible, but
 Production remains blocked until the release head is concrete and rechecked:
 
-1. Reconcile any new Claude/audit allegations against the exact candidate head.
+1. Repeat the Claude/audit reconciliation immediately before dispatch. The
+   2026-10-19 pass closed the Austin default-pin, weak input-boundary and broad
+   ship-from client-payload defects in source.
 2. Merge and deploy the compatible source while predecessor grants remain
    unchanged.
 3. Require successful exact-head CI and proof workflows, verify that exact

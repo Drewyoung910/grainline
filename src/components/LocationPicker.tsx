@@ -5,6 +5,9 @@ import * as maplibregl from "@/lib/maplibreClient";
 import SellerLocationSearch from "@/components/SellerLocationSearch";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
+import { sellerLocationPoint } from "@/lib/sellerShopSettingsInput";
+
+const DEFAULT_MAP_CENTER: [number, number] = [30.2672, -97.7431];
 
 export default function LocationPicker({
   defaultLat,
@@ -19,14 +22,24 @@ export default function LocationPicker({
   onMilesChange?: (miles: number) => void;
   onLocationChange?: (lat: number, lng: number) => void;
 }) {
-  const start: [number, number] = useMemo(
-    () => [defaultLat ?? 30.2672, defaultLng ?? -97.7431],
+  const savedPoint = useMemo(
+    () => sellerLocationPoint(defaultLat, defaultLng),
     [defaultLat, defaultLng]
   );
+  const start: [number, number] = useMemo(
+    () => savedPoint
+      ? [savedPoint.lat, savedPoint.lng]
+      : DEFAULT_MAP_CENTER,
+    [savedPoint],
+  );
 
-  const [pos, setPos] = useState<[number, number]>(start);
+  const [pos, setPos] = useState<[number, number] | null>(
+    savedPoint ? [savedPoint.lat, savedPoint.lng] : null,
+  );
   const [miles, setMiles] = useState<number>(
-    defaultRadiusMeters ? Math.round(defaultRadiusMeters / 1609.34) : 0
+    savedPoint && defaultRadiusMeters
+      ? Math.round(defaultRadiusMeters / 1609.34)
+      : 0
   );
   const [mapUnavailable, setMapUnavailable] = useState(false);
   const meters = miles > 0 ? Math.round(miles * 1609.34) : 0;
@@ -68,6 +81,7 @@ export default function LocationPicker({
     const marker = new maplibregl.Marker({ color: "#1C1C1A", draggable: true })
       .setLngLat([startLng, startLat])
       .addTo(map);
+    marker.getElement().style.display = savedPoint ? "" : "none";
 
     markerRef.current = marker;
 
@@ -91,7 +105,7 @@ export default function LocationPicker({
       mapRef.current = null;
       markerRef.current = null;
     };
-  }, [start]);
+  }, [savedPoint, start]);
 
   // Redraw radius circle when pos or meters changes
   useEffect(() => {
@@ -104,7 +118,7 @@ export default function LocationPicker({
       if (m.getLayer("radius-border")) m.removeLayer("radius-border");
       if (m.getSource("radius")) m.removeSource("radius");
 
-      if (meters > 0) {
+      if (meters > 0 && pos) {
         const [lat, lng] = pos;
         const numPoints = 64;
         const coords: [number, number][] = [];
@@ -147,7 +161,9 @@ export default function LocationPicker({
 
     // Hide marker when radius is set — circle replaces pin for privacy
     if (markerRef.current) {
-      markerRef.current.getElement().style.display = meters > 0 ? "none" : "";
+      markerRef.current.getElement().style.display = pos === null || meters > 0
+        ? "none"
+        : "";
     }
   }, [meters, pos]);
 
@@ -166,8 +182,8 @@ export default function LocationPicker({
         <MapFallback
           className="min-h-[260px] w-full rounded-xl border border-neutral-200"
           message="Map picker is unavailable because WebGL is disabled or unsupported. Search a city or ZIP to set the general area."
-          lat={pos[0]}
-          lng={pos[1]}
+          lat={pos?.[0] ?? null}
+          lng={pos?.[1] ?? null}
         />
       ) : (
         <div className="rounded-xl overflow-hidden border border-neutral-200">
@@ -191,7 +207,8 @@ export default function LocationPicker({
           <input
             readOnly
             className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-            value={pos[0].toFixed(6)}
+            value={pos?.[0].toFixed(6) ?? ""}
+            placeholder="Not set"
           />
         </div>
         <div>
@@ -199,7 +216,8 @@ export default function LocationPicker({
           <input
             readOnly
             className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-            value={pos[1].toFixed(6)}
+            value={pos?.[1].toFixed(6) ?? ""}
+            placeholder="Not set"
           />
         </div>
         <div>
@@ -210,15 +228,18 @@ export default function LocationPicker({
             max={5}
             step={1}
             value={miles}
+            disabled={pos === null}
             onChange={(e) => {
               const v = parseInt(e.target.value) || 0;
               setMiles(v);
               onMilesChange?.(v);
             }}
-            className="w-full"
+            className="w-full disabled:cursor-not-allowed disabled:opacity-40"
           />
           <div className="text-xs mt-1">
-            {miles === 0
+            {pos === null
+              ? "Set a location before choosing a privacy radius"
+              : miles === 0
               ? "Saved point (public display stays approximate unless you separately opt in below)"
               : `${miles} mi private area`}
           </div>
@@ -226,9 +247,9 @@ export default function LocationPicker({
       </div>
 
       {/* Hidden fields that submit with the form */}
-      <input type="hidden" name="lat" value={pos[0]} />
-      <input type="hidden" name="lng" value={pos[1]} />
-      <input type="hidden" name="radiusMeters" value={meters} />
+      <input type="hidden" name="lat" value={pos?.[0] ?? ""} />
+      <input type="hidden" name="lng" value={pos?.[1] ?? ""} />
+      <input type="hidden" name="radiusMeters" value={pos ? meters : ""} />
     </div>
   );
 }

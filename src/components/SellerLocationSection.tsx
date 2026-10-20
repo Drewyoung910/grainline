@@ -6,6 +6,10 @@ import {
   exactMapConsentBindingMatches,
   SELLER_EXACT_MAP_CONSENT_TEXT,
 } from "@/lib/sellerExactMapConsent";
+import {
+  sellerLocationPoint,
+  type SellerLocationPoint,
+} from "@/lib/sellerShopSettingsInput";
 
 type Props = {
   defaultLat?: number | null;
@@ -22,32 +26,32 @@ export default function SellerLocationSection({
   defaultPublicMapOptIn,
   defaultPublicMapExactConsent,
 }: Props) {
+  const initialPoint = sellerLocationPoint(defaultLat, defaultLng);
   const [miles, setMiles] = useState(
-    defaultRadiusMeters ? Math.round(defaultRadiusMeters / 1609.34) : 0
+    initialPoint && defaultRadiusMeters
+      ? Math.round(defaultRadiusMeters / 1609.34)
+      : 0
   );
   const hasRadius = miles > 0;
+  const initialMapOptIn = Boolean(
+    initialPoint && !hasRadius && (defaultPublicMapOptIn ?? false),
+  );
+  const initialExactConsent = Boolean(
+    initialMapOptIn && (defaultPublicMapExactConsent ?? false),
+  );
 
   // Fully controlled checkbox state — no mixed controlled/uncontrolled
-  const [mapOptIn, setMapOptIn] = useState(
-    !hasRadius && (defaultPublicMapOptIn ?? false)
-  );
-  const [exactConsent, setExactConsent] = useState(
-    !hasRadius
-    && (defaultPublicMapOptIn ?? false)
-    && (defaultPublicMapExactConsent ?? false)
-  );
-  const [pin, setPin] = useState({
-    lat: defaultLat ?? 30.2672,
-    lng: defaultLng ?? -97.7431,
-  });
+  const [mapOptIn, setMapOptIn] = useState(initialMapOptIn);
+  const [exactConsent, setExactConsent] = useState(initialExactConsent);
+  const [pin, setPin] = useState<SellerLocationPoint | null>(initialPoint);
   const [exactBinding, setExactBinding] = useState(() =>
-    exactMapConsentBinding(
-      !hasRadius
-        && (defaultPublicMapOptIn ?? false)
-        && (defaultPublicMapExactConsent ?? false),
-      defaultLat ?? 30.2672,
-      defaultLng ?? -97.7431,
-    ),
+    initialPoint
+      ? exactMapConsentBinding(
+        initialExactConsent,
+        initialPoint.lat,
+        initialPoint.lng,
+      )
+      : null,
   );
 
   // When radius is set, force-uncheck the makers map checkbox
@@ -109,17 +113,19 @@ export default function SellerLocationSection({
               setExactBinding(null);
             }
           }}
-          disabled={hasRadius}
+          disabled={hasRadius || pin === null}
           className="h-5 w-5 rounded border-neutral-300 accent-neutral-900 disabled:opacity-40 disabled:cursor-not-allowed"
         />
         <label
           htmlFor="publicMapOptIn"
-          className={`text-sm ${hasRadius ? "text-neutral-500 cursor-not-allowed" : ""}`}
+          className={`text-sm ${hasRadius || pin === null ? "text-neutral-500 cursor-not-allowed" : ""}`}
         >
           Show an approximate pin on the public makers map
-          {hasRadius && (
+          {hasRadius ? (
             <span className="ml-1 text-xs text-amber-600">(disabled — radius set)</span>
-          )}
+          ) : pin === null ? (
+            <span className="ml-1 text-xs text-amber-600">(set a location first)</span>
+          ) : null}
         </label>
       </div>
 
@@ -133,14 +139,16 @@ export default function SellerLocationSection({
             onChange={(event) => {
               const checked = event.target.checked;
               setExactConsent(checked);
-              setExactBinding(exactMapConsentBinding(checked, pin.lat, pin.lng));
+              setExactBinding(pin
+                ? exactMapConsentBinding(checked, pin.lat, pin.lng)
+                : null);
             }}
-            disabled={hasRadius || !mapOptIn}
+            disabled={hasRadius || !mapOptIn || pin === null}
             className="mt-0.5 h-5 w-5 rounded border-neutral-300 accent-neutral-900 disabled:cursor-not-allowed disabled:opacity-40"
           />
           <label
             htmlFor="publicMapExactConsent"
-            className={`text-sm ${hasRadius || !mapOptIn ? "cursor-not-allowed text-neutral-500" : "text-amber-950"}`}
+            className={`text-sm ${hasRadius || !mapOptIn || pin === null ? "cursor-not-allowed text-neutral-500" : "text-amber-950"}`}
           >
             Publish this exact pin publicly
             <span className="mt-1 block text-xs leading-5">

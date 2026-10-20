@@ -671,6 +671,9 @@ ledger later reused some numbers for unrelated findings.
 | Exact-map consent overwrites its only timestamp and retains no withdrawal history (Claude C-752) | **Confirmed on the isolated candidate.** The protected companion held only the current timestamp/version. It could not prove which point was reviewed or retain a prior grant after withdrawal/account deletion. | `FIX_BEFORE_ACTIVATION`. The corrected candidate adds a zero-direct append-only evidence table with consent-text and coordinate hashes, records grants and withdrawal reasons, and preserves unchanged-save idempotency. This remains unmerged and unshipped. |
 | Signed-in banned viewers can call the public map-points operation | **Confirmed on the isolated candidate.** Reciprocal blocks were applied, but the viewer lookup did not reject `User.banned = true`. Anonymous access was unaffected. | `FIX_BEFORE_ACTIVATION`. The corrected database projection returns no rows for a supplied banned viewer; full-chain behavior proof covers it. |
 | Exact workshop-address search is proxied to public Nominatim (Claude C-753) | **Confirmed on the predecessor and corrected in the isolated candidate.** The workshop map now uses a separate authenticated, explicit-submit search that accepts only city/state or ZIP. Street addresses, precise coordinates and free-form place text are rejected before the provider request, street-level results are discarded, and metro creation uses only an explicitly public locality rather than reverse-geocoding caller coordinates. | `CLOSED_IN_CANDIDATE`. Failing-first boundary proof reproduced the predecessor `AddressAutocomplete` and raw-coordinate reverse request; behavior tests cover accepted/rejected query shapes and result filtering. Generic shipping-address autocomplete remains a separate launch/provider decision, not a SellerProfile RLS predicate. |
+| A maker with no saved location acquires Austin coordinates when saving unrelated Shop Settings (private Claude legacy #190) | **Confirmed on the exact candidate.** `LocationPicker` used Austin as both its visual map center and submitted state, so all saves posted that point and triggered metro assignment even when the maker never chose a location. | `FIX_BEFORE_ACTIVATION`, closed in the isolated candidate. The visual center is now separate from nullable saved state; the marker, radius and public-map choices remain disabled until an explicit search/click selection. The server parser also rejects incomplete or out-of-range coordinate pairs. |
+| Shop Settings accepts malformed coordinates, country and carrier values, then surfaces raw database denial as a generic failure (private Claude legacy #188 / C-636) | **Confirmed with narrower impact on the exact candidate.** The fixed database operation already rejected invalid coordinate ranges, two-letter country drift and oversized carrier arrays, but the server action used permissive `parseFloat`, truncated long country input into a different value and did not translate expected SQLSTATE denials. | `FIX_BEFORE_ACTIVATION`, closed in the isolated candidate. A failing-first behavior parser now mirrors the database ranges, exact-consent binding and carrier bounds. Expected `22023`, `23514`, `40001` and `42501` outcomes return bounded form errors; unexpected database failures still throw. Shop Settings preserves submitted edits on an error. |
+| Shop Settings passes the full combined owner/private state object into a client ship-from component (private Claude C-637) | **Confirmed on the exact candidate.** React serialization could include Stripe and staff/reconciliation state even though the client component reads only ship-from fields. This was authenticated owner data rather than a cross-account disclosure, but it unnecessarily expanded the browser payload. | `FIX_BEFORE_ACTIVATION`, closed in the isolated candidate. The server component now constructs an explicit eight-field ship-from object before crossing the client boundary; the guard rejects restoration of the broad object. |
 
 These classifications preserve the verified product bugs without allowing
 unrelated Listing or CommissionRequest work to stall the seller authority
@@ -751,14 +754,18 @@ guard the final zero-direct state, but they do not count as behavior proof.
 
 ### `FIX_BEFORE_ACTIVATION`
 
-- Merge and release the isolated application correction that replaces
-  unconsented raw-coordinate output on public maps, seller/listing public
-  helpers, seller JSON-LD and browse-distance SQL with privacy-selected points.
-  Approximation is the default; exact output needs new, clear, versioned consent
-  and no old map opt-in is grandfathered.
-- Reconcile all new SellerProfile-related audit allegations against the exact
-  release head, then add the exact-main protected ENABLE workflow, inspector
-  and sanitized postflight.
+- The isolated source now replaces unconsented raw-coordinate output on public
+  maps, seller/listing helpers, seller JSON-LD and browse-distance SQL with
+  privacy-selected points. Approximation is the default; exact output needs
+  new, clear, versioned consent and no old map opt-in is grandfathered.
+- The Shop Settings reconciliation now separates the visual Austin map center
+  from nullable saved coordinates, validates the complete location/shipping
+  boundary, preserves form edits on expected denials and narrows client
+  serialization to the eight ship-from fields.
+- The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending
+  migration check, global grant audit and sanitized postflight are prepared.
+  These source corrections still need scoped commit review and exact-head CI;
+  Production remains unchanged and ENABLE needs its separately authorized run.
 
 ### `DEFERRED_PRODUCT_WORK`
 

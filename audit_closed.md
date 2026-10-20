@@ -19771,3 +19771,47 @@ stale/false-positive/current 579, deferred product/design/ops/legal 86,
 approximate raw allegations left from current max #1126: 0. The raw Claude
 finding remains preserved in its private source ledger under the distinct
 `C-875` namespace.
+
+### Entry 576 - Public SellerProfile Shop Settings activation boundary
+
+Entry 576 records the exact-head reconciliation of four private Claude audit
+allegations whose historical numbers overlap the repository's older ledgers.
+The private source file remains unchanged; this entry uses the descriptions as
+the durable identity rather than treating those numbers as globally unique.
+
+Three current defects were independently reproduced on the isolated public
+SellerProfile candidate:
+
+- `LocationPicker` used Austin as both a harmless visual map center and its
+  submitted state. A maker with no saved point therefore acquired Austin
+  coordinates and metro assignment when saving unrelated Shop Settings.
+- The server action used permissive coordinate parsing, truncated long country
+  input into a different two-letter value, accepted unbounded carrier payloads
+  until the database call, and did not translate the fixed operation's expected
+  validation/authority denials into form errors.
+- The server component passed its complete combined public/private settings
+  state into the client ship-from component even though that component consumes
+  only eight address/contact fields. The extra owner-only state was not a
+  cross-account leak, but it unnecessarily entered the browser payload.
+
+The candidate now keeps its visual center separate from nullable saved state,
+requires an explicit location selection before radius or public-map choices,
+strictly validates the coordinate/radius/exact-consent and country/carrier
+contracts, preserves unsaved form values on expected errors, translates only
+reviewed PostgreSQL denial states, and constructs an eight-field ship-from
+client payload. Unknown database failures still throw.
+
+Failing-first evidence recorded three failures before implementation: the new
+behavior module did not exist, broad client serialization remained, and Austin
+was still submitted. The final focused run passes 21 behavior and boundary
+checks, including the existing provider/privacy, exact-consent, public-profile
+conversion and retained-authority suites. `tsc --noEmit`, scoped
+lint and `git diff --check` pass. The SQL and sealed ENABLE migration bytes are
+unchanged. This is prepared source only; merge, exact-head CI, Production
+deployment and SellerProfile ENABLE have not occurred.
+
+Current running tally after Entry 576 remains verified fixed/reduced 1108,
+verified stale/false-positive/current 579, deferred product/design/ops/legal
+86, approximate raw allegations left from current max #1126: 0. The tally is
+unchanged because these private-ledger labels overlap previously reconciled raw
+categories and are not canonical repository finding IDs.
