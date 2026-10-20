@@ -3600,6 +3600,7 @@ SELECT pg_catalog.format(
 WITH account_deletion_claimed_runtime(function_signature) AS (
   VALUES
     ('public."grainline_account_deletion_media_key_enqueue_claimed"(text, bigint, uuid, text[])'),
+    ('public."grainline_seller_account_deletion_public_media_urls"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_preflight"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_snapshot"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_finalize"(text, bigint, uuid)'),
@@ -3620,6 +3621,7 @@ SELECT pg_catalog.format(
 WITH account_deletion_claimed_runtime(function_signature) AS (
   VALUES
     ('public."grainline_account_deletion_media_key_enqueue_claimed"(text, bigint, uuid, text[])'),
+    ('public."grainline_seller_account_deletion_public_media_urls"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_preflight"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_snapshot"(text, bigint, uuid)'),
     ('public."grainline_user_account_deletion_finalize"(text, bigint, uuid)'),

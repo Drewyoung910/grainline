@@ -72,6 +72,7 @@ import {
   anonymizeSellerForAccountDeletion,
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
+import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
@@ -114,7 +115,7 @@ type AuditLogRedactionCandidate = {
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
 type AccountDeletionMediaDb = Pick<
   Prisma.TransactionClient,
-  "sellerProfile" | "reviewPhoto" | "commissionRequest" | "blogPost" | "$queryRaw"
+  "reviewPhoto" | "commissionRequest" | "blogPost" | "$queryRaw"
 >;
 
 function chunks<T>(items: T[], size = ACCOUNT_DELETION_REDACTION_BATCH_SIZE) {
@@ -638,22 +639,17 @@ async function collectAccountDeletionMediaKeys(
   db: AccountDeletionMediaDb,
   userId: string,
   clerkUserId: string,
+  claim: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ): Promise<string[]> {
   const urls = new Set<string>();
-  const sellerProfile = await db.sellerProfile.findUnique({
-    where: { userId },
-    select: {
-      avatarImageUrl: true,
-      bannerImageUrl: true,
-      workshopImageUrl: true,
-      galleryImageUrls: true,
-      listings: {
-        select: {
-          videoUrl: true,
-          photos: { select: { url: true, originalUrl: true } },
-        },
-      },
-    },
+  const sellerMediaUrls = await sellerAccountDeletionPublicMediaUrls(db, {
+    sideEffectId: claim.sideEffectId,
+    claimGeneration: claim.claimGeneration,
+    claimToken: claim.claimToken,
   });
   const reviewPhotos = await db.reviewPhoto.findMany({
     where: { review: { reviewerId: userId } },
@@ -673,23 +669,7 @@ async function collectAccountDeletionMediaKeys(
     userId,
   });
 
-  if (sellerProfile) {
-    [
-      sellerProfile.avatarImageUrl,
-      sellerProfile.bannerImageUrl,
-      sellerProfile.workshopImageUrl,
-      ...sellerProfile.galleryImageUrls,
-    ].forEach((url) => {
-      if (url) urls.add(url);
-    });
-    sellerProfile.listings.forEach((listing) => {
-      if (listing.videoUrl) urls.add(listing.videoUrl);
-      listing.photos.forEach((photo) => {
-        urls.add(photo.url);
-        if (photo.originalUrl) urls.add(photo.originalUrl);
-      });
-    });
-  }
+  sellerMediaUrls.forEach((url) => urls.add(url));
 
   reviewPhotos.forEach((photo) => urls.add(photo.url));
   commissionRequests.forEach((request) => request.referenceImageUrls.forEach((url) => urls.add(url)));
@@ -1211,7 +1191,11 @@ export async function anonymizeUserAccount(
     ]).filter(
       (value) => Array.from(value).length >= ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH,
     );
-    const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId);
+    const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId, {
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
+    });
     await enqueueAccountDeletionMediaDeleteSideEffects(
       tx,
       {

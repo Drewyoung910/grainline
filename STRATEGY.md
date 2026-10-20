@@ -297,6 +297,14 @@ atomic. The candidate is down to 19 direct operations in 4 files, 84 relation
 accesses in 46 files, 15 raw SQL accesses in 12 files and 57 total consumer
 files. It has 169 reconciled opaque shapes, and its 174-function catalog
 partitions into 98 retained, 33 internal and 43 converted authorities.
+The account-deletion media pass then replaces its broad SellerProfile plus
+nested Listing/Photo read with one generation-bound operation. The database
+derives the seller from the active `LOCAL_ANONYMIZE` claim and returns only
+public media URLs; there is no caller-selected user or seller id. The candidate
+is down to 18 direct operations in 3 files, 84 relation accesses in 46 files,
+15 raw SQL accesses in 12 files and 57 total consumer files. It retains 169
+reconciled opaque shapes, and its 175-function catalog partitions into 98
+retained, 33 internal and 44 converted authorities.
 Phase 1 continues with additive projection/operation design, the three
 behavior-proof gaps and caller conversion while predecessor grants remain
 intact until compatibility proof is accepted. Production migration, grant,

@@ -501,6 +501,14 @@ witness atomically. The candidate is now at 19 direct operations in 4 files,
 consumer files and 169 reconciled opaque shapes. The 174-function catalog is
 98 retained, 33 internal and 43 converted; two converted authorities are
 staff-only.
+Account deletion's seller-media discovery now uses one claim-bound authority
+instead of a broad SellerProfile read with nested Listing/Photo reads. The
+function derives the seller from the exact active `LOCAL_ANONYMIZE` generation
+and token, refreshes the claim lease and returns only public media URLs. The
+candidate is now at 18 direct operations in 3 files, 84 relation accesses in
+46 files, 15 raw SQL accesses in 12 files, 57 total consumer files and 169
+reconciled opaque shapes. The 175-function catalog is 98 retained, 33 internal
+and 44 converted; two converted authorities are staff-only.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

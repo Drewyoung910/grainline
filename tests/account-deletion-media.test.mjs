@@ -89,20 +89,21 @@ describe("account deletion media cleanup scoping", () => {
     );
   });
 
-  it("collects listing photo originals for deleted-account media cleanup", () => {
+  it("collects seller media through the generation-bound deletion authority", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const access = source("src/lib/sellerAccountDeletionMediaAccess.ts");
     const collectStart = deletion.indexOf("async function collectAccountDeletionMediaKeys");
     const collectEnd = deletion.indexOf("function revalidateDeletedAccountSearchCaches", collectStart);
     const collect = deletion.slice(collectStart, collectEnd);
 
-    assert.match(collect, /photos: \{ select: \{ url: true, originalUrl: true \} \}/);
-    assert.match(collect, /urls\.add\(photo\.url\)/);
-    assert.match(collect, /if \(photo\.originalUrl\) urls\.add\(photo\.originalUrl\)/);
-    assert.ok(
-      collect.indexOf("photos: { select: { url: true, originalUrl: true } }") <
-        collect.indexOf("accountDeletionMediaKeysForCleanup(urls, clerkUserId)"),
-      "listing photo originals must be ownership-filtered before deletion",
-    );
+    assert.match(collect, /sellerAccountDeletionPublicMediaUrls\(db, \{/u);
+    assert.match(collect, /sideEffectId: claim\.sideEffectId/u);
+    assert.match(collect, /claimGeneration: claim\.claimGeneration/u);
+    assert.match(collect, /claimToken: claim\.claimToken/u);
+    assert.doesNotMatch(collect, /db\.sellerProfile\./u);
+    assert.match(access, /grainline_seller_account_deletion_public_media_urls/u);
+    assert.match(access, /\$\{input\.claimGeneration\}::bigint/u);
+    assert.match(access, /\$\{input\.claimToken\}::uuid/u);
   });
 
   it("collects direct-upload URLs before releasing account-owned lifecycle references", () => {
@@ -110,11 +111,12 @@ describe("account deletion media cleanup scoping", () => {
     const collectStart = deletion.indexOf("async function collectAccountDeletionMediaKeys");
     const collectEnd = deletion.indexOf("function revalidateDeletedAccountSearchCaches", collectStart);
     const collect = deletion.slice(collectStart, collectEnd);
-    const collectCall = deletion.indexOf("const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId)");
+    const collectCall = deletion.indexOf("const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId, {");
     const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(");
     const releaseRows = deletion.indexOf("await releaseDirectUploadsForAccount({");
 
-    assert.match(deletion, /"sellerProfile" \| "reviewPhoto" \| "commissionRequest" \| "blogPost" \| "\$queryRaw"/);
+    assert.match(deletion, /"reviewPhoto" \| "commissionRequest" \| "blogPost" \| "\$queryRaw"/);
+    assert.doesNotMatch(deletion, /"sellerProfile" \| "reviewPhoto"/u);
     assert.match(collect, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
     assert.doesNotMatch(collect, /db\.message\./);
     assert.match(collect, /accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/s);
