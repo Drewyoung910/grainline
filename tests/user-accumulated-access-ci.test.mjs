@@ -366,6 +366,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       ...sellerProfilePrivateBoundaryPaths,
       postRetirementRepairPath,
       blockedCheckoutRefundWitnessPath,
+      "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
       runtimeProvisionScript,
@@ -410,6 +411,17 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.ok(heldFunctions.every((name) => !historical.functions.includes(name)));
     mkdirSync(path.join(holding, "user-staff-admin-labels"));
     mkdirSync(path.join(holding, "user-follower-authority"));
+    execFileSync("bash", ["-c", bashBody("Prepare SellerProfile public predecessor schema for historical audit replay")], { cwd: root, env: scriptEnv });
+    execFileSync(
+      path.join(holding, "seller-profile-public-candidate", "with-predecessor-schema.sh"),
+      [
+        "bash",
+        "-c",
+        'test "$(git hash-object prisma/schema.prisma)" = 8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9',
+      ],
+      { cwd: root, env: scriptEnv },
+    );
+    assert.equal(hash("prisma/schema.prisma"), original[trackedPaths.indexOf("prisma/schema.prisma")]);
     execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: scriptEnv });
     assert.equal(
       execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(),

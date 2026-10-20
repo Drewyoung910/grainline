@@ -153,12 +153,24 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   const finalHistoricalAudit = ci.indexOf(
     "Audit runtime grants after SellerProfile private boundary",
   );
+  const prepareHistoricalSchema = ci.indexOf(
+    "Prepare SellerProfile public predecessor schema for historical audit replay",
+  );
+  const installHistoricalAudit = ci.indexOf(
+    "Restore accumulated User access source package",
+  );
+  const restoreCurrentAudit = ci.indexOf(
+    "Restore SellerProfile private-boundary migration after all predecessors",
+  );
   const build = ci.indexOf("- name: Production build");
   assert.ok(
     generate >= 0 &&
       generate < verify &&
       verify < isolate &&
       isolate < historical &&
+      historical < prepareHistoricalSchema &&
+      prepareHistoricalSchema < installHistoricalAudit &&
+      installHistoricalAudit < restoreCurrentAudit &&
       historical < finalHistoricalAudit &&
       finalHistoricalAudit < restore &&
       restore < build,
@@ -166,9 +178,20 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
   assert.match(
     ci,
-    /predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65[\s\S]*mv prisma\/schema\.prisma "\$holding\/schema\.prisma"[\s\S]*git show "\$predecessor:prisma\/schema\.prisma" > prisma\/schema\.prisma/u,
+    /predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65[\s\S]*git show "\$predecessor:prisma\/schema\.prisma" > "\$holding\/predecessor-schema\.prisma"/u,
   );
-  assert.match(ci, /mv "\$holding\/schema\.prisma" prisma\/schema\.prisma/u);
+  assert.match(
+    ci,
+    /test "\$\(git hash-object "\$schema"\)" = c69a15bb7e921be14fcd19eea6b139d4ddca7fa4[\s\S]*trap cleanup EXIT[\s\S]*cp "\$holding\/predecessor-schema\.prisma" "\$schema"/u,
+  );
+  assert.equal(
+    [
+      ...ci.matchAll(
+        /"\$RUNNER_TEMP\/seller-profile-public-candidate\/with-predecessor-schema\.sh"/gu,
+      ),
+    ].length,
+    9,
+  );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_PREPARATIONS/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_ENABLE/u);
 });

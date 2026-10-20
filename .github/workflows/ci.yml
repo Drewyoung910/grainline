@@ -136,14 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-profile-public-candidate"
-          predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
-          predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
           mkdir -p "$holding/migrations" "$holding/tests"
-          git cat-file -e "$predecessor^{commit}"
-          git merge-base --is-ancestor "$predecessor" HEAD
-          mv prisma/schema.prisma "$holding/schema.prisma"
-          git show "$predecessor:prisma/schema.prisma" > prisma/schema.prisma
-          test "$(git hash-object prisma/schema.prisma)" = "$predecessor_schema_blob"
           node --input-type=module - <<'NODE' > "$holding/migration-names.txt"
           import {
             SELLER_PROFILE_PUBLIC_ENABLE,
@@ -4915,6 +4908,42 @@ jobs:
           SQL
       - name: Audit runtime grants after User public review-commission snapshot
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      # The next replay installs a checksum-pinned historical grant auditor.
+      # Run only that auditor against the exact schema it reviewed; source tests
+      # continue to see the current schema and the wrapper always restores it.
+      - name: Prepare SellerProfile public predecessor schema for historical audit replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
+          predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
+          current_schema_blob=c69a15bb7e921be14fcd19eea6b139d4ddca7fa4
+          git cat-file -e "$predecessor^{commit}"
+          git merge-base --is-ancestor "$predecessor" HEAD
+          test "$(git hash-object prisma/schema.prisma)" = "$current_schema_blob"
+          git show "$predecessor:prisma/schema.prisma" > "$holding/predecessor-schema.prisma"
+          test "$(git hash-object "$holding/predecessor-schema.prisma")" = "$predecessor_schema_blob"
+          cat > "$holding/with-predecessor-schema.sh" <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          holding="${RUNNER_TEMP:?}/seller-profile-public-candidate"
+          root="${GITHUB_WORKSPACE:-$(git rev-parse --show-toplevel)}"
+          schema="$root/prisma/schema.prisma"
+          current="$holding/current-schema.$$.prisma"
+          test ! -e "$current"
+          test "$(git hash-object "$schema")" = c69a15bb7e921be14fcd19eea6b139d4ddca7fa4
+          cp "$schema" "$current"
+          cleanup() {
+            mv "$current" "$schema"
+            test "$(git hash-object "$schema")" = c69a15bb7e921be14fcd19eea6b139d4ddca7fa4
+          }
+          trap cleanup EXIT
+          cp "$holding/predecessor-schema.prisma" "$schema"
+          test "$(git hash-object "$schema")" = 8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
+          "$@"
+          BASH
+          chmod 700 "$holding/with-predecessor-schema.sh"
       - name: Restore accumulated User access source package
         shell: bash
         run: |
@@ -5004,7 +5033,7 @@ jobs:
             --set=migration_role=ci \
             --file=scripts/provision-order-staff-read-role.sql
       - name: Audit runtime grants after accumulated User access
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh" npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User block-email source package
         shell: bash
         run: |
@@ -5107,7 +5136,7 @@ jobs:
           $verify_user_block_email_authorities$;
           SQL
       - name: Audit runtime grants after User block-email authorities
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh" npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User follower authority source package
         shell: bash
         run: |
@@ -5215,7 +5244,7 @@ jobs:
           $verify_user_follower_authorities$;
           SQL
       - name: Audit runtime grants after User follower authorities
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh" npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User staff admin-label source package
         shell: bash
         run: |
@@ -5320,7 +5349,7 @@ jobs:
           $verify_user_staff_admin_labels$;
           SQL
       - name: Audit runtime grants after User staff admin-label authority
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh" npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User policyless ENABLE source package
         shell: bash
         run: |
@@ -5409,6 +5438,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Stage exact User ENABLE ledger for integrated FORCE proof
         run: |
@@ -5475,6 +5505,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore Clerk webhook event authority source package
         shell: bash
@@ -5681,6 +5712,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore AccountDeletionSideEffect claim-fence source package
         shell: bash
@@ -5830,6 +5862,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore seller listing Hide/Delete source package
         shell: bash
@@ -5907,6 +5940,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore SellerProfile private-boundary migration after all predecessors
         shell: bash
@@ -6543,7 +6577,6 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-profile-public-candidate"
-          mv "$holding/schema.prisma" prisma/schema.prisma
           while IFS= read -r migration
           do
             mv "$holding/migrations/$migration" "prisma/migrations/$migration"
