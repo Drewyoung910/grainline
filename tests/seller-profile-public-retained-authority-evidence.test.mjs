@@ -65,9 +65,16 @@ test('preserves every test-backed authority proof before CI isolates successors'
   const result = preserveSellerProfileRetainedAuthorityEvidence(root, destination);
   assert.ok(result.copiedFiles.includes('tests/user-staff-ban-authorities.test.mjs'));
   assert.ok(result.copiedFiles.includes('tests/order-label-authority-postgres.test.mjs'));
+  const primarySource = path.join(root, 'tests/user-staff-ban-authorities.test.mjs');
+  const expectedSource = fs.existsSync(primarySource)
+    ? primarySource
+    : path.join(
+      process.env.SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR,
+      'user-staff-ban-authorities.test.mjs',
+    );
   assert.equal(
     fs.readFileSync(path.join(destination, 'user-staff-ban-authorities.test.mjs'), 'utf8'),
-    fs.readFileSync(path.join(root, 'tests/user-staff-ban-authorities.test.mjs'), 'utf8'),
+    fs.readFileSync(expectedSource, 'utf8'),
   );
 
   const previous = process.env.SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR;
