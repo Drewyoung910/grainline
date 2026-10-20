@@ -96,9 +96,15 @@ now closes those gaps at 96 direct database behavior proofs and two composed
 behavior proofs. Caller conversion and retained behavior evidence are
 complete. The isolated 398-migration PostgreSQL 16 candidate now proves
 policyless ENABLE, zero direct runtime/staff/PUBLIC authority, role-provisioning
-replay and database-first rollback compatibility. Production remains blocked
-on the exact-address/Nominatim boundary, final consent wording and exact-head
-audit reconciliation; FORCE remains a later posture-only release.
+replay and database-first rollback compatibility. The exact-address/Nominatim
+boundary and final consent wording are closed in the source candidate. The
+protected ENABLE workflow and restart-safe count-only inspector are also
+prepared: they bind the exact successful main checks and exact live compatible
+deployment, admit only the reviewed ENABLE migration, run the global grant
+audit and retain sanitized evidence. Production remains blocked on exact-head
+audit reconciliation, merge/deploy of the compatible source, exact-head CI and
+a separately authorized ENABLE dispatch. FORCE remains a later posture-only
+release.
 
 The location review confirmed that predecessor public maps and seller JSON-LD
 could publish raw points even though Privacy 2.7 and Terms 4.19/4.20 promise

@@ -366,6 +366,8 @@ jobs:
           tests/seller-profile-private-enable-production-workflow.test.mjs
           tests/seller-profile-private-force-postgres.test.mjs
           tests/seller-profile-private-force-production-workflow.test.mjs
+          tests/seller-profile-enable-production-inspect.test.mjs
+          tests/seller-profile-enable-production-workflow.test.mjs
       - name: Verify post-retirement account-deletion repair source package
         run: >-
           node --test

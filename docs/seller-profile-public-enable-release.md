@@ -62,15 +62,40 @@ while keeping all direct runtime, staff and `PUBLIC` grants revoked. Returning
 from that rollback to ENABLE requires a separately reviewed forward operation;
 the rollback never restores broad predecessor CRUD.
 
+The protected workflow is
+`.github/workflows/seller-profile-enable-production.yml`. It refuses owner
+database access until it has bound all of the following to the exact current
+`main` commit:
+
+- the successful full push CI run;
+- the successful Conversation and Message FORCE proof and its `proof` job;
+- every required exact-main push workflow, with no failed, cancelled or pending
+  latest run;
+- the exact compatible Vercel deployment on every canonical alias; and
+- the immutable ENABLE migration checksum while that migration remains latest.
+
+The count-only, read-only inspector accepts only the reviewed predecessor or
+the completed policyless ENABLE state. It verifies the direct owner session,
+exact migration ledger, restricted roles, public-table grants and RLS posture,
+and the private companion's unchanged policyless FORCE and zero-direct posture.
+The workflow admits exactly the reviewed migration as pending, is restart-safe,
+runs the global grant audit afterward and preserves mode-0600 sanitized
+preflight/postflight evidence. It contains no application deployment and no
+FORCE step.
+
 ## Release blockers
 
-The database candidate is locally compatible, but Production remains blocked
-until all current `FIX_BEFORE_ACTIVATION` items are resolved and rechecked:
+The database candidate and release machinery are locally compatible, but
+Production remains blocked until the release head is concrete and rechecked:
 
-1. Reconcile any new Claude/audit allegations against the exact release head.
-2. Add the exact-main protected ENABLE workflow, inspector and sanitized
-   postflight only after the source candidate and the blockers above are
-   accepted. FORCE remains a separate later release.
+1. Reconcile any new Claude/audit allegations against the exact candidate head.
+2. Merge and deploy the compatible source while predecessor grants remain
+   unchanged.
+3. Require successful exact-head CI and proof workflows, verify that exact
+   deployment on the canonical aliases, and obtain the separately authorized
+   Production ENABLE dispatch.
+4. Accept the sanitized postflight and observed compatible flows before
+   preparing the separate FORCE release.
 
 The prior exact-location blockers are closed in this source candidate. The
 workshop map now uses explicit-submit city/state-or-ZIP search, rejects numeric
