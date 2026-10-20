@@ -81,7 +81,9 @@ export async function seedSellerProfilePrivateFixture(
   { ids = FIXTURE_IDS, suffix = "default" } = {},
 ) {
   await assertSellerProfilePrivateLayout(database);
-  const now = new Date("2026-10-15T00:00:00.000Z");
+  // These columns are timestamp without time zone. Use a wall-clock literal so
+  // the disposable proof is independent of the host process timezone.
+  const now = "2026-10-15 00:00:00";
   const safeSuffix = suffix.replace(/[^a-z0-9_-]/giu, "_").slice(0, 40) || "default";
   const userId = `${ids.user}_${safeSuffix}`;
   const sellerProfileId = `${ids.sellerProfile}_${safeSuffix}`;

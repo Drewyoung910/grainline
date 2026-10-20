@@ -1,6 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import LocationPicker from "./LocationPicker";
+import {
+  exactMapConsentBinding,
+  exactMapConsentBindingMatches,
+  SELLER_EXACT_MAP_CONSENT_TEXT,
+} from "@/lib/sellerExactMapConsent";
 
 type Props = {
   defaultLat?: number | null;
@@ -31,17 +36,34 @@ export default function SellerLocationSection({
     && (defaultPublicMapOptIn ?? false)
     && (defaultPublicMapExactConsent ?? false)
   );
+  const [pin, setPin] = useState({
+    lat: defaultLat ?? 30.2672,
+    lng: defaultLng ?? -97.7431,
+  });
+  const [exactBinding, setExactBinding] = useState(() =>
+    exactMapConsentBinding(
+      !hasRadius
+        && (defaultPublicMapOptIn ?? false)
+        && (defaultPublicMapExactConsent ?? false),
+      defaultLat ?? 30.2672,
+      defaultLng ?? -97.7431,
+    ),
+  );
 
   // When radius is set, force-uncheck the makers map checkbox
   useEffect(() => {
     if (hasRadius) {
       setMapOptIn(false);
       setExactConsent(false);
+      setExactBinding(null);
     }
   }, [hasRadius]);
 
   useEffect(() => {
-    if (!mapOptIn) setExactConsent(false);
+    if (!mapOptIn) {
+      setExactConsent(false);
+      setExactBinding(null);
+    }
   }, [mapOptIn]);
 
   return (
@@ -50,7 +72,21 @@ export default function SellerLocationSection({
         defaultLat={defaultLat}
         defaultLng={defaultLng}
         defaultRadiusMeters={defaultRadiusMeters}
-        onMilesChange={setMiles}
+        onMilesChange={(nextMiles) => {
+          setMiles(nextMiles);
+          if (nextMiles > 0) {
+            setMapOptIn(false);
+            setExactConsent(false);
+            setExactBinding(null);
+          }
+        }}
+        onLocationChange={(lat, lng) => {
+          setPin({ lat, lng });
+          if (!exactMapConsentBindingMatches(exactBinding, lat, lng)) {
+            setExactConsent(false);
+            setExactBinding(null);
+          }
+        }}
       />
 
       {hasRadius && (
@@ -65,7 +101,14 @@ export default function SellerLocationSection({
           name="publicMapOptIn"
           type="checkbox"
           checked={mapOptIn}
-          onChange={(e) => setMapOptIn(e.target.checked)}
+          onChange={(event) => {
+            const checked = event.target.checked;
+            setMapOptIn(checked);
+            if (!checked) {
+              setExactConsent(false);
+              setExactBinding(null);
+            }
+          }}
           disabled={hasRadius}
           className="h-5 w-5 rounded border-neutral-300 accent-neutral-900 disabled:opacity-40 disabled:cursor-not-allowed"
         />
@@ -87,7 +130,11 @@ export default function SellerLocationSection({
             name="publicMapExactConsent"
             type="checkbox"
             checked={exactConsent}
-            onChange={(event) => setExactConsent(event.target.checked)}
+            onChange={(event) => {
+              const checked = event.target.checked;
+              setExactConsent(checked);
+              setExactBinding(exactMapConsentBinding(checked, pin.lat, pin.lng));
+            }}
             disabled={hasRadius || !mapOptIn}
             className="mt-0.5 h-5 w-5 rounded border-neutral-300 accent-neutral-900 disabled:cursor-not-allowed disabled:opacity-40"
           />
@@ -97,11 +144,26 @@ export default function SellerLocationSection({
           >
             Publish this exact pin publicly
             <span className="mt-1 block text-xs leading-5">
-              By saving with this checked, you consent to showing the precise pin on public maps, shop and listing pages, and structured search data. Anyone can view it. Use a workshop or business address rather than your home address. Uncheck it to return to an approximate pin.
+              {SELLER_EXACT_MAP_CONSENT_TEXT}
             </span>
           </label>
         </div>
       </div>
+      <input
+        type="hidden"
+        name="publicMapExactConsentVersion"
+        value={exactBinding?.version ?? ""}
+      />
+      <input
+        type="hidden"
+        name="publicMapExactConsentLat"
+        value={exactBinding?.lat ?? ""}
+      />
+      <input
+        type="hidden"
+        name="publicMapExactConsentLng"
+        value={exactBinding?.lng ?? ""}
+      />
     </div>
   );
 }

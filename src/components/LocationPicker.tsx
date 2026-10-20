@@ -11,11 +11,13 @@ export default function LocationPicker({
   defaultLng,
   defaultRadiusMeters,
   onMilesChange,
+  onLocationChange,
 }: {
   defaultLat?: number | null;
   defaultLng?: number | null;
   defaultRadiusMeters?: number | null;
   onMilesChange?: (miles: number) => void;
+  onLocationChange?: (lat: number, lng: number) => void;
 }) {
   const start: [number, number] = useMemo(
     () => [defaultLat ?? 30.2672, defaultLng ?? -97.7431],
@@ -32,6 +34,11 @@ export default function LocationPicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
+  const onLocationChangeRef = useRef(onLocationChange);
+
+  useEffect(() => {
+    onLocationChangeRef.current = onLocationChange;
+  }, [onLocationChange]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -67,6 +74,7 @@ export default function LocationPicker({
     marker.on("dragend", () => {
       const lngLat = marker.getLngLat();
       setPos([lngLat.lat, lngLat.lng]);
+      onLocationChangeRef.current?.(lngLat.lat, lngLat.lng);
       map.panTo([lngLat.lng, lngLat.lat]);
     });
 
@@ -74,6 +82,7 @@ export default function LocationPicker({
       const { lat, lng } = e.lngLat;
       marker.setLngLat([lng, lat]);
       setPos([lat, lng]);
+      onLocationChangeRef.current?.(lat, lng);
       map.panTo([lng, lat]);
     });
 
@@ -151,6 +160,7 @@ export default function LocationPicker({
         onSelect={(address) => {
           if (address.lat == null || address.lng == null) return;
           setPos([address.lat, address.lng]);
+          onLocationChange?.(address.lat, address.lng);
           if (mapRef.current) mapRef.current.panTo([address.lng, address.lat]);
           if (markerRef.current) markerRef.current.setLngLat([address.lng, address.lat]);
         }}

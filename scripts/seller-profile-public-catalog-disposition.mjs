@@ -36,7 +36,7 @@ export const SELLER_PROFILE_INTERNAL_SUPPORT_FUNCTIONS = new Set([
 
 export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_account_deletion_public_media_urls(text,bigint,uuid)",
-  "grainline_seller_owner_shop_settings_update(text,text,text,text,double precision,double precision,double precision,boolean,boolean,integer,integer,boolean,boolean,text[],text,text,text,text,text,text,text,text,double precision,double precision,double precision,integer)",
+  "grainline_seller_owner_shop_settings_update(text,text,text,text,double precision,double precision,double precision,boolean,boolean,integer,double precision,double precision,integer,integer,boolean,boolean,text[],text,text,text,text,text,text,text,text,double precision,double precision,double precision,integer)",
   "grainline_seller_service_founding_maker_grant(text)",
   "grainline_seller_service_metrics_identity(text)",
   "grainline_seller_service_welcome_name(text)",

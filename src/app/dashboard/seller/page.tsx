@@ -38,6 +38,7 @@ import {
   updateSellerOwnerMetroAssignment,
   updateSellerOwnerShopSettings,
 } from "@/lib/sellerOwnerPrivateAccess";
+import { SELLER_EXACT_MAP_CONSENT_VERSION } from "@/lib/sellerExactMapConsent";
 
 const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
 const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
@@ -87,6 +88,11 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const publicMapOptIn = String(formData.get("publicMapOptIn") ?? "") === "on";
   const publicMapExactConsent =
     String(formData.get("publicMapExactConsent") ?? "") === "on";
+  const publicMapExactConsentVersion = toFloat(
+    formData.get("publicMapExactConsentVersion"),
+  );
+  const publicMapExactConsentLat = toFloat(formData.get("publicMapExactConsentLat"));
+  const publicMapExactConsentLng = toFloat(formData.get("publicMapExactConsentLng"));
 
   // Shipping/tax in dollars
   const shippingFlatRateCents = parseMoneyInputToCents(formData.get("shippingFlatRate"), {
@@ -110,6 +116,19 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     return {
       ok: false,
       error: "Turn on public map visibility before publishing your exact pin.",
+    };
+  }
+  if (
+    publicMapExactConsent
+    && (
+      publicMapExactConsentVersion !== SELLER_EXACT_MAP_CONSENT_VERSION
+      || publicMapExactConsentLat !== lat
+      || publicMapExactConsentLng !== lng
+    )
+  ) {
+    return {
+      ok: false,
+      error: "Your pickup pin changed. Review the exact-location consent and check it again.",
     };
   }
 
@@ -165,6 +184,11 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     radiusMeters: radiusMeters as number | null,
     publicMapOptIn,
     publicMapExactConsent,
+    publicMapExactConsentVersion: publicMapExactConsent
+      ? SELLER_EXACT_MAP_CONSENT_VERSION
+      : null,
+    publicMapExactConsentLat,
+    publicMapExactConsentLng,
     shippingFlatRateCents,
     freeShippingOverCents,
     allowLocalPickup,
@@ -367,6 +391,7 @@ export default async function SellerSettingsPage({
             defaultPublicMapExactConsent={
               currentRow?.publicMapExactConsentAt != null
               && currentRow.publicMapExactConsentVersion === 1
+              && currentRow.publicMapExactConsentCoordinateHash != null
             }
           />
           <p className="mt-2 text-xs text-neutral-500">

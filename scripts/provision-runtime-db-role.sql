@@ -2248,7 +2248,8 @@ FROM (
     ('DirectUploadReference'),
     ('OrderDisputeRecovery'),
     ('OrderRefundReconciliation'),
-    ('SellerProfilePrivate')
+    ('SellerProfilePrivate'),
+    ('SellerExactMapConsentEvent')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec
@@ -2320,6 +2321,139 @@ FROM (
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Public SellerProfile remains in additive preparation. Converge every fixed
+-- candidate authority that exists, while keeping staff-only operations out of
+-- the ordinary runtime role. This block is intentionally complete so a
+-- provisioning replay cannot depend on which preparation migration ran last.
+WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_seller_account_deletion_public_media_urls"(text,bigint,uuid)', true),
+    ('public."grainline_seller_actor_account_feed_cards"(text[])', true),
+    ('public."grainline_seller_actor_conversation_cards"(text[])', true),
+    ('public."grainline_seller_owner_account_summary"()', true),
+    ('public."grainline_seller_owner_avatar_clear"(text)', true),
+    ('public."grainline_seller_owner_blog_editor"()', true),
+    ('public."grainline_seller_owner_bootstrap"(text,text,text)', true),
+    ('public."grainline_seller_owner_core"()', true),
+    ('public."grainline_seller_owner_dashboard_state"()', true),
+    ('public."grainline_seller_owner_featured_listing_toggle"(text,text)', true),
+    ('public."grainline_seller_owner_guild_application_state"(text)', true),
+    ('public."grainline_seller_owner_guild_dashboard_state"(text)', true),
+    ('public."grainline_seller_owner_listing_metro_source"(text)', true),
+    ('public."grainline_seller_owner_listing_publish_review"(text)', true),
+    ('public."grainline_seller_owner_listing_review"()', true),
+    ('public."grainline_seller_owner_metro_assignment_update"(text,text,text)', true),
+    ('public."grainline_seller_owner_onboarding_state"(text)', true),
+    ('public."grainline_seller_owner_profile_editor_state"(text)', true),
+    ('public."grainline_seller_owner_profile_update"(text,text,text,text,text,text,text,integer,text,text,text,text[],text[],boolean,text,text,text,text,text,text,text,text,boolean,boolean,integer,boolean,integer)', true),
+    ('public."grainline_seller_owner_shop_settings_state"(text)', true),
+    ('public."grainline_seller_owner_shop_settings_update"(text,text,text,text,double precision,double precision,double precision,boolean,boolean,integer,double precision,double precision,integer,integer,boolean,boolean,text[],text,text,text,text,text,text,text,text,double precision,double precision,double precision,integer)', true),
+    ('public."grainline_seller_owner_vacation_update"(text,boolean,bigint,text)', true),
+    ('public."grainline_seller_public_blog_author"(text)', true),
+    ('public."grainline_seller_public_browse_nearby"(double precision,double precision,double precision)', true),
+    ('public."grainline_seller_public_customer_photo_header"(text)', true),
+    ('public."grainline_seller_public_featured_makers"()', true),
+    ('public."grainline_seller_public_follow_create"(text,text)', true),
+    ('public."grainline_seller_public_follow_delete"(text)', true),
+    ('public."grainline_seller_public_follow_state"(text)', true),
+    ('public."grainline_seller_public_footer_metros"()', true),
+    ('public."grainline_seller_public_location"(text,text)', true),
+    ('public."grainline_seller_public_map_card"(text)', true),
+    ('public."grainline_seller_public_map_points"(integer)', true),
+    ('public."grainline_seller_public_marketplace_counts"()', true),
+    ('public."grainline_seller_public_metro_count"(text,boolean,boolean)', true),
+    ('public."grainline_seller_public_metro_makers"(text,boolean,integer)', true),
+    ('public."grainline_seller_public_metro_static_slugs"()', true),
+    ('public."grainline_seller_public_name_suggestions"(text,text,boolean,integer)', true),
+    ('public."grainline_seller_public_nearby_metros"(text)', true),
+    ('public."grainline_seller_public_profile"(text)', true),
+    ('public."grainline_seller_public_report_target"(text,text)', true),
+    ('public."grainline_seller_public_similar_makers"(text,integer)', true),
+    ('public."grainline_seller_public_sitemap_counts"()', true),
+    ('public."grainline_seller_public_sitemap_page"(text,integer,integer)', true),
+    ('public."grainline_seller_public_view_target"(text)', true),
+    ('public."grainline_seller_service_founding_maker_grant"(text)', true),
+    ('public."grainline_seller_service_metrics_identity"(text)', true),
+    ('public."grainline_seller_service_welcome_name"(text)', true),
+    ('public."grainline_seller_transaction_blocked_pair_targets"(text,text)', true),
+    ('public."grainline_user_block_follow_cleanup"(text)', true),
+    ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_report_targets"(text,text[])', false)
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_profile_public_candidate
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_seller_account_deletion_public_media_urls"(text,bigint,uuid)', true),
+    ('public."grainline_seller_actor_account_feed_cards"(text[])', true),
+    ('public."grainline_seller_actor_conversation_cards"(text[])', true),
+    ('public."grainline_seller_owner_account_summary"()', true),
+    ('public."grainline_seller_owner_avatar_clear"(text)', true),
+    ('public."grainline_seller_owner_blog_editor"()', true),
+    ('public."grainline_seller_owner_bootstrap"(text,text,text)', true),
+    ('public."grainline_seller_owner_core"()', true),
+    ('public."grainline_seller_owner_dashboard_state"()', true),
+    ('public."grainline_seller_owner_featured_listing_toggle"(text,text)', true),
+    ('public."grainline_seller_owner_guild_application_state"(text)', true),
+    ('public."grainline_seller_owner_guild_dashboard_state"(text)', true),
+    ('public."grainline_seller_owner_listing_metro_source"(text)', true),
+    ('public."grainline_seller_owner_listing_publish_review"(text)', true),
+    ('public."grainline_seller_owner_listing_review"()', true),
+    ('public."grainline_seller_owner_metro_assignment_update"(text,text,text)', true),
+    ('public."grainline_seller_owner_onboarding_state"(text)', true),
+    ('public."grainline_seller_owner_profile_editor_state"(text)', true),
+    ('public."grainline_seller_owner_profile_update"(text,text,text,text,text,text,text,integer,text,text,text,text[],text[],boolean,text,text,text,text,text,text,text,text,boolean,boolean,integer,boolean,integer)', true),
+    ('public."grainline_seller_owner_shop_settings_state"(text)', true),
+    ('public."grainline_seller_owner_shop_settings_update"(text,text,text,text,double precision,double precision,double precision,boolean,boolean,integer,double precision,double precision,integer,integer,boolean,boolean,text[],text,text,text,text,text,text,text,text,double precision,double precision,double precision,integer)', true),
+    ('public."grainline_seller_owner_vacation_update"(text,boolean,bigint,text)', true),
+    ('public."grainline_seller_public_blog_author"(text)', true),
+    ('public."grainline_seller_public_browse_nearby"(double precision,double precision,double precision)', true),
+    ('public."grainline_seller_public_customer_photo_header"(text)', true),
+    ('public."grainline_seller_public_featured_makers"()', true),
+    ('public."grainline_seller_public_follow_create"(text,text)', true),
+    ('public."grainline_seller_public_follow_delete"(text)', true),
+    ('public."grainline_seller_public_follow_state"(text)', true),
+    ('public."grainline_seller_public_footer_metros"()', true),
+    ('public."grainline_seller_public_location"(text,text)', true),
+    ('public."grainline_seller_public_map_card"(text)', true),
+    ('public."grainline_seller_public_map_points"(integer)', true),
+    ('public."grainline_seller_public_marketplace_counts"()', true),
+    ('public."grainline_seller_public_metro_count"(text,boolean,boolean)', true),
+    ('public."grainline_seller_public_metro_makers"(text,boolean,integer)', true),
+    ('public."grainline_seller_public_metro_static_slugs"()', true),
+    ('public."grainline_seller_public_name_suggestions"(text,text,boolean,integer)', true),
+    ('public."grainline_seller_public_nearby_metros"(text)', true),
+    ('public."grainline_seller_public_profile"(text)', true),
+    ('public."grainline_seller_public_report_target"(text,text)', true),
+    ('public."grainline_seller_public_similar_makers"(text,integer)', true),
+    ('public."grainline_seller_public_sitemap_counts"()', true),
+    ('public."grainline_seller_public_sitemap_page"(text,integer,integer)', true),
+    ('public."grainline_seller_public_view_target"(text)', true),
+    ('public."grainline_seller_service_founding_maker_grant"(text)', true),
+    ('public."grainline_seller_service_metrics_identity"(text)', true),
+    ('public."grainline_seller_service_welcome_name"(text)', true),
+    ('public."grainline_seller_transaction_blocked_pair_targets"(text,text)', true),
+    ('public."grainline_user_block_follow_cleanup"(text)', true),
+    ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_report_targets"(text,text[])', false)
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_profile_public_candidate
+ WHERE runtime_execute
+   AND to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Public SellerProfile owner transitions derive the authenticated local user
 -- from transaction-local context and expose no generic table operation.
 WITH seller_public_owner_authority(function_signature) AS (
@@ -2331,6 +2465,7 @@ WITH seller_public_owner_authority(function_signature) AS (
     ('public."grainline_seller_owner_guild_dashboard_state"(text)'),
     ('public."grainline_seller_owner_shop_settings_state"(text)'),
     ('public."grainline_seller_owner_profile_editor_state"(text)'),
+    ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, boolean, integer, double precision, double precision, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
     ('public."grainline_seller_owner_profile_update"(text, text, text, text, text, text, text, integer, text, text, text, text[], text[], boolean, text, text, text, text, text, text, text, text, boolean, boolean, integer, boolean, integer)')
 )
 SELECT format(
@@ -2351,6 +2486,7 @@ WITH seller_public_owner_authority(function_signature) AS (
     ('public."grainline_seller_owner_guild_dashboard_state"(text)'),
     ('public."grainline_seller_owner_shop_settings_state"(text)'),
     ('public."grainline_seller_owner_profile_editor_state"(text)'),
+    ('public."grainline_seller_owner_shop_settings_update"(text, text, text, text, double precision, double precision, double precision, boolean, boolean, integer, double precision, double precision, integer, integer, boolean, boolean, text[], text, text, text, text, text, text, text, text, double precision, double precision, double precision, integer)'),
     ('public."grainline_seller_owner_profile_update"(text, text, text, text, text, text, text, integer, text, text, text, text[], text[], boolean, text, text, text, text, text, text, text, text, boolean, boolean, integer, boolean, integer)')
 )
 SELECT format(
@@ -2375,6 +2511,8 @@ FROM (
     ('public."grainline_seller_profile_private_initialize"()'),
     ('public."grainline_seller_profile_private_supported_snapshot_sync"()'),
     ('public."grainline_seller_profile_supported_snapshot_guard"()'),
+    ('public."grainline_seller_exact_map_consent_revoke"()'),
+    ('public."grainline_seller_exact_map_consent_event_immutable"()'),
     ('public."grainline_seller_profile_reconciliation_required_compat"(text, text, text, timestamp without time zone)')
 ) AS private_function(function_signature)
 WHERE to_regprocedure(function_signature) IS NOT NULL;

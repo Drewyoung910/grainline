@@ -188,6 +188,7 @@ export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "OrderRefundReconciliation",
   "OrderStaffCapability",
   "SellerDeauthorizationApplication",
+  "SellerExactMapConsentEvent",
   "SellerProfilePrivate",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
@@ -467,6 +468,8 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_message_route_immutable",
   "grainline_message_maintain_thread_state",
   "grainline_seller_owner_public_state_bind",
+  "grainline_seller_exact_map_consent_event_immutable",
+  "grainline_seller_exact_map_consent_revoke",
   "grainline_user_public_seller_state_sync",
   "grainline_blog_post_author_public_state_bind",
   "grainline_blog_comment_author_public_state_bind",

@@ -74,6 +74,10 @@ import {
   ORDER_STAFF_READ_CHARGED_TOTAL_CORRECTION_FUNCTION_NAMES,
 } from "../scripts/verify-order-staff-read-charged-total-correction.mjs";
 import {
+  SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS,
+  SELLER_PROFILE_CONVERTED_STAFF_AUTHORITY_FUNCTIONS,
+} from "../scripts/seller-profile-public-catalog-disposition.mjs";
+import {
   ORDER_ACCOUNT_DELETION_AUTHORITY_FUNCTION_NAMES,
 } from "../scripts/verify-order-account-deletion-authority.mjs";
 import {
@@ -192,6 +196,12 @@ const ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES = [
 const BLOCKED_CHECKOUT_TRANSFER_BINDING_FUNCTION_NAMES = [
   "grainline_blocked_checkout_transfer_bind",
 ];
+const SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES = [
+  ...SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS,
+  ...SELLER_PROFILE_CONVERTED_STAFF_AUTHORITY_FUNCTIONS,
+  "grainline_seller_exact_map_consent_event_immutable()",
+  "grainline_seller_exact_map_consent_revoke()",
+].map((identity) => identity.slice(0, identity.indexOf("(")));
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -730,6 +740,7 @@ describe("database grant inventory guardrails", () => {
       "OrderRefundReconciliation",
       "OrderStaffCapability",
       "SellerDeauthorizationApplication",
+      "SellerExactMapConsentEvent",
       "SellerProfilePrivate",
     ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
@@ -2832,9 +2843,9 @@ describe("database grant inventory guardrails", () => {
         ),
       );
 
-    assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 69 : 68);
+    assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 70 : 69);
     assert.equal(inventory.enums.length, disputeRecoveryMigrationPresent ? 23 : 22);
-    assert.deepEqual(inventory.functions, [
+    assert.deepEqual(inventory.functions, [...new Set([
       ...(accountDeletionClaimFencePrepared
         ? accountDeletionClaimFenceFunctionNames
         : []),
@@ -3000,7 +3011,8 @@ describe("database grant inventory guardrails", () => {
       ...(conversationMessageAuthorityPrepared
         ? CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name)
         : []),
-    ].sort((left, right) => left.localeCompare(right)));
+      ...SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES,
+    ])].sort((left, right) => left.localeCompare(right)));
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);
     assert.deepEqual(inventory.sequenceSqlReferences, []);
     assert.deepEqual(inventory.autoincrementFields, []);
@@ -3088,6 +3100,7 @@ describe("database grant inventory guardrails", () => {
         + ORDER_LABEL_PRIVATE_FUNCTIONS.length
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
+        + 56 // public SellerProfile candidate functions/table and corrected consent successors
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0)
         + (orderPaymentEventRlsActivationExpected(inventory) ? 1 : 0),

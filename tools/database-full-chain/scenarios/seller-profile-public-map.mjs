@@ -28,13 +28,21 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
        AND table_name = 'SellerProfilePrivate'
        AND column_name IN (
          'publicMapExactConsentAt',
+         'publicMapExactConsentCoordinateHash',
          'publicMapExactConsentVersion'
        )
      ORDER BY column_name
   `)), [
     { columnName: "publicMapExactConsentAt", dataType: "timestamp without time zone" },
+    { columnName: "publicMapExactConsentCoordinateHash", dataType: "character varying" },
     { columnName: "publicMapExactConsentVersion", dataType: "integer" },
   ]);
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT table_name AS "tableName"
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'SellerExactMapConsentEvent'
+  `)), [{ tableName: "SellerExactMapConsentEvent" }]);
   assert.deepEqual(rowsOf(await database.query(`
     SELECT constraint_row.convalidated AS validated
       FROM pg_catalog.pg_constraint AS constraint_row
@@ -73,7 +81,7 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       FROM pg_catalog.pg_proc AS routine
      WHERE routine.oid IN (
        pg_catalog.to_regprocedure('public.grainline_seller_exact_map_consent_revoke()'),
-       pg_catalog.to_regprocedure('public.grainline_seller_owner_shop_settings_update(text,text,text,text,double precision,double precision,double precision,boolean,boolean,integer,integer,boolean,boolean,text[],text,text,text,text,text,text,text,text,double precision,double precision,double precision,integer)'),
+       pg_catalog.to_regprocedure('public.grainline_seller_owner_shop_settings_update(text,text,text,text,double precision,double precision,double precision,boolean,boolean,integer,double precision,double precision,integer,integer,boolean,boolean,text[],text,text,text,text,text,text,text,text,double precision,double precision,double precision,integer)'),
        pg_catalog.to_regprocedure('public.grainline_seller_public_map_points(integer)'),
        pg_catalog.to_regprocedure('public.grainline_seller_public_location(text,text)'),
        pg_catalog.to_regprocedure('public.grainline_seller_public_browse_nearby(double precision,double precision,double precision)')
@@ -172,9 +180,22 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
       database.query(
         `UPDATE public."SellerProfilePrivate"
             SET "publicMapExactConsentAt" = $2,
-                "publicMapExactConsentVersion" = 1
+                "publicMapExactConsentVersion" = 1,
+                "publicMapExactConsentCoordinateHash" = repeat('0', 64)
           WHERE "sellerProfileId" = $1`,
         [seller.sellerProfileId, now],
+      ),
+      (error) => error?.code === "42501",
+    );
+    await assert.rejects(
+      database.query(
+        `INSERT INTO public."SellerExactMapConsentEvent"
+          (id, "sellerProfileId", "actorUserId", "eventType",
+           "consentTextVersion", "consentTextSha256", "coordinateHash",
+           reason, "createdAt")
+         VALUES ('forged', $1, $2, 'GRANTED', 1, repeat('0', 64),
+                 repeat('0', 64), NULL, $3)`,
+        [seller.sellerProfileId, seller.userId, now],
       ),
       (error) => error?.code === "42501",
     );
@@ -211,13 +232,57 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     ));
     assert.deepEqual(listingLocation, sellerLocation);
 
-    await database.query("RESET ROLE");
     await database.query(
-      `UPDATE public."SellerProfilePrivate"
-          SET "publicMapExactConsentAt" = $2,
-              "publicMapExactConsentVersion" = 1
-        WHERE "sellerProfileId" = $1`,
-      [seller.sellerProfileId, now],
+      "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+      [seller.userId],
+    );
+    await assert.rejects(
+      database.query(
+        `SELECT public.grainline_seller_owner_shop_settings_update(
+           $1, $2, 'Austin', 'TX', 30.251, -97.749, 0,
+           true, true, 1, 30.252, -97.749, NULL, NULL, true, false,
+           ARRAY[]::text[], NULL, NULL, NULL, NULL, NULL, NULL, 'US', NULL,
+           NULL, NULL, NULL, NULL
+         )`,
+        [seller.userId, seller.sellerProfileId],
+      ),
+      (error) => error?.code === "22023",
+    );
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT public.grainline_seller_owner_shop_settings_update(
+         $1, $2, 'Austin', 'TX', 30.251, -97.749, 0,
+         true, true, 1, 30.251, -97.749, NULL, NULL, true, false,
+         ARRAY[]::text[], NULL, NULL, NULL, NULL, NULL, NULL, 'US', NULL,
+         NULL, NULL, NULL, NULL
+       ) AS id`,
+      [seller.userId, seller.sellerProfileId],
+    )), [{ id: seller.sellerProfileId }]);
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT public.grainline_seller_owner_shop_settings_update(
+         $1, $2, 'Austin', 'TX', 30.251, -97.749, 0,
+         true, true, 1, 30.251, -97.749, NULL, NULL, true, false,
+         ARRAY[]::text[], NULL, NULL, NULL, NULL, NULL, NULL, 'US', NULL,
+         NULL, NULL, NULL, NULL
+       ) AS id`,
+      [seller.userId, seller.sellerProfileId],
+    )), [{ id: seller.sellerProfileId }]);
+    await database.query("SELECT pg_catalog.set_config('app.user_id', '', false)");
+    await database.query("RESET ROLE");
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT "eventType", reason
+         FROM public."SellerExactMapConsentEvent"
+        WHERE "sellerProfileId" = $1
+        ORDER BY "createdAt", id`,
+      [seller.sellerProfileId],
+    )), [{ eventType: "GRANTED", reason: null }]);
+    await assert.rejects(
+      database.query(
+        `UPDATE public."SellerExactMapConsentEvent"
+            SET reason = 'OWNER_ACTION'
+          WHERE "sellerProfileId" = $1`,
+        [seller.sellerProfileId],
+      ),
+      (error) => error?.code === "55000",
     );
     await database.query("SET ROLE grainline_app_runtime");
     assert.deepEqual(
@@ -251,13 +316,28 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
     assert.deepEqual(
       rowsOf(await database.query(
-        `SELECT "publicMapExactConsentAt", "publicMapExactConsentVersion"
+        `SELECT "publicMapExactConsentAt", "publicMapExactConsentVersion",
+                "publicMapExactConsentCoordinateHash"
            FROM public."SellerProfilePrivate"
           WHERE "sellerProfileId" = $1`,
         [seller.sellerProfileId],
       )),
-      [{ publicMapExactConsentAt: null, publicMapExactConsentVersion: null }],
+      [{
+        publicMapExactConsentAt: null,
+        publicMapExactConsentVersion: null,
+        publicMapExactConsentCoordinateHash: null,
+      }],
     );
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT "eventType", reason
+         FROM public."SellerExactMapConsentEvent"
+        WHERE "sellerProfileId" = $1
+        ORDER BY "createdAt", id`,
+      [seller.sellerProfileId],
+    )), [
+      { eventType: "GRANTED", reason: null },
+      { eventType: "WITHDRAWN", reason: "LOCATION_CHANGE" },
+    ]);
     await database.query(
       `UPDATE public."SellerProfile"
           SET lat = 30.251
@@ -456,6 +536,29 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     );
   } finally {
     await database.query("RESET ROLE");
+  }
+
+  await database.query(
+    `UPDATE public."User" SET banned = true WHERE id = $1`,
+    [viewerUserId],
+  );
+  await database.query(
+    "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+    [viewerUserId],
+  );
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_map_points(500)"),
+      (error) => error?.code === "42501",
+    );
+  } finally {
+    await database.query("RESET ROLE");
+    await database.query("SELECT pg_catalog.set_config('app.user_id', '', false)");
+    await database.query(
+      `UPDATE public."User" SET banned = false WHERE id = $1`,
+      [viewerUserId],
+    );
   }
 
   await database.query(

@@ -38,6 +38,7 @@ type SellerOwnerPrivateState = {
   metricWarningSentAt: string | Date | null;
   listingsBelowThresholdSince: string | Date | null;
   publicMapExactConsentAt: string | Date | null;
+  publicMapExactConsentCoordinateHash: string | null;
   publicMapExactConsentVersion: number | null;
   profileViews: number;
 };
@@ -93,8 +94,23 @@ function isSellerOwnerPrivateState(value: unknown): value is SellerOwnerPrivateS
     && nullableDateValue(state.metricWarningSentAt)
     && nullableDateValue(state.listingsBelowThresholdSince)
     && nullableDateValue(state.publicMapExactConsentAt)
+    && (state.publicMapExactConsentCoordinateHash === null
+      || (typeof state.publicMapExactConsentCoordinateHash === "string"
+        && /^[0-9a-f]{64}$/u.test(state.publicMapExactConsentCoordinateHash)))
     && (state.publicMapExactConsentVersion === null
       || state.publicMapExactConsentVersion === 1)
+    && (
+      (
+        state.publicMapExactConsentAt === null
+        && state.publicMapExactConsentVersion === null
+        && state.publicMapExactConsentCoordinateHash === null
+      )
+      || (
+        state.publicMapExactConsentAt !== null
+        && state.publicMapExactConsentVersion === 1
+        && state.publicMapExactConsentCoordinateHash !== null
+      )
+    )
     && Number.isSafeInteger(state.profileViews);
 }
 
@@ -799,6 +815,9 @@ export async function updateSellerOwnerShopSettings(
     radiusMeters: number | null;
     publicMapOptIn: boolean;
     publicMapExactConsent: boolean;
+    publicMapExactConsentVersion: number | null;
+    publicMapExactConsentLat: number | null;
+    publicMapExactConsentLng: number | null;
     shippingFlatRateCents: number | null;
     freeShippingOverCents: number | null;
     allowLocalPickup: boolean;
@@ -829,6 +848,9 @@ export async function updateSellerOwnerShopSettings(
       ${input.radiusMeters}::double precision,
       ${input.publicMapOptIn}::boolean,
       ${input.publicMapExactConsent}::boolean,
+      ${input.publicMapExactConsentVersion}::integer,
+      ${input.publicMapExactConsentLat}::double precision,
+      ${input.publicMapExactConsentLng}::double precision,
       ${input.shippingFlatRateCents}::integer,
       ${input.freeShippingOverCents}::integer,
       ${input.allowLocalPickup}::boolean,

@@ -99,8 +99,14 @@ approximate-only display. Option B first applied approximate public points on
 every surface: radius-sized grids for positive privacy radii and the coarse
 public grid otherwise. The 2026-10-19 product decision now permits exact public
 output only under a separate versioned consent stored in the protected private
-companion; old map opt-ins remain approximate and any source-location/privacy
-change revokes consent. An isolated Phase 1 candidate applies that rule to the three public maps,
+companion. The predecessor checkbox did publish exact points for opted-in
+zero-radius makers; it is deliberately not treated as the new separate exact
+consent, so those existing opt-ins become approximate until re-consent. The
+current grant is bound to the exact reviewed coordinate and an append-only
+grant/withdrawal event; source-location, privacy or account changes revoke it.
+The exact-address path must also stop forwarding personal/confidential address
+queries to public Nominatim before the exact-pin option ships. An isolated
+Phase 1 candidate applies the projection rule to the three public maps,
 seller/listing map cards, seller JSON-LD and browse-distance SQL, with
 failing-first behavior evidence. The first additive database authority serves
 the three directory/home maps with bounded presentation fields and a coarse

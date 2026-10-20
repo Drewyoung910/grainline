@@ -547,6 +547,18 @@ same context transaction as DirectUpload-reference synchronization. The
 candidate is now at 7 direct operations in 3 files and 4 direct writes; the
 other source counts are unchanged. The 183-function catalog is 98 retained,
 33 internal and 52 converted; two converted authorities are staff-only.
+The exact-map consent correction then verified three related allegations
+against the candidate: moving the pin did retain the checkbox, the protected
+companion retained no append-only grant/withdrawal history, and the public map
+function admitted a supplied banned viewer. The correction binds consent to
+the reviewed coordinate hash, records immutable grant and withdrawal events
+without a foreign key so deletion evidence survives, clears active consent on
+pin/privacy/account changes, and denies map rows to banned viewers. A
+failing-first full-chain PostgreSQL 16 scenario proved the old shape lacked
+coordinate binding; the corrected 395-migration chain passes. The separately
+alleged public-Nominatim exact-address disclosure also reproduces and remains a
+provider/privacy gate before the exact-pin option ships. None of these
+candidate changes is merged or live.
 Predecessor grants remain unchanged. The candidate remains unmerged, and the
 three retained-authority proof gaps remain
 `FIX_BEFORE_ACTIVATION`. No Production policy, grant, ENABLE, FORCE, migration,

@@ -312,10 +312,12 @@ and locks the visible seller after that lock, rejects self and reciprocal
 blocks, and is idempotent. Delete intentionally permits stale cleanup after a
 seller becomes hidden. The versioned exact-map consent successor adds one
 actor-bound owner-settings overload and one owner-only revocation trigger
-function. The overload accepts separate consent only with map opt-in, valid
-coordinates and zero privacy radius; the trigger clears consent whenever
-coordinates, radius or map membership change. All 38 converted authorities
-grant execute only to the app runtime; the trigger function does not.
+function. The corrected successor binds each grant to the exact coordinates
+the maker reviewed, keeps append-only grant/withdrawal evidence, and clears the
+active grant when the pin, radius, map membership or account state changes.
+The overload accepts separate consent only with map opt-in, valid coordinates
+and zero privacy radius. All 38 converted authorities grant execute only to
+the app runtime; the trigger functions and evidence table do not.
 `grainline_seller_public_profile(text)` then replaces the two broad seller-page
 reads. It owns public eligibility, active-owner preview and reciprocal-block
 denial and returns only rendered profile/shop fields, ordered FAQs, public
@@ -624,8 +626,10 @@ Option B therefore adopts the safer contract: every anonymous or signed-in
 public location result is database-derived and approximate by default.
 Positive privacy radii use a radius-sized grid; null/zero radii use the coarse
 public grid. Exact public output requires a separate, current, versioned consent
-record in `SellerProfilePrivate`; the old map checkbox is not grandfathered,
-and source-location or privacy changes revoke consent. Exact coordinates remain
+record in `SellerProfilePrivate`, bound to the exact coordinate pair and backed
+by an append-only grant/withdrawal event. The old map checkbox is not
+grandfathered, and source-location, privacy or account changes revoke consent.
+Exact coordinates remain
 otherwise available only to the owner or a reviewed purpose-bound transaction
 such as pickup fulfillment. General public projections omit all four location
 source columns, the private consent fields, and `userId`; location access is a
@@ -652,6 +656,10 @@ ledger later reused some numbers for unrelated findings.
 | Listing AI review omits `materials`, `metaDescription`, variant group names and option labels | **Confirmed.** All four `reviewListingWithAI` call sites pass title, description, category, tags, seller name, price and images; the review contract has no fields for the omitted public text. | `DEFERRED_PRODUCT_WORK`. Fix in the Listing moderation batch. It does not change the SellerProfile projection design or block additive design work. |
 | “Local makers only” commissions are visible to makers nationwide | **Confirmed.** Creation stores a privacy-reduced point and `isNational = false`, but the default `All` tab queries all open requests without a distance predicate. Only the `Near Me` raw query applies the 80 km filter, and any seller shown the request can submit interest. | `DEFERRED_PRODUCT_WORK`. Fix the promise/enforcement in the CommissionRequest domain. Preserve the current active-seller interest predicate during SellerProfile conversion. |
 | Public seller maps and seller JSON-LD disclose exact coordinates despite approximate-only legal promises | **Confirmed on exact main.** Opted-in null/zero-radius sellers' raw coordinates reach three map surfaces and seller JSON-LD. Seller/listing helpers can also return exact points. Privacy 2.7 and Terms 4.19/4.20 promise approximate-only public display. | The isolated Phase 1 candidate makes old map opt-ins approximate and permits exact public output only after new, clear, versioned consent stored in the protected private companion. It remains `FIX_BEFORE_ACTIVATION` until the code, reviewed legal wording, and database projection are released together; no existing seller is grandfathered. |
+| Exact-map consent remains checked after the maker moves the pin (Claude C-751) | **Confirmed on the isolated candidate.** The prior checkbox state was independent of `LocationPicker` changes, so saving a moved point could reuse consent given for another point. | `FIX_BEFORE_ACTIVATION`. The corrected candidate binds consent to the reviewed latitude/longitude, clears it immediately in the UI when the pin moves, and rejects mismatched hidden fields again in the server action and database function. |
+| Exact-map consent overwrites its only timestamp and retains no withdrawal history (Claude C-752) | **Confirmed on the isolated candidate.** The protected companion held only the current timestamp/version. It could not prove which point was reviewed or retain a prior grant after withdrawal/account deletion. | `FIX_BEFORE_ACTIVATION`. The corrected candidate adds a zero-direct append-only evidence table with consent-text and coordinate hashes, records grants and withdrawal reasons, and preserves unchanged-save idempotency. This remains unmerged and unshipped. |
+| Signed-in banned viewers can call the public map-points operation | **Confirmed on the isolated candidate.** Reciprocal blocks were applied, but the viewer lookup did not reject `User.banned = true`. Anonymous access was unaffected. | `FIX_BEFORE_ACTIVATION`. The corrected database projection returns no rows for a supplied banned viewer; full-chain behavior proof covers it. |
+| Exact workshop-address search is proxied to public Nominatim (Claude C-753) | **Confirmed.** `LocationPicker` uses `AddressAutocomplete`, and `/api/address/autocomplete` forwards the normalized search string to `nominatim.openstreetmap.org`. The Privacy page discloses that proxy, but the 2026-10-19 product decision says personal/confidential addresses must not use public Nominatim. | `FIX_BEFORE_ACTIVATION` for the new exact-pin experience. Replace the exact-address provider or restrict the search contract before advertising exact home/workshop consent. This is a provider/privacy correction, not an RLS predicate change. |
 
 These classifications preserve the verified product bugs without allowing
 unrelated Listing or CommissionRequest work to stall the seller authority
@@ -729,6 +737,13 @@ guard the final zero-direct state, but they do not count as behavior proof.
   seller/listing detail routes now use three additive bounded authorities. The
   application no longer derives a public point from raw seller coordinates;
   the two remaining coordinate consumers are purpose-bound owner paths.
+- Keep exact-map consent coordinate-bound and append-only. A pin/privacy/account
+  change must record a withdrawal and clear active consent, unchanged saves
+  must not duplicate a grant, and supplied banned viewers must receive no map
+  rows.
+- Remove public Nominatim from the exact workshop-address path, or otherwise
+  enforce the reviewed non-confidential query boundary, before releasing the
+  separate exact-public-pin option.
 - Add full-chain behavior proof for the checkout claim batch, listing delete
   reference state, and Guild listing-threshold sync authorities.
 - Prove anonymous, owner, staff, map, checkout/shipping, deletion/export,

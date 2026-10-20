@@ -300,10 +300,29 @@ model SellerProfilePrivate {
   // Versioned, explicit consent to publish the exact SellerProfile point.
   // Public-map membership alone continues to authorize approximate output.
   publicMapExactConsentAt      DateTime?
+  publicMapExactConsentCoordinateHash String? @db.VarChar(64)
   publicMapExactConsentVersion Int?
 
   profileViews Int      @default(0)
   updatedAt    DateTime @updatedAt
+}
+
+// Append-only legal/privacy evidence for exact public map consent. It has no
+// foreign keys so withdrawal evidence survives account deletion; ordinary
+// runtime and staff roles have no direct table authority.
+model SellerExactMapConsentEvent {
+  id                  String   @id @db.VarChar(64)
+  sellerProfileId     String   @db.VarChar(191)
+  actorUserId         String?  @db.VarChar(191)
+  eventType           String   @db.VarChar(20)
+  consentTextVersion  Int
+  consentTextSha256   String   @db.VarChar(64)
+  coordinateHash      String   @db.VarChar(64)
+  reason              String?  @db.VarChar(40)
+  createdAt           DateTime @default(now())
+
+  @@index([sellerProfileId, createdAt])
+  @@index([actorUserId, createdAt])
 }
 
 model SellerFaq {
