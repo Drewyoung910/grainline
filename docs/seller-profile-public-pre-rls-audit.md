@@ -799,8 +799,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   plus the admin broadcast list's bounded active-staff historical seller-label
   projection, plus the Guild approval actions' exact isolated-staff verification
   target, plus the review-vote endpoint's actor-bound exact visible target, plus
-  the new-message page's participant-bound exact conversation-listing target,
-  have reduced the live gate to 25 relation accesses in 12 files,
+  the new-message page and existing thread composer reuse of the
+  participant-bound exact conversation-listing target, have reduced the live
+  gate to 24 relation accesses in 12 files,
   two raw-SQL accesses in two files, three relation-bearing factories and zero
   opaque SellerProfile target predicates across 13 total consumer files and 144
   reconciled opaque shapes. The strengthened scanner now follows assignments to

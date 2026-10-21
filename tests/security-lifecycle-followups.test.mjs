@@ -67,6 +67,9 @@ describe("security lifecycle follow-ups", () => {
   it("keeps Guild approval writes on active seller accounts", () => {
     const page = source("src/app/admin/verification/page.tsx");
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
+    const verificationAuthority = source(
+      "prisma/migrations/20261020235980_prepare_seller_profile_staff_verification_target/migration.sql",
+    );
     const transitionAuthority = source(sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"));
 
     for (const [action, operation] of [
@@ -75,11 +78,15 @@ describe("security lifecycle follow-ups", () => {
     ]) {
       const body = functionBody(page, action);
 
-      assert.match(body, /ownerAccountActive: true/, `${action} must load account state`);
+      assert.match(body, /sellerProfileStaffVerificationTarget\(getOrderStaffReadClient\(\), \{/, `${action} must load account state through the isolated target`);
       assert.match(body, /!verification\.sellerProfile\.ownerAccountActive/, `${action} must block inactive accounts before approval`);
       assert.match(body, /applySellerGuildStaffTransition\(getOrderStaffReadClient\(\), \{/, `${action} must use the isolated staff boundary`);
       assert.match(body, new RegExp(`operation: "${operation}"`), `${action} must select the fixed transition`);
     }
+    const memberBody = functionBody(page, "approveGuildMember");
+    assert.match(memberBody, /userStaffAdminLabels\(getOrderStaffReadClient\(\), \{/, "approveGuildMember must load the current owner account label");
+    assert.match(memberBody, /sellerAccount\.deletedAt/, "approveGuildMember must block deleted owner accounts before approval");
+    assert.match(verificationAuthority, /seller\."ownerAccountActive",/);
     assert.match(staffGuildAccess, /grainline_seller_guild_staff_transition/);
     assert.match(transitionAuthority, /NOT source_seller\."ownerAccountActive"/);
     assert.match(transitionAuthority, /RETURN QUERY SELECT false/);

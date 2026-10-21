@@ -71,7 +71,7 @@ two real-schema boundaries:
 That same full-chain run exercises the public, owner, staff, service,
 checkout, deletion, listing-card, bounded historical broadcast-label, exact
 staff verification-target, actor-bound review-vote target, participant-bound
-conversation-listing target and
+conversation-listing target used by both conversation entry surfaces and
 retained-authority flows through policyless ENABLE.
 
 ## Release order

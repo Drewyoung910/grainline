@@ -948,3 +948,15 @@ target predicates across 13 consumer files and 144 reconciled opaque shapes.
 The 213-function catalog is 98 retained, 33 internal and 82 converted
 authorities; the compatible preparation set contains 62 migrations and the
 full chain contains 413.
+
+The existing message-thread composer now reuses that same participant-bound
+conversation-listing target instead of re-reading the optional requested
+listing through `Listing -> SellerProfile`. This preserves the database's
+active-participant, reciprocal-block, seller-orderability, listing-status and
+private-reservation checks without adding another migration or widening the
+returned shape. The historical conversation card remains a separately visible
+caller because it must continue rendering retained context after a listing or
+seller becomes unavailable. The gate is now 24 relation accesses in 12 files,
+two raw-SQL accesses in two files, three relation-bearing factories and zero
+opaque SellerProfile target predicates across 13 consumer files and 144
+reconciled opaque shapes.

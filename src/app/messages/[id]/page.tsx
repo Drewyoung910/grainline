@@ -35,7 +35,6 @@ import {
   DirectUploadClaimError,
   syncLegacyMessageDirectUploadReference,
 } from "@/lib/directUploadLifecycle";
-import { canAttachConversationContextListing } from "@/lib/conversationStartState";
 import {
   claimActorConversationMessageEmail,
   getActorConversation,
@@ -48,6 +47,7 @@ import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
+import { sellerParticipantConversationListingTarget } from "@/lib/sellerProfilePublicAccess";
 
 export default async function ThreadPage({
   params,
@@ -120,40 +120,17 @@ export default async function ThreadPage({
     contextListing,
   };
   const isStaffReviewMode = canStaffReviewThread && !isParticipant;
+  const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
 
   const requestedListingId = requestedListingParam?.trim();
-  const requestedListing = isParticipant && requestedListingId && requestedListingId.length <= 191
-    ? requestedListingId === convo.contextListing?.id
-      ? convo.contextListing
-      : await prisma.listing.findUnique({
-          where: { id: requestedListingId },
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            isPrivate: true,
-            reservedForUserId: true,
-            seller: {
-              select: {
-                chargesEnabled: true,
-                stripeAccountSupported: true,
-                vacationMode: true,
-                userId: true,
-                ownerAccountActive: true,
-              },
-            },
-          },
-        })
-    : null;
-  const composerContextListing = requestedListing
-    && canAttachConversationContextListing(
-      requestedListing,
-      [convo.userAId, convo.userBId],
-    )
-    ? { id: requestedListing.id, title: requestedListing.title }
+  const composerContextListing = other && requestedListingId && requestedListingId.length <= 191
+    ? await sellerParticipantConversationListingTarget(
+        me.id,
+        other.id,
+        requestedListingId,
+      )
     : null;
 
-  const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
   const otherUnavailableReason = isParticipant ? messagingUnavailableReason(other) : null;
 
   // Check if the other participant is a seller (display name overrides
