@@ -338,7 +338,13 @@ async function processEmailOutboxJob(
 
     await sendRenderedEmail(
       { to: job.recipientEmail, subject: job.subject, html: job.html },
-      { throwOnFailure: true, idempotencyKey: job.dedupKey },
+      {
+        throwOnFailure: true,
+        idempotencyKey: job.dedupKey,
+        preferenceKey: isValidEmailPreferenceKey(job.preferenceKey)
+          ? job.preferenceKey
+          : undefined,
+      },
     );
     await prisma.emailOutbox.update({
       where: { id: job.id },

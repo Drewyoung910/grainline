@@ -19722,3 +19722,52 @@ stale/false-positive/current 579, deferred product/design/ops/legal 86,
 approximate raw allegations left from current max #1126: 0. The raw Claude
 finding remains preserved in its private source ledger under the distinct
 `C-758` namespace.
+
+### Entry 575 - Claude session C-875 one-click unsubscribe disabled critical email
+
+Entry 575 independently verifies Claude session finding C-875 as real and
+fixes its critical delivery failure in source. Grainline attached the same
+generic one-click unsubscribe token to every live email. That mutation wrote
+all 13 email preference keys false, including new-order, case-opened,
+case-message, case-resolved, and refund-issued mail. Those five keys were still
+consulted by application and database recipient paths, so one click on an
+unrelated community or marketing message could silence time-critical notices.
+The existing manual-suppression boundary correctly exempted transactional mail,
+but that did not protect it from the separate preference checks.
+
+The correction defines one central email-preference policy. New-order, all
+case, and refund-issued keys are always-on: ordinary preference checks return
+true, single-recipient database lookups pass `NULL` instead of the legacy key,
+and the preferences API rejects attempts to change them. Their settings toggles
+are removed and both settings pages state the delivery rule. This makes any
+historical false values ineffective without a data backfill. Optional
+community/marketing senders now pass their exact preference key to the shared
+send boundary; only those emails receive RFC 8058 one-click headers and an
+unsubscribe footer. Always-on and uncategorized mail links to email preferences
+and cannot expose a mail-client action that promises to disable required mail.
+The legacy generic unsubscribe still disables every optional preference and
+newsletter delivery, and its UI now accurately says order, case, and refund
+notices continue. A category-specific optional unsubscribe is useful follow-up
+product work but does not leave the critical C-875 failure open.
+
+A failing-first behavior test on current main could not load the absent central
+policy module. With the correction it proves every always-on and optional key,
+including the actual argument passed into the database recipient function.
+Focused preference, delivery, unsubscribe, media, and privacy checks pass all
+49 tests; TypeScript and diff whitespace validation also pass. Production is
+unchanged. Scoped review, exact-head CI, merge, and ordinary app deployment
+remain open.
+
+The first exact-head CI run then passed 5,218 of 5,219 executed tests and
+exposed one stale source-shape guard in `post-launch-ui-followups.test.mjs`.
+That guard required the Stripe direct-send options object to end immediately
+after its idempotency key, so the intentional new preference-key metadata made
+the regex fail even though the send path remained correct. The guard now
+requires both the idempotency key and validated preference-key wiring. This was
+a test-only correction; it did not change runtime behavior.
+
+Current running tally after Entry 575: verified fixed/reduced 1108, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 86,
+approximate raw allegations left from current max #1126: 0. The raw Claude
+finding remains preserved in its private source ledger under the distinct
+`C-875` namespace.

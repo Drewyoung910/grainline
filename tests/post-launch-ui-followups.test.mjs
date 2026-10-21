@@ -234,7 +234,10 @@ describe("post-launch UI follow-ups", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
 
     assert.match(webhook, /sendOrderTransactionalEmailWithFallback/);
-    assert.match(webhook, /sendRenderedEmail\(email, \{\s*throwOnFailure: true,\s*idempotencyKey: enqueued\.job\.dedupKey,\s*\}\)/);
+    assert.match(
+      webhook,
+      /sendRenderedEmail\(email, \{\s*throwOnFailure: true,\s*idempotencyKey: enqueued\.job\.dedupKey,\s*preferenceKey: isValidEmailPreferenceKey\(preferenceKey\)/,
+    );
     assert.match(webhook, /enqueueEmailOutbox/);
     assert.match(webhook, /renderOrderConfirmedBuyerEmail/);
     assert.match(webhook, /renderOrderConfirmedSellerEmail/);

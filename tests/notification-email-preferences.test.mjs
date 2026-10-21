@@ -24,11 +24,12 @@ describe("notification email preferences", () => {
     assert.equal(isEmailNotificationEnabled({ EMAIL_ORDER_SHIPPED: true }, "EMAIL_ORDER_SHIPPED"), false);
   });
 
-  it("disables default-on emails only for explicit boolean false", () => {
-    assert.equal(isEmailNotificationEnabled({ EMAIL_NEW_ORDER: false }, "EMAIL_NEW_ORDER"), false);
+  it("keeps transactional emails enabled and honors optional default-on preferences", () => {
+    assert.equal(isEmailNotificationEnabled({ EMAIL_NEW_ORDER: false }, "EMAIL_NEW_ORDER"), true);
     assert.equal(isEmailNotificationEnabled({ EMAIL_NEW_ORDER: true }, "EMAIL_NEW_ORDER"), true);
     assert.equal(isEmailNotificationEnabled({ EMAIL_NEW_ORDER: "false" }, "EMAIL_NEW_ORDER"), true);
     assert.equal(isEmailNotificationEnabled(["EMAIL_NEW_ORDER"], "EMAIL_NEW_ORDER"), true);
+    assert.equal(isEmailNotificationEnabled({ EMAIL_NEW_MESSAGE: false }, "EMAIL_NEW_MESSAGE"), false);
   });
 
   it("enables default-off emails only for explicit boolean true", () => {
@@ -42,6 +43,8 @@ describe("notification email preferences", () => {
     const sellerSettings = source("src/app/dashboard/seller/page.tsx");
 
     for (const key of [
+      "EMAIL_NEW_ORDER",
+      "EMAIL_CASE_OPENED",
       "EMAIL_REFUND_ISSUED",
       "EMAIL_PAYMENT_DISPUTE",
       "EMAIL_NEW_FOLLOWER",
@@ -56,9 +59,7 @@ describe("notification email preferences", () => {
     }
 
     for (const key of [
-      "EMAIL_NEW_ORDER",
       "EMAIL_CUSTOM_ORDER",
-      "EMAIL_CASE_OPENED",
       "EMAIL_NEW_REVIEW",
       "EMAIL_VERIFICATION_APPROVED",
       "EMAIL_VERIFICATION_REJECTED",

@@ -570,9 +570,7 @@ export default async function SellerSettingsPage({
         <div className="border-t border-neutral-100 pt-4">
           <h3 className="text-sm font-semibold text-neutral-700 mb-2">Email</h3>
           {([
-            { type: "EMAIL_NEW_ORDER", label: "New orders", desc: "Email when a buyer purchases from your shop" },
             { type: "EMAIL_CUSTOM_ORDER", label: "Custom order updates", desc: "Email for custom order requests and ready-to-purchase custom listings" },
-            { type: "EMAIL_CASE_OPENED", label: "Cases opened", desc: "Email when a buyer opens a case" },
             { type: "EMAIL_NEW_REVIEW", label: "New reviews", desc: "Email when a buyer leaves a review" },
             { type: "EMAIL_VERIFICATION_APPROVED", label: "Verification approved", desc: "Email when a Guild application is approved" },
             { type: "EMAIL_VERIFICATION_REJECTED", label: "Verification rejected", desc: "Email when a Guild application or badge is rejected or revoked" },
@@ -585,6 +583,9 @@ export default async function SellerSettingsPage({
               <NotificationToggle type={r.type} enabled={getEmailPref(r.type)} />
             </div>
           ))}
+          <p className="pt-3 text-xs text-neutral-500">
+            New-order, case, and refund emails are always sent.
+          </p>
         </div>
       </section>
 

@@ -14,13 +14,14 @@ function functionBody(text, name) {
 }
 
 describe("email delivery guardrails", () => {
-  it("sets Reply-To and fails closed before live sends without one-click unsubscribe", () => {
+  it("sets Reply-To and limits one-click unsubscribe to optional email", () => {
     const email = source("src/lib/email.ts");
 
     assert.match(email, /const EMAIL_REPLY_TO = normalizeEmailAddress\(process\.env\.EMAIL_REPLY_TO \|\| SUPPORT_EMAIL\)/);
     assert.match(email, /replyTo: EMAIL_REPLY_TO/);
     assert.match(email, /reason: "missing_one_click_unsubscribe"/);
-    assert.match(email, /if \(!unsubscribeUrl\) \{[\s\S]*?if \(opts\.throwOnFailure\) throw err;[\s\S]*?return;[\s\S]*?\}/);
+    assert.match(email, /if \(isOptionalEmailPreferenceKey\(opts\.preferenceKey\) && !unsubscribeUrl\) \{[\s\S]*?if \(opts\.throwOnFailure\) throw err;[\s\S]*?return;[\s\S]*?\}/);
+    assert.match(email, /headers: unsubscribeUrl\s*\? \{/);
     assert.match(email, /"List-Unsubscribe": `<\$\{unsubscribeUrl\}>`/);
     assert.match(email, /"List-Unsubscribe-Post": "List-Unsubscribe=One-Click"/);
   });
@@ -45,7 +46,7 @@ describe("email delivery guardrails", () => {
         outbox.indexOf("reserveRecipientDailySendAllowance(job.recipientEmail"),
       "outbox should skip hard-suppressed recipients before reserving quota",
     );
-    assert.match(outbox, /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{ throwOnFailure: true/);
+    assert.match(outbox, /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{\s*throwOnFailure: true/);
     assert.match(source("src/app/api/support/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
     assert.match(source("src/app/api/legal/data-request/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
   });
@@ -55,17 +56,17 @@ describe("email delivery guardrails", () => {
     const outbox = source("src/lib/emailOutbox.ts");
     const webhook = source("src/app/api/stripe/webhook/route.ts");
 
-    assert.match(email, /type EmailSendOptions = \{\s*throwOnFailure\?: boolean;\s*idempotencyKey\?: string;\s*\}/);
+    assert.match(email, /type EmailSendOptions = \{\s*throwOnFailure\?: boolean;\s*idempotencyKey\?: string;\s*preferenceKey\?: EmailNotificationPreferenceKey;\s*\}/);
     assert.match(email, /resend!\.emails\.send\(\s*\{[\s\S]*?\},\s*opts\.idempotencyKey \? \{ idempotencyKey: opts\.idempotencyKey \} : undefined,\s*\)/);
-    assert.match(outbox, /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{ throwOnFailure: true, idempotencyKey: job\.dedupKey \}/);
-    assert.match(webhook, /sendRenderedEmail\(email, \{\s*throwOnFailure: true,\s*idempotencyKey: enqueued\.job\.dedupKey,\s*\}\)/);
+    assert.match(outbox, /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{\s*throwOnFailure: true,\s*idempotencyKey: job\.dedupKey,/);
+    assert.match(webhook, /sendRenderedEmail\(email, \{\s*throwOnFailure: true,\s*idempotencyKey: enqueued\.job\.dedupKey,\s*preferenceKey:/);
   });
 
-  it("only injects unsubscribe URLs into the footer href placeholder", () => {
+  it("only injects email-preference destinations into the footer href placeholder", () => {
     const email = source("src/lib/email.ts");
 
     assert.match(email, /const UNSUBSCRIBE_HREF_PLACEHOLDER = "https:\/\/grainline\.invalid\/unsubscribe-placeholder-/);
-    assert.match(email, /function injectUnsubscribeHref/);
+    assert.match(email, /function injectEmailPreferenceLink/);
     assert.match(email, /`href="\$\{UNSUBSCRIBE_HREF_PLACEHOLDER\}"`/);
     assert.doesNotMatch(email, /__GRAINLINE_UNSUBSCRIBE_URL__/);
   });

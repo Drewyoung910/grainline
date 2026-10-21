@@ -19,6 +19,7 @@ import {
 } from "@/lib/email";
 import { enqueueEmailOutboxOnce, type QueuedEmail } from "@/lib/emailOutbox";
 import { emailOutboxFailureState } from "@/lib/emailOutboxState";
+import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
@@ -532,6 +533,9 @@ export async function POST(req: Request) {
       await sendRenderedEmail(email, {
         throwOnFailure: true,
         idempotencyKey: enqueued.job.dedupKey,
+        preferenceKey: isValidEmailPreferenceKey(preferenceKey)
+          ? preferenceKey
+          : undefined,
       });
     } catch (error) {
       directSendError = error;

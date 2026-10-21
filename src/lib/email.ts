@@ -17,6 +17,10 @@ import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { requiredProductionEnv } from "@/lib/env";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { userEmailAccountStateByEmail } from "@/lib/userEmailDeliveryAccess";
+import {
+  isOptionalEmailPreferenceKey,
+} from "@/lib/emailPreferencePolicy";
+import type { EmailNotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 
 const EMAIL_FROM = requiredProductionEnv("EMAIL_FROM");
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!EMAIL_FROM;
@@ -25,6 +29,7 @@ const APP_URL = EMAIL_APP_URL;
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@thegrainline.com";
 const EMAIL_REPLY_TO = normalizeEmailAddress(process.env.EMAIL_REPLY_TO || SUPPORT_EMAIL) ?? SUPPORT_EMAIL;
 export const UNSUBSCRIBE_HREF_PLACEHOLDER = "https://grainline.invalid/unsubscribe-placeholder-75f8c4d9";
+const EMAIL_PREFERENCE_LINK_TEXT_PLACEHOLDER = "grainline-email-preference-link-text-75f8c4d9";
 
 if (!process.env.RESEND_API_KEY) {
   console.warn("[email] RESEND_API_KEY is not set. Emails will be logged but not sent.");
@@ -67,8 +72,8 @@ function escapeUrlAttribute(url: string) {
   return url.replace(/"/g, "%22");
 }
 
-function unsubscribeFallbackUrl() {
-  return new URL("/unsubscribe", APP_URL).toString();
+function emailPreferencesUrl() {
+  return new URL("/account/settings", APP_URL).toString();
 }
 
 function sanitizedEmailSentryError(error: unknown) {
@@ -81,10 +86,13 @@ function sanitizedEmailSentryError(error: unknown) {
   return sentryError;
 }
 
-function injectUnsubscribeHref(html: string, unsubscribeUrl: string) {
+function injectEmailPreferenceLink(html: string, unsubscribeUrl: string | null) {
   return html.replaceAll(
     `href="${UNSUBSCRIBE_HREF_PLACEHOLDER}"`,
-    `href="${escapeUrlAttribute(unsubscribeUrl)}"`,
+    `href="${escapeUrlAttribute(unsubscribeUrl ?? emailPreferencesUrl())}"`,
+  ).replaceAll(
+    EMAIL_PREFERENCE_LINK_TEXT_PLACEHOLDER,
+    unsubscribeUrl ? "Unsubscribe" : "Email preferences",
   );
 }
 
@@ -151,7 +159,7 @@ function baseTemplate(title: string, body: string): string {
       © ${year} Grainline LLC &nbsp;·&nbsp;
       <a href="${APP_URL}" style="color:#9D9C97;text-decoration:none;">thegrainline.com</a>
       &nbsp;·&nbsp;
-      <a href="${UNSUBSCRIBE_HREF_PLACEHOLDER}" style="color:#9D9C97;text-decoration:none;">Unsubscribe</a>
+      <a href="${UNSUBSCRIBE_HREF_PLACEHOLDER}" style="color:#9D9C97;text-decoration:none;">${EMAIL_PREFERENCE_LINK_TEXT_PLACEHOLDER}</a>
       &nbsp;·&nbsp;
       <a href="mailto:${SUPPORT_EMAIL}" style="color:#9D9C97;text-decoration:none;">${SUPPORT_EMAIL}</a>
       <br/>
@@ -223,6 +231,7 @@ export type QueuedRenderedEmail = RenderedEmail;
 type EmailSendOptions = {
   throwOnFailure?: boolean;
   idempotencyKey?: string;
+  preferenceKey?: EmailNotificationPreferenceKey;
 };
 
 async function findInactiveEmailAccount(recipient: string, subject: string) {
@@ -263,14 +272,16 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
   }
   const emailHash = hashEmailForTelemetry(recipient);
 
-  const unsubscribeUrl = buildUnsubscribeUrl(recipient);
-  const htmlForRecipient = injectUnsubscribeHref(html, unsubscribeUrl ?? unsubscribeFallbackUrl());
+  const unsubscribeUrl = isOptionalEmailPreferenceKey(opts.preferenceKey)
+    ? buildUnsubscribeUrl(recipient)
+    : null;
+  const htmlForRecipient = injectEmailPreferenceLink(html, unsubscribeUrl);
   if (!HAS_RESEND) {
     console.log("[email:dev]", { emailHash, subjectLength: sanitizedSubject.length });
     if (opts.throwOnFailure) throw emailDeliverySkippedError("email provider not configured");
     return;
   }
-  if (!unsubscribeUrl) {
+  if (isOptionalEmailPreferenceKey(opts.preferenceKey) && !unsubscribeUrl) {
     const err = new Error("One-click unsubscribe URL unavailable for configured email send");
     Sentry.captureException(sanitizedEmailSentryError(err), {
       level: "error",
@@ -303,10 +314,12 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
             replyTo: EMAIL_REPLY_TO,
             html: htmlForRecipient,
             text: htmlToText(htmlForRecipient),
-            headers: {
-              "List-Unsubscribe": `<${unsubscribeUrl}>`,
-              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-            },
+            headers: unsubscribeUrl
+              ? {
+                  "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                }
+              : undefined,
           },
           opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey } : undefined,
         ),
@@ -622,7 +635,12 @@ export async function sendCustomOrderRequest(opts: {
     ${btn("View request", convoUrl)}
   `;
 
-  await send(seller.email, `${safeSubject(buyer)} wants a custom piece!`, baseTemplate("New Custom Order Request", body));
+  await send(
+    seller.email,
+    `${safeSubject(buyer)} wants a custom piece!`,
+    baseTemplate("New Custom Order Request", body),
+    { preferenceKey: "EMAIL_CUSTOM_ORDER" },
+  );
 }
 
 export async function sendCustomOrderReady(opts: {
@@ -645,7 +663,12 @@ export async function sendCustomOrderReady(opts: {
     ${btn("Purchase your piece", listingUrl)}
   `;
 
-  await send(buyer.email, `Your custom piece is ready: ${truncateSubjectText(listingTitle, 40)}`, baseTemplate("Your Custom Piece is Ready", body));
+  await send(
+    buyer.email,
+    `Your custom piece is ready: ${truncateSubjectText(listingTitle, 40)}`,
+    baseTemplate("Your Custom Piece is Ready", body),
+    { preferenceKey: "EMAIL_CUSTOM_ORDER" },
+  );
 }
 
 export function renderBackInStockEmail(opts: {
@@ -676,7 +699,7 @@ export async function sendBackInStock(opts: {
   listingId: string;
 }) {
   const rendered = renderBackInStockEmail(opts);
-  await sendRenderedEmail(rendered);
+  await sendRenderedEmail(rendered, { preferenceKey: "EMAIL_BACK_IN_STOCK" });
 }
 
 export async function sendVerificationApproved(opts: {
@@ -694,7 +717,12 @@ export async function sendVerificationApproved(opts: {
     ${btn("View your profile", profileUrl)}
   `;
 
-  await send(seller.email, "You are now a Guild Member!", baseTemplate("You're a Guild Member!", body));
+  await send(
+    seller.email,
+    "You are now a Guild Member!",
+    baseTemplate("You're a Guild Member!", body),
+    { preferenceKey: "EMAIL_VERIFICATION_APPROVED" },
+  );
 }
 
 export async function sendVerificationRejected(opts: {
@@ -716,7 +744,12 @@ export async function sendVerificationRejected(opts: {
     ${btn("Reapply", applyUrl)}
   `;
 
-  await send(seller.email, "Update on your Guild Member application", baseTemplate("Verification Update", body));
+  await send(
+    seller.email,
+    "Update on your Guild Member application",
+    baseTemplate("Verification Update", body),
+    { preferenceKey: "EMAIL_VERIFICATION_REJECTED" },
+  );
 }
 
 export function renderRefundIssuedEmail(opts: {
@@ -900,7 +933,8 @@ export async function sendGuildMasterWarningEmail(opts: {
   await send(
     seller.email,
     "Your Guild Master status is at risk - Grainline",
-    baseTemplate("Guild Master Status at Risk", body)
+    baseTemplate("Guild Master Status at Risk", body),
+    { preferenceKey: "EMAIL_VERIFICATION_REJECTED" },
   );
 }
 
@@ -920,7 +954,8 @@ export async function sendGuildMasterRevokedEmail(opts: {
   await send(
     seller.email,
     "Guild Master badge update - Grainline",
-    baseTemplate("Guild Master Badge Revoked", body)
+    baseTemplate("Guild Master Badge Revoked", body),
+    { preferenceKey: "EMAIL_VERIFICATION_REJECTED" },
   );
 }
 
@@ -942,7 +977,8 @@ export async function sendGuildMemberRevokedEmail(opts: {
   await send(
     seller.email,
     "Guild Member badge update - Grainline",
-    baseTemplate("Guild Member Badge Revoked", body)
+    baseTemplate("Guild Member Badge Revoked", body),
+    { preferenceKey: "EMAIL_VERIFICATION_REJECTED" },
   );
 }
 
@@ -988,7 +1024,9 @@ export async function sendNewListingFromFollowedMakerEmail(opts: {
   listingImageUrl?: string;
 }) {
   const rendered = renderNewListingFromFollowedMakerEmail(opts);
-  await sendRenderedEmail(rendered);
+  await sendRenderedEmail(rendered, {
+    preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
+  });
 }
 
 export function sellerBroadcastEmailSubject(makerName: string) {
@@ -1041,7 +1079,12 @@ export async function sendNewMessageEmail(opts: {
     ${btn("View Conversation", conversationUrl)}
   `;
 
-  await send(recipientEmail, `New message from ${safeSubject(sender)} on Grainline`, baseTemplate("New Message", body));
+  await send(
+    recipientEmail,
+    `New message from ${safeSubject(sender)} on Grainline`,
+    baseTemplate("New Message", body),
+    { preferenceKey: "EMAIL_NEW_MESSAGE" },
+  );
 }
 
 export async function sendNewReviewEmail(opts: {
@@ -1065,5 +1108,10 @@ export async function sendNewReviewEmail(opts: {
     ${btn("View Review", reviewUrl)}
   `;
 
-  await send(sellerEmail, `New ${ratingDisplay}-star review from ${safeSubject(buyer)} on Grainline`, baseTemplate("New Review", body));
+  await send(
+    sellerEmail,
+    `New ${ratingDisplay}-star review from ${safeSubject(buyer)} on Grainline`,
+    baseTemplate("New Review", body),
+    { preferenceKey: "EMAIL_NEW_REVIEW" },
+  );
 }

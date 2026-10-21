@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { EmailNotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { emailPreferenceKeyForDelivery } from "./emailPreferencePolicy.ts";
 
 type UserEmailDeliveryClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
@@ -61,7 +62,7 @@ export async function userEmailDeliveryRecipient(
     SELECT *
       FROM public.grainline_user_email_recipient(
         ${input.userId}::text,
-        ${input.preferenceKey ?? null}::text
+        ${emailPreferenceKeyForDelivery(input.preferenceKey)}::text
       )
   `;
   if (rows.length === 0) return null;
