@@ -790,12 +790,14 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Follow creation, Founding Maker allocation and owner bootstrap now normalize
   new `timestamp without time zone` writes to UTC. The real full-chain proof
   exercises those operations under a non-UTC session timezone.
-- Exact-head CI exposed seven projection functions that returned Prisma's UTC
+- Exact-head CI exposed two host-timezone regressions. A complete return-type
+  inventory then found nine projection functions that returned Prisma's UTC
   `timestamp without time zone` values without restoring the UTC instant. The
   forward correction changes only those return types and expressions to
   `timestamp with time zone` plus `AT TIME ZONE 'UTC'`; the two previously
   host-dependent PGlite regressions pass, and the complete 401-migration
-  PostgreSQL 16 chain applies the correction before policyless ENABLE.
+  PostgreSQL 16 chain applies the correction before policyless ENABLE and
+  asserts the public-profile and Guild-application timestamps as UTC instants.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending
   migration check, global grant audit and sanitized postflight are prepared,
   and the workflow now refuses database access while any direct, relation,

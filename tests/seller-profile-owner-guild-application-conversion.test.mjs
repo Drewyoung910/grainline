@@ -6,6 +6,10 @@ const migration = readFileSync(
   "prisma/migrations/20261020110000_prepare_seller_profile_owner_guild_application_state/migration.sql",
   "utf8",
 );
+const correction = readFileSync(
+  "prisma/migrations/20261020235700_correct_seller_profile_projection_timestamps/migration.sql",
+  "utf8",
+);
 const access = readFileSync("src/lib/sellerOwnerPrivateAccess.ts", "utf8");
 const route = readFileSync("src/app/api/verification/apply/route.ts", "utf8");
 
@@ -29,4 +33,22 @@ test("Guild application callers no longer read SellerProfile directly", () => {
   assert.match(route, /sellerOwnerGuildApplicationState\(seller\.id, me\.id\)/u);
   assert.doesNotMatch(route, /prisma\.sellerProfile\./u);
   assert.doesNotMatch(access, /sellerOwnerGuildApplicationSelect/u);
+});
+
+test("Guild application projection restores reviewedAt as a UTC instant", () => {
+  const start = correction.indexOf(
+    "DROP FUNCTION public.grainline_seller_owner_guild_application_state(text)",
+  );
+  const end = correction.indexOf(
+    "DROP FUNCTION public.grainline_seller_owner_guild_dashboard_state(text)",
+    start,
+  );
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const corrected = correction.slice(start, end);
+  assert.match(
+    corrected,
+    /"verificationReviewedAt" timestamp\(3\) with time zone/u,
+  );
+  assert.match(corrected, /verification\."reviewedAt" AT TIME ZONE 'UTC'/u);
 });

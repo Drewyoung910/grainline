@@ -49,7 +49,8 @@ export async function proveSellerProfileOwnerGuildApplicationAuthority({ databas
     `INSERT INTO public."MakerVerification"
       (id, "sellerProfileId", "craftDescription", "yearsExperience", status,
        "appliedAt", "reviewedAt")
-     VALUES ($1, $2, 'Full-chain guild application', 7, 'PENDING', $3, NULL)`,
+     VALUES ($1, $2, 'Full-chain guild application', 7, 'APPROVED', $3,
+             '2026-10-19 15:30:00'::timestamp)`,
     [verificationId, seller.sellerProfileId, now],
   );
 
@@ -66,8 +67,8 @@ export async function proveSellerProfileOwnerGuildApplicationAuthority({ databas
     )), [{
       userId: seller.userId,
       guildLevel: "GUILD_MEMBER",
-      verificationStatus: "PENDING",
-      verificationReviewedAt: null,
+      verificationStatus: "APPROVED",
+      verificationReviewedAt: new Date("2026-10-19T15:30:00.000Z"),
     }]);
     assert.deepEqual(rowsOf(await database.query(
       `SELECT *

@@ -8,6 +8,8 @@ function source(path) {
 
 const migrationPath =
   "prisma/migrations/20261020100000_prepare_seller_profile_public_profile_authority/migration.sql";
+const correctionPath =
+  "prisma/migrations/20261020235700_correct_seller_profile_projection_timestamps/migration.sql";
 
 test("public profile authority owns viewer eligibility and reciprocal-block denial", () => {
   const sql = source(migrationPath);
@@ -56,6 +58,22 @@ test("runtime receives only the hardened fixed public profile operation", () => 
     sql,
     /GRANT EXECUTE ON FUNCTION public\.grainline_seller_public_profile\(text\)\s+TO grainline_app_runtime/u,
   );
+});
+
+test("public profile projection restores stored UTC timestamps at the SQL boundary", () => {
+  const sql = source(correctionPath);
+  const start = sql.indexOf("DROP FUNCTION public.grainline_seller_public_profile(text)");
+  const end = sql.indexOf(
+    "DROP FUNCTION public.grainline_seller_owner_guild_application_state(text)",
+    start,
+  );
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const corrected = sql.slice(start, end);
+  assert.match(corrected, /"createdAt" timestamp\(3\) with time zone/u);
+  assert.match(corrected, /"vacationReturnDate" timestamp\(3\) with time zone/u);
+  assert.match(corrected, /seller\."createdAt" AT TIME ZONE 'UTC'/u);
+  assert.match(corrected, /seller\."vacationReturnDate" AT TIME ZONE 'UTC'/u);
 });
 
 test("application helper validates output and binds authenticated viewers to transaction context", () => {

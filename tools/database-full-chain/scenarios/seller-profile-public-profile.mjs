@@ -97,6 +97,7 @@ export async function proveSellerProfilePublicProfileAuthority({ database, selle
             "foundingMakerNumber" = 42,
             "metroId" = $2,
             "cityMetroId" = $3,
+            "vacationReturnDate" = '2026-10-31 18:45:00'::timestamp,
             "ownerAccountActive" = true,
             "chargesEnabled" = true,
             "stripeAccountSupported" = true,
@@ -123,6 +124,14 @@ export async function proveSellerProfilePublicProfileAuthority({ database, selle
     assert.equal(anonymousRows[0].id, seller.sellerProfileId);
     assert.equal(anonymousRows[0].displayName, "Full Chain Workshop");
     assert.equal(anonymousRows[0].viewerIsOwner, false);
+    assert.equal(
+      anonymousRows[0].createdAt.toISOString(),
+      "2026-10-15T00:00:00.000Z",
+    );
+    assert.equal(
+      anonymousRows[0].vacationReturnDate.toISOString(),
+      "2026-10-31T18:45:00.000Z",
+    );
     assert.deepEqual(anonymousRows[0].faqs, [
       { id: faqFirstId, question: "First question", answer: "First answer" },
       { id: faqSecondId, question: "Second question", answer: "Second answer" },
@@ -260,6 +269,7 @@ export async function proveSellerProfilePublicProfileAuthority({ database, selle
     `UPDATE public."SellerProfile"
         SET "chargesEnabled" = true,
             "foundingMakerNumber" = NULL,
+            "vacationReturnDate" = NULL,
             "updatedAt" = $2
       WHERE id = $1`,
     [seller.sellerProfileId, now],

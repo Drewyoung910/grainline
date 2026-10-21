@@ -53,7 +53,7 @@ const preparationRows = [
   ["20261020230000_prepare_seller_profile_staff_orderability_transition", "a6912d3fa0fd6c183cfa246d349b00ae1984d980411831e482b246a8b49226de"],
   ["20261020235000_prepare_seller_profile_public_commission_interests", "a68464136c31a33cd12589c7d5ebbb50e52ed7c3c596270748d6da8d2d0a1b84"],
   ["20261020235500_prepare_seller_profile_commission_interest_residual_authorities", "27fae81a99658b7733a0bf4313042a3aa97c755ce8b0b2029cc2516101f18a2c"],
-  ["20261020235700_correct_seller_profile_projection_timestamps", "451d1cd81269001a1ca40059f468292507aa291a6739ef49ba429098aa43603b"],
+  ["20261020235700_correct_seller_profile_projection_timestamps", "83eb314d85b308e0028872c03488958ee9c869379cd08fa65bde2b8e50191953"],
 ];
 
 export const SELLER_PROFILE_PUBLIC_PREPARATIONS = Object.freeze(
