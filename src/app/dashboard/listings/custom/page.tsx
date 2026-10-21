@@ -296,6 +296,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
 
   const readyLink = await sendCustomOrderReadyLink({
     listingId: created.id,
+    sellerUserId: seller.userId,
   });
 
   if (!readyLink.messageDelivered) {

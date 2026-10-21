@@ -378,7 +378,10 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           AND status = 'ACTIVE'
       `;
       if (listing.isPrivate && listing.reservedForUserId && listing.customOrderConversationId) {
-        await sendCustomOrderReadyLink({ listingId });
+        await sendCustomOrderReadyLink({
+          listingId,
+          sellerUserId: listing.seller.userId,
+        });
       }
       await syncThreshold(listing.sellerId);
       // First active listing for this seller might earn the Founding Maker badge.

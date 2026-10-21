@@ -200,6 +200,7 @@ export async function PATCH(
       ) {
         await sendCustomOrderReadyLink({
           listingId: currentListing.id,
+          sellerUserId: currentListing.seller.userId,
         })
       }
       return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
@@ -225,6 +226,7 @@ export async function PATCH(
       if (listing.customOrderConversationId && listing.reservedForUserId) {
         await sendCustomOrderReadyLink({
           listingId: listing.id,
+          sellerUserId: listing.seller.userId,
         })
       }
     }
