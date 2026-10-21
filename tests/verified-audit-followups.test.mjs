@@ -309,7 +309,6 @@ describe("verified audit follow-up guardrails", () => {
     }
     assert.match(publicAggregateAuthority, /seller\."stripeAccountSupported" = true/);
     for (const path of [
-      "src/app/api/users/[id]/report/route.ts",
       "src/app/listing/[id]/page.tsx",
       "src/app/messages/[id]/page.tsx",
       "src/lib/blogVisibility.ts",
@@ -327,6 +326,7 @@ describe("verified audit follow-up guardrails", () => {
       "prisma/migrations/20261020235990_prepare_seller_profile_public_review_vote_target/migration.sql",
       "prisma/migrations/20261020235995_prepare_seller_profile_participant_conversation_listing_target/migration.sql",
       "prisma/migrations/20261020235996_prepare_seller_profile_conversation_context_listing/migration.sql",
+      "prisma/migrations/20261020235997_prepare_seller_profile_actor_report_resource_target/migration.sql",
     ]) {
       const text = source(path);
       assert.match(text, /"stripeAccountSupported" = true/);
@@ -348,6 +348,7 @@ describe("verified audit follow-up guardrails", () => {
     for (const path of [
       "prisma/migrations/20261020235995_prepare_seller_profile_participant_conversation_listing_target/migration.sql",
       "prisma/migrations/20261020235996_prepare_seller_profile_conversation_context_listing/migration.sql",
+      "prisma/migrations/20261020235997_prepare_seller_profile_actor_report_resource_target/migration.sql",
     ]) {
       assert.match(source(path), /seller\."stripeAccountSupported" = true/);
     }

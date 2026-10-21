@@ -801,10 +801,11 @@ guard the final zero-direct state, but they do not count as behavior proof.
   target, plus the review-vote endpoint's actor-bound exact visible target, plus
   the new-message page and existing thread composer reuse of the
   participant-bound exact conversation-listing target, plus the actor-bound
-  retained conversation-context card and link decision, have reduced the live
-  gate to 23 relation accesses in 11 files,
+  retained conversation-context card and link decision, plus the actor-bound
+  listing/review report-resource decision, have reduced the live gate to 21
+  relation accesses in 10 files,
   two raw-SQL accesses in two files, three relation-bearing factories and zero
-  opaque SellerProfile target predicates across 12 total consumer files and 144
+  opaque SellerProfile target predicates across 11 total consumer files and 144
   reconciled opaque shapes. The strengthened scanner now follows assignments to
   typed Prisma `WhereInput` variables. That correction exposed two pre-existing
   browse predicates for seller-name search and rating filtering that the former
@@ -813,8 +814,8 @@ guard the final zero-direct state, but they do not count as behavior proof.
   and browse listing queries still use the shared `publicListingWhere` factory,
   so these passes remove their nested presentation projections but do not claim
   that the remaining predicate and factory gates are closed. The
-  reviewed catalog now has 214 functions: 98
-  retained, 33 internal and 83 converted authorities. The saved-listing authority
+  reviewed catalog now has 215 functions: 98
+  retained, 33 internal and 84 converted authorities. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
   filtering, owner binding, historical-card disclosure and stable ordering

@@ -6,10 +6,12 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { canViewListingDetail } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
-import { sellerPublicReportTarget } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerActorReportResourceTarget,
+  sellerPublicReportTarget,
+} from "@/lib/sellerProfilePublicAccess";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -104,28 +106,14 @@ export async function POST(
         reporterCanAccess = exists;
         break;
       case "LISTING":
-        {
-          const listing = await prisma.listing.findUnique({
-            where: { id: body.targetId },
-            select: {
-              id: true,
-              status: true,
-              isPrivate: true,
-              reservedForUserId: true,
-              seller: {
-                select: {
-                  userId: true,
-                  ownerAccountActive: true,
-                  chargesEnabled: true,
-                  stripeAccountSupported: true,
-                  vacationMode: true,
-                },
-              },
-            },
-          });
-          exists = listing?.seller.userId === reportedId;
-          reporterCanAccess = !!listing && exists && canViewListingDetail(listing, { dbUserId: me.id });
-        }
+      case "REVIEW":
+        exists = await sellerActorReportResourceTarget(
+          me.id,
+          body.targetType,
+          body.targetId,
+          reportedId,
+        );
+        reporterCanAccess = exists;
         break;
       case "ORDER":
         exists = await canReportOrderTarget({
@@ -161,39 +149,6 @@ export async function POST(
           },
         }) > 0;
         reporterCanAccess = exists;
-        break;
-      case "REVIEW":
-        {
-          const review = await prisma.review.findUnique({
-            where: { id: body.targetId },
-            select: {
-              reviewerId: true,
-              listing: {
-                select: {
-                  id: true,
-                  status: true,
-                  isPrivate: true,
-                  reservedForUserId: true,
-                  seller: {
-                    select: {
-                      userId: true,
-                      ownerAccountActive: true,
-                      chargesEnabled: true,
-                      stripeAccountSupported: true,
-                      vacationMode: true,
-                    },
-                  },
-                },
-              },
-            },
-          });
-          exists = !!review && (review.reviewerId === reportedId || review.listing.seller.userId === reportedId);
-          reporterCanAccess = !!review && exists && (
-            review.reviewerId === me.id ||
-            review.listing.seller.userId === me.id ||
-            canViewListingDetail(review.listing, { dbUserId: me.id })
-          );
-        }
         break;
       case "COMMISSION_REQUEST":
         exists = await prisma.commissionRequest.count({

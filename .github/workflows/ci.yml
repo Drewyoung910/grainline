@@ -648,7 +648,18 @@ jobs:
             tests/user-public-seller-state-production-inspect.test.mjs \
             tests/user-public-seller-state-preparation-production-workflow.test.mjs
           do
-            mv "$test_file" "$holding/$(basename "$test_file")"
+            source_path="$test_file"
+            if [[ ! -f "$source_path" ]]
+            then
+              source_path="$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
+              test -f "$source_path"
+            fi
+            if [[ "$source_path" = "$test_file" ]]
+            then
+              mv "$source_path" "$holding/$(basename "$test_file")"
+            else
+              cp "$source_path" "$holding/$(basename "$test_file")"
+            fi
           done
       - name: Isolate User public blog-state package until its predecessor passes
         shell: bash

@@ -973,3 +973,15 @@ and zero opaque SellerProfile target predicates across 12 consumer files and
 144 reconciled opaque shapes. The 214-function catalog is 98 retained, 33
 internal and 83 converted authorities; the compatible preparation set contains
 63 migrations and the full chain contains 414.
+
+Listing and review report validation now uses one actor-bound resource
+authority instead of two direct `Listing`/`Review -> SellerProfile` relation
+reads. It preserves public and reserved listing visibility, reported-party
+matching, and direct reviewer/seller access to retained review history while
+rejecting inactive actors and unassociated reported users. This removes two
+relation accesses and one consumer file. The gate is now 21 relation accesses
+in 10 files, two raw-SQL accesses in two files, three relation-bearing factories
+and zero opaque SellerProfile target predicates across 11 consumer files and
+144 reconciled opaque shapes. The 215-function catalog is 98 retained, 33
+internal and 84 converted authorities; the compatible preparation set contains
+64 migrations and the full chain contains 415.

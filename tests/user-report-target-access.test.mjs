@@ -34,9 +34,10 @@ describe("user report target access guardrails", () => {
     assert.doesNotMatch(source, /prisma\.(?:message|conversation)\.count/);
     assert.match(
       source,
-      /canViewListingDetail\(listing, \{ dbUserId: me\.id \}\)/,
-      "listing reports must require public or reserved listing access",
+      /sellerActorReportResourceTarget\(\s*me\.id,\s*body\.targetType,\s*body\.targetId,\s*reportedId,\s*\)/,
+      "listing and review reports must use exact actor-bound resource authority",
     );
+    assert.doesNotMatch(source, /prisma\.(?:listing|review)\.findUnique/);
     assert.match(
       source,
       /post: publicBlogPostWhere\(\)/,

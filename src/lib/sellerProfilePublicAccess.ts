@@ -1613,6 +1613,25 @@ async function readSellerPublicReportTarget(
   return rows[0].value;
 }
 
+async function readSellerActorReportResourceTarget(
+  client: SellerPublicAccessClient,
+  targetType: "LISTING" | "REVIEW",
+  targetId: string,
+  reportedUserId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicReportTargetRow[]>(Prisma.sql`
+    SELECT public.grainline_seller_actor_report_resource_target(
+      ${targetType},
+      ${targetId},
+      ${reportedUserId}
+    ) AS value
+  `);
+  if (rows.length !== 1 || typeof rows[0].value !== "boolean") {
+    throw new Error("Seller report-resource authority returned an invalid result");
+  }
+  return rows[0].value;
+}
+
 async function readSellerPublicSitemapCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicSitemapCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_sitemap_counts()
@@ -2073,6 +2092,24 @@ export async function sellerPublicReportTarget(
     throw new RangeError("Seller public report-target input is outside the supported range");
   }
   return readSellerPublicReportTarget(prisma, sellerProfileId, reportedUserId);
+}
+
+export async function sellerActorReportResourceTarget(
+  actorUserId: string,
+  targetType: "LISTING" | "REVIEW",
+  targetId: string,
+  reportedUserId: string,
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(actorUserId)
+    || !["LISTING", "REVIEW"].includes(targetType)
+    || !/^[A-Za-z0-9._:-]{1,191}$/u.test(targetId)
+    || !/^[A-Za-z0-9._:-]{1,191}$/u.test(reportedUserId)
+  ) {
+    throw new RangeError("Seller report-resource input is outside the supported range");
+  }
+  return withDbUserContext(actorUserId, (client) =>
+    readSellerActorReportResourceTarget(client, targetType, targetId, reportedUserId));
 }
 
 export async function sellerPublicSitemapPage(
