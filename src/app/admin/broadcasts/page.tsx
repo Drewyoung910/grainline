@@ -18,7 +18,10 @@ import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteSellerBroadcastNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { userStaffAdminLabels } from "@/lib/userStaffAccess";
-import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
+import {
+  sellerProfileStaffBroadcastTargets,
+  sellerProfileStaffReportTargets,
+} from "@/lib/sellerProfileStaffAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -106,18 +109,18 @@ export default async function AdminBroadcastsPage({
       imageUrl: true,
       sentAt: true,
       recipientCount: true,
-      sellerProfile: {
-        select: {
-          id: true,
-          userId: true,
-          displayName: true,
-        },
-      },
     },
   });
+  const sellerTargets = await sellerProfileStaffBroadcastTargets(getOrderStaffReadClient(), {
+    actorId: staff.id,
+    broadcastIds: broadcasts.map((broadcast) => broadcast.id),
+  });
+  const sellerTargetByBroadcastId = new Map(
+    sellerTargets.map((target) => [target.broadcastId, target]),
+  );
   const sellerLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
     actorId: staff.id,
-    userIds: broadcasts.map((broadcast) => broadcast.sellerProfile.userId),
+    userIds: sellerTargets.map((target) => target.sellerUserId),
   });
   const sellerLabelById = new Map(sellerLabels.map((label) => [label.id, label]));
 
@@ -164,49 +167,56 @@ export default async function AdminBroadcastsPage({
         </div>
       ) : (
         <div className="space-y-3">
-          {broadcasts.map((b) => (
-            <div key={b.id} className="card-section p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Link
-                      href={b.sellerProfile ? publicSellerPath(b.sellerProfile.id, b.sellerProfile.displayName) : "#"}
-                      className="text-sm font-medium text-neutral-800 hover:underline"
-                    >
-                      {b.sellerProfile?.displayName ?? "Unknown maker"}
-                    </Link>
-                    <span className="text-xs text-neutral-500">
-                      {sellerLabelById.get(b.sellerProfile.userId)?.email ?? "Unknown"}
-                    </span>
-                    <span className="text-xs text-neutral-300">·</span>
-                    <span className="text-xs text-neutral-500">
-                      {new Date(b.sentAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    <span className="text-xs text-neutral-300">·</span>
-                    <span className="text-xs text-neutral-500">
-                      {b.recipientCount} recipient{b.recipientCount !== 1 ? "s" : ""}
-                    </span>
+          {broadcasts.map((b) => {
+            const sellerTarget = sellerTargetByBroadcastId.get(b.id);
+            return (
+              <div key={b.id} className="card-section p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Link
+                        href={sellerTarget
+                          ? publicSellerPath(sellerTarget.sellerProfileId, sellerTarget.sellerDisplayName)
+                          : "#"}
+                        className="text-sm font-medium text-neutral-800 hover:underline"
+                      >
+                        {sellerTarget?.sellerDisplayName ?? "Unknown maker"}
+                      </Link>
+                      <span className="text-xs text-neutral-500">
+                        {sellerTarget
+                          ? sellerLabelById.get(sellerTarget.sellerUserId)?.email ?? "Unknown"
+                          : "Unknown"}
+                      </span>
+                      <span className="text-xs text-neutral-300">·</span>
+                      <span className="text-xs text-neutral-500">
+                        {new Date(b.sentAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      <span className="text-xs text-neutral-300">·</span>
+                      <span className="text-xs text-neutral-500">
+                        {b.recipientCount} recipient{b.recipientCount !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <p className="text-sm text-neutral-700 whitespace-pre-line">{b.message}</p>
+                    {b.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={b.imageUrl}
+                        alt="Broadcast attachment"
+                        className="mt-2 rounded-lg max-h-40 object-cover"
+                      />
+                    )}
                   </div>
-                  <p className="text-sm text-neutral-700 whitespace-pre-line">{b.message}</p>
-                  {b.imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={b.imageUrl}
-                      alt="Broadcast attachment"
-                      className="mt-2 rounded-lg max-h-40 object-cover"
-                    />
-                  )}
+                  <DeleteBroadcastButton id={b.id} action={deleteBroadcast} />
                 </div>
-                <DeleteBroadcastButton id={b.id} action={deleteBroadcast} />
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

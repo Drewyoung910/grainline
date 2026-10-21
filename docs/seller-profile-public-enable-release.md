@@ -97,7 +97,7 @@ runs the global grant audit afterward and preserves mode-0600 sanitized
 preflight/postflight evidence. It contains no application deployment and no
 FORCE step.
 
-The 58 compatible predecessor migrations have their own earlier protected
+The 59 compatible predecessor migrations have their own earlier protected
 workflow and immutable manifest, documented in
 `docs/seller-profile-public-preparation-release.md`. That workflow holds this
 ENABLE migration out of the Prisma tree, installs only an exact restart-safe
@@ -110,7 +110,7 @@ converted runtime is promoted only after the preparation postflight succeeds.
 The database candidate and release machinery are locally compatible, but
 Production remains blocked until the release head is concrete and rechecked:
 
-1. Convert the 30 relation accesses, two raw-SQL accesses and three
+1. Convert the 29 relation accesses, two raw-SQL accesses and three
    relation-bearing query factories to the reviewed
    bounded projections and purpose-bound operations. The source-readiness gate
    must read back zero in all five classes before ENABLE can reach a secret or

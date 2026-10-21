@@ -2441,6 +2441,7 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_seller_public_marketplace_counts"()', true),
     ('public."grainline_seller_public_marketplace_rating_average"()', true),
     ('public."grainline_seller_public_listing_tags"(integer)', true),
+    ('public."grainline_seller_public_listing_cards"(text[])', true),
     ('public."grainline_seller_public_metro_count"(text,boolean,boolean)', true),
     ('public."grainline_seller_public_metro_makers"(text,boolean,integer)', true),
     ('public."grainline_seller_public_metro_static_slugs"()', true),
@@ -2459,6 +2460,7 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_seller_transaction_blocked_pair_targets"(text,text)', true),
     ('public."grainline_user_block_follow_cleanup"(text)', true),
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_broadcast_targets"(text,text[])', false),
     ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
     ('public."grainline_seller_staff_report_targets"(text,text[])', false)
 )
@@ -2529,6 +2531,7 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_seller_public_marketplace_counts"()', true),
     ('public."grainline_seller_public_marketplace_rating_average"()', true),
     ('public."grainline_seller_public_listing_tags"(integer)', true),
+    ('public."grainline_seller_public_listing_cards"(text[])', true),
     ('public."grainline_seller_public_metro_count"(text,boolean,boolean)', true),
     ('public."grainline_seller_public_metro_makers"(text,boolean,integer)', true),
     ('public."grainline_seller_public_metro_static_slugs"()', true),
@@ -2547,6 +2550,7 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_seller_transaction_blocked_pair_targets"(text,text)', true),
     ('public."grainline_user_block_follow_cleanup"(text)', true),
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_broadcast_targets"(text,text[])', false),
     ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
     ('public."grainline_seller_staff_report_targets"(text,text[])', false)
 )
@@ -3647,6 +3651,7 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_seller_guild_staff_master_pending"(text)'),
     ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)'),
     ('public."grainline_seller_staff_feature_transition"(text, text, text)'),
+    ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
     ('public."grainline_seller_staff_report_targets"(text, text[])'),
     ('public."grainline_seller_staff_orderability_state"(text, text)')
 )

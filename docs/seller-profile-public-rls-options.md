@@ -897,3 +897,16 @@ relation-bearing factories and zero opaque SellerProfile target predicates
 across 17 consumer files and 144 reconciled opaque shapes. The higher displayed
 count relative to the preceding journal entry is an inventory correction, not
 a new base-table dependency.
+
+The admin broadcast list now selects only broadcast scalars, then resolves the
+at-most-25 historical seller labels through a bounded isolated-staff authority.
+The function requires the restricted staff database session and an active
+admin or employee actor, validates at most 50 exact broadcast ids, and returns
+only the broadcast id plus seller id, user id and display name. Runtime and
+PUBLIC cannot execute it, and staff retain no direct SellerProfile table
+authority. This removes one relation access and one consumer file. The gate is
+now 29 relation accesses in 15 files, two raw-SQL accesses in two files, three
+relation-bearing factories and zero opaque SellerProfile target predicates
+across 16 consumer files and 144 reconciled opaque shapes. The 210-function
+catalog is 98 retained, 33 internal and 79 converted authorities; the compatible
+preparation set contains 59 migrations and the full chain contains 410.
