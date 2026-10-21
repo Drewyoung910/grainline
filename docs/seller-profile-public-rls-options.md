@@ -797,3 +797,13 @@ accesses without changing SQL, the catalog, or the full migration chain. The
 current gate is 39 relation accesses in 21 files, 10 raw-SQL accesses in eight
 files, three relation-bearing factories and zero opaque SellerProfile
 predicates across 27 consumer files and 141 opaque shapes.
+The listing stock mutation route now resolves its seller identity through the
+existing actor-bound owner core, then scopes both its initial Listing read and
+its locked stock mutation to that scalar seller id. The route keeps the
+transactional stock guard, Guild synchronization, owner notification and
+back-in-stock fanout behavior; the fanout's separate raw-SQL SellerProfile join
+remains explicitly inventoried for a later fixed service authority. This
+removes two relation accesses without adding SQL or a new authority. The
+current gate is 37 relation accesses in 20 files, 10 raw-SQL accesses in eight
+files, three relation-bearing factories and zero opaque SellerProfile
+predicates across 27 consumer files and 141 opaque shapes.

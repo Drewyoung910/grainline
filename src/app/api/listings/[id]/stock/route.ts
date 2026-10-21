@@ -33,6 +33,7 @@ import {
   prepareListingStockMutation, recordListingStockMutation, StockMutationConflict, StockMutationExpired,
 } from "@/lib/listingStockMutation";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 
 const StockPatchSchema = z.object({
   quantity: z.number().int().min(0).max(MAX_MANUAL_STOCK_QUANTITY),
@@ -88,15 +89,16 @@ export async function PATCH(
       : normalizeManualStockQuantity(stockParsed.expectedQuantity);
 
     // Ownership check
+    const seller = await sellerOwnerCore(me.id);
+    if (!seller) return privateJson({ error: "Not found" }, { status: 404 });
     const listing = await prisma.listing.findFirst({
-      where: { id, seller: { userId: me.id } },
+      where: { id, sellerId: seller.sellerProfileId },
       select: {
         id: true,
         listingType: true,
         status: true,
         stockQuantity: true,
         isPrivate: true,
-        seller: { select: { id: true, userId: true } },
       },
     });
     if (!listing) return privateJson({ error: "Not found" }, { status: 404 });
@@ -116,7 +118,7 @@ export async function PATCH(
       backInStockAuthoritySourceId,
     } = await prisma.$transaction(async (tx) => {
       const mutation = await prepareListingStockMutation(tx, {
-        listingId: id, sellerId: listing.seller.id, actorId: me.id,
+        listingId: id, sellerId: seller.sellerProfileId, actorId: me.id,
       }, stockParsed, { kind: "inventory", quantity, expectedQuantity });
       if (!mutation) return { updated: null, lowStockAuthoritySourceId: null, backInStockAuthoritySourceId: null };
       if (mutation.replayed) {
@@ -139,7 +141,7 @@ export async function PATCH(
           SELECT id, "stockQuantity", status
           FROM "Listing"
           WHERE id = ${id}
-            AND "sellerId" = ${listing.seller.id}
+            AND "sellerId" = ${seller.sellerProfileId}
           FOR UPDATE
         )
         UPDATE "Listing" AS target
@@ -235,7 +237,7 @@ export async function PATCH(
     if (!updated) return privateJson({ error: "Not found" }, { status: 404 });
 
     // Track listingsBelowThresholdSince for Guild Member revocation check
-    await syncGuildMemberListingThreshold(listing.seller.id);
+    await syncGuildMemberListingThreshold(seller.sellerProfileId);
     if (updated.previousStatus !== updated.status) {
       revalidateListingSearchCaches();
       revalidateFeaturedMakerCaches();
@@ -245,12 +247,12 @@ export async function PATCH(
     if (updated.stockQuantity !== null && updated.stockQuantity > 0 && updated.stockQuantity <= 2) {
       const lowStockLink = lowStockNotificationLink(id);
       const recentLowStock = await findRecentOwnerLowStockNotification(
-        listing.seller.userId,
+        me.id,
         lowStockLink,
         new Date(Date.now() - LOW_STOCK_DEDUP_WINDOW_MS),
       );
       if (!recentLowStock && lowStockAuthoritySourceId) await createNotification({
-        userId: listing.seller.userId,
+        userId: me.id,
         type: "LOW_STOCK",
         title: `${updated.title} is running low`,
         body: `Only ${updated.stockQuantity} left in stock — consider restocking soon`,
@@ -365,7 +367,7 @@ export async function PATCH(
           Sentry.captureException(error, {
             level: "warning",
             tags: { source: "stock_back_in_stock_fanout" },
-            extra: { listingId: id, sellerProfileId: listing.seller.id },
+            extra: { listingId: id, sellerProfileId: seller.sellerProfileId },
           });
         }
       });
