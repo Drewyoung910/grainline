@@ -5,12 +5,10 @@ import type { Metadata } from "next";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
-import {
-  canAttachConversationContextListing,
-  canStartConversationWith,
-} from "@/lib/conversationStartState";
+import { canStartConversationWith } from "@/lib/conversationStartState";
 import { startConversationForUser } from "@/lib/conversationStartAccess";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
+import { sellerParticipantConversationListingTarget } from "@/lib/sellerProfilePublicAccess";
 import { userRelationshipTargetState } from "@/lib/userRelationshipAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -52,26 +50,12 @@ export default async function NewConversationPage({
   let validListingId: string | null = null;
   let listingTitle: string | null = null;
   if (listing) {
-    const contextListing = await prisma.listing.findUnique({
-      where: { id: listing },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        isPrivate: true,
-        reservedForUserId: true,
-        seller: {
-          select: {
-            userId: true,
-            ownerAccountActive: true,
-            chargesEnabled: true,
-            stripeAccountSupported: true,
-            vacationMode: true,
-          },
-        },
-      },
-    });
-    if (contextListing && canAttachConversationContextListing(contextListing, [me.id, other.id])) {
+    const contextListing = await sellerParticipantConversationListingTarget(
+      me.id,
+      other.id,
+      listing,
+    );
+    if (contextListing) {
       validListingId = contextListing.id;
       listingTitle = contextListing.title;
     }

@@ -935,3 +935,16 @@ SellerProfile target predicates across 14 consumer files and 144 reconciled
 opaque shapes. The 212-function catalog is 98 retained, 33 internal and 81
 converted authorities; the compatible preparation set contains 61 migrations
 and the full chain contains 412.
+
+The new-message page now resolves its optional listing context through an
+actor-bound participant authority. It rechecks both active accounts, reciprocal
+blocks, seller participation, seller orderability, active listing status and
+private-listing reservation before returning only the listing id and title.
+Conversation creation still repeats the listing check inside its existing
+atomic database operation. This removes one relation access and one consumer
+file. The gate is now 25 relation accesses in 12 files, two raw-SQL accesses in
+two files, three relation-bearing factories and zero opaque SellerProfile
+target predicates across 13 consumer files and 144 reconciled opaque shapes.
+The 213-function catalog is 98 retained, 33 internal and 82 converted
+authorities; the compatible preparation set contains 62 migrations and the
+full chain contains 413.

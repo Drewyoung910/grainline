@@ -148,6 +148,11 @@ export type SellerPublicReviewVoteTarget = Readonly<{
   sellerUserId: string;
 }>;
 
+export type SellerParticipantConversationListingTarget = Readonly<{
+  id: string;
+  title: string;
+}>;
+
 export type SellerPublicListingCard = Readonly<{
   listingId: string;
   sellerProfileId: string;
@@ -279,6 +284,11 @@ type SellerPublicReviewVoteTargetRow = {
   helpfulCount: unknown;
   listingId: unknown;
   sellerUserId: unknown;
+};
+
+type SellerParticipantConversationListingTargetRow = {
+  listingId: unknown;
+  title: unknown;
 };
 
 type SellerPublicListingCardRow = {
@@ -1284,6 +1294,37 @@ async function readSellerPublicReviewVoteTarget(
   });
 }
 
+async function readSellerParticipantConversationListingTarget(
+  client: SellerPublicAccessClient,
+  otherUserId: string,
+  listingId: string,
+) {
+  const rows = await client.$queryRaw<SellerParticipantConversationListingTargetRow[]>(
+    Prisma.sql`
+      SELECT *
+        FROM public.grainline_seller_participant_conversation_listing_target(
+          ${otherUserId},
+          ${listingId}
+        )
+    `,
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || row.listingId !== listingId
+    || typeof row.title !== "string"
+    || row.title.length < 1
+    || row.title.length > 150
+  ) {
+    throw new Error("Seller participant conversation-listing authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.listingId,
+    title: row.title,
+  }) as SellerParticipantConversationListingTarget;
+}
+
 async function readSellerPublicListingCards(
   client: SellerPublicAccessClient,
   listingIds: string[],
@@ -1848,6 +1889,23 @@ export async function sellerPublicReviewVoteTarget(actorUserId: string, reviewId
   }
   return withDbUserContext(actorUserId, (client) =>
     readSellerPublicReviewVoteTarget(client, reviewId));
+}
+
+export async function sellerParticipantConversationListingTarget(
+  actorUserId: string,
+  otherUserId: string,
+  listingId: string,
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(actorUserId)
+    || !/^[A-Za-z0-9._:-]{1,191}$/u.test(otherUserId)
+    || actorUserId === otherUserId
+    || !/^[A-Za-z0-9._:-]{1,191}$/u.test(listingId)
+  ) {
+    throw new RangeError("Seller participant conversation-listing input is outside the supported range");
+  }
+  return withDbUserContext(actorUserId, (client) =>
+    readSellerParticipantConversationListingTarget(client, otherUserId, listingId));
 }
 
 export async function sellerPublicListingCards(

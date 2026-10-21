@@ -21,7 +21,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_seller_public_review_vote_target$
 DECLARE
-  actor_id text := pg_catalog.nullif(
+  actor_id text := NULLIF(
     pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
     ''
   );

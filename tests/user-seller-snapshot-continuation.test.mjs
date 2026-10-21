@@ -20,8 +20,8 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   const stripePrivate = source("src/lib/sellerStripePrivateAccess.ts");
   const edit = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-  assert.match(messages, /seller:\s*\{[\s\S]*?userId: true,[\s\S]*?ownerAccountActive: true/);
-  assert.doesNotMatch(messages, /seller:\s*\{[\s\S]*?user:\s*\{\s*select:\s*\{\s*id: true, banned: true, deletedAt: true/);
+  assert.match(messages, /sellerParticipantConversationListingTarget/);
+  assert.doesNotMatch(messages, /seller:\s*\{/);
 
   for (const candidate of [commission, expire]) {
     assert.match(candidate, /commissionInterestNotificationTargets\(/);
