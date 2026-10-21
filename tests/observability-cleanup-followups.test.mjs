@@ -48,7 +48,10 @@ describe("observability cleanup follow-ups", () => {
       ],
     });
     assert.match(source("src/app/api/follow/[sellerId]/route.ts"), /sellerPublicFollowState\(sellerId\)/);
-    assert.match(source("src/app/account/following/page.tsx"), /sellerProfile: visibleSellerProfileWhere\(\)/);
+    const followingPage = source("src/app/account/following/page.tsx");
+    assert.match(followingPage, /sellerOwnerFollowingCount\(me\.id\)/);
+    assert.match(followingPage, /sellerOwnerFollowingPage\([\s\S]*me\.id,/);
+    assert.doesNotMatch(followingPage, /visibleSellerProfileWhere|activeSellerProfileWhere/);
   });
 
   it("keeps staff order totals on the gift-wrap-aware helper", () => {
