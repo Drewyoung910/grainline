@@ -85,7 +85,7 @@ export default function MakersMapSection({
           {geoErr && <div role="alert" className="mt-2 text-xs text-red-600">{geoErr}</div>}
         </div>
 
-        <div className={`${compact ? "h-[300px] sm:h-[320px] lg:h-[340px]" : "h-[420px]"} w-full min-w-0 flex-1 overflow-hidden rounded-lg shadow-sm ring-1 ring-stone-200/70`}>
+        <div className={`${compact ? "h-[300px] sm:h-[320px] lg:h-[340px]" : "h-[420px]"} w-full min-w-0 lg:flex-1 overflow-hidden rounded-lg shadow-sm ring-1 ring-stone-200/70`}>
           <AllSellersMap points={points} initialZoom={3} mobileInitialZoom={2.05} height="100%" />
         </div>
       </div>

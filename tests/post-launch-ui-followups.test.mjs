@@ -483,6 +483,8 @@ describe("post-launch UI follow-ups", () => {
 
     assert.ok(homepageMapCall, "homepage should render MakersMapSection");
     assert.ok(sectionMapCall, "MakersMapSection should render AllSellersMap");
+    assert.match(mapSection, /w-full min-w-0 lg:flex-1 overflow-hidden/);
+    assert.doesNotMatch(mapSection, /w-full min-w-0 flex-1 overflow-hidden/);
     assert.ok(fallbackCall, "AllSellersMap should retain a WebGL fallback");
     assert.ok(fullMapCall, "the full map page should render AllSellersMap");
 
