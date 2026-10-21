@@ -34,6 +34,7 @@ import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
 import {
   sellerPublicFeaturedMakers,
+  sellerPublicFollowerListingTarget,
   sellerPublicMapPoints,
   type SellerPublicFeaturedMaker,
 } from "@/lib/sellerProfilePublicAccess";
@@ -272,7 +273,7 @@ export default async function HomePage() {
     if (follows.length >= 3) {
       const followedIds = follows.map((f) => f.sellerProfileId);
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const [recentListings, recentPosts] = await Promise.all([
+      const [recentListingSources, recentPosts] = await Promise.all([
         prisma.listing.findMany({
           where: publicListingWhere({
             sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) },
@@ -282,7 +283,6 @@ export default async function HomePage() {
           take: 6,
           select: {
             id: true, title: true, priceCents: true, currency: true, createdAt: true, sellerId: true,
-            seller: { select: { displayName: true } },
             photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
           },
         }),
@@ -299,13 +299,19 @@ export default async function HomePage() {
           },
         }),
       ]);
+      const recentListings = (await Promise.all(recentListingSources.map(async (listing) => {
+        const target = await sellerPublicFollowerListingTarget(listing.id, listing.sellerId);
+        return target
+          ? { ...listing, sellerDisplayName: target.seller.displayName }
+          : null;
+      }))).filter((listing) => listing !== null);
 
       const merged: FromYourMakersItem[] = [
         ...recentListings.map((l): FromYourMakersItem => ({
           kind: "listing", id: l.id, date: l.createdAt.toISOString(), title: l.title, priceCents: l.priceCents, currency: l.currency,
           photoUrl: l.photos[0]?.url ?? null,
           photoAltText: l.photos[0]?.altText ?? null,
-          sellerName: l.seller.displayName ?? "Maker",
+          sellerName: l.sellerDisplayName,
           sellerProfileId: l.sellerId,
         })),
         ...recentPosts.map((p): FromYourMakersItem => ({

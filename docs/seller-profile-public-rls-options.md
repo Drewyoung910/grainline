@@ -807,3 +807,12 @@ removes two relation accesses without adding SQL or a new authority. The
 current gate is 37 relation accesses in 20 files, 10 raw-SQL accesses in eight
 files, three relation-bearing factories and zero opaque SellerProfile
 predicates across 27 consumer files and 141 opaque shapes.
+The homepage's bounded followed-maker feed now selects Listing scalars and
+resolves each of its at-most-six candidates through the existing exact
+listing-plus-seller public authority. That authority rechecks the expected
+seller, public listing state and current seller orderability before releasing
+the display name, so a concurrent visibility change omits the card. This
+removes one relation access without adding SQL or a new authority. The current
+gate is 36 relation accesses in 20 files, 10 raw-SQL accesses in eight files,
+three relation-bearing factories and zero opaque SellerProfile predicates
+across 27 consumer files and 141 opaque shapes.
