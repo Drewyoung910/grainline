@@ -18,7 +18,6 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 // contextual eligibility, approximate-map, participant, or transaction behavior.
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/account/commissions/page.tsx": ["PUBLIC_PROFILE"],
-  "src/app/account/saved/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/admin/broadcasts/page.tsx": ["STAFF"],
   "src/app/admin/review/page.tsx": ["STAFF"],
   "src/app/admin/verification/page.tsx": ["STAFF"],
@@ -98,7 +97,6 @@ const REVIEWED_NON_TARGET_QUERY_FACTORIES = new Set([
   "publicCommissionInterestWhere",
   "publicListingDetailWhere",
   "publicListingWhere",
-  "savedListingFavoriteWhere",
   "supportRequestAccountExportWhere",
   "timestampCursorWhere",
   "viewerBlogPostWhere",
@@ -114,7 +112,6 @@ const REVIEWED_FACTORY_FUNCTIONS = new Set([
   "publicBlogPostWhere",
   "publicListingDetailWhere",
   "publicListingWhere",
-  "savedListingFavoriteWhere",
 ]);
 
 function expressionHead(expression) {
@@ -201,7 +198,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 137
+      || reviewedNonTargetFactoryCalls.length !== 134
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
@@ -211,7 +208,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   const unknownOpaqueFactories = audit.opaqueFactoryShapes.filter(
     ({ function: functionName }) => !REVIEWED_FACTORY_FUNCTIONS.has(functionName),
   );
-  if (unknownOpaqueFactories.length || audit.opaqueFactoryShapes.length !== 12) {
+  if (unknownOpaqueFactories.length || audit.opaqueFactoryShapes.length !== 11) {
     throw new Error(`SellerProfile typed factory review drifted: ${JSON.stringify(unknownOpaqueFactories)}`);
   }
   return {

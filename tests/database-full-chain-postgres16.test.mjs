@@ -46,6 +46,7 @@ import { proveSellerProfileOwnerAuxiliaryUpdates } from "../tools/database-full-
 import { proveSellerProfileOwnerOnboardingState } from "../tools/database-full-chain/scenarios/seller-profile-owner-onboarding-state.mjs";
 import { proveSellerProfileOwnerDashboardStates } from "../tools/database-full-chain/scenarios/seller-profile-owner-dashboard-states.mjs";
 import { proveSellerProfileOwnerProfileEditor } from "../tools/database-full-chain/scenarios/seller-profile-owner-profile-editor.mjs";
+import { proveSellerProfileSavedListingAuthority } from "../tools/database-full-chain/scenarios/seller-profile-saved-listing.mjs";
 import { proveSellerProfileBlockFollowCleanup } from "../tools/database-full-chain/scenarios/seller-profile-block-follow-cleanup.mjs";
 import { proveSellerProfileFoundingMakerGrant } from "../tools/database-full-chain/scenarios/seller-profile-founding-maker-grant.mjs";
 import { proveSellerProfileMetricsIdentity } from "../tools/database-full-chain/scenarios/seller-profile-metrics-identity.mjs";
@@ -232,6 +233,10 @@ test(
         seller: fixture,
       });
       await proveSellerProfileOwnerProfileEditor({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveSellerProfileSavedListingAuthority({
         database: adapter,
         seller: fixture,
       });

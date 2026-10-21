@@ -2,16 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 
-const { savedListingFavoriteWhere } = await import("../src/lib/savedListingVisibility.ts");
-
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
 describe("public visibility follow-ups", () => {
-  it("keeps account dashboard saved listings on the shared saved-page filter", () => {
+  it("keeps account dashboard saved listings on the owner-bound authority", () => {
     const accountPage = read("src/app/account/page.tsx");
-    assert.match(accountPage, /savedListingFavoriteWhere\(me\.id, blockedSellerIds\)/);
+    assert.match(accountPage, /sellerOwnerSavedListingPage\(me\.id, 6, 0\)/);
+    assert.doesNotMatch(accountPage, /prisma\.favorite|savedListingFavoriteWhere|blockedSellerIds/);
   });
 
   it("validates favorite targets through public listing detail visibility", () => {
@@ -162,25 +161,23 @@ describe("public visibility follow-ups", () => {
     assert.match(profilePage, /galleryImageUrlsTouched \? \{ galleryImageUrls, galleryAltTexts \} : \{\}/);
   });
 
-  it("builds saved listing filters with only public active or sold-out listings", () => {
-    assert.deepEqual(savedListingFavoriteWhere("user_1", ["seller_2"]), {
-      userId: "user_1",
-      listing: {
-        AND: [
-          {
-            status: { in: ["ACTIVE", "SOLD_OUT"] },
-            isPrivate: false,
-            seller: {
-              chargesEnabled: true,
-              stripeAccountSupported: true,
-              vacationMode: false,
-              ownerAccountActive: true,
-            },
-          },
-          { sellerId: { notIn: ["seller_2"] } },
-        ],
-      },
-    });
+  it("keeps saved listing count and page reads on one owner-bound visibility authority", () => {
+    const savedPage = read("src/app/account/saved/page.tsx");
+    const access = read("src/lib/sellerSavedListingAccess.ts");
+    const migration = read(
+      "prisma/migrations/20261020040000_prepare_seller_profile_account_feed_cards/migration.sql",
+    );
+
+    assert.match(savedPage, /sellerOwnerSavedListingCount\(me\.id\)/);
+    assert.match(savedPage, /sellerOwnerSavedListingPage\([\s\S]*me\.id,[\s\S]*PAGE_SIZE,/);
+    assert.doesNotMatch(savedPage, /prisma\.favorite|savedListingFavoriteWhere/);
+    assert.match(access, /grainline_seller_owner_saved_listing_count\(\)/);
+    assert.match(access, /grainline_seller_owner_saved_listing_page\(/);
+    assert.match(migration, /favorite\."userId" = request_user_id/g);
+    assert.match(migration, /listing\.status::text IN \('ACTIVE', 'SOLD_OUT'\)/g);
+    assert.match(migration, /listing\."isPrivate" = false/g);
+    assert.match(migration, /seller\."vacationMode" = false/g);
+    assert.match(migration, /public\."Block" AS relationship/g);
   });
 
   it("cleans up follow rows if a block races the follow write", () => {

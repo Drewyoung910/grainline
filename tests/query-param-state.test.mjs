@@ -68,7 +68,7 @@ describe("query parameter parsing helpers", () => {
     assert.match(source, /import \{[^}]*parseBoundedPositiveIntParam[^}]*\} from "@\/lib\/queryParams";/);
     assert.match(source, /const page = parseBoundedPositiveIntParam\(sp\.page, 1, 1000\)/);
     assert.match(source, /const listingPage = Math\.min\(page, Math\.max\(1, totalPages\)\)/);
-    assert.match(source, /skip: \(listingPage - 1\) \* PAGE_SIZE/);
+    assert.match(source, /sellerOwnerSavedListingPage\([\s\S]*\(listingPage - 1\) \* PAGE_SIZE/);
     assert.match(source, /<Pagination page=\{listingPage\} totalPages=\{totalPages\} baseHref=\{tabHref\("listings"\)\} \/>/);
     assert.match(source, /const postPage = Math\.min\(page, Math\.max\(1, totalPages\)\)/);
     assert.match(source, /ownerSavedBlogPostPageRows\(me\.id, \{[\s\S]*skip: \(postPage - 1\) \* PAGE_SIZE/);
@@ -172,15 +172,24 @@ describe("query parameter parsing helpers", () => {
     );
 
     assert.match(account, /readBuyerOrderSummaryPage\(\{ actorUserId: me\.id, limit: 5 \}\)/);
-    assert.match(account, /orderBy: \[\{ createdAt: "desc" \}, \{ listingId: "desc" \}\][\s\S]*take: 6/);
-    assert.match(saved, /orderBy: \[\{ createdAt: "desc" \}, \{ listingId: "desc" \}\][\s\S]*skip: \(listingPage - 1\) \* PAGE_SIZE/);
+    assert.match(account, /sellerOwnerSavedListingPage\(me\.id, 6, 0\)/);
+    assert.match(saved, /sellerOwnerSavedListingPage\([\s\S]*\(listingPage - 1\) \* PAGE_SIZE/);
+    const savedListingMigration = readFileSync(
+      "prisma/migrations/20261020040000_prepare_seller_profile_account_feed_cards/migration.sql",
+      "utf8",
+    );
+    assert.match(savedListingMigration, /ORDER BY favorite\."createdAt" DESC, favorite\."listingId" DESC/);
     const savedBlogPostOwnerAccess = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
     assert.match(saved, /ownerSavedBlogPostPageRows\(me\.id, \{[\s\S]*skip: \(postPage - 1\) \* PAGE_SIZE/);
     assert.match(savedBlogPostOwnerAccess, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*skip,/);
     assert.match(following, /const PAGE_SIZE = 20/);
-    assert.match(following, /skip: \(page - 1\) \* PAGE_SIZE/);
-    assert.match(following, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: PAGE_SIZE/);
-    assert.match(following, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
+    assert.match(following, /sellerOwnerFollowingPage\([\s\S]*\(page - 1\) \* PAGE_SIZE/);
+    const followingMigration = readFileSync(
+      "prisma/migrations/20261019170000_prepare_seller_profile_follow_authority/migration.sql",
+      "utf8",
+    );
+    assert.match(followingMigration, /ORDER BY relationship\."createdAt" DESC, relationship\.id DESC/);
+    assert.match(followingMigration, /ORDER BY listing\."createdAt" DESC, listing\.id DESC/);
     assert.match(blocked, /getBlockedAccountsFor\(me\.id\)/);
     assert.match(blockAccess, /grainline_user_blocked_account_page\(\)/);
     assert.match(blockEmailAuthority, /ORDER BY relationship\."createdAt" DESC, relationship\.id DESC[\s\S]*LIMIT 50/);

@@ -31,7 +31,7 @@ const preparationRows = [
   ["20261020010000_prepare_seller_profile_owner_vacation_update", "d4ec24cd7d2b3bcd8da76acf030fab0db9c6a18d619a0bf8a7b8916c7481d0dc"],
   ["20261020020000_prepare_seller_profile_public_blog_author", "c164cc97898dd0d84b3a824159ba7e007f6ddd21a15c362262d32f62e27923c0"],
   ["20261020030000_correct_seller_profile_conversation_participant_cards", "e5488c3b8db5f0b8b349f60e69c3a995017e82be57e3e635eff22ccaef08705f"],
-  ["20261020040000_prepare_seller_profile_account_feed_cards", "2991cceb677b83aa75fbe10c5d7a0014b6afbdba42e185c1e94c0249b5072573"],
+  ["20261020040000_prepare_seller_profile_account_feed_cards", "d1a67a620c877157ef6919f4df2d909c5e7e61747fcaf3faef39544891e2935c"],
   ["20261020050000_prepare_seller_profile_customer_photo_header", "4a9c8d656605405aeb2ce89abbde5d31bb98ccf3db45646506b653397e95536a"],
   ["20261020060000_prepare_seller_profile_founding_maker_grant", "5ee05b3a5c8f06c63602dcc0df326e3c1b7f3e35df13dec6e033e04bae3c5971"],
   ["20261020070000_prepare_seller_profile_metrics_identity", "5a2c3ac19d76cc00b6d911e2040b748c332c1595376d6a13bc3ae436acaf6ab4"],

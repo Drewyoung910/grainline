@@ -616,12 +616,18 @@ reusing the anonymous static-path authority. Together they reduce the live
 gate to 78 relation accesses and two opaque predicates without changing either
 route set or the map's blocked-maker behavior. The owner-bound following-page
 conversion then removes its SellerProfile, Listing and Photo relations and the
-last two opaque SellerProfile predicates. The current gate is 75 relation
+last two opaque SellerProfile predicates. That checkpoint reached 75 relation
 accesses, 11 raw-SQL accesses, five relation-bearing factories and zero opaque
 SellerProfile predicates. The service aggregate conversion moves the public
 marketplace rating average behind a scalar authority without changing its
 active-listing or seller-orderability predicate. The same bounded aggregate
 surface now owns global listing tags, per-seller listing tags and public blog
 tags while retaining their visibility rules, caps and deterministic ordering.
-The current 194-function catalog is 98 retained, 33 internal and 63 converted
-authorities; two converted authorities are staff-only.
+The owner saved-listing conversion then replaces the shared Prisma predicate
+and both account-page relation reads with an actor-bound count/page authority.
+It owns Favorite membership, public listing visibility, seller orderability,
+reciprocal-block filtering and first-photo projection. The current gate is 74
+relation accesses, 11 raw-SQL accesses, four relation-bearing factories and
+zero opaque SellerProfile predicates across 48 consumer files and 156 opaque
+shapes. The current 196-function catalog is 98 retained, 33 internal and 65
+converted authorities; two converted authorities are staff-only.

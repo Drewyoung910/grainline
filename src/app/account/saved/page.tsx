@@ -1,7 +1,6 @@
 // src/app/account/saved/page.tsx
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import Link from "next/link";
@@ -17,7 +16,10 @@ import {
   countVisibleOwnerSavedBlogPosts,
   ownerSavedBlogPostPageRows,
 } from "@/lib/savedBlogPostOwnerAccess";
-import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
+import {
+  sellerOwnerSavedListingCount,
+  sellerOwnerSavedListingPage,
+} from "@/lib/sellerSavedListingAccess";
 import { truncateText } from "@/lib/sanitize";
 
 export const metadata: Metadata = {
@@ -48,14 +50,13 @@ export default async function SavedPage({
   const sp = await searchParams;
   const tab = sp.tab === "posts" ? "posts" : "listings";
   const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
-  const savedListingWhere = savedListingFavoriteWhere(me.id, blockedSellerIds);
   const savedPostBlogWhere = publicBlogPostWhere({
     publishedAt: { not: null },
     ...(blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {}),
   });
 
   const [listingTotal, postTotal] = await Promise.all([
-    prisma.favorite.count({ where: savedListingWhere }),
+    sellerOwnerSavedListingCount(me.id),
     countVisibleOwnerSavedBlogPosts(me.id, savedPostBlogWhere),
   ]);
 
@@ -66,39 +67,11 @@ export default async function SavedPage({
   if (tab === "listings") {
     const totalPages = Math.ceil(listingTotal / PAGE_SIZE);
     const listingPage = Math.min(page, Math.max(1, totalPages));
-    const favorites = await prisma.favorite.findMany({
-      where: savedListingWhere,
-      orderBy: [{ createdAt: "desc" }, { listingId: "desc" }],
-      skip: (listingPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        listing: {
-          select: {
-            id: true,
-            title: true,
-            priceCents: true,
-            currency: true,
-            status: true,
-            listingType: true,
-            stockQuantity: true,
-            seller: {
-              select: {
-                id: true,
-                displayName: true,
-                avatarImageUrl: true,
-                guildLevel: true,
-                city: true,
-                state: true,
-                acceptingNewOrders: true,
-                userId: true,
-                ownerImageUrl: true,
-              },
-            },
-            photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-          },
-        },
-      },
-    });
+    const favorites = await sellerOwnerSavedListingPage(
+      me.id,
+      PAGE_SIZE,
+      (listingPage - 1) * PAGE_SIZE,
+    );
 
     return (
       <main className="max-w-7xl mx-auto px-4 py-8">

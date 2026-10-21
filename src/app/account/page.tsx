@@ -6,9 +6,8 @@ import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
 import { publicListingPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
-import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
+import { sellerOwnerSavedListingPage } from "@/lib/sellerSavedListingAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { countSellerCompletedOrders } from "@/lib/orderSellerAnalyticsAuthority";
 import { readBuyerOrderSummaryPage } from "@/lib/orderParticipantReadAuthority";
@@ -32,33 +31,13 @@ export default function AccountPage() {
 
 async function AccountPageContent() {
   const me = await ensureUserForPage("/account");
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
 
   const [recentOrderPage, savedItems, savedSearches, followCount, sellerProfile] = await Promise.all([
     // Most recent 5 orders as a buyer
     readBuyerOrderSummaryPage({ actorUserId: me.id, limit: 5 }),
 
     // Most recent 6 saved (favorited) listings
-    prisma.favorite.findMany({
-      where: savedListingFavoriteWhere(me.id, blockedSellerIds),
-      orderBy: [{ createdAt: "desc" }, { listingId: "desc" }],
-      take: 6,
-      select: {
-        listing: {
-          select: {
-            id: true,
-            title: true,
-            priceCents: true,
-            currency: true,
-            photos: {
-              take: 1,
-              orderBy: { sortOrder: "asc" },
-              select: { url: true },
-            },
-          },
-        },
-      },
-    }),
+    sellerOwnerSavedListingPage(me.id, 6, 0),
 
     listOwnerSavedSearches(me.id, prisma, { take: 3 }),
 
