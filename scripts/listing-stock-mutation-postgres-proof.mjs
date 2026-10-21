@@ -37,7 +37,7 @@ export function loadStockUpdate() {
     ts.forEachChild(node, visit);
   }
   visit(source); assert.equal(matches.length, 1);
-  return new Function("tx", "id", "listing", "applyDelta", "stockDelta", "quantity",
+  return new Function("tx", "id", "seller", "applyDelta", "stockDelta", "quantity",
     `return tx.$queryRaw${matches[0]};`);
 }
 function port(client) {
@@ -111,7 +111,7 @@ export async function runStockMutationPostgresProof(env = process.env, onPhase =
       const claim = await prepareListingStockMutation(tx, scope, identity, payload);
       assert.ok(claim);
       if (!claim.replayed) {
-        const [updated] = await update(tx, "listing", { seller: { id: "seller" } }, true, 5, 10);
+        const [updated] = await update(tx, "listing", { sellerProfileId: "seller" }, true, 5, 10);
         await recordListingStockMutation(tx, claim, { updated });
       }
       return claim.replayed;
