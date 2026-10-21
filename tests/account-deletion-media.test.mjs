@@ -111,13 +111,18 @@ describe("account deletion media cleanup scoping", () => {
     const collectStart = deletion.indexOf("async function collectAccountDeletionMediaKeys");
     const collectEnd = deletion.indexOf("function revalidateDeletedAccountSearchCaches", collectStart);
     const collect = deletion.slice(collectStart, collectEnd);
-    const collectCall = deletion.indexOf("const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId, {");
+    const collectCall = deletion.indexOf("const mediaKeys = await collectAccountDeletionMediaKeys(");
     const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(");
     const releaseRows = deletion.indexOf("await releaseDirectUploadsForAccount({");
 
     assert.match(deletion, /"reviewPhoto" \| "commissionRequest" \| "blogPost" \| "\$queryRaw"/);
     assert.doesNotMatch(deletion, /"sellerProfile" \| "reviewPhoto"/u);
     assert.match(collect, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
+    assert.match(
+      collect,
+      /accountDeletionBlogPostMediaOwnerWhere\(userId, sellerProfileId\)/,
+    );
+    assert.doesNotMatch(collect, /sellerProfile:\s*\{\s*userId\s*\}/);
     assert.doesNotMatch(collect, /db\.message\./);
     assert.match(collect, /accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/s);
     assert.match(

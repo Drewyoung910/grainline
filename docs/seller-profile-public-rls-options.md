@@ -673,6 +673,12 @@ downstream ownership identity and display name are reconstructed only from that
 authority result. The current gate is 62 relation accesses, 10 raw-SQL
 accesses, three relation-bearing factories and zero opaque SellerProfile
 predicates across 38 consumer files and 145 opaque shapes.
+Account-deletion media collection then reuses the already-fenced deletion
+snapshot's scalar seller-profile id when selecting seller-authored blog posts.
+It preserves buyer-authored and seller-authored media coverage without a
+BlogPost-to-SellerProfile traversal. The current gate is 61 relation accesses,
+10 raw-SQL accesses, three relation-bearing factories and zero opaque
+SellerProfile predicates across 37 consumer files and 146 opaque shapes.
 Exact-head CI then exposed a host-timezone defect in two projection timestamp
 tests. A complete return-signature inventory found the same boundary in nine
 SellerProfile authorities. A single

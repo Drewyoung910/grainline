@@ -162,7 +162,7 @@ describe("Conversation and Message application authority conversion", () => {
     const helper = source("src/lib/conversationMessageAuthority.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const collectCall = deletion.indexOf(
-      "const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId, {",
+      "const mediaKeys = await collectAccountDeletionMediaKeys(",
     );
     const redactionCall = deletion.indexOf(
       "await redactActorMessagesForAccountDeletion({",
@@ -178,7 +178,7 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(deletion, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
     assert.match(
       deletion,
-      /collectAccountDeletionMediaKeys\(tx, user\.id, user\.clerkId, \{[\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken/,
+      /collectAccountDeletionMediaKeys\(\s*tx,\s*user\.id,\s*user\.clerkId,\s*user\.sellerProfile\?\.id \?\? null,\s*\{[\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken/,
     );
     assert.ok(collectCall >= 0, "deletion must collect canonical attachment keys");
     assert.ok(redactionCall > collectCall, "message attachment keys must be collected before body redaction");

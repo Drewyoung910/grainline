@@ -74,6 +74,7 @@ import {
 } from "@/lib/sellerAccountDeletionPrivateAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
+import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -639,6 +640,7 @@ async function collectAccountDeletionMediaKeys(
   db: AccountDeletionMediaDb,
   userId: string,
   clerkUserId: string,
+  sellerProfileId: string | null,
   claim: {
     sideEffectId: string;
     claimGeneration: bigint;
@@ -661,7 +663,7 @@ async function collectAccountDeletionMediaKeys(
   });
   const messages = await listActorSentMessageBodiesForDeletion(userId, db);
   const blogPosts = await db.blogPost.findMany({
-    where: { OR: [{ authorId: userId }, { sellerProfile: { userId } }] },
+    where: accountDeletionBlogPostMediaOwnerWhere(userId, sellerProfileId),
     select: { coverImageUrl: true, videoUrl: true, body: true },
   });
   const directUploads = await accountDirectUploadPublicUrls({
@@ -1191,11 +1193,17 @@ export async function anonymizeUserAccount(
     ]).filter(
       (value) => Array.from(value).length >= ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH,
     );
-    const mediaKeys = await collectAccountDeletionMediaKeys(tx, user.id, user.clerkId, {
-      sideEffectId: localAnonymizeSideEffectId,
-      claimGeneration: localClaimGeneration,
-      claimToken: localClaimToken,
-    });
+    const mediaKeys = await collectAccountDeletionMediaKeys(
+      tx,
+      user.id,
+      user.clerkId,
+      user.sellerProfile?.id ?? null,
+      {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      },
+    );
     await enqueueAccountDeletionMediaDeleteSideEffects(
       tx,
       {

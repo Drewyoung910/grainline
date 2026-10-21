@@ -771,8 +771,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   removal of the blog editor's unused nested seller read, and the actor-bound
   saved-blog count/page authority and direct seller identity threading for the
   custom-order-ready authority, plus reuse of the actor-bound owner-core
-  authority for seller shop actions, have reduced the live gate to 62 relation
-  accesses in 34 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
+  authority for seller shop actions, plus scalar deletion-snapshot ownership for
+  blog-media collection, have reduced the live gate to 61 relation accesses in
+  33 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
   and zero opaque SellerProfile target predicates. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
