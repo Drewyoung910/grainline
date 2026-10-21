@@ -195,7 +195,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.listing.findFirst",
+      "sellerPublicFavoriteTarget(listingId)",
       "prisma.favorite.upsert",
     ]);
     assertGuardBefore("src/app/api/favorites/[listingId]/route.ts", [

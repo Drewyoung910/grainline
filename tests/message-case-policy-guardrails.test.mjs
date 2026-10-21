@@ -191,13 +191,16 @@ describe("message and case policy guardrails", () => {
   it("keeps unavailable message-thread public links inert", () => {
     const page = source("src/app/messages/[id]/page.tsx");
 
-    assert.match(page, /import \{ canViewListingDetail \} from "@\/lib\/listingVisibility"/);
+    assert.match(page, /sellerActorConversationContextListing/);
+    assert.match(page, /sellerParticipantConversationListingTarget/);
+    assert.match(page, /sellerActorConversationContextListing\(me\.id, conversation\.id\)/);
     assert.match(page, /const sellerProfileHref = !otherUnavailableReason &&/);
     assert.match(page, /otherSellerProfile\.chargesEnabled &&/);
     assert.match(page, /otherSellerProfile\.stripeAccountSupported/);
-    assert.match(page, /const contextListingHref = ctx &&\s+canViewListingDetail\(ctx,/);
+    assert.match(page, /const contextListingHref = ctx\?\.canViewDetail\s+\? publicListingPath\(ctx\.id, ctx\.title\)/);
     assert.match(page, /href=\{contextListingHref\}/);
     assert.doesNotMatch(page, /href=\{publicListingPath\(ctx\.id, ctx\.title\)\}/);
+    assert.doesNotMatch(page, /canViewListingDetail/);
     assert.match(page, /\) : ctx \? \(/);
   });
 

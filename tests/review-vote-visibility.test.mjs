@@ -5,26 +5,21 @@ import { describe, it } from "node:test";
 const source = readFileSync("src/app/api/reviews/[id]/vote/route.ts", "utf8");
 
 describe("review vote visibility guardrails", () => {
-  it("requires listing visibility before accepting helpful votes", () => {
+  it("requires the actor-bound review target before accepting helpful votes", () => {
     assert.match(
       source,
-      /import \{ canViewListingDetail \} from "@\/lib\/listingVisibility";/,
-      "review helpful votes must use the shared listing visibility helper",
+      /import \{ sellerPublicReviewVoteTarget \} from "@\/lib\/sellerProfilePublicAccess";/,
+      "review helpful votes must use the bounded database visibility authority",
     );
-    assert.match(source, /status: true/);
-    assert.match(source, /isPrivate: true/);
-    assert.match(source, /reservedForUserId: true/);
-    assert.match(source, /chargesEnabled: true/);
-    assert.match(source, /stripeAccountSupported: true/);
-    assert.match(source, /vacationMode: true/);
-    assert.match(source, /ownerAccountActive: true/);
-    assert.doesNotMatch(source, /banned: true/);
-    assert.doesNotMatch(source, /deletedAt: true/);
     assert.match(
       source,
-      /canViewListingDetail\(review\.listing, \{ dbUserId: me\.id \}\)/,
+      /sellerPublicReviewVoteTarget\(me\.id, id\)/,
       "hidden, private, banned-seller, or disabled-seller listings must not be votable by id",
     );
+    assert.doesNotMatch(source, /canViewListingDetail/);
+    assert.doesNotMatch(source, /listing:\s*\{\s*select:/);
+    assert.match(source, /if \(review\.reviewerId === me\.id\)/);
+    assert.match(source, /if \(review\.sellerUserId === me\.id\)/);
   });
 
   it("uses deleteMany for concurrent unvote races", () => {

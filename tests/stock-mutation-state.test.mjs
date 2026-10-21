@@ -17,6 +17,16 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
+function sellerPrivateBoundaryMigrationSource(name) {
+  const isolatedMigrationsDir = process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR;
+  return readFileSync(
+    isolatedMigrationsDir
+      ? `${isolatedMigrationsDir}/${name}/migration.sql`
+      : new URL(`../prisma/migrations/${name}/migration.sql`, import.meta.url),
+    "utf8",
+  );
+}
+
 describe("stock mutation state", () => {
   it("applies manual stock changes as deltas when the client sends its expected baseline", () => {
     assert.equal(
@@ -126,8 +136,8 @@ describe("stock mutation state", () => {
 
   it("rechecks public seller state before claiming back-in-stock subscribers", () => {
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
-    const claimAuthority = source(
-      "prisma/migrations/20261013130000_move_seller_supported_snapshot_sql_callers/migration.sql",
+    const claimAuthority = sellerPrivateBoundaryMigrationSource(
+      "20261013130000_move_seller_supported_snapshot_sql_callers",
     );
 
     assert.doesNotMatch(stockRoute, /JOIN "SellerProfile"/);

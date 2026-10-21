@@ -92,7 +92,7 @@ describe("R49 account-state route guardrails", () => {
     assert.doesNotMatch(recentlyViewedRoute, /safeRateLimitOpen\(searchRatelimit/);
     assert.ok(
       recentlyViewedRoute.indexOf("safeRateLimit(searchRatelimit") <
-        recentlyViewedRoute.indexOf("prisma.listing.findMany"),
+        recentlyViewedRoute.indexOf("sellerPublicRecentlyViewedListings(meId, ids)"),
       "recently-viewed GET should fail closed before public listing reads",
     );
   });
@@ -159,8 +159,8 @@ describe("R49 account-state route guardrails", () => {
     const text = source("src/app/api/favorites/route.ts");
 
     assert.match(text, /prisma\.block\.findFirst/);
-    assert.match(text, /\{ blockerId: me\.id, blockedId: listing\.seller\.userId \}/);
-    assert.match(text, /\{ blockerId: listing\.seller\.userId, blockedId: me\.id \}/);
+    assert.match(text, /\{ blockerId: me\.id, blockedId: listing\.ownerUserId \}/);
+    assert.match(text, /\{ blockerId: listing\.ownerUserId, blockedId: me\.id \}/);
     assert.ok(
       text.indexOf("prisma.block.findFirst") < text.indexOf("prisma.favorite.upsert"),
       "favorite POST should check block state before writing the favorite",
