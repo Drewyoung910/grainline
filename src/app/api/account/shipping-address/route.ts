@@ -12,15 +12,8 @@ import {
 } from "@/lib/requestBody";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { updateUserOwnerShippingAddress } from "@/lib/userOwnerPrivateAccess";
+import { STATE_CODES, US_STATES } from "@/lib/usStates";
 import { z } from "zod";
-
-const US_STATE_CODES = new Set([
-  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
-  "HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
-  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
-  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
-  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"
-]);
 
 const RawAddressSchema = z.object({
   name: z.string().max(100),
@@ -36,7 +29,10 @@ const AddressSchema = z.object({
   line1: z.string().min(1).max(200),
   line2: z.string().max(200).nullable(),
   city: z.string().min(1).max(100),
-  state: z.string().length(2).refine(s => US_STATE_CODES.has(s), { message: "Invalid US state code" }),
+  state: z.string().length(2).refine(
+    (state) => STATE_CODES.has(state as typeof US_STATES[number]["code"]),
+    { message: "Invalid US state code" },
+  ),
   postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
   phone: z.string().max(20).nullable(),
 });

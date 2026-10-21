@@ -10,6 +10,7 @@ import { waitForNominatimSharedThrottle } from "./nominatimThrottleState.ts";
 const STATE_CODES: Record<string, string> = {
   Alabama: "al", Alaska: "ak", Arizona: "az", Arkansas: "ar", California: "ca",
   Colorado: "co", Connecticut: "ct", Delaware: "de", Florida: "fl", Georgia: "ga",
+  "District of Columbia": "dc",
   Hawaii: "hi", Idaho: "id", Illinois: "il", Indiana: "in", Iowa: "ia",
   Kansas: "ks", Kentucky: "ky", Louisiana: "la", Maine: "me", Maryland: "md",
   Massachusetts: "ma", Michigan: "mi", Minnesota: "mn", Mississippi: "ms",

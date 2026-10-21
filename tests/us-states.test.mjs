@@ -8,11 +8,12 @@ describe("US state normalization", () => {
     assert.equal(normalizeUsState("ny"), "NY");
     assert.equal(normalizeUsState(" New York "), "NY");
     assert.equal(normalizeUsState("california"), "CA");
+    assert.equal(normalizeUsState("dc"), "DC");
+    assert.equal(normalizeUsState("District of Columbia"), "DC");
   });
 
   it("does not invent state codes for unknown regions", () => {
     assert.equal(normalizeUsState("Quebec"), "");
-    assert.equal(normalizeUsState("District of Columbia"), "");
     assert.equal(normalizeUsState(""), "");
     assert.equal(normalizeUsState(null), "");
   });
