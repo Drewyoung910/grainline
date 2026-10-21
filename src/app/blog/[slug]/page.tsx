@@ -26,8 +26,8 @@ import {
   BLOG_REPLY_COMMENT_LIMIT,
   TOP_LEVEL_BLOG_COMMENT_LIMIT,
 } from "@/lib/blogCommentLimits";
+import { sellerPublicRecentlyViewedListings } from "@/lib/sellerProfilePublicAccess";
 
-import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { extractBlogVideoEmbed } from "@/lib/blogVideo";
 import { formatCurrencyCents } from "@/lib/money";
@@ -195,27 +195,34 @@ export default async function BlogPostPage({
     photos: Array<{ url: string }>; seller: { displayName: string };
   }> = [];
   if (post.featuredListingIds.length > 0) {
-    const featuredSellerFilter: Prisma.ListingWhereInput = post.sellerProfileId
-      ? {
-          sellerId: blockedSellerIds.length > 0
-            ? { equals: post.sellerProfileId, notIn: blockedSellerIds }
-            : post.sellerProfileId,
-        }
-      : (blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {});
-    featuredListings = await prisma.listing.findMany({
-      where: publicListingWhere({
-        id: { in: post.featuredListingIds },
-        ...featuredSellerFilter,
-      }),
-      select: {
-        id: true, title: true, priceCents: true, currency: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        seller: { select: { displayName: true } },
-      },
-    });
-    // Re-order by featuredListingIds order
-    const byId = new Map(featuredListings.map((l) => [l.id, l]));
-    featuredListings = post.featuredListingIds.map((id) => byId.get(id)).filter((l): l is typeof featuredListings[0] => !!l);
+    const [publicCards, makerListingRows] = await Promise.all([
+      sellerPublicRecentlyViewedListings(meId, post.featuredListingIds),
+      post.sellerProfileId
+        ? prisma.listing.findMany({
+            where: {
+              id: { in: post.featuredListingIds },
+              sellerId: post.sellerProfileId,
+            },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    // Maker posts keep the existing same-shop defense even if a stale or
+    // forged BlogPost id list reaches this read. Staff posts may deliberately
+    // feature public listings from several shops.
+    const makerListingIds = makerListingRows
+      ? new Set(makerListingRows.map(({ id }) => id))
+      : null;
+    featuredListings = publicCards
+      .filter(({ id }) => !makerListingIds || makerListingIds.has(id))
+      .map((listing) => ({
+        id: listing.id,
+        title: listing.title,
+        priceCents: listing.priceCents,
+        currency: listing.currency,
+        photos: listing.photoUrl ? [{ url: listing.photoUrl }] : [],
+        seller: { displayName: listing.sellerDisplayName },
+      }));
   }
 
   // Related posts

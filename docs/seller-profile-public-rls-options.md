@@ -781,9 +781,11 @@ catalog and 408-migration chain remain unchanged.
 The blog detail page now derives its maker identity, shop links, follow target
 and related-post presentation from `sellerProfileId` plus the same maintained
 BlogPost mirrors. This removes its two BlogPost-to-SellerProfile projections.
-The featured-listing SellerProfile relation remains for now because staff posts
-may feature listings from several sellers and therefore cannot safely reuse the
-post author's name. The current gate is 43 relation accesses in 22 files, 10
-raw-SQL accesses in eight files, three relation-bearing factories and zero
-opaque SellerProfile predicates across 28 consumer files and 142 opaque shapes;
-the catalog and 408-migration chain remain unchanged.
+Featured listings now use the existing viewer-aware bounded listing-card
+authority instead of traversing each listing's SellerProfile. Maker posts keep
+their same-shop defense with an independent Listing ownership-membership check;
+staff posts may still feature public listings from several sellers. The current
+gate is 42 relation accesses in 21 files, 10 raw-SQL accesses in eight files,
+three relation-bearing factories and zero opaque SellerProfile predicates
+across 27 consumer files and 141 opaque shapes; the catalog and 408-migration
+chain remain unchanged.

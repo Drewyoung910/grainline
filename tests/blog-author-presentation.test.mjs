@@ -75,6 +75,8 @@ test("public blog list surfaces do not project SellerProfile presentation fields
   const detailPage = source("src/app/blog/[slug]/page.tsx");
   assert.doesNotMatch(detailPage, /post\.sellerProfile\b/u);
   assert.doesNotMatch(detailPage, /sellerProfile:\s*\{\s*select:/u);
+  assert.doesNotMatch(detailPage, /seller:\s*\{\s*select:\s*\{\s*displayName:/u);
   assert.match(detailPage, /publicBlogAuthorPresentation\(post, "Former author"\)/u);
   assert.match(detailPage, /publicBlogAuthorPresentation\(r, "Former author"\)/u);
+  assert.match(detailPage, /sellerPublicRecentlyViewedListings\(meId, post\.featuredListingIds\)/u);
 });

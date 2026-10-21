@@ -57,8 +57,9 @@ describe("public visibility follow-ups", () => {
     assert.match(blogPage, /const viewerBlogPostWhere = \(extra: Prisma\.BlogPostWhereInput = \{\}\) =>/);
     assert.match(blogPage, /authorId: \{ notIn: blockedUserIds \}/);
     assert.match(blogPage, /sellerProfileId: \{ notIn: blockedSellerIds \}/);
-    assert.match(blogPage, /const featuredSellerFilter: Prisma\.ListingWhereInput =/);
-    assert.match(blogPage, /sellerId: \{ notIn: blockedSellerIds \}/);
+    assert.match(blogPage, /sellerPublicRecentlyViewedListings\(meId, post\.featuredListingIds\)/);
+    assert.match(blogPage, /sellerId: post\.sellerProfileId/);
+    assert.match(blogPage, /\.filter\(\(\{ id \}\) => !makerListingIds \|\| makerListingIds\.has\(id\)\)/);
     assert.match(blogPage, /where: viewerBlogPostWhere\(\{\s*id: \{ not: post\.id \}/);
   });
 
