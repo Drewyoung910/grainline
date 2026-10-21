@@ -6,7 +6,6 @@ import { BlogPostType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath, publicSellerShopPath, publicTagPath } from "@/lib/publicPaths";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
@@ -16,7 +15,10 @@ import {
   sitemapChunkForId,
 } from "@/lib/sitemapIndex";
 import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
-import { sellerPublicSitemapPage } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerPublicMetroStaticSlugs,
+  sellerPublicSitemapPage,
+} from "@/lib/sellerProfilePublicAccess";
 
 const BASE_URL = "https://thegrainline.com";
 const STATIC_ROUTE_LAST_MODIFIED = new Date("2026-04-30T00:00:00.000Z");
@@ -186,15 +188,13 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
   // Metro city pages — only include metros with content
   // Major metros (no parent) get higher priority than child metros
   // ---------------------------------------------------------------------------
-  const [metrosWithListings, metrosWithCommissions] = await Promise.all([
+  const [metrosWithListings, metrosWithCommissions, sellerMetroSlugs] = await Promise.all([
     prisma.metro.findMany({
       where: {
         isActive: true,
         OR: [
           { listings: { some: publicListingWhere() } },
           { listingCityMetros: { some: publicListingWhere() } },
-          { sellerProfiles: { some: activeSellerProfileWhere() } },
-          { sellerCityProfiles: { some: activeSellerProfileWhere() } },
         ],
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },
@@ -209,6 +209,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },
     }),
+    sellerPublicMetroStaticSlugs(),
   ]);
 
   // Category pages: group active listings by metroId+category and cityMetroId+category
@@ -218,6 +219,17 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     select: { id: true, slug: true, parentMetroId: true, updatedAt: true },
   });
   const metroById = new Map(allMetros.map((m) => [m.id, m]));
+  const sellerMetroSlugSet = new Set(sellerMetroSlugs.map(({ slug }) => slug));
+  const metroRouteMap = new Map(
+    metrosWithListings.map((metro) => [metro.slug, metro] as const),
+  );
+  for (const metro of allMetros) {
+    if (sellerMetroSlugSet.has(metro.slug)) {
+      metroRouteMap.set(metro.slug, metro);
+    }
+  }
+  const metrosWithPublicContent = [...metroRouteMap.values()]
+    .sort((left, right) => left.slug.localeCompare(right.slug));
 
   const [majorCatGroups, cityCatGroups] = await Promise.all([
     prisma.listing.groupBy({
@@ -306,7 +318,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
   }));
 
   // Metro browse + makers: major metro = 0.8/0.7, child metro = 0.6/0.5
-  const metroRoutes: MetadataRoute.Sitemap = metrosWithListings.flatMap((m) => {
+  const metroRoutes: MetadataRoute.Sitemap = metrosWithPublicContent.flatMap((m) => {
     const isMajor = !m.parentMetroId;
     return [
       {

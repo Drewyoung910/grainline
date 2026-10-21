@@ -16,8 +16,10 @@ import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
-import { sellerPublicMetroCount } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerPublicMetroCount,
+  sellerPublicMetroStaticSlugs,
+} from "@/lib/sellerProfilePublicAccess";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { Suspense } from "react";
 import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
@@ -28,19 +30,25 @@ const BASE_URL = "https://thegrainline.com";
 // generateStaticParams — only metros with at least one active listing or seller
 // ---------------------------------------------------------------------------
 export async function generateStaticParams() {
-  const metros = await prisma.metro.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { listings: { some: publicListingWhere() } },
-        { listingCityMetros: { some: publicListingWhere() } },
-        { sellerProfiles: { some: activeSellerProfileWhere() } },
-        { sellerCityProfiles: { some: activeSellerProfileWhere() } },
-      ],
-    },
-    select: { slug: true },
-  });
-  return metros.map((m) => ({ metroSlug: m.slug }));
+  const [metrosWithListings, sellerMetroSlugs] = await Promise.all([
+    prisma.metro.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { listings: { some: publicListingWhere() } },
+          { listingCityMetros: { some: publicListingWhere() } },
+        ],
+      },
+      select: { slug: true },
+    }),
+    sellerPublicMetroStaticSlugs(),
+  ]);
+  return [...new Set([
+    ...metrosWithListings.map(({ slug }) => slug),
+    ...sellerMetroSlugs.map(({ slug }) => slug),
+  ])]
+    .sort((left, right) => left.localeCompare(right))
+    .map((metroSlug) => ({ metroSlug }));
 }
 
 // ---------------------------------------------------------------------------

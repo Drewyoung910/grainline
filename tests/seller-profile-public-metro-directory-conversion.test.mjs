@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const page = readFileSync("src/app/makers/[metroSlug]/page.tsx", "utf8");
+const browsePage = readFileSync("src/app/browse/[metroSlug]/page.tsx", "utf8");
+const sitemap = readFileSync("src/app/sitemap.ts", "utf8");
 const migration = readFileSync(
   "prisma/migrations/20261019110000_prepare_seller_profile_public_metro_directory/migration.sql",
   "utf8",
@@ -16,6 +18,17 @@ test("metro maker page uses only bounded SellerProfile authorities", () => {
   assert.doesNotMatch(page, /sellerProfiles:|sellerCityProfiles:/u);
   assert.match(page, /seller\.bannerImageUrl \?\? seller\.coverImageUrl/u);
   assert.match(page, /seller\.activeListingCount/u);
+});
+
+test("browse and sitemap combine seller authority results with listing metros", () => {
+  for (const source of [browsePage, sitemap]) {
+    assert.match(source, /sellerPublicMetroStaticSlugs\(\)/u);
+    assert.doesNotMatch(source, /activeSellerProfileWhere/u);
+    assert.doesNotMatch(source, /sellerProfiles:\s*\{\s*some:/u);
+    assert.doesNotMatch(source, /sellerCityProfiles:\s*\{\s*some:/u);
+  }
+  assert.match(browsePage, /new Set\(\[/u);
+  assert.match(sitemap, /const metroRouteMap = new Map/u);
 });
 
 test("metro-directory authorities retain distinct eligibility and exact grants", () => {

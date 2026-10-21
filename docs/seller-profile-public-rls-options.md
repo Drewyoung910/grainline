@@ -608,4 +608,7 @@ bound to the transaction-local authenticated owner, with cross-owner failure
 proved before any mutation. The candidate therefore still needs the residual
 caller conversions, merge, compatible application deployment, exact-head CI
 and a separately authorized Production ENABLE run. FORCE remains a separate
-post-acceptance stage.
+post-acceptance stage. The first residual conversion now combines the bounded
+seller metro-slug authority with listing-backed metros for browse static paths
+and the sitemap, reducing the live gate to 80 relation accesses and four opaque
+predicates without changing either route set.
