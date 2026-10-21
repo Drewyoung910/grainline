@@ -597,11 +597,13 @@ the Austin visual map center out of submitted state, strictly validates the
 Shop Settings location/shipping boundary and narrows the ship-from client
 payload. The protected ENABLE workflow and restart-safe inspector are prepared.
 Independent exact-head review then found a source-activation gap: 84 Prisma
-relation accesses and 15 raw-SQL accesses still depend on direct base-table
+relation accesses, 15 raw-SQL accesses, five relation-bearing query factories
+and eight opaque relation predicates still depend on direct base-table
 authority even though direct SellerProfile delegate calls are zero. The prior
 full-chain scenarios did not execute those representative application callers
 after ENABLE. The Production workflow now fails before database access unless
-direct, relation and raw-SQL counts are all zero. Exact-location consent is also
+direct, relation, raw-SQL, relation-factory and target-opaque counts are all
+zero. Exact-location consent is also
 bound to the transaction-local authenticated owner, with cross-owner failure
 proved before any mutation. The candidate therefore still needs the residual
 caller conversions, merge, compatible application deployment, exact-head CI

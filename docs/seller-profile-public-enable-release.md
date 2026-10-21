@@ -53,7 +53,8 @@ The retained callable catalog is complete at 98 authorities: 96 direct
 PostgreSQL behavior proofs and two composed behavior proofs, with zero
 source-only gaps. The source scanner remains at zero direct SellerProfile
 operations and zero direct writes, but independent exact-head review found 84
-relation accesses and 15 raw-SQL accesses that still need base-table authority.
+relation accesses, 15 raw-SQL accesses, five relation-bearing query factories
+and eight opaque relation predicates that still need base-table authority.
 Those are activation blockers rather than accepted coverage.
 
 The live grant auditor now binds the public-table posture to the exact applied
@@ -82,8 +83,10 @@ database access until it has bound all of the following to the exact current
 
 Before any deployment or owner database access, the workflow also runs
 `scripts/assert-seller-profile-enable-source-ready.mjs`. It requires zero
-direct, relation and raw-SQL SellerProfile consumers. At the current candidate
-head it deliberately refuses dispatch with `direct=0; relations=84; rawSql=15`.
+direct, relation, raw-SQL, relation-factory and target-opaque SellerProfile
+consumers. At the current candidate head it deliberately refuses dispatch with
+`direct=0; relations=84; rawSql=15; relationFactories=5;
+targetOpaquePredicates=8`.
 
 The count-only, read-only inspector accepts only the reviewed predecessor or
 the completed policyless ENABLE state. It verifies the direct owner session,
@@ -107,9 +110,10 @@ converted runtime is promoted only after the preparation postflight succeeds.
 The database candidate and release machinery are locally compatible, but
 Production remains blocked until the release head is concrete and rechecked:
 
-1. Convert the 84 relation accesses and 15 raw-SQL accesses to the reviewed
+1. Convert the 84 relation accesses, 15 raw-SQL accesses, five relation-bearing
+   query factories and eight opaque relation predicates to the reviewed
    bounded projections and purpose-bound operations. The source-readiness gate
-   must read back zero in all three classes before ENABLE can reach a secret or
+   must read back zero in all five classes before ENABLE can reach a secret or
    database connection.
 2. Repeat the Claude/audit reconciliation immediately before dispatch. The
    2026-10-19 pass closed the Austin default-pin, weak input-boundary and broad

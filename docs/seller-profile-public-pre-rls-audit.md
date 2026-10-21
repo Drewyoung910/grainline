@@ -757,10 +757,11 @@ guard the final zero-direct state, but they do not count as behavior proof.
 
 - Independent exact-head review found that zero direct delegate calls did not
   mean zero base-table dependency: 84 Prisma relation accesses in 46 files and
-  15 raw-SQL accesses in 12 files still require `SellerProfile` table
+  15 raw-SQL accesses in 12 files, five relation-bearing query factories and
+  eight opaque relation predicates still require `SellerProfile` table
   authority. Policyless ENABLE would deny those paths. Production ENABLE is
   therefore blocked by `assert-seller-profile-enable-source-ready.mjs` until
-  all three inventory classes are zero. The prior full-chain scenario suite
+  all five inventory classes are zero. The prior full-chain scenario suite
   proved the prepared authorities and direct denial, but did not execute every
   residual relation/raw-SQL caller after ENABLE.
 - Exact-location consent is now bound to the transaction-local authenticated
@@ -780,8 +781,8 @@ guard the final zero-direct state, but they do not count as behavior proof.
   exercises those operations under a non-UTC session timezone.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending
   migration check, global grant audit and sanitized postflight are prepared,
-  and the workflow now refuses database access while any direct, relation or
-  raw-SQL base-table consumer remains.
+  and the workflow now refuses database access while any direct, relation,
+  raw-SQL, relation-factory or target-opaque base-table consumer remains.
   These source corrections still need scoped commit review and exact-head CI;
   Production remains unchanged and ENABLE needs its separately authorized run.
 
