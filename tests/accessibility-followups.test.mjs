@@ -436,7 +436,7 @@ describe("accessibility follow-ups", () => {
     assert.match(searchBar, /overflow-y-auto overscroll-contain/);
     assert.match(makersMap, /<section className="min-w-0">/);
     assert.match(makersMap, /lg:items-center/);
-    assert.match(makersMap, /w-full min-w-0 flex-1/);
+    assert.match(makersMap, /w-full min-w-0 lg:flex-1/);
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);
