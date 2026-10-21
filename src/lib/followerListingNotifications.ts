@@ -7,7 +7,7 @@ import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
-import { publicListingWhere } from "@/lib/listingVisibility";
+import { sellerPublicFollowerListingTarget } from "@/lib/sellerProfilePublicAccess";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
 import { userFollowerNotificationPage } from "@/lib/userFollowerAccess";
 
@@ -31,16 +31,10 @@ export async function fanOutListingToFollowers({
   listing: ListingForFanout;
   emailDedupKey: (followerId: string) => string;
 }) {
-  const publicListing = await prisma.listing.findFirst({
-    where: publicListingWhere({ id: listing.id, sellerId: sellerProfileId }),
-    select: {
-      id: true,
-      title: true,
-      priceCents: true,
-      currency: true,
-      seller: { select: { userId: true, displayName: true } },
-    },
-  });
+  const publicListing = await sellerPublicFollowerListingTarget(
+    listing.id,
+    sellerProfileId,
+  );
   if (!publicListing) return;
   const sellerUserId = publicListing.seller.userId;
   const sellerDisplay = publicListing.seller.displayName ?? sellerDisplayName ?? "A maker you follow";

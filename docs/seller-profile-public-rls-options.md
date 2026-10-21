@@ -734,9 +734,20 @@ The review-reply route now commits the final seller-ownership, active-account,
 active-profile and empty-reply recheck through one actor-bound conditional
 write. Its earlier preflight responses remain unchanged, while a concurrent
 reply or ownership/activity change still returns the existing conflict rather
-than overwriting a saved reply. The current gate is 55 relation accesses, 10
+than overwriting a saved reply. At that checkpoint the gate was 55 relation accesses, 10
 raw-SQL accesses, three relation-bearing factories and zero opaque
 SellerProfile predicates across 32 consumer files and 144 opaque shapes. The
 206-function catalog is 98 retained, 33 internal and 75 converted authorities;
-two converted authorities are staff-only. The complete 406-migration chain
-includes the exact authority scenario and remains subject to exact-head CI.
+two converted authorities are staff-only. The then-complete 406-migration chain
+included the exact authority scenario and remained subject to exact-head CI.
+Follower listing fanout now refreshes its source listing and seller through a
+bounded two-id public target instead of a nested SellerProfile relation. The
+authority requires the exact expected seller, active public unarchived listing,
+active owner, charge-ready supported account and non-vacation shop before it
+returns the seven fields already consumed by notifications and email. The
+current gate is 54 relation accesses, 10 raw-SQL accesses, three relation-bearing
+factories and zero opaque SellerProfile predicates across 31 consumer files and
+143 opaque shapes. The 207-function catalog is 98 retained, 33 internal and 76
+converted authorities; two converted authorities are staff-only. The complete
+407-migration chain includes its exact authority scenario and remains subject to
+exact-head CI.

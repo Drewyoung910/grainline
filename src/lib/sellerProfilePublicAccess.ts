@@ -150,6 +150,18 @@ export type SellerPublicRecentlyViewedListing = Readonly<{
   sellerAvatarImageUrl: string | null;
 }>;
 
+export type SellerPublicFollowerListingTarget = Readonly<{
+  id: string;
+  title: string;
+  priceCents: number;
+  currency: string;
+  seller: Readonly<{
+    id: string;
+    userId: string;
+    displayName: string;
+  }>;
+}>;
+
 export type SellerPublicProfileFaq = Readonly<{
   id: string;
   question: string;
@@ -249,6 +261,16 @@ type SellerPublicRecentlyViewedListingRow = {
   photoUrl: unknown;
   sellerDisplayName: unknown;
   sellerAvatarImageUrl: unknown;
+};
+
+type SellerPublicFollowerListingTargetRow = {
+  listingId: unknown;
+  title: unknown;
+  priceCents: unknown;
+  currency: unknown;
+  sellerProfileId: unknown;
+  sellerUserId: unknown;
+  sellerDisplayName: unknown;
 };
 
 type SellerPublicLocationRow = {
@@ -1232,6 +1254,54 @@ async function readSellerPublicRecentlyViewedListings(
   })));
 }
 
+async function readSellerPublicFollowerListingTarget(
+  client: SellerPublicAccessClient,
+  listingId: string,
+  sellerProfileId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicFollowerListingTargetRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_follower_listing_target(
+        ${listingId},
+        ${sellerProfileId}
+      )
+  `);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || row.listingId !== listingId
+    || typeof row.title !== "string"
+    || row.title.length < 1
+    || row.title.length > 150
+    || typeof row.priceCents !== "number"
+    || !Number.isSafeInteger(row.priceCents)
+    || row.priceCents < 0
+    || typeof row.currency !== "string"
+    || row.currency.length < 1
+    || row.currency.length > 3
+    || row.sellerProfileId !== sellerProfileId
+    || typeof row.sellerUserId !== "string"
+    || !row.sellerUserId
+    || typeof row.sellerDisplayName !== "string"
+    || row.sellerDisplayName.length < 1
+    || row.sellerDisplayName.length > 100
+  ) {
+    throw new Error("Seller public follower-listing authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.listingId,
+    title: row.title,
+    priceCents: row.priceCents,
+    currency: row.currency,
+    seller: Object.freeze({
+      id: row.sellerProfileId,
+      userId: row.sellerUserId,
+      displayName: row.sellerDisplayName,
+    }),
+  }) as SellerPublicFollowerListingTarget;
+}
+
 async function readSellerPublicProfile(
   client: SellerPublicAccessClient,
   sellerProfileId: string,
@@ -1637,6 +1707,19 @@ export async function sellerPublicRecentlyViewedListings(
       readSellerPublicRecentlyViewedListings(client, listingIds));
   }
   return readSellerPublicRecentlyViewedListings(prisma, listingIds);
+}
+
+export async function sellerPublicFollowerListingTarget(
+  listingId: string,
+  sellerProfileId: string,
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(listingId)
+    || !/^[A-Za-z0-9._:-]{1,191}$/u.test(sellerProfileId)
+  ) {
+    throw new RangeError("Seller public follower-listing input is outside the supported range");
+  }
+  return readSellerPublicFollowerListingTarget(prisma, listingId, sellerProfileId);
 }
 
 export async function sellerPublicProfile(

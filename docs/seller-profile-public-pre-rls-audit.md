@@ -787,10 +787,14 @@ guard the final zero-direct state, but they do not count as behavior proof.
   viewer-aware recently-viewed card authority that preserves active-only
   listing visibility, reciprocal blocks, first-photo selection and avatar
   fallback, plus an actor-bound conditional review-reply write that rechecks
-  the active owner and listing in the database, have reduced the live gate to
-  55 relation accesses in 28 files, 10 raw-SQL accesses in eight files, three
-  relation-bearing factories
-  and zero opaque SellerProfile target predicates. The saved-listing authority
+  the active owner and listing in the database, plus a bounded follower-listing
+  fanout target that rechecks the source listing and expected seller before
+  returning only the fresh notification fields, have reduced the live gate to
+  54 relation accesses in 27 files, 10 raw-SQL accesses in eight files, three
+  relation-bearing factories and zero opaque SellerProfile target predicates
+  across 31 total consumer files and 143 reconciled opaque shapes. The reviewed
+  catalog now has 207 functions: 98 retained, 33 internal and 76 converted
+  authorities. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
   filtering, owner binding, historical-card disclosure and stable ordering
@@ -815,7 +819,7 @@ guard the final zero-direct state, but they do not count as behavior proof.
   `timestamp without time zone` values without restoring the UTC instant. The
   forward correction changes only those return types and expressions to
   `timestamp with time zone` plus `AT TIME ZONE 'UTC'`; the two previously
-  host-dependent PGlite regressions pass, and the complete 406-migration
+  host-dependent PGlite regressions pass, and the complete 407-migration
   PostgreSQL 16 chain applies the correction before policyless ENABLE and
   asserts the public-profile and Guild-application timestamps as UTC instants.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending

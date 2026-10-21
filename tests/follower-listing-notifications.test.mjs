@@ -10,9 +10,10 @@ describe("follower listing notification guardrails", () => {
   it("filters blocked follower pairs before in-app and email fanout", () => {
     const fanout = source("src/lib/followerListingNotifications.ts");
 
-    assert.match(fanout, /import \{ publicListingWhere \} from "@\/lib\/listingVisibility"/);
-    assert.match(fanout, /const publicListing = await prisma\.listing\.findFirst\(\{/);
-    assert.match(fanout, /where: publicListingWhere\(\{ id: listing\.id, sellerId: sellerProfileId \}\)/);
+    assert.match(fanout, /import \{ sellerPublicFollowerListingTarget \} from "@\/lib\/sellerProfilePublicAccess"/);
+    assert.match(fanout, /const publicListing = await sellerPublicFollowerListingTarget\(/);
+    assert.match(fanout, /listing\.id,\s*sellerProfileId,/s);
+    assert.doesNotMatch(fanout, /prisma\.listing\./);
     assert.match(fanout, /if \(!publicListing\) return/);
     assert.match(fanout, /const sellerUserId = publicListing\.seller\.userId/);
     assert.match(fanout, /userFollowerNotificationPage\(prisma, \{/);
@@ -20,7 +21,7 @@ describe("follower listing notification guardrails", () => {
     assert.match(fanout, /limit: FOLLOWER_FANOUT_PAGE_SIZE/);
     assert.doesNotMatch(fanout, /prisma\.follow\.findMany/);
     assert.ok(
-      fanout.indexOf("where: publicListingWhere({ id: listing.id, sellerId: sellerProfileId })") <
+      fanout.indexOf("const publicListing = await sellerPublicFollowerListingTarget(") <
         fanout.indexOf("const followers = await userFollowerNotificationPage"),
       "public listing state must be rechecked before follower lookup",
     );
