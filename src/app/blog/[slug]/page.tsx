@@ -15,7 +15,7 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import FollowButton from "@/components/FollowButton";
 import CoverLightbox from "@/components/CoverLightbox";
 import MediaImage from "@/components/MediaImage";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { findOwnerSavedBlogPost } from "@/lib/savedBlogPostOwnerAccess";
 import BlockReportButton from "@/components/BlockReportButton";
@@ -109,7 +109,6 @@ export default async function BlogPostPage({
   const post = await prisma.blogPost.findFirst({
     where: viewerBlogPostWhere({ slug }),
     include: {
-      sellerProfile: { select: { id: true, userId: true, displayName: true, avatarImageUrl: true } },
       comments: {
         where: { ...commentVisibilityWhere, parentId: null },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -166,20 +165,20 @@ export default async function BlogPostPage({
   // Maker posts end with a follow-the-author CTA instead of the generic
   // newsletter — following is the mechanism that actually delivers this
   // maker's future stories (feed + optional email).
-  const isMakerPost = post.authorType === "MAKER" && !!post.sellerProfile;
+  const isMakerPost = post.authorType === "MAKER" && !!post.sellerProfileId;
   const viewerIsAuthor = !!meId && post.authorId === meId;
   let authorFollowerCount = 0;
   let isFollowingAuthor = false;
-  if (isMakerPost && post.sellerProfile && !viewerIsAuthor) {
+  if (isMakerPost && post.sellerProfileId && !viewerIsAuthor) {
     authorFollowerCount = await prisma.follow.count({
-      where: { sellerProfileId: post.sellerProfile.id },
+      where: { sellerProfileId: post.sellerProfileId },
     });
     if (meId) {
       const followRow = await prisma.follow.findUnique({
         where: {
           followerId_sellerProfileId: {
             followerId: meId,
-            sellerProfileId: post.sellerProfile.id,
+            sellerProfileId: post.sellerProfileId,
           },
         },
         select: { id: true },
@@ -196,11 +195,11 @@ export default async function BlogPostPage({
     photos: Array<{ url: string }>; seller: { displayName: string };
   }> = [];
   if (post.featuredListingIds.length > 0) {
-    const featuredSellerFilter: Prisma.ListingWhereInput = post.sellerProfile?.id
+    const featuredSellerFilter: Prisma.ListingWhereInput = post.sellerProfileId
       ? {
           sellerId: blockedSellerIds.length > 0
-            ? { equals: post.sellerProfile.id, notIn: blockedSellerIds }
-            : post.sellerProfile.id,
+            ? { equals: post.sellerProfileId, notIn: blockedSellerIds }
+            : post.sellerProfileId,
         }
       : (blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {});
     featuredListings = await prisma.listing.findMany({
@@ -237,21 +236,14 @@ export default async function BlogPostPage({
       authorImageUrl: true,
       authorSellerName: true,
       authorSellerAvatarUrl: true,
-      sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
     },
   });
 
   const video = post.videoUrl ? extractBlogVideoEmbed(post.videoUrl) : null;
-  const authorName = post.sellerProfile?.displayName
-    ?? post.authorSellerName
-    ?? post.authorName
-    ?? "Former author";
-  const authorAvatar = post.sellerProfile?.avatarImageUrl
-    ?? post.authorSellerAvatarUrl
-    ?? post.authorImageUrl
-    ?? null;
-  const authorPageHref = post.authorType === "MAKER" && post.sellerProfile
-    ? publicBlogAuthorPath(post.sellerProfile.id, authorName)
+  const { name: authorName, imageUrl: authorAvatar } =
+    publicBlogAuthorPresentation(post, "Former author");
+  const authorPageHref = post.authorType === "MAKER" && post.sellerProfileId
+    ? publicBlogAuthorPath(post.sellerProfileId, authorName)
     : null;
   const postUrl = `https://thegrainline.com/blog/${slug}`;
 
@@ -327,10 +319,10 @@ export default async function BlogPostPage({
           </div>
           <div className="text-xs text-neutral-500">
             {post.authorType === "MAKER" ? "Maker" : "Grainline Staff"}
-            {post.authorType === "MAKER" && post.sellerProfile && (
+            {post.authorType === "MAKER" && post.sellerProfileId && (
               <>
                 <span className="mx-1">/</span>
-                <Link href={publicSellerPath(post.sellerProfile.id, authorName)} className="hover:underline">
+                <Link href={publicSellerPath(post.sellerProfileId, authorName)} className="hover:underline">
                   Visit shop
                 </Link>
               </>
@@ -443,7 +435,7 @@ export default async function BlogPostPage({
       )}
 
       {/* Follow the maker (maker posts) / newsletter (staff posts) */}
-      {isMakerPost && post.sellerProfile ? (
+      {isMakerPost && post.sellerProfileId ? (
         !viewerIsAuthor && (
           <div className="mb-10 card-section p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
             {authorAvatar ? (
@@ -465,7 +457,7 @@ export default async function BlogPostPage({
               </p>
             </div>
             <FollowButton
-              sellerProfileId={post.sellerProfile.id}
+              sellerProfileId={post.sellerProfileId}
               initialFollowing={isFollowingAuthor}
               initialCount={authorFollowerCount}
             />
@@ -545,13 +537,8 @@ export default async function BlogPostPage({
           <h2 className="text-lg font-semibold mb-4">More from the Workshop</h2>
           <ul className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {related.map((r) => {
-              const rName = r.sellerProfile?.displayName
-                ?? r.authorSellerName
-                ?? r.authorName
-                ?? "Former author";
-              const rAvatar = r.sellerProfile?.avatarImageUrl
-                ?? r.authorSellerAvatarUrl
-                ?? r.authorImageUrl;
+              const { name: rName, imageUrl: rAvatar } =
+                publicBlogAuthorPresentation(r, "Former author");
               return (
                 <li key={r.slug} className="card-listing">
                   <Link href={`/blog/${r.slug}`} className="block">

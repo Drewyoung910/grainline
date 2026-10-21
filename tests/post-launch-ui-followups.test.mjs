@@ -568,10 +568,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /meDbId !== also\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
     assert.match(homepage, /hover:underline[\s\S]*Visit shop →/);
-    assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfile/);
+    assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfileId/);
     assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.authorId === meId/);
     assert.match(blogPost, /!viewerIsAuthor && \(/);
-    assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfile\.id\}[\s\S]*initialCount=\{authorFollowerCount\}/);
+    assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfileId\}[\s\S]*initialCount=\{authorFollowerCount\}/);
     assert.match(blogPost, /<NewsletterSignup \/>/);
     assert.match(following, /href="\/account\/feed"[\s\S]*bg-\[#2C1F1A\]/);
     assert.doesNotMatch(following, /href="\/account\/feed"[\s\S]{0,160}text-amber-700/);
