@@ -77,7 +77,6 @@ describe("User public blog-state source boundary", () => {
       "src/app/api/blog/search/route.ts",
       "src/app/api/blog/search/suggestions/route.ts",
       "src/app/api/search/suggestions/route.ts",
-      "src/lib/popularBlogTags.ts",
     ];
 
     for (const path of rawBlogFiles) {
@@ -88,6 +87,19 @@ describe("User public blog-state source boundary", () => {
       assert.doesNotMatch(source, /JOIN "User" [a-z_]+ ON [a-z_]+\.id = (?:bp|"BlogPost")\."authorId"/);
       if (limit !== -1) assert.ok(active < limit, `${path} must filter lifecycle before limiting rows`);
     }
+
+    const popularTags = read("src/lib/popularBlogTags.ts");
+    const popularTagsAuthority = read(
+      "prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql",
+    );
+    assert.match(popularTags, /sellerPublicBlogTags\(limit\)/);
+    const popularTagsFunction = popularTagsAuthority.slice(
+      popularTagsAuthority.indexOf("CREATE OR REPLACE FUNCTION public.grainline_seller_public_blog_tags"),
+    );
+    const active = popularTagsFunction.indexOf('post."authorAccountActive" = true');
+    const limit = popularTagsFunction.indexOf("LIMIT p_limit", active);
+    assert.notEqual(active, -1);
+    assert.ok(limit > active);
   });
 
   it("keeps public post and comment reads off nested User relations", () => {

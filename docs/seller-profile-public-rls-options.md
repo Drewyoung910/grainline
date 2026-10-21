@@ -768,3 +768,13 @@ authority was needed. The current gate is 52 relation accesses, 10 raw-SQL
 accesses, three relation-bearing factories and zero opaque SellerProfile
 predicates across 29 consumer files and 142 opaque shapes; the catalog and
 408-migration chain remain unchanged.
+The public blog index, blog APIs and homepage now read the database-maintained
+`BlogPost.authorSellerName` and `authorSellerAvatarUrl` mirrors instead of
+projecting SellerProfile presentation fields. The existing write-time trigger
+proof keeps those values synchronized and rejects forged mirrors, while the
+response helper preserves the former seller-name/avatar precedence and API
+shape. This removes seven relation accesses without adding SQL or another
+round trip. The current gate is 45 relation accesses in 22 files, 10 raw-SQL
+accesses in eight files, three relation-bearing factories and zero opaque
+SellerProfile predicates across 28 consumer files and 142 opaque shapes; the
+catalog and 408-migration chain remain unchanged.

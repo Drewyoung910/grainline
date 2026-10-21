@@ -20,7 +20,7 @@ import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import FollowButton from "@/components/FollowButton";
@@ -215,7 +215,6 @@ export default async function HomePage() {
         authorImageUrl: true,
         authorSellerName: true,
         authorSellerAvatarUrl: true,
-        sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
       },
     }),
     getFeaturedMakerBlock(blockedSellerIds),
@@ -296,7 +295,7 @@ export default async function HomePage() {
           take: 6,
           select: {
             id: true, slug: true, title: true, coverImageUrl: true, publishedAt: true, sellerProfileId: true,
-            sellerProfile: { select: { displayName: true } },
+            authorSellerName: true,
           },
         }),
       ]);
@@ -311,7 +310,7 @@ export default async function HomePage() {
         })),
         ...recentPosts.map((p): FromYourMakersItem => ({
           kind: "blog", id: p.id, date: (p.publishedAt ?? new Date(0)).toISOString(), slug: p.slug, title: p.title, coverImageUrl: p.coverImageUrl,
-          sellerName: p.sellerProfile?.displayName ?? "Maker",
+          sellerName: p.authorSellerName ?? "Maker",
           sellerProfileId: p.sellerProfileId ?? "",
         })),
       ];
@@ -946,14 +945,8 @@ export default async function HomePage() {
             </div>
             <ul className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {recentBlogPosts.map((p) => {
-                const authorName = p.sellerProfile?.displayName
-                  ?? p.authorSellerName
-                  ?? p.authorName
-                  ?? "Former author";
-                const authorAvatar = p.sellerProfile?.avatarImageUrl
-                  ?? p.authorSellerAvatarUrl
-                  ?? p.authorImageUrl
-                  ?? null;
+                const { name: authorName, imageUrl: authorAvatar } =
+                  publicBlogAuthorPresentation(p, "Former author");
                 return (
                   <li key={p.slug} className="relative card-listing">
                     <div className="absolute top-2 right-2 z-10">

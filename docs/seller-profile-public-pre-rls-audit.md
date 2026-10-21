@@ -792,10 +792,11 @@ guard the final zero-direct state, but they do not count as behavior proof.
   returning only the fresh notification fields, plus a bounded blog-author
   sitemap seed that preserves the first-500-post and first-100-author limits,
   plus the admin review queue's reuse of the isolated active-staff seller-label
-  projection in bounded 50-id chunks, have reduced the live gate to 52 relation
-  accesses in 25 files, 10 raw-SQL
+  projection in bounded 50-id chunks, and the public blog list/API/homepage
+  reuse of the database-maintained BlogPost seller-name/avatar mirrors, have
+  reduced the live gate to 45 relation accesses in 22 files, 10 raw-SQL
   accesses in eight files, three relation-bearing factories and zero opaque
-  SellerProfile target predicates across 29 total consumer files and 142
+  SellerProfile target predicates across 28 total consumer files and 142
   reconciled opaque shapes. The reviewed catalog now has 208 functions: 98
   retained, 33 internal and 77 converted authorities. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission

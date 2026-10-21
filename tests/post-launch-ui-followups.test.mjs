@@ -506,23 +506,18 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(fullMapCall, /\bcompact\b/);
   });
 
-  it("prefers live shop avatars over stored public blog identity snapshots", () => {
+  it("uses the database-maintained public blog identity mirrors", () => {
     const homepage = source("src/app/page.tsx");
 
     assert.match(
       homepage,
-      /authorName:\s*true,[\s\S]*authorImageUrl:\s*true,[\s\S]*authorSellerName:\s*true,[\s\S]*authorSellerAvatarUrl:\s*true,[\s\S]*sellerProfile:\s*\{\s*select:\s*\{\s*displayName:\s*true,\s*avatarImageUrl:\s*true\s*\},?\s*\}/,
-      "homepage blog queries should load stored public identity plus the post-linked shop",
+      /authorName:\s*true,[\s\S]*authorImageUrl:\s*true,[\s\S]*authorSellerName:\s*true,[\s\S]*authorSellerAvatarUrl:\s*true/,
+      "homepage blog queries should load the maintained public author identity",
     );
-    assert.match(
+    assert.match(homepage, /publicBlogAuthorPresentation\(p, "Former author"\)/);
+    assert.doesNotMatch(
       homepage,
-      /const authorName = p\.sellerProfile\?\.displayName[\s\S]*\?\? p\.authorSellerName[\s\S]*\?\? p\.authorName[\s\S]*\?\? "Former author";/,
-      "the post-linked shop name should take precedence over stored identity snapshots",
-    );
-    assert.match(
-      homepage,
-      /const authorAvatar = p\.sellerProfile\?\.avatarImageUrl[\s\S]*\?\? p\.authorSellerAvatarUrl[\s\S]*\?\? p\.authorImageUrl[\s\S]*\?\? null;/,
-      "the stored public author image should remain only the final avatar fallback",
+      /sellerProfile:\s*\{\s*select:\s*\{\s*displayName:\s*true,\s*avatarImageUrl:\s*true/,
     );
   });
 

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { BlogPostType, Prisma } from "@prisma/client";
 import { getIP, rateLimitResponse, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -24,7 +24,9 @@ const POST_SELECT = {
   readingTimeMinutes: true,
   authorName: true,
   authorImageUrl: true,
-  sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
+  authorSellerName: true,
+  authorSellerAvatarUrl: true,
+  sellerProfileId: true,
 } as const;
 
 type PostRow = {
@@ -39,12 +41,36 @@ type PostRow = {
   readingTimeMinutes: number | null;
   authorName: string | null;
   authorImageUrl: string | null;
-  sellerProfile: { displayName: string; avatarImageUrl: string | null } | null;
+  authorSellerName: string | null;
+  authorSellerAvatarUrl: string | null;
+  sellerProfileId: string | null;
 };
 
 function publicBlogSearchResult(row: PostRow) {
-  const { authorName, authorImageUrl, ...post } = row;
-  return { ...post, author: { name: authorName, imageUrl: authorImageUrl } };
+  const {
+    authorName,
+    authorImageUrl,
+    authorSellerName,
+    authorSellerAvatarUrl,
+    sellerProfileId,
+    ...post
+  } = row;
+  const sellerAuthor = publicBlogAuthorPresentation({
+    authorName,
+    authorImageUrl,
+    authorSellerName,
+    authorSellerAvatarUrl,
+  }, "Former author");
+  return {
+    ...post,
+    sellerProfile: sellerProfileId
+      ? {
+          displayName: sellerAuthor.name,
+          avatarImageUrl: sellerAuthor.imageUrl,
+        }
+      : null,
+    author: { name: authorName, imageUrl: authorImageUrl },
+  };
 }
 
 export async function GET(req: NextRequest) {

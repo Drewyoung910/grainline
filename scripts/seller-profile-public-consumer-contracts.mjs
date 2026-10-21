@@ -20,7 +20,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/admin/broadcasts/page.tsx": ["STAFF"],
   "src/app/admin/verification/page.tsx": ["STAFF"],
   "src/app/api/admin/listings/[id]/review/route.ts": ["STAFF"],
-  "src/app/api/blog/route.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/api/blog/search/route.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/api/blog/search/suggestions/route.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/api/cart/add/route.ts": ["TRANSACTION"],

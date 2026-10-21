@@ -11,7 +11,7 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import BlogSearchBar from "@/components/BlogSearchBar";
 import MediaImage from "@/components/MediaImage";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { safeJsonLd } from "@/lib/json-ld";
 import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
@@ -115,14 +115,12 @@ async function BlogIndexPageContent({
     authorImageUrl: string | null;
     authorSellerName: string | null;
     authorSellerAvatarUrl: string | null;
-    sellerProfile: { displayName: string; avatarImageUrl: string | null } | null;
   };
 
   const POST_SELECT = {
     id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, type: true,
     tags: true, readingTimeMinutes: true, publishedAt: true, authorType: true,
     authorName: true, authorImageUrl: true, authorSellerName: true, authorSellerAvatarUrl: true,
-    sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
   } as const;
 
   let allPosts: PostSelect[] = [];
@@ -276,7 +274,7 @@ async function BlogIndexPageContent({
       datePublished: post.publishedAt?.toISOString(),
       author: {
         "@type": "Person",
-        name: post.sellerProfile?.displayName ?? post.authorSellerName ?? post.authorName ?? "Grainline",
+        name: publicBlogAuthorPresentation(post, "Grainline").name,
       },
     })),
   };
@@ -440,13 +438,7 @@ async function BlogIndexPageContent({
                   )}
                   <div className="flex items-center gap-2 pt-1">
                     {(() => {
-                      const avatar = featured.sellerProfile?.avatarImageUrl
-                        ?? featured.authorSellerAvatarUrl
-                        ?? featured.authorImageUrl;
-                      const name = featured.sellerProfile?.displayName
-                        ?? featured.authorSellerName
-                        ?? featured.authorName
-                        ?? "Staff";
+                      const { imageUrl: avatar, name } = publicBlogAuthorPresentation(featured, "Staff");
                       return (
                         <>
                           {avatar ? (
@@ -477,13 +469,7 @@ async function BlogIndexPageContent({
           {rest.length > 0 && (
             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-10">
               {rest.map((post) => {
-                const avatar = post.sellerProfile?.avatarImageUrl
-                  ?? post.authorSellerAvatarUrl
-                  ?? post.authorImageUrl;
-                const name = post.sellerProfile?.displayName
-                  ?? post.authorSellerName
-                  ?? post.authorName
-                  ?? "Staff";
+                const { imageUrl: avatar, name } = publicBlogAuthorPresentation(post, "Staff");
                 const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
                   <li key={post.id} className="relative card-listing">

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { BlogPostType, Prisma } from "@prisma/client";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -70,7 +70,9 @@ export async function GET(req: NextRequest) {
       authorId: true,
       authorName: true,
       authorImageUrl: true,
-      sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true } },
+      authorSellerName: true,
+      authorSellerAvatarUrl: true,
+      sellerProfileId: true,
       _count: {
         select: {
           comments: {
@@ -85,10 +87,34 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  const posts = rows.map(({ authorId, authorName, authorImageUrl, ...post }) => ({
-    ...post,
-    author: authorId ? { id: authorId, name: authorName, imageUrl: authorImageUrl } : null,
-  }));
+  const posts = rows.map((row) => {
+    const {
+      authorId,
+      authorName,
+      authorImageUrl,
+      authorSellerName,
+      authorSellerAvatarUrl,
+      sellerProfileId,
+      ...post
+    } = row;
+    const sellerAuthor = publicBlogAuthorPresentation({
+      authorName,
+      authorImageUrl,
+      authorSellerName,
+      authorSellerAvatarUrl,
+    }, "Former author");
+    return {
+      ...post,
+      sellerProfile: sellerProfileId
+        ? {
+            id: sellerProfileId,
+            displayName: sellerAuthor.name,
+            avatarImageUrl: sellerAuthor.imageUrl,
+          }
+        : null,
+      author: authorId ? { id: authorId, name: authorName, imageUrl: authorImageUrl } : null,
+    };
+  });
 
   return NextResponse.json({ posts, total, page: clampedPage, pageSize });
 }
