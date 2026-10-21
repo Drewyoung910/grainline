@@ -13,6 +13,7 @@ const callerPaths = [
   "src/app/api/upload/presign/route.ts",
   "src/app/dashboard/sales/page.tsx",
   "src/app/dashboard/sales/[orderId]/page.tsx",
+  "src/app/seller/[id]/shop/actions.ts",
 ];
 
 test("owner core converts analytics, broadcast, and seller-upload lookups", () => {
@@ -32,4 +33,8 @@ test("owner core converts analytics, broadcast, and seller-upload lookups", () =
     assert.doesNotMatch(caller, /(?:prisma|tx|client|db)\.sellerProfile\./u);
     assert.match(caller, /sellerOwnerCore/u);
   }
+
+  const shopActions = readFileSync("src/app/seller/[id]/shop/actions.ts", "utf8");
+  assert.match(shopActions, /sellerId: seller\.sellerProfileId/u);
+  assert.doesNotMatch(shopActions, /(?:select|include): \{ seller:/u);
 });

@@ -47,7 +47,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/messages/[id]/page.tsx": ["PARTICIPANT", "TRANSACTION"],
   "src/app/messages/new/page.tsx": ["PARTICIPANT", "TRANSACTION"],
   "src/app/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PUBLIC_MAP"],
-  "src/app/seller/[id]/shop/actions.ts": ["PUBLIC_ELIGIBILITY", "PARTICIPANT"],
   "src/app/sitemap.ts": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/tag/[slug]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/lib/accountDeletion.ts": ["SERVICE"],

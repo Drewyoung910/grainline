@@ -667,6 +667,12 @@ callers. The fixed database authority still validates that the supplied seller
 owns the exact reserved listing. The current gate is 63 relation accesses, 10
 raw-SQL accesses, three relation-bearing factories and zero opaque
 SellerProfile predicates across 39 consumer files and 145 opaque shapes.
+Seller shop actions then reuse the existing actor-bound owner-core authority
+and constrain their Listing read by the returned scalar seller id. Their
+downstream ownership identity and display name are reconstructed only from that
+authority result. The current gate is 62 relation accesses, 10 raw-SQL
+accesses, three relation-bearing factories and zero opaque SellerProfile
+predicates across 38 consumer files and 145 opaque shapes.
 Exact-head CI then exposed a host-timezone defect in two projection timestamp
 tests. A complete return-signature inventory found the same boundary in nine
 SellerProfile authorities. A single

@@ -25,17 +25,26 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
-import { sellerOwnerListingPublishReview } from "@/lib/sellerProfileOwnerAccess";
+import {
+  sellerOwnerCore,
+  sellerOwnerListingPublishReview,
+} from "@/lib/sellerProfileOwnerAccess";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
-async function findOwnedListing(listingId: string, ownerId: string) {
-  const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    include: { seller: { select: { userId: true, displayName: true } } },
+async function findOwnedListing(
+  listingId: string,
+  ownerId: string,
+  seller: { sellerProfileId: string; displayName: string },
+) {
+  const listing = await prisma.listing.findFirst({
+    where: { id: listingId, sellerId: seller.sellerProfileId },
   });
-  if (!listing || listing.seller.userId !== ownerId) return null;
-  return listing;
+  if (!listing) return null;
+  return {
+    ...listing,
+    seller: { userId: ownerId, displayName: seller.displayName },
+  };
 }
 
 type OwnedListing = NonNullable<Awaited<ReturnType<typeof findOwnedListing>>>;
@@ -55,7 +64,9 @@ async function getOwnedListing(listingId: string): Promise<OwnedListingResult> {
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
 
-  const listing = await findOwnedListing(listingId, me.id);
+  const seller = await sellerOwnerCore(me.id);
+  if (!seller) return { ok: false, error: "Listing not found." };
+  const listing = await findOwnedListing(listingId, me.id, seller);
   if (!listing) return { ok: false, error: "Listing not found." };
   return { ok: true, listing };
 }
