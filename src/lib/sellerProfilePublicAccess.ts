@@ -105,6 +105,14 @@ export type SellerPublicMetroMaker = Readonly<{
   activeListingCount: number;
 }>;
 
+export type SellerPublicMapMetro = Readonly<{
+  id: string;
+  slug: string;
+  name: string;
+  state: string;
+  parentMetroId: string | null;
+}>;
+
 export type SellerPublicNearbyMetro = Readonly<{
   id: string;
   slug: string;
@@ -288,6 +296,14 @@ type SellerPublicMapCardRow = {
 
 type SellerPublicMetroStaticSlugRow = {
   slug: unknown;
+};
+
+type SellerPublicMapMetroRow = {
+  id: unknown;
+  slug: unknown;
+  name: unknown;
+  state: unknown;
+  parentMetroId: unknown;
 };
 
 type SellerPublicMetroMakerRow = {
@@ -886,6 +902,38 @@ async function readSellerPublicMetroStaticSlugs(client: SellerPublicAccessClient
   return Object.freeze(slugs);
 }
 
+async function readSellerPublicMapMetros(client: SellerPublicAccessClient) {
+  const rows = await client.$queryRaw<SellerPublicMapMetroRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_map_metros()
+  `);
+  const metros = rows.map((row) => {
+    if (
+      typeof row.id !== "string"
+      || !row.id
+      || typeof row.slug !== "string"
+      || !row.slug
+      || typeof row.name !== "string"
+      || !row.name
+      || typeof row.state !== "string"
+      || !row.state
+      || !nullableString(row.parentMetroId)
+    ) {
+      throw new Error("Seller public map-metro authority returned an invalid result");
+    }
+    return Object.freeze({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      state: row.state,
+      parentMetroId: row.parentMetroId,
+    });
+  });
+  if (new Set(metros.map(({ id }) => id)).size !== metros.length) {
+    throw new Error("Seller public map-metro authority returned duplicate results");
+  }
+  return Object.freeze(metros);
+}
+
 async function readSellerPublicMetroMakers(
   client: SellerPublicAccessClient,
   metroId: string,
@@ -1299,6 +1347,13 @@ export async function sellerPublicMapCard(sellerProfileId: string) {
 
 export async function sellerPublicMetroStaticSlugs() {
   return readSellerPublicMetroStaticSlugs(prisma);
+}
+
+export async function sellerPublicMapMetros(viewerUserId: string | null) {
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, readSellerPublicMapMetros);
+  }
+  return readSellerPublicMapMetros(prisma);
 }
 
 export async function sellerPublicMetroMakers(

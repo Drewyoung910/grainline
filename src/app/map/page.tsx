@@ -4,11 +4,12 @@ import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import AllSellersMap from "@/components/AllSellersMap";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import type { Metadata } from "next";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
-import { sellerPublicMapPoints } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerPublicMapMetros,
+  sellerPublicMapPoints,
+} from "@/lib/sellerProfilePublicAccess";
 
 export const metadata: Metadata = {
   title: "Find Local Woodworkers Near You | Grainline Makers Map",
@@ -45,11 +46,6 @@ export default async function AllSellersMapPage({
     const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-  const visibleSellerWhere = activeSellerProfileWhere(
-    blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {},
-  );
-
   let initialCenter: { lat: number; lng: number } | null = null;
   let initialZoom = 3;
 
@@ -65,28 +61,7 @@ export default async function AllSellersMapPage({
     initialZoom = parseBoundedPositiveIntParam(zoom, 3, 18);
   }
 
-  // Metro membership still uses the existing visibility predicate during the
-  // additive compatibility phase. Map coordinates come only from the bounded
-  // database authority below.
-  const activeMetros = await prisma.metro.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        {
-          sellerProfiles: {
-            some: visibleSellerWhere,
-          },
-        },
-        {
-          sellerCityProfiles: {
-            some: visibleSellerWhere,
-          },
-        },
-      ],
-    },
-    select: { id: true, slug: true, name: true, state: true, parentMetroId: true },
-    orderBy: { name: "asc" },
-  });
+  const activeMetros = await sellerPublicMapMetros(meDbId);
 
   // Group child metros under their parents; major metros with no children stand alone
   const majorMetros = activeMetros.filter((m) => !m.parentMetroId);

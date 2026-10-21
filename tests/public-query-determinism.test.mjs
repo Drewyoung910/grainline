@@ -173,9 +173,8 @@ describe("public query determinism", () => {
     assert.match(sellerPublicMapAuthority, /ORDER BY seller\.id ASC\s+LIMIT p_limit/);
     assert.match(sellerPublicMapAuthority, /FROM public\."Block" AS relationship/);
     assert.match(publicMap, /const MAP_SELLER_POINT_LIMIT = 500/);
-    assert.match(publicMap, /const visibleSellerWhere = activeSellerProfileWhere\(/);
-    assert.match(publicMap, /sellerProfiles: \{\s*some: visibleSellerWhere/);
-    assert.match(publicMap, /sellerCityProfiles: \{\s*some: visibleSellerWhere/);
+    assert.match(publicMap, /sellerPublicMapMetros\(meDbId\)/);
+    assert.doesNotMatch(publicMap, /activeSellerProfileWhere|sellerProfiles:|sellerCityProfiles:/);
     assert.match(publicMap, /sellerPublicMapPoints\(\s*meDbId,\s*MAP_SELLER_POINT_LIMIT/);
     assert.match(sellerPublicMapAuthority, /ORDER BY seller\.id ASC\s+LIMIT p_limit/);
   });

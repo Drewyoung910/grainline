@@ -32,6 +32,80 @@ AS $grainline_seller_public_metro_static_slugs$
    ORDER BY metro.slug ASC
 $grainline_seller_public_metro_static_slugs$;
 
+CREATE OR REPLACE FUNCTION public.grainline_seller_public_map_metros()
+RETURNS TABLE (
+  id text,
+  slug text,
+  name text,
+  state text,
+  "parentMetroId" text
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_seller_public_map_metros$
+DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.current_setting('app.user_id', true),
+    ''
+  );
+BEGIN
+  IF request_user_id IS NOT NULL
+     AND (
+       request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+       OR NOT EXISTS (
+         SELECT 1
+           FROM public."User" AS request_user
+          WHERE request_user.id = request_user_id
+            AND request_user.banned = false
+            AND request_user."deletedAt" IS NULL
+       )
+     ) THEN
+    RAISE EXCEPTION 'Seller public map-metro viewer context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT metro.id::text,
+         metro.slug::text,
+         metro.name::text,
+         metro.state::text,
+         metro."parentMetroId"::text
+    FROM public."Metro" AS metro
+   WHERE metro."isActive" = true
+     AND EXISTS (
+       SELECT 1
+         FROM public."SellerProfile" AS seller
+        WHERE (
+          seller."metroId" = metro.id
+          OR seller."cityMetroId" = metro.id
+        )
+          AND seller."ownerAccountActive" = true
+          AND seller."chargesEnabled" = true
+          AND seller."stripeAccountSupported" = true
+          AND seller."vacationMode" = false
+          AND (
+            request_user_id IS NULL
+            OR NOT EXISTS (
+              SELECT 1
+                FROM public."Block" AS relationship
+               WHERE (
+                 relationship."blockerId" = request_user_id
+                 AND relationship."blockedId" = seller."userId"
+               )
+                  OR (
+                    relationship."blockerId" = seller."userId"
+                    AND relationship."blockedId" = request_user_id
+                  )
+            )
+          )
+     )
+   ORDER BY metro.name ASC, metro.slug ASC;
+END
+$grainline_seller_public_map_metros$;
+
 CREATE OR REPLACE FUNCTION public.grainline_seller_public_metro_makers(
   p_metro_id text,
   p_is_major boolean,
@@ -264,12 +338,16 @@ $grainline_seller_public_nearby_metros$;
 
 REVOKE ALL ON FUNCTION public.grainline_seller_public_metro_static_slugs()
   FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_seller_public_map_metros()
+  FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_seller_public_metro_makers(text, boolean, integer)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_seller_public_nearby_metros(text)
   FROM PUBLIC, grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION public.grainline_seller_public_metro_static_slugs()
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_seller_public_map_metros()
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_seller_public_metro_makers(text, boolean, integer)
   TO grainline_app_runtime;

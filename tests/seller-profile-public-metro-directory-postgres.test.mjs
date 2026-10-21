@@ -24,6 +24,7 @@ async function readyDatabase() {
       id text PRIMARY KEY,
       slug text NOT NULL UNIQUE,
       name text NOT NULL,
+      state text NOT NULL,
       "parentMetroId" text REFERENCES public."Metro"(id),
       "isActive" boolean NOT NULL DEFAULT true
     );
@@ -73,11 +74,11 @@ async function readyDatabase() {
     INSERT INTO public."User" (id) VALUES
       ('viewer'), ('maker-major'), ('maker-empty'), ('maker-child'),
       ('maker-blocked'), ('follower-a'), ('follower-b');
-    INSERT INTO public."Metro" (id, slug, name, "parentMetroId", "isActive") VALUES
-      ('major', 'major-tx', 'Major', NULL, true),
-      ('child-a', 'child-a-tx', 'Child A', 'major', true),
-      ('child-b', 'child-b-tx', 'Child B', 'major', true),
-      ('inactive', 'inactive-tx', 'Inactive', 'major', false);
+    INSERT INTO public."Metro" (id, slug, name, state, "parentMetroId", "isActive") VALUES
+      ('major', 'major-tx', 'Major', 'TX', NULL, true),
+      ('child-a', 'child-a-tx', 'Child A', 'TX', 'major', true),
+      ('child-b', 'child-b-tx', 'Child B', 'TX', 'major', true),
+      ('inactive', 'inactive-tx', 'Inactive', 'TX', 'major', false);
     INSERT INTO public."SellerProfile" (
       id, "userId", "metroId", "cityMetroId", "displayName", tagline, city, state,
       "avatarImageUrl", "bannerImageUrl", "guildLevel", "ownerImageUrl",
@@ -125,6 +126,34 @@ test("metro-directory authorities preserve each public predicate and projection"
     );
     assert.deepEqual(
       (await database.query(
+        "SELECT * FROM public.grainline_seller_public_map_metros()",
+      )).rows,
+      [
+        {
+          id: "child-a",
+          slug: "child-a-tx",
+          name: "Child A",
+          state: "TX",
+          parentMetroId: "major",
+        },
+        {
+          id: "child-b",
+          slug: "child-b-tx",
+          name: "Child B",
+          state: "TX",
+          parentMetroId: "major",
+        },
+        {
+          id: "major",
+          slug: "major-tx",
+          name: "Major",
+          state: "TX",
+          parentMetroId: null,
+        },
+      ],
+    );
+    assert.deepEqual(
+      (await database.query(
         "SELECT id FROM public.grainline_seller_public_metro_makers('major', true, 24)",
       )).rows,
       [{ id: "seller-major" }, { id: "seller-blocked" }, { id: "seller-child" }],
@@ -137,6 +166,27 @@ test("metro-directory authorities preserve each public predicate and projection"
     );
 
     await database.exec("SELECT pg_catalog.set_config('app.user_id', 'viewer', false)");
+    assert.deepEqual(
+      (await database.query(
+        "SELECT * FROM public.grainline_seller_public_map_metros()",
+      )).rows,
+      [
+        {
+          id: "child-a",
+          slug: "child-a-tx",
+          name: "Child A",
+          state: "TX",
+          parentMetroId: "major",
+        },
+        {
+          id: "major",
+          slug: "major-tx",
+          name: "Major",
+          state: "TX",
+          parentMetroId: null,
+        },
+      ],
+    );
     assert.deepEqual(
       (await database.query(
         "SELECT * FROM public.grainline_seller_public_metro_makers('major', true, 24)",
@@ -201,6 +251,7 @@ test("metro-directory authorities deny ungranted callers", async () => {
     await database.exec("SET ROLE grainline_untrusted");
     for (const query of [
       "SELECT * FROM public.grainline_seller_public_metro_static_slugs()",
+      "SELECT * FROM public.grainline_seller_public_map_metros()",
       "SELECT * FROM public.grainline_seller_public_metro_makers('major', true, 24)",
       "SELECT * FROM public.grainline_seller_public_nearby_metros('major')",
     ]) {
