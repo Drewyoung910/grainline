@@ -795,7 +795,7 @@ guard the final zero-direct state, but they do not count as behavior proof.
   projection in bounded 50-id chunks, and the public blog list/API/homepage
   reuse of the database-maintained BlogPost seller-name/avatar mirrors across
   list, API, homepage, detail and related-post presentation, have reduced the
-  live gate to 42 relation accesses in 21 files, 10 raw-SQL
+  live gate to 39 relation accesses in 21 files, 10 raw-SQL
   accesses in eight files, three relation-bearing factories and zero opaque
   SellerProfile target predicates across 27 total consumer files and 141
   reconciled opaque shapes. The reviewed catalog now has 208 functions: 98

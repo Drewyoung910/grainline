@@ -110,7 +110,7 @@ converted runtime is promoted only after the preparation postflight succeeds.
 The database candidate and release machinery are locally compatible, but
 Production remains blocked until the release head is concrete and rechecked:
 
-1. Convert the 42 relation accesses, 10 raw-SQL accesses and three
+1. Convert the 39 relation accesses, 10 raw-SQL accesses and three
    relation-bearing query factories to the reviewed
    bounded projections and purpose-bound operations. The source-readiness gate
    must read back zero in all five classes before ENABLE can reach a secret or

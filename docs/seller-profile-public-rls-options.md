@@ -789,3 +789,11 @@ gate is 42 relation accesses in 21 files, 10 raw-SQL accesses in eight files,
 three relation-bearing factories and zero opaque SellerProfile predicates
 across 27 consumer files and 141 opaque shapes; the catalog and 408-migration
 chain remain unchanged.
+The Guild staff page now uses the atomic transition's returned seller identity
+for rejection notifications and email, rather than reading SellerProfile first.
+Its pending-member cards resolve seller labels through the existing bounded
+active-staff projection after the PIN gate. This removes three more relation
+accesses without changing SQL, the catalog, or the full migration chain. The
+current gate is 39 relation accesses in 21 files, 10 raw-SQL accesses in eight
+files, three relation-bearing factories and zero opaque SellerProfile
+predicates across 27 consumer files and 141 opaque shapes.
