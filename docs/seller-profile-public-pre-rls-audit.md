@@ -765,12 +765,14 @@ guard the final zero-direct state, but they do not count as behavior proof.
   proved the prepared authorities and direct denial, but did not execute every
   residual relation/raw-SQL caller after ENABLE.
 - Residual conversion is in progress. Viewer-aware map metros, owner following,
-  public rating/tag aggregates and owner saved-listing reads have reduced the
-  live gate to 74 relation accesses in 43 files, 11 raw-SQL accesses in nine
-  files, four relation-bearing factories and zero opaque SellerProfile target
-  predicates. The saved-listing authority binds Favorite membership to the
-  transaction-local actor and owns reciprocal-block, public-listing and seller
-  orderability checks rather than accepting caller-supplied exclusions.
+  public rating/tag aggregates, owner saved-listing reads and public commission
+  interest counts/cards have reduced the live gate to 72 relation accesses in
+  42 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
+  and zero opaque SellerProfile target predicates. The saved-listing authority
+  binds Favorite membership to the transaction-local actor. The commission
+  authorities own request visibility, seller orderability, reciprocal-block
+  filtering and stable interest-card ordering rather than accepting a caller
+  supplied SellerProfile predicate.
 - Exact-location consent is now bound to the transaction-local authenticated
   owner before the function delegates or mutates state. A cross-owner runtime
   call fails with `42501`, records no consent event and leaves active consent

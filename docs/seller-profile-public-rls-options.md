@@ -631,3 +631,12 @@ relation accesses, 11 raw-SQL accesses, four relation-bearing factories and
 zero opaque SellerProfile predicates across 48 consumer files and 156 opaque
 shapes. The current 196-function catalog is 98 retained, 33 internal and 65
 converted authorities; two converted authorities are staff-only.
+The public commission-interest conversion then replaces four caller-composed
+SellerProfile predicates, two relation reads and the Near Me raw SQL seller join
+with bounded count and card authorities. Those operations own open-request and
+active-buyer eligibility, seller orderability, reciprocal-block filtering,
+stable card ordering and fixed limits. The current gate is 72 relation accesses,
+10 raw-SQL accesses, three relation-bearing factories and zero opaque
+SellerProfile predicates across 46 consumer files and 148 opaque shapes. The
+current 198-function catalog is 98 retained, 33 internal and 67 converted
+authorities; two converted authorities are staff-only.

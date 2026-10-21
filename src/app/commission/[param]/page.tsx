@@ -20,7 +20,10 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
-import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import {
+  publicCommissionInterestCards,
+  publicCommissionInterestCounts,
+} from "@/lib/commissionInterestCount";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
@@ -96,8 +99,6 @@ export async function generateMetadata({
       isNational: true,
       budgetMinCents: true,
       budgetMaxCents: true,
-      interestedCount: true,
-      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
       buyerSellerCity: true,
       buyerSellerState: true,
     },
@@ -113,7 +114,8 @@ export async function generateMetadata({
   const budgetParts: string[] = [];
   const metadataBudgetRange = formatCommissionBudgetRange(req.budgetMinCents, req.budgetMaxCents);
   if (metadataBudgetRange) budgetParts.push(`Budget: ${metadataBudgetRange}`);
-  const interestedCount = resolvedInterestedCount(req);
+  const interestCounts = await publicCommissionInterestCounts([param], null);
+  const interestedCount = interestCounts.get(param) ?? 0;
   const interested = interestedCount > 0 ? `${interestedCount} maker${interestedCount !== 1 ? "s" : ""} interested.` : "";
   const description = [truncateText(req.description, 120), ...budgetParts, interested]
     .filter(Boolean)
@@ -150,7 +152,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
+  const { blockedUserIds } = await getBlockedIdsFor(meId);
 
   const commissionWhere = isMajorMetro
     ? openCommissionWhere({
@@ -161,10 +163,6 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
         cityMetroId: metro.id,
         ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
       });
-  const visibleInterestWhere = publicCommissionInterestWhere(
-    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
-  );
-
   const rawCommissions = await prisma.commissionRequest.findMany({
     where: commissionWhere,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -177,20 +175,18 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       budgetMinCents: true,
       budgetMaxCents: true,
       timeline: true,
-      interestedCount: true,
-      _count: { select: { interests: { where: visibleInterestWhere } } },
       createdAt: true,
       referenceImageUrls: true,
       buyerName: true,
       buyerImageUrl: true,
     },
   });
-  const commissions = rawCommissions.map(({ _count, ...commission }) => ({
+  const interestCounts = rawCommissions.length > 0
+    ? await publicCommissionInterestCounts(rawCommissions.map(({ id }) => id), meId)
+    : new Map<string, number>();
+  const commissions = rawCommissions.map((commission) => ({
     ...commission,
-    interestedCount: resolvedInterestedCount({
-      interestedCount: commission.interestedCount,
-      _count,
-    }),
+    interestedCount: interestCounts.get(commission.id) ?? 0,
   }));
 
   const count = commissions.length;
@@ -367,10 +363,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
     }
   }
 
-  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
-  const visibleInterestWhere = publicCommissionInterestWhere(
-    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
-  );
+  const { blockedUserIds } = await getBlockedIdsFor(meId);
 
   const request = await prisma.commissionRequest.findFirst({
     where: openCommissionWhere({
@@ -387,8 +380,6 @@ async function CommissionDetailPage({ id }: { id: string }) {
       timeline: true,
       referenceImageUrls: true,
       status: true,
-      interestedCount: true,
-      _count: { select: { interests: { where: visibleInterestWhere } } },
       isNational: true,
       expiresAt: true,
       createdAt: true,
@@ -401,29 +392,15 @@ async function CommissionDetailPage({ id }: { id: string }) {
       buyerImageUrl: true,
       buyerSellerCity: true,
       buyerSellerState: true,
-      interests: {
-        where: visibleInterestWhere,
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take: COMMISSION_INTEREST_DISPLAY_LIMIT,
-        select: {
-          id: true,
-          createdAt: true,
-          sellerProfile: {
-            select: {
-              id: true,
-              displayName: true,
-              avatarImageUrl: true,
-              guildLevel: true,
-              ownerImageUrl: true,
-            },
-          },
-        },
-      },
     },
   });
 
   if (!request) return notFound();
-  const interestedCount = resolvedInterestedCount(request);
+  const [interestCounts, interests] = await Promise.all([
+    publicCommissionInterestCounts([request.id], meId),
+    publicCommissionInterestCards(request.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT),
+  ]);
+  const interestedCount = interestCounts.get(request.id) ?? 0;
 
   if (sellerProfileId) {
     const interest = await prisma.commissionInterest.findUnique({
@@ -545,13 +522,13 @@ async function CommissionDetailPage({ id }: { id: string }) {
         })()}
       </section>
 
-      {request.interests.length > 0 && (
+      {interests.length > 0 && (
         <section className="mb-6">
           <h2 className="font-semibold text-neutral-800 mb-3">
-            Interested Maker{request.interests.length !== 1 ? "s" : ""}
+            Interested Maker{interests.length !== 1 ? "s" : ""}
           </h2>
           <div className="flex flex-wrap gap-3">
-            {request.interests.map((interest) => {
+            {interests.map((interest) => {
               const sp = interest.sellerProfile;
               if (!sp) return null;
               const avatar = sp.avatarImageUrl ?? sp.ownerImageUrl;
@@ -573,9 +550,9 @@ async function CommissionDetailPage({ id }: { id: string }) {
               );
             })}
           </div>
-          {interestedCount > request.interests.length && (
+          {interestedCount > interests.length && (
             <p className="mt-3 text-xs text-neutral-500">
-              Showing the first {request.interests.length} active maker{request.interests.length !== 1 ? "s" : ""}.
+              Showing the first {interests.length} active maker{interests.length !== 1 ? "s" : ""}.
             </p>
           )}
         </section>

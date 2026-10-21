@@ -11,7 +11,10 @@ import { getBlockedIdsFor } from "@/lib/blocks";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
-import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import {
+  publicCommissionInterestCards,
+  publicCommissionInterestCounts,
+} from "@/lib/commissionInterestCount";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { commissionStatusRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
@@ -45,10 +48,7 @@ export async function GET(
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
-  const visibleInterestWhere = publicCommissionInterestWhere(
-    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
-  );
+  const { blockedUserIds } = await getBlockedIdsFor(meId);
 
   const request = await prisma.commissionRequest.findFirst({
     where: openCommissionWhere({
@@ -65,40 +65,23 @@ export async function GET(
       timeline: true,
       referenceImageUrls: true,
       status: true,
-      interestedCount: true,
-      _count: { select: { interests: { where: visibleInterestWhere } } },
       expiresAt: true,
       createdAt: true,
       buyerName: true,
       buyerImageUrl: true,
-      interests: {
-        where: visibleInterestWhere,
-        take: COMMISSION_INTEREST_DISPLAY_LIMIT,
-        select: {
-          createdAt: true,
-          sellerProfile: {
-            select: {
-              id: true,
-              displayName: true,
-              avatarImageUrl: true,
-              guildLevel: true,
-            },
-          },
-        },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      },
     },
   });
 
   if (!request) return privateJson({ error: "Not found" }, { status: 404 });
 
-  const { _count, buyerName, buyerImageUrl, interests, ...requestBody } = request;
+  const [interestCounts, interests] = await Promise.all([
+    publicCommissionInterestCounts([request.id], meId),
+    publicCommissionInterestCards(request.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT),
+  ]);
+  const { buyerName, buyerImageUrl, ...requestBody } = request;
   return privateJson({
     ...requestBody,
-    interestedCount: resolvedInterestedCount({
-      interestedCount: request.interestedCount,
-      _count,
-    }),
+    interestedCount: interestCounts.get(request.id) ?? 0,
     buyer: { name: buyerName, imageUrl: buyerImageUrl },
     interests: interests.map((interest) => ({
       createdAt: interest.createdAt,

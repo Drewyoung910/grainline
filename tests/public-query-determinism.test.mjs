@@ -390,9 +390,8 @@ describe("public query determinism", () => {
 
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 500/);
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 20/);
-    assert.match(commissionDetail, /const visibleInterestWhere = publicCommissionInterestWhere\(/);
-    assert.match(commissionDetail, /interests: \{\s*where: visibleInterestWhere,/);
-    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\],\s*take: COMMISSION_INTEREST_DISPLAY_LIMIT/);
+    assert.match(commissionDetail, /publicCommissionInterestCounts\(\[request\.id\], meId\)/);
+    assert.match(commissionDetail, /publicCommissionInterestCards\(request\.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT\)/);
     assert.doesNotMatch(commissionDetail, /sellerProfile: \{\s*chargesEnabled: true,\s*vacationMode: false,\s*user: \{ banned: false, deletedAt: null \}/s);
 
     assert.match(commissionApi, /const currentPage = Math\.min\(page, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
@@ -405,8 +404,7 @@ describe("public query determinism", () => {
     assert.doesNotMatch(commissionDetailApi, /prisma\.commissionRequest\.findUnique\(\{\s*where: \{ id \}/);
     assert.doesNotMatch(commissionDetailApi, /request\.buyer\.banned \|\| request\.buyer\.deletedAt/);
     assert.match(commissionDetailApi, /interests: interests\.map\(\(interest\) => \(\{/);
-    assert.match(commissionDetailApi, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
-    assert.doesNotMatch(commissionDetailApi, /orderBy: \{ createdAt: "asc" \}/);
+    assert.match(commissionDetailApi, /publicCommissionInterestCards\(request\.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT\)/);
   });
 
   it("normalizes public browse tag query params before filtering and preserving them", () => {

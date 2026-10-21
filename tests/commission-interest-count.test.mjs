@@ -6,7 +6,7 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
-const { publicCommissionInterestWhere, resolvedInterestedCount } = await import("../src/lib/commissionInterestCount.ts");
+const { resolvedInterestedCount } = await import("../src/lib/commissionInterestCountValue.ts");
 
 describe("commission interest counts", () => {
   it("prefers the live relation count over a denormalized counter", () => {
@@ -24,24 +24,11 @@ describe("commission interest counts", () => {
     assert.equal(resolvedInterestedCount({}), 0);
   });
 
-  it("filters public displayed counts to active public seller profiles", () => {
-    assert.deepEqual(publicCommissionInterestWhere(), {
-      AND: [
-        {
-          sellerProfile: {
-            AND: [
-              {
-                chargesEnabled: true,
-                stripeAccountSupported: true,
-                vacationMode: false,
-                ownerAccountActive: true,
-              },
-            ],
-          },
-        },
-      ],
-    });
-
+  it("routes public counts and cards through the bounded database authorities", () => {
+    const access = source("src/lib/commissionInterestCount.ts");
+    assert.match(access, /grainline_seller_public_commission_interest_counts/);
+    assert.match(access, /grainline_seller_public_commission_interest_cards/);
+    assert.match(access, /withDbUserContext/);
     for (const path of [
       "src/app/api/commission/[id]/route.ts",
       "src/app/api/commission/route.ts",
@@ -49,8 +36,8 @@ describe("commission interest counts", () => {
       "src/app/commission/page.tsx",
     ]) {
       const routeSource = source(path);
-      assert.match(routeSource, /publicCommissionInterestWhere\(/);
-      assert.doesNotMatch(routeSource, /_count: \{ select: \{ interests: true \} \}/);
+      assert.match(routeSource, /publicCommissionInterestCounts\(/);
+      assert.doesNotMatch(routeSource, /publicCommissionInterestWhere\(/);
     }
 
     for (const path of [
@@ -58,26 +45,13 @@ describe("commission interest counts", () => {
       "src/app/commission/[param]/page.tsx",
     ]) {
       const routeSource = source(path);
-      assert.match(routeSource, /const visibleInterestWhere = publicCommissionInterestWhere\(/);
-      assert.match(routeSource, /_count: \{ select: \{ interests: \{ where: visibleInterestWhere \} \} \}/);
-      assert.match(routeSource, /interests: \{\s*where: visibleInterestWhere,/);
-      assert.doesNotMatch(routeSource, /sellerProfile: activeSellerProfileWhere\(\)/);
+      assert.match(routeSource, /publicCommissionInterestCards\(/);
     }
   });
 
-  it("keeps Near Me commission interest counts row-local and active-maker filtered", () => {
+  it("removes the public Near Me SellerProfile join", () => {
     const page = source("src/app/commission/page.tsx");
-    const nearJoinStart = page.indexOf("LEFT JOIN LATERAL (");
-    const nearJoinEnd = page.indexOf(") ci ON true", nearJoinStart);
-    const nearJoin = page.slice(nearJoinStart, nearJoinEnd);
-
-    assert.ok(nearJoinStart >= 0 && nearJoinEnd > nearJoinStart);
-    assert.match(nearJoin, /WHERE ci\."commissionRequestId" = cr\.id/);
-    assert.match(nearJoin, /isp\."chargesEnabled" = true/);
-    assert.match(nearJoin, /isp\."stripeAccountSupported" = true/);
-    assert.match(nearJoin, /isp\."vacationMode" = false/);
-    assert.match(nearJoin, /isp\."ownerAccountActive" = true/);
-    assert.doesNotMatch(nearJoin, /JOIN "User"/);
-    assert.doesNotMatch(page, /LEFT JOIN \(\s*SELECT "commissionRequestId", COUNT\(\*\)::int AS "interestCount"[\s\S]*GROUP BY "commissionRequestId"/);
+    assert.doesNotMatch(page, /JOIN public\."SellerProfile"|JOIN "SellerProfile"/);
+    assert.match(page, /publicCommissionInterestCounts\(rawResults\.map/);
   });
 });

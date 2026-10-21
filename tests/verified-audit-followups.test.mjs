@@ -310,15 +310,21 @@ describe("verified audit follow-up guardrails", () => {
       "src/app/messages/[id]/page.tsx",
       "src/app/messages/new/page.tsx",
       "src/lib/blogVisibility.ts",
-      "src/lib/commissionInterestCount.ts",
       "src/lib/conversationStartState.ts",
       "src/lib/listingVisibility.ts",
-      "src/lib/savedListingVisibility.ts",
       "src/lib/sellerVisibility.ts",
     ]) {
       const text = source(path);
       assert.match(text, /stripeAccountSupported/, `${path} should use the public-safe seller capability snapshot`);
       assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
+    }
+    for (const path of [
+      "prisma/migrations/20261020040000_prepare_seller_profile_account_feed_cards/migration.sql",
+      "prisma/migrations/20261020235000_prepare_seller_profile_public_commission_interests/migration.sql",
+    ]) {
+      const text = source(path);
+      assert.match(text, /"stripeAccountSupported" = true/);
+      assert.doesNotMatch(text, /stripeAccountVersion/);
     }
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
     assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);

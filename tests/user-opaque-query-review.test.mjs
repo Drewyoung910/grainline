@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { auditUserIndirectAccess } from "../scripts/audit-user-indirect-access.mjs";
 
-const REVIEWED_FACTORY_CALL = /^(?:publicListingWhere|publicListingDetailWhere|activeSellerProfileWhere|visibleSellerProfileWhere|openCommissionWhere|openCommissionMutationWhere|publicBlogPostWhere|ownerCartWhere|ownerCartItemWhere|ownerSavedBlogPostWhere|visibleBlogCommentWhere|publicCommissionInterestWhere)\(/;
+const REVIEWED_FACTORY_CALL = /^(?:publicListingWhere|publicListingDetailWhere|activeSellerProfileWhere|visibleSellerProfileWhere|openCommissionWhere|openCommissionMutationWhere|publicBlogPostWhere|ownerCartWhere|ownerCartItemWhere|ownerSavedBlogPostWhere|visibleBlogCommentWhere)\(/;
 
 function canonicalShape(shape) {
   const query = shape.query ?? shape.definition ?? shape;
@@ -35,13 +35,13 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   const reviewedFactories = report.opaqueShapes.filter((shape) => REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
   const reviewedResidual = report.opaqueShapes.filter((shape) => !REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
 
-  assert.equal(report.opaqueShapes.length, 156);
-  assert.equal(reviewedFactories.length, 124);
+  assert.equal(report.opaqueShapes.length, 148);
+  assert.equal(reviewedFactories.length, 116);
   assert.equal(reviewedResidual.length, 32);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 102,
-    sha256: "9633a29ffa88c496bfd2d1cb8f835be312e1bd7e627f438939e8b2e56c432446",
+    unique: 95,
+    sha256: "5f912ce04561b2a1745affe501de0a570e188b1153cbe3ba77bfbb67b96998ee",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 26,
@@ -58,11 +58,10 @@ test("reviewed shared filters use scalar ownership and lifecycle snapshots inste
   const seller = readFileSync("src/lib/sellerVisibility.ts", "utf8");
   const blog = readFileSync("src/lib/blogVisibility.ts", "utf8");
   const commission = readFileSync("src/lib/commissionState.ts", "utf8");
-  const interests = readFileSync("src/lib/commissionInterestCount.ts", "utf8");
   const cart = readFileSync("src/lib/cartOwnerAccess.ts", "utf8");
   const savedBlog = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
 
-  for (const source of [listing, seller, blog, interests]) {
+  for (const source of [listing, seller, blog]) {
     assert.match(source, /ownerAccountActive: true/);
     assert.doesNotMatch(source, /\buser:\s*\{/);
   }
