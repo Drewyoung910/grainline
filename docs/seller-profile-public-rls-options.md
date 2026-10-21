@@ -816,3 +816,13 @@ removes one relation access without adding SQL or a new authority. The current
 gate is 36 relation accesses in 20 files, 10 raw-SQL accesses in eight files,
 three relation-bearing factories and zero opaque SellerProfile predicates
 across 27 consumer files and 141 opaque shapes.
+The four public blog search and suggestion queries now delegate seller
+eligibility to the existing bounded blog-author authority instead of joining
+SellerProfile directly. Staff-authored posts remain eligible, while seller
+posts still require an active, supported, non-vacation seller with a currently
+public post; ranking, viewer-block filtering and limits are unchanged. This
+removes four raw-SQL accesses and three consumer files without adding a
+migration or authority. The current gate is 36 relation accesses in 20 files,
+six raw-SQL accesses in five files, three relation-bearing factories and zero
+opaque SellerProfile predicates across 24 consumer files and 141 opaque
+shapes.

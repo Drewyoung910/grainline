@@ -250,11 +250,8 @@ describe("verified audit follow-up guardrails", () => {
 
   it("keeps global blog search suggestions on the public blog visibility predicate", () => {
     const text = source("src/app/api/search/suggestions/route.ts");
-    assert.match(text, /LEFT JOIN "SellerProfile" sp ON sp\.id = bp\."sellerProfileId"/);
-    assert.match(text, /sp\."chargesEnabled" = true/);
-    assert.match(text, /sp\."vacationMode" = false/);
-    assert.match(text, /sp\."stripeAccountSupported" = true/);
-    assert.match(text, /sp\."ownerAccountActive" = true/);
+    assert.match(text, /grainline_seller_public_blog_author/);
+    assert.doesNotMatch(text, /LEFT JOIN "SellerProfile" sp ON sp\.id = bp\."sellerProfileId"/);
     assert.doesNotMatch(text, /seller_user/);
     assert.match(text, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(text, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
@@ -279,18 +276,24 @@ describe("verified audit follow-up guardrails", () => {
       assert.doesNotMatch(text, /seller: \{ vacationMode: false, chargesEnabled: true/, `${path} should use listing visibility helpers`);
     }
 
-    const rawSqlPaths = [
-      "src/app/blog/page.tsx",
-      "src/app/api/blog/search/route.ts",
-      "src/app/api/blog/search/suggestions/route.ts",
+    const directSellerRawSqlPaths = [
       "src/app/api/listings/[id]/similar/route.ts",
       "src/app/api/search/suggestions/route.ts",
       "src/lib/quality-score.ts",
     ];
-    for (const path of rawSqlPaths) {
+    for (const path of directSellerRawSqlPaths) {
       const text = source(path);
       assert.match(text, /sp\."stripeAccountSupported" = true/, `${path} should use the public-safe seller capability snapshot`);
       assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
+    }
+    for (const path of [
+      "src/app/blog/page.tsx",
+      "src/app/api/blog/search/route.ts",
+      "src/app/api/blog/search/suggestions/route.ts",
+    ]) {
+      const text = source(path);
+      assert.match(text, /grainline_seller_public_blog_author/);
+      assert.doesNotMatch(text, /JOIN "SellerProfile"|stripeAccountVersion/);
     }
     const publicAggregateAuthority = source(
       "prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql",

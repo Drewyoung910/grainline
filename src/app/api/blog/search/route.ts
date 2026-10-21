@@ -123,20 +123,17 @@ export async function GET(req: NextRequest) {
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT bp.id
       FROM "BlogPost" bp
-      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
         AND bp."publishedAt" <= NOW()
         AND bp."authorAccountActive" = true
-        AND (
-          bp."sellerProfileId" IS NULL
-          OR (
-            sp."chargesEnabled" = true
-            AND sp."stripeAccountSupported" = true
-            AND sp."vacationMode" = false
-            AND sp."ownerAccountActive" = true
+        AND CASE
+          WHEN bp."sellerProfileId" IS NULL THEN true
+          ELSE EXISTS (
+            SELECT 1
+              FROM public.grainline_seller_public_blog_author(bp."sellerProfileId")
           )
-        )
+        END
         ${typeSql}
         ${tagsSql}
         ${blockedAuthorSql}

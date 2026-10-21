@@ -81,7 +81,8 @@ describe("User public seller-state source boundary", () => {
       const source = read(path);
       assert.match(source, /(?:bp|"BlogPost")\."authorAccountActive" = true/);
       assert.doesNotMatch(source, /JOIN "User" [a-z_]+ ON [a-z_]+\.id = (?:bp|"BlogPost")\."authorId"/);
-      assert.match(source, /sp\."ownerAccountActive" = true/);
+      assert.match(source, /grainline_seller_public_blog_author/);
+      assert.doesNotMatch(source, /JOIN "SellerProfile"/);
       assert.doesNotMatch(source, /seller_user/);
     }
     const popularBlogTags = read("src/lib/popularBlogTags.ts");

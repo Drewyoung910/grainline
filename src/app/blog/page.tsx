@@ -142,20 +142,17 @@ async function BlogIndexPageContent({
       : Prisma.empty;
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT "BlogPost".id FROM "BlogPost"
-      LEFT JOIN "SellerProfile" sp ON sp.id = "BlogPost"."sellerProfileId"
       WHERE "BlogPost".status = 'PUBLISHED'
         AND "BlogPost"."publishedAt" IS NOT NULL
         AND "BlogPost"."publishedAt" <= NOW()
         AND "BlogPost"."authorAccountActive" = true
-        AND (
-          "BlogPost"."sellerProfileId" IS NULL
-          OR (
-            sp."chargesEnabled" = true
-            AND sp."stripeAccountSupported" = true
-            AND sp."vacationMode" = false
-            AND sp."ownerAccountActive" = true
+        AND CASE
+          WHEN "BlogPost"."sellerProfileId" IS NULL THEN true
+          ELSE EXISTS (
+            SELECT 1
+              FROM public.grainline_seller_public_blog_author("BlogPost"."sellerProfileId")
           )
-        )
+        END
         ${typeSql}
         ${tagsSql}
         ${authorSql}

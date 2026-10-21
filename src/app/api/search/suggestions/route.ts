@@ -75,20 +75,17 @@ async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], bloc
     return tx.$queryRaw<Array<{ slug: string; title: string }>>(Prisma.sql`
       SELECT bp.slug, bp.title
       FROM "BlogPost" bp
-      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
         AND bp."publishedAt" <= NOW()
         AND bp."authorAccountActive" = true
-        AND (
-          bp."sellerProfileId" IS NULL
-          OR (
-            sp."chargesEnabled" = true
-            AND sp."vacationMode" = false
-            AND sp."stripeAccountSupported" = true
-            AND sp."ownerAccountActive" = true
+        AND CASE
+          WHEN bp."sellerProfileId" IS NULL THEN true
+          ELSE EXISTS (
+            SELECT 1
+              FROM public.grainline_seller_public_blog_author(bp."sellerProfileId")
           )
-        )
+        END
         ${blockedAuthorPredicate}
         ${blockedSellerPredicate}
         AND bp.title % ${q}
