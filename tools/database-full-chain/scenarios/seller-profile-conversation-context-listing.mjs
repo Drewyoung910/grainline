@@ -99,7 +99,7 @@ export async function proveSellerProfileConversationContextListing({ database, s
   await database.query(
     `INSERT INTO public."Conversation"
       (id, "userAId", "userBId", "contextListingId", "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, $5)`,
+     VALUES ($1, LEAST($2, $3), GREATEST($2, $3), $4, $5, $5)`,
     [conversationId, actorId, seller.userId, listingId, now],
   );
 
