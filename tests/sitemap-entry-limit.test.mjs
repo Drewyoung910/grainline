@@ -45,7 +45,8 @@ describe("sitemap entry limit guardrails", () => {
   it("keeps dynamic sitemap entries behind public visibility predicates", () => {
     assert.match(source, /import \{ publicBlogPostWhere \} from "@\/lib\/blogVisibility"/);
     assert.match(source, /import \{ publicListingWhere \} from "@\/lib\/listingVisibility"/);
-    assert.match(source, /import \{ activeSellerProfileWhere \} from "@\/lib\/sellerVisibility"/);
+    assert.match(source, /from "@\/lib\/sellerProfilePublicAccess"/);
+    assert.doesNotMatch(source, /activeSellerProfileWhere/);
     assert.match(source, /sellerPublicSitemapPage\(\s*"SELLERS"/s);
     assert.match(source, /sellerPublicSitemapPage\(\s*"CUSTOMER_PHOTOS"/s);
     assert.match(source, /where: publicBlogPostWhere\(\)/);
