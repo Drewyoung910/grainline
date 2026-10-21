@@ -826,3 +826,11 @@ migration or authority. The current gate is 36 relation accesses in 20 files,
 six raw-SQL accesses in five files, three relation-bearing factories and zero
 opaque SellerProfile predicates across 24 consumer files and 141 opaque
 shapes.
+The two public listing-title fuzzy-suggestion queries now keep their indexed
+trigram match, grouping, blocked-seller filter, stable ordering and result cap
+while delegating exact listing-plus-seller eligibility to the existing
+follower-listing target authority. This removes the final two raw SellerProfile
+joins from global search without adding a migration or authority. The current
+gate is 36 relation accesses in 20 files, four raw-SQL accesses in four files,
+three relation-bearing factories and zero opaque SellerProfile predicates
+across 23 consumer files and 141 opaque shapes.

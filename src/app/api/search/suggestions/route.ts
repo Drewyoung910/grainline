@@ -27,12 +27,14 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
       ? tx.$queryRaw<Array<{ title: string; sim: number }>>`
           SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
           FROM "Listing" l
-          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-            AND sp."chargesEnabled" = true
-            AND sp."vacationMode" = false
-            AND sp."stripeAccountSupported" = true
-            AND sp."ownerAccountActive" = true
+            AND EXISTS (
+              SELECT 1
+                FROM public.grainline_seller_public_follower_listing_target(
+                  l.id,
+                  l."sellerId"
+                )
+            )
             AND l.title % ${q}
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
@@ -44,12 +46,14 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
       : tx.$queryRaw<Array<{ title: string; sim: number }>>`
           SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
           FROM "Listing" l
-          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-            AND sp."chargesEnabled" = true
-            AND sp."vacationMode" = false
-            AND sp."stripeAccountSupported" = true
-            AND sp."ownerAccountActive" = true
+            AND EXISTS (
+              SELECT 1
+                FROM public.grainline_seller_public_follower_listing_target(
+                  l.id,
+                  l."sellerId"
+                )
+            )
             AND l.title % ${q}
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}

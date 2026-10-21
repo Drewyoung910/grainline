@@ -278,7 +278,6 @@ describe("verified audit follow-up guardrails", () => {
 
     const directSellerRawSqlPaths = [
       "src/app/api/listings/[id]/similar/route.ts",
-      "src/app/api/search/suggestions/route.ts",
       "src/lib/quality-score.ts",
     ];
     for (const path of directSellerRawSqlPaths) {
@@ -286,6 +285,9 @@ describe("verified audit follow-up guardrails", () => {
       assert.match(text, /sp\."stripeAccountSupported" = true/, `${path} should use the public-safe seller capability snapshot`);
       assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
     }
+    const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
+    assert.match(globalSuggestions, /grainline_seller_public_follower_listing_target/);
+    assert.doesNotMatch(globalSuggestions, /JOIN "SellerProfile"|stripeAccountVersion/);
     for (const path of [
       "src/app/blog/page.tsx",
       "src/app/api/blog/search/route.ts",
