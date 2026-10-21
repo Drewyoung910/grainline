@@ -19695,3 +19695,30 @@ Current running tally after Entry 573: verified fixed/reduced 1106, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 86,
 approximate raw allegations left from current max #1126: 0. The raw Claude
 finding remains preserved in its source ledger.
+
+### Entry 574 - Claude session C-758 existing cart-line add failure
+
+Entry 574 independently verifies Claude session finding C-758 as real and
+fixes it in source. After locking the buyer's Cart and reading an existing line,
+the add route still attempted a duplicate `CartItem` insert. PostgreSQL aborts
+the transaction on that unique-constraint error, so catching Prisma `P2002`
+inside the transaction could not make the subsequent quantity update succeed.
+Repeated listing-page adds and signed-in guest-cart merges therefore returned a
+server error for an existing line.
+
+The route now chooses create or update from the locked read before issuing the
+write. Existing in-stock lines increment, existing made-to-order lines refresh
+their price and selection snapshot at quantity one, and absent lines retain the
+create path. The Cart lock, stock and per-line caps, distinct-item cap, total
+quantity cap, and one transient transaction retry remain unchanged.
+
+Focused behavior coverage passes all 12 cart-mutation and existing order-state
+checks, including an assertion that an existing line never calls create.
+TypeScript and scoped ESLint also pass. Production remains unchanged; scoped
+review, exact-head CI, merge and ordinary app deployment remain open.
+
+Current running tally after Entry 574: verified fixed/reduced 1107, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 86,
+approximate raw allegations left from current max #1126: 0. The raw Claude
+finding remains preserved in its private source ledger under the distinct
+`C-758` namespace.
