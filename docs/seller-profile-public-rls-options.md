@@ -704,9 +704,19 @@ Favorite creation then moves its Listing-to-SellerProfile availability check
 behind an exact public favorite-target authority. The authority preserves the
 ACTIVE/SOLD_OUT, public, unarchived, active-owner, charge-ready, supported and
 non-vacation predicates, returns only listing id, title and owner id, and leaves
-the reciprocal-block decision in the route. The current gate is 58 relation
+the reciprocal-block decision in the route. At that checkpoint the gate was 58 relation
 accesses, 10 raw-SQL accesses, three relation-bearing factories and zero opaque
 SellerProfile predicates across 35 consumer files and 145 opaque shapes. The
 203-function catalog is 98 retained, 33 internal and 72 converted authorities;
-two converted authorities are staff-only. The complete 403-migration chain now
+two converted authorities are staff-only. The then-complete 403-migration chain
 includes the exact authority scenario and remains subject to exact-head CI.
+Account export then moves its Follow-to-SellerProfile shop-label join behind an
+actor-bound authority. It retains inactive followed shops because an export
+describes recorded user data, rejects inactive actors, returns the same nested
+shape to the payload builder and normalizes the stored timestamp to a UTC
+instant. The current gate is 57 relation accesses, 10 raw-SQL accesses, three
+relation-bearing factories and zero opaque SellerProfile predicates across 34
+consumer files and 145 opaque shapes. The 204-function catalog is 98 retained,
+33 internal and 73 converted authorities; two converted authorities are
+staff-only. The complete 404-migration chain includes its exact authority
+scenario and remains subject to exact-head CI.

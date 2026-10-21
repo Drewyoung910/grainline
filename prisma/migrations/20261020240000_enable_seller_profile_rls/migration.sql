@@ -69,9 +69,9 @@ BEGIN
     SELECT pg_catalog.count(*)
       FROM public._prisma_migrations AS migration
      WHERE migration.migration_name =
-           '20261020235900_prepare_seller_profile_public_favorite_target'
+           '20261020235910_prepare_seller_profile_owner_follow_export'
        AND migration.checksum =
-           'c9c553258fdc49440d439ae4b99017c4997127fe5d02743abb6886d422963128'
+           '317bde7afd825b09ca76d11ec9870a8410bd48e45032d2b0e7b132c453b83c21'
        AND migration.finished_at IS NOT NULL
        AND migration.rolled_back_at IS NULL
        AND migration.applied_steps_count = 1

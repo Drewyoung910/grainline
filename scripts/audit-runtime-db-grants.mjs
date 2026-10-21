@@ -158,13 +158,13 @@ export const SELLER_PROFILE_PRIVATE_FORCE_MIGRATION_SHA256 =
   "fe6178fbf52d6601c1ae99b3421c81624811fb0e31ac4c1939a9a59e1a2c1409";
 export const SELLER_PROFILE_TABLE = "SellerProfile";
 export const SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION =
-  "20261020235900_prepare_seller_profile_public_favorite_target";
+  "20261020235910_prepare_seller_profile_owner_follow_export";
 export const SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION_SHA256 =
-  "c9c553258fdc49440d439ae4b99017c4997127fe5d02743abb6886d422963128";
+  "317bde7afd825b09ca76d11ec9870a8410bd48e45032d2b0e7b132c453b83c21";
 export const SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION =
   "20261020240000_enable_seller_profile_rls";
 export const SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256 =
-  "c8d4a307d0bdde79d8c2a2a5c921d3145221ec14e5c8f18512343ba6f7853702";
+  "686e32dda9848f4424becbbaafd53945d1c41a18a2ba78eead7b6123c232c0d7";
 export const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_profile_private_mirror",
   "grainline_seller_profile_supported_snapshot",

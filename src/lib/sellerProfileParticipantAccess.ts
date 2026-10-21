@@ -24,6 +24,18 @@ type SellerAccountFeedCardRow = {
   guildLevel: unknown;
 };
 
+type SellerOwnerFollowExportAuthorityRow = {
+  sellerProfileId: unknown;
+  createdAt: unknown;
+  displayName: unknown;
+};
+
+export type SellerOwnerFollowExportRow = Readonly<{
+  sellerProfileId: string;
+  createdAt: Date;
+  sellerProfile: Readonly<{ displayName: string }>;
+}>;
+
 type SellerConversationParticipantClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 function nullableString(value: unknown): value is string | null {
@@ -137,4 +149,35 @@ export function sellerActorAccountFeedCards(
   }
   return withDbUserContext(actorId, (client) =>
     readSellerActorAccountFeedCards(client, normalizedTargets));
+}
+
+async function readSellerOwnerFollowExportRows(
+  client: SellerConversationParticipantClient,
+) {
+  const rows = await client.$queryRaw<SellerOwnerFollowExportAuthorityRow[]>`
+    SELECT * FROM public.grainline_seller_owner_follow_export()
+  `;
+  if (
+    rows.some((row) => (
+      typeof row.sellerProfileId !== "string"
+      || !row.sellerProfileId
+      || !(row.createdAt instanceof Date)
+      || Number.isNaN(row.createdAt.getTime())
+      || typeof row.displayName !== "string"
+      || row.displayName.length > 100
+    ))
+    || new Set(rows.map((row) => row.sellerProfileId)).size !== rows.length
+  ) {
+    throw new TypeError("Seller owner follow-export authority returned an invalid result");
+  }
+  return rows.map((row) => Object.freeze({
+    sellerProfileId: row.sellerProfileId as string,
+    createdAt: row.createdAt as Date,
+    sellerProfile: Object.freeze({ displayName: row.displayName as string }),
+  }));
+}
+
+export function sellerOwnerFollowExportRows(actorUserId: string) {
+  const actorId = normalizeDbUserContextUserId(actorUserId);
+  return withDbUserContext(actorId, readSellerOwnerFollowExportRows);
 }

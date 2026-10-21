@@ -42,6 +42,7 @@ import {
   exportSellerOrders,
 } from "@/lib/orderParticipantExportAuthority";
 import { sellerOwnerExportProfile } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAccess";
 
 export const runtime = "nodejs";
 
@@ -203,11 +204,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       select: { listingId: true, createdAt: true, listing: { select: { title: true, status: true } } },
     }),
     listOwnerSavedSearches(user.id, prisma),
-    prisma.follow.findMany({
-      where: { followerId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { sellerProfileId: true, createdAt: true, sellerProfile: { select: { displayName: true } } },
-    }),
+    sellerOwnerFollowExportRows(user.id),
     ownerSavedBlogPostExportRows(user.id),
     prisma.commissionRequest.findMany({
       where: { buyerId: user.id },

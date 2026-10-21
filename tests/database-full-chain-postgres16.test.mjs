@@ -37,6 +37,7 @@ import {
 import { proveSellerProfilePublicMapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-map.mjs";
 import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-profile.mjs";
 import { proveSellerProfilePublicFavoriteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-favorite-target.mjs";
+import { proveSellerProfileOwnerFollowExport } from "../tools/database-full-chain/scenarios/seller-profile-owner-follow-export.mjs";
 import { proveSellerProfilePublicCommissionInterestAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-commission-interest.mjs";
 import { proveSellerProfileOwnerGuildApplicationAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-guild-application.mjs";
 import { proveSellerProfileOwnerBootstrapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-bootstrap.mjs";
@@ -112,7 +113,7 @@ test(
               SELLER_PROFILE_PREPARATION_RELEASE_COMMIT: "a".repeat(40),
             });
             assert.equal(evidence.state, "ready");
-            assert.equal(evidence.pendingCount, 52);
+            assert.equal(evidence.pendingCount, 53);
           }
           if (artifact.name === SELLER_PROFILE_PUBLIC_ENABLE.name) {
             const evidence = await inspectSellerProfilePublicPreparationProduction({
@@ -200,6 +201,10 @@ test(
         seller: fixture,
       });
       await proveSellerProfilePublicFavoriteTarget({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveSellerProfileOwnerFollowExport({
         database: adapter,
         seller: fixture,
       });
