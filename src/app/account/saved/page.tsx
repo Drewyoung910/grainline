@@ -1,7 +1,6 @@
 // src/app/account/saved/page.tsx
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -10,7 +9,6 @@ import ListingCard from "@/components/ListingCard";
 import { ArrowLeft } from "@/components/icons";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
   countVisibleOwnerSavedBlogPosts,
@@ -45,19 +43,13 @@ export default async function SavedPage({
     throw error;
   }
 
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
-
   const sp = await searchParams;
   const tab = sp.tab === "posts" ? "posts" : "listings";
   const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
-  const savedPostBlogWhere = publicBlogPostWhere({
-    publishedAt: { not: null },
-    ...(blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {}),
-  });
 
   const [listingTotal, postTotal] = await Promise.all([
     sellerOwnerSavedListingCount(me.id),
-    countVisibleOwnerSavedBlogPosts(me.id, savedPostBlogWhere),
+    countVisibleOwnerSavedBlogPosts(me.id),
   ]);
 
   function tabHref(t: string) {
@@ -132,7 +124,6 @@ export default async function SavedPage({
   const totalPages = Math.ceil(postTotal / PAGE_SIZE);
   const postPage = Math.min(page, Math.max(1, totalPages));
   const savedPosts = await ownerSavedBlogPostPageRows(me.id, {
-    blogPostWhere: savedPostBlogWhere,
     skip: (postPage - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
   });

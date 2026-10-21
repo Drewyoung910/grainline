@@ -1098,15 +1098,17 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function upsertOwnerSavedBlogPost/);
     assert.match(ownerAccess, /export async function deleteOwnerSavedBlogPost/);
     assert.match(ownerAccess, /export async function ownerSavedBlogPostIdRows/);
-    assert.match(ownerAccess, /export async function countVisibleOwnerSavedBlogPosts/);
-    assert.match(ownerAccess, /export async function ownerSavedBlogPostPageRows/);
+    assert.match(ownerAccess, /export function countVisibleOwnerSavedBlogPosts/);
+    assert.match(ownerAccess, /export function ownerSavedBlogPostPageRows/);
     assert.match(ownerAccess, /export async function ownerSavedBlogPostExportRows/);
     assert.match(ownerAccess, /db: SavedBlogPostOwnerAccessClient = prisma/);
     assert.match(ownerAccess, /db\.savedBlogPost\.findUnique/);
     assert.match(ownerAccess, /db\.savedBlogPost\.upsert/);
     assert.match(ownerAccess, /db\.savedBlogPost\.deleteMany/);
     assert.match(ownerAccess, /db\.savedBlogPost\.findMany/);
-    assert.match(ownerAccess, /db\.savedBlogPost\.count/);
+    assert.match(ownerAccess, /grainline_seller_owner_saved_blog_post_count/);
+    assert.match(ownerAccess, /grainline_seller_owner_saved_blog_post_page/);
+    assert.match(ownerAccess, /withDbUserContext\(userId/);
     assert.match(ownerAccess, /ownerSavedBlogPostWhere\(userId/);
     assert.doesNotMatch(ownerAccess, /Promise\.all/);
     assert.doesNotMatch(ownerAccess, /prisma\.savedBlogPost\.(?:count|findMany|findUnique|upsert|deleteMany)/);
@@ -1120,7 +1122,7 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(saveRoute, /deleteOwnerSavedBlogPost\(me\.id, post\.id\)/);
     assert.match(accountFeed, /ownerSavedBlogPostIdRows\(me\.id, blogPostIds\)/);
     assert.match(accountExport, /ownerSavedBlogPostExportRows\(user\.id\)/);
-    assert.match(accountSaved, /countVisibleOwnerSavedBlogPosts\(me\.id, savedPostBlogWhere\)/);
+    assert.match(accountSaved, /countVisibleOwnerSavedBlogPosts\(me\.id\)/);
     assert.match(accountSaved, /ownerSavedBlogPostPageRows\(me\.id, \{/);
   });
 

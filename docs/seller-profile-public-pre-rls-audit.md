@@ -768,8 +768,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   public rating/tag aggregates, owner saved-listing reads and public commission
   interest counts/cards, owner historical interest summaries and bounded
   service notification targets, a purpose-bound blog-fanout seller recheck and
-  removal of the blog editor's unused nested seller read have reduced the live gate to 65 relation
-  accesses in 37 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
+  removal of the blog editor's unused nested seller read, and the actor-bound
+  saved-blog count/page authority have reduced the live gate to 64 relation
+  accesses in 36 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
   and zero opaque SellerProfile target predicates. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
@@ -795,7 +796,7 @@ guard the final zero-direct state, but they do not count as behavior proof.
   `timestamp without time zone` values without restoring the UTC instant. The
   forward correction changes only those return types and expressions to
   `timestamp with time zone` plus `AT TIME ZONE 'UTC'`; the two previously
-  host-dependent PGlite regressions pass, and the complete 401-migration
+  host-dependent PGlite regressions pass, and the complete 402-migration
   PostgreSQL 16 chain applies the correction before policyless ENABLE and
   asserts the public-profile and Guild-application timestamps as UTC instants.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending

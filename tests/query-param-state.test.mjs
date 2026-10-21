@@ -180,8 +180,13 @@ describe("query parameter parsing helpers", () => {
     );
     assert.match(savedListingMigration, /ORDER BY favorite\."createdAt" DESC, favorite\."listingId" DESC/);
     const savedBlogPostOwnerAccess = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
+    const savedBlogPostMigration = readFileSync(
+      "prisma/migrations/20261020235800_prepare_seller_profile_owner_saved_blog_posts/migration.sql",
+      "utf8",
+    );
     assert.match(saved, /ownerSavedBlogPostPageRows\(me\.id, \{[\s\S]*skip: \(postPage - 1\) \* PAGE_SIZE/);
-    assert.match(savedBlogPostOwnerAccess, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*skip,/);
+    assert.match(savedBlogPostOwnerAccess, /grainline_seller_owner_saved_blog_post_page[\s\S]*skip > 23976/);
+    assert.match(savedBlogPostMigration, /ORDER BY saved\."createdAt" DESC, saved\.id DESC/);
     assert.match(following, /const PAGE_SIZE = 20/);
     assert.match(following, /sellerOwnerFollowingPage\([\s\S]*\(page - 1\) \* PAGE_SIZE/);
     const followingMigration = readFileSync(

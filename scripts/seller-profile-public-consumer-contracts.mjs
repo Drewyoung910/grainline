@@ -56,7 +56,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/lib/followerListingNotifications.ts": ["SERVICE"],
   "src/lib/listingDelete.ts": ["OWNER", "TRANSACTION"],
   "src/lib/quality-score.ts": ["SERVICE"],
-  "src/lib/savedBlogPostOwnerAccess.ts": ["PUBLIC_PROFILE"],
   "src/lib/sellerCheckoutPrivateAccess.ts": ["TRANSACTION"],
 });
 
@@ -190,7 +189,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 125
+      || reviewedNonTargetFactoryCalls.length !== 123
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
