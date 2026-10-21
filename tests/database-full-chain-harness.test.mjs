@@ -12,6 +12,7 @@ import {
   prepareMigrationSql,
   splitSqlStatements,
 } from "../tools/database-full-chain/scenarios/migration-chain.mjs";
+import { applyDisposableCiMigrationChain } from "../tools/database-full-chain/apply-ci-chain.mjs";
 import {
   SELLER_PROFILE_PRIVATE_COLUMNS,
   assertSellerProfilePrivateLayout,
@@ -44,6 +45,23 @@ test("tracked harness source contains no scratch paths, URLs with credentials, o
     assert.doesNotMatch(source, /(?:password|passwd)\s*[:=]\s*["'][^"']+["']/iu, file);
     assert.doesNotMatch(source, /node_modules|embedded-postgres/iu, file);
   }
+});
+
+test("chain-only CI runner rejects a non-disposable target before connecting", async () => {
+  let constructed = false;
+  class UnexpectedClient {
+    constructor() {
+      constructed = true;
+    }
+  }
+  await assert.rejects(
+    applyDisposableCiMigrationChain(
+      { DATABASE_FULL_CHAIN_PROOF_DATABASE_URL: "postgresql://ci@example.com/grainline_ci" },
+      { Client: UnexpectedClient, log: () => {} },
+    ),
+    /loopback targets only/u,
+  );
+  assert.equal(constructed, false);
 });
 
 test("migration plan covers current main and pins the reviewed CI deviations", () => {

@@ -6615,10 +6615,12 @@ jobs:
           mv "prisma/migrations/$migration" "$holding/$migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
-          # database so the final staged build uses one coherent full chain.
+          # database, then use the same reviewed full-chain runner that handles
+          # the repository's historical role convergence requirements.
           dropdb --host=localhost --username=ci --force grainline_ci
           createdb --host=localhost --username=ci --owner=ci grainline_ci
-          npx prisma migrate deploy
+          DATABASE_FULL_CHAIN_PROOF_DATABASE_URL="$DIRECT_URL" \
+            node tools/database-full-chain/apply-ci-chain.mjs
           cleanup
           trap - EXIT
       - name: Require only SellerProfile ENABLE pending for final Production build
