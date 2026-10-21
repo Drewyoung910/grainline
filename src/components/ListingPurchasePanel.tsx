@@ -44,9 +44,9 @@ export default function ListingPurchasePanel({
   userId,
   canBuy,
   sellerAcceptingNewOrders,
-  isActive,
   isOwnListing,
   isOutOfStock,
+  canSubscribeForStockNotification,
   isNotified,
   listingType,
   stockQuantity,
@@ -67,9 +67,9 @@ export default function ListingPurchasePanel({
   userId: string | null;
   canBuy: boolean;
   sellerAcceptingNewOrders: boolean;
-  isActive: boolean;
   isOwnListing: boolean;
   isOutOfStock: boolean;
+  canSubscribeForStockNotification: boolean;
   isNotified: boolean;
   listingType: string;
   stockQuantity: number | null;
@@ -176,7 +176,7 @@ export default function ListingPurchasePanel({
       )}
 
       {/* Notify when back in stock */}
-      {isActive && !isOwnListing && isOutOfStock && (
+      {!isOwnListing && canSubscribeForStockNotification && (
         <NotifyMeButton
           listingId={listingId}
           listingTitle={listingTitle}
