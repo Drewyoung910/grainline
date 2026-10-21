@@ -87,7 +87,8 @@ describe("order-state audit follow-up guardrails", () => {
     const ownerAccess = source("src/lib/cartOwnerAccess.ts");
     assert.match(text, /upsertOwnerCart\(me\.id\)/);
     assert.doesNotMatch(text, /let cart = await prisma\.cart\.findUnique/);
-    assert.match(text, /isUniqueConstraintError/);
+    assert.match(text, /applyCartAddMutation\(\{/);
+    assert.doesNotMatch(text, /isUniqueConstraintError/);
     assert.match(text, /prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(text, /lockOwnerCart\(me\.id, cart\.id, tx\)/);
     assert.match(text, /createOwnerCartItem\(/);

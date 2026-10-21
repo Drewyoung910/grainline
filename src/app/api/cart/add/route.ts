@@ -26,6 +26,7 @@ import {
   ownerCartItemStats,
   upsertOwnerCart,
 } from "@/lib/cartOwnerAccess";
+import { applyCartAddMutation } from "@/lib/cartAddMutation";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 import {
   listingSellerOrderStateSelect,
@@ -42,10 +43,6 @@ const MAX_CART_DISTINCT_ITEMS = 50;
 const MAX_CART_TOTAL_QUANTITY = 200;
 
 export const runtime = "nodejs";
-
-function isUniqueConstraintError(err: unknown) {
-  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
-}
 
 class CartAddError extends Error {
   status: number;
@@ -205,10 +202,11 @@ export async function POST(req: Request) {
           throw new CartAddError("Your cart can hold up to 200 total items.");
         }
 
-        let item: Awaited<ReturnType<typeof createOwnerCartItem>> | null = null;
         const createQuantity = listingForCart.listingType === "MADE_TO_ORDER" ? 1 : quantity;
-        try {
-          item = await createOwnerCartItem(
+        const mutation = await applyCartAddMutation({
+          existingQuantity: existingCartItem?.quantity ?? null,
+          madeToOrder: listingForCart.listingType === "MADE_TO_ORDER",
+          create: () => createOwnerCartItem(
             me.id,
             cart.id,
             {
@@ -220,14 +218,8 @@ export async function POST(req: Request) {
               variantKey,
             },
             tx,
-          );
-        } catch (err) {
-          if (!isUniqueConstraintError(err)) throw err;
-        }
-        if (item) return item;
-
-        if (listingForCart.listingType === "MADE_TO_ORDER") {
-          await markOwnerCartItemMadeToOrder(
+          ),
+          markMadeToOrder: () => markOwnerCartItemMadeToOrder(
             me.id,
             cart.id,
             listingId,
@@ -239,9 +231,8 @@ export async function POST(req: Request) {
               selectedVariantOptionIds,
             },
             tx,
-          );
-        } else {
-          const updated = await incrementOwnerCartItemQuantity(
+          ),
+          increment: () => incrementOwnerCartItemQuantity(
             me.id,
             cart.id,
             listingId,
@@ -253,13 +244,19 @@ export async function POST(req: Request) {
               selectedVariantOptionIds,
             },
             tx,
-          );
-          if (updated.count === 0) {
-            throw new CartAddError("Cart quantity cannot exceed 99.");
-          }
+          ),
+          readUpdated: () => findOwnerCartItemByVariantWithListing(
+            me.id,
+            cart.id,
+            listingId,
+            variantKey,
+            tx,
+          ),
+        });
+        if (!mutation.ok) {
+          throw new CartAddError("Cart quantity cannot exceed 99.");
         }
-
-        return findOwnerCartItemByVariantWithListing(me.id, cart.id, listingId, variantKey, tx);
+        return mutation.item;
       });
     }
 
