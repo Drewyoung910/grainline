@@ -648,17 +648,13 @@ jobs:
             tests/user-public-seller-state-production-inspect.test.mjs \
             tests/user-public-seller-state-preparation-production-workflow.test.mjs
           do
-            source_path="$test_file"
-            if [[ ! -f "$source_path" ]]
+            if [[ -f "$test_file" ]]
             then
-              source_path="$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
-              test -f "$source_path"
-            fi
-            if [[ "$source_path" = "$test_file" ]]
-            then
-              mv "$source_path" "$holding/$(basename "$test_file")"
+              mv "$test_file" "$holding/$(basename "$test_file")"
             else
-              cp "$source_path" "$holding/$(basename "$test_file")"
+              # Shared source guards that read the later SellerProfile package
+              # remain isolated until that candidate is restored.
+              test -f "$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
             fi
           done
       - name: Isolate User public blog-state package until its predecessor passes
@@ -674,7 +670,12 @@ jobs:
             tests/user-public-blog-state-source.test.mjs \
             tests/user-public-blog-state-postgres.test.mjs
           do
-            mv "$test_file" "$holding/$(basename "$test_file")"
+            if [[ -f "$test_file" ]]
+            then
+              mv "$test_file" "$holding/$(basename "$test_file")"
+            else
+              test -f "$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
+            fi
           done
       - name: Isolate User public review-commission package until its predecessor passes
         shell: bash
@@ -708,7 +709,12 @@ jobs:
             tests/user-block-email-authorities-source.test.mjs \
             tests/user-block-email-authorities-postgres.test.mjs
           do
-            mv "$test_file" "$holding/$(basename "$test_file")"
+            if [[ -f "$test_file" ]]
+            then
+              mv "$test_file" "$holding/$(basename "$test_file")"
+            else
+              test -f "$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
+            fi
           done
       - name: Isolate User staff admin labels until follower passes
         shell: bash
