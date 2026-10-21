@@ -3131,3 +3131,32 @@ Each year's 10K refresh is free competitive intel. Pull the relevant quotes into
 - After every session that produces a strategic decision.
 - Before any commit that changes scope, fee structure, or geography.
 - When a referenced item ships (move from "to build" to a brief note that it shipped, then delete after 60 days).
+
+### Case review and missed fulfillment deadlines (2026-10-20)
+
+Staff Case decisions must include a short party-facing written reason. Preserve
+that reason as the decision snapshot, show the same explanation to both parties
+in the Case and decision notice, and include the existing one-time re-review
+instructions. Keep internal staff notes separate from the shared reason.
+
+While a Case is `UNDER_REVIEW`, both parties may continue adding messages and
+evidence. New submissions must leave the Case under review, must not reopen or
+replace an active resolution/refund claim, and must not reset review deadlines.
+Manual and automatic escalation must tell both parties that staff review has
+started. New party evidence must be visible to staff and the other party, with a
+clear new-evidence marker. Once finalization starts, freeze further party writes
+until the committed outcome is visible.
+
+A maker may extend an order's ship-by or ready-by deadline once, before the
+current deadline, within a bounded product limit. Notify the buyer and move the
+estimated-delivery date by the same delta. Shipping orders use shipment as the
+milestone; local pickup uses `READY_FOR_PICKUP`; any future maker-delivery option
+must use an explicit handoff-ready milestone. If the final deadline passes
+without that milestone, the buyer may cancel for a full refund and the late
+order counts against the maker's standing.
+
+Do not expose that cancellation action until held-funds behavior and exact
+per-order payout/fee accounting make the no-loss refund path true. Checkout
+currently transfers the seller share immediately, and refund calculations still
+contain legacy fee assumptions, so the selected product behavior requires the
+money-model corrections before release.
