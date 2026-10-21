@@ -131,14 +131,14 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
   if (!mounted) return null;
 
   const modal = (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 px-4 py-6">
+    <div className="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/60 px-4 py-6">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-2xl rounded-lg bg-[#F7F5F0] p-4 shadow-xl sm:p-5"
+        className="my-auto w-full max-w-2xl rounded-lg bg-[#F7F5F0] p-4 shadow-xl sm:p-5"
       >
         <div className="mb-4">
           <h2 id={titleId} className="font-display text-xl font-semibold text-neutral-900">Adjust image</h2>
