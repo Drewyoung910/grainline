@@ -13,6 +13,7 @@ import { getListingOrderArchiveBlocked } from "@/lib/orderEligibilityAuthority";
 import { withSerializableRetry } from "@/lib/transactionRetry";
 import { CASE_WINDOW_DAYS } from "@/lib/caseCreateState";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 
 export const LISTING_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 
@@ -32,7 +33,6 @@ export function listingDeletePublicError(error: unknown) {
 type LockedListingRow = {
   id: string;
   sellerId: string;
-  sellerUserId: string;
   status: ListingStatus;
   isPrivate: boolean;
   archivedAt: Date | null;
@@ -48,6 +48,10 @@ export async function deleteListingWithCleanup(
   if (normalizedListingId.length < 1 || normalizedListingId.length > 191) {
     throw new ListingDeleteError("Listing not found.");
   }
+  const owner = await sellerOwnerCore(normalizedActorUserId);
+  if (!owner) {
+    throw new ListingDeleteError("Listing not found.");
+  }
   return withSerializableRetry(() =>
     prisma.$transaction(async (tx) => {
       // The row lock keeps the reference decision and delete/archive mutation
@@ -57,19 +61,17 @@ export async function deleteListingWithCleanup(
         SELECT
           listing.id,
           listing."sellerId",
-          seller."userId" AS "sellerUserId",
           listing.status,
           listing."isPrivate",
           listing."archivedAt",
           listing."customOrderConversationId"
         FROM public."Listing" AS listing
-        JOIN public."SellerProfile" AS seller
-          ON seller.id = listing."sellerId"
         WHERE listing.id = ${normalizedListingId}
+          AND listing."sellerId" = ${owner.sellerProfileId}
         FOR UPDATE OF listing
       `);
       const listing = rows[0];
-      if (!listing || listing.sellerUserId !== normalizedActorUserId) {
+      if (!listing) {
         throw new ListingDeleteError("Listing not found.");
       }
 

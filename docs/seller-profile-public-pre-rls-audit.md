@@ -796,9 +796,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   reuse of the database-maintained BlogPost seller-name/avatar mirrors across
   list, API, homepage, detail and related-post presentation, plus the
   homepage listing rows' bounded viewer-aware seller-card hydration, have
-  reduced the live gate to 29 relation accesses in 16 files, three raw-SQL
-  accesses in three files, three relation-bearing factories and zero opaque
-  SellerProfile target predicates across 18 total consumer files and 141
+  reduced the live gate to 29 relation accesses in 16 files, two raw-SQL
+  accesses in two files, three relation-bearing factories and zero opaque
+  SellerProfile target predicates across 17 total consumer files and 141
   reconciled opaque shapes. The homepage listing queries still use the shared
   `publicListingWhere` factory, so this pass removes their nested presentation
   projection but does not claim that remaining factory gate is closed. The
@@ -842,6 +842,11 @@ guard the final zero-direct state, but they do not count as behavior proof.
   admits a notification and rechecks listing visibility, stock, seller payment
   state, seller account state, the exact restock audit and recipient state.
   This removes one raw SellerProfile join without weakening the final check.
+- Listing deletion now resolves the active actor's seller identity through the
+  existing transaction-local owner-core authority before entering the
+  serializable delete/archive transaction. The locked Listing read uses that
+  scalar seller id, so ownership stays fail-closed without joining
+  `SellerProfile`; the reference decision and mutation remain atomic.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending
   migration check, global grant audit and sanitized postflight are prepared,
   and the workflow now refuses database access while any direct, relation,

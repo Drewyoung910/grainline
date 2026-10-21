@@ -32,7 +32,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/messages/[id]/page.tsx": ["PARTICIPANT", "TRANSACTION"],
   "src/app/messages/new/page.tsx": ["PARTICIPANT", "TRANSACTION"],
   "src/lib/cartOwnerAccess.ts": ["TRANSACTION"],
-  "src/lib/listingDelete.ts": ["OWNER", "TRANSACTION"],
   "src/lib/quality-score.ts": ["SERVICE"],
   "src/lib/sellerCheckoutPrivateAccess.ts": ["TRANSACTION"],
 });

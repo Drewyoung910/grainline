@@ -38,6 +38,9 @@ describe("listing delete lifecycle", () => {
 
     assert.match(source, /FOR UPDATE OF listing/);
     assert.match(source, /TransactionIsolationLevel\.Serializable/);
+    assert.match(source, /sellerOwnerCore\(normalizedActorUserId\)/);
+    assert.match(source, /listing\."sellerId" = \$\{owner\.sellerProfileId\}/);
+    assert.doesNotMatch(source, /JOIN public\."SellerProfile"/);
     assert.match(source, /grainline_listing_delete_reference_state/);
     assert.match(source, /while a buyer checkout is in progress/);
     assert.doesNotMatch(source, /FROM public\."OrderItem"/);

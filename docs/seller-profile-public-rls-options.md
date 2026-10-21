@@ -874,3 +874,12 @@ before consuming a subscription or creating a notification. The current gate
 is 29 relation accesses in 16 files, three raw-SQL accesses in three files,
 three relation-bearing factories and zero opaque SellerProfile predicates
 across 18 consumer files and 141 opaque shapes.
+
+Listing deletion now resolves the active actor's seller identity through the
+existing transaction-local owner-core authority, then locks the requested
+Listing by both listing id and that scalar seller id inside the same
+serializable reference-check/mutation transaction. This removes the direct
+SellerProfile join without separating the delete/archive decision from its
+mutation. The current gate is 29 relation accesses in 16 files, two raw-SQL
+accesses in two files, three relation-bearing factories and zero opaque
+SellerProfile predicates across 17 consumer files and 141 opaque shapes.
