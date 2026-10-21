@@ -75,6 +75,14 @@ export function auditModelIndirectAccess(root, targetModel) {
     }
     return node;
   }
+  function declaredShapeModel(node) {
+    if (!ts.isIdentifier(node)) return null;
+    const symbol = checker.getSymbolAtLocation(node);
+    const declaration = symbol?.valueDeclaration ?? symbol?.declarations?.[0];
+    if (!declaration || !ts.isVariableDeclaration(declaration) || !declaration.type) return null;
+    const match = /^(?:Prisma\.)?(\w+)WhereInput$/u.exec(declaration.type.getText());
+    return match && models.has(match[1]) ? match[1] : null;
+  }
   function properties(node, onOpaque, seen = new Set()) {
     node = unwrap(node);
     if (!node || seen.has(node)) { onOpaque(node); return []; }
@@ -181,6 +189,33 @@ export function auditModelIndirectAccess(root, targetModel) {
   for (const file of files) {
     const source = program.getSourceFile(file);
     function visit(node) {
+      if (
+        ts.isBinaryExpression(node)
+        && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        && ts.isPropertyAccessExpression(node.left)
+      ) {
+        const model = declaredShapeModel(node.left.expression);
+        const key = node.left.name.text;
+        if (model) {
+          const nextModel = models.get(model)?.get(key);
+          const trail = ["assignment", key];
+          if (models.has(nextModel)) {
+            if (nextModel === targetModel) {
+              relations.push({
+                ...location(node.left),
+                query: location(node),
+                model,
+                path: trail.join("."),
+                fields: [],
+                fullRow: false,
+              });
+            }
+            scanShape(node.right, nextModel, trail, node);
+          } else if (shapeKeys.has(key) || wrappers.has(key)) {
+            scanShape(node.right, model, trail, node);
+          }
+        }
+      }
       if (ts.isFunctionDeclaration(node) && node.type && node.body) {
         const type = /^Prisma\.(\w+?)(?:WhereInput|Select|Include|CreateInput|UpdateInput)$/.exec(node.type.getText());
         if (type && models.has(type[1])) {

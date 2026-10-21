@@ -15,11 +15,11 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   assert.equal(Object.keys(SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS).length, 17);
   assert.equal(result.directWrites, 0);
   assert.equal(result.coordinateFiles, 0);
-  assert.equal(result.reviewedOpaqueShapes, 141);
+  assert.equal(result.reviewedOpaqueShapes, 144);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
   assert.equal(result.opaqueNonTargetFactoryCalls, 119);
-  assert.equal(result.opaqueNonTargetResiduals, 22);
+  assert.equal(result.opaqueNonTargetResiduals, 25);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 3,
     PUBLIC_ELIGIBILITY: 6,

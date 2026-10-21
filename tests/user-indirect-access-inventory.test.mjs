@@ -35,6 +35,10 @@ db.listing.count({ where: { seller: { is: { user: { email: "value" } } } } });
 db.listing.findMany({ include: { seller: { include: { user: false } } } });
 db.listing.findMany({ ...(flag ? { include: { seller: { include: { user: true } } } } : {}) });
 db.listing.findMany({ where: makeFilter() });
+const dynamicWhere: Prisma.ListingWhereInput = {};
+dynamicWhere.OR = [{ seller: { user: { email: "dynamic" } } }];
+dynamicWhere.seller = { user: { email: "owner" } };
+db.listing.findMany({ where: dynamicWhere });
 db.user.findFirstOrThrow({ where: { id: "owner" } });
 db.sellerProfile.findUnique({ where: { id: "seller" }, select: { id: true } });
 // db.user.deleteMany({});
@@ -53,10 +57,16 @@ db.$executeRawUnsafe('UPDATE public."User" SET email = $1', email);
     assert.equal(report.direct[0].fullRow, true);
     assert.equal(report.directFullRowCount, 1);
     assert.equal(report.directProjectionOpaqueCount, 0);
-    assert.equal(report.relationCount, 3);
+    assert.equal(report.relationCount, 5);
     assert.equal(report.relationFiles, 1);
     assert.equal(report.relationFullRowCount, 1);
-    assert.deepEqual(report.relations.map(({ path: trail }) => trail), ["select.seller.select.user", "where.seller.is.user", "include.seller.include.user"]);
+    assert.deepEqual(report.relations.map(({ path: trail }) => trail), [
+      "select.seller.select.user",
+      "where.seller.is.user",
+      "include.seller.include.user",
+      "assignment.OR.seller.user",
+      "assignment.seller.user",
+    ]);
     assert.deepEqual(report.relations[0].fields, ["email"]);
     assert.equal(report.relations[0].file, "src/lib/shared.ts");
     assert.equal(report.relations[0].query.file, "src/main.ts");
@@ -74,7 +84,7 @@ db.$executeRawUnsafe('UPDATE public."User" SET email = $1', email);
     assert.deepEqual(sellerReport.direct[0].fields, ["id"]);
     assert.equal(sellerReport.direct[0].fullRow, false);
     assert.equal(sellerReport.directFullRowCount, 0);
-    assert.equal(sellerReport.relationCount, 4);
+    assert.equal(sellerReport.relationCount, 6);
     assert.deepEqual(
       sellerReport.relations.map(({ path: trail }) => trail),
       [
@@ -82,6 +92,8 @@ db.$executeRawUnsafe('UPDATE public."User" SET email = $1', email);
         "where.seller",
         "include.seller",
         "include.seller",
+        "assignment.OR.seller",
+        "assignment.seller",
       ],
     );
     assert.equal(sellerReport.rawSqlCount, 0);

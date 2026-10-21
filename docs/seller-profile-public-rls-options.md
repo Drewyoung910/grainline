@@ -883,3 +883,17 @@ SellerProfile join without separating the delete/archive decision from its
 mutation. The current gate is 29 relation accesses in 16 files, two raw-SQL
 accesses in two files, three relation-bearing factories and zero opaque
 SellerProfile predicates across 17 consumer files and 141 opaque shapes.
+
+The main browse page now selects Listing scalars and photos, then hydrates only
+the paginated at-most-24 cards (or four no-result recommendations) through the
+bounded viewer-aware listing-card authority. The source inventory now also
+follows post-initialization assignments to typed Prisma `WhereInput` variables.
+That audit correction found two pre-existing SellerProfile predicates that the
+former scanner missed: seller-name search under `where.OR` and rating filtering
+under `where.seller`. With the removed card presentation join and those two
+dependencies recorded, the accurate gate moves from a would-have-been 31 to 30
+relation accesses in 16 files, with two raw-SQL accesses in two files, three
+relation-bearing factories and zero opaque SellerProfile target predicates
+across 17 consumer files and 144 reconciled opaque shapes. The higher displayed
+count relative to the preceding journal entry is an inventory correction, not
+a new base-table dependency.

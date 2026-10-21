@@ -25,7 +25,11 @@ import { formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
 import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
-import { sellerPublicBrowseNearbySellerIds } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerPublicBrowseNearbySellerIds,
+  sellerPublicListingCards,
+  type SellerPublicListingCard,
+} from "@/lib/sellerProfilePublicAccess";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -64,8 +68,6 @@ function StarsInline({ value }: { value: number }) {
   );
 }
 
-type ListingWithIncludes = Awaited<ReturnType<typeof fetchListings>>[number];
-
 async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[], take: number, skip: number, withFavCount: boolean) {
   return prisma.listing.findMany({
     where,
@@ -89,23 +91,25 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
       tags: true,
       qualityScore: true,
       photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-      seller: {
-        select: {
-          displayName: true,
-          avatarImageUrl: true,
-          guildLevel: true,
-          city: true,
-          state: true,
-          acceptingNewOrders: true,
-          ownerImageUrl: true,
-        },
-      },
       ...(withFavCount ? { _count: { select: { favorites: true } } } : {}),
     },
   });
 }
 
-function scoreListings(listings: ListingWithIncludes[], query?: string) {
+type ListingRow = Awaited<ReturnType<typeof fetchListings>>[number];
+type ListingWithIncludes = ListingRow & { seller: SellerPublicListingCard };
+
+async function hydrateSellerCards(viewerUserId: string | null, rows: ListingRow[]) {
+  const cards = await sellerPublicListingCards(viewerUserId, rows.map((listing) => listing.id));
+  const cardByListingId = new Map(cards.map((seller) => [seller.listingId, seller]));
+  return rows.flatMap((listing): ListingWithIncludes[] => {
+    const seller = cardByListingId.get(listing.id);
+    if (!seller || seller.sellerProfileId !== listing.sellerId) return [];
+    return [{ ...listing, seller }];
+  });
+}
+
+function scoreListings(listings: ListingRow[], query?: string) {
   const qLower = (query ?? "").toLowerCase().trim();
   const searchTerms = qLower.split(/\s+/).filter(Boolean).slice(0, 6);
 
@@ -319,6 +323,21 @@ async function BrowseContent({
     const tagWordConditions: Prisma.ListingWhereInput[] = searchWords.map((word) => ({
       tags: { has: word.toLowerCase() },
     }));
+    const sellerNameCondition: Prisma.ListingWhereInput = {
+      seller: {
+        OR: normalizedDisplayNameQuery
+          ? [
+              { displayName: { contains: q, mode: "insensitive" as const } },
+              {
+                displayNameNormalized: {
+                  contains: normalizedDisplayNameQuery,
+                  mode: "insensitive" as const,
+                },
+              },
+            ]
+          : [{ displayName: { contains: q, mode: "insensitive" as const } }],
+      },
+    };
 
     where.OR = [
       // Full phrase match (highest relevance, scored in JS)
@@ -330,16 +349,7 @@ async function BrowseContent({
       // Partial tag matches (existing logic)
       ...(partialTagMatches.length > 0 ? [{ tags: { hasSome: partialTagMatches } }] : []),
       // Seller name match
-      {
-        seller: {
-          OR: [
-            { displayName: { contains: q, mode: "insensitive" as const } },
-            ...(normalizedDisplayNameQuery
-              ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
-              : []),
-          ],
-        },
-      },
+      sellerNameCondition,
     ];
   }
   if (Object.keys(priceFilter).length > 0) where.priceCents = priceFilter;
@@ -354,9 +364,7 @@ async function BrowseContent({
     where.shipsWithinDays = { lte: shipsFilter };
   }
   if (ratingFilter && Number.isFinite(ratingFilter)) {
-    const sellerWhere = (where.seller ?? {}) as Prisma.SellerProfileWhereInput;
     where.seller = {
-      ...sellerWhere,
       ratingSummary: {
         is: {
           averageRating: { gte: ratingFilter },
@@ -394,14 +402,22 @@ async function BrowseContent({
     total = scored.length;
     const relevantTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const relevantPage = Math.min(Math.max(pageNum, 1), relevantTotalPages);
-    listings = scored
+    const listingRows = scored
       .slice((relevantPage - 1) * PAGE_SIZE, relevantPage * PAGE_SIZE)
       .map((s) => s.listing);
+    listings = await hydrateSellerCards(meDbId, listingRows);
   } else {
     total = await prisma.listing.count({ where });
     const standardTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const standardPage = Math.min(Math.max(pageNum, 1), standardTotalPages);
-    listings = await fetchListings(where, orderBy, PAGE_SIZE, (standardPage - 1) * PAGE_SIZE, false);
+    const listingRows = await fetchListings(
+      where,
+      orderBy,
+      PAGE_SIZE,
+      (standardPage - 1) * PAGE_SIZE,
+      false,
+    );
+    listings = await hydrateSellerCards(meDbId, listingRows);
   }
 
   const visiblePopularTags = popularTags.slice(0, 12);
@@ -466,7 +482,7 @@ async function BrowseContent({
 
   // ── No results experience ──────────────────────────────────────────────────
   if (total === 0) {
-    const featured = await fetchListings(
+    const featuredRows = await fetchListings(
       publicListingWhere(
         blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
       ),
@@ -475,6 +491,7 @@ async function BrowseContent({
       0,
       false,
     );
+    const featured = await hydrateSellerCards(meDbId, featuredRows);
     const [featuredFavorites, featuredRatings] = await Promise.all([
       meDbId && featured.length > 0
         ? prisma.favorite.findMany({

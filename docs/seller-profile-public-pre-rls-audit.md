@@ -795,13 +795,18 @@ guard the final zero-direct state, but they do not count as behavior proof.
   projection in bounded 50-id chunks, and the public blog list/API/homepage
   reuse of the database-maintained BlogPost seller-name/avatar mirrors across
   list, API, homepage, detail and related-post presentation, plus the
-  homepage listing rows' bounded viewer-aware seller-card hydration, have
-  reduced the live gate to 29 relation accesses in 16 files, two raw-SQL
+  homepage and browse listing rows' bounded viewer-aware seller-card hydration,
+  have reduced the live gate to 30 relation accesses in 16 files, two raw-SQL
   accesses in two files, three relation-bearing factories and zero opaque
-  SellerProfile target predicates across 17 total consumer files and 141
-  reconciled opaque shapes. The homepage listing queries still use the shared
-  `publicListingWhere` factory, so this pass removes their nested presentation
-  projection but does not claim that remaining factory gate is closed. The
+  SellerProfile target predicates across 17 total consumer files and 144
+  reconciled opaque shapes. The strengthened scanner now follows assignments to
+  typed Prisma `WhereInput` variables. That correction exposed two pre-existing
+  browse predicates for seller-name search and rating filtering that the former
+  count missed; removing the browse card presentation join therefore changes
+  the accurate relation count from 31 to 30 rather than from 29 to 28. Homepage
+  and browse listing queries still use the shared `publicListingWhere` factory,
+  so these passes remove their nested presentation projections but do not claim
+  that the remaining predicate and factory gates are closed. The
   reviewed catalog now has 209 functions: 98
   retained, 33 internal and 78 converted authorities. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission

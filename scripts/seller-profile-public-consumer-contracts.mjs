@@ -168,7 +168,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   }
   if (targetOpaqueShapes.length !== 0
       || reviewedNonTargetFactoryCalls.length !== 119
-      || reviewedNonTargetResiduals.length !== 22) {
+      || reviewedNonTargetResiduals.length !== 25) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,
