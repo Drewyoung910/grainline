@@ -19758,6 +19758,14 @@ Focused preference, delivery, unsubscribe, media, and privacy checks pass all
 unchanged. Scoped review, exact-head CI, merge, and ordinary app deployment
 remain open.
 
+The first exact-head CI run then passed 5,218 of 5,219 executed tests and
+exposed one stale source-shape guard in `post-launch-ui-followups.test.mjs`.
+That guard required the Stripe direct-send options object to end immediately
+after its idempotency key, so the intentional new preference-key metadata made
+the regex fail even though the send path remained correct. The guard now
+requires both the idempotency key and validated preference-key wiring. This was
+a test-only correction; it did not change runtime behavior.
+
 Current running tally after Entry 575: verified fixed/reduced 1108, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 86,
 approximate raw allegations left from current max #1126: 0. The raw Claude
