@@ -4,6 +4,7 @@ import test from "node:test";
 
 const listingTags = readFileSync("src/lib/popularTags.ts", "utf8");
 const blogTags = readFileSync("src/lib/popularBlogTags.ts", "utf8");
+const publicAccess = readFileSync("src/lib/sellerProfilePublicAccess.ts", "utf8");
 const migration = readFileSync(
   "prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql",
   "utf8",
@@ -16,6 +17,9 @@ test("popular tag callers use bounded SellerProfile aggregate authorities", () =
 
   assert.match(blogTags, /sellerPublicBlogTags\(limit\)/u);
   assert.doesNotMatch(blogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"/u);
+  assert.match(publicAccess, /sellerPublicListingTags\(limit: number\)[\s\S]*?limit > 200/u);
+  assert.match(publicAccess, /sellerPublicBlogTags\(limit: number\)[\s\S]*?limit > 200/u);
+  assert.equal((migration.match(/p_limit > 200/gu) ?? []).length, 2);
 });
 
 test("tag authorities preserve listing, blog, seller, and deterministic ordering scopes", () => {

@@ -1810,7 +1810,7 @@ export async function sellerPublicMarketplaceRatingAverage() {
 }
 
 export async function sellerPublicListingTags(limit: number) {
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
     throw new RangeError("Seller public listing-tag limit is outside the supported range");
   }
   return readSellerPublicListingTags(prisma, limit);
@@ -1830,7 +1830,7 @@ export async function sellerPublicSellerTags(sellerProfileId: string, limit: num
 }
 
 export async function sellerPublicBlogTags(limit: number) {
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
     throw new RangeError("Seller public blog-tag limit is outside the supported range");
   }
   return readSellerPublicBlogTags(prisma, limit);

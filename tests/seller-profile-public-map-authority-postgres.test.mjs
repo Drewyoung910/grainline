@@ -581,7 +581,7 @@ test("public tag authorities preserve visibility, aggregation, and deterministic
   try {
     await database.exec("SET ROLE grainline_app_runtime");
     assert.deepEqual((await database.query(`
-      SELECT * FROM public.grainline_seller_public_listing_tags(10)
+      SELECT * FROM public.grainline_seller_public_listing_tags(200)
     `)).rows, [
       { tag: "wood", count: 2 },
       { tag: "gift", count: 1 },
@@ -593,12 +593,20 @@ test("public tag authorities preserve visibility, aggregation, and deterministic
       { tag: "wood", count: 1 },
     ]);
     assert.deepEqual((await database.query(`
-      SELECT * FROM public.grainline_seller_public_blog_tags(8)
+      SELECT * FROM public.grainline_seller_public_blog_tags(200)
     `)).rows, [
       { tag: "wood", count: 2 },
       { tag: "craft", count: 1 },
       { tag: "news", count: 1 },
     ]);
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_listing_tags(201)"),
+      /Seller public listing-tag limit is invalid/u,
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_blog_tags(201)"),
+      /Seller public blog-tag limit is invalid/u,
+    );
   } finally {
     await database.exec("RESET ROLE").catch(() => {});
     await database.close();

@@ -400,6 +400,22 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     ));
     assert.equal(Number(marketplaceCounts[0].activeSellerCount) >= 1, true);
     assert.equal(Number(marketplaceCounts[0].foundingMakerCount) >= 1, true);
+    const listingTags = rowsOf(await database.query(
+      "SELECT * FROM public.grainline_seller_public_listing_tags(200)",
+    ));
+    assert.equal(listingTags.every((row) => typeof row.tag === "string"), true);
+    const blogTags = rowsOf(await database.query(
+      "SELECT * FROM public.grainline_seller_public_blog_tags(200)",
+    ));
+    assert.equal(blogTags.every((row) => typeof row.tag === "string"), true);
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_listing_tags(201)"),
+      (error) => error?.code === "22023",
+    );
+    await assert.rejects(
+      database.query("SELECT * FROM public.grainline_seller_public_blog_tags(201)"),
+      (error) => error?.code === "22023",
+    );
     const metroCount = rowsOf(await database.query(
       `SELECT public.grainline_seller_public_metro_count($1, true, true) AS value`,
       [metroId],

@@ -75,7 +75,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_seller_public_listing_tags$
 BEGIN
-  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 50 THEN
+  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 200 THEN
     RAISE EXCEPTION USING
       ERRCODE = '22023',
       MESSAGE = 'Seller public listing-tag limit is invalid';
@@ -158,7 +158,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_seller_public_blog_tags$
 BEGIN
-  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 50 THEN
+  IF p_limit IS NULL OR p_limit < 1 OR p_limit > 200 THEN
     RAISE EXCEPTION USING
       ERRCODE = '22023',
       MESSAGE = 'Seller public blog-tag limit is invalid';
