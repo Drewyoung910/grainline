@@ -910,3 +910,16 @@ relation-bearing factories and zero opaque SellerProfile target predicates
 across 16 consumer files and 144 reconciled opaque shapes. The 210-function
 catalog is 98 retained, 33 internal and 79 converted authorities; the compatible
 preparation set contains 59 migrations and the full chain contains 410.
+
+The two Guild approval actions now resolve one exact verification and its
+seller label, owner-state bit and optional cached metrics through an
+isolated-staff authority keyed by the verification id. The function revalidates
+the active staff actor, returns no row for an absent target, and is unavailable
+to the ordinary runtime and PUBLIC. This removes two relation accesses and the
+admin verification page from the residual consumer set without changing the
+approval, eligibility, notification or email behavior. The gate is now 27
+relation accesses in 14 files, two raw-SQL accesses in two files, three
+relation-bearing factories and zero opaque SellerProfile target predicates
+across 15 consumer files and 144 reconciled opaque shapes. The 211-function
+catalog is 98 retained, 33 internal and 80 converted authorities; the compatible
+preparation set contains 60 migrations and the full chain contains 411.

@@ -2462,7 +2462,8 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
     ('public."grainline_seller_staff_broadcast_targets"(text,text[])', false),
     ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
-    ('public."grainline_seller_staff_report_targets"(text,text[])', false)
+    ('public."grainline_seller_staff_report_targets"(text,text[])', false),
+    ('public."grainline_seller_staff_verification_target"(text,text)', false)
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
@@ -2552,7 +2553,8 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
     ('public."grainline_seller_staff_broadcast_targets"(text,text[])', false),
     ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
-    ('public."grainline_seller_staff_report_targets"(text,text[])', false)
+    ('public."grainline_seller_staff_report_targets"(text,text[])', false),
+    ('public."grainline_seller_staff_verification_target"(text,text)', false)
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
@@ -3653,6 +3655,7 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_seller_staff_feature_transition"(text, text, text)'),
     ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
     ('public."grainline_seller_staff_report_targets"(text, text[])'),
+    ('public."grainline_seller_staff_verification_target"(text, text)'),
     ('public."grainline_seller_staff_orderability_state"(text, text)')
 )
 SELECT format(

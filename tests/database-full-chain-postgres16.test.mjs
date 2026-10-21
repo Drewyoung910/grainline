@@ -48,6 +48,7 @@ import { proveSellerProfileOwnerGuildApplicationAuthority } from "../tools/datab
 import { proveSellerProfileOwnerBootstrapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-bootstrap.mjs";
 import { proveSellerProfileStaffReportTargetsAuthority } from "../tools/database-full-chain/scenarios/seller-profile-staff-report-targets.mjs";
 import { proveSellerProfileStaffBroadcastTargets } from "../tools/database-full-chain/scenarios/seller-profile-staff-broadcast-targets.mjs";
+import { proveSellerProfileStaffVerificationTarget } from "../tools/database-full-chain/scenarios/seller-profile-staff-verification-target.mjs";
 import { proveSellerProfileStaffFeatureTransition } from "../tools/database-full-chain/scenarios/seller-profile-staff-feature-transition.mjs";
 import { proveSellerProfileAccountDeletionMediaAuthority } from "../tools/database-full-chain/scenarios/seller-profile-account-deletion-media.mjs";
 import { proveSellerProfileOwnerFeaturedListingToggle } from "../tools/database-full-chain/scenarios/seller-profile-owner-featured-listing-toggle.mjs";
@@ -119,7 +120,7 @@ test(
               SELLER_PROFILE_PREPARATION_RELEASE_COMMIT: "a".repeat(40),
             });
             assert.equal(evidence.state, "ready");
-            assert.equal(evidence.pendingCount, 59);
+            assert.equal(evidence.pendingCount, 60);
           }
           if (artifact.name === SELLER_PROFILE_PUBLIC_ENABLE.name) {
             const evidence = await inspectSellerProfilePublicPreparationProduction({
@@ -247,6 +248,10 @@ test(
         seller: fixture,
       });
       await proveSellerProfileStaffBroadcastTargets({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveSellerProfileStaffVerificationTarget({
         database: adapter,
         seller: fixture,
       });

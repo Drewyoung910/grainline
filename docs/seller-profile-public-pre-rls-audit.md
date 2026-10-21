@@ -797,9 +797,10 @@ guard the final zero-direct state, but they do not count as behavior proof.
   list, API, homepage, detail and related-post presentation, plus the
   homepage and browse listing rows' bounded viewer-aware seller-card hydration,
   plus the admin broadcast list's bounded active-staff historical seller-label
-  projection, have reduced the live gate to 29 relation accesses in 15 files,
+  projection, plus the Guild approval actions' exact isolated-staff verification
+  target, have reduced the live gate to 27 relation accesses in 14 files,
   two raw-SQL accesses in two files, three relation-bearing factories and zero
-  opaque SellerProfile target predicates across 16 total consumer files and 144
+  opaque SellerProfile target predicates across 15 total consumer files and 144
   reconciled opaque shapes. The strengthened scanner now follows assignments to
   typed Prisma `WhereInput` variables. That correction exposed two pre-existing
   browse predicates for seller-name search and rating filtering that the former
@@ -808,8 +809,8 @@ guard the final zero-direct state, but they do not count as behavior proof.
   and browse listing queries still use the shared `publicListingWhere` factory,
   so these passes remove their nested presentation projections but do not claim
   that the remaining predicate and factory gates are closed. The
-  reviewed catalog now has 210 functions: 98
-  retained, 33 internal and 79 converted authorities. The saved-listing authority
+  reviewed catalog now has 211 functions: 98
+  retained, 33 internal and 80 converted authorities. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
   filtering, owner binding, historical-card disclosure and stable ordering
@@ -834,7 +835,7 @@ guard the final zero-direct state, but they do not count as behavior proof.
   `timestamp without time zone` values without restoring the UTC instant. The
   forward correction changes only those return types and expressions to
   `timestamp with time zone` plus `AT TIME ZONE 'UTC'`; the two previously
-  host-dependent PGlite regressions pass, and the complete 410-migration
+  host-dependent PGlite regressions pass, and the complete 411-migration
   PostgreSQL 16 chain applies the correction before policyless ENABLE and
   asserts the public-profile and Guild-application timestamps as UTC instants.
   That same chain exercises listing-card output and reciprocal-block behavior

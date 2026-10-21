@@ -239,6 +239,7 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_seller_staff_feature_transition(text,text,text)",
   "grainline_seller_staff_broadcast_targets(text,text[])",
   "grainline_seller_staff_report_targets(text,text[])",
+  "grainline_seller_staff_verification_target(text,text)",
   "grainline_seller_staff_orderability_state(text,text)",
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
@@ -258,6 +259,7 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_seller_staff_feature_transition(text,text,text)",
     "grainline_seller_staff_broadcast_targets(text,text[])",
     "grainline_seller_staff_report_targets(text,text[])",
+    "grainline_seller_staff_verification_target(text,text)",
     "grainline_seller_staff_orderability_state(text,text)",
   ],
 );
@@ -506,6 +508,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_staff_feature_transition",
   "grainline_seller_staff_broadcast_targets",
   "grainline_seller_staff_report_targets",
+  "grainline_seller_staff_verification_target",
   "grainline_seller_staff_orderability_state",
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",

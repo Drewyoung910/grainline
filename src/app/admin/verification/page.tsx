@@ -48,7 +48,10 @@ import {
   sellerGuildStaffMemberList,
   sellerGuildStaffRevokedMemberList,
 } from "@/lib/sellerGuildStaffPrivateAccess";
-import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
+import {
+  sellerProfileStaffReportTargets,
+  sellerProfileStaffVerificationTarget,
+} from "@/lib/sellerProfileStaffAccess";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -180,20 +183,9 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
   const verificationId = String(formData.get("verificationId") ?? "");
   const adminOverride = me.role === "ADMIN" && formData.get("adminOverride") === "on";
 
-  const verification = await prisma.makerVerification.findUnique({
-    where: { id: verificationId },
-    select: {
-      status: true,
-      sellerProfileId: true,
-      sellerProfile: {
-        select: {
-          userId: true,
-          id: true,
-          displayName: true,
-          ownerAccountActive: true,
-        },
-      },
-    },
+  const verification = await sellerProfileStaffVerificationTarget(getOrderStaffReadClient(), {
+    actorId: me.id,
+    verificationId,
   });
   if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
   if (verification.status !== "PENDING") return { ok: false, error: "Application is no longer pending. Refresh this page." };
@@ -412,34 +404,9 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
   const me = await requireStaff();
   const verificationId = String(formData.get("verificationId") ?? "");
 
-  const verification = await prisma.makerVerification.findUnique({
-    where: { id: verificationId },
-    select: {
-      status: true,
-      sellerProfileId: true,
-      sellerProfile: {
-        select: {
-          userId: true,
-          id: true,
-          displayName: true,
-          ownerAccountActive: true,
-          sellerMetrics: {
-            select: {
-              calculatedAt: true,
-              periodMonths: true,
-              averageRating: true,
-              reviewCount: true,
-              onTimeShippingRate: true,
-              responseRate: true,
-              totalSalesCents: true,
-              completedOrderCount: true,
-              activeCaseCount: true,
-              accountAgeDays: true,
-            },
-          },
-        },
-      },
-    },
+  const verification = await sellerProfileStaffVerificationTarget(getOrderStaffReadClient(), {
+    actorId: me.id,
+    verificationId,
   });
   if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
   if (verification.status !== "GUILD_MASTER_PENDING") {

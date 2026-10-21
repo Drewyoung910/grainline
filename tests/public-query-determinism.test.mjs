@@ -86,7 +86,8 @@ describe("public query determinism", () => {
     assert.match(browse, /sort === "price_desc" \? \[\{ priceCents: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /sort === "popular" \? \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /const featured = await fetchListings\(\s*publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\),\s*\[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(browse, /const featuredRows = await fetchListings\(\s*publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\),\s*\[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(browse, /const featured = await hydrateSellerCards\(meDbId, featuredRows\)/);
     assert.match(browse, /b\.listing\.createdAt\.getTime\(\) - a\.listing\.createdAt\.getTime\(\)/);
     assert.match(browse, /b\.listing\.id\.localeCompare\(a\.listing\.id\)/);
 
@@ -364,7 +365,11 @@ describe("public query determinism", () => {
 
     assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
     assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);
-    assert.match(browse, /fetchListings\(where, orderBy, PAGE_SIZE, \(standardPage - 1\) \* PAGE_SIZE, false\)/);
+    assert.match(
+      browse,
+      /const listingRows = await fetchListings\(\s*where,\s*orderBy,\s*PAGE_SIZE,\s*\(standardPage - 1\) \* PAGE_SIZE,\s*false,?\s*\)/s,
+    );
+    assert.match(browse, /listings = await hydrateSellerCards\(meDbId, listingRows\)/);
 
     assert.match(sellerShop, /const clampedPage = Math\.min\(Math\.max\(page, 1\), totalPages\)/);
     assert.match(sellerShop, /skip: \(clampedPage - 1\) \* PAGE_SIZE/);
