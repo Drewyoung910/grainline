@@ -857,3 +857,11 @@ consumer files and 141 opaque shapes. The 209-function catalog is 98 retained,
 33 internal and 78 converted authorities, and the compatible preparation set
 now contains 58 migrations. The complete 409-migration PostgreSQL 16 proof
 exercises listing-card output and reciprocal blocks before policyless ENABLE.
+Tag, metro and metro-category listing pages now select Listing scalars and
+photos and hydrate their at-most-24 cards with the same bounded viewer-aware
+authority. This removes three direct relation accesses and three direct
+consumer files without a new migration or an N+1 query. Their shared
+`publicListingWhere` dependency remains in the explicit factory gate. The
+current gate is 29 relation accesses in 16 files, four raw-SQL accesses in four
+files, three relation-bearing factories and zero opaque SellerProfile
+predicates across 19 consumer files and 141 opaque shapes.

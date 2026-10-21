@@ -14,6 +14,10 @@ import { normalizeTag } from "@/lib/tags";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { publicTagPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import {
+  sellerPublicListingCards,
+  type SellerPublicListingCard,
+} from "@/lib/sellerProfilePublicAccess";
 
 const BASE_URL = "https://thegrainline.com";
 const TAG_PAGE_SIZE = 24;
@@ -32,20 +36,11 @@ const TAG_LISTING_SELECT = {
   stockQuantity: true,
   sellerId: true,
   photos: { take: 2, orderBy: { sortOrder: "asc" as const }, select: { url: true, altText: true } },
-  seller: {
-    select: {
-      displayName: true,
-      avatarImageUrl: true,
-      guildLevel: true,
-      city: true,
-      state: true,
-      acceptingNewOrders: true,
-      ownerImageUrl: true,
-    },
-  },
 } satisfies Prisma.ListingSelect;
 
-type TagListing = Prisma.ListingGetPayload<{ select: typeof TAG_LISTING_SELECT }>;
+type TagListing = Prisma.ListingGetPayload<{ select: typeof TAG_LISTING_SELECT }> & {
+  seller: SellerPublicListingCard;
+};
 
 function decodeRouteSlug(slug: string): string {
   try {
@@ -134,12 +129,19 @@ export default async function TagLandingPage({
   const totalPages = Math.max(1, Math.ceil(total / TAG_PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
 
-  const listings = await prisma.listing.findMany({
+  const listingRows = await prisma.listing.findMany({
     where,
     orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * TAG_PAGE_SIZE,
     take: TAG_PAGE_SIZE,
     select: TAG_LISTING_SELECT,
+  });
+  const listingCards = await sellerPublicListingCards(meDbId, listingRows.map((listing) => listing.id));
+  const listingCardById = new Map(listingCards.map((seller) => [seller.listingId, seller]));
+  const listings = listingRows.flatMap((listing): TagListing[] => {
+    const seller = listingCardById.get(listing.id);
+    if (!seller || seller.sellerProfileId !== listing.sellerId) return [];
+    return [{ ...listing, seller }];
   });
 
   let savedSet = new Set<string>();

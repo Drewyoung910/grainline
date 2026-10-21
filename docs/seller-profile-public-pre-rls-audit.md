@@ -796,9 +796,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   reuse of the database-maintained BlogPost seller-name/avatar mirrors across
   list, API, homepage, detail and related-post presentation, plus the
   homepage listing rows' bounded viewer-aware seller-card hydration, have
-  reduced the live gate to 32 relation accesses in 19 files, four raw-SQL
+  reduced the live gate to 29 relation accesses in 16 files, four raw-SQL
   accesses in four files, three relation-bearing factories and zero opaque
-  SellerProfile target predicates across 22 total consumer files and 141
+  SellerProfile target predicates across 19 total consumer files and 141
   reconciled opaque shapes. The homepage listing queries still use the shared
   `publicListingWhere` factory, so this pass removes their nested presentation
   projection but does not claim that remaining factory gate is closed. The
@@ -833,6 +833,10 @@ guard the final zero-direct state, but they do not count as behavior proof.
   asserts the public-profile and Guild-application timestamps as UTC instants.
   That same chain exercises listing-card output and reciprocal-block behavior
   on the real migrated schema.
+- Tag, metro and metro-category listing cards now reuse that bounded
+  listing-card authority in one at-most-24-id call per page. Their direct
+  presentation relations are gone, while their calls to the shared
+  `publicListingWhere` factory remain in the explicit three-factory gate.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending
   migration check, global grant audit and sanitized postflight are prepared,
   and the workflow now refuses database access while any direct, relation,

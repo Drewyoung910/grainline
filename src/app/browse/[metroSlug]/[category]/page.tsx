@@ -16,6 +16,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
+import { sellerPublicListingCards } from "@/lib/sellerProfilePublicAccess";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -135,7 +136,7 @@ export default async function BrowseMetroCategoryPage({
     ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
   });
 
-  const [listings, listingCount] = await Promise.all([
+  const [listingRows, listingCount] = await Promise.all([
     prisma.listing.findMany({
       where: listingWhere,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -148,23 +149,19 @@ export default async function BrowseMetroCategoryPage({
         status: true,
         listingType: true,
         stockQuantity: true,
+        sellerId: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-        seller: {
-          select: {
-            id: true,
-            displayName: true,
-            avatarImageUrl: true,
-            guildLevel: true,
-            city: true,
-            state: true,
-            acceptingNewOrders: true,
-            ownerImageUrl: true,
-          },
-        },
       },
     }),
     prisma.listing.count({ where: listingWhere }),
   ]);
+  const listingCards = await sellerPublicListingCards(meDbId, listingRows.map((listing) => listing.id));
+  const listingCardById = new Map(listingCards.map((seller) => [seller.listingId, seller]));
+  const listings = listingRows.flatMap((listing) => {
+    const seller = listingCardById.get(listing.id);
+    if (!seller || seller.sellerProfileId !== listing.sellerId) return [];
+    return [{ ...listing, seller }];
+  });
 
   let savedSet = new Set<string>();
   if (meDbId && listings.length > 0) {
@@ -274,7 +271,7 @@ export default async function BrowseMetroCategoryPage({
                   photoUrl: listing.photos[0]?.url ?? null,
                   photoAltText: listing.photos[0]?.altText ?? null,
                   seller: {
-                    id: listing.seller.id,
+                    id: listing.seller.sellerProfileId,
                     displayName: listing.seller.displayName ?? null,
                     avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.ownerImageUrl ?? null,
                     guildLevel: listing.seller.guildLevel ?? null,
