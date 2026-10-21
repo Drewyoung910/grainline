@@ -834,3 +834,11 @@ joins from global search without adding a migration or authority. The current
 gate is 36 relation accesses in 20 files, four raw-SQL accesses in four files,
 three relation-bearing factories and zero opaque SellerProfile predicates
 across 23 consumer files and 141 opaque shapes.
+The broadcast deletion action now reads its historical seller display label
+through the existing bounded active-staff projection before deleting the
+broadcast and its queued notification/email side effects. The audit metadata,
+stale email subject and transactional deletion behavior are unchanged. This
+removes one relation access without adding SQL or another authority. The
+current gate is 35 relation accesses in 20 files, four raw-SQL accesses in four
+files, three relation-bearing factories and zero opaque SellerProfile
+predicates across 23 consumer files and 141 opaque shapes.

@@ -18,6 +18,7 @@ import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteSellerBroadcastNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { userStaffAdminLabels } from "@/lib/userStaffAccess";
+import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -38,13 +39,16 @@ async function deleteBroadcast(formData: FormData) {
           sellerProfileId: true,
           sentAt: true,
           recipientCount: true,
-          sellerProfile: { select: { displayName: true } },
         },
       });
       if (!broadcast) return;
+      const [sellerTarget] = await sellerProfileStaffReportTargets(getOrderStaffReadClient(), {
+        actorId: user.id,
+        sellerProfileIds: [broadcast.sellerProfileId],
+      });
       const deleted = await tx.sellerBroadcast.deleteMany({ where: { id } });
       if (deleted.count !== 1) return;
-      const sellerName = broadcast.sellerProfile.displayName ?? "A maker you follow";
+      const sellerName = sellerTarget?.displayName ?? "A maker you follow";
       const staleNotificationWindowEnd = new Date(broadcast.sentAt.getTime() + 60 * 60 * 1000);
       await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
       await tx.emailOutbox.deleteMany({
