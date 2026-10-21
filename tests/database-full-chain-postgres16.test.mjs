@@ -110,7 +110,7 @@ test(
               SELLER_PROFILE_PREPARATION_RELEASE_COMMIT: "a".repeat(40),
             });
             assert.equal(evidence.state, "ready");
-            assert.equal(evidence.pendingCount, 49);
+            assert.equal(evidence.pendingCount, 50);
           }
           if (artifact.name === SELLER_PROFILE_PUBLIC_ENABLE.name) {
             const evidence = await inspectSellerProfilePublicPreparationProduction({

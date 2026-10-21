@@ -80,7 +80,7 @@ schema-aware result is the canonical source baseline.
 
 ## Machine-checked consumer contracts
 
-The current 43-file candidate union is assigned in
+The current 41-file candidate union is assigned in
 `scripts/seller-profile-public-consumer-contracts.mjs` and verified with:
 
 ```sh
@@ -767,8 +767,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Residual conversion is in progress. Viewer-aware map metros, owner following,
   public rating/tag aggregates, owner saved-listing reads and public commission
   interest counts/cards, owner historical interest summaries and bounded
-  service notification targets have reduced the live gate to 67 relation
-  accesses in 39 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
+  service notification targets, a purpose-bound blog-fanout seller recheck and
+  removal of the blog editor's unused nested seller read have reduced the live gate to 65 relation
+  accesses in 37 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
   and zero opaque SellerProfile target predicates. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
@@ -789,6 +790,12 @@ guard the final zero-direct state, but they do not count as behavior proof.
 - Follow creation, Founding Maker allocation and owner bootstrap now normalize
   new `timestamp without time zone` writes to UTC. The real full-chain proof
   exercises those operations under a non-UTC session timezone.
+- Exact-head CI exposed seven projection functions that returned Prisma's UTC
+  `timestamp without time zone` values without restoring the UTC instant. The
+  forward correction changes only those return types and expressions to
+  `timestamp with time zone` plus `AT TIME ZONE 'UTC'`; the two previously
+  host-dependent PGlite regressions pass, and the complete 401-migration
+  PostgreSQL 16 chain applies the correction before policyless ENABLE.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending
   migration check, global grant audit and sanitized postflight are prepared,
   and the workflow now refuses database access while any direct, relation,

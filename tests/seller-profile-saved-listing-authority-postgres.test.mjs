@@ -8,6 +8,19 @@ const migration = readFileSync(
   "prisma/migrations/20261020040000_prepare_seller_profile_account_feed_cards/migration.sql",
   "utf8",
 );
+const timestampCorrection = readFileSync(
+  "prisma/migrations/20261020235700_correct_seller_profile_projection_timestamps/migration.sql",
+  "utf8",
+);
+
+function correctionFor(functionName) {
+  const start = timestampCorrection.indexOf(`DROP FUNCTION public.${functionName}`);
+  assert.notEqual(start, -1);
+  const next = timestampCorrection.indexOf("\nDROP FUNCTION public.", start + 1);
+  const end = next === -1 ? timestampCorrection.lastIndexOf("\nCOMMIT;") : next;
+  assert.notEqual(end, -1);
+  return `BEGIN;\n${timestampCorrection.slice(start, end)}\nCOMMIT;`;
+}
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -122,6 +135,7 @@ async function readyDatabase() {
       ('block-reciprocal', 'seller-blocked', 'actor', CURRENT_TIMESTAMP);
   `);
   await database.exec(migration);
+  await database.exec(correctionFor("grainline_seller_owner_saved_listing_page"));
   return database;
 }
 
@@ -142,7 +156,7 @@ test("saved-listing owner authorities enforce actor, public visibility, blocks, 
       `)).rows,
       [
         {
-          savedAt: new Date("2026-10-20T17:00:00.000Z"),
+          savedAt: new Date("2026-10-20T12:00:00.000Z"),
           listingId: "active-b",
           title: "Active B",
           priceCents: 2000,
@@ -162,7 +176,7 @@ test("saved-listing owner authorities enforce actor, public visibility, blocks, 
           photoAltText: null,
         },
         {
-          savedAt: new Date("2026-10-20T17:00:00.000Z"),
+          savedAt: new Date("2026-10-20T12:00:00.000Z"),
           listingId: "active-a",
           title: "Active A",
           priceCents: 1000,

@@ -7,6 +7,19 @@ import { PGlite } from "@electric-sql/pglite";
 const migrationPath =
   "prisma/migrations/20261020235000_prepare_seller_profile_public_commission_interests/migration.sql";
 const migration = existsSync(migrationPath) ? readFileSync(migrationPath, "utf8") : "";
+const timestampCorrection = readFileSync(
+  "prisma/migrations/20261020235700_correct_seller_profile_projection_timestamps/migration.sql",
+  "utf8",
+);
+
+function correctionFor(functionName) {
+  const start = timestampCorrection.indexOf(`DROP FUNCTION public.${functionName}`);
+  assert.notEqual(start, -1);
+  const next = timestampCorrection.indexOf("\nDROP FUNCTION public.", start + 1);
+  const end = next === -1 ? timestampCorrection.lastIndexOf("\nCOMMIT;") : next;
+  assert.notEqual(end, -1);
+  return `BEGIN;\n${timestampCorrection.slice(start, end)}\nCOMMIT;`;
+}
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -89,6 +102,7 @@ async function readyDatabase() {
     VALUES ('block-b', 'seller-b', 'viewer', CURRENT_TIMESTAMP);
   `);
   if (migration) await database.exec(migration);
+  await database.exec(correctionFor("grainline_seller_public_commission_interest_cards"));
   return database;
 }
 
@@ -118,7 +132,7 @@ test("commission-interest authorities bind public request and seller visibility"
       [
         {
           interestId: "interest-a",
-          createdAt: new Date("2026-10-20T15:00:00.000Z"),
+          createdAt: new Date("2026-10-20T10:00:00.000Z"),
           sellerProfileId: "profile-a",
           displayName: "Maker A",
           avatarImageUrl: "a.jpg",
@@ -127,7 +141,7 @@ test("commission-interest authorities bind public request and seller visibility"
         },
         {
           interestId: "interest-b",
-          createdAt: new Date("2026-10-20T16:00:00.000Z"),
+          createdAt: new Date("2026-10-20T11:00:00.000Z"),
           sellerProfileId: "profile-b",
           displayName: "Maker B",
           avatarImageUrl: null,

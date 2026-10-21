@@ -180,7 +180,7 @@ export default async function EditBlogPostPage({
       });
       return tx.blogPost.findUnique({
         where: { id },
-        select: { id: true, slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },
+        select: { id: true, slug: true, sellerProfileId: true },
       });
     });
     if (!updated) return { ok: false, error: "Post changed while saving. Refresh and try again." };

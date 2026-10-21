@@ -650,3 +650,16 @@ accesses, three relation-bearing factories and zero opaque SellerProfile
 predicates across 43 consumer files and 148 opaque shapes. The current
 200-function catalog is 98 retained, 33 internal and 69 converted authorities;
 two converted authorities are staff-only.
+The blog residual cleanup then removes an unused nested seller read from the
+owner editor and reuses the purpose-bound public blog-author authority for
+follower fanout. The fanout still rechecks the exact post's public state before
+loading a currently orderable seller and any reciprocal-block-filtered
+followers. The current gate is 65 relation accesses, 10 raw-SQL accesses,
+three relation-bearing factories and zero opaque SellerProfile predicates
+across 41 consumer files and 147 opaque shapes. The catalog is unchanged.
+Exact-head CI then exposed a host-timezone defect in two projection timestamp
+tests. The same boundary existed in seven SellerProfile authorities. A single
+forward preparation migration now returns those stored UTC values as
+`timestamp with time zone` using `AT TIME ZONE 'UTC'`, without changing row
+selection or grants. The focused regressions and complete 401-migration
+PostgreSQL 16 chain pass with the correction immediately before ENABLE.

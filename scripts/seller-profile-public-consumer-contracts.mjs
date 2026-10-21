@@ -43,7 +43,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/browse/[metroSlug]/[category]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/browse/[metroSlug]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/browse/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
-  "src/app/dashboard/blog/[id]/edit/page.tsx": ["OWNER"],
   "src/app/listing/[id]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PUBLIC_MAP", "PARTICIPANT"],
   "src/app/messages/[id]/page.tsx": ["PARTICIPANT", "TRANSACTION"],
   "src/app/messages/new/page.tsx": ["PARTICIPANT", "TRANSACTION"],
@@ -54,7 +53,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/lib/accountDeletion.ts": ["SERVICE"],
   "src/lib/cartOwnerAccess.ts": ["TRANSACTION"],
   "src/lib/customOrderReadyLink.ts": ["PARTICIPANT", "TRANSACTION"],
-  "src/lib/followerBlogNotifications.ts": ["SERVICE"],
   "src/lib/followerListingNotifications.ts": ["SERVICE"],
   "src/lib/listingDelete.ts": ["OWNER", "TRANSACTION"],
   "src/lib/quality-score.ts": ["SERVICE"],
@@ -192,7 +190,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 126
+      || reviewedNonTargetFactoryCalls.length !== 125
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
