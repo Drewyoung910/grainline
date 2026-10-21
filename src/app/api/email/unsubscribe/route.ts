@@ -50,7 +50,7 @@ function confirmationResponse(email: string, token: string, issuedAt: string) {
   const action = `/api/email/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&issuedAt=${encodeURIComponent(issuedAt)}&response=html`;
   return htmlDocument(
     "Confirm unsubscribe",
-    `<p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">Confirm that you want to turn off Grainline email notifications for ${escapeHtml(email)}.</p><form method="post" action="${action}" style="margin:24px 0 0;"><button type="submit" style="appearance:none;border:0;background:#1c1c1a;color:#ffffff;padding:12px 18px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">Unsubscribe</button></form>`,
+    `<p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">Confirm that you want to turn off optional Grainline emails for ${escapeHtml(email)}. Order, case, and refund notices will still be sent.</p><form method="post" action="${action}" style="margin:24px 0 0;"><button type="submit" style="appearance:none;border:0;background:#1c1c1a;color:#ffffff;padding:12px 18px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">Unsubscribe</button></form>`,
   );
 }
 
@@ -236,7 +236,10 @@ async function handlePost(req: NextRequest) {
   }
 
   if (mode === "html") {
-    return htmlResponse("You're unsubscribed", "We have turned off Grainline email notifications and removed this email from newsletter sends.");
+    return htmlResponse(
+      "You're unsubscribed",
+      "We have turned off optional Grainline emails and removed this email from newsletter sends. Order, case, and refund notices will still be sent.",
+    );
   }
   return privateJson({ ok: true });
 }

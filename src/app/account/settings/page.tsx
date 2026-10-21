@@ -169,21 +169,6 @@ export default async function AccountSettingsPage() {
             description="Email when someone sends you a message (5-minute active-conversation throttle)"
           />
           <EmailRow
-            type="EMAIL_CASE_MESSAGE"
-            label="Case messages"
-            description="Email when someone sends a message in an open case"
-          />
-          <EmailRow
-            type="EMAIL_CASE_RESOLVED"
-            label="Case resolutions"
-            description="Email when a case you are involved in is resolved"
-          />
-          <EmailRow
-            type="EMAIL_REFUND_ISSUED"
-            label="Refunds"
-            description="Email when a refund is issued for one of your orders"
-          />
-          <EmailRow
             type="EMAIL_CUSTOM_ORDER"
             label="Custom order updates"
             description="Email when a custom order request or custom listing is ready"
@@ -193,6 +178,9 @@ export default async function AccountSettingsPage() {
             label="Back in stock"
             description="Email when a piece you asked about is available again"
           />
+          <p className="pt-3 text-xs text-neutral-500">
+            Order confirmations, shipping updates, case activity, and refund notices are always sent.
+          </p>
         </section>
 
         {/* Email: From Makers You Follow */}

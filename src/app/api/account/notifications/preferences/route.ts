@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { isValidEmailPreferenceKey, VALID_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
+import { isAlwaysOnEmailPreferenceKey } from "@/lib/emailPreferencePolicy";
 import { notificationPreferenceRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { clearOneClickEmailSuppression } from "@/lib/emailSuppression";
@@ -55,6 +56,12 @@ export async function POST(request: NextRequest) {
     throw e;
   }
   const { type, enabled } = body;
+  if (isAlwaysOnEmailPreferenceKey(type)) {
+    return privateJson(
+      { error: "Order, case, and refund emails are always sent." },
+      { status: HTTP_STATUS.BAD_REQUEST },
+    );
+  }
 
   await prisma.$transaction(async (tx) => {
     const updated = await updateUserOwnerNotificationPreference(tx, {

@@ -8,6 +8,7 @@ import {
 import {
   VALID_EMAIL_PREFERENCE_KEYS,
 } from "@/lib/notificationPreferenceKeys";
+import { isOptionalEmailPreferenceKey } from "@/lib/emailPreferencePolicy";
 import { normalizeUnsubscribeEmail } from "@/lib/unsubscribeToken";
 import {
   disableUserSignedUnsubscribeEmailPreferences,
@@ -21,7 +22,9 @@ export {
   verifyUnsubscribeToken,
 } from "@/lib/unsubscribeToken";
 
-const EMAIL_PREFS_TO_DISABLE = [...VALID_EMAIL_PREFERENCE_KEYS];
+const EMAIL_PREFS_TO_DISABLE = VALID_EMAIL_PREFERENCE_KEYS.filter(
+  isOptionalEmailPreferenceKey,
+);
 type EmailSuppressionClient = Pick<
   Prisma.TransactionClient,
   "emailSuppression"
