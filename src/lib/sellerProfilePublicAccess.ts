@@ -140,6 +140,14 @@ export type SellerPublicFavoriteTarget = Readonly<{
   ownerUserId: string;
 }>;
 
+export type SellerPublicReviewVoteTarget = Readonly<{
+  reviewId: string;
+  reviewerId: string;
+  helpfulCount: number;
+  listingId: string;
+  sellerUserId: string;
+}>;
+
 export type SellerPublicListingCard = Readonly<{
   listingId: string;
   sellerProfileId: string;
@@ -263,6 +271,14 @@ type SellerPublicFavoriteTargetRow = {
   listingId: unknown;
   title: unknown;
   ownerUserId: unknown;
+};
+
+type SellerPublicReviewVoteTargetRow = {
+  reviewId: unknown;
+  reviewerId: unknown;
+  helpfulCount: unknown;
+  listingId: unknown;
+  sellerUserId: unknown;
 };
 
 type SellerPublicListingCardRow = {
@@ -1236,6 +1252,38 @@ async function readSellerPublicFavoriteTarget(
   });
 }
 
+async function readSellerPublicReviewVoteTarget(
+  client: SellerPublicAccessClient,
+  reviewId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicReviewVoteTargetRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_review_vote_target(${reviewId})
+  `);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || row.reviewId !== reviewId
+    || typeof row.reviewerId !== "string"
+    || row.reviewerId.length < 1
+    || !Number.isSafeInteger(row.helpfulCount)
+    || Number(row.helpfulCount) < 0
+    || typeof row.listingId !== "string"
+    || row.listingId.length < 1
+    || typeof row.sellerUserId !== "string"
+    || row.sellerUserId.length < 1
+  ) {
+    throw new Error("Seller public review-vote authority returned an invalid result");
+  }
+  return Object.freeze({
+    reviewId: row.reviewId,
+    reviewerId: row.reviewerId,
+    helpfulCount: row.helpfulCount as number,
+    listingId: row.listingId,
+    sellerUserId: row.sellerUserId,
+  });
+}
+
 async function readSellerPublicListingCards(
   client: SellerPublicAccessClient,
   listingIds: string[],
@@ -1789,6 +1837,17 @@ export async function sellerPublicFavoriteTarget(listingId: string) {
     throw new RangeError("Seller public favorite-target id is outside the supported range");
   }
   return readSellerPublicFavoriteTarget(prisma, listingId);
+}
+
+export async function sellerPublicReviewVoteTarget(actorUserId: string, reviewId: string) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(actorUserId)
+    || !/^[A-Za-z0-9._:-]{1,191}$/u.test(reviewId)
+  ) {
+    throw new RangeError("Seller public review-vote input is outside the supported range");
+  }
+  return withDbUserContext(actorUserId, (client) =>
+    readSellerPublicReviewVoteTarget(client, reviewId));
 }
 
 export async function sellerPublicListingCards(

@@ -81,6 +81,7 @@ export async function proveSellerProfileStaffVerificationTarget({ database, sell
     assert.deepEqual({
       ...rows[0],
       metricsCalculatedAt: rows[0].metricsCalculatedAt.toISOString(),
+      metricsTotalSalesCents: String(rows[0].metricsTotalSalesCents),
     }, {
       verificationId,
       verificationStatus: "GUILD_MASTER_PENDING",
@@ -94,7 +95,7 @@ export async function proveSellerProfileStaffVerificationTarget({ database, sell
       metricsReviewCount: 18,
       metricsOnTimeShippingRate: 0.98,
       metricsResponseRate: 0.97,
-      metricsTotalSalesCents: 425000n,
+      metricsTotalSalesCents: "425000",
       metricsCompletedOrderCount: 21,
       metricsActiveCaseCount: 0,
       metricsAccountAgeDays: 500,

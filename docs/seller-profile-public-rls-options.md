@@ -923,3 +923,15 @@ relation-bearing factories and zero opaque SellerProfile target predicates
 across 15 consumer files and 144 reconciled opaque shapes. The 211-function
 catalog is 98 retained, 33 internal and 80 converted authorities; the compatible
 preparation set contains 60 migrations and the full chain contains 411.
+
+The review-vote endpoint now resolves one exact review through an actor-bound
+database authority. It preserves the existing public, reserved-buyer and owner
+listing-detail visibility rules while returning only the reviewer, helpful
+count, listing and seller identifiers used by the vote flow. This removes one
+relation access and one consumer file without changing the existing vote
+transaction. The gate is now 26 relation accesses in 13 files, two raw-SQL
+accesses in two files, three relation-bearing factories and zero opaque
+SellerProfile target predicates across 14 consumer files and 144 reconciled
+opaque shapes. The 212-function catalog is 98 retained, 33 internal and 81
+converted authorities; the compatible preparation set contains 61 migrations
+and the full chain contains 412.
