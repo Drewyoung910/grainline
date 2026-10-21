@@ -19,11 +19,9 @@ describe("Notification moderation and account-warning authority", () => {
       (listingReview.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.LISTING_ADMIN_REVIEW/g) ?? []).length,
       2,
     );
-    assert.match(listingReview, /metadata: \{ finalStatus \}/);
-    assert.match(listingReview, /if \(!approved\.auditLogId \|\| !approved\.finalStatus\)/);
-    assert.match(listingReview, /sourceId: approved\.auditLogId/);
-    assert.match(listingReview, /if \(!rejected\.auditLogId\)/);
-    assert.match(listingReview, /sourceId: rejected\.auditLogId/);
+    assert.match(listingReview, /sellerProfileStaffListingReviewTransition\([\s\S]*operation: action === 'approve' \? 'APPROVE' : 'REJECT'/);
+    assert.match(listingReview, /if \(!transition\.auditId\)/);
+    assert.equal((listingReview.match(/sourceId: transition\.auditId/g) ?? []).length, 2);
     assert.match(userReport, /const report = await prisma\.userReport\.create/);
     assert.match(userReport, /sourceType: NOTIFICATION_SOURCE_TYPES\.LISTING_USER_REPORT/);
     assert.match(userReport, /sourceId: report\.id/);

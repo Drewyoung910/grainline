@@ -42,10 +42,11 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(customPage, /status: ListingStatus\.DRAFT/);
     assert.match(customPage, /readyLink=unavailable/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
-    assert.equal((adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId:/g) ?? []).length, 2);
-    assert.match(adminReview, /listingId: currentListing\.id,\s*sellerUserId: currentListing\.seller\.userId/);
-    assert.match(adminReview, /listingId: listing\.id,\s*sellerUserId: listing\.seller\.userId/);
-    assert.match(adminReview, /currentListing\.status === 'ACTIVE' &&[\s\S]*currentListing\.customOrderConversationId &&[\s\S]*currentListing\.reservedForUserId/);
+    assert.equal(
+      (adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId: listing\.id,\s*sellerUserId: listing\.seller\.userId,\s*\}\)/g) ?? []).length,
+      2,
+    );
+    assert.match(adminReview, /if \(!transition\.applied\) \{[\s\S]*listing\.status === 'ACTIVE' &&[\s\S]*listing\.customOrderConversationId &&[\s\S]*listing\.reservedForUserId/);
     assert.match(sellerActions, /import \{ sendCustomOrderReadyLink \} from "@\/lib\/customOrderReadyLink"/);
     const heldPath = sellerActions.slice(
       sellerActions.indexOf("if (shouldHold)"),
