@@ -799,7 +799,7 @@ export async function sellerOwnerShopSettingsState(
 }
 
 export async function updateSellerOwnerShopSettings(
-  client: SellerOwnerPrivateClient,
+  client: DbUserContextTransactionClient,
   input: {
     sellerProfileId: string;
     userId: string;

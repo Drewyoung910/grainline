@@ -234,6 +234,30 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
 
     await database.query(
       "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+      [viewerUserId],
+    );
+    await assert.rejects(
+      database.query(
+        `SELECT public.grainline_seller_owner_shop_settings_update(
+           $1, $2, 'Austin', 'TX', 30.251, -97.749, 0,
+           true, true, 1, 30.251, -97.749, NULL, NULL, true, false,
+           ARRAY[]::text[], NULL, NULL, NULL, NULL, NULL, NULL, 'US', NULL,
+           NULL, NULL, NULL, NULL
+         )`,
+        [seller.userId, seller.sellerProfileId],
+      ),
+      (error) => error?.code === "42501",
+    );
+    await database.query("RESET ROLE");
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS count
+         FROM public."SellerExactMapConsentEvent"
+        WHERE "sellerProfileId" = $1`,
+      [seller.sellerProfileId],
+    )), [{ count: 0 }]);
+    await database.query("SET ROLE grainline_app_runtime");
+    await database.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, false)",
       [seller.userId],
     );
     await assert.rejects(

@@ -183,9 +183,12 @@ jobs:
           test "$latest" = "$migration"
           echo "0ffbb49886ed5be2269fe6808da1058b6cc9cb7d50df16e02afb0053735141a9  prisma/migrations/$migration/migration.sql" | sha256sum --check --status
           node --test \
+            tests/seller-profile-enable-source-ready.test.mjs \
             tests/seller-profile-enable-production-inspect.test.mjs \
             tests/seller-profile-enable-production-workflow.test.mjs \
             tests/db-grant-inventory.test.mjs
+      - name: Require zero residual SellerProfile base-table consumers
+        run: node scripts/assert-seller-profile-enable-source-ready.mjs
       - name: Verify exact compatible deployment is live
         env:
           REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}

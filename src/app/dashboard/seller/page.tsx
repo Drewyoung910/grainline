@@ -44,6 +44,7 @@ import {
   validateSellerShippingInput,
 } from "@/lib/sellerShopSettingsInput";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
 const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
@@ -153,30 +154,32 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   })();
 
   try {
-    await updateSellerOwnerShopSettings(prisma, {
-      sellerProfileId: seller.id,
-      userId: seller.userId,
-      city,
-      state,
-      ...location,
-      shippingFlatRateCents,
-      freeShippingOverCents,
-      allowLocalPickup,
-      useCalculatedShipping,
-      preferredCarriers,
-      shipFromName,
-      shipFromLine1,
-      shipFromLine2,
-      shipFromCity,
-      shipFromState,
-      shipFromPostal,
-      shipFromCountry,
-      shipFromPhone,
-      defaultPkgLengthCm,
-      defaultPkgWidthCm,
-      defaultPkgHeightCm,
-      defaultPkgWeightGrams,
-    });
+    await withDbUserContext(seller.userId, (client) =>
+      updateSellerOwnerShopSettings(client, {
+        sellerProfileId: seller.id,
+        userId: seller.userId,
+        city,
+        state,
+        ...location,
+        shippingFlatRateCents,
+        freeShippingOverCents,
+        allowLocalPickup,
+        useCalculatedShipping,
+        preferredCarriers,
+        shipFromName,
+        shipFromLine1,
+        shipFromLine2,
+        shipFromCity,
+        shipFromState,
+        shipFromPostal,
+        shipFromCountry,
+        shipFromPhone,
+        defaultPkgLengthCm,
+        defaultPkgWidthCm,
+        defaultPkgHeightCm,
+        defaultPkgWeightGrams,
+      }),
+    );
   } catch (error) {
     const publicError = sellerShopSettingsDatabaseErrorMessage(
       getPrismaRawSqlState(error),

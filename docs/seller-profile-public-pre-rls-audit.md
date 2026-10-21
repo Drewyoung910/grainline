@@ -755,6 +755,18 @@ guard the final zero-direct state, but they do not count as behavior proof.
 
 ### `FIX_BEFORE_ACTIVATION`
 
+- Independent exact-head review found that zero direct delegate calls did not
+  mean zero base-table dependency: 84 Prisma relation accesses in 46 files and
+  15 raw-SQL accesses in 12 files still require `SellerProfile` table
+  authority. Policyless ENABLE would deny those paths. Production ENABLE is
+  therefore blocked by `assert-seller-profile-enable-source-ready.mjs` until
+  all three inventory classes are zero. The prior full-chain scenario suite
+  proved the prepared authorities and direct denial, but did not execute every
+  residual relation/raw-SQL caller after ENABLE.
+- Exact-location consent is now bound to the transaction-local authenticated
+  owner before the function delegates or mutates state. A cross-owner runtime
+  call fails with `42501`, records no consent event and leaves active consent
+  empty; Shop Settings calls the authority only through `withDbUserContext`.
 - The isolated source now replaces unconsented raw-coordinate output on public
   maps, seller/listing helpers, seller JSON-LD and browse-distance SQL with
   privacy-selected points. Approximation is the default; exact output needs
@@ -767,7 +779,9 @@ guard the final zero-direct state, but they do not count as behavior proof.
   new `timestamp without time zone` writes to UTC. The real full-chain proof
   exercises those operations under a non-UTC session timezone.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending
-  migration check, global grant audit and sanitized postflight are prepared.
+  migration check, global grant audit and sanitized postflight are prepared,
+  and the workflow now refuses database access while any direct, relation or
+  raw-SQL base-table consumer remains.
   These source corrections still need scoped commit review and exact-head CI;
   Production remains unchanged and ENABLE needs its separately authorized run.
 

@@ -165,13 +165,15 @@ test("workflow admits only the restart-safe public ENABLE migration", () => {
 
 test("workflow checks live source before any owner database access", () => {
   const source = workflow.indexOf("Verify exact SellerProfile ENABLE source");
+  const readiness = workflow.indexOf("Require zero residual SellerProfile base-table consumers");
   const live = workflow.indexOf("Verify exact compatible deployment is live");
   const boundary = workflow.indexOf("Verify owner connection boundary");
   const preflight = workflow.indexOf("Inspect restart-safe SellerProfile state before ENABLE");
   const apply = workflow.indexOf("Apply only the reviewed SellerProfile ENABLE migration");
   const postflight = workflow.indexOf("Read back enabled SellerProfile catalog");
   const audit = workflow.indexOf("Audit global runtime grants after SellerProfile ENABLE");
-  assert.ok(source >= 0 && source < live && live < boundary && boundary < preflight);
+  assert.ok(source >= 0 && source < readiness && readiness < live);
+  assert.ok(live < boundary && boundary < preflight);
   assert.ok(preflight < apply && apply < postflight && postflight < audit);
 });
 

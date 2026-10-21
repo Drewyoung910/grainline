@@ -582,7 +582,7 @@ evidence: 96 direct and two composed. No Production policy, grant, ENABLE,
 FORCE, migration, deployment, or provider operation is authorized by this
 decision.
 
-The isolated Phase 3 candidate now adds policyless ENABLE plus zero direct
+The isolated Phase 3 database candidate adds policyless ENABLE plus zero direct
 runtime/PUBLIC/staff table authority. Its failing-first proof exposes the four
 predecessor runtime CRUD grants on the 397-migration schema; the complete
 398-migration PostgreSQL 16 chain passes after activation, including all public,
@@ -596,6 +596,14 @@ the versioned exact-pin consent. The later exact-head reconciliation also keeps
 the Austin visual map center out of submitted state, strictly validates the
 Shop Settings location/shipping boundary and narrows the ship-from client
 payload. The protected ENABLE workflow and restart-safe inspector are prepared.
-The candidate still needs merge, compatible application deployment, exact-head
-CI and a separately authorized Production ENABLE run. FORCE remains a separate
+Independent exact-head review then found a source-activation gap: 84 Prisma
+relation accesses and 15 raw-SQL accesses still depend on direct base-table
+authority even though direct SellerProfile delegate calls are zero. The prior
+full-chain scenarios did not execute those representative application callers
+after ENABLE. The Production workflow now fails before database access unless
+direct, relation and raw-SQL counts are all zero. Exact-location consent is also
+bound to the transaction-local authenticated owner, with cross-owner failure
+proved before any mutation. The candidate therefore still needs the residual
+caller conversions, merge, compatible application deployment, exact-head CI
+and a separately authorized Production ENABLE run. FORCE remains a separate
 post-acceptance stage.

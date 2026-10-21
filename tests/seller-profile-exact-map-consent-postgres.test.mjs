@@ -232,6 +232,50 @@ test("coordinate and privacy changes revoke exact consent fail closed", async ()
   }
 });
 
+test("exact-map consent is bound to the transaction-local authenticated owner", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    await database.exec("SELECT pg_catalog.set_config('app.user_id', 'viewer', false)");
+    await assert.rejects(
+      database.query(shopSettingsCall(true)),
+      (error) => error?.code === "42501",
+    );
+
+    await database.exec("RESET ROLE");
+    assert.deepEqual((await database.query(`
+      SELECT city, state, lat, lng, "radiusMeters", "publicMapOptIn"
+        FROM public."SellerProfile"
+       WHERE id = 'seller'
+    `)).rows, [{
+      city: "Austin",
+      state: "TX",
+      lat: 30.251,
+      lng: -97.749,
+      radiusMeters: 0,
+      publicMapOptIn: true,
+    }]);
+    assert.equal((await database.query(`
+      SELECT count(*)::integer AS count
+        FROM public."SellerExactMapConsentEvent"
+       WHERE "sellerProfileId" = 'seller'
+    `)).rows[0].count, 0);
+    assert.deepEqual((await database.query(`
+      SELECT "publicMapExactConsentAt", "publicMapExactConsentVersion",
+             "publicMapExactConsentCoordinateHash"
+        FROM public."SellerProfilePrivate"
+       WHERE "sellerProfileId" = 'seller'
+    `)).rows, [{
+      publicMapExactConsentAt: null,
+      publicMapExactConsentVersion: null,
+      publicMapExactConsentCoordinateHash: null,
+    }]);
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
 test("consent storage is not directly writable by runtime or untrusted roles", async () => {
   const database = await readyDatabase();
   try {

@@ -48,7 +48,7 @@ const preparationRows = [
   ["20261020180000_prepare_seller_profile_owner_onboarding_state", "5b331072c75d0aa5905cbb3759164e73274e93f810b8f8286a492e56350a6c42"],
   ["20261020190000_prepare_seller_profile_owner_dashboard_states", "f6a2899c1d9154684ba2828175ec04d8ae4a8357fcf332e2a1b7c9d390e87726"],
   ["20261020200000_prepare_seller_profile_owner_profile_editor", "bbd8169ef1b51b30512f035e5c33ffa70296b2964f315ce68e0d87cc5e4bc29c"],
-  ["20261020210000_correct_seller_exact_map_consent_evidence", "8cca76adec70e37be054de43d3aca65da656bb391963d1fbe96ba6af199f5b40"],
+  ["20261020210000_correct_seller_exact_map_consent_evidence", "18e75324c5ba5a8f7d44a8eed34fc114e3ca07ec34d5fce64fa7c2dcb93014eb"],
   ["20261020220000_prepare_seller_profile_owner_residual_authorities", "755714e79d73bd383a4f6f67c6c773e002fe402988716cfb87cbde67bb54c0c8"],
   ["20261020230000_prepare_seller_profile_staff_orderability_transition", "a6912d3fa0fd6c183cfa246d349b00ae1984d980411831e482b246a8b49226de"],
 ];

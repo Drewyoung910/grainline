@@ -277,10 +277,20 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_seller_owner_shop_settings_update$
 DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.current_setting('app.user_id', true),
+    ''
+  );
   updated_seller_profile_id text;
   active_consent public."SellerProfilePrivate"%ROWTYPE;
   coordinate_hash text;
 BEGIN
+  IF request_user_id IS NULL
+     OR request_user_id IS DISTINCT FROM p_user_id THEN
+    RAISE EXCEPTION 'Seller owner shop-settings actor is not authenticated'
+      USING ERRCODE = '42501';
+  END IF;
+
   IF p_public_map_exact_consent IS NULL
      OR (
        p_public_map_exact_consent

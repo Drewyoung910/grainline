@@ -28,14 +28,16 @@ or policy posture makes provisioning refuse to continue.
 
 ## Evidence
 
-The behavior proof failed on the real 397-migration PostgreSQL 16 predecessor
+The database behavior proof failed on the real 397-migration PostgreSQL 16 predecessor
 with the exact expected difference:
 
 - RLS was off;
 - four runtime table grants remained; and
 - runtime column authority was effective.
 
-The same proof passed on the complete 398-migration candidate. It established:
+The same proof passed on the complete 398-migration candidate. It established
+the prepared authority scenarios below, but it did not execute every remaining
+Prisma relation or raw-SQL caller after ENABLE:
 
 - policyless ENABLE without FORCE;
 - zero ordinary-runtime, staff-runtime or `PUBLIC` table/column authority;
@@ -50,7 +52,9 @@ The same proof passed on the complete 398-migration candidate. It established:
 The retained callable catalog is complete at 98 authorities: 96 direct
 PostgreSQL behavior proofs and two composed behavior proofs, with zero
 source-only gaps. The source scanner remains at zero direct SellerProfile
-operations and zero direct writes.
+operations and zero direct writes, but independent exact-head review found 84
+relation accesses and 15 raw-SQL accesses that still need base-table authority.
+Those are activation blockers rather than accepted coverage.
 
 The live grant auditor now binds the public-table posture to the exact applied
 preparation and ENABLE migration checksums. Before ENABLE it continues to
@@ -76,6 +80,11 @@ database access until it has bound all of the following to the exact current
 - the exact compatible Vercel deployment on every canonical alias; and
 - the immutable ENABLE migration checksum while that migration remains latest.
 
+Before any deployment or owner database access, the workflow also runs
+`scripts/assert-seller-profile-enable-source-ready.mjs`. It requires zero
+direct, relation and raw-SQL SellerProfile consumers. At the current candidate
+head it deliberately refuses dispatch with `direct=0; relations=84; rawSql=15`.
+
 The count-only, read-only inspector accepts only the reviewed predecessor or
 the completed policyless ENABLE state. It verifies the direct owner session,
 exact migration ledger, restricted roles, public-table grants and RLS posture,
@@ -98,16 +107,20 @@ converted runtime is promoted only after the preparation postflight succeeds.
 The database candidate and release machinery are locally compatible, but
 Production remains blocked until the release head is concrete and rechecked:
 
-1. Repeat the Claude/audit reconciliation immediately before dispatch. The
+1. Convert the 84 relation accesses and 15 raw-SQL accesses to the reviewed
+   bounded projections and purpose-bound operations. The source-readiness gate
+   must read back zero in all three classes before ENABLE can reach a secret or
+   database connection.
+2. Repeat the Claude/audit reconciliation immediately before dispatch. The
    2026-10-19 pass closed the Austin default-pin, weak input-boundary and broad
    ship-from client-payload defects plus the three session-timezone write
    defects in source.
-2. Install the compatible preparation functions while the predecessor
+3. Install the compatible preparation functions while the predecessor
    application and grants remain live, then deploy the converted source.
-3. Require successful exact-head CI and proof workflows, verify that exact
+4. Require successful exact-head CI and proof workflows, verify that exact
    deployment on the canonical aliases, and obtain the separately authorized
    Production ENABLE dispatch.
-4. Accept the sanitized postflight and observed compatible flows before
+5. Accept the sanitized postflight and observed compatible flows before
    preparing the separate FORCE release.
 
 The prior exact-location blockers are closed in this source candidate. The
