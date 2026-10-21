@@ -30,6 +30,7 @@ import {
 } from "@/lib/requestBody";
 import { z } from "zod";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
+import { sellerActorReviewListingTarget } from "@/lib/sellerProfilePublicAccess";
 
 const ReviewPhotoUrlsSchema = z.array(z.string().url().refine(
   (u) => isFirstPartyMediaUrl(u),
@@ -97,17 +98,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Prevent reviewing own listing
-  const listingForOwnerCheck = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: {
-      seller: {
-        select: {
-          userId: true,
-          ownerAccountActive: true,
-        },
-      },
-    },
-  });
+  const listingForOwnerCheck = await sellerActorReviewListingTarget(me.id, listingId);
   if (listingForOwnerCheck?.seller?.userId === me.id) {
     logSecurityEvent("spam_attempt", { userId: me.id, route: "/api/reviews", reason: "self-review attempt" });
     return privateJson({ error: "Cannot review your own listing" }, { status: 403 });
@@ -197,20 +188,7 @@ export async function POST(req: NextRequest) {
   revalidateFeaturedMakerCaches();
 
   // Notify the seller
-  const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: {
-      title: true,
-      seller: {
-        select: {
-          userId: true,
-          id: true,
-          displayName: true,
-          ownerAccountActive: true,
-        },
-      },
-    },
-  });
+  const listing = await sellerActorReviewListingTarget(me.id, listingId);
   if (listing?.seller.userId && listing.seller.ownerAccountActive === true) {
     const stars = (ratingX2 / 2).toFixed(1).replace(".0", "");
     const reviewerName = me.name ?? "A buyer";

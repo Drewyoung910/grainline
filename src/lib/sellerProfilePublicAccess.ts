@@ -148,6 +148,17 @@ export type SellerPublicReviewVoteTarget = Readonly<{
   sellerUserId: string;
 }>;
 
+export type SellerActorReviewListingTarget = Readonly<{
+  id: string;
+  title: string;
+  seller: Readonly<{
+    id: string;
+    userId: string;
+    displayName: string;
+    ownerAccountActive: boolean;
+  }>;
+}>;
+
 export type SellerParticipantConversationListingTarget = Readonly<{
   id: string;
   title: string;
@@ -293,6 +304,15 @@ type SellerPublicReviewVoteTargetRow = {
   helpfulCount: unknown;
   listingId: unknown;
   sellerUserId: unknown;
+};
+
+type SellerActorReviewListingTargetRow = {
+  listingId: unknown;
+  title: unknown;
+  sellerProfileId: unknown;
+  sellerUserId: unknown;
+  sellerDisplayName: unknown;
+  ownerAccountActive: unknown;
 };
 
 type SellerParticipantConversationListingTargetRow = {
@@ -1312,6 +1332,45 @@ async function readSellerPublicReviewVoteTarget(
   });
 }
 
+async function readSellerActorReviewListingTarget(
+  client: SellerPublicAccessClient,
+  listingId: string,
+) {
+  const rows = await client.$queryRaw<SellerActorReviewListingTargetRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_actor_review_listing_target(${listingId})
+  `);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || row.listingId !== listingId
+    || typeof row.title !== "string"
+    || row.title.length < 1
+    || row.title.length > 150
+    || typeof row.sellerProfileId !== "string"
+    || row.sellerProfileId.length < 1
+    || typeof row.sellerUserId !== "string"
+    || row.sellerUserId.length < 1
+    || typeof row.sellerDisplayName !== "string"
+    || row.sellerDisplayName.length < 1
+    || row.sellerDisplayName.length > 100
+    || typeof row.ownerAccountActive !== "boolean"
+  ) {
+    throw new Error("Seller review-listing authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.listingId,
+    title: row.title,
+    seller: Object.freeze({
+      id: row.sellerProfileId,
+      userId: row.sellerUserId,
+      displayName: row.sellerDisplayName,
+      ownerAccountActive: row.ownerAccountActive,
+    }),
+  }) as SellerActorReviewListingTarget;
+}
+
 async function readSellerParticipantConversationListingTarget(
   client: SellerPublicAccessClient,
   otherUserId: string,
@@ -1961,6 +2020,20 @@ export async function sellerPublicReviewVoteTarget(actorUserId: string, reviewId
   }
   return withDbUserContext(actorUserId, (client) =>
     readSellerPublicReviewVoteTarget(client, reviewId));
+}
+
+export async function sellerActorReviewListingTarget(
+  actorUserId: string,
+  listingId: string,
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(actorUserId)
+    || !/^[A-Za-z0-9._:-]{1,191}$/u.test(listingId)
+  ) {
+    throw new RangeError("Seller review-listing input is outside the supported range");
+  }
+  return withDbUserContext(actorUserId, (client) =>
+    readSellerActorReviewListingTarget(client, listingId));
 }
 
 export async function sellerParticipantConversationListingTarget(

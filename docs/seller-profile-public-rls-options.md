@@ -985,3 +985,20 @@ and zero opaque SellerProfile target predicates across 11 consumer files and
 144 reconciled opaque shapes. The 215-function catalog is 98 retained, 33
 internal and 84 converted authorities; the compatible preparation set contains
 64 migrations and the full chain contains 415.
+
+Review creation now resolves its exact listing and seller notification fields
+through an actor-bound authority instead of two `Listing -> SellerProfile`
+relation reads. The authority requires an active buyer actor but deliberately
+does not impose current public-listing or seller-orderability predicates:
+historical, private and archived purchased listings remain reviewable, while
+the existing atomic order/review eligibility function still decides final
+permission. The second read remains after review creation so notification data
+is fresh, and inactive sellers remain visible to the route as
+`ownerAccountActive=false` so notification suppression is preserved. This
+removes two relation accesses and one consumer file. The gate is now 19
+relation accesses in 9 files, two raw-SQL accesses in two files, three
+relation-bearing factories and zero opaque SellerProfile target predicates
+across 10 consumer files and 144 reconciled opaque shapes. The 216-function
+catalog is 98 retained, 33 internal and 85 converted authorities; the
+compatible preparation set contains 65 migrations and the full chain contains
+416.

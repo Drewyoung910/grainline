@@ -85,7 +85,7 @@ Before any deployment or owner database access, the workflow also runs
 `scripts/assert-seller-profile-enable-source-ready.mjs`. It requires zero
 direct, relation, raw-SQL, relation-factory and target-opaque SellerProfile
 consumers. At the current candidate head it deliberately refuses dispatch with
-`direct=0; relations=21; rawSql=2; relationFactories=3;
+`direct=0; relations=19; rawSql=2; relationFactories=3;
 targetOpaquePredicates=0`.
 
 The count-only, read-only inspector accepts only the reviewed predecessor or
@@ -97,7 +97,7 @@ runs the global grant audit afterward and preserves mode-0600 sanitized
 preflight/postflight evidence. It contains no application deployment and no
 FORCE step.
 
-The 64 compatible predecessor migrations have their own earlier protected
+The 65 compatible predecessor migrations have their own earlier protected
 workflow and immutable manifest, documented in
 `docs/seller-profile-public-preparation-release.md`. That workflow holds this
 ENABLE migration out of the Prisma tree, installs only an exact restart-safe
@@ -110,7 +110,7 @@ converted runtime is promoted only after the preparation postflight succeeds.
 The database candidate and release machinery are locally compatible, but
 Production remains blocked until the release head is concrete and rechecked:
 
-1. Convert the 21 relation accesses, two raw-SQL accesses and three
+1. Convert the 19 relation accesses, two raw-SQL accesses and three
    relation-bearing query factories to the reviewed
    bounded projections and purpose-bound operations. The source-readiness gate
    must read back zero in all five classes before ENABLE can reach a secret or

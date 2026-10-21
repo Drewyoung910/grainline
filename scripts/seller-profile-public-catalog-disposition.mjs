@@ -59,6 +59,7 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_participant_conversation_listing_target(text,text)",
   "grainline_seller_actor_conversation_context_listing(text)",
   "grainline_seller_actor_report_resource_target(text,text,text)",
+  "grainline_seller_actor_review_listing_target(text)",
   "grainline_seller_public_follower_listing_target(text,text)",
   "grainline_seller_public_recently_viewed_listings(text[])",
   "grainline_seller_public_follow_create(text,text)",
