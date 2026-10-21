@@ -79,7 +79,8 @@ async function readyDatabase() {
     );
     CREATE TABLE public."Review" (
       id text PRIMARY KEY,
-      "listingId" text NOT NULL REFERENCES public."Listing"(id)
+      "listingId" text NOT NULL REFERENCES public."Listing"(id),
+      "ratingX2" integer NOT NULL
     );
     CREATE TABLE public."ReviewPhoto" (
       id text PRIMARY KEY,
@@ -120,11 +121,14 @@ async function readyDatabase() {
       ('listing-archived', 'seller-visible', 'ACTIVE', false, NULL, NOW()),
       ('listing-blocked-public', 'seller-blocked', 'ACTIVE', false, NULL, NULL),
       ('listing-radius-public', 'seller-radius', 'ACTIVE', false, NULL, NULL),
-      ('listing-no-opt-in-public', 'seller-no-opt-in', 'ACTIVE', false, NULL, NULL);
+      ('listing-no-opt-in-public', 'seller-no-opt-in', 'ACTIVE', false, NULL, NULL),
+      ('listing-vacation-public', 'seller-vacation', 'ACTIVE', false, NULL, NULL);
     INSERT INTO public."Block" (id, "blockerId", "blockedId")
       VALUES ('block-1', 'owner-blocked', 'viewer');
-    INSERT INTO public."Review" (id, "listingId")
-      VALUES ('review-visible', 'listing-public');
+    INSERT INTO public."Review" (id, "listingId", "ratingX2") VALUES
+      ('review-visible', 'listing-public', 10),
+      ('review-private', 'listing-private-viewer', 2),
+      ('review-vacation', 'listing-vacation-public', 2);
     INSERT INTO public."ReviewPhoto" (id, "reviewId")
       VALUES ('review-photo-visible', 'review-visible');
     UPDATE public."SellerProfile"
@@ -538,12 +542,29 @@ test("marketplace count authority preserves active and founding scopes", async (
   }
 });
 
+test("marketplace rating authority preserves the public listing and seller scope", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.equal((await database.query(`
+      SELECT public.grainline_seller_public_marketplace_rating_average() AS value
+    `)).rows[0].value, 5);
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
 test("marketplace count authority denies ungranted callers", async () => {
   const database = await readyDatabase();
   try {
     await database.exec("SET ROLE grainline_untrusted");
     await assert.rejects(
       database.query("SELECT * FROM public.grainline_seller_public_marketplace_counts()"),
+      /permission denied/u,
+    );
+    await assert.rejects(
+      database.query("SELECT public.grainline_seller_public_marketplace_rating_average()"),
       /permission denied/u,
     );
   } finally {

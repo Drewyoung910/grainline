@@ -9,7 +9,7 @@ const preparationRows = [
   ["20261019030000_prepare_seller_profile_public_browse_authority", "da1f272743b97b9f6b921e208f2b3e7e3e952ac65184b7d6d93d6454d2b0be36"],
   ["20261019040000_prepare_seller_profile_public_name_authority", "7dc4c93e4d29af8166fb58d694cff6432cd9b5c62b57119c47b31f0470ad17a1"],
   ["20261019050000_prepare_seller_profile_public_sitemap_authority", "f12b64e02603f9142bf633b9884f77d1633253529f33dce073a547449a8cbe98"],
-  ["20261019060000_prepare_seller_profile_public_marketplace_counts", "141a66a2822f448fd710d7b25057fcacac84af0a3349a9dbadbcf7aa7f02ab34"],
+  ["20261019060000_prepare_seller_profile_public_marketplace_counts", "fa1758500b16ce52a4df6cb80eb3089eed6b4af1e3eb6141f196dd40aa0c7f48"],
   ["20261019070000_prepare_seller_profile_public_metro_count", "69f7d237d6c106c498f81f314d64f7e4a1e405f2484187d04b19ffd1fe7cd72a"],
   ["20261019080000_prepare_seller_profile_public_similar_makers", "8bea99e1e51f11361c35139a2d75183204f0cd33a20bafd8924e7dddc9a649b9"],
   ["20261019090000_prepare_seller_profile_public_featured_makers", "d049c645d0ce85230eaa6134b585cf4891ccfb90380f58cc4b1b89f61f6205b6"],

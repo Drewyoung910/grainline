@@ -68,7 +68,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/lib/quality-score.ts": ["SERVICE"],
   "src/lib/savedBlogPostOwnerAccess.ts": ["PUBLIC_PROFILE"],
   "src/lib/sellerCheckoutPrivateAccess.ts": ["TRANSACTION"],
-  "src/lib/site-metrics-snapshot.ts": ["SERVICE"],
 });
 
 const WRITE_METHODS = new Set([

@@ -240,6 +240,10 @@ type SellerPublicMarketplaceCountsRow = {
   foundingMakerCount: unknown;
 };
 
+type SellerPublicMarketplaceRatingRow = {
+  value: unknown;
+};
+
 type SellerPublicCountRow = {
   value: unknown;
 };
@@ -707,6 +711,21 @@ async function readSellerPublicMarketplaceCounts(client: SellerPublicAccessClien
     activeSellerCount: parseSafeCount(rows[0].activeSellerCount, "active seller count"),
     foundingMakerCount: parseSafeCount(rows[0].foundingMakerCount, "founding maker count"),
   });
+}
+
+async function readSellerPublicMarketplaceRatingAverage(client: SellerPublicAccessClient) {
+  const rows = await client.$queryRaw<SellerPublicMarketplaceRatingRow[]>(Prisma.sql`
+    SELECT public.grainline_seller_public_marketplace_rating_average() AS value
+  `);
+  if (rows.length !== 1) {
+    throw new Error("Seller public marketplace rating authority returned an invalid result");
+  }
+  const value = rows[0].value;
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 5) {
+    throw new Error("Seller public marketplace rating authority returned an invalid rating");
+  }
+  return value;
 }
 
 async function readSellerPublicMetroCount(
@@ -1292,6 +1311,10 @@ export async function sellerPublicSitemapCounts() {
 
 export async function sellerPublicMarketplaceCounts() {
   return readSellerPublicMarketplaceCounts(prisma);
+}
+
+export async function sellerPublicMarketplaceRatingAverage() {
+  return readSellerPublicMarketplaceRatingAverage(prisma);
 }
 
 export async function sellerPublicMetroCount(

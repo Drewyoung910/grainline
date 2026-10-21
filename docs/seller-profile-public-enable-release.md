@@ -85,7 +85,7 @@ Before any deployment or owner database access, the workflow also runs
 `scripts/assert-seller-profile-enable-source-ready.mjs`. It requires zero
 direct, relation, raw-SQL, relation-factory and target-opaque SellerProfile
 consumers. At the current candidate head it deliberately refuses dispatch with
-`direct=0; relations=75; rawSql=15; relationFactories=5;
+`direct=0; relations=75; rawSql=14; relationFactories=5;
 targetOpaquePredicates=0`.
 
 The count-only, read-only inspector accepts only the reviewed predecessor or
@@ -110,7 +110,7 @@ converted runtime is promoted only after the preparation postflight succeeds.
 The database candidate and release machinery are locally compatible, but
 Production remains blocked until the release head is concrete and rechecked:
 
-1. Convert the 75 relation accesses, 15 raw-SQL accesses and five
+1. Convert the 75 relation accesses, 14 raw-SQL accesses and five
    relation-bearing query factories to the reviewed
    bounded projections and purpose-bound operations. The source-readiness gate
    must read back zero in all five classes before ENABLE can reach a secret or
