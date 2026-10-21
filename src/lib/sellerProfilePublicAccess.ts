@@ -1447,6 +1447,37 @@ async function readSellerPublicSitemapPage(
   }));
 }
 
+async function readSellerPublicBlogAuthorSitemap(
+  client: SellerPublicAccessClient,
+  sourceLimit: number,
+  authorLimit: number,
+) {
+  const rows = await client.$queryRaw<SellerPublicSitemapRowResult[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_blog_author_sitemap(
+        ${sourceLimit},
+        ${authorLimit}
+      )
+  `);
+  return Object.freeze(rows.map((row) => {
+    if (
+      typeof row.id !== "string"
+      || !row.id
+      || typeof row.displayName !== "string"
+      || !row.displayName
+      || !(row.updatedAt instanceof Date)
+      || Number.isNaN(row.updatedAt.getTime())
+    ) {
+      throw new Error("Seller public blog-author sitemap authority returned an invalid result");
+    }
+    return Object.freeze({
+      id: row.id,
+      displayName: row.displayName,
+      updatedAt: row.updatedAt,
+    });
+  }));
+}
+
 export async function sellerPublicMapPoints(
   viewerUserId: string | null,
   limit: number,
@@ -1789,4 +1820,21 @@ export async function sellerPublicSitemapPage(
     throw new RangeError("Seller public sitemap page input is outside the supported range");
   }
   return readSellerPublicSitemapPage(prisma, kind, skip, take);
+}
+
+export async function sellerPublicBlogAuthorSitemap(
+  sourceLimit: number,
+  authorLimit: number,
+) {
+  if (
+    !Number.isSafeInteger(sourceLimit)
+    || sourceLimit < 1
+    || sourceLimit > 500
+    || !Number.isSafeInteger(authorLimit)
+    || authorLimit < 1
+    || authorLimit > 100
+  ) {
+    throw new RangeError("Seller public blog-author sitemap limit is outside the supported range");
+  }
+  return readSellerPublicBlogAuthorSitemap(prisma, sourceLimit, authorLimit);
 }

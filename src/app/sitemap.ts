@@ -16,6 +16,7 @@ import {
 } from "@/lib/sitemapIndex";
 import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
 import {
+  sellerPublicBlogAuthorSitemap,
   sellerPublicMetroStaticSlugs,
   sellerPublicSitemapPage,
 } from "@/lib/sellerProfilePublicAccess";
@@ -172,16 +173,10 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
     }))),
     getPopularListingTags(TAG_LANDING_SITEMAP_LIMIT),
-    prisma.blogPost.findMany({
-      where: publicBlogPostWhere({ sellerProfileId: { not: null } }),
-      select: {
-        sellerProfileId: true,
-        updatedAt: true,
-        sellerProfile: { select: { id: true, displayName: true } },
-      },
-      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-      take: BLOG_AUTHOR_LANDING_SOURCE_LIMIT,
-    }),
+    sellerPublicBlogAuthorSitemap(
+      BLOG_AUTHOR_LANDING_SOURCE_LIMIT,
+      BLOG_AUTHOR_LANDING_SITEMAP_LIMIT,
+    ),
   ]);
 
   // ---------------------------------------------------------------------------
@@ -300,18 +295,8 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     changeFrequency: "weekly" as const,
     priority: 0.6,
   }));
-  const blogAuthorRouteMap = new Map<string, { displayName: string; updatedAt: Date }>();
-  for (const post of blogAuthorSeedPosts) {
-    if (!post.sellerProfileId || !post.sellerProfile) continue;
-    if (blogAuthorRouteMap.has(post.sellerProfileId)) continue;
-    blogAuthorRouteMap.set(post.sellerProfileId, {
-      displayName: post.sellerProfile.displayName,
-      updatedAt: post.updatedAt,
-    });
-    if (blogAuthorRouteMap.size >= BLOG_AUTHOR_LANDING_SITEMAP_LIMIT) break;
-  }
-  const blogAuthorLandingRoutes: MetadataRoute.Sitemap = Array.from(blogAuthorRouteMap.entries()).map(([id, author]) => ({
-    url: `${BASE_URL}${publicBlogAuthorPath(id, author.displayName)}`,
+  const blogAuthorLandingRoutes: MetadataRoute.Sitemap = blogAuthorSeedPosts.map((author) => ({
+    url: `${BASE_URL}${publicBlogAuthorPath(author.id, author.displayName)}`,
     lastModified: author.updatedAt,
     changeFrequency: "weekly" as const,
     priority: 0.6,

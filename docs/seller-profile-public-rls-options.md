@@ -744,10 +744,20 @@ Follower listing fanout now refreshes its source listing and seller through a
 bounded two-id public target instead of a nested SellerProfile relation. The
 authority requires the exact expected seller, active public unarchived listing,
 active owner, charge-ready supported account and non-vacation shop before it
-returns the seven fields already consumed by notifications and email. The
-current gate is 54 relation accesses, 10 raw-SQL accesses, three relation-bearing
+returns the seven fields already consumed by notifications and email. At that
+checkpoint the gate was 54 relation accesses, 10 raw-SQL accesses, three relation-bearing
 factories and zero opaque SellerProfile predicates across 31 consumer files and
-143 opaque shapes. The 207-function catalog is 98 retained, 33 internal and 76
-converted authorities; two converted authorities are staff-only. The complete
-407-migration chain includes its exact authority scenario and remains subject to
+143 opaque shapes. The 207-function catalog was 98 retained, 33 internal and 76
+converted authorities; two converted authorities were staff-only. The
+then-complete 407-migration chain included its exact authority scenario and
+remained subject to exact-head CI.
+The base sitemap now obtains its maker-author seeds through a bounded authority
+that preserves the predecessor first-500-public-post source window, one latest
+row per seller and the first-100-author output cap. It returns only seller id,
+display name and the UTC-normalized latest post update. The current gate is 53
+relation accesses, 10 raw-SQL accesses, three relation-bearing factories and
+zero opaque SellerProfile predicates across 30 consumer files and 142 opaque
+shapes. The 208-function catalog is 98 retained, 33 internal and 77 converted
+authorities; two converted authorities are staff-only. The complete
+408-migration chain includes its exact authority scenario and remains subject to
 exact-head CI.

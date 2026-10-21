@@ -60,6 +60,7 @@ const preparationRows = [
   ["20261020235920_prepare_seller_profile_public_recently_viewed_listings", "8c060e9dab325306a81a95e94c5dc578596f719d787e1da7d05a56f6711b3b8b"],
   ["20261020235930_prepare_seller_profile_owner_review_reply", "c1505107f919231bac1f8f3133a53eca9091a71ada67383060a297fde5b8d14b"],
   ["20261020235940_prepare_seller_profile_public_follower_listing_target", "d38025e9c544b0486cc1d2266941416fd54391eec55bed8a5b88f74397d1c052"],
+  ["20261020235950_prepare_seller_profile_public_blog_author_sitemap", "b7dd31897eb4b0952f4cb313e4e08965c1d71319635af05629423214ba093fdf"],
 ];
 
 export const SELLER_PROFILE_PUBLIC_PREPARATIONS = Object.freeze(
@@ -68,7 +69,7 @@ export const SELLER_PROFILE_PUBLIC_PREPARATIONS = Object.freeze(
 
 export const SELLER_PROFILE_PUBLIC_ENABLE = Object.freeze({
   name: "20261020240000_enable_seller_profile_rls",
-  checksum: "ce4917543df6e54bdd4b2434776b31daa3a9c97414f4b6fb1e18aace07aed546",
+  checksum: "f5b4676735d005748b597220584ceecfb8af5539aa72a95a83ac56cd4151e9b5",
 });
 
 export function sellerProfilePublicPreparationNames() {
@@ -76,7 +77,7 @@ export function sellerProfilePublicPreparationNames() {
 }
 
 export function verifySellerProfilePublicPreparationSources(root = process.cwd()) {
-  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 56);
+  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 57);
   const seen = new Set();
   for (const migration of [
     ...SELLER_PROFILE_PUBLIC_PREPARATIONS,
@@ -94,7 +95,7 @@ export function verifySellerProfilePublicPreparationSources(root = process.cwd()
   }
   assert.equal(
     SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1).name,
-    "20261020235940_prepare_seller_profile_public_follower_listing_target",
+    "20261020235950_prepare_seller_profile_public_blog_author_sitemap",
   );
   return Object.freeze({
     preparations: SELLER_PROFILE_PUBLIC_PREPARATIONS.length,

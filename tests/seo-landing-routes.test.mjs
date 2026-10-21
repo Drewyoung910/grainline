@@ -55,9 +55,9 @@ describe("SEO landing route guardrails", () => {
     assert.match(sitemap, /const BLOG_AUTHOR_LANDING_SITEMAP_LIMIT = 100/);
     assert.match(sitemap, /const BLOG_AUTHOR_LANDING_SOURCE_LIMIT = 500/);
     assert.match(sitemap, /getPopularListingTags\(TAG_LANDING_SITEMAP_LIMIT\)/);
-    assert.match(sitemap, /take: BLOG_AUTHOR_LANDING_SOURCE_LIMIT/);
+    assert.match(sitemap, /sellerPublicBlogAuthorSitemap\(\s*BLOG_AUTHOR_LANDING_SOURCE_LIMIT,\s*BLOG_AUTHOR_LANDING_SITEMAP_LIMIT/s);
     assert.match(sitemap, /publicTagPath\(tag\)/);
-    assert.match(sitemap, /publicBlogAuthorPath\(id, author\.displayName\)/);
+    assert.match(sitemap, /publicBlogAuthorPath\(author\.id, author\.displayName\)/);
     assert.match(sitemap, /assertSitemapEntryLimit\(\[/);
   });
 });
