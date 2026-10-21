@@ -5,7 +5,7 @@ import test from "node:test";
 const source = (path) => readFileSync(path, "utf8");
 
 const migration = source(
-  "prisma/migrations/20261021000000_prepare_seller_profile_transaction_states/migration.sql",
+  "prisma/migrations/20261020235985_prepare_seller_profile_transaction_states/migration.sql",
 );
 const access = source("src/lib/sellerTransactionAccess.ts");
 const cartAccess = source("src/lib/cartOwnerAccess.ts");

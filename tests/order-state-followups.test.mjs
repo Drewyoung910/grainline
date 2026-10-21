@@ -46,7 +46,7 @@ describe("order-state audit follow-up guardrails", () => {
     const cartUpdate = source("src/app/api/cart/update/route.ts");
     const sellerTransactionAccess = source("src/lib/sellerTransactionAccess.ts");
     const sellerTransactionMigration = source(
-      "prisma/migrations/20261021000000_prepare_seller_profile_transaction_states/migration.sql",
+      "prisma/migrations/20261020235985_prepare_seller_profile_transaction_states/migration.sql",
     );
     assert.match(cartUpdate, /sellerListingTransactionSource\(me\.id, item\.listingId\)/);
     assert.match(sellerTransactionAccess, /grainline_seller_actor_listing_transaction_state/);

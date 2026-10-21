@@ -64,13 +64,13 @@ const preparationRows = [
   ["20261020235960_prepare_seller_profile_public_listing_cards", "5cb571522796ef2e75aa265607d29f72ee2d077693bfdb468faf9b25d226b92d"],
   ["20261020235970_prepare_seller_profile_staff_broadcast_targets", "d96ccfa5ef41a42aba8f13ec90e371c2388e284953298df6d7bbe06db4e61fc4"],
   ["20261020235980_prepare_seller_profile_staff_verification_target", "d1e916ff62dbff7c1f0c0ccbd75616ce96c609db2a245b31c4257aed13a76607"],
+  ["20261020235985_prepare_seller_profile_transaction_states", "c9b927777b39cdcd0538efce8eab3632318e723d176251088b90558cab120142"],
   ["20261020235990_prepare_seller_profile_public_review_vote_target", "15ad0986610a1b420c952ade04d67465d2cc59fde49c07a3fcc57ddbf608fbc3"],
   ["20261020235995_prepare_seller_profile_participant_conversation_listing_target", "413c9dfe5b150b88167ce2edf47359cb268272e02ae0b14bb152b21df3007477"],
   ["20261020235996_prepare_seller_profile_conversation_context_listing", "53cc5de0ff455b120e2425ef44f87cc4a507a7beb0e7214217f0294aff1de570"],
   ["20261020235997_prepare_seller_profile_actor_report_resource_target", "71e519e45d7342ab104898b15c883826e6eae0fb99a54e95e5dba5772f96065a"],
   ["20261020235998_prepare_seller_profile_actor_review_listing_target", "17683a9f76fd339ee5fc178b643cd2d84a2b0676a68842f0275042debb3ab28c"],
   ["20261020235999_prepare_seller_profile_staff_listing_review_transition", "0c037238422879d009ccb3df39f3728d6162be3b668667cc88d91eb456ee7aa9"],
-  ["20261021000000_prepare_seller_profile_transaction_states", "c9b927777b39cdcd0538efce8eab3632318e723d176251088b90558cab120142"],
 ];
 
 export const SELLER_PROFILE_PUBLIC_PREPARATIONS = Object.freeze(
@@ -105,7 +105,7 @@ export function verifySellerProfilePublicPreparationSources(root = process.cwd()
   }
   assert.equal(
     SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1).name,
-    "20261021000000_prepare_seller_profile_transaction_states",
+    "20261020235999_prepare_seller_profile_staff_listing_review_transition",
   );
   return Object.freeze({
     preparations: SELLER_PROFILE_PUBLIC_PREPARATIONS.length,

@@ -9,7 +9,7 @@ document.
 The public SellerProfile conversion depends on 67 additive preparation
 migrations from
 `20261019010000_prepare_seller_profile_public_map_authority` through
-`20261021000000_prepare_seller_profile_transaction_states`. They add
+`20261020235999_prepare_seller_profile_staff_listing_review_transition`. They add
 or replace purpose-bound functions, exact-map consent evidence, and supporting
 triggers while leaving public `SellerProfile` RLS off and its predecessor
 runtime CRUD grants in place. The current application remains compatible while

@@ -106,7 +106,7 @@ test("preparation manifest seals all 67 migrations plus ENABLE", () => {
   assert.deepEqual(verifySellerProfilePublicPreparationSources(), {
     preparations: 67,
     first: "20261019010000_prepare_seller_profile_public_map_authority",
-    last: "20261021000000_prepare_seller_profile_transaction_states",
+    last: "20261020235999_prepare_seller_profile_staff_listing_review_transition",
     enable: SELLER_PROFILE_PUBLIC_ENABLE.name,
   });
 });
