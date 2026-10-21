@@ -271,32 +271,20 @@ export async function PATCH(
       after(async () => {
         try {
           while (true) {
+            // Candidate discovery makes no availability decision. The claim
+            // authority below binds the exact restock audit and atomically
+            // rechecks the listing, seller, account, and recipient state.
             const candidateSubscribers = await prisma.$queryRaw<{
               userId: string;
               stockNotificationId: string;
             }[]>`
-              WITH available_listing AS (
-                SELECT l.id
-                FROM "Listing" l
-                INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-                WHERE l.id = ${id}
-                  AND l.status = 'ACTIVE'::"ListingStatus"
-                  AND l."isPrivate" = false
-                  AND COALESCE(l."stockQuantity", 0) > 0
-                  AND sp."chargesEnabled" = true
-                  AND sp."stripeAccountSupported" = true
-                  AND sp."vacationMode" = false
-                  AND sp."ownerAccountActive" = true
-              ),
-              next_subscribers AS (
-                SELECT sn.id, sn."userId"
-                FROM "StockNotification" sn
-                INNER JOIN available_listing al ON al.id = sn."listingId"
-                ORDER BY sn."createdAt" ASC, sn.id ASC
-                LIMIT ${BACK_IN_STOCK_CLAIM_BATCH_SIZE}
-              )
-              SELECT ns."userId", ns.id AS "stockNotificationId"
-              FROM next_subscribers ns
+              SELECT
+                stock_notification."userId",
+                stock_notification.id AS "stockNotificationId"
+              FROM public."StockNotification" AS stock_notification
+              WHERE stock_notification."listingId" = ${id}
+              ORDER BY stock_notification."createdAt" ASC, stock_notification.id ASC
+              LIMIT ${BACK_IN_STOCK_CLAIM_BATCH_SIZE}
             `;
             if (candidateSubscribers.length === 0) return;
             const claimSettlements = await mapWithConcurrency(

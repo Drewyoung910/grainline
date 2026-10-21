@@ -865,3 +865,12 @@ consumer files without a new migration or an N+1 query. Their shared
 current gate is 29 relation accesses in 16 files, four raw-SQL accesses in four
 files, three relation-bearing factories and zero opaque SellerProfile
 predicates across 19 consumer files and 141 opaque shapes.
+
+The manual-restock fanout now selects bounded `StockNotification` candidates
+without duplicating SellerProfile eligibility in application SQL. Its existing
+atomic claim authority still rechecks the exact restock audit, listing
+visibility and stock, seller payment and account state, and recipient state
+before consuming a subscription or creating a notification. The current gate
+is 29 relation accesses in 16 files, three raw-SQL accesses in three files,
+three relation-bearing factories and zero opaque SellerProfile predicates
+across 18 consumer files and 141 opaque shapes.
