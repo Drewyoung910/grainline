@@ -17,15 +17,10 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 // A file can need several contracts when it combines public presentation with
 // contextual eligibility, approximate-map, participant, or transaction behavior.
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
-  "src/app/api/cart/add/route.ts": ["TRANSACTION"],
-  "src/app/api/cart/update/route.ts": ["TRANSACTION"],
   "src/app/api/listings/[id]/similar/route.ts": ["PUBLIC_ELIGIBILITY"],
-  "src/app/api/shipping/quote/route.ts": ["TRANSACTION"],
   "src/app/browse/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/listing/[id]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PUBLIC_MAP", "PARTICIPANT"],
-  "src/lib/cartOwnerAccess.ts": ["TRANSACTION"],
   "src/lib/quality-score.ts": ["SERVICE"],
-  "src/lib/sellerCheckoutPrivateAccess.ts": ["TRANSACTION"],
 });
 
 const WRITE_METHODS = new Set([

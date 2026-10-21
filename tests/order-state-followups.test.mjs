@@ -44,8 +44,14 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(cartAdd, /sellerOrderBlockMessage\(sellerBlockReason\)/);
 
     const cartUpdate = source("src/app/api/cart/update/route.ts");
-    assert.match(cartUpdate, /acceptingNewOrders: true/);
-    assert.match(cartUpdate, /stripeAccountSupported: true/);
+    const sellerTransactionAccess = source("src/lib/sellerTransactionAccess.ts");
+    const sellerTransactionMigration = source(
+      "prisma/migrations/20261021000000_prepare_seller_profile_transaction_states/migration.sql",
+    );
+    assert.match(cartUpdate, /sellerListingTransactionSource\(me\.id, item\.listingId\)/);
+    assert.match(sellerTransactionAccess, /grainline_seller_actor_listing_transaction_state/);
+    assert.match(sellerTransactionMigration, /seller\."acceptingNewOrders"/);
+    assert.match(sellerTransactionMigration, /seller\."stripeAccountSupported"/);
     assert.match(cartUpdate, /sellerCheckoutPrivateState\(\{/);
     assert.match(cartUpdate, /sellerOrderBlockReason\(listing\.seller\)/);
     assert.match(cartUpdate, /sellerOrderBlockMessage\(sellerBlockReason\)/);
@@ -55,9 +61,7 @@ describe("order-state audit follow-up guardrails", () => {
 
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     const sellerCheckoutPrivateAccess = source("src/lib/sellerCheckoutPrivateAccess.ts");
-    assert.match(singleCheckout, /sellerSingleCheckoutSource\(body\.listingId\)/);
-    assert.match(sellerCheckoutPrivateAccess, /acceptingNewOrders: true/);
-    assert.match(sellerCheckoutPrivateAccess, /stripeAccountSupported: true/);
+    assert.match(singleCheckout, /sellerSingleCheckoutSource\(me\.id, body\.listingId\)/);
     assert.match(sellerCheckoutPrivateAccess, /grainline_seller_checkout_private_state/);
     assert.match(singleCheckout, /sellerOrderBlockReason\(listing\.seller\)/);
 

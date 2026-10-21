@@ -55,10 +55,8 @@ import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
 import { normalizeUsState } from "@/lib/usStates";
-import {
-  sellerCheckoutPrivateState,
-  sellerSingleCheckoutSource,
-} from "@/lib/sellerCheckoutPrivateAccess";
+import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
+import { sellerSingleCheckoutSource } from "@/lib/sellerTransactionAccess";
 
 const CheckoutSingleSchema = z.object({
   listingId: z.string().min(1),
@@ -146,7 +144,7 @@ export async function POST(req: Request) {
       return privateJson({ error: "Shipping address is incomplete." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
-    const listing = await sellerSingleCheckoutSource(body.listingId);
+    const listing = await sellerSingleCheckoutSource(me.id, body.listingId);
     if (!listing) return privateJson({ error: "Listing not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
     // Only ACTIVE listings are purchasable.

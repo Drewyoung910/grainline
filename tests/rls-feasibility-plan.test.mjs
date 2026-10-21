@@ -971,6 +971,7 @@ describe("RLS feasibility plan guardrails", () => {
   it("centralizes Cart and CartItem owner reads and writes for the parent-join RLS prototype", () => {
     const ownerAccess = source("src/lib/cartOwnerAccess.ts");
     const sellerCheckoutAccess = source("src/lib/sellerCheckoutPrivateAccess.ts");
+    const sellerTransactionAccess = source("src/lib/sellerTransactionAccess.ts");
     const cartRoute = source("src/app/api/cart/route.ts");
     const cartAdd = source("src/app/api/cart/add/route.ts");
     const cartUpdate = source("src/app/api/cart/update/route.ts");
@@ -998,10 +999,11 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
     assert.match(ownerAccess, /export async function ownerCartExportRows/);
-    assert.match(ownerAccess, /include: sellerCartCheckoutInclude/);
-    assert.match(ownerAccess, /seller: \{ select: listingSellerOrderStateSelect \}/);
-    assert.match(sellerCheckoutAccess, /seller: \{ select: cartCheckoutSellerSelect \}/);
-    assert.match(sellerCheckoutAccess, /export const sellerCartCheckoutInclude/);
+    assert.match(ownerAccess, /withSellerActorCartTransaction/);
+    assert.match(ownerAccess, /attachCartSellerStates/);
+    assert.match(sellerTransactionAccess, /grainline_seller_actor_cart_transaction_states/);
+    assert.match(sellerCheckoutAccess, /grainline_seller_checkout_private_state/);
+    assert.doesNotMatch(ownerAccess, /seller:\s*\{/);
     assert.match(ownerAccess, /db\.cart\.findUnique/);
     assert.match(ownerAccess, /db\.cart\.findFirst/);
     assert.match(ownerAccess, /db\.cart\.upsert/);
@@ -1030,16 +1032,12 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(shippingQuote, /ownerCartForShippingQuoteById\(me\.id, body\.cartId, body\.sellerId\)/);
     assert.match(shippingQuote, /ownerCartForShippingQuote\(me\.id, body\.sellerId\)/);
     assert.match(accountExport, /ownerCartExportRows\(user\.id\)/);
-    assert.match(sellerCheckoutAccess, /export const listingSellerOrderStateSelect/);
-    assert.match(sellerCheckoutAccess, /stripeAccountSupported: true/);
+    assert.match(sellerTransactionAccess, /export function sellerListingTransactionSource/);
+    assert.match(sellerTransactionAccess, /stripeAccountSupported: boolean/);
+    assert.match(sellerTransactionAccess, /grainline_seller_actor_listing_transaction_state/);
     assert.match(sellerCheckoutAccess, /grainline_seller_checkout_private_state/);
-    assert.match(sellerCheckoutAccess, /export const cartCheckoutSellerSelect/);
-    const orderStateSelect = sellerCheckoutAccess.slice(
-      sellerCheckoutAccess.indexOf("export const listingSellerOrderStateSelect"),
-      sellerCheckoutAccess.indexOf("export const cartCheckoutSellerSelect"),
-    );
     assert.doesNotMatch(
-      orderStateSelect,
+      sellerTransactionAccess,
       /shipFrom|manualStripeReconciliation|guildMasterReviewNotes/,
     );
 

@@ -205,6 +205,10 @@ const checkoutPrivateAccess = readFileSync(
   "src/lib/sellerCheckoutPrivateAccess.ts",
   "utf8",
 );
+const sellerTransactionAccess = readFileSync(
+  "src/lib/sellerTransactionAccess.ts",
+  "utf8",
+);
 const singleCheckout = readFileSync(
   "src/app/api/cart/checkout/single/route.ts",
   "utf8",
@@ -268,15 +272,14 @@ describe("SellerProfile private-boundary additive preparation", () => {
   });
 
   it("centralizes checkout private seller source projections", () => {
-    assert.match(singleCheckout, /sellerSingleCheckoutSource\(body\.listingId\)/);
+    assert.match(singleCheckout, /sellerSingleCheckoutSource\(me\.id, body\.listingId\)/);
     assert.doesNotMatch(singleCheckout, /seller:\s*\{\s*select:\s*\{/);
-    assert.match(singleCheckoutResume, /sellerSingleCheckoutResumeSource\(listingId\)/);
+    assert.match(singleCheckoutResume, /sellerSingleCheckoutResumeSource\(me\.id, listingId\)/);
     assert.doesNotMatch(singleCheckoutResume, /seller:\s*\{\s*select:\s*\{/);
-    assert.match(cartOwnerAccess, /include: sellerCartCheckoutInclude/);
-    assert.match(checkoutPrivateAccess, /export function sellerSingleCheckoutSource/);
-    assert.match(checkoutPrivateAccess, /export function sellerSingleCheckoutResumeSource/);
-    assert.match(checkoutPrivateAccess, /export const sellerCartCheckoutInclude/);
-    assert.match(checkoutPrivateAccess, /stripeAccountSupported: true/);
+    assert.match(cartOwnerAccess, /withSellerActorCartTransaction/);
+    assert.match(sellerTransactionAccess, /export function sellerSingleCheckoutSource/);
+    assert.match(sellerTransactionAccess, /export function sellerSingleCheckoutResumeSource/);
+    assert.match(sellerTransactionAccess, /grainline_seller_actor_cart_transaction_states/);
     assert.match(checkoutPrivateAccess, /grainline_seller_checkout_private_state/);
     assert.doesNotMatch(checkoutPrivateAccess, /stripeAccountId: true/);
     assert.doesNotMatch(checkoutPrivateAccess, /stripeAccountVersion: true/);

@@ -34,7 +34,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerCartForShippingQuote, ownerCartForShippingQuoteById } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
-import { listingSellerOrderStateSelect } from "@/lib/sellerCheckoutPrivateAccess";
+import { sellerListingTransactionSource } from "@/lib/sellerTransactionAccess";
 import { buildShippoCheckoutQuoteShipment } from "@/lib/shippingQuoteProvider";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { normalizeUsState } from "@/lib/usStates";
@@ -465,13 +465,7 @@ export async function POST(req: Request) {
           .sort((a, b) => a.cartItemId.localeCompare(b.cartItemId)),
       });
     } else if (mode === "single") {
-      const listing = await prisma.listing.findUnique({
-        where: { id: body.listingId ?? "" },
-        include: {
-          seller: { select: listingSellerOrderStateSelect },
-          variantGroups: { include: { options: true } },
-        },
-      });
+      const listing = await sellerListingTransactionSource(me.id, body.listingId ?? "");
       if (!listing) return privateJson({ rates: [] });
 
       sellerId = listing.sellerId;

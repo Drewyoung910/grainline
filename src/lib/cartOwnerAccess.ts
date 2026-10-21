@@ -1,9 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
-  listingSellerOrderStateSelect,
-  sellerCartCheckoutInclude,
-} from "@/lib/sellerCheckoutPrivateAccess";
+  attachCartSellerStates,
+  withSellerActorCartTransaction,
+} from "@/lib/sellerTransactionAccess";
 
 export type CartOwnerAccessClient = Pick<Prisma.TransactionClient, "cart" | "cartItem" | "$queryRaw">;
 
@@ -18,36 +18,29 @@ export function ownerCartItemWhere(
   return { AND: [{ cart: { userId } }, where] };
 }
 
-export async function ownerCartForDisplay(userId: string, db: CartOwnerAccessClient = prisma) {
-  return db.cart.findUnique({
-    where: { userId },
-    include: {
-      items: {
-        include: {
-          listing: {
-            include: {
-              photos: { take: 1, orderBy: { sortOrder: "asc" } },
-              seller: {
-                select: {
-                  id: true,
-                  displayName: true,
-                  vacationMode: true,
-                  chargesEnabled: true,
-                  freeShippingOverCents: true,
-                  shippingFlatRateCents: true,
-                  allowLocalPickup: true,
-                  offersGiftWrapping: true,
-                  giftWrappingPriceCents: true,
-                  ownerAccountActive: true,
-                },
+export async function ownerCartForDisplay(userId: string) {
+  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+    const cart = await db.cart.findUnique({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            listing: {
+              include: {
+                photos: { take: 1, orderBy: { sortOrder: "asc" } },
+                variantGroups: { include: { options: true } },
               },
-              variantGroups: { include: { options: true } },
             },
           },
+          orderBy: { createdAt: "asc" },
         },
-        orderBy: { createdAt: "asc" },
       },
-    },
+    });
+    if (!cart) return null;
+    return {
+      ...cart,
+      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+    };
   });
 }
 
@@ -248,34 +241,53 @@ export async function updateOwnerCartItemPrice(
 
 export async function ownerCartForCheckoutSeller(
   userId: string,
-  db: CartOwnerAccessClient = prisma,
 ) {
-  return db.cart.findUnique({
-    where: { userId },
-    include: sellerCartCheckoutInclude,
+  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+    const cart = await db.cart.findUnique({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            listing: {
+              include: {
+                photos: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
+                variantGroups: { include: { options: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+    if (!cart) return null;
+    return {
+      ...cart,
+      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+    };
   });
 }
 
 export async function ownerCartForCheckoutResume(
   userId: string,
-  db: CartOwnerAccessClient = prisma,
 ) {
-  return db.cart.findUnique({
-    where: { userId },
-    select: {
-      id: true,
-      items: {
-        select: {
-          listing: {
-            select: {
-              sellerId: true,
-              seller: { select: { displayName: true, userId: true } },
-            },
+  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+    const cart = await db.cart.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        items: {
+          select: {
+            listing: { select: { sellerId: true } },
           },
+          orderBy: { createdAt: "asc" },
         },
-        orderBy: { createdAt: "asc" },
       },
-    },
+    });
+    if (!cart) return null;
+    return {
+      ...cart,
+      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+    };
   });
 }
 
@@ -283,44 +295,44 @@ export async function ownerCartForShippingQuoteById(
   userId: string,
   cartId: string,
   sellerId: string | null | undefined,
-  db: CartOwnerAccessClient = prisma,
 ) {
-  return db.cart.findFirst({
-    where: ownerCartWhere(userId, { id: cartId }),
-    include: {
-      items: {
-        include: {
-          listing: {
-            include: {
-              seller: { select: listingSellerOrderStateSelect },
-            },
-          },
+  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+    const cart = await db.cart.findFirst({
+      where: ownerCartWhere(userId, { id: cartId }),
+      include: {
+        items: {
+          include: { listing: true },
+          where: sellerId ? { listing: { sellerId } } : undefined,
         },
-        where: sellerId ? { listing: { sellerId } } : undefined,
       },
-    },
+    });
+    if (!cart) return null;
+    return {
+      ...cart,
+      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+    };
   });
 }
 
 export async function ownerCartForShippingQuote(
   userId: string,
   sellerId: string | null | undefined,
-  db: CartOwnerAccessClient = prisma,
 ) {
-  return db.cart.findUnique({
-    where: { userId },
-    include: {
-      items: {
-        include: {
-          listing: {
-            include: {
-              seller: { select: listingSellerOrderStateSelect },
-            },
-          },
+  return withSellerActorCartTransaction(userId, async (db, sellerStates) => {
+    const cart = await db.cart.findUnique({
+      where: { userId },
+      include: {
+        items: {
+          include: { listing: true },
+          where: sellerId ? { listing: { sellerId } } : undefined,
         },
-        where: sellerId ? { listing: { sellerId } } : undefined,
       },
-    },
+    });
+    if (!cart) return null;
+    return {
+      ...cart,
+      items: attachCartSellerStates(cart.items, await sellerStates(cart.id)),
+    };
   });
 }
 

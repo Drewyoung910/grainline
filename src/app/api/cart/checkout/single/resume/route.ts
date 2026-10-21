@@ -11,10 +11,8 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
-import {
-  sellerCheckoutPrivateState,
-  sellerSingleCheckoutResumeSource,
-} from "@/lib/sellerCheckoutPrivateAccess";
+import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
+import { sellerSingleCheckoutResumeSource } from "@/lib/sellerTransactionAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -51,7 +49,7 @@ export async function GET(req: Request) {
     // Stock may be zero because this exact ready Session owns the final-unit
     // reservation. Every other mutable orderability rule must still hold:
     // resuming must not bypass a later listing, seller or account shutdown.
-    const listing = await sellerSingleCheckoutResumeSource(listingId);
+    const listing = await sellerSingleCheckoutResumeSource(me.id, listingId);
     if (!listing || !singleCheckoutResumeSourceIsAvailable(listing, me.id)) {
       return privateJson(UNAVAILABLE_RESUME, { status: HTTP_STATUS.CONFLICT });
     }

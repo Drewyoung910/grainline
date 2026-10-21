@@ -144,7 +144,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.listing.findUnique",
+      "sellerListingTransactionSource(me.id, listingId)",
       "upsertOwnerCart(me.id)",
       "await lockOwnerCart(me.id, cart.id, tx)",
     ]);
@@ -153,14 +153,14 @@ describe("request origin guard", () => {
       "safeRateLimit(",
       "readBoundedJson(req",
       "ownerCartByUserId(me.id)",
-      "prisma.listing.findUnique",
+      "sellerListingTransactionSource(me.id, item.listingId)",
       "await lockOwnerCart(me.id, cart.id, tx)",
     ]);
     assertGuardBefore("src/app/api/cart/checkout/single/route.ts", [
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "sellerSingleCheckoutSource(body.listingId)",
+      "sellerSingleCheckoutSource(me.id, body.listingId)",
       "createSnapshotSingleCheckoutStockReservation({",
       "stripe.checkout.sessions.create",
     ]);

@@ -1017,3 +1017,20 @@ SellerProfile target predicates across 9 consumer files and 144 reconciled
 opaque shapes. The 217-function catalog is 98 retained, 33 internal and 86
 converted authorities; the compatible preparation set contains 66 migrations
 and the full chain contains 417.
+
+Authenticated cart, checkout and shipping flows now resolve seller transaction
+state through two actor-bound projections. One binds an active actor to one
+exact listing; the other binds the active actor to their exact cart and returns
+only the distinct sellers represented by that cart. The projections disclose
+only orderability, shipping, pickup and gift-wrap fields, while private Stripe
+and package state remains behind its existing private-table authority. Each
+caller reads its Prisma resource and fixed seller projection in one
+repeatable-read actor-context transaction so the split cannot combine two
+different database snapshots. This
+removes ten relation accesses and five consumer files. The gate is now six
+relation accesses in three files, two raw-SQL accesses in two files, three
+relation-bearing factories and zero opaque SellerProfile target predicates
+across four consumer files and 144 reconciled opaque shapes. The 219-function
+catalog is 98 retained, 33 internal and 88 converted authorities; the
+compatible preparation set contains 67 migrations and the full chain contains
+418.

@@ -2386,6 +2386,8 @@ WHERE to_regprocedure(function_signature) IS NOT NULL;
 WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
   VALUES
     ('public."grainline_seller_actor_account_feed_cards"(text[])', true),
+    ('public."grainline_seller_actor_cart_transaction_states"(text)', true),
+    ('public."grainline_seller_actor_listing_transaction_state"(text)', true),
     ('public."grainline_seller_actor_conversation_cards"(text[])', true),
     ('public."grainline_seller_owner_account_summary"()', true),
     ('public."grainline_seller_owner_avatar_clear"(text)', true),
@@ -2483,6 +2485,8 @@ SELECT format(
 WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
   VALUES
     ('public."grainline_seller_actor_account_feed_cards"(text[])', true),
+    ('public."grainline_seller_actor_cart_transaction_states"(text)', true),
+    ('public."grainline_seller_actor_listing_transaction_state"(text)', true),
     ('public."grainline_seller_actor_conversation_cards"(text[])', true),
     ('public."grainline_seller_owner_account_summary"()', true),
     ('public."grainline_seller_owner_avatar_clear"(text)', true),
