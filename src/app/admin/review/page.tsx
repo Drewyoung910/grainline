@@ -7,10 +7,13 @@ import Link from "next/link";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
 
 export const metadata: Metadata = { title: "Review Queue — Admin" };
 
 const REVIEW_QUEUE_LIMIT = 100;
+const SELLER_TARGET_CHUNK_SIZE = 50;
 
 export default async function AdminReviewPage() {
   const staff = await requireAdminPageAccess();
@@ -22,18 +25,41 @@ export default async function AdminReviewPage() {
       where: { status: "PENDING_REVIEW" },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: REVIEW_QUEUE_LIMIT,
-      include: {
-        seller: {
-          select: {
-            displayName: true,
-            userId: true,
-            _count: { select: { listings: true } },
-          },
-        },
+      select: {
+        id: true,
+        sellerId: true,
+        title: true,
+        priceCents: true,
+        currency: true,
+        createdAt: true,
+        aiReviewFlags: true,
+        aiReviewScore: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
       },
     }),
   ]);
+  const sellerProfileIds = [...new Set(listings.map((listing) => listing.sellerId))];
+  const listingCounts = sellerProfileIds.length > 0
+    ? await prisma.listing.groupBy({
+        by: ["sellerId"],
+        where: { sellerId: { in: sellerProfileIds } },
+        _count: { id: true },
+      })
+    : [];
+  const sellerTargets = [];
+  for (let start = 0; start < sellerProfileIds.length; start += SELLER_TARGET_CHUNK_SIZE) {
+    sellerTargets.push(...await sellerProfileStaffReportTargets(getOrderStaffReadClient(), {
+      actorId: staff.id,
+      sellerProfileIds: sellerProfileIds.slice(start, start + SELLER_TARGET_CHUNK_SIZE),
+    }));
+  }
+  const sellerTargetById = new Map(sellerTargets.map((seller) => [seller.id, seller]));
+  const listingCountBySellerId = new Map(
+    listingCounts.map((row) => [row.sellerId, row._count.id]),
+  );
+  if (sellerTargetById.size !== sellerProfileIds.length) {
+    throw new Error("Admin listing review seller projection returned an incomplete result");
+  }
 
   return (
     <div className="space-y-6">
@@ -59,7 +85,11 @@ export default async function AdminReviewPage() {
       ) : (
         <div className="space-y-4">
           {listings.map((listing) => {
-            const isFirstListing = listing.seller._count.listings <= 1;
+            const seller = sellerTargetById.get(listing.sellerId);
+            if (!seller) {
+              throw new Error("Admin listing review seller projection is missing a target");
+            }
+            const isFirstListing = (listingCountBySellerId.get(listing.sellerId) ?? 0) <= 1;
             const thumb = listing.photos[0]?.url;
 
             return (
@@ -95,7 +125,7 @@ export default async function AdminReviewPage() {
                       )}
                     </div>
                     <div className="text-sm text-neutral-500 mt-0.5">
-                      by {listing.seller.displayName} ·{" "}
+                      by {seller.displayName} ·{" "}
                       {formatCurrencyCents(listing.priceCents, listing.currency)} ·{" "}
                       {new Date(listing.createdAt).toLocaleDateString("en-US")}
                     </div>

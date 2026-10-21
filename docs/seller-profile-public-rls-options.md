@@ -761,3 +761,10 @@ shapes. The 208-function catalog is 98 retained, 33 internal and 77 converted
 authorities; two converted authorities are staff-only. The complete
 408-migration chain includes its exact authority scenario and remains subject to
 exact-head CI.
+The admin listing-review queue now selects only scalar Listing data, derives
+listing counts from Listing itself and resolves seller display names through
+the existing active-staff projection in reviewed 50-id batches. No new database
+authority was needed. The current gate is 52 relation accesses, 10 raw-SQL
+accesses, three relation-bearing factories and zero opaque SellerProfile
+predicates across 29 consumer files and 142 opaque shapes; the catalog and
+408-migration chain remain unchanged.

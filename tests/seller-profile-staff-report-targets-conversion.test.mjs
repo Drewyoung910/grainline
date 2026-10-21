@@ -8,6 +8,7 @@ const migration = readFileSync(
 );
 const access = readFileSync("src/lib/sellerProfileStaffAccess.ts", "utf8");
 const page = readFileSync("src/app/admin/reports/page.tsx", "utf8");
+const reviewQueue = readFileSync("src/app/admin/review/page.tsx", "utf8");
 
 test("seller report targets require the isolated active-staff authority", () => {
   assert.match(migration, /SESSION_USER <> 'grainline_staff_read_runtime'/u);
@@ -30,4 +31,16 @@ test("admin reports use the bounded staff projection after the PIN gate", () => 
   assert.doesNotMatch(page, /prisma\.sellerProfile\./u);
   assert.match(access, /grainline_seller_staff_report_targets/u);
   assert.match(access, /sellerProfileIds\.length > 50/u);
+});
+
+test("admin listing review resolves seller labels through the bounded staff projection", () => {
+  assert.match(reviewQueue, /requireAdminPageAccess\(\)/u);
+  assert.match(reviewQueue, /const SELLER_TARGET_CHUNK_SIZE = 50/u);
+  assert.match(
+    reviewQueue,
+    /sellerProfileStaffReportTargets\(getOrderStaffReadClient\(\), \{/u,
+  );
+  assert.match(reviewQueue, /actorId: staff\.id/u);
+  assert.match(reviewQueue, /prisma\.listing\.groupBy\(/u);
+  assert.doesNotMatch(reviewQueue, /seller:\s*\{\s*select:/u);
 });
