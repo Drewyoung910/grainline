@@ -58,6 +58,7 @@ const preparationRows = [
   ["20261020235900_prepare_seller_profile_public_favorite_target", "c9c553258fdc49440d439ae4b99017c4997127fe5d02743abb6886d422963128"],
   ["20261020235910_prepare_seller_profile_owner_follow_export", "317bde7afd825b09ca76d11ec9870a8410bd48e45032d2b0e7b132c453b83c21"],
   ["20261020235920_prepare_seller_profile_public_recently_viewed_listings", "8c060e9dab325306a81a95e94c5dc578596f719d787e1da7d05a56f6711b3b8b"],
+  ["20261020235930_prepare_seller_profile_owner_review_reply", "c1505107f919231bac1f8f3133a53eca9091a71ada67383060a297fde5b8d14b"],
 ];
 
 export const SELLER_PROFILE_PUBLIC_PREPARATIONS = Object.freeze(
@@ -66,7 +67,7 @@ export const SELLER_PROFILE_PUBLIC_PREPARATIONS = Object.freeze(
 
 export const SELLER_PROFILE_PUBLIC_ENABLE = Object.freeze({
   name: "20261020240000_enable_seller_profile_rls",
-  checksum: "c3c9e80cb67322a650de3974219815cc178491568146150563e8d71b6a65bc22",
+  checksum: "1620927e5124e4130987df9cb60123a6a9707b5cbf148c3937f29c6e64698286",
 });
 
 export function sellerProfilePublicPreparationNames() {
@@ -74,7 +75,7 @@ export function sellerProfilePublicPreparationNames() {
 }
 
 export function verifySellerProfilePublicPreparationSources(root = process.cwd()) {
-  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 54);
+  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 55);
   const seen = new Set();
   for (const migration of [
     ...SELLER_PROFILE_PUBLIC_PREPARATIONS,
@@ -92,7 +93,7 @@ export function verifySellerProfilePublicPreparationSources(root = process.cwd()
   }
   assert.equal(
     SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1).name,
-    "20261020235920_prepare_seller_profile_public_recently_viewed_listings",
+    "20261020235930_prepare_seller_profile_owner_review_reply",
   );
   return Object.freeze({
     preparations: SELLER_PROFILE_PUBLIC_PREPARATIONS.length,

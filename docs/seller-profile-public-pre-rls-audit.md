@@ -234,6 +234,12 @@ listing choices, while missing, banned and deleted owners return no rows.
 and returns only profile id, display name and the all-status listing count used
 by new/custom listing moderation. The all-status scope deliberately preserves
 the predecessor `_count.listings` contract.
+`grainline_seller_owner_review_reply(text,text,text)` derives the active owner,
+binds the expected seller id to the review's scalar listing owner, and writes a
+reply only while the seller remains active and the reply remains empty. The
+route retains its existing not-found, forbidden and already-replied preflight
+responses; ownership/activity or reply changes after that preflight fail the
+single conditional write and preserve the existing conflict response.
 `grainline_seller_owner_listing_metro_source(text)` additionally binds the
 expected seller id to that active owner and returns only the exact coordinate
 pair consumed by server-side post-create metro assignment. It is not a public
@@ -780,8 +786,10 @@ guard the final zero-direct state, but they do not count as behavior proof.
   followed-shop label without exposing the SellerProfile relation, plus a
   viewer-aware recently-viewed card authority that preserves active-only
   listing visibility, reciprocal blocks, first-photo selection and avatar
-  fallback, have reduced the live gate to 56 relation accesses in 29
-  files, 10 raw-SQL accesses in eight files, three relation-bearing factories
+  fallback, plus an actor-bound conditional review-reply write that rechecks
+  the active owner and listing in the database, have reduced the live gate to
+  55 relation accesses in 28 files, 10 raw-SQL accesses in eight files, three
+  relation-bearing factories
   and zero opaque SellerProfile target predicates. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
@@ -807,7 +815,7 @@ guard the final zero-direct state, but they do not count as behavior proof.
   `timestamp without time zone` values without restoring the UTC instant. The
   forward correction changes only those return types and expressions to
   `timestamp with time zone` plus `AT TIME ZONE 'UTC'`; the two previously
-  host-dependent PGlite regressions pass, and the complete 405-migration
+  host-dependent PGlite regressions pass, and the complete 406-migration
   PostgreSQL 16 chain applies the correction before policyless ENABLE and
   asserts the public-profile and Guild-application timestamps as UTC instants.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending

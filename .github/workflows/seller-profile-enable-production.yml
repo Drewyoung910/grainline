@@ -181,7 +181,7 @@ jobs:
           migration=20261020240000_enable_seller_profile_rls
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort | tail -n 1)"
           test "$latest" = "$migration"
-          echo "c3c9e80cb67322a650de3974219815cc178491568146150563e8d71b6a65bc22  prisma/migrations/$migration/migration.sql" | sha256sum --check --status
+          echo "1620927e5124e4130987df9cb60123a6a9707b5cbf148c3937f29c6e64698286  prisma/migrations/$migration/migration.sql" | sha256sum --check --status
           node --test \
             tests/seller-profile-enable-source-ready.test.mjs \
             tests/seller-profile-enable-production-inspect.test.mjs \

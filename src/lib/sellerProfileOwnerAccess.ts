@@ -117,6 +117,50 @@ export type SellerOwnerVacationUpdate = {
   sellerProfileId: string;
 };
 
+async function writeSellerOwnerReviewReply(
+  client: SellerProfileOwnerClient,
+  input: {
+    sellerProfileId: string;
+    reviewId: string;
+    reply: string;
+  },
+) {
+  const replyLength = Array.from(input.reply).length;
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/.test(input.sellerProfileId)
+    || !/^[A-Za-z0-9._:-]{1,191}$/.test(input.reviewId)
+    || replyLength < 1
+    || replyLength > 2000
+  ) {
+    throw new TypeError("Seller owner review-reply input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<{ replySaved: unknown }>>`
+    SELECT public.grainline_seller_owner_review_reply(
+      ${input.reviewId}::text,
+      ${input.sellerProfileId}::text,
+      ${input.reply}::text
+    ) AS "replySaved"
+  `;
+  if (rows.length !== 1 || typeof rows[0]?.replySaved !== "boolean") {
+    throw new Error("Seller owner review-reply authority returned an invalid result");
+  }
+  return rows[0].replySaved;
+}
+
+export function sellerOwnerReviewReply(
+  userId: string,
+  input: {
+    sellerProfileId: string;
+    reviewId: string;
+    reply: string;
+  },
+) {
+  return withDbUserContext(
+    userId,
+    (client) => writeSellerOwnerReviewReply(client, input),
+  );
+}
+
 async function writeSellerOwnerVacationUpdate(
   client: SellerProfileOwnerClient,
   input: {

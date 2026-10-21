@@ -724,9 +724,19 @@ The recently-viewed tray now uses a viewer-aware bounded authority for at most
 ten listing ids. It preserves active-only public eligibility, reciprocal-block
 filtering, the first photo, the seller avatar fallback, requested-id ordering
 and duplicate requested ids without retaining a SellerProfile relation read.
-The current gate is 56 relation accesses, 10 raw-SQL accesses, three
+At that checkpoint the gate was 56 relation accesses, 10 raw-SQL accesses, three
 relation-bearing factories and zero opaque SellerProfile predicates across 33
-consumer files and 144 opaque shapes. The 205-function catalog is 98 retained,
+consumer files and 144 opaque shapes. The 205-function catalog was 98 retained,
 33 internal and 74 converted authorities; two converted authorities are
-staff-only. The complete 405-migration chain includes its exact authority
+staff-only. The then-complete 405-migration chain included its exact authority
 scenario and remains subject to exact-head CI.
+The review-reply route now commits the final seller-ownership, active-account,
+active-profile and empty-reply recheck through one actor-bound conditional
+write. Its earlier preflight responses remain unchanged, while a concurrent
+reply or ownership/activity change still returns the existing conflict rather
+than overwriting a saved reply. The current gate is 55 relation accesses, 10
+raw-SQL accesses, three relation-bearing factories and zero opaque
+SellerProfile predicates across 32 consumer files and 144 opaque shapes. The
+206-function catalog is 98 retained, 33 internal and 75 converted authorities;
+two converted authorities are staff-only. The complete 406-migration chain
+includes the exact authority scenario and remains subject to exact-head CI.

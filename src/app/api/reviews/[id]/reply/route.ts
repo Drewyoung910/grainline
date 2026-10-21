@@ -13,7 +13,10 @@ import {
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { userClerkGate } from "@/lib/userIdentityAccess";
-import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import {
+  sellerOwnerCore,
+  sellerOwnerReviewReply,
+} from "@/lib/sellerProfileOwnerAccess";
 
 const ReplySchema = z.object({
   text: z.string().min(1).max(2000),
@@ -91,15 +94,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   // Recheck current ownership/activity and the one-reply condition in the
   // write itself. Concurrent submits cannot overwrite a reply already saved.
-  const result = await prisma.review.updateMany({
-    where: {
-      id,
-      sellerReply: null,
-      listing: { seller: { userId: me.id, ownerAccountActive: true } },
-    },
-    data: { sellerReply: body, sellerReplyAt: new Date() },
+  const replySaved = await sellerOwnerReviewReply(me.id, {
+    sellerProfileId: seller.sellerProfileId,
+    reviewId: id,
+    reply: body,
   });
-  if (result.count !== 1) {
+  if (!replySaved) {
     return privateJson({ error: "Review reply is no longer available." }, { status: HTTP_STATUS.CONFLICT });
   }
 
