@@ -640,3 +640,13 @@ stable card ordering and fixed limits. The current gate is 72 relation accesses,
 SellerProfile predicates across 46 consumer files and 148 opaque shapes. The
 current 198-function catalog is 98 retained, 33 internal and 67 converted
 authorities; two converted authorities are staff-only.
+The residual commission-interest conversion replaces the buyer dashboard's
+historical maker-card relation and both request-close notification relations
+with an actor-bound summary and a bounded service target authority. It
+preserves inactive historical maker cards for the buyer, counts every recorded
+interest, rejects cross-owner summary reads, and sends notifications only to
+active seller accounts. The current gate is 67 relation accesses, 10 raw-SQL
+accesses, three relation-bearing factories and zero opaque SellerProfile
+predicates across 43 consumer files and 148 opaque shapes. The current
+200-function catalog is 98 retained, 33 internal and 69 converted authorities;
+two converted authorities are staff-only.

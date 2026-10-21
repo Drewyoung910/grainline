@@ -39,10 +39,24 @@ export async function proveSellerProfilePublicCommissionInterestAuthority({
        ),
        pg_catalog.to_regprocedure(
          'public.grainline_seller_public_commission_interest_counts(text[])'
+       ),
+       pg_catalog.to_regprocedure(
+         'public.grainline_seller_owner_commission_interest_summaries(text[],integer)'
+       ),
+       pg_catalog.to_regprocedure(
+         'public.grainline_seller_service_commission_interest_targets(text,integer)'
        )
      )
      ORDER BY routine.proname
   `)), [
+    {
+      name: "grainline_seller_owner_commission_interest_summaries",
+      securityDefiner: true,
+      volatility: "s",
+      config: ["search_path=pg_catalog"],
+      runtimeExecute: true,
+      publicExecute: false,
+    },
     {
       name: "grainline_seller_public_commission_interest_cards",
       securityDefiner: true,
@@ -53,6 +67,14 @@ export async function proveSellerProfilePublicCommissionInterestAuthority({
     },
     {
       name: "grainline_seller_public_commission_interest_counts",
+      securityDefiner: true,
+      volatility: "s",
+      config: ["search_path=pg_catalog"],
+      runtimeExecute: true,
+      publicExecute: false,
+    },
+    {
+      name: "grainline_seller_service_commission_interest_targets",
       securityDefiner: true,
       volatility: "s",
       config: ["search_path=pg_catalog"],
@@ -90,6 +112,13 @@ export async function proveSellerProfilePublicCommissionInterestAuthority({
      VALUES ($1, $2, $3, $4)`,
     [interestId, requestId, seller.sellerProfileId, now],
   );
+  const sellerDisplayName = rowsOf(await database.query(
+    `SELECT "displayName"
+       FROM public."SellerProfile"
+      WHERE id = $1`,
+    [seller.sellerProfileId],
+  ))[0]?.displayName;
+  assert.equal(typeof sellerDisplayName, "string");
 
   await database.query("SET ROLE grainline_app_runtime");
   try {
@@ -108,9 +137,52 @@ export async function proveSellerProfilePublicCommissionInterestAuthority({
       {
         interestId,
         sellerProfileId: seller.sellerProfileId,
-        displayName: "Full Chain Workshop",
+        displayName: sellerDisplayName,
       },
     ]);
+    await database.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+      [buyerId],
+    );
+    assert.deepEqual(rowsOf(await database.query(`
+      SELECT "commissionRequestId", "interestedCount", "interestId",
+             "sellerProfileId", "displayName"
+        FROM public.grainline_seller_owner_commission_interest_summaries(
+          ARRAY[$1, $2]::text[], 3
+        )
+    `, [requestId, closedRequestId])), [
+      {
+        commissionRequestId: requestId,
+        interestedCount: "1",
+        interestId,
+        sellerProfileId: seller.sellerProfileId,
+        displayName: sellerDisplayName,
+      },
+      {
+        commissionRequestId: closedRequestId,
+        interestedCount: "0",
+        interestId: null,
+        sellerProfileId: null,
+        displayName: null,
+      },
+    ]);
+    assert.deepEqual(rowsOf(await database.query(`
+      SELECT "userId"
+        FROM public.grainline_seller_service_commission_interest_targets($1, 10000)
+    `, [requestId])), [{ userId: seller.userId }]);
+    await database.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+      [seller.userId],
+    );
+    await assert.rejects(
+      database.query(`
+        SELECT *
+          FROM public.grainline_seller_owner_commission_interest_summaries(
+            ARRAY[$1]::text[], 3
+          )
+      `, [requestId]),
+      (error) => error?.code === "42501",
+    );
     await assert.rejects(
       database.query(`
         SELECT *

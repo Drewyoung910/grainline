@@ -15,6 +15,7 @@ import {
   publicCommissionInterestCards,
   publicCommissionInterestCounts,
 } from "@/lib/commissionInterestCount";
+import { commissionInterestNotificationTargets } from "@/lib/commissionInterestResidualAccess";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { commissionStatusRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
@@ -112,17 +113,6 @@ export async function PATCH(
       status: true,
       expiresAt: true,
       title: true,
-      interests: {
-        where: {
-          sellerProfile: {
-            ownerAccountActive: true,
-          },
-        },
-        take: COMMISSION_INTEREST_NOTIFY_LIMIT,
-        select: {
-          sellerProfile: { select: { userId: true } },
-        },
-      },
     },
   });
   if (!request) return privateJson({ error: "Not found" }, { status: 404 });
@@ -150,7 +140,11 @@ export async function PATCH(
     throw e;
   }
   const { status } = patchParsed;
-  if ((status as CommissionStatus) === CommissionStatus.FULFILLED && request.interests.length === 0) {
+  const interestedSellerUserIds = await commissionInterestNotificationTargets(
+    id,
+    COMMISSION_INTEREST_NOTIFY_LIMIT,
+  );
+  if ((status as CommissionStatus) === CommissionStatus.FULFILLED && interestedSellerUserIds.length === 0) {
     return privateJson({ error: "A commission request needs at least one interested maker before it can be fulfilled." }, { status: 400 });
   }
 
@@ -168,11 +162,11 @@ export async function PATCH(
   after(async () => {
     try {
       await mapWithConcurrency(
-        request.interests,
+        interestedSellerUserIds,
         10,
-        (interest) =>
+        (interestedSellerUserId) =>
           createNotification({
-            userId: interest.sellerProfile.userId,
+            userId: interestedSellerUserId,
             type: "COMMISSION_INTEREST",
             title: isFulfilled ? "Commission request fulfilled" : "Commission request closed",
             body: isFulfilled
@@ -192,7 +186,7 @@ export async function PATCH(
         extra: {
           commissionRequestId: id,
           status,
-          interestedSellerCount: request.interests.length,
+          interestedSellerCount: interestedSellerUserIds.length,
         },
       });
     }

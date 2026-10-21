@@ -158,9 +158,9 @@ export const SELLER_PROFILE_PRIVATE_FORCE_MIGRATION_SHA256 =
   "fe6178fbf52d6601c1ae99b3421c81624811fb0e31ac4c1939a9a59e1a2c1409";
 export const SELLER_PROFILE_TABLE = "SellerProfile";
 export const SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION =
-  "20261020235000_prepare_seller_profile_public_commission_interests";
+  "20261020235500_prepare_seller_profile_commission_interest_residual_authorities";
 export const SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION_SHA256 =
-  "a68464136c31a33cd12589c7d5ebbb50e52ed7c3c596270748d6da8d2d0a1b84";
+  "27fae81a99658b7733a0bf4313042a3aa97c755ce8b0b2029cc2516101f18a2c";
 export const SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION =
   "20261020240000_enable_seller_profile_rls";
 export const SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256 =

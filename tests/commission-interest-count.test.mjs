@@ -54,4 +54,24 @@ describe("commission interest counts", () => {
     assert.doesNotMatch(page, /JOIN public\."SellerProfile"|JOIN "SellerProfile"/);
     assert.match(page, /publicCommissionInterestCounts\(rawResults\.map/);
   });
+
+  it("routes owner summaries and notification targets through fixed authorities", () => {
+    const access = source("src/lib/commissionInterestResidualAccess.ts");
+    assert.match(access, /grainline_seller_owner_commission_interest_summaries/);
+    assert.match(access, /grainline_seller_service_commission_interest_targets/);
+    assert.match(access, /withDbUserContext/);
+
+    const account = source("src/app/account/commissions/page.tsx");
+    assert.match(account, /ownerCommissionInterestSummaries\(/);
+    assert.doesNotMatch(account, /interests:\s*\{/);
+
+    for (const path of [
+      "src/app/api/commission/[id]/route.ts",
+      "src/app/api/cron/commission-expire/route.ts",
+    ]) {
+      const routeSource = source(path);
+      assert.match(routeSource, /commissionInterestNotificationTargets\(/);
+      assert.doesNotMatch(routeSource, /sellerProfile:\s*\{/);
+    }
+  });
 });

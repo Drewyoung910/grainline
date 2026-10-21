@@ -11,6 +11,10 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   const messages = source("src/app/messages/new/page.tsx");
   const commission = source("src/app/api/commission/[id]/route.ts");
   const expire = source("src/app/api/cron/commission-expire/route.ts");
+  const commissionInterestAccess = source("src/lib/commissionInterestResidualAccess.ts");
+  const commissionInterestAuthority = source(
+    "prisma/migrations/20261020235500_prepare_seller_profile_commission_interest_residual_authorities/migration.sql",
+  );
   const broadcast = source("src/app/api/seller/broadcast/route.ts");
   const mirror = source("src/lib/stripeWebhookMirror.ts");
   const stripePrivate = source("src/lib/sellerStripePrivateAccess.ts");
@@ -20,9 +24,12 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   assert.doesNotMatch(messages, /seller:\s*\{[\s\S]*?user:\s*\{\s*select:\s*\{\s*id: true, banned: true, deletedAt: true/);
 
   for (const candidate of [commission, expire]) {
-    assert.match(candidate, /sellerProfile:\s*\{\s*ownerAccountActive: true/);
+    assert.match(candidate, /commissionInterestNotificationTargets\(/);
+    assert.doesNotMatch(candidate, /sellerProfile:\s*\{/);
     assert.doesNotMatch(candidate, /sellerProfile:\s*\{\s*user:\s*\{\s*banned: false, deletedAt: null/);
   }
+  assert.match(commissionInterestAccess, /grainline_seller_service_commission_interest_targets/);
+  assert.match(commissionInterestAuthority, /seller\."ownerAccountActive" = true/);
 
   assert.match(broadcast, /ownerAccountActive: true/);
   assert.match(broadcast, /sellerProfile\.ownerAccountActive !== true/);

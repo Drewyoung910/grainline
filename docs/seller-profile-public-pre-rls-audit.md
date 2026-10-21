@@ -80,7 +80,7 @@ schema-aware result is the canonical source baseline.
 
 ## Machine-checked consumer contracts
 
-The current 57-file candidate union is assigned in
+The current 43-file candidate union is assigned in
 `scripts/seller-profile-public-consumer-contracts.mjs` and verified with:
 
 ```sh
@@ -94,19 +94,19 @@ contract. The current assignment is:
 
 | Contract | Consumer files | Boundary represented |
 |---|---:|---|
-| `PUBLIC_PROFILE` | 23 | Public-safe presentation under the caller's existing visibility predicate |
-| `PUBLIC_ELIGIBILITY` | 28 | Boolean, count, or filter-only availability without returning a seller row |
-| `PUBLIC_MAP` | 3 | Privacy-selected point under the exact public-location authorities |
-| `OWNER` | 5 | Authenticated active owner and that owner's row |
-| `PARTICIPANT` | 11 | Relationship-bound follow, save, report, review, or message behavior |
-| `STAFF` | 6 | Named role/PIN/target/audit-bound staff operations |
-| `SERVICE` | 7 | Named webhook, cron, deletion, notification, metrics, repair, or telemetry operation |
+| `PUBLIC_PROFILE` | 17 | Public-safe presentation under the caller's existing visibility predicate |
+| `PUBLIC_ELIGIBILITY` | 20 | Boolean, count, or filter-only availability without returning a seller row |
+| `PUBLIC_MAP` | 2 | Privacy-selected point under the exact public-location authorities |
+| `OWNER` | 3 | Authenticated active owner and that owner's row |
+| `PARTICIPANT` | 10 | Relationship-bound follow, save, report, review, or message behavior |
+| `STAFF` | 4 | Named role/PIN/target/audit-bound staff operations |
+| `SERVICE` | 4 | Named webhook, cron, deletion, notification, metrics, repair, or telemetry operation |
 | `TRANSACTION` | 10 | Actor/resource-bound checkout, shipping, listing, or custom-order behavior |
 
 Contracts overlap by design. For example, a public listing page needs public
 presentation, availability, conditional map disclosure, and signed-in
-participant behavior. One owner-only file reads raw seller coordinates. All 10 direct base-table writes
-are classified as owner, staff, or service operations. This manifest closes
+participant behavior. No direct base-table write or coordinate reader remains.
+This manifest closes
 the source-file principal assignment and opaque-shape reconciliation; it does
 not yet define the final SQL function/view surface.
 
@@ -766,13 +766,14 @@ guard the final zero-direct state, but they do not count as behavior proof.
   residual relation/raw-SQL caller after ENABLE.
 - Residual conversion is in progress. Viewer-aware map metros, owner following,
   public rating/tag aggregates, owner saved-listing reads and public commission
-  interest counts/cards have reduced the live gate to 72 relation accesses in
-  42 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
+  interest counts/cards, owner historical interest summaries and bounded
+  service notification targets have reduced the live gate to 67 relation
+  accesses in 39 files, 10 raw-SQL accesses in eight files, three relation-bearing factories
   and zero opaque SellerProfile target predicates. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
-  filtering and stable interest-card ordering rather than accepting a caller
-  supplied SellerProfile predicate.
+  filtering, owner binding, historical-card disclosure and stable ordering
+  rather than accepting a caller-supplied SellerProfile predicate.
 - Exact-location consent is now bound to the transaction-local authenticated
   owner before the function delegates or mutates state. A cross-owner runtime
   call fails with `42501`, records no consent event and leaves active consent
