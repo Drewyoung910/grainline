@@ -104,15 +104,9 @@ describe("public visibility follow-ups", () => {
     assert.doesNotMatch(sellerPage, /select: \{ tags: true \}/);
     assert.match(popularTags, /export const PUBLIC_SELLER_TOP_TAG_LIMIT = 8/);
     assert.match(popularTags, /export const getCachedPublicSellerTopTags = unstable_cache\(/);
-    assert.match(popularTags, /l\."sellerId" = \$\{sellerId\}/);
-    assert.match(popularTags, /unnest\(l\.tags\) AS tag/);
-    assert.match(popularTags, /l\.status = 'ACTIVE'/);
-    assert.match(popularTags, /l\."isPrivate" = false/);
-    assert.match(popularTags, /sp\."chargesEnabled" = true/);
-    assert.match(popularTags, /sp\."vacationMode" = false/);
-    assert.match(popularTags, /sp\."ownerAccountActive" = true/);
-    assert.doesNotMatch(popularTags, /JOIN "User"/);
-    assert.match(popularTags, /LIMIT \$\{PUBLIC_SELLER_TOP_TAG_LIMIT\}/);
+    assert.match(popularTags, /sellerPublicSellerTags\(sellerId, PUBLIC_SELLER_TOP_TAG_LIMIT\)/);
+    assert.match(popularTags, /sellerPublicListingTags\(limit\)/);
+    assert.doesNotMatch(popularTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
     assert.match(popularTags, /tags: \["popular-listing-tags"\]/);
   });
 

@@ -285,9 +285,6 @@ describe("verified audit follow-up guardrails", () => {
       "src/app/api/blog/search/suggestions/route.ts",
       "src/app/api/listings/[id]/similar/route.ts",
       "src/app/api/search/suggestions/route.ts",
-      "src/lib/popularTags.ts",
-      "src/lib/popularBlogTags.ts",
-      "src/lib/site-metrics-snapshot.ts",
       "src/lib/quality-score.ts",
     ];
     for (const path of rawSqlPaths) {
@@ -295,6 +292,17 @@ describe("verified audit follow-up guardrails", () => {
       assert.match(text, /sp\."stripeAccountSupported" = true/, `${path} should use the public-safe seller capability snapshot`);
       assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
     }
+    const publicAggregateAuthority = source(
+      "prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql",
+    );
+    for (const path of [
+      "src/lib/popularTags.ts",
+      "src/lib/popularBlogTags.ts",
+      "src/lib/site-metrics-snapshot.ts",
+    ]) {
+      assert.doesNotMatch(source(path), /JOIN "SellerProfile"|prisma\.\$queryRaw/);
+    }
+    assert.match(publicAggregateAuthority, /seller\."stripeAccountSupported" = true/);
     for (const path of [
       "src/app/api/reviews/[id]/vote/route.ts",
       "src/app/api/users/[id]/report/route.ts",

@@ -204,12 +204,11 @@ describe("public query determinism", () => {
 
   it("orders equal-count public tag caps by tag", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
-    const popularTags = source("src/lib/popularTags.ts");
+    const tagAuthority = source("prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql");
 
-    assert.match(popularTags, /ORDER BY count DESC, tag ASC/);
-    assert.match(source("src/lib/popularBlogTags.ts"), /ORDER BY count DESC, tag ASC/);
+    assert.equal((tagAuthority.match(/ORDER BY pg_catalog\.count\(\*\) DESC, tags\.tag ASC/gu) ?? []).length, 3);
     assert.match(sellerPage, /getCachedPublicSellerTopTags\(seller\.id\)/);
-    assert.match(popularTags, /ORDER BY count DESC, tag ASC\s*LIMIT \$\{PUBLIC_SELLER_TOP_TAG_LIMIT\}/);
+    assert.match(source("src/lib/popularTags.ts"), /sellerPublicSellerTags\(sellerId, PUBLIC_SELLER_TOP_TAG_LIMIT\)/);
   });
 
   it("reuses cached popular blog tag rows outside full blog search", () => {

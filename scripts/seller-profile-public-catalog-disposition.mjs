@@ -46,6 +46,7 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_actor_conversation_cards(text[])",
   "grainline_seller_public_browse_nearby(double precision,double precision,double precision)",
   "grainline_seller_public_blog_author(text)",
+  "grainline_seller_public_blog_tags(integer)",
   "grainline_seller_public_customer_photo_header(text)",
   "grainline_seller_public_featured_makers()",
   "grainline_seller_public_follow_create(text,text)",
@@ -68,6 +69,8 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_public_similar_makers(text,integer)",
   "grainline_seller_public_sitemap_counts()",
   "grainline_seller_public_sitemap_page(text,integer,integer)",
+  "grainline_seller_public_listing_tags(integer)",
+  "grainline_seller_public_seller_tags(text,integer)",
   "grainline_seller_public_view_target(text)",
   "grainline_seller_owner_account_summary()",
   "grainline_seller_owner_blog_editor()",
@@ -116,8 +119,8 @@ function sameStrings(actual, expected) {
 }
 
 export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
-  if (functions.length !== 191) {
-    throw new Error(`SellerProfile function inventory drifted: expected 191, got ${functions.length}`);
+  if (functions.length !== 194) {
+    throw new Error(`SellerProfile function inventory drifted: expected 194, got ${functions.length}`);
   }
   for (const row of functions) {
     if (!row.security_definer || !row.config?.includes("search_path=pg_catalog")) {
@@ -181,7 +184,7 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
   );
   if (retainedAuthorityFunctions.length !== 98
       || internalSupportFunctions.length !== 33
-      || convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length !== 60) {
+      || convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length !== 63) {
     throw new Error(
       `SellerProfile function dispositions drifted: retained=${retainedAuthorityFunctions.length}; `
       + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length}`,

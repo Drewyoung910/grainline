@@ -63,8 +63,6 @@ export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/lib/followerBlogNotifications.ts": ["SERVICE"],
   "src/lib/followerListingNotifications.ts": ["SERVICE"],
   "src/lib/listingDelete.ts": ["OWNER", "TRANSACTION"],
-  "src/lib/popularBlogTags.ts": ["PUBLIC_ELIGIBILITY"],
-  "src/lib/popularTags.ts": ["PUBLIC_ELIGIBILITY"],
   "src/lib/quality-score.ts": ["SERVICE"],
   "src/lib/savedBlogPostOwnerAccess.ts": ["PUBLIC_PROFILE"],
   "src/lib/sellerCheckoutPrivateAccess.ts": ["TRANSACTION"],

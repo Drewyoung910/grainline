@@ -41,6 +41,11 @@ export type SellerPublicMarketplaceCounts = Readonly<{
   foundingMakerCount: number;
 }>;
 
+export type SellerPublicTagAggregate = Readonly<{
+  tag: string;
+  count: number;
+}>;
+
 export type SellerPublicSimilarMaker = Readonly<{
   id: string;
   displayName: string;
@@ -242,6 +247,11 @@ type SellerPublicMarketplaceCountsRow = {
 
 type SellerPublicMarketplaceRatingRow = {
   value: unknown;
+};
+
+type SellerPublicTagAggregateRow = {
+  tag: unknown;
+  count: unknown;
 };
 
 type SellerPublicCountRow = {
@@ -700,6 +710,22 @@ function parseNullableSafeInteger(value: unknown, label: string) {
   return integer;
 }
 
+function parseSellerPublicTagAggregates(rows: SellerPublicTagAggregateRow[]) {
+  const aggregates = rows.map((row) => {
+    if (typeof row.tag !== "string" || row.tag.length < 1) {
+      throw new Error("Seller public tag authority returned an invalid tag");
+    }
+    return Object.freeze({
+      tag: row.tag,
+      count: parseSafeCount(row.count, "tag count"),
+    });
+  });
+  if (new Set(aggregates.map(({ tag }) => tag)).size !== aggregates.length) {
+    throw new Error("Seller public tag authority returned duplicate tags");
+  }
+  return Object.freeze(aggregates);
+}
+
 async function readSellerPublicMarketplaceCounts(client: SellerPublicAccessClient) {
   const rows = await client.$queryRaw<SellerPublicMarketplaceCountsRow[]>(Prisma.sql`
     SELECT * FROM public.grainline_seller_public_marketplace_counts()
@@ -726,6 +752,41 @@ async function readSellerPublicMarketplaceRatingAverage(client: SellerPublicAcce
     throw new Error("Seller public marketplace rating authority returned an invalid rating");
   }
   return value;
+}
+
+async function readSellerPublicListingTags(
+  client: SellerPublicAccessClient,
+  limit: number,
+) {
+  const rows = await client.$queryRaw<SellerPublicTagAggregateRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_listing_tags(${limit})
+  `);
+  return parseSellerPublicTagAggregates(rows);
+}
+
+async function readSellerPublicSellerTags(
+  client: SellerPublicAccessClient,
+  sellerProfileId: string,
+  limit: number,
+) {
+  const rows = await client.$queryRaw<SellerPublicTagAggregateRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_seller_tags(
+        ${sellerProfileId},
+        ${limit}
+      )
+  `);
+  return parseSellerPublicTagAggregates(rows);
+}
+
+async function readSellerPublicBlogTags(
+  client: SellerPublicAccessClient,
+  limit: number,
+) {
+  const rows = await client.$queryRaw<SellerPublicTagAggregateRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_blog_tags(${limit})
+  `);
+  return parseSellerPublicTagAggregates(rows);
 }
 
 async function readSellerPublicMetroCount(
@@ -1315,6 +1376,33 @@ export async function sellerPublicMarketplaceCounts() {
 
 export async function sellerPublicMarketplaceRatingAverage() {
   return readSellerPublicMarketplaceRatingAverage(prisma);
+}
+
+export async function sellerPublicListingTags(limit: number) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
+    throw new RangeError("Seller public listing-tag limit is outside the supported range");
+  }
+  return readSellerPublicListingTags(prisma, limit);
+}
+
+export async function sellerPublicSellerTags(sellerProfileId: string, limit: number) {
+  if (
+    sellerProfileId.length < 1
+    || sellerProfileId.length > 191
+    || !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 8
+  ) {
+    throw new RangeError("Seller public seller-tag input is outside the supported range");
+  }
+  return readSellerPublicSellerTags(prisma, sellerProfileId, limit);
+}
+
+export async function sellerPublicBlogTags(limit: number) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
+    throw new RangeError("Seller public blog-tag limit is outside the supported range");
+  }
+  return readSellerPublicBlogTags(prisma, limit);
 }
 
 export async function sellerPublicMetroCount(

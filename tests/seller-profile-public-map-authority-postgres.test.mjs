@@ -75,7 +75,16 @@ async function readyDatabase() {
       status text NOT NULL,
       "isPrivate" boolean NOT NULL DEFAULT false,
       "reservedForUserId" text REFERENCES public."User"(id),
-      "archivedAt" timestamp(3)
+      "archivedAt" timestamp(3),
+      tags text[] NOT NULL DEFAULT ARRAY[]::text[]
+    );
+    CREATE TABLE public."BlogPost" (
+      id text PRIMARY KEY,
+      status text NOT NULL,
+      "publishedAt" timestamp(3),
+      "authorAccountActive" boolean NOT NULL DEFAULT true,
+      "sellerProfileId" text REFERENCES public."SellerProfile"(id),
+      tags text[] NOT NULL DEFAULT ARRAY[]::text[]
     );
     CREATE TABLE public."Review" (
       id text PRIMARY KEY,
@@ -129,6 +138,18 @@ async function readyDatabase() {
       ('review-visible', 'listing-public', 10),
       ('review-private', 'listing-private-viewer', 2),
       ('review-vacation', 'listing-vacation-public', 2);
+    UPDATE public."Listing" SET tags = ARRAY['wood', 'gift'] WHERE id = 'listing-public';
+    UPDATE public."Listing" SET tags = ARRAY['private'] WHERE id = 'listing-private-viewer';
+    UPDATE public."Listing" SET tags = ARRAY['wood'] WHERE id = 'listing-blocked-public';
+    UPDATE public."Listing" SET tags = ARRAY['hidden'] WHERE id = 'listing-vacation-public';
+    INSERT INTO public."BlogPost" (
+      id, status, "publishedAt", "authorAccountActive", "sellerProfileId", tags
+    ) VALUES
+      ('blog-platform', 'PUBLISHED', NOW() - INTERVAL '1 day', true, NULL, ARRAY['news', 'wood']),
+      ('blog-visible', 'PUBLISHED', NOW() - INTERVAL '1 day', true, 'seller-visible', ARRAY['wood', 'craft']),
+      ('blog-vacation', 'PUBLISHED', NOW() - INTERVAL '1 day', true, 'seller-vacation', ARRAY['hidden']),
+      ('blog-draft', 'DRAFT', NULL, true, 'seller-visible', ARRAY['draft']),
+      ('blog-future', 'PUBLISHED', NOW() + INTERVAL '1 day', true, 'seller-visible', ARRAY['future']);
     INSERT INTO public."ReviewPhoto" (id, "reviewId")
       VALUES ('review-photo-visible', 'review-visible');
     UPDATE public."SellerProfile"
@@ -555,6 +576,35 @@ test("marketplace rating authority preserves the public listing and seller scope
   }
 });
 
+test("public tag authorities preserve visibility, aggregation, and deterministic ordering", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.deepEqual((await database.query(`
+      SELECT * FROM public.grainline_seller_public_listing_tags(10)
+    `)).rows, [
+      { tag: "wood", count: 2 },
+      { tag: "gift", count: 1 },
+    ]);
+    assert.deepEqual((await database.query(`
+      SELECT * FROM public.grainline_seller_public_seller_tags('seller-visible', 8)
+    `)).rows, [
+      { tag: "gift", count: 1 },
+      { tag: "wood", count: 1 },
+    ]);
+    assert.deepEqual((await database.query(`
+      SELECT * FROM public.grainline_seller_public_blog_tags(8)
+    `)).rows, [
+      { tag: "wood", count: 2 },
+      { tag: "craft", count: 1 },
+      { tag: "news", count: 1 },
+    ]);
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
 test("marketplace count authority denies ungranted callers", async () => {
   const database = await readyDatabase();
   try {
@@ -567,6 +617,13 @@ test("marketplace count authority denies ungranted callers", async () => {
       database.query("SELECT public.grainline_seller_public_marketplace_rating_average()"),
       /permission denied/u,
     );
+    for (const statement of [
+      "SELECT * FROM public.grainline_seller_public_listing_tags(8)",
+      "SELECT * FROM public.grainline_seller_public_seller_tags('seller-visible', 8)",
+      "SELECT * FROM public.grainline_seller_public_blog_tags(8)",
+    ]) {
+      await assert.rejects(database.query(statement), /permission denied/u);
+    }
   } finally {
     await database.exec("RESET ROLE").catch(() => {});
     await database.close();

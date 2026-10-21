@@ -3220,7 +3220,7 @@ describe("database grant inventory guardrails", () => {
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
         + (sellerProfilePublicCandidatePresent
-          ? 65 // current public SellerProfile candidate surface
+          ? 68 // current public SellerProfile candidate surface
             + Number(!sellerProfilePublicProvisioningPresent) // historical provisioning retains one distinct predecessor revoke
           : 0)
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)

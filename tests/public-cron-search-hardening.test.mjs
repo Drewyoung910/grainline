@@ -198,8 +198,8 @@ describe("cron and public route hardening", () => {
     assert.match(blogPage, /getBlockedIdsFor\(meDbId\)/);
     assert.match(blogPage, /"BlogPost"\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
     assert.match(blogPage, /getPopularBlogTagRows\(20\)/);
-    assert.match(popularBlogTags, /bp\."publishedAt" IS NOT NULL/);
-    assert.match(popularBlogTags, /bp\."publishedAt" <= NOW\(\)/);
+    assert.match(popularBlogTags, /sellerPublicBlogTags\(limit\)/);
+    assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"/);
 
     assert.match(similarListings, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(similarListings, /rateLimitResponse\(rate\.reset, "Too many similar-listing requests\."\)/);

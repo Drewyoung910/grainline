@@ -73,7 +73,6 @@ describe("User public seller-state source boundary", () => {
       "src/app/blog/page.tsx",
       "src/app/api/blog/search/route.ts",
       "src/app/api/blog/search/suggestions/route.ts",
-      "src/lib/popularBlogTags.ts",
     ]) {
       const source = read(path);
       assert.match(source, /(?:bp|"BlogPost")\."authorAccountActive" = true/);
@@ -81,6 +80,9 @@ describe("User public seller-state source boundary", () => {
       assert.match(source, /sp\."ownerAccountActive" = true/);
       assert.doesNotMatch(source, /seller_user/);
     }
+    const popularBlogTags = read("src/lib/popularBlogTags.ts");
+    assert.match(popularBlogTags, /sellerPublicBlogTags\(limit\)/);
+    assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
 
     const commission = read("src/app/commission/page.tsx");
     assert.doesNotMatch(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);

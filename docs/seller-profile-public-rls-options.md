@@ -617,9 +617,11 @@ gate to 78 relation accesses and two opaque predicates without changing either
 route set or the map's blocked-maker behavior. The owner-bound following-page
 conversion then removes its SellerProfile, Listing and Photo relations and the
 last two opaque SellerProfile predicates. The current gate is 75 relation
-accesses, 14 raw-SQL accesses, five relation-bearing factories and zero opaque
+accesses, 11 raw-SQL accesses, five relation-bearing factories and zero opaque
 SellerProfile predicates. The service aggregate conversion moves the public
 marketplace rating average behind a scalar authority without changing its
-active-listing or seller-orderability predicate. The current 191-function
-catalog is 98 retained, 33 internal and 60 converted authorities; two
-converted authorities are staff-only.
+active-listing or seller-orderability predicate. The same bounded aggregate
+surface now owns global listing tags, per-seller listing tags and public blog
+tags while retaining their visibility rules, caps and deterministic ordering.
+The current 194-function catalog is 98 retained, 33 internal and 63 converted
+authorities; two converted authorities are staff-only.
