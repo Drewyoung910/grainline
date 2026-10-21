@@ -777,8 +777,10 @@ guard the final zero-direct state, but they do not count as behavior proof.
   plus a purpose-bound public favorite target that preserves exact listing and
   seller eligibility while returning only the listing id, title and owner id,
   and an actor-bound account-export authority that retains every recorded
-  followed-shop label without exposing the SellerProfile relation, have reduced
-  the live gate to 57 relation accesses in 30
+  followed-shop label without exposing the SellerProfile relation, plus a
+  viewer-aware recently-viewed card authority that preserves active-only
+  listing visibility, reciprocal blocks, first-photo selection and avatar
+  fallback, have reduced the live gate to 56 relation accesses in 29
   files, 10 raw-SQL accesses in eight files, three relation-bearing factories
   and zero opaque SellerProfile target predicates. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
@@ -805,7 +807,7 @@ guard the final zero-direct state, but they do not count as behavior proof.
   `timestamp without time zone` values without restoring the UTC instant. The
   forward correction changes only those return types and expressions to
   `timestamp with time zone` plus `AT TIME ZONE 'UTC'`; the two previously
-  host-dependent PGlite regressions pass, and the complete 404-migration
+  host-dependent PGlite regressions pass, and the complete 405-migration
   PostgreSQL 16 chain applies the correction before policyless ENABLE and
   asserts the public-profile and Guild-application timestamps as UTC instants.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending

@@ -140,6 +140,16 @@ export type SellerPublicFavoriteTarget = Readonly<{
   ownerUserId: string;
 }>;
 
+export type SellerPublicRecentlyViewedListing = Readonly<{
+  id: string;
+  title: string;
+  priceCents: number;
+  currency: string;
+  photoUrl: string | null;
+  sellerDisplayName: string;
+  sellerAvatarImageUrl: string | null;
+}>;
+
 export type SellerPublicProfileFaq = Readonly<{
   id: string;
   question: string;
@@ -229,6 +239,16 @@ type SellerPublicFavoriteTargetRow = {
   listingId: unknown;
   title: unknown;
   ownerUserId: unknown;
+};
+
+type SellerPublicRecentlyViewedListingRow = {
+  id: unknown;
+  title: unknown;
+  priceCents: unknown;
+  currency: unknown;
+  photoUrl: unknown;
+  sellerDisplayName: unknown;
+  sellerAvatarImageUrl: unknown;
 };
 
 type SellerPublicLocationRow = {
@@ -1170,6 +1190,48 @@ async function readSellerPublicFavoriteTarget(
   });
 }
 
+async function readSellerPublicRecentlyViewedListings(
+  client: SellerPublicAccessClient,
+  listingIds: string[],
+) {
+  const rows = await client.$queryRaw<SellerPublicRecentlyViewedListingRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_recently_viewed_listings(
+        ${listingIds}::text[]
+      )
+  `);
+  const requestedIds = new Set(listingIds);
+  if (
+    rows.length > requestedIds.size
+    || rows.some((row) => (
+      typeof row.id !== "string"
+      || !requestedIds.has(row.id)
+      || typeof row.title !== "string"
+      || row.title.length > 150
+      || typeof row.priceCents !== "number"
+      || !Number.isSafeInteger(row.priceCents)
+      || typeof row.currency !== "string"
+      || row.currency.length > 3
+      || !nullableString(row.photoUrl)
+      || typeof row.sellerDisplayName !== "string"
+      || row.sellerDisplayName.length > 100
+      || !nullableString(row.sellerAvatarImageUrl)
+    ))
+    || new Set(rows.map((row) => row.id)).size !== rows.length
+  ) {
+    throw new Error("Seller public recently-viewed authority returned an invalid result");
+  }
+  return Object.freeze(rows.map((row) => Object.freeze({
+    id: row.id as string,
+    title: row.title as string,
+    priceCents: row.priceCents as number,
+    currency: row.currency as string,
+    photoUrl: row.photoUrl as string | null,
+    sellerDisplayName: row.sellerDisplayName as string,
+    sellerAvatarImageUrl: row.sellerAvatarImageUrl as string | null,
+  })));
+}
+
 async function readSellerPublicProfile(
   client: SellerPublicAccessClient,
   sellerProfileId: string,
@@ -1557,6 +1619,24 @@ export async function sellerPublicFavoriteTarget(listingId: string) {
     throw new RangeError("Seller public favorite-target id is outside the supported range");
   }
   return readSellerPublicFavoriteTarget(prisma, listingId);
+}
+
+export async function sellerPublicRecentlyViewedListings(
+  viewerUserId: string | null,
+  listingIds: string[],
+) {
+  if (
+    listingIds.length < 1
+    || listingIds.length > 10
+    || listingIds.some((listingId) => !/^[A-Za-z0-9._:-]{1,191}$/u.test(listingId))
+  ) {
+    throw new RangeError("Seller public recently-viewed input is outside the supported range");
+  }
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicRecentlyViewedListings(client, listingIds));
+  }
+  return readSellerPublicRecentlyViewedListings(prisma, listingIds);
 }
 
 export async function sellerPublicProfile(
