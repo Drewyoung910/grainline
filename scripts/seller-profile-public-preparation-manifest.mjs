@@ -66,6 +66,7 @@ const preparationRows = [
   ["20261020235980_prepare_seller_profile_staff_verification_target", "d1e916ff62dbff7c1f0c0ccbd75616ce96c609db2a245b31c4257aed13a76607"],
   ["20261020235990_prepare_seller_profile_public_review_vote_target", "15ad0986610a1b420c952ade04d67465d2cc59fde49c07a3fcc57ddbf608fbc3"],
   ["20261020235995_prepare_seller_profile_participant_conversation_listing_target", "413c9dfe5b150b88167ce2edf47359cb268272e02ae0b14bb152b21df3007477"],
+  ["20261020235996_prepare_seller_profile_conversation_context_listing", "53cc5de0ff455b120e2425ef44f87cc4a507a7beb0e7214217f0294aff1de570"],
 ];
 
 export const SELLER_PROFILE_PUBLIC_PREPARATIONS = Object.freeze(
@@ -82,7 +83,7 @@ export function sellerProfilePublicPreparationNames() {
 }
 
 export function verifySellerProfilePublicPreparationSources(root = process.cwd()) {
-  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 62);
+  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 63);
   const seen = new Set();
   for (const migration of [
     ...SELLER_PROFILE_PUBLIC_PREPARATIONS,
@@ -100,7 +101,7 @@ export function verifySellerProfilePublicPreparationSources(root = process.cwd()
   }
   assert.equal(
     SELLER_PROFILE_PUBLIC_PREPARATIONS.at(-1).name,
-    "20261020235995_prepare_seller_profile_participant_conversation_listing_target",
+    "20261020235996_prepare_seller_profile_conversation_context_listing",
   );
   return Object.freeze({
     preparations: SELLER_PROFILE_PUBLIC_PREPARATIONS.length,

@@ -26,7 +26,6 @@ import {
   verifyFirstPartyUploadForPersistence,
 } from "@/lib/uploadPersistenceVerification";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
-import { canViewListingDetail } from "@/lib/listingVisibility";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
@@ -47,7 +46,10 @@ import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
-import { sellerParticipantConversationListingTarget } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerActorConversationContextListing,
+  sellerParticipantConversationListingTarget,
+} from "@/lib/sellerProfilePublicAccess";
 
 export default async function ThreadPage({
   params,
@@ -90,28 +92,7 @@ export default async function ThreadPage({
   const userB = userById.get(conversation.userBId);
   if (!userA || !userB) return notFound();
   const contextListing = conversation.contextListingId
-    ? await prisma.listing.findUnique({
-        where: { id: conversation.contextListingId },
-        select: {
-          id: true,
-          title: true,
-          priceCents: true,
-          currency: true,
-          status: true,
-          isPrivate: true,
-          reservedForUserId: true,
-          seller: {
-            select: {
-              userId: true,
-              ownerAccountActive: true,
-              chargesEnabled: true,
-              stripeAccountSupported: true,
-              vacationMode: true,
-            },
-          },
-          photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        },
-      })
+    ? await sellerActorConversationContextListing(me.id, conversation.id)
     : null;
   const convo = {
     ...conversation,
@@ -443,14 +424,8 @@ export default async function ThreadPage({
   // ---------------------------------------------------------------------------
 
   const ctx = convo.contextListing;
-  const ctxImg = ctx?.photos?.[0]?.url ?? null;
-  const contextListingHref = ctx &&
-    canViewListingDetail(ctx, {
-      dbUserId: isParticipant ? me.id : null,
-      role: me.role,
-      banned: me.banned,
-      deletedAt: me.deletedAt,
-    })
+  const ctxImg = ctx?.photoUrl ?? null;
+  const contextListingHref = ctx?.canViewDetail
     ? publicListingPath(ctx.id, ctx.title)
     : null;
   const archivedForMe =

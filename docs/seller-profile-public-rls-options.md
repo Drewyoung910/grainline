@@ -960,3 +960,16 @@ seller becomes unavailable. The gate is now 24 relation accesses in 12 files,
 two raw-SQL accesses in two files, three relation-bearing factories and zero
 opaque SellerProfile target predicates across 13 consumer files and 144
 reconciled opaque shapes.
+
+The historical conversation card now resolves through its own actor-bound
+conversation authority instead of `Listing -> SellerProfile`. Participants and
+active staff with an unresolved thread report receive the retained card fields;
+the separate `canViewDetail` result follows archived, owner, public,
+private-reservation, account and seller-orderability rules. This preserves the
+history card when a listing becomes unavailable without leaving its link or the
+base-table relation in application code. The gate is now 23 relation accesses
+in 11 files, two raw-SQL accesses in two files, three relation-bearing factories
+and zero opaque SellerProfile target predicates across 12 consumer files and
+144 reconciled opaque shapes. The 214-function catalog is 98 retained, 33
+internal and 83 converted authorities; the compatible preparation set contains
+63 migrations and the full chain contains 414.

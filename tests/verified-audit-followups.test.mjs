@@ -326,6 +326,7 @@ describe("verified audit follow-up guardrails", () => {
       "prisma/migrations/20261020235000_prepare_seller_profile_public_commission_interests/migration.sql",
       "prisma/migrations/20261020235990_prepare_seller_profile_public_review_vote_target/migration.sql",
       "prisma/migrations/20261020235995_prepare_seller_profile_participant_conversation_listing_target/migration.sql",
+      "prisma/migrations/20261020235996_prepare_seller_profile_conversation_context_listing/migration.sql",
     ]) {
       const text = source(path);
       assert.match(text, /"stripeAccountSupported" = true/);
@@ -344,10 +345,12 @@ describe("verified audit follow-up guardrails", () => {
     }
     assert.doesNotMatch(source("src/app/page.tsx"), /featuredMakerWhere/);
     assert.match(source("src/lib/conversationStartState.ts"), /listing\.seller\.stripeAccountSupported/);
-    assert.match(
-      source("prisma/migrations/20261020235995_prepare_seller_profile_participant_conversation_listing_target/migration.sql"),
-      /seller\."stripeAccountSupported" = true/,
-    );
+    for (const path of [
+      "prisma/migrations/20261020235995_prepare_seller_profile_participant_conversation_listing_target/migration.sql",
+      "prisma/migrations/20261020235996_prepare_seller_profile_conversation_context_listing/migration.sql",
+    ]) {
+      assert.match(source(path), /seller\."stripeAccountSupported" = true/);
+    }
   });
 
   it("keeps footer metro links behind a tagged cache and invalidates metro assignment changes", () => {

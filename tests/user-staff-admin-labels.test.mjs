@@ -117,7 +117,7 @@ test("staff admin label source keeps the isolated role and bounded callers", () 
     assert.match(page, /userStaffAdminLabels\(getOrderStaffReadClient\(\), \{/);
   }
   assert.match(verification, /sellerAccount\.createdAt\.getTime\(\)/);
-  assert.match(verification, /ownerAccountActive: true/);
+  assert.match(verification, /verification\.sellerProfile\.ownerAccountActive/);
   assert.doesNotMatch(verification, /user:\s*\{\s*(?:select|banned|deletedAt)/);
   assert.match(listingReview, /ownerAccountActive: true/);
   assert.doesNotMatch(listingReview, /user:\s*\{\s*(?:select|banned|deletedAt)/);

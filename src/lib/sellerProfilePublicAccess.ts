@@ -153,6 +153,15 @@ export type SellerParticipantConversationListingTarget = Readonly<{
   title: string;
 }>;
 
+export type SellerActorConversationContextListing = Readonly<{
+  id: string;
+  title: string;
+  priceCents: number;
+  currency: string;
+  photoUrl: string | null;
+  canViewDetail: boolean;
+}>;
+
 export type SellerPublicListingCard = Readonly<{
   listingId: string;
   sellerProfileId: string;
@@ -289,6 +298,15 @@ type SellerPublicReviewVoteTargetRow = {
 type SellerParticipantConversationListingTargetRow = {
   listingId: unknown;
   title: unknown;
+};
+
+type SellerActorConversationContextListingRow = {
+  listingId: unknown;
+  title: unknown;
+  priceCents: unknown;
+  currency: unknown;
+  photoUrl: unknown;
+  canViewDetail: unknown;
 };
 
 type SellerPublicListingCardRow = {
@@ -1325,6 +1343,41 @@ async function readSellerParticipantConversationListingTarget(
   }) as SellerParticipantConversationListingTarget;
 }
 
+async function readSellerActorConversationContextListing(
+  client: SellerPublicAccessClient,
+  conversationId: string,
+) {
+  const rows = await client.$queryRaw<SellerActorConversationContextListingRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_actor_conversation_context_listing(${conversationId})
+  `);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || typeof row.listingId !== "string"
+    || row.listingId.length < 1
+    || typeof row.title !== "string"
+    || row.title.length < 1
+    || !Number.isSafeInteger(row.priceCents)
+    || Number(row.priceCents) < 0
+    || typeof row.currency !== "string"
+    || !/^[a-z]{3}$/u.test(row.currency)
+    || !nullableString(row.photoUrl)
+    || typeof row.canViewDetail !== "boolean"
+  ) {
+    throw new Error("Seller conversation-context listing authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.listingId,
+    title: row.title,
+    priceCents: row.priceCents as number,
+    currency: row.currency,
+    photoUrl: row.photoUrl,
+    canViewDetail: row.canViewDetail,
+  }) as SellerActorConversationContextListing;
+}
+
 async function readSellerPublicListingCards(
   client: SellerPublicAccessClient,
   listingIds: string[],
@@ -1906,6 +1959,20 @@ export async function sellerParticipantConversationListingTarget(
   }
   return withDbUserContext(actorUserId, (client) =>
     readSellerParticipantConversationListingTarget(client, otherUserId, listingId));
+}
+
+export async function sellerActorConversationContextListing(
+  actorUserId: string,
+  conversationId: string,
+) {
+  if (
+    !/^[A-Za-z0-9._:-]{1,191}$/u.test(actorUserId)
+    || !/^[A-Za-z0-9._:-]{1,191}$/u.test(conversationId)
+  ) {
+    throw new RangeError("Seller conversation-context listing input is outside the supported range");
+  }
+  return withDbUserContext(actorUserId, (client) =>
+    readSellerActorConversationContextListing(client, conversationId));
 }
 
 export async function sellerPublicListingCards(
