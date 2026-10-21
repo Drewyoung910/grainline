@@ -17,7 +17,6 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 // A file can need several contracts when it combines public presentation with
 // contextual eligibility, approximate-map, participant, or transaction behavior.
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
-  "src/app/api/admin/listings/[id]/review/route.ts": ["STAFF"],
   "src/app/api/cart/add/route.ts": ["TRANSACTION"],
   "src/app/api/cart/update/route.ts": ["TRANSACTION"],
   "src/app/api/listings/[id]/similar/route.ts": ["PUBLIC_ELIGIBILITY"],

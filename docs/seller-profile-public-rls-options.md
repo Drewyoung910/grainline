@@ -1002,3 +1002,18 @@ across 10 consumer files and 144 reconciled opaque shapes. The 216-function
 catalog is 98 retained, 33 internal and 85 converted authorities; the
 compatible preparation set contains 65 migrations and the full chain contains
 416.
+
+Admin listing approval and rejection now run through one isolated-staff
+transaction instead of a route-level listing read, nested SellerProfile read,
+conditional update and separate audit insert. The authority binds an active
+ADMIN or EMPLOYEE actor, locks the listing and seller together, preserves
+seller account, payout and vacation gates for approval, preserves the
+zero-stock `SOLD_OUT` result, and co-commits the exact AdminAuditLog row.
+Rejection still requires a reason and remains available while the seller is
+otherwise unavailable. This removes three relation accesses and the final
+STAFF consumer file. The gate is now 16 relation accesses in 8 files, two
+raw-SQL accesses in two files, three relation-bearing factories and zero opaque
+SellerProfile target predicates across 9 consumer files and 144 reconciled
+opaque shapes. The 217-function catalog is 98 retained, 33 internal and 86
+converted authorities; the compatible preparation set contains 66 migrations
+and the full chain contains 417.

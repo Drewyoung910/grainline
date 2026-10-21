@@ -55,6 +55,7 @@ import { proveSellerProfileStaffReportTargetsAuthority } from "../tools/database
 import { proveSellerProfileStaffBroadcastTargets } from "../tools/database-full-chain/scenarios/seller-profile-staff-broadcast-targets.mjs";
 import { proveSellerProfileStaffVerificationTarget } from "../tools/database-full-chain/scenarios/seller-profile-staff-verification-target.mjs";
 import { proveSellerProfileStaffFeatureTransition } from "../tools/database-full-chain/scenarios/seller-profile-staff-feature-transition.mjs";
+import { proveSellerProfileStaffListingReviewTransition } from "../tools/database-full-chain/scenarios/seller-profile-staff-listing-review-transition.mjs";
 import { proveSellerProfileAccountDeletionMediaAuthority } from "../tools/database-full-chain/scenarios/seller-profile-account-deletion-media.mjs";
 import { proveSellerProfileOwnerFeaturedListingToggle } from "../tools/database-full-chain/scenarios/seller-profile-owner-featured-listing-toggle.mjs";
 import { proveSellerProfileOwnerAuxiliaryUpdates } from "../tools/database-full-chain/scenarios/seller-profile-owner-auxiliary-updates.mjs";
@@ -125,7 +126,7 @@ test(
               SELLER_PROFILE_PREPARATION_RELEASE_COMMIT: "a".repeat(40),
             });
             assert.equal(evidence.state, "ready");
-            assert.equal(evidence.pendingCount, 65);
+            assert.equal(evidence.pendingCount, 66);
           }
           if (artifact.name === SELLER_PROFILE_PUBLIC_ENABLE.name) {
             const evidence = await inspectSellerProfilePublicPreparationProduction({
@@ -281,6 +282,10 @@ test(
         seller: fixture,
       });
       await proveSellerProfileStaffFeatureTransition({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveSellerProfileStaffListingReviewTransition({
         database: adapter,
         seller: fixture,
       });

@@ -14,6 +14,60 @@ export type SellerProfileStaffBroadcastTarget = Readonly<{
   sellerDisplayName: string;
 }>;
 
+type SellerProfileStaffListingReviewOperation = "APPROVE" | "REJECT";
+type SellerProfileStaffListingReviewBlockReason =
+  | "SELLER_ACCOUNT_UNAVAILABLE"
+  | "SELLER_PAYOUTS_UNAVAILABLE"
+  | "SELLER_VACATION"
+  | "REASON_REQUIRED";
+
+type SellerProfileStaffListingReviewTransitionRow = Readonly<{
+  applied: boolean;
+  auditId: string | null;
+  blockReason: SellerProfileStaffListingReviewBlockReason | null;
+  listingId: string;
+  title: string;
+  priceCents: number;
+  currency: string;
+  status: string;
+  listingType: string;
+  stockQuantity: number | null;
+  sellerProfileId: string;
+  customOrderConversationId: string | null;
+  reservedForUserId: string | null;
+  sellerUserId: string;
+  sellerDisplayName: string;
+  ownerAccountActive: boolean;
+  chargesEnabled: boolean;
+  vacationMode: boolean;
+}>;
+
+export type SellerProfileStaffListingReviewTransition = Readonly<{
+  applied: boolean;
+  auditId: string | null;
+  blockReason: SellerProfileStaffListingReviewBlockReason | null;
+  listing: Readonly<{
+    id: string;
+    title: string;
+    priceCents: number;
+    currency: string;
+    status: string;
+    listingType: string;
+    stockQuantity: number | null;
+    sellerId: string;
+    customOrderConversationId: string | null;
+    reservedForUserId: string | null;
+    seller: Readonly<{
+      id: string;
+      userId: string;
+      displayName: string;
+      ownerAccountActive: boolean;
+      chargesEnabled: boolean;
+      vacationMode: boolean;
+    }>;
+  }>;
+}>;
+
 type VerificationStatus =
   | "PENDING"
   | "APPROVED"
@@ -72,6 +126,13 @@ const VERIFICATION_STATUSES = new Set<VerificationStatus>([
   "GUILD_MASTER_PENDING",
   "GUILD_MASTER_APPROVED",
   "GUILD_MASTER_REJECTED",
+]);
+
+const LISTING_REVIEW_BLOCK_REASONS = new Set<SellerProfileStaffListingReviewBlockReason>([
+  "SELLER_ACCOUNT_UNAVAILABLE",
+  "SELLER_PAYOUTS_UNAVAILABLE",
+  "SELLER_VACATION",
+  "REASON_REQUIRED",
 ]);
 
 function validId(value: unknown): value is string {
@@ -154,6 +215,105 @@ export async function sellerProfileStaffBroadcastTargets(
     throw new Error("Seller broadcast target authority returned an invalid result");
   }
   return rows;
+}
+
+export async function sellerProfileStaffListingReviewTransition(
+  client: SellerProfileStaffClient,
+  input: {
+    actorId: string;
+    listingId: string;
+    operation: SellerProfileStaffListingReviewOperation;
+    reason: string;
+  },
+): Promise<SellerProfileStaffListingReviewTransition | null> {
+  if (
+    !validId(input.actorId)
+    || !validId(input.listingId)
+    || (input.operation !== "APPROVE" && input.operation !== "REJECT")
+    || typeof input.reason !== "string"
+    || input.reason.length > 500
+  ) {
+    throw new RangeError("Seller listing review transition input is invalid");
+  }
+  const rows = await client.$queryRaw<SellerProfileStaffListingReviewTransitionRow[]>`
+    SELECT * FROM public.grainline_seller_staff_listing_review_transition(
+      ${input.actorId}::text,
+      ${input.listingId}::text,
+      ${input.operation}::text,
+      ${input.reason}::text
+    )
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Seller listing review transition returned multiple rows");
+  }
+  const row = rows[0];
+  const validNullableId = (value: unknown) => value === null || validId(value);
+  const validStatus = row.status === "PENDING_REVIEW"
+    || row.status === "ACTIVE"
+    || row.status === "SOLD_OUT"
+    || row.status === "REJECTED";
+  const validListingType = row.listingType === "IN_STOCK"
+    || row.listingType === "MADE_TO_ORDER";
+  if (
+    typeof row.applied !== "boolean"
+    || (row.auditId !== null && !validId(row.auditId))
+    || (
+      row.blockReason !== null
+      && !LISTING_REVIEW_BLOCK_REASONS.has(row.blockReason)
+    )
+    || !validId(row.listingId)
+    || row.listingId !== input.listingId
+    || typeof row.title !== "string"
+    || row.title.length < 1
+    || row.title.length > 150
+    || !Number.isSafeInteger(row.priceCents)
+    || row.priceCents < 1
+    || typeof row.currency !== "string"
+    || row.currency.length !== 3
+    || !validStatus
+    || !validListingType
+    || (row.stockQuantity !== null && !Number.isSafeInteger(row.stockQuantity))
+    || !validId(row.sellerProfileId)
+    || !validNullableId(row.customOrderConversationId)
+    || !validNullableId(row.reservedForUserId)
+    || !validId(row.sellerUserId)
+    || typeof row.sellerDisplayName !== "string"
+    || row.sellerDisplayName.length < 1
+    || row.sellerDisplayName.length > 100
+    || typeof row.ownerAccountActive !== "boolean"
+    || typeof row.chargesEnabled !== "boolean"
+    || typeof row.vacationMode !== "boolean"
+    || (row.applied && (row.auditId === null || row.blockReason !== null))
+    || (!row.applied && row.auditId !== null)
+  ) {
+    throw new Error("Seller listing review transition returned an invalid result");
+  }
+  return Object.freeze({
+    applied: row.applied,
+    auditId: row.auditId,
+    blockReason: row.blockReason,
+    listing: Object.freeze({
+      id: row.listingId,
+      title: row.title,
+      priceCents: row.priceCents,
+      currency: row.currency,
+      status: row.status,
+      listingType: row.listingType,
+      stockQuantity: row.stockQuantity,
+      sellerId: row.sellerProfileId,
+      customOrderConversationId: row.customOrderConversationId,
+      reservedForUserId: row.reservedForUserId,
+      seller: Object.freeze({
+        id: row.sellerProfileId,
+        userId: row.sellerUserId,
+        displayName: row.sellerDisplayName,
+        ownerAccountActive: row.ownerAccountActive,
+        chargesEnabled: row.chargesEnabled,
+        vacationMode: row.vacationMode,
+      }),
+    }),
+  });
 }
 
 export async function sellerProfileStaffVerificationTarget(
