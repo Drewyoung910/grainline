@@ -43,7 +43,12 @@ describe("R49 account-state route guardrails", () => {
 
   it("keeps review seller side effects behind a fresh seller-account check", () => {
     const text = source("src/app/api/reviews/route.ts");
-    assert.match(text, /ownerAccountActive: true/);
+    assert.equal(
+      (text.match(/sellerActorReviewListingTarget\(me\.id, listingId\)/g) ?? []).length,
+      2,
+      "review creation must refresh the seller target after the review write",
+    );
+    assert.match(text, /listingForOwnerCheck && listingForOwnerCheck\.seller\.ownerAccountActive !== true/);
     assert.match(text, /if \(listing\?\.seller\.userId && listing\.seller\.ownerAccountActive === true\)/);
     assert.doesNotMatch(text, /seller:\s*\{[\s\S]*?user:\s*\{/);
   });
