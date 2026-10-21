@@ -113,8 +113,16 @@ describe("seller operational route hardening", () => {
     assert.match(route, /enqueueEmailOutbox\(\{/);
     assert.match(route, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
     assert.match(route, /dedupKey: `seller-broadcast:\$\{broadcast\.id\}:\$\{f\.userId\}`/);
-    assert.match(route, /const currentBroadcast = await prisma\.sellerBroadcast\.findUnique/);
-    assert.match(route, /!currentBroadcast\s*\|\|[\s\S]*!currentBroadcast\.sellerProfile\.chargesEnabled[\s\S]*currentBroadcast\.sellerProfile\.vacationMode[\s\S]*currentBroadcast\.sellerProfile\.ownerAccountActive !== true/);
+    assert.match(
+      route,
+      /const \[currentBroadcast, currentSeller\] = await Promise\.all\(\[/,
+    );
+    assert.match(route, /sellerOwnerCore\(me\.id\)/);
+    assert.match(
+      route,
+      /canDeliverSellerBroadcast\(\s*currentBroadcast\?\.sellerProfileId \?\? null,\s*currentSeller,\s*\)/s,
+    );
+    assert.doesNotMatch(route, /currentBroadcast\.sellerProfile/);
     assert.match(route, /nextAvailableAt: nextAvailable\.toISOString\(\)/);
     assert.doesNotMatch(route, /nextAvailable\.toLocaleDateString/);
     assert.match(composer, /function broadcastErrorMessage/);

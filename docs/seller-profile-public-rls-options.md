@@ -679,6 +679,12 @@ It preserves buyer-authored and seller-authored media coverage without a
 BlogPost-to-SellerProfile traversal. The current gate is 61 relation accesses,
 10 raw-SQL accesses, three relation-bearing factories and zero opaque
 SellerProfile predicates across 37 consumer files and 146 opaque shapes.
+Deferred seller-broadcast delivery then pairs the broadcast's scalar seller id
+with a fresh actor-bound owner-core result. Deleted, banned, disabled,
+vacationing or mismatched sellers still stop delivery without a
+SellerBroadcast-to-SellerProfile relation. The current gate is 60 relation
+accesses, 10 raw-SQL accesses, three relation-bearing factories and zero opaque
+SellerProfile predicates across 36 consumer files and 146 opaque shapes.
 Exact-head CI then exposed a host-timezone defect in two projection timestamp
 tests. A complete return-signature inventory found the same boundary in nine
 SellerProfile authorities. A single

@@ -31,9 +31,10 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   assert.match(commissionInterestAccess, /grainline_seller_service_commission_interest_targets/);
   assert.match(commissionInterestAuthority, /seller\."ownerAccountActive" = true/);
 
-  assert.match(broadcast, /ownerAccountActive: true/);
-  assert.match(broadcast, /sellerProfile\.ownerAccountActive !== true/);
-  assert.doesNotMatch(broadcast, /currentBroadcast\.sellerProfile\.user\.(?:banned|deletedAt)/);
+  assert.match(broadcast, /sellerOwnerCore\(me\.id\)/);
+  assert.match(broadcast, /canDeliverSellerBroadcast\(/);
+  assert.match(broadcast, /currentBroadcast\?\.sellerProfileId \?\? null/);
+  assert.doesNotMatch(broadcast, /currentBroadcast\.sellerProfile/);
 
   assert.match(
     stripePrivate,
