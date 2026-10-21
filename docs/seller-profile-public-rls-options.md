@@ -614,4 +614,8 @@ and the sitemap. The next conversion moves the public map's city directory to
 a viewer-aware bounded authority, preserving mutual-block filtering instead of
 reusing the anonymous static-path authority. Together they reduce the live
 gate to 78 relation accesses and two opaque predicates without changing either
-route set or the map's blocked-maker behavior.
+route set or the map's blocked-maker behavior. The owner-bound following-page
+conversion then removes its SellerProfile, Listing and Photo relations and the
+last two opaque SellerProfile predicates. The current gate is 75 relation
+accesses, 15 raw-SQL accesses, five relation-bearing factories and zero opaque
+SellerProfile predicates.

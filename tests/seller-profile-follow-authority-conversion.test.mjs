@@ -23,6 +23,20 @@ test("follow endpoint uses fixed read, create, and delete authorities", () => {
   assert.match(access, /randomUUID\(\)/u);
 });
 
+test("following page uses only the owner-bound page authorities", () => {
+  const page = source("src/app/account/following/page.tsx");
+  const access = source("src/lib/sellerFollowAccess.ts");
+
+  assert.match(page, /sellerOwnerFollowingCount\(me\.id\)/u);
+  assert.match(
+    page,
+    /sellerOwnerFollowingPage\(\s*me\.id,\s*PAGE_SIZE,\s*\(page - 1\) \* PAGE_SIZE/u,
+  );
+  assert.doesNotMatch(page, /prisma\.follow|visibleSellerProfileWhere|publicListingWhere/u);
+  assert.match(access, /grainline_seller_owner_following_count/u);
+  assert.match(access, /grainline_seller_owner_following_page/u);
+});
+
 test("follow creation shares the sorted block-pair lock and exact grants", () => {
   assert.match(migration, /grainline_user_block_pair_lock\(target_user_id\)/u);
   assert.match(migration, /ON CONFLICT \("followerId", "sellerProfileId"\) DO NOTHING/u);
@@ -32,6 +46,8 @@ test("follow creation shares the sorted block-pair lock and exact grants", () =>
     "grainline_seller_public_follow_state(text)",
     "grainline_seller_public_follow_create(text,text)",
     "grainline_seller_public_follow_delete(text)",
+    "grainline_seller_owner_following_count()",
+    "grainline_seller_owner_following_page(integer,integer)",
   ]) {
     const escaped = signature
       .replace(/[()]/gu, "\\$&")

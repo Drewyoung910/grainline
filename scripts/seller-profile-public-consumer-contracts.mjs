@@ -18,7 +18,6 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 // contextual eligibility, approximate-map, participant, or transaction behavior.
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/account/commissions/page.tsx": ["PUBLIC_PROFILE"],
-  "src/app/account/following/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/account/saved/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/app/admin/broadcasts/page.tsx": ["STAFF"],
   "src/app/admin/review/page.tsx": ["STAFF"],
@@ -204,8 +203,8 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   if (reviewedNonTargetResiduals.some(({ model }) => model === "SellerProfile")) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
-  if (targetOpaqueShapes.length !== 2
-      || reviewedNonTargetFactoryCalls.length !== 139
+  if (targetOpaqueShapes.length !== 0
+      || reviewedNonTargetFactoryCalls.length !== 137
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `

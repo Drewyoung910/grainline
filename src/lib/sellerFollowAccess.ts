@@ -23,6 +23,32 @@ type SellerFollowDeleteRow = {
   followerCount: unknown;
 };
 
+type SellerOwnerFollowingCountRow = {
+  value: unknown;
+};
+
+type SellerOwnerFollowingPageRow = {
+  followId: unknown;
+  followedAt: unknown;
+  sellerProfileId: unknown;
+  displayName: unknown;
+  tagline: unknown;
+  avatarImageUrl: unknown;
+  city: unknown;
+  state: unknown;
+  vacationMode: unknown;
+  vacationReturnDate: unknown;
+  guildLevel: unknown;
+  ownerImageUrl: unknown;
+  followerCount: unknown;
+  listingCount: unknown;
+  latestListingId: unknown;
+  latestListingTitle: unknown;
+  latestListingPriceCents: unknown;
+  latestListingCurrency: unknown;
+  latestListingPhotoUrl: unknown;
+};
+
 export type SellerFollowState = {
   sellerProfileId: string;
   followerCount: number;
@@ -42,8 +68,45 @@ export type SellerFollowDeleteResult =
   | { status: "NOT_FOUND" }
   | { status: "OK"; followerCount: number };
 
+export type SellerOwnerFollowing = Readonly<{
+  createdAt: Date;
+  sellerProfile: Readonly<{
+    id: string;
+    displayName: string;
+    tagline: string | null;
+    avatarImageUrl: string | null;
+    city: string | null;
+    state: string | null;
+    vacationMode: boolean;
+    vacationReturnDate: Date | null;
+    guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+    ownerImageUrl: string | null;
+    followerCount: number;
+    listingCount: number;
+    latestListing: Readonly<{
+      id: string;
+      title: string;
+      priceCents: number;
+      currency: string;
+      photoUrl: string | null;
+    }> | null;
+  }>;
+}>;
+
 function validId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9._:-]{1,191}$/.test(value);
+}
+
+function nullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+function nullableDate(value: unknown, label: string) {
+  if (value === null) return null;
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    throw new Error("Seller owner following authority returned an invalid " + label);
+  }
+  return value;
 }
 
 function countNumber(value: unknown) {
@@ -90,6 +153,126 @@ export function sellerPublicFollowState(
       readSellerPublicFollowState(client, sellerProfileId));
   }
   return readSellerPublicFollowState(prisma, sellerProfileId);
+}
+
+async function readSellerOwnerFollowingCount(client: SellerFollowClient) {
+  const rows = await client.$queryRaw<SellerOwnerFollowingCountRow[]>`
+    SELECT * FROM public.grainline_seller_owner_following_count()
+  `;
+  if (rows.length !== 1) {
+    throw new Error("Seller owner following-count authority returned an invalid result");
+  }
+  return countNumber(rows[0].value);
+}
+
+export function sellerOwnerFollowingCount(actorUserId: string) {
+  return withDbUserContext(actorUserId, readSellerOwnerFollowingCount);
+}
+
+async function readSellerOwnerFollowingPage(
+  client: SellerFollowClient,
+  limit: number,
+  offset: number,
+) {
+  const rows = await client.$queryRaw<SellerOwnerFollowingPageRow[]>`
+    SELECT *
+      FROM public.grainline_seller_owner_following_page(
+        ${limit}::integer,
+        ${offset}::integer
+      )
+  `;
+  const follows = rows.map((row) => {
+    if (
+      !validId(row.followId)
+      || !(row.followedAt instanceof Date)
+      || Number.isNaN(row.followedAt.getTime())
+      || !validId(row.sellerProfileId)
+      || typeof row.displayName !== "string"
+      || !row.displayName
+      || !nullableString(row.tagline)
+      || !nullableString(row.avatarImageUrl)
+      || !nullableString(row.city)
+      || !nullableString(row.state)
+      || typeof row.vacationMode !== "boolean"
+      || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+      || !nullableString(row.ownerImageUrl)
+      || !nullableString(row.latestListingId)
+      || !nullableString(row.latestListingTitle)
+      || (
+        row.latestListingPriceCents !== null
+        && (!Number.isSafeInteger(row.latestListingPriceCents)
+          || Number(row.latestListingPriceCents) < 0)
+      )
+      || !nullableString(row.latestListingCurrency)
+      || !nullableString(row.latestListingPhotoUrl)
+    ) {
+      throw new Error("Seller owner following-page authority returned an invalid result");
+    }
+    const latestListingPresent = row.latestListingId !== null;
+    if (
+      latestListingPresent
+      !== (
+        row.latestListingTitle !== null
+        && row.latestListingPriceCents !== null
+        && row.latestListingCurrency !== null
+      )
+      || (!latestListingPresent && row.latestListingPhotoUrl !== null)
+    ) {
+      throw new Error("Seller owner following-page authority returned a partial listing");
+    }
+    return Object.freeze({
+      createdAt: row.followedAt,
+      sellerProfile: Object.freeze({
+        id: row.sellerProfileId,
+        displayName: row.displayName,
+        tagline: row.tagline,
+        avatarImageUrl: row.avatarImageUrl,
+        city: row.city,
+        state: row.state,
+        vacationMode: row.vacationMode,
+        vacationReturnDate: nullableDate(row.vacationReturnDate, "vacation date"),
+        guildLevel: row.guildLevel as SellerOwnerFollowing["sellerProfile"]["guildLevel"],
+        ownerImageUrl: row.ownerImageUrl,
+        followerCount: countNumber(row.followerCount),
+        listingCount: countNumber(row.listingCount),
+        latestListing: latestListingPresent
+          ? Object.freeze({
+              id: row.latestListingId!,
+              title: row.latestListingTitle!,
+              priceCents: Number(row.latestListingPriceCents),
+              currency: row.latestListingCurrency!,
+              photoUrl: row.latestListingPhotoUrl,
+            })
+          : null,
+      }),
+    });
+  });
+  if (
+    follows.length > limit
+    || new Set(follows.map(({ sellerProfile }) => sellerProfile.id)).size !== follows.length
+  ) {
+    throw new Error("Seller owner following-page authority returned invalid cardinality");
+  }
+  return Object.freeze(follows);
+}
+
+export function sellerOwnerFollowingPage(
+  actorUserId: string,
+  limit: number,
+  offset: number,
+) {
+  if (
+    !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 20
+    || !Number.isSafeInteger(offset)
+    || offset < 0
+    || offset > 19980
+  ) {
+    throw new RangeError("Seller owner following page is outside the supported range");
+  }
+  return withDbUserContext(actorUserId, (client) =>
+    readSellerOwnerFollowingPage(client, limit, offset));
 }
 
 async function readSellerFollowCreate(

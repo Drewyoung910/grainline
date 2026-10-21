@@ -20,7 +20,7 @@ const preparationRows = [
   ["20261019140000_prepare_seller_profile_block_follow_cleanup", "5b56459ec32d62116fc12cfce7870fc6a778ea2cd922029d83c5f18c1a404d84"],
   ["20261019150000_prepare_seller_profile_public_report_target", "70e28281827123f0a7c14400c3c1eaa65bb2f0d8044d7568cd029b201c7bde6f"],
   ["20261019160000_prepare_seller_profile_owner_account_summary", "85bdd6251d25251568798742eadfdccf312c5f25057db7e0f79e9afbcae84e37"],
-  ["20261019170000_prepare_seller_profile_follow_authority", "1fde6c2a8cd169ec1c62599fd45407b07c80b3a93e8f8e309730567019dba427"],
+  ["20261019170000_prepare_seller_profile_follow_authority", "011181ae7b57698345c651702f18b6c1d172f1323e67b8dd3b7a2ef6c4d0ae47"],
   ["20261019180000_prepare_seller_profile_owner_core", "378c3abe7060f1a8c3bd229bd3a73ccc9072256017bcace4f62833b98e264e18"],
   ["20261019190000_prepare_seller_profile_owner_blog_editor", "c984a369dee02cf4011708e57eb24138dc657bfcabbab92bf5f921c15a0096fb"],
   ["20261019200000_prepare_seller_profile_owner_listing_review", "02273b11ee46fa9689e6c0a2be32346cc256c479186f366a9f6b21351dd671ea"],
