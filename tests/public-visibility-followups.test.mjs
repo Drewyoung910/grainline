@@ -13,10 +13,10 @@ describe("public visibility follow-ups", () => {
     assert.doesNotMatch(accountPage, /prisma\.favorite|savedListingFavoriteWhere|blockedSellerIds/);
   });
 
-  it("validates favorite targets through public listing detail visibility", () => {
+  it("validates favorite targets through the bounded public favorite authority", () => {
     const favoritesRoute = read("src/app/api/favorites/route.ts");
-    assert.match(favoritesRoute, /publicListingDetailWhere\(\{ id: listingId \}\)/);
-    assert.doesNotMatch(favoritesRoute, /favorite\.upsert\(\{[\s\S]*create: \{ userId: me\.id, listingId \}[\s\S]*findUnique\(\{[\s\S]*where: \{ id: listingId \}/);
+    assert.match(favoritesRoute, /sellerPublicFavoriteTarget\(listingId\)/);
+    assert.doesNotMatch(favoritesRoute, /publicListingDetailWhere|select:\s*\{[^}]*seller:/u);
   });
 
   it("keeps listing detail related listings and review aggregates on public visibility filters", () => {

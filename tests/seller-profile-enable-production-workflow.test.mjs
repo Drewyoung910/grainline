@@ -20,7 +20,7 @@ const rollback = readFileSync(
   "docs/rls-drafts/seller-profile-enable-rollback.sql",
   "utf8",
 );
-const migrationDigest = "0ffbb49886ed5be2269fe6808da1058b6cc9cb7d50df16e02afb0053735141a9";
+const migrationDigest = "c8d4a307d0bdde79d8c2a2a5c921d3145221ec14e5c8f18512343ba6f7853702";
 const parsedWorkflow = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
 const bindingScript = parsedWorkflow.jobs.enable.steps.find(
   (step) => step.name === "Bind ENABLE to exact live main and successful checks",

@@ -102,11 +102,11 @@ async function inspect({ appliedCount = 0, extraRows = [], expectedState } = {})
   }
 }
 
-test("preparation manifest seals all 51 migrations plus ENABLE", () => {
+test("preparation manifest seals all 52 migrations plus ENABLE", () => {
   assert.deepEqual(verifySellerProfilePublicPreparationSources(), {
-    preparations: 51,
+    preparations: 52,
     first: "20261019010000_prepare_seller_profile_public_map_authority",
-    last: "20261020235800_prepare_seller_profile_owner_saved_blog_posts",
+    last: "20261020235900_prepare_seller_profile_public_favorite_target",
     enable: SELLER_PROFILE_PUBLIC_ENABLE.name,
   });
 });
@@ -115,7 +115,7 @@ test("preparation inspector accepts a fresh predecessor and returns the exact su
   const evidence = await inspect();
   assert.equal(evidence.state, "ready");
   assert.equal(evidence.appliedCount, 0);
-  assert.equal(evidence.pendingCount, 51);
+  assert.equal(evidence.pendingCount, 52);
   assert.deepEqual(evidence.pending, SELLER_PROFILE_PUBLIC_PREPARATIONS.map(({ name }) => name));
   assert.equal(evidence.containsRowData, false);
   assert.equal(evidence.productionChanged, false);
@@ -132,7 +132,7 @@ test("preparation inspector resumes an exact applied prefix", async () => {
 });
 
 test("preparation inspector accepts the fully prepared predecessor posture", async () => {
-  const evidence = await inspect({ appliedCount: 51, expectedState: "prepared" });
+  const evidence = await inspect({ appliedCount: 52, expectedState: "prepared" });
   assert.equal(evidence.state, "prepared");
   assert.deepEqual(evidence.pending, []);
   assert.deepEqual(evidence.posture, posture);

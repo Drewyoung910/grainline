@@ -687,8 +687,8 @@ accesses, 10 raw-SQL accesses, three relation-bearing factories and zero opaque
 SellerProfile predicates across 36 consumer files and 146 opaque shapes.
 Review replies then reuse the actor-bound owner core and the review's scalar
 listing seller id for their preflight. Their final conditional write retains
-the existing database-side seller activity and ownership recheck. The current
-gate is 59 relation accesses, 10 raw-SQL accesses, three relation-bearing
+the existing database-side seller activity and ownership recheck. At that
+checkpoint the gate was 59 relation accesses, 10 raw-SQL accesses, three relation-bearing
 factories and zero opaque SellerProfile predicates across 36 consumer files
 and 146 opaque shapes.
 Exact-head CI then exposed a host-timezone defect in two projection timestamp
@@ -696,7 +696,17 @@ tests. A complete return-signature inventory found the same boundary in nine
 SellerProfile authorities. A single
 forward preparation migration now returns those stored UTC values as
 `timestamp with time zone` using `AT TIME ZONE 'UTC'`, without changing row
-selection or grants. The focused regressions and complete 402-migration
+selection or grants. The focused regressions and then-complete 402-migration
 PostgreSQL 16 chain pass with the correction immediately before ENABLE. The
 full-chain scenarios assert the public-profile, Guild-application and other
 corrected instants rather than relying on source text alone.
+Favorite creation then moves its Listing-to-SellerProfile availability check
+behind an exact public favorite-target authority. The authority preserves the
+ACTIVE/SOLD_OUT, public, unarchived, active-owner, charge-ready, supported and
+non-vacation predicates, returns only listing id, title and owner id, and leaves
+the reciprocal-block decision in the route. The current gate is 58 relation
+accesses, 10 raw-SQL accesses, three relation-bearing factories and zero opaque
+SellerProfile predicates across 35 consumer files and 145 opaque shapes. The
+203-function catalog is 98 retained, 33 internal and 72 converted authorities;
+two converted authorities are staff-only. The complete 403-migration chain now
+includes the exact authority scenario and remains subject to exact-head CI.

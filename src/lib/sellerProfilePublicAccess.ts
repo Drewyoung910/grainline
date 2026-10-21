@@ -134,6 +134,12 @@ export type SellerPublicViewTarget = Readonly<{
   ownerUserId: string;
 }>;
 
+export type SellerPublicFavoriteTarget = Readonly<{
+  listingId: string;
+  title: string;
+  ownerUserId: string;
+}>;
+
 export type SellerPublicProfileFaq = Readonly<{
   id: string;
   question: string;
@@ -217,6 +223,12 @@ type SellerPublicMapPointRow = {
   state: unknown;
   publicLat: unknown;
   publicLng: unknown;
+};
+
+type SellerPublicFavoriteTargetRow = {
+  listingId: unknown;
+  title: unknown;
+  ownerUserId: unknown;
 };
 
 type SellerPublicLocationRow = {
@@ -1132,6 +1144,32 @@ async function readSellerPublicViewTarget(
   return Object.freeze({ ownerUserId: rows[0].ownerUserId });
 }
 
+async function readSellerPublicFavoriteTarget(
+  client: SellerPublicAccessClient,
+  listingId: string,
+) {
+  const rows = await client.$queryRaw<SellerPublicFavoriteTargetRow[]>(Prisma.sql`
+    SELECT * FROM public.grainline_seller_public_favorite_target(${listingId})
+  `);
+  if (rows.length === 0) return null;
+  if (
+    rows.length !== 1
+    || typeof rows[0].listingId !== "string"
+    || rows[0].listingId !== listingId
+    || typeof rows[0].title !== "string"
+    || rows[0].title.length < 1
+    || typeof rows[0].ownerUserId !== "string"
+    || !rows[0].ownerUserId
+  ) {
+    throw new Error("Seller public favorite-target authority returned an invalid result");
+  }
+  return Object.freeze({
+    listingId: rows[0].listingId,
+    title: rows[0].title,
+    ownerUserId: rows[0].ownerUserId,
+  });
+}
+
 async function readSellerPublicProfile(
   client: SellerPublicAccessClient,
   sellerProfileId: string,
@@ -1512,6 +1550,13 @@ export async function sellerPublicViewTarget(sellerProfileId: string) {
     throw new RangeError("Seller public view-target id is outside the supported range");
   }
   return readSellerPublicViewTarget(prisma, sellerProfileId);
+}
+
+export async function sellerPublicFavoriteTarget(listingId: string) {
+  if (!/^[A-Za-z0-9._:-]{1,191}$/u.test(listingId)) {
+    throw new RangeError("Seller public favorite-target id is outside the supported range");
+  }
+  return readSellerPublicFavoriteTarget(prisma, listingId);
 }
 
 export async function sellerPublicProfile(
