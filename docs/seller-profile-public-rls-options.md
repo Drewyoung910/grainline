@@ -842,3 +842,18 @@ removes one relation access without adding SQL or another authority. The
 current gate is 35 relation accesses in 20 files, four raw-SQL accesses in four
 files, three relation-bearing factories and zero opaque SellerProfile
 predicates across 23 consumer files and 141 opaque shapes.
+The homepage's New Arrivals and Top Picks queries now select listing scalars
+and photos, then hydrate all at-most-24 cards through one bounded,
+viewer-aware listing-card authority. The authority rechecks the exact listing,
+seller orderability, archive/private state and reciprocal blocks in one
+snapshot; a concurrent visibility change omits that card. This removes three
+direct relation accesses and one direct consumer file. The homepage's listing
+queries still call the shared relation-bearing `publicListingWhere` factory;
+that dependency remains in the explicit three-factory activation gate. The
+current gate is 32 relation
+accesses in 19 files, four raw-SQL accesses in four files, three
+relation-bearing factories and zero opaque SellerProfile predicates across 22
+consumer files and 141 opaque shapes. The 209-function catalog is 98 retained,
+33 internal and 78 converted authorities, and the compatible preparation set
+now contains 58 migrations. The complete 409-migration PostgreSQL 16 proof
+exercises listing-card output and reciprocal blocks before policyless ENABLE.

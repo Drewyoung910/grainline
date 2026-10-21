@@ -35,8 +35,10 @@ import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
 import {
   sellerPublicFeaturedMakers,
   sellerPublicFollowerListingTarget,
+  sellerPublicListingCards,
   sellerPublicMapPoints,
   type SellerPublicFeaturedMaker,
+  type SellerPublicListingCard,
 } from "@/lib/sellerProfilePublicAccess";
 
 function StarsInline({ value }: { value: number }) {
@@ -87,18 +89,32 @@ const homeListingCardSelect = {
   stockQuantity: true,
   sellerId: true,
   photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-  seller: {
-    select: {
-      displayName: true,
-      avatarImageUrl: true,
-      guildLevel: true,
-      city: true,
-      state: true,
-      acceptingNewOrders: true,
-      ownerImageUrl: true,
-    },
-  },
 } satisfies Prisma.ListingSelect;
+
+type HomeListingCardSource = Prisma.ListingGetPayload<{ select: typeof homeListingCardSelect }>;
+type HomeListingCard = HomeListingCardSource & {
+  seller: Pick<
+    SellerPublicListingCard,
+    | "displayName"
+    | "avatarImageUrl"
+    | "guildLevel"
+    | "city"
+    | "state"
+    | "acceptingNewOrders"
+    | "ownerImageUrl"
+  >;
+};
+
+function hydrateHomeListingCards(
+  listings: HomeListingCardSource[],
+  sellerCards: ReadonlyMap<string, SellerPublicListingCard>,
+) {
+  return listings.flatMap((listing): HomeListingCard[] => {
+    const seller = sellerCards.get(listing.id);
+    if (!seller || seller.sellerProfileId !== listing.sellerId) return [];
+    return [{ ...listing, seller }];
+  });
+}
 
 async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<FeaturedMakerWithListings[]> {
   const blocked = new Set(blockedSellerIds);
@@ -163,8 +179,8 @@ export default async function HomePage() {
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
 
   const [
-    fresh,
-    topSaved,
+    freshRows,
+    topSavedRows,
     mapRows,
     recentBlogPosts,
     featuredMakerBlock,
@@ -221,6 +237,17 @@ export default async function HomePage() {
     getFeaturedMakerBlock(blockedSellerIds),
     getCachedHomepageStats(),
   ]);
+
+  const homeListingIds = [...new Set([
+    ...freshRows.map((listing) => listing.id),
+    ...topSavedRows.map((listing) => listing.id),
+  ])];
+  const homeListingCards = await sellerPublicListingCards(meDbId, homeListingIds);
+  const homeListingCardById = new Map(
+    homeListingCards.map((seller) => [seller.listingId, seller]),
+  );
+  const fresh = hydrateHomeListingCards(freshRows, homeListingCardById);
+  const topSaved = hydrateHomeListingCards(topSavedRows, homeListingCardById);
 
   const featuredMakers = featuredMakerBlock;
 

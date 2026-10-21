@@ -794,12 +794,16 @@ guard the final zero-direct state, but they do not count as behavior proof.
   plus the admin review queue's reuse of the isolated active-staff seller-label
   projection in bounded 50-id chunks, and the public blog list/API/homepage
   reuse of the database-maintained BlogPost seller-name/avatar mirrors across
-  list, API, homepage, detail and related-post presentation, have reduced the
-  live gate to 35 relation accesses in 20 files, four raw-SQL
+  list, API, homepage, detail and related-post presentation, plus the
+  homepage listing rows' bounded viewer-aware seller-card hydration, have
+  reduced the live gate to 32 relation accesses in 19 files, four raw-SQL
   accesses in four files, three relation-bearing factories and zero opaque
-  SellerProfile target predicates across 23 total consumer files and 141
-  reconciled opaque shapes. The reviewed catalog now has 208 functions: 98
-  retained, 33 internal and 77 converted authorities. The saved-listing authority
+  SellerProfile target predicates across 22 total consumer files and 141
+  reconciled opaque shapes. The homepage listing queries still use the shared
+  `publicListingWhere` factory, so this pass removes their nested presentation
+  projection but does not claim that remaining factory gate is closed. The
+  reviewed catalog now has 209 functions: 98
+  retained, 33 internal and 78 converted authorities. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission
   authorities own request visibility, seller orderability, reciprocal-block
   filtering, owner binding, historical-card disclosure and stable ordering
@@ -824,9 +828,11 @@ guard the final zero-direct state, but they do not count as behavior proof.
   `timestamp without time zone` values without restoring the UTC instant. The
   forward correction changes only those return types and expressions to
   `timestamp with time zone` plus `AT TIME ZONE 'UTC'`; the two previously
-  host-dependent PGlite regressions pass, and the complete 408-migration
+  host-dependent PGlite regressions pass, and the complete 409-migration
   PostgreSQL 16 chain applies the correction before policyless ENABLE and
   asserts the public-profile and Guild-application timestamps as UTC instants.
+  That same chain exercises listing-card output and reciprocal-block behavior
+  on the real migrated schema.
 - The exact-main protected ENABLE workflow, restart-safe inspector, sole-pending
   migration check, global grant audit and sanitized postflight are prepared,
   and the workflow now refuses database access while any direct, relation,

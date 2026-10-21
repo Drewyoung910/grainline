@@ -140,6 +140,18 @@ export type SellerPublicFavoriteTarget = Readonly<{
   ownerUserId: string;
 }>;
 
+export type SellerPublicListingCard = Readonly<{
+  listingId: string;
+  sellerProfileId: string;
+  displayName: string;
+  avatarImageUrl: string | null;
+  guildLevel: "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
+  city: string | null;
+  state: string | null;
+  acceptingNewOrders: boolean;
+  ownerImageUrl: string | null;
+}>;
+
 export type SellerPublicRecentlyViewedListing = Readonly<{
   id: string;
   title: string;
@@ -251,6 +263,18 @@ type SellerPublicFavoriteTargetRow = {
   listingId: unknown;
   title: unknown;
   ownerUserId: unknown;
+};
+
+type SellerPublicListingCardRow = {
+  listingId: unknown;
+  sellerProfileId: unknown;
+  displayName: unknown;
+  avatarImageUrl: unknown;
+  guildLevel: unknown;
+  city: unknown;
+  state: unknown;
+  acceptingNewOrders: unknown;
+  ownerImageUrl: unknown;
 };
 
 type SellerPublicRecentlyViewedListingRow = {
@@ -1212,6 +1236,51 @@ async function readSellerPublicFavoriteTarget(
   });
 }
 
+async function readSellerPublicListingCards(
+  client: SellerPublicAccessClient,
+  listingIds: string[],
+) {
+  const rows = await client.$queryRaw<SellerPublicListingCardRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_seller_public_listing_cards(
+        ${listingIds}::text[]
+      )
+  `);
+  const requestedIds = new Set(listingIds);
+  if (
+    rows.length > requestedIds.size
+    || rows.some((row) => (
+      typeof row.listingId !== "string"
+      || !requestedIds.has(row.listingId)
+      || typeof row.sellerProfileId !== "string"
+      || !row.sellerProfileId
+      || typeof row.displayName !== "string"
+      || row.displayName.length < 1
+      || row.displayName.length > 100
+      || !nullableString(row.avatarImageUrl)
+      || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
+      || !nullableString(row.city)
+      || !nullableString(row.state)
+      || typeof row.acceptingNewOrders !== "boolean"
+      || !nullableString(row.ownerImageUrl)
+    ))
+    || new Set(rows.map((row) => row.listingId)).size !== rows.length
+  ) {
+    throw new Error("Seller public listing-card authority returned an invalid result");
+  }
+  return Object.freeze(rows.map((row) => Object.freeze({
+    listingId: row.listingId as string,
+    sellerProfileId: row.sellerProfileId as string,
+    displayName: row.displayName as string,
+    avatarImageUrl: row.avatarImageUrl as string | null,
+    guildLevel: row.guildLevel as SellerPublicListingCard["guildLevel"],
+    city: row.city as string | null,
+    state: row.state as string | null,
+    acceptingNewOrders: row.acceptingNewOrders as boolean,
+    ownerImageUrl: row.ownerImageUrl as string | null,
+  })));
+}
+
 async function readSellerPublicRecentlyViewedListings(
   client: SellerPublicAccessClient,
   listingIds: string[],
@@ -1720,6 +1789,25 @@ export async function sellerPublicFavoriteTarget(listingId: string) {
     throw new RangeError("Seller public favorite-target id is outside the supported range");
   }
   return readSellerPublicFavoriteTarget(prisma, listingId);
+}
+
+export async function sellerPublicListingCards(
+  viewerUserId: string | null,
+  listingIds: string[],
+) {
+  const normalizedIds = [...new Set(listingIds)];
+  if (normalizedIds.length === 0) return Object.freeze([] as SellerPublicListingCard[]);
+  if (
+    normalizedIds.length > 100
+    || normalizedIds.some((listingId) => !/^[A-Za-z0-9._:-]{1,191}$/u.test(listingId))
+  ) {
+    throw new RangeError("Seller public listing-card input is outside the supported range");
+  }
+  if (viewerUserId) {
+    return withDbUserContext(viewerUserId, (client) =>
+      readSellerPublicListingCards(client, normalizedIds));
+  }
+  return readSellerPublicListingCards(prisma, normalizedIds);
 }
 
 export async function sellerPublicRecentlyViewedListings(
