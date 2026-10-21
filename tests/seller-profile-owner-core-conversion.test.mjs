@@ -9,6 +9,7 @@ const callerPaths = [
   "src/app/api/seller/analytics/recent-sales/route.ts",
   "src/app/api/seller/analytics/route.ts",
   "src/app/api/seller/broadcast/route.ts",
+  "src/app/api/reviews/[id]/reply/route.ts",
   "src/app/api/upload/image/route.ts",
   "src/app/api/upload/presign/route.ts",
   "src/app/dashboard/sales/page.tsx",

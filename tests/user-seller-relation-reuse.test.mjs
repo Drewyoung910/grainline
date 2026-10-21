@@ -16,7 +16,7 @@ function fixture(options = {}) {
   const actor = options.actor === undefined
     ? { id: "owner", banned: false, deletedAt: null } : options.actor;
   const state = { owner: "owner", active: true, reply: options.reply ?? null,
-    reads: 0, writes: 0, gateCalls: 0 };
+    reads: 0, writes: 0, gateCalls: 0, sellerOwnerCalls: 0 };
   let bothRead;
   const barrier = new Promise((resolve) => { bothRead = resolve; });
   const prisma = { review: {
@@ -25,8 +25,7 @@ function fixture(options = {}) {
       if (options.missingReview) return null;
       const snapshot = {
         sellerReply: state.reply,
-        listing: { seller: { userId: options.foreignOwner ? "other-owner" : state.owner,
-          ownerAccountActive: options.inactiveSeller ? false : state.active } },
+        listing: { sellerId: options.foreignOwner ? "other-seller" : "seller" },
       };
       if (options.concurrent) {
         if (state.reads === 2) bothRead();
@@ -63,6 +62,12 @@ function fixture(options = {}) {
       assert.equal(client, prisma);
       assert.equal(clerkId, "clerk-owner");
       return actor;
+    } },
+    "@/lib/sellerProfileOwnerAccess": { sellerOwnerCore: async (userId) => {
+      state.sellerOwnerCalls++;
+      assert.equal(userId, actor.id);
+      if (options.inactiveSeller) return null;
+      return { sellerProfileId: "seller" };
     } },
   };
   const javascript = ts.transpileModule(readFileSync(path, "utf8"), {
@@ -138,5 +143,6 @@ test("active owner reply succeeds without a nested User lookup", async () => {
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
   assert.equal(subject.state.gateCalls, 1);
+  assert.equal(subject.state.sellerOwnerCalls, 1);
   assert.equal(subject.state.reply, "Thanks for your review");
 });

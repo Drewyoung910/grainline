@@ -13,6 +13,7 @@ import {
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { userClerkGate } from "@/lib/userIdentityAccess";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 
 const ReplySchema = z.object({
   text: z.string().min(1).max(2000),
@@ -71,23 +72,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       sellerReply: true,
       listing: {
         select: {
-          seller: {
-            select: {
-              userId: true,
-              ownerAccountActive: true,
-            },
-          },
+          sellerId: true,
         },
       },
     },
   });
   if (!review) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
-  if (review.listing.seller.userId !== me.id) {
+  const seller = await sellerOwnerCore(me.id);
+  if (!seller || seller.sellerProfileId !== review.listing.sellerId) {
     return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
-  }
-  if (review.listing.seller.ownerAccountActive !== true) {
-    return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   if (review.sellerReply) {

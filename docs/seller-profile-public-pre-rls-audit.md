@@ -773,7 +773,8 @@ guard the final zero-direct state, but they do not count as behavior proof.
   custom-order-ready authority, plus reuse of the actor-bound owner-core
   authority for seller shop actions, plus scalar deletion-snapshot ownership for
   blog-media collection and a fresh actor-bound owner recheck for deferred
-  seller broadcasts, have reduced the live gate to 60 relation accesses in 32
+  seller broadcasts and a scalar listing-owner preflight for review replies,
+  have reduced the live gate to 59 relation accesses in 32
   files, 10 raw-SQL accesses in eight files, three relation-bearing factories
   and zero opaque SellerProfile target predicates. The saved-listing authority
   binds Favorite membership to the transaction-local actor. The commission

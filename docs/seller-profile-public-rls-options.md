@@ -685,6 +685,12 @@ vacationing or mismatched sellers still stop delivery without a
 SellerBroadcast-to-SellerProfile relation. The current gate is 60 relation
 accesses, 10 raw-SQL accesses, three relation-bearing factories and zero opaque
 SellerProfile predicates across 36 consumer files and 146 opaque shapes.
+Review replies then reuse the actor-bound owner core and the review's scalar
+listing seller id for their preflight. Their final conditional write retains
+the existing database-side seller activity and ownership recheck. The current
+gate is 59 relation accesses, 10 raw-SQL accesses, three relation-bearing
+factories and zero opaque SellerProfile predicates across 36 consumer files
+and 146 opaque shapes.
 Exact-head CI then exposed a host-timezone defect in two projection timestamp
 tests. A complete return-signature inventory found the same boundary in nine
 SellerProfile authorities. A single
