@@ -755,7 +755,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(founding, /export const FOUNDING_MAKER_REPAIR_SELLER_LIMIT = 25/);
     assert.match(founding, /repairMissedFoundingMakerGrants/);
     assert.match(founding, /prisma\.foundingMakerGrant\.aggregate/);
-    assert.match(founding, /publicListingWhere\(\{\s*seller: \{\s*isFoundingMaker: false/s);
+    assert.match(founding, /prisma\.foundingMakerGrant\.findMany/);
+    assert.match(founding, /sellerId: \{ notIn: grantedSellerIds \}/);
+    assert.doesNotMatch(founding, /seller:\s*\{\s*isFoundingMaker:/s);
     assert.match(founding, /await maybeGrantFoundingMaker\(sellerId\)/);
     assert.match(founding, /remainingSlots/);
     assert.match(repairRoute, /verifyCronRequest\(request\)/);

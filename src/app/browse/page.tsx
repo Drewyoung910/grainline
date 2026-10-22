@@ -324,19 +324,17 @@ async function BrowseContent({
       tags: { has: word.toLowerCase() },
     }));
     const sellerNameCondition: Prisma.ListingWhereInput = {
-      seller: {
-        OR: normalizedDisplayNameQuery
-          ? [
-              { displayName: { contains: q, mode: "insensitive" as const } },
-              {
-                displayNameNormalized: {
-                  contains: normalizedDisplayNameQuery,
-                  mode: "insensitive" as const,
-                },
+      OR: normalizedDisplayNameQuery
+        ? [
+            { sellerDisplayName: { contains: q, mode: "insensitive" as const } },
+            {
+              sellerDisplayNameNormalized: {
+                contains: normalizedDisplayNameQuery,
+                mode: "insensitive" as const,
               },
-            ]
-          : [{ displayName: { contains: q, mode: "insensitive" as const } }],
-      },
+            },
+          ]
+        : [{ sellerDisplayName: { contains: q, mode: "insensitive" as const } }],
     };
 
     where.OR = [
@@ -364,14 +362,8 @@ async function BrowseContent({
     where.shipsWithinDays = { lte: shipsFilter };
   }
   if (ratingFilter && Number.isFinite(ratingFilter)) {
-    where.seller = {
-      ratingSummary: {
-        is: {
-          averageRating: { gte: ratingFilter },
-          reviewCount: { gt: 0 },
-        },
-      },
-    };
+    where.sellerAverageRating = { gte: ratingFilter };
+    where.sellerReviewCount = { gt: 0 };
   }
 
   // Apply intersected seller ID constraints (preserve block notIn if set)

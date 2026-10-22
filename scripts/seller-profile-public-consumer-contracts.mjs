@@ -16,9 +16,7 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 // This is the exact current source-consumer disposition, not the future SQL API.
 // A file can need several contracts when it combines public presentation with
 // contextual eligibility, approximate-map, participant, or transaction behavior.
-export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
-  "src/app/browse/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
-});
+export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({});
 
 const WRITE_METHODS = new Set([
   "create",

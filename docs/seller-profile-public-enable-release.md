@@ -97,7 +97,7 @@ runs the global grant audit afterward and preserves mode-0600 sanitized
 preflight/postflight evidence. It contains no application deployment and no
 FORCE step.
 
-The 67 compatible predecessor migrations have their own earlier protected
+The 71 compatible predecessor migrations have their own earlier protected
 workflow and immutable manifest, documented in
 `docs/seller-profile-public-preparation-release.md`. That workflow holds this
 ENABLE migration out of the Prisma tree, installs only an exact restart-safe
@@ -110,12 +110,11 @@ converted runtime is promoted only after the preparation postflight succeeds.
 The database candidate and release machinery are locally compatible, but
 Production remains blocked until the release head is concrete and rechecked:
 
-1. Convert the six relation accesses, two raw-SQL accesses and three
-   relation-bearing query factories to the reviewed
-   bounded projections and purpose-bound operations. The source-readiness gate
-   must read back zero in all five classes before ENABLE can reach a secret or
-   database connection.
-2. Repeat the Claude/audit reconciliation immediately before dispatch. The
+1. Preserve the current source-readiness result: zero direct, relation, raw-SQL,
+   relation-factory and target-opaque SellerProfile consumers. The protected
+   ENABLE workflow reruns this gate before it can reach a secret or database
+   connection.
+2. Repeat the independent audit reconciliation immediately before dispatch. The
    2026-10-19 pass closed the Austin default-pin, weak input-boundary and broad
    ship-from client-payload defects plus the three session-timezone write
    defects in source.

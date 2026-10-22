@@ -57,12 +57,21 @@ export async function repairMissedFoundingMakerGrants(opts: {
     return { ok: true, scannedListings: 0, attemptedSellers: 0, repairedSellers: 0, remainingSlots: 0 };
   }
 
+  const grantedSellerRows = await prisma.foundingMakerGrant.findMany({
+    where: { sellerProfileId: { not: null } },
+    select: { sellerProfileId: true },
+    take: FOUNDING_MAKER_CAP,
+  });
+  const grantedSellerIds = grantedSellerRows.flatMap(({ sellerProfileId }) =>
+    sellerProfileId ? [sellerProfileId] : [],
+  );
+
   const candidateListings = await prisma.listing.findMany({
-    where: publicListingWhere({
-      seller: {
-        isFoundingMaker: false,
-      },
-    }),
+    where: publicListingWhere(
+      grantedSellerIds.length > 0
+        ? { sellerId: { notIn: grantedSellerIds } }
+        : {},
+    ),
     orderBy: [
       { createdAt: "asc" },
       { id: "asc" },

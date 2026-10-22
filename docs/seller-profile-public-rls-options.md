@@ -1076,3 +1076,21 @@ and zero opaque SellerProfile target predicates across one consumer file and
 143 reconciled opaque shapes. The 224-function catalog is 98 retained, 33
 internal and 93 converted authorities; the compatible preparation set contains
 70 migrations and the full chain contains 421.
+
+The final visibility cutover replaces the two remaining SellerProfile relation
+predicates and the three shared relation-bearing query factories with
+database-maintained scalar mirrors on `Listing` and `BlogPost`. The mirrors are
+initialized from the real source rows and kept current by private trigger
+functions for seller public-orderability, seller display/rating state and blog
+author eligibility. Callers can no longer forge those values: database behavior
+tests prove that writes are rebound to current SellerProfile and rating state.
+The source-readiness gate now reports zero direct accesses, zero relation
+accesses, zero raw-SQL accesses, zero relation-bearing factories and zero opaque
+SellerProfile target predicates across zero consumer files. The scanner still
+reconciles 143 non-target opaque shapes and 11 factory shapes. The 225-function
+catalog is 98 retained, 34 internal and 93 converted authorities, with the same
+seven direct SellerProfile triggers. The compatible preparation set contains 71
+migrations and the full chain contains 422. This is source readiness only: the
+candidate remains unmerged and Production remains unchanged until exact-head
+review, CI, compatible preparation, application promotion and the separately
+authorized ENABLE release all succeed.

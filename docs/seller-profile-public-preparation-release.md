@@ -6,7 +6,7 @@ document.
 
 ## Scope
 
-The public SellerProfile conversion depends on 70 additive preparation
+The public SellerProfile conversion depends on 71 additive preparation
 migrations from
 `20261019010000_prepare_seller_profile_public_map_authority` through
 `20261020235999_prepare_seller_profile_staff_listing_review_transition`. They add
@@ -38,17 +38,17 @@ maintained migration count.
 - binds the requested commit to current `main`, an exact successful full CI
   run, the exact Conversation/Message FORCE proof job, and every required
   exact-main push workflow;
-- verifies all 70 immutable migration sources before any owner connection;
+- verifies all 71 immutable migration sources before any owner connection;
 - uses the direct-owner connection guard and a repeatable-read, read-only,
   count-only inspector;
-- accepts only zero preparations, an exact successful prefix, or all 70;
+- accepts only zero preparations, an exact successful prefix, or all 71;
 - rejects checksum drift, duplicate success, an unresolved failed attempt, a
   non-prefix ledger, premature ENABLE, RLS/grant drift, or private-companion
   drift;
 - moves ENABLE outside `prisma/migrations`, proves that only the reviewed
   preparation suffix is pending, and invokes `prisma migrate deploy` once;
 - restores ENABLE source even when an earlier release step fails;
-- then requires ENABLE to be the only pending migration, reads back all 70
+- then requires ENABLE to be the only pending migration, reads back all 71
   exact successes and unchanged predecessor posture, runs the global grant
   audit, and stores sanitized preflight/postflight evidence.
 
@@ -59,14 +59,14 @@ the ledger.
 
 ## Evidence
 
-Nine manifest, inspector and workflow behavior/structure checks pass. The
-complete 421-migration PostgreSQL 16 proof invokes the Production inspector at
+The manifest, inspector and workflow behavior/structure checks pass. The
+complete 422-migration PostgreSQL 16 proof invokes the Production inspector at
 two real-schema boundaries:
 
 1. immediately before the first public SellerProfile preparation, where it
-   reads `ready` with all 70 reviewed preparations pending; and
+   reads `ready` with all 71 reviewed preparations pending; and
 2. immediately before policyless ENABLE, where it reads `prepared` with none of
-   those 70 pending and confirms the unchanged predecessor RLS/grant posture.
+   those 71 pending and confirms the unchanged predecessor RLS/grant posture.
 
 That same full-chain run exercises the public, owner, staff, service,
 checkout, deletion, listing-card, bounded historical broadcast-label, exact
@@ -77,7 +77,8 @@ target, actor-bound review-creation listing target, atomic isolated-staff
 listing review transition, actor-bound listing/cart transaction-state
 projections, bounded listing-detail seller projections, actor-bound similar-listing
 candidates, service quality-score batching/zeroing and retained-authority flows
-through policyless ENABLE. The review target intentionally resolves historical,
+plus database-maintained Listing/BlogPost public-visibility mirrors and
+retained-authority flows through policyless ENABLE. The review target intentionally resolves historical,
 private and archived purchased listings while returning the seller account-active
 state, because the route's existing atomic order/review eligibility authority owns
 final review permission.

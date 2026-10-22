@@ -51,7 +51,7 @@ test("SellerProfile catalog disposition accepts only the reviewed ACL partition"
   const result = classifySellerProfileDatabaseObjects(fixture());
   assert.deepEqual(result.functionDispositions, {
     retainedAuthority: 98,
-    internalSupport: 33,
+    internalSupport: 34,
     convertedAuthority: 93,
     retiredPredecessor: 0,
   });

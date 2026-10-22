@@ -18,7 +18,8 @@ describe("observability cleanup follow-ups", () => {
       assert.match(text, /publicListingWhere\(\{\s*id,/);
       assert.match(text, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(text, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
-      assert.match(text, /viewerUserId \? \{ seller: \{ userId: \{ not: viewerUserId \} \} \} : \{\}/);
+      assert.match(text, /sellerOwnerCore\(viewerUserId\)/);
+      assert.match(text, /viewerSellerProfileId \? \{ sellerId: \{ not: viewerSellerProfileId \} \} : \{\}/);
       assert.doesNotMatch(text, /seller: \{ user: \{ clerkId:/);
       assert.match(text, /listing\.updateMany/);
       assert.doesNotMatch(text, /listing\.update\(\{\s*where: \{ id \}/);

@@ -204,6 +204,12 @@ const SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES = [
 ].map((identity) => identity.slice(0, identity.indexOf("(")));
 const SELLER_PROFILE_PUBLIC_CANDIDATE_FIRST_MIGRATION =
   "prisma/migrations/20261019010000_prepare_seller_profile_public_map_authority/migration.sql";
+const SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_MIGRATION =
+  "prisma/migrations/20261020235989_prepare_seller_profile_public_visibility_mirrors/migration.sql";
+const SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_PRIVATE_FUNCTION_NAMES = [
+  "grainline_listing_seller_public_state_bind",
+  "grainline_seller_rating_listing_state_sync",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -2737,6 +2743,13 @@ describe("database grant inventory guardrails", () => {
     const sellerProfilePublicCandidatePresent = existsSync(
       SELLER_PROFILE_PUBLIC_CANDIDATE_FIRST_MIGRATION,
     );
+    const sellerProfilePublicVisibilityMirrorPresent = existsSync(
+      SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_MIGRATION,
+    ) && SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_PRIVATE_FUNCTION_NAMES.every(
+      (functionName) => source(
+        SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_MIGRATION,
+      ).includes(`FUNCTION public.${functionName}()`),
+    );
     const sellerProfilePublicProvisioningPresent = source(
       "scripts/provision-runtime-db-role.sql",
     ).includes("SellerExactMapConsentEvent");
@@ -3131,6 +3144,9 @@ describe("database grant inventory guardrails", () => {
       ...(sellerProfilePublicCandidatePresent
         ? SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES
         : []),
+      ...(sellerProfilePublicVisibilityMirrorPresent
+        ? SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_PRIVATE_FUNCTION_NAMES
+        : []),
     ])].sort((left, right) => left.localeCompare(right)));
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);
     assert.deepEqual(inventory.sequenceSqlReferences, []);
@@ -3220,8 +3236,12 @@ describe("database grant inventory guardrails", () => {
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
         + (sellerProfilePublicCandidatePresent
-          ? 98 // current public SellerProfile candidate surface, including listing-detail, similar-listing, and quality-score authorities
+          ? 98 // public SellerProfile candidate surface before final visibility mirrors
             + Number(!sellerProfilePublicProvisioningPresent) // historical provisioning retains one distinct predecessor revoke
+          : 0)
+        + (sellerProfilePublicVisibilityMirrorPresent
+          ? SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_PRIVATE_FUNCTION_NAMES.length
+            + 2 // reasserted blog binder and seller blog-state sync revokes
           : 0)
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0)

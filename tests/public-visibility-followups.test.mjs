@@ -150,7 +150,8 @@ describe("public visibility follow-ups", () => {
       const source = read(routePath);
       assert.match(source, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(source, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
-      assert.match(source, /seller: \{ userId: \{ not: viewerUserId \} \}/);
+      assert.match(source, /sellerOwnerCore\(viewerUserId\)/);
+      assert.match(source, /sellerId: \{ not: viewerSellerProfileId \}/);
       assert.doesNotMatch(source, /seller: \{ user: \{ clerkId:/);
     }
   });

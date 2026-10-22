@@ -68,6 +68,7 @@ const preparationRows = [
   ["20261020235986_prepare_seller_profile_listing_detail_authorities", "303bd5298c7f0ff63c6cb87648cb3d00040fe76b467465e03195c9d3b12470dd"],
   ["20261020235987_prepare_seller_profile_similar_listing_candidates", "c9ecffebb6789a4f894127e57f1ae2d68f0f40403c329dd0c76c0ba32da5c616"],
   ["20261020235988_prepare_seller_profile_quality_score_authorities", "706af3686ae8704b668f211d6c14966434058f6812f1e68b9714c5e80296183a"],
+  ["20261020235989_prepare_seller_profile_public_visibility_mirrors", "0519a4c8014eece09e0ef5cf2f9dd1391ed81b2309008ca650d72076635a14ae"],
   ["20261020235990_prepare_seller_profile_public_review_vote_target", "15ad0986610a1b420c952ade04d67465d2cc59fde49c07a3fcc57ddbf608fbc3"],
   ["20261020235995_prepare_seller_profile_participant_conversation_listing_target", "413c9dfe5b150b88167ce2edf47359cb268272e02ae0b14bb152b21df3007477"],
   ["20261020235996_prepare_seller_profile_conversation_context_listing", "53cc5de0ff455b120e2425ef44f87cc4a507a7beb0e7214217f0294aff1de570"],
@@ -90,7 +91,7 @@ export function sellerProfilePublicPreparationNames() {
 }
 
 export function verifySellerProfilePublicPreparationSources(root = process.cwd()) {
-  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 70);
+  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 71);
   const seen = new Set();
   for (const migration of [
     ...SELLER_PROFILE_PUBLIC_PREPARATIONS,

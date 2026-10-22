@@ -866,6 +866,18 @@ guard the final zero-direct state, but they do not count as behavior proof.
   raw-SQL, relation-factory or target-opaque base-table consumer remains.
   These source corrections still need scoped commit review and exact-head CI;
   Production remains unchanged and ENABLE needs its separately authorized run.
+- The final public-visibility mirror migration removes the last two relation
+  predicates and all three relation-bearing factories. Database-owned triggers
+  bind Listing public-orderability, seller name/rating snapshots and BlogPost
+  author eligibility to current source state, including correction of forged
+  caller values. The source gate now reads zero direct, relation, raw-SQL,
+  relation-factory and target-opaque SellerProfile consumers across zero files.
+  The reconciled inventory still contains 143 non-target opaque shapes and 11
+  factory shapes. The catalog is 225 functions: 98 retained, 34 internal and 93
+  converted; seven direct SellerProfile triggers remain. Compatible preparation
+  now contains 71 migrations and the full PostgreSQL 16 chain contains 422.
+  This closes the source-conversion gate but does not merge, deploy, prepare or
+  enable anything in Production.
 
 ### `DEFERRED_PRODUCT_WORK`
 
