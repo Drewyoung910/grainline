@@ -271,6 +271,8 @@ const {
   SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION_SHA256,
   SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION,
   SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256,
+  SELLER_PROFILE_PUBLIC_FORCE_MIGRATION,
+  SELLER_PROFILE_PUBLIC_FORCE_MIGRATION_SHA256,
   SELLER_PROFILE_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
@@ -347,6 +349,7 @@ const {
   readSellerProfileReconciliationCompatState,
   readSellerProfilePublicPreparationState,
   readSellerProfilePublicEnableState,
+  readSellerProfilePublicForceState,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
   resolveStaffReadAuditStage,
@@ -769,6 +772,10 @@ describe("database grant inventory guardrails", () => {
       ...sellerProfilePredecessorInventory,
       sellerProfileRlsActivationApplied: true,
     };
+    const sellerProfileForcedInventory = {
+      ...sellerProfileEnabledInventory,
+      sellerProfileRlsForceApplied: true,
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -839,6 +846,10 @@ describe("database grant inventory guardrails", () => {
       assert.equal(
         sellerProfileRlsForceExpected(sellerProfileEnabledInventory),
         false,
+      );
+      assert.equal(
+        sellerProfileRlsForceExpected(sellerProfileForcedInventory),
+        true,
       );
       assert.deepEqual(
         requiredRuntimeTablePrivileges(
@@ -2769,6 +2780,9 @@ describe("database grant inventory guardrails", () => {
     const sellerProfilePrivateForceMigrationPresent = existsSync(
       "prisma/migrations/20261015120000_force_seller_profile_private_rls/migration.sql",
     );
+    const sellerProfilePublicForceMigrationPresent = existsSync(
+      "prisma/migrations/20261020250000_force_seller_profile_rls/migration.sql",
+    );
     const postForceCheckoutSuccessorRevokePresent = [
       "prisma/migrations/20260930031000_mark_paid_private_listing_sold/migration.sql",
       "prisma/migrations/20260930032000_block_checkout_user_pairs/migration.sql",
@@ -3631,6 +3645,9 @@ describe("database grant inventory guardrails", () => {
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
+        ...(sellerProfilePublicForceMigrationPresent
+          ? ["SellerProfile"]
+          : []),
         ...(sellerProfilePrivateForceMigrationPresent
           ? ["SellerProfilePrivate"]
           : []),
@@ -4267,6 +4284,13 @@ describe("database grant inventory guardrails", () => {
       )),
       { applied: true, issues: [] },
     );
+    assert.deepEqual(
+      await readSellerProfilePublicForceState(exactClient(
+        SELLER_PROFILE_PUBLIC_FORCE_MIGRATION,
+        SELLER_PROFILE_PUBLIC_FORCE_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
 
     const sourceInventory = {
       functions: [
@@ -4376,6 +4400,7 @@ describe("database grant inventory guardrails", () => {
       preparationApplied: true,
       privateForceApplied: true,
       enableApplied: true,
+      forceApplied: true,
     }), []);
     assert.deepEqual(collectSellerProfilePublicMigrationOrderIssues({
       preparationApplied: false,
@@ -4390,6 +4415,14 @@ describe("database grant inventory guardrails", () => {
       enableApplied: true,
     }), [
       "SellerProfile public RLS ENABLE is applied without accepted SellerProfilePrivate FORCE",
+    ]);
+    assert.deepEqual(collectSellerProfilePublicMigrationOrderIssues({
+      preparationApplied: true,
+      privateForceApplied: true,
+      enableApplied: false,
+      forceApplied: true,
+    }), [
+      "SellerProfile public RLS FORCE is applied without its exact ENABLE prerequisite",
     ]);
     assert.equal(
       policylessServiceRlsTableNames({

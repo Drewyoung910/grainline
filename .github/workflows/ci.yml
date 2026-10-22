@@ -116,7 +116,7 @@ jobs:
             package_tests+=("$test_file")
           done < <(
               grep -El \
-                '202610(19|20)|verifySellerProfilePublicPreparationSources' \
+                '202610(19|20)|verifySellerProfilePublicPreparationSources|seller-profile-force' \
                 tests/*.test.mjs \
                 | sort
             )
@@ -148,12 +148,13 @@ jobs:
             SELLER_PROFILE_PUBLIC_ENABLE,
           ]) console.log(name);
           NODE
+          echo 20261020250000_force_seller_profile_rls >> "$holding/migration-names.txt"
           while IFS= read -r migration
           do
             mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           done < "$holding/migration-names.txt"
           grep -El \
-            '202610(19|20)|verifySellerProfilePublicPreparationSources' \
+            '202610(19|20)|verifySellerProfilePublicPreparationSources|seller-profile-force' \
             tests/*.test.mjs \
             | sort > "$holding/test-files.txt"
           while IFS= read -r test_file
@@ -6610,26 +6611,14 @@ jobs:
             mv "$holding/tests/$(basename "$test_file")" "$test_file"
           done < "$holding/test-files.txt"
           echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
-      # The application now calls the bounded SellerProfile authorities while
-      # collecting static page data. Mirror the reviewed release order for the
-      # final build: preparations first, compatible app second, ENABLE later.
-      - name: Apply public SellerProfile preparations for final Production build
+      # Recreate the disposable database and prove the final application build
+      # against the complete SellerProfile chain, including policyless FORCE.
+      - name: Apply complete public SellerProfile chain for final Production build
         env:
           PGPASSWORD: ci
         shell: bash
         run: |
           set -euo pipefail
-          migration=20261020240000_enable_seller_profile_rls
-          holding="$(mktemp -d "$RUNNER_TEMP/seller-profile-final-build-enable.XXXXXX")"
-          cleanup() {
-            if test -d "$holding/$migration"
-            then
-              mv "$holding/$migration" "prisma/migrations/$migration"
-            fi
-            rmdir "$holding" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-          mv "prisma/migrations/$migration" "$holding/$migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
@@ -6638,11 +6627,6 @@ jobs:
           createdb --host=localhost --username=ci --owner=ci grainline_ci
           DATABASE_FULL_CHAIN_PROOF_DATABASE_URL="$DIRECT_URL" \
             node tools/database-full-chain/apply-ci-chain.mjs
-          cleanup
-          trap - EXIT
-      - name: Require only SellerProfile ENABLE pending for final Production build
-        env:
-          REVIEWED_PENDING_MIGRATIONS: 20261020240000_enable_seller_profile_rls
-        run: node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate status
       - name: Production build
         run: npm run build

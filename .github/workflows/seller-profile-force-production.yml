@@ -1,0 +1,304 @@
+name: SellerProfile FORCE Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      conversation_force_proof_run_id:
+        description: Successful Conversation and Message FORCE proof for that exact main commit
+        required: true
+        type: string
+      enable_run_id:
+        description: Successful protected SellerProfile ENABLE Production run
+        required: true
+        type: string
+      compatible_app_commit:
+        description: Exact SellerProfile-compatible commit already live in Production
+        required: true
+        type: string
+      production_deployment_id:
+        description: Exact live SellerProfile-compatible Production deployment
+        required: true
+        type: string
+      confirmation:
+        description: Type force-reviewed-seller-profile-rls
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  force:
+    name: Force policyless SellerProfile RLS
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'force-reviewed-seller-profile-rls'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind FORCE to exact main, CI, and accepted ENABLE
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_CONVERSATION_FORCE_PROOF_RUN_ID: ${{ inputs.conversation_force_proof_run_id }}
+          REVIEWED_ENABLE_RUN_ID: ${{ inputs.enable_run_id }}
+          REVIEWED_COMPATIBLE_APP_COMMIT: ${{ inputs.compatible_app_commit }}
+          REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const conversationValue =
+              process.env.REVIEWED_CONVERSATION_FORCE_PROOF_RUN_ID;
+            const enableValue = process.env.REVIEWED_ENABLE_RUN_ID;
+            const compatibleAppCommit = process.env.REVIEWED_COMPATIBLE_APP_COMMIT;
+            const deploymentId = process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[0-9a-f]{40}$/.test(compatibleAppCommit ?? '') ||
+                !/^dpl_[A-Za-z0-9]{20,64}$/.test(deploymentId ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(conversationValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(enableValue ?? '')) {
+              throw new Error('SellerProfile FORCE binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const conversationRunId = Number(conversationValue);
+            const enableRunId = Number(enableValue);
+            if (!Number.isSafeInteger(ciRunId) ||
+                !Number.isSafeInteger(conversationRunId) ||
+                !Number.isSafeInteger(enableRunId)) {
+              throw new Error('SellerProfile FORCE run id is unsafe');
+            }
+            const [
+              {data: main},
+              {data: ci},
+              {data: conversation},
+              {data: enableRun},
+            ] =
+              await Promise.all([
+                github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+                github.rest.actions.getWorkflowRun({
+                  ...context.repo,
+                  run_id: conversationRunId,
+                }),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: enableRunId}),
+              ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.status !== 'completed' ||
+                ci.conclusion !== 'success') {
+              throw new Error('SellerProfile FORCE main/CI readback drifted');
+            }
+            if (conversation.name !== 'Conversation and Message RLS FORCE Proof' ||
+                conversation.path !== '.github/workflows/conversation-message-force-proof.yml' ||
+                conversation.event !== 'push' ||
+                conversation.head_branch !== 'main' ||
+                conversation.head_sha !== sha ||
+                conversation.status !== 'completed' ||
+                conversation.conclusion !== 'success') {
+              throw new Error('Conversation and Message FORCE proof readback drifted');
+            }
+            const conversationJobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRun,
+              {...context.repo, run_id: conversationRunId, per_page: 100},
+            );
+            const conversationProofJobs = conversationJobs.filter((job) =>
+              job.name === 'proof' && job.status === 'completed' &&
+              job.conclusion === 'success'
+            );
+            if (conversationProofJobs.length !== 1) {
+              throw new Error('Conversation and Message FORCE proof job is absent');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {
+                ...context.repo,
+                branch: 'main',
+                event: 'push',
+                head_sha: sha,
+                per_page: 100,
+              },
+            );
+            const latestByWorkflow = new Map();
+            for (const run of exactPushRuns) {
+              if (run.head_sha !== sha || run.head_branch !== 'main' ||
+                  run.event !== 'push') continue;
+              const key = run.path || run.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(run.id) > Number(previous.id)) {
+                latestByWorkflow.set(key, run);
+              }
+            }
+            if (latestByWorkflow.size === 0) {
+              throw new Error('No exact-main push workflows were found');
+            }
+            const requiredPushWorkflowPaths = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missingPushWorkflows = [...requiredPushWorkflowPaths]
+              .filter((path) => !latestByWorkflow.has(path));
+            if (missingPushWorkflows.length !== 0) {
+              throw new Error(
+                `Required exact-main push workflows are absent: ${missingPushWorkflows.join(', ')}`,
+              );
+            }
+            const unacceptablePushRuns = [...latestByWorkflow.values()]
+              .filter((run) => run.status !== 'completed' ||
+                run.conclusion !== 'success');
+            if (unacceptablePushRuns.length !== 0) {
+              throw new Error(
+                `Exact-main push workflows are not all green: ${unacceptablePushRuns
+                  .map((run) => `${run.name}:${run.status}/${run.conclusion}`)
+                  .join(', ')}`,
+              );
+            }
+            if (enableRun.name !== 'SellerProfile ENABLE Production' ||
+                enableRun.path !== '.github/workflows/seller-profile-enable-production.yml' ||
+                enableRun.event !== 'workflow_dispatch' ||
+                enableRun.head_branch !== 'main' ||
+                Number(enableRun.run_attempt) !== 1 ||
+                enableRun.status !== 'completed' ||
+                enableRun.conclusion !== 'success' ||
+                enableRun.head_sha !== compatibleAppCommit) {
+              throw new Error('SellerProfile ENABLE run readback drifted');
+            }
+            const enableJobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRun,
+              {...context.repo, run_id: enableRunId, per_page: 100},
+            );
+            const proofJobs = enableJobs.filter((job) =>
+              job.name === 'Enable policyless SellerProfile RLS' &&
+              job.status === 'completed' && job.conclusion === 'success'
+            );
+            if (proofJobs.length !== 1) {
+              throw new Error('SellerProfile ENABLE job is absent');
+            }
+            const {data: comparison} = await github.rest.repos.compareCommits({
+              ...context.repo,
+              base: compatibleAppCommit,
+              head: sha,
+            });
+            if (!['ahead', 'identical'].includes(comparison.status)) {
+              throw new Error('Accepted ENABLE run is not an ancestor');
+            }
+      - name: Verify exact SellerProfile FORCE source and migration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261020250000_force_seller_profile_rls
+          latest="$(ls -1d prisma/migrations/*/ | sed 's#/$##; s#.*/##' | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "$migration"
+          echo "7f1daf72f956f84e81dd591b33230e76059f8e6445683eeac0f4359b363e3dd2  prisma/migrations/$migration/migration.sql" | sha256sum --check --status
+          node --test \
+            tests/seller-profile-force-postgres.test.mjs \
+            tests/seller-profile-force-production-inspect.test.mjs \
+            tests/seller-profile-force-production-workflow.test.mjs \
+            tests/db-grant-inventory.test.mjs
+      - name: Require zero residual SellerProfile base-table consumers
+        run: node scripts/assert-seller-profile-enable-source-ready.mjs
+      - name: Verify exact compatible deployment is live
+        env:
+          REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.compatible_app_commit }}
+        run: node scripts/verify-order-email-free-deployment-surface.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe SellerProfile state before FORCE
+        id: preflight
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          SELLER_PROFILE_FORCE_EXPECTED_STATE: enabled-or-forced
+          SELLER_PROFILE_FORCE_EVIDENCE_PATH: ${{ runner.temp }}/seller-profile-force-${{ inputs.release_commit }}-preflight.json
+          SELLER_PROFILE_FORCE_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        run: |
+          set -euo pipefail
+          result="$(node scripts/seller-profile-force-production-inspect.mjs)"
+          state="$(node -e 'let value=""; process.stdin.setEncoding("utf8"); process.stdin.on("data", chunk => value += chunk); process.stdin.on("end", () => process.stdout.write(String(JSON.parse(value).result.state)));' <<< "$result")"
+          case "$state" in
+            enabled) echo "pending=20261020250000_force_seller_profile_rls" >> "$GITHUB_OUTPUT" ;;
+            forced) echo "pending=" >> "$GITHUB_OUTPUT" ;;
+            *) exit 1 ;;
+          esac
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+      - name: Require only the reviewed SellerProfile FORCE pending
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Apply only the reviewed SellerProfile FORCE migration
+        if: steps.preflight.outputs.state == 'enabled'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Verify complete migration status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate status
+      - name: Read back forced SellerProfile catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          SELLER_PROFILE_FORCE_EXPECTED_STATE: forced
+          SELLER_PROFILE_FORCE_EVIDENCE_PATH: ${{ runner.temp }}/seller-profile-force-${{ inputs.release_commit }}-forced.json
+          SELLER_PROFILE_FORCE_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        run: node scripts/seller-profile-force-production-inspect.mjs
+      - name: Audit global runtime grants after SellerProfile FORCE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized SellerProfile FORCE evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: seller-profile-force-production-${{ github.run_id }}
+          path: ${{ runner.temp }}/seller-profile-force-${{ github.sha }}-*.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

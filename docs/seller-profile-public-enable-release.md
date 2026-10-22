@@ -1,7 +1,23 @@
 # SellerProfile public policyless ENABLE release
 
-Status: isolated candidate only. No Production migration, deployment, grant
-change, ENABLE or FORCE is authorized or applied by this document.
+Status: accepted in Production. Policyless ENABLE is live; FORCE remains a
+separate, unapplied release.
+
+## Production acceptance
+
+The reviewed compatible application commit
+`b56e226d327347fe155aa07ded0bde999ca929be` is live as Vercel deployment
+`dpl_DPS8x8vfkQqandrvAgVWxRLCgT43`. Protected workflow run `39869437488`
+applied only migration `20261020240000_enable_seller_profile_rls` on
+2026-10-22 after exact-main CI run `39863855920` and Conversation/Message FORCE
+proof run `39863855882` passed.
+
+The retained postflight records policyless ENABLE with NO FORCE, zero policies,
+zero non-owner table or column grants, no runtime/staff column authority, and
+the unchanged policyless FORCE posture of `SellerProfilePrivate`. The strict
+live-deployment verification and focused public route smoke passed after the
+migration. The migration changed catalog posture and grants only; it did not
+change SellerProfile rows or application behavior.
 
 ## Candidate
 
@@ -105,26 +121,12 @@ preparation suffix, restores ENABLE, and requires ENABLE to be the sole pending
 migration afterward. Git-triggered Vercel deployment is disabled, so the
 converted runtime is promoted only after the preparation postflight succeeds.
 
-## Release blockers
+## Next release
 
-The database candidate and release machinery are locally compatible, but
-Production remains blocked until the release head is concrete and rechecked:
-
-1. Preserve the current source-readiness result: zero direct, relation, raw-SQL,
-   relation-factory and target-opaque SellerProfile consumers. The protected
-   ENABLE workflow reruns this gate before it can reach a secret or database
-   connection.
-2. Repeat the independent audit reconciliation immediately before dispatch. The
-   2026-10-19 pass closed the Austin default-pin, weak input-boundary and broad
-   ship-from client-payload defects plus the three session-timezone write
-   defects in source.
-3. Install the compatible preparation functions while the predecessor
-   application and grants remain live, then deploy the converted source.
-4. Require successful exact-head CI and proof workflows, verify that exact
-   deployment on the canonical aliases, and obtain the separately authorized
-   Production ENABLE dispatch.
-5. Accept the sanitized postflight and observed compatible flows before
-   preparing the separate FORCE release.
+The ENABLE evidence is accepted. The separate FORCE candidate is documented in
+`docs/seller-profile-public-force-release.md`. FORCE still requires its own
+exact-head CI, independent database/security review, protected workflow and
+separate Production authorization.
 
 The prior exact-location blockers are closed in this source candidate. The
 workshop map now uses explicit-submit city/state-or-ZIP search, rejects numeric
@@ -136,10 +138,7 @@ surfaces and withdrawal behavior.
 
 ## Release order
 
-1. Merge the compatible preparation source while predecessor grants remain
-   unchanged and apply only the reviewed preparation migrations.
-2. Deploy the converted source after those fixed functions are present.
-3. Confirm the exact source deployment and all required exact-head checks.
-4. Run the protected ENABLE migration and pooled-runtime postflight.
-5. Observe public/owner/staff/service flows and preserve sanitized evidence.
-6. Prepare FORCE only after ENABLE evidence is accepted.
+1. Compatible preparations, source deployment and policyless ENABLE are live.
+2. Preserve the accepted ENABLE evidence and compatible deployment identity.
+3. Review the posture-only FORCE release on exact main.
+4. Run FORCE only through its protected workflow after separate authorization.

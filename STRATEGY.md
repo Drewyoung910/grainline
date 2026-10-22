@@ -3451,3 +3451,13 @@ Each year's 10K refresh is free competitive intel. Pull the relevant quotes into
 - After every session that produces a strategic decision.
 - Before any commit that changes scope, fee structure, or geography.
 - When a referenced item ships (move from "to build" to a brief note that it shipped, then delete after 60 days).
+
+### SellerProfile public RLS activation (2026-10-22)
+
+Public `SellerProfile` now runs policyless ENABLE in Production from exact main
+`b56e226d327347fe155aa07ded0bde999ca929be` through protected run
+`39869437488`. Direct runtime, staff and PUBLIC table/column authority is zero;
+the compatible application uses fixed operations and maintained public mirrors.
+The remaining FORCE step is a separate posture-only release: it changes only
+table-owner bypass behavior, requires the accepted ENABLE evidence and exact
+compatible deployment, and must not run without its own Production approval.

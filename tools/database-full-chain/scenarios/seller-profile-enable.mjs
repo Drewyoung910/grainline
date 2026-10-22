@@ -16,7 +16,10 @@ async function expectDirectDenial(database, role, statement) {
   }
 }
 
-export async function proveSellerProfilePolicylessEnable({ database }) {
+export async function proveSellerProfilePolicylessEnable({
+  database,
+  forced = false,
+}) {
   const posture = rowsOf(await database.query(`
     SELECT class.relrowsecurity AS rls_enabled,
            class.relforcerowsecurity AS rls_forced,
@@ -49,7 +52,7 @@ export async function proveSellerProfilePolicylessEnable({ database }) {
   `));
   assert.deepEqual(posture, [{
     rls_enabled: true,
-    rls_forced: false,
+    rls_forced: forced,
     policy_count: 0,
     non_owner_table_grants: 0,
     runtime_column_authority: false,

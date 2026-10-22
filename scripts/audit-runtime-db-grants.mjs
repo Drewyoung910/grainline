@@ -165,6 +165,10 @@ export const SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION =
   "20261020240000_enable_seller_profile_rls";
 export const SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256 =
   "f5b4676735d005748b597220584ceecfb8af5539aa72a95a83ac56cd4151e9b5";
+export const SELLER_PROFILE_PUBLIC_FORCE_MIGRATION =
+  "20261020250000_force_seller_profile_rls";
+export const SELLER_PROFILE_PUBLIC_FORCE_MIGRATION_SHA256 =
+  "7f1daf72f956f84e81dd591b33230e76059f8e6445683eeac0f4359b363e3dd2";
 export const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_profile_private_mirror",
   "grainline_seller_profile_supported_snapshot",
@@ -790,17 +794,22 @@ export function collectSellerProfilePublicMigrationOrderIssues({
   preparationApplied,
   privateForceApplied,
   enableApplied,
+  forceApplied = false,
 }) {
-  if (!enableApplied) return [];
   const issues = [];
-  if (!preparationApplied) {
+  if (enableApplied && !preparationApplied) {
     issues.push(
       "SellerProfile public RLS ENABLE is applied without its exact final preparation prerequisite",
     );
   }
-  if (!privateForceApplied) {
+  if (enableApplied && !privateForceApplied) {
     issues.push(
       "SellerProfile public RLS ENABLE is applied without accepted SellerProfilePrivate FORCE",
+    );
+  }
+  if (forceApplied && !enableApplied) {
+    issues.push(
+      "SellerProfile public RLS FORCE is applied without its exact ENABLE prerequisite",
     );
   }
   return issues;
@@ -1364,6 +1373,9 @@ export function sellerProfileRlsActivationExpected(inventory) {
 }
 
 export function sellerProfileRlsForceExpected(inventory) {
+  if (typeof inventory?.sellerProfileRlsForceApplied === "boolean") {
+    return inventory.sellerProfileRlsForceApplied;
+  }
   return sellerProfileRlsActivationExpected(inventory)
     && (inventory?.rlsForceTables ?? []).includes(SELLER_PROFILE_TABLE);
 }
@@ -1684,6 +1696,14 @@ export async function readSellerProfilePublicEnableState(client) {
     migration: SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION,
     checksum: SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256,
     label: "SellerProfile public RLS ENABLE",
+  });
+}
+
+export async function readSellerProfilePublicForceState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_PUBLIC_FORCE_MIGRATION,
+    checksum: SELLER_PROFILE_PUBLIC_FORCE_MIGRATION_SHA256,
+    label: "SellerProfile public RLS FORCE",
   });
 }
 
@@ -3201,6 +3221,9 @@ export async function auditLiveDatabase({
   const sellerProfilePublicEnable =
     await readSellerProfilePublicEnableState(client);
   issues.push(...sellerProfilePublicEnable.issues);
+  const sellerProfilePublicForce =
+    await readSellerProfilePublicForceState(client);
+  issues.push(...sellerProfilePublicForce.issues);
   issues.push(...collectSellerProfilePrivateMigrationOrderIssues({
     preparationApplied: sellerProfilePrivatePreparation.applied,
     retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
@@ -3213,6 +3236,7 @@ export async function auditLiveDatabase({
     preparationApplied: sellerProfilePublicPreparation.applied,
     privateForceApplied: sellerProfilePrivateForce.applied,
     enableApplied: sellerProfilePublicEnable.applied,
+    forceApplied: sellerProfilePublicForce.applied,
   }));
   issues.push(...collectAccountDeletionMigrationOrderIssues({
     claimFenceApplied: accountDeletionClaimFencePreparation.applied,
@@ -3256,6 +3280,7 @@ export async function auditLiveDatabase({
     sellerProfilePrivateRlsEnabled: sellerProfilePrivateEnable.applied,
     sellerProfilePrivateRlsForced: sellerProfilePrivateForce.applied,
     sellerProfileRlsActivationApplied: sellerProfilePublicEnable.applied,
+    sellerProfileRlsForceApplied: sellerProfilePublicForce.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,
