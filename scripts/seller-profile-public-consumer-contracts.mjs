@@ -17,7 +17,6 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 // A file can need several contracts when it combines public presentation with
 // contextual eligibility, approximate-map, participant, or transaction behavior.
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
-  "src/app/api/listings/[id]/similar/route.ts": ["PUBLIC_ELIGIBILITY"],
   "src/app/browse/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
   "src/lib/quality-score.ts": ["SERVICE"],
 });
@@ -153,7 +152,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 119
+      || reviewedNonTargetFactoryCalls.length !== 118
       || reviewedNonTargetResiduals.length !== 25) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `

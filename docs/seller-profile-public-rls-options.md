@@ -1049,3 +1049,18 @@ SellerProfile target predicates across three consumer files and 144 reconciled
 opaque shapes. The 221-function catalog is 98 retained, 33 internal and 90
 converted authorities; the compatible preparation set contains 68 migrations
 and the full chain contains 419.
+
+The similar-listings API now obtains its source context and 24-row candidate
+set through one actor-bound authority instead of a public-listing relation
+predicate plus route-owned raw SQL joining SellerProfile. The operation owns
+source and candidate public eligibility, reciprocal blocks, cross-seller and
+price bounds, stable pre-score ordering and the first two photos. The route
+retains its existing weighted category, tag, price and title scoring over that
+bounded result. This removes one relation access, one raw-SQL access, one
+reviewed opaque query shape and one consumer file. The gate is now four
+relation accesses in two files, one raw-SQL access in one file, three
+relation-bearing factories and zero opaque SellerProfile target predicates
+across two consumer files and 143 reconciled opaque shapes. The 222-function
+catalog is 98 retained, 33 internal and 91 converted authorities; the
+compatible preparation set contains 69 migrations and the full chain contains
+420.
