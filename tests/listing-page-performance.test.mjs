@@ -44,12 +44,14 @@ describe("listing detail page query guardrails", () => {
     );
     const searchParamsRead = listingPage.indexOf("const sp = await searchParams", renderStart);
     const authRead = listingPage.indexOf("await auth()", renderStart);
-    const listingAwait = listingPage.indexOf("const listing = await listingPromise", renderStart);
+    const listingAwait = listingPage.indexOf("const listingCore = await listingPromise", renderStart);
+    const sellerAwait = listingPage.indexOf("await getListingSellerForDetailPage(meId, listingId)", renderStart);
 
     assert.ok(listingPromise > renderStart, "page render should start the listing load");
     assert.ok(listingPromise < searchParamsRead, "listing load should start before search params parsing");
     assert.ok(listingPromise < authRead, "listing load should start before auth reads");
     assert.ok(listingAwait > authRead, "viewer checks can still complete before listing visibility decisions");
+    assert.ok(sellerAwait > authRead, "viewer-aware seller access must follow the authenticated actor lookup");
     assert.doesNotMatch(listingPage.slice(renderStart), /const listing = await getListingForDetailPage\(listingId\)/);
   });
 });

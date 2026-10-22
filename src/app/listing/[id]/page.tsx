@@ -34,6 +34,11 @@ import { avatarInitials } from "@/lib/avatarInitials";
 import { DEFAULT_CURRENCY, formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { sellerPublicLocation } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerListingDetailProfile,
+  sellerStaffListingDetailProfile,
+} from "@/lib/sellerProfileListingDetailAccess";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -67,33 +72,6 @@ const getListingForDetailPage = cache(async (listingId: string) =>
       productHeightIn: true,
       sellerId: true,
       photos: { orderBy: { sortOrder: "asc" } },
-      seller: {
-        select: {
-          id: true,
-          userId: true,
-          displayName: true,
-          city: true,
-          state: true,
-          allowLocalPickup: true,
-          chargesEnabled: true,
-          stripeAccountSupported: true,
-          vacationMode: true,
-          acceptingNewOrders: true,
-          acceptsCustomOrders: true,
-          offersGiftWrapping: true,
-          giftWrappingPriceCents: true,
-          returnPolicy: true,
-          shippingPolicy: true,
-          customOrderPolicy: true,
-          tagline: true,
-          avatarImageUrl: true,
-          guildLevel: true,
-          isFoundingMaker: true,
-          foundingMakerNumber: true,
-          ownerAccountActive: true,
-          ownerImageUrl: true,
-        },
-      },
       metroId: true,
       cityMetroId: true,
       metro: { select: { slug: true, name: true, state: true } },
@@ -106,6 +84,11 @@ const getListingForDetailPage = cache(async (listingId: string) =>
   })
 );
 
+const getListingSellerForDetailPage = cache(
+  async (viewerUserId: string | null, listingId: string) =>
+    sellerListingDetailProfile(viewerUserId, listingId),
+);
+
 export async function generateMetadata(
   { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[]>> }
 ): Promise<Metadata> {
@@ -115,8 +98,16 @@ export async function generateMetadata(
   if (sp.preview === "1" || sp.preview === "admin") {
     return { robots: { index: false, follow: false } };
   }
-  const listing = await getListingForDetailPage(listingId);
-  if (!listing) notFound();
+  const listingCore = await getListingForDetailPage(listingId);
+  if (!listingCore) notFound();
+  const seller = await getListingSellerForDetailPage(null, listingId);
+  if (!seller) {
+    return {
+      title: { absolute: "Private listing — Grainline" },
+      robots: { index: false, follow: false },
+    };
+  }
+  const listing = { ...listingCore, seller };
   if (!isPublicListingDetail(listing)) {
     // The page performs viewer-aware authorization for seller previews and
     // buyer-reserved private listings. Metadata cannot reject every private
@@ -207,11 +198,10 @@ export default async function ListingPage({
   }
   const blockedUserIds = await getBlockedUserIdsFor(meId);
 
-  const listing = await listingPromise;
-  if (!listing) return notFound();
+  const listingCore = await listingPromise;
+  if (!listingCore) return notFound();
+  if (me?.banned || me?.deletedAt) return notFound();
 
-  // Preview mode: seller can view their own listing regardless of status/chargesEnabled
-  const viewerIsSeller = !!meId && listing.seller.userId === meId;
   const staffPreviewRequested = sp.preview === "admin";
   let staffPreview = false;
   if (
@@ -229,6 +219,18 @@ export default async function ListingPage({
       sessionId,
     );
   }
+  const seller = staffPreview
+    ? await sellerStaffListingDetailProfile(
+        getOrderStaffReadClient(),
+        meId as string,
+        listingId,
+      )
+    : await getListingSellerForDetailPage(meId, listingId);
+  if (!seller) return notFound();
+  const listing = { ...listingCore, seller };
+
+  // Preview mode: seller can view their own listing regardless of status/chargesEnabled
+  const viewerIsSeller = !!meId && listing.seller.userId === meId;
   const isPreview = (sp.preview === "1" && viewerIsSeller) || staffPreview;
 
   if (!canViewListingDetail(listing, {

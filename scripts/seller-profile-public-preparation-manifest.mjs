@@ -65,6 +65,7 @@ const preparationRows = [
   ["20261020235970_prepare_seller_profile_staff_broadcast_targets", "d96ccfa5ef41a42aba8f13ec90e371c2388e284953298df6d7bbe06db4e61fc4"],
   ["20261020235980_prepare_seller_profile_staff_verification_target", "d1e916ff62dbff7c1f0c0ccbd75616ce96c609db2a245b31c4257aed13a76607"],
   ["20261020235985_prepare_seller_profile_transaction_states", "c9b927777b39cdcd0538efce8eab3632318e723d176251088b90558cab120142"],
+  ["20261020235986_prepare_seller_profile_listing_detail_authorities", "303bd5298c7f0ff63c6cb87648cb3d00040fe76b467465e03195c9d3b12470dd"],
   ["20261020235990_prepare_seller_profile_public_review_vote_target", "15ad0986610a1b420c952ade04d67465d2cc59fde49c07a3fcc57ddbf608fbc3"],
   ["20261020235995_prepare_seller_profile_participant_conversation_listing_target", "413c9dfe5b150b88167ce2edf47359cb268272e02ae0b14bb152b21df3007477"],
   ["20261020235996_prepare_seller_profile_conversation_context_listing", "53cc5de0ff455b120e2425ef44f87cc4a507a7beb0e7214217f0294aff1de570"],
@@ -87,7 +88,7 @@ export function sellerProfilePublicPreparationNames() {
 }
 
 export function verifySellerProfilePublicPreparationSources(root = process.cwd()) {
-  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 67);
+  assert.equal(SELLER_PROFILE_PUBLIC_PREPARATIONS.length, 68);
   const seen = new Set();
   for (const migration of [
     ...SELLER_PROFILE_PUBLIC_PREPARATIONS,

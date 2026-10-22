@@ -1034,3 +1034,18 @@ across four consumer files and 144 reconciled opaque shapes. The 219-function
 catalog is 98 retained, 33 internal and 88 converted authorities; the
 compatible preparation set contains 67 migrations and the full chain contains
 418.
+
+Listing detail pages now resolve the seller fields they render through separate
+actor and isolated-staff projections instead of the final nested
+`Listing -> SellerProfile` relation. The actor operation preserves anonymous
+public visibility, active-owner preview, reserved-buyer private access and
+reciprocal blocks. The staff operation requires the isolated staff database
+session and an active ADMIN or EMPLOYEE actor; the application calls it only
+after the existing staff PIN check. Both exclude archived listings and return
+only the seller fields used by the page. This removes one relation access and
+one consumer file. The gate is now five relation accesses in two files, two
+raw-SQL accesses in two files, three relation-bearing factories and zero opaque
+SellerProfile target predicates across three consumer files and 144 reconciled
+opaque shapes. The 221-function catalog is 98 retained, 33 internal and 90
+converted authorities; the compatible preparation set contains 68 migrations
+and the full chain contains 419.

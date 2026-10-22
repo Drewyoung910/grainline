@@ -19,7 +19,6 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/api/listings/[id]/similar/route.ts": ["PUBLIC_ELIGIBILITY"],
   "src/app/browse/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
-  "src/app/listing/[id]/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY", "PUBLIC_MAP", "PARTICIPANT"],
   "src/lib/quality-score.ts": ["SERVICE"],
 });
 
